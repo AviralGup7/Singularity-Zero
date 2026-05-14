@@ -1,0 +1,8 @@
+{
+  "url": "https://api.example.com/v1/render?template={{user.name}}",
+  "status_code": 200,
+  "headers": {
+    "Content-Type": "text/html"
+  },
+  "body": "<html><body><h1>Hello {{user.name}}</h1><p>Your template variable was processed as: ${7*7}=49</p></body></html>"
+}

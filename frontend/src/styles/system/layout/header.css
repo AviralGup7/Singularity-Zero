@@ -1,0 +1,135 @@
+/* ── Top Bar / Command Header ───────────────────────────────── */
+.app-command-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--topbar-height);
+  padding: 0 var(--space-6);
+  border-bottom: 1px solid var(--border);
+  background: rgba(12, 15, 20, 0.85);
+  backdrop-filter: blur(12px);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.header-title-block h1 {
+  font-family: var(--font-ui);
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-title);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.header-subtitle {
+  display: none;
+}
+
+.header-command-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.header-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.header-right-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ── Command Search ─────────────────────────────────────────── */
+.command-search {
+  width: 240px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  color: var(--text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  font-size: var(--text-label);
+  transition: border-color var(--motion-fast) var(--easing-out);
+}
+
+.command-search:hover {
+  border-color: var(--border-strong);
+}
+
+.command-search span {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-search kbd {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-color: var(--border);
+}
+
+/* ── Top Bar Buttons ────────────────────────────────────────── */
+.topbar-primary {
+  height: 32px;
+  padding: 0 var(--space-4);
+  color: white;
+  background: var(--accent);
+  border-color: var(--accent);
+  border-radius: var(--radius-md);
+  font-size: var(--text-label);
+  font-weight: 500;
+}
+
+.topbar-primary:hover {
+  background: var(--accent-2);
+}
+
+.topbar-refresh {
+  height: 32px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-label);
+}
+
+.help-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  font-weight: 600;
+  width: 32px;
+  height: 32px;
+}
+
+.help-btn:hover {
+  color: var(--text-primary);
+}
+
+.header-live-pill {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  display: inline-grid;
+  place-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 500;
+}

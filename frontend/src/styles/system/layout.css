@@ -1,0 +1,8 @@
+/* ══════════════════════════════════════════════════════════════
+   Obsidian Console - Layout System
+   ══════════════════════════════════════════════════════════════ */
+
+@import './layout/shell.css';
+@import './layout/sidebar.css';
+@import './layout/header.css';
+@import './layout/mobile.css';

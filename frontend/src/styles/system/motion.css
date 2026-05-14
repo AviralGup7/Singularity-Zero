@@ -1,0 +1,67 @@
+﻿.page-transition {
+  width: 100%;
+}
+
+[data-animations='false'] *,
+:root[data-motion-intensity='off'] * {
+  animation-duration: 0ms !important;
+  transition-duration: 0ms !important;
+}
+
+@keyframes pulse-border {
+  0%,
+  100% { box-shadow: 0 0 0 1px rgba(55, 246, 255, 0.24); }
+  50% { box-shadow: 0 0 0 1px rgba(55, 246, 255, 0.54), 0 0 20px rgba(55, 246, 255, 0.2); }
+}
+
+@keyframes throughput-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes glitch-jitter {
+  0%, 100% { transform: translateX(0); text-shadow: 0 0 0 transparent; }
+  20% { transform: translateX(-1px); text-shadow: -1px 0 rgba(255, 85, 104, 0.6); }
+  40% { transform: translateX(1px); text-shadow: 1px 0 rgba(255, 85, 104, 0.75); }
+  60% { transform: translateX(-1px); text-shadow: -1px 0 rgba(255, 85, 104, 0.55); }
+}
+
+.job-card--running,
+.status-running,
+.ws-connected,
+.sse-connected {
+  animation: pulse-border 2.6s ease-in-out infinite;
+}
+
+.pipeline-timeline-node,
+.hero-stat,
+.quick-link-card,
+.stage-progress-item,
+.job-stage-card {
+  transition:
+    transform var(--motion-base) ease,
+    border-color var(--motion-base) ease,
+    background-color var(--motion-base) ease,
+    box-shadow var(--motion-base) ease;
+}
+
+.pipeline-timeline-node:hover,
+.hero-stat:hover,
+.quick-link-card:hover,
+.stage-progress-item:hover,
+.job-stage-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-glow-sm);
+}
+
+.stage-theater-node--error .stage-theater-node-label {
+  animation: glitch-jitter 1.15s steps(2, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "url": "https://api.example.com/v1/users/12345/orders/67890",
+  "status_code": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"user_id\": 12345, \"order_id\": 67890, \"items\": [{\"product\": \"Widget\", \"price\": 9.99}]}",
+  "parameters": {
+    "user_id": "12345",
+    "order_id": "67890"
+  }
+}

@@ -1,0 +1,418 @@
+# Production Docker Compose for Cyber Security Test Pipeline
+# Optimized stack with Redis, FastAPI Dashboard, Workers, and Observability
+
+x-common-env: &common-env
+  APP_ENV: production
+  APP_DEBUG: false
+  APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me-in-production}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_DB: 0
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  REDIS_MAX_CONNECTIONS: 50
+  CACHE_BACKEND: redis
+  CACHE_TTL: 3600
+  OTEL_SERVICE_NAME: cyber-security-pipeline
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: json
+  WORKER_QUEUE: security-pipeline
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+  WORKER_MAX_JOBS: 1000
+  NUCLEI_TEMPLATE_PATH: /app/nuclei-templates
+  NUCLEI_RATE_LIMIT: 50
+  NUCLEI_CONCURRENCY: 10
+  ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+
+x-common-volumes: &common-volumes
+  - pipeline-output:/app/output
+  - pipeline-data:/app/data
+  - pipeline-logs:/app/logs
+  - ./nuclei-templates:/app/nuclei-templates:ro
+
+x-common-deploy: &common-deploy
+  restart_policy:
+    condition: on-failure
+    delay: 5s
+    max_attempts: 3
+    window: 120s
+
+x-healthcheck-redis: &healthcheck-redis
+  test: ["CMD", "redis-cli", "ping"]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 10s
+
+x-healthcheck-dashboard: &healthcheck-dashboard
+  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+x-healthcheck-worker: &healthcheck-worker
+  test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD:-}'); r.ping()"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+x-healthcheck-prometheus: &healthcheck-prometheus
+  test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+x-healthcheck-grafana: &healthcheck-grafana
+  test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 60s
+
+x-healthcheck-jaeger: &healthcheck-jaeger
+  test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686/api/traces"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+services:
+  # ──────────────────────────────────────────────────────────────────────
+  # Redis - Job Queue & Cache
+  # ──────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.6-alpine
+    container_name: cyber-pipeline-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --requirepass ${REDIS_PASSWORD:-}
+      --bind 0.0.0.0
+    ports:
+      - "${REDIS_EXTERNAL_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - cyber-pipeline
+    healthcheck:
+      <<: *healthcheck-redis
+    deploy:
+      <<: *common-deploy
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # FastAPI Dashboard
+  # ──────────────────────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      args:
+        - APP_SECRET_KEY=${APP_SECRET_KEY:-change-me-in-production}
+    container_name: cyber-pipeline-dashboard
+    command: >
+      uvicorn src.dashboard.fastapi.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers ${DASHBOARD_WORKERS:-4}
+      --loop uvloop
+      --http httptools
+      --access-log
+      --log-level info
+    ports:
+      - "${DASHBOARD_EXTERNAL_PORT:-8000}:8000"
+    volumes:
+      - pipeline-output:/app/output
+      - pipeline-data:/app/data
+      - pipeline-logs:/app/logs
+      - ./nuclei-templates:/app/nuclei-templates:ro
+    environment:
+      <<: *common-env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cyber-pipeline
+    healthcheck:
+      <<: *healthcheck-dashboard
+    deploy:
+      <<: *common-deploy
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Queue Workers
+  # ──────────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+    container_name: cyber-pipeline-worker
+    command: >
+      python -m src.infrastructure.queue.worker
+      --queue security-pipeline
+      --concurrency ${WORKER_CONCURRENCY:-4}
+      --max-jobs 1000
+    volumes:
+      - pipeline-output:/app/output
+      - pipeline-data:/app/data
+      - pipeline-logs:/app/logs
+      - ./nuclei-templates:/app/nuclei-templates:ro
+    environment:
+      <<: *common-env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cyber-pipeline
+    healthcheck:
+      <<: *healthcheck-worker
+    deploy:
+      <<: *common-deploy
+      replicas: ${WORKER_REPLICAS:-2}
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Prometheus - Metrics Collection
+  # ──────────────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v3.11.0
+    container_name: cyber-pipeline-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    ports:
+      - "${PROMETHEUS_EXTERNAL_PORT:-9090}:9090"
+    volumes:
+      - ./configs/prometheus-docker.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - cyber-pipeline
+    healthcheck:
+      <<: *healthcheck-prometheus
+    deploy:
+      <<: *common-deploy
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Grafana - Dashboards & Visualization
+  # ──────────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:12.4.2
+    container_name: cyber-pipeline-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_AUTH_ANONYMOUS_ENABLED: false
+    ports:
+      - "${GRAFANA_EXTERNAL_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./configs/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - cyber-pipeline
+    healthcheck:
+      <<: *healthcheck-grafana
+    deploy:
+      <<: *common-deploy
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Jaeger - Distributed Tracing
+  # ──────────────────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/jaeger:2.17
+    container_name: cyber-pipeline-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      LOG_LEVEL: info
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+      - "4317:4317"
+      - "4318:4318"
+      - "9411:9411"
+    volumes:
+      - jaeger-data:/badger
+    networks:
+      - cyber-pipeline
+    healthcheck:
+      <<: *healthcheck-jaeger
+    deploy:
+      <<: *common-deploy
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Redis Exporter - Prometheus metrics for Redis
+  # ──────────────────────────────────────────────────────────────────────
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.82.0
+    container_name: cyber-pipeline-redis-exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    ports:
+      - "9121:9121"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cyber-pipeline
+    deploy:
+      <<: *common-deploy
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ──────────────────────────────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────────────────────────────
+volumes:
+  redis-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/redis
+
+  prometheus-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/prometheus
+
+  grafana-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/grafana
+
+  jaeger-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/jaeger
+
+  pipeline-output:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/output
+
+  pipeline-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/app-data
+
+  pipeline-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}/logs
+
+# ──────────────────────────────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────────────────────────────
+networks:
+  cyber-pipeline:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

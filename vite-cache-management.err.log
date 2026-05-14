@@ -1,0 +1,146 @@
+[2m2:59:58 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/health/live[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m2:59:58 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m2:59:58 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/health/live[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m2:59:58 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m2:59:58 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m2:59:59 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m2:59:59 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/health/live[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m2:59:59 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m2:59:59 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/health/live[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:01 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:01 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/health/live[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:01 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[SYSTEM] Initial telemetry sync failed. Backend may be offline.
+[2m3:00:01 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/health/live[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:01 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[SYSTEM] Initial telemetry sync failed. Backend may be offline.
+[2m3:00:01 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:03 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:03 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:04 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:07 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:08 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:08 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:09 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:09 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:11 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:11 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:13 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:13 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:13 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/gap-analysis[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:14 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:14 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/targets[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:16 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:18 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:18 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:19 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:21 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:23 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:23 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)
+[2m3:00:24 pm[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1134:18)
+    at afterConnectMultiple (node:net:1715:7)

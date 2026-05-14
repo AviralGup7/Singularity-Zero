@@ -1,0 +1,202 @@
+[project]
+name = "cyber-security-test-pipeline"
+version = "2.0.0"
+description = "Automated API security testing pipeline with intelligent analysis"
+requires-python = ">=3.14"
+license = {text = "MIT"}
+dependencies = [
+    # HTTP clients
+    "httpx>=0.28.0,<1.0.0",
+    "aiohttp>=3.13.0,<4.0.0",
+    "urllib3>=2.6.3,<3.0.0",
+    "requests>=2.33.0,<3.0.0",
+    # Data validation & serialization
+    "pydantic>=2.12.0,<3.0.0",
+    "pydantic-settings>=2.13.0,<3.0.0",
+    "pyyaml>=6.0.3,<7.0.0",
+    # Templates & CLI
+    "jinja2>=3.1.6,<4.0.0",
+    "click>=8.3.0,<9.0.0",
+    "rich>=14.0.0,<15.0.0",
+    # Logging
+    "loguru>=0.7.3,<1.0.0",
+    # DNS & crypto
+    "dnspython>=2.8.0",
+    "cryptography>=46.0.6,<50.0.0",
+    # HTML parsing
+    "beautifulsoup4>=4.14.0,<5.0.0",
+    # --- FastAPI dashboard ---
+    "fastapi>=0.115.0,<1.0.0",
+    "uvicorn[standard]>=0.30.0,<1.0.0",
+    "python-multipart>=0.0.22",
+    "email-validator>=2.0.0",
+    "sse-starlette>=3.0.0,<4.0.0",
+    # --- Redis job queue ---
+    "redis[hiredis]>=7.0.0,<8.0.0",
+    # --- WebSocket support ---
+    "websockets>=15.0,<17.0",
+    "PyJWT>=2.12.0",
+    # --- Observability ---
+    "prometheus-client>=0.24.0",
+    "opentelemetry-api>=1.40.0",
+    "opentelemetry-sdk>=1.40.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.40.0",
+    # --- Performance ---
+    "orjson>=3.11.0",
+    # --- System monitoring ---
+    "psutil>=5.9.0,<8.0.0",
+    # --- Database & migrations ---
+    "sqlalchemy>=2.0.30",
+    "alembic>=1.14.0",
+    "aiosqlite>=0.20.0",
+    # --- Security analysis ---
+    "scipy>=1.14.0,<2.0.0",
+    "numpy>=2.0.0,<3.0.0",
+    "mmh3>=5.1.0,<6.0.0",
+    "argon2-cffi>=23.1.0",
+    "kuzu>=0.11.3",
+    # --- Message queue ---
+    "msgspec>=0.19.0",
+    "msgpack>=1.0.0",
+    # --- Actor & Sandbox ---
+    "pykka>=4.0.0",
+    "wasmtime>=29.0.0",
+    # --- File watching ---
+    "watchfiles>=1.0.0",
+]
+
+[project.scripts]
+cyber = "src.cli:main"
+cyber-pipeline = "src.pipeline.runtime:main"
+cyber-dashboard = "src.dashboard.dashboard_cli:main"
+cyber-worker = "src.infrastructure.queue.worker:main"
+
+[project.optional-dependencies]
+dev = [
+    "detect-secrets==1.5.0",
+    "hypothesis>=6.151.0",
+    "mutmut>=3.5.0",
+    "mypy>=1.20.0",
+    "pip-audit>=2.10.0",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=7.0.0",
+    "ruff==0.15.*",
+    "jsonschema>=4.0.0",
+    "safety>=3.7.0",
+    "vulture>=2.16",
+    # Security scanning
+    "bandit>=1.8.0",
+    "cyclonedx-bom>=5.0.0",
+    "import-linter>=2.0.0",
+    # Benchmarking
+    "locust>=2.43.0",
+    "pytest-benchmark>=5.0.0",
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "benchmarks"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+pythonpath = ["."]
+addopts = "-v --tb=short --strict-markers --disable-warnings --import-mode=importlib --cov=src.analysis --cov=src.core --cov=src.pipeline --cov=src.dashboard --cov=src.recon --cov=src.execution --cov=src.reporting --cov=src.intelligence --cov=src.detection --cov=src.decision --cov=src.fuzzing --cov=src.infrastructure.queue --cov=src.infrastructure.execution_engine --cov=src.infrastructure.cache --cov=src.infrastructure.observability --cov=src.infrastructure.security --cov=src.infrastructure.notifications --cov=src.dashboard.fastapi --cov=src.websocket_server --cov=src.learning --cov=src.api_tests --cov=src.exploitation"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "architecture: marks tests as architecture tests",
+    "unit: marks tests as unit tests",
+    "regression: marks tests as regression tests",
+    "security: marks tests as security tests",
+    "benchmark: marks tests as benchmark tests",
+]
+filterwarnings = [
+]
+
+[tool.coverage.run]
+source = ["src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure.queue", "src.infrastructure.execution_engine", "src.infrastructure.cache", "src.infrastructure.observability", "src.infrastructure.security", "src.infrastructure.notifications", "src.dashboard.fastapi", "src.websocket_server", "src.learning", "src.api_tests", "src.exploitation"]
+branch = true
+omit = ["tests/*", "benchmarks/*", "*/__pycache__/*", "*/.venv/*"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
+[tool.coverage.per_module]
+"src.analysis" = 90
+"src.core" = 90
+"src.pipeline" = 90
+"src.dashboard" = 90
+"src.recon" = 90
+"src.execution" = 90
+"src.reporting" = 90
+"src.intelligence" = 90
+"src.detection" = 90
+"src.decision" = 90
+"src.fuzzing" = 90
+"src.infrastructure.queue" = 90
+"src.infrastructure.execution_engine" = 90
+"src.infrastructure.cache" = 90
+"src.dashboard.fastapi" = 90
+"src.websocket_server" = 90
+"src.infrastructure.observability" = 90
+"src.infrastructure.security" = 90
+"src.infrastructure.notifications" = 90
+"src.learning" = 90
+"src.api_tests" = 90
+"src.exploitation" = 90
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = ["src"]
+extend-exclude = [
+    ".ai",
+    ".benchmarks",
+    ".hypothesis",
+    ".kilo",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    ".venv-linux",
+    "frontend",
+    "output",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "S"]
+ignore = ["E501", "BLE001", "S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.api_tests", "src.infrastructure", "src.infrastructure.queue", "src.infrastructure.cache", "src.infrastructure.execution_engine", "src.infrastructure.observability", "src.infrastructure.security", "src.websocket_server", "src.learning", "src.exploitation"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]
+"tests/**/*.py" = ["S101", "S105", "S106", "S108", "S311", "N806", "N818"]
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+exclude = [
+    "scripts/uiux-optimization/reporting/",
+    "frontend/",
+    "tests/",
+    "benchmarks/",
+]
+ignore_missing_imports = true
+
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,44 @@
+version: 1
+improvement_workflows:
+  add_new_detector:
+    description: "Workflow for adding a new vulnerability detector."
+    steps:
+      - action: create_detector
+        path: "src/detection/detectors/{name}.py"
+        template: "templates/detector.py.j2"
+      - action: register_detector
+        file: "src/detection/registry.py"
+      - action: create_test
+        path: "tests/unit/detection/test_{name}.py"
+      - action: validate_implementation
+        commands: ["ruff check {path}", "mypy {path}", "pytest {test_path}"]
+        
+  optimize_stage:
+    description: "Workflow for optimizing a pipeline stage."
+    steps:
+      - action: analyze_metrics
+        source: "output/metrics/{run_id}/{stage_name}.json"
+      - action: identify_bottleneck
+        patterns: ["regex_compilation", "io_wait", "sequential_processing"]
+      - action: apply_optimization
+        methods: ["precompile_regex", "async_io", "batching"]
+      - action: verify_improvement
+        benchmark: "pytest benchmarks/test_{stage_name}.py"
+
+  fix_reproducible_bug:
+    description: "Workflow for fixing a bug with a reproduction case."
+    steps:
+      - action: create_repro_test
+        path: "tests/regression/test_issue_{id}.py"
+      - action: verify_failure
+        command: "pytest {repro_path}"
+      - action: apply_fix
+        target: "{impacted_file}"
+      - action: verify_fix
+        command: "pytest {repro_path}"
+
+approval_process:
+  automated:
+    condition: "all_tests_pass AND coverage_maintained AND complexity_score < 15"
+  manual:
+    condition: "layer == 'core' OR layer == 'infrastructure'"

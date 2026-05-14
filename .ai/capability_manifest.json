@@ -1,0 +1,154 @@
+{
+  "version": "2.0",
+  "system": {
+    "name": "Cyber Security Test Pipeline",
+    "description": "Automated, adaptive API security testing platform",
+    "supported_layers": ["core", "recon", "analysis", "detection", "pipeline", "infrastructure", "execution", "intelligence", "dashboard", "reporting", "learning"],
+    "concurrency_model": "asyncio (intra-process) + local-mesh (distributed)",
+    "checkpoint_version": "v1"
+  },
+  "stages": [
+    {
+      "name": "subdomains",
+      "label": "Subdomain enumeration",
+      "timeout_seconds": 600,
+      "parallelizable": false,
+      "dependencies": [],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.recon:run_subdomain_enumeration",
+      "produces": ["subdomains"],
+      "retry_policy": {"max_attempts": 3, "backoff": "exponential"}
+    },
+    {
+      "name": "live_hosts",
+      "label": "Live host probing",
+      "timeout_seconds": 900,
+      "parallelizable": false,
+      "dependencies": ["subdomains"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.recon:run_live_hosts",
+      "produces": ["live_hosts"],
+      "retry_policy": {"max_attempts": 3, "backoff": "exponential"}
+    },
+    {
+      "name": "urls",
+      "label": "URL collection",
+      "timeout_seconds": 900,
+      "parallelizable": false,
+      "dependencies": ["live_hosts"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.recon:run_url_collection",
+      "produces": ["urls"],
+      "retry_policy": {"max_attempts": 3, "backoff": "exponential"}
+    },
+    {
+      "name": "parameters",
+      "label": "Parameter extraction",
+      "timeout_seconds": 120,
+      "parallelizable": false,
+      "dependencies": ["urls"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.recon:run_parameter_extraction",
+      "produces": ["parameters"],
+      "retry_policy": {"max_attempts": 2, "backoff": "fixed"}
+    },
+    {
+      "name": "ranking",
+      "label": "Priority ranking",
+      "timeout_seconds": 60,
+      "parallelizable": false,
+      "dependencies": ["urls", "parameters"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.recon:run_priority_ranking",
+      "produces": ["ranked_targets"],
+      "retry_policy": {"max_attempts": 2, "backoff": "fixed"}
+    },
+    {
+      "name": "passive_scan",
+      "label": "Passive analysis",
+      "timeout_seconds": 300,
+      "parallelizable": false,
+      "dependencies": ["ranking", "live_hosts", "urls"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.analysis:run_passive_scanning",
+      "produces": ["passive_findings"],
+      "retry_policy": {"max_attempts": 2, "backoff": "exponential"}
+    },
+    {
+      "name": "active_scan",
+      "label": "Active probing",
+      "timeout_seconds": 900,
+      "parallelizable": false,
+      "dependencies": ["passive_scan"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.active_scan:run_active_scanning",
+      "produces": ["active_findings"],
+      "retry_policy": {"max_attempts": 2, "backoff": "exponential"}
+    },
+    {
+      "name": "semgrep",
+      "label": "Static analysis (Semgrep)",
+      "timeout_seconds": 600,
+      "parallelizable": true,
+      "dependencies": ["passive_scan"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.semgrep:run_semgrep_stage",
+      "produces": ["semgrep_findings"],
+      "retry_policy": {"max_attempts": 2, "backoff": "fixed"}
+    },
+    {
+      "name": "nuclei",
+      "label": "Nuclei vulnerability scanning",
+      "timeout_seconds": 600,
+      "parallelizable": true,
+      "dependencies": ["passive_scan"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.nuclei:run_nuclei_stage",
+      "produces": ["nuclei_findings"],
+      "retry_policy": {"max_attempts": 2, "backoff": "fixed"}
+    },
+    {
+      "name": "access_control",
+      "label": "Authorization bypass detection",
+      "timeout_seconds": 600,
+      "parallelizable": true,
+      "dependencies": ["ranking", "passive_scan"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.access_control:run_access_control_testing",
+      "produces": ["access_control_findings"],
+      "retry_policy": {"max_attempts": 2, "backoff": "exponential"}
+    },
+    {
+      "name": "validation",
+      "label": "Validation runtime",
+      "timeout_seconds": 300,
+      "parallelizable": false,
+      "dependencies": ["passive_scan", "active_scan"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.validation:run_validation",
+      "produces": ["validated_findings"],
+      "retry_policy": {"max_attempts": 2, "backoff": "fixed"}
+    },
+    {
+      "name": "intelligence",
+      "label": "Intelligence merge",
+      "timeout_seconds": 180,
+      "parallelizable": false,
+      "dependencies": ["passive_scan", "active_scan", "nuclei", "validation"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.enrichment:run_post_analysis_enrichments",
+      "produces": ["enriched_findings"],
+      "retry_policy": {"max_attempts": 2, "backoff": "fixed"}
+    },
+    {
+      "name": "reporting",
+      "label": "Report generation",
+      "timeout_seconds": 300,
+      "parallelizable": false,
+      "dependencies": ["intelligence", "nuclei", "access_control", "validation", "passive_scan"],
+      "entry_point": "src.pipeline.services.pipeline_orchestrator.stages.reporting:run_reporting",
+      "produces": ["report_artifacts"],
+      "retry_policy": {"max_attempts": 2, "backoff": "fixed"}
+    }
+  ],
+  "extension_points": [
+    {
+      "name": "detector",
+      "interface": "src.detection.base.Detector",
+      "registration": "src.detection.registry:register_detector"
+    },
+    {
+      "name": "stage_runner",
+      "interface": "Callable[..., Any]",
+      "registration": "src.pipeline.services.plugin_catalog:register_plugin"
+    }
+  ]
+}

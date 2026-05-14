@@ -1,0 +1,49 @@
+# ──────────────────────────────────────────────────────────────────────
+# ConfigMap for Cyber Security Test Pipeline
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cyber-pipeline-config
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: config
+data:
+  # Application Configuration
+  APP_ENV: "production"
+  APP_DEBUG: "false"
+  APP_HOST: "0.0.0.0"
+  APP_PORT: "8000"
+  APP_WORKERS: "4"
+  
+  # Redis Configuration
+  REDIS_HOST: "redis-master.cyber-pipeline.svc.cluster.local"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_MAX_CONNECTIONS: "50"
+  
+  # Worker Configuration
+  WORKER_CONCURRENCY: "4"
+  WORKER_QUEUE: "security-pipeline"
+  WORKER_MAX_JOBS: "1000"
+  
+  # Cache Configuration
+  CACHE_BACKEND: "redis"
+  CACHE_TTL: "3600"
+  
+  # Observability Configuration
+  OTEL_SERVICE_NAME: "cyber-security-pipeline"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector.cyber-pipeline.svc.cluster.local:4317"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  
+  # Security Configuration
+  ALLOWED_HOSTS: "pipeline.example.com,localhost"
+  CORS_ORIGINS: "https://pipeline.example.com"
+  RATE_LIMIT_PER_MINUTE: "60"
+  
+  # Nuclei Configuration
+  NUCLEI_TEMPLATE_PATH: "/app/nuclei-templates"
+  NUCLEI_RATE_LIMIT: "50"
+  NUCLEI_CONCURRENCY: "10"

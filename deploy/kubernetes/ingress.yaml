@@ -1,0 +1,201 @@
+# ──────────────────────────────────────────────────────────────────────
+# Ingress for Cyber Security Test Pipeline
+# Routes external traffic to the dashboard service
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cyber-pipeline-ingress
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: ingress
+  annotations:
+    # Nginx Ingress Controller annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    # WebSocket support + Security headers (combined snippet)
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+    # TLS configuration
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - pipeline.example.com
+      secretName: cyber-pipeline-tls
+  rules:
+    - host: pipeline.example.com
+      http:
+        paths:
+          # WebSocket endpoint
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: cyber-dashboard
+                port:
+                  number: 8000
+          # API endpoints
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: cyber-dashboard
+                port:
+                  number: 8000
+          # Prometheus metrics (restricted)
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: cyber-dashboard
+                port:
+                  number: 8000
+          # Health check
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: cyber-dashboard
+                port:
+                  number: 8000
+          # Static files
+          - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: cyber-dashboard
+                port:
+                  number: 8000
+          # Default route
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cyber-dashboard
+                port:
+                  number: 8000
+---
+# ──────────────────────────────────────────────────────────────────────
+# Network Policy - Restrict access to dashboard
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cyber-dashboard-network-policy
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cyber-pipeline
+      app.kubernetes.io/component: dashboard
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow from within the same namespace (for internal services)
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cyber-pipeline
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow Redis access
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow external HTTP/HTTPS (for security scanning)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+---
+# ──────────────────────────────────────────────────────────────────────
+# Network Policy - Restrict access to workers
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cyber-worker-network-policy
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cyber-pipeline
+      app.kubernetes.io/component: worker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow metrics scraping from Prometheus
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 8001
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow Redis access
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow external HTTP/HTTPS (for security scanning)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443

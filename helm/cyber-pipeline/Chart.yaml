@@ -1,0 +1,18 @@
+apiVersion: v2
+name: cyber-pipeline
+description: Cyber Security Test Pipeline - Automated API security testing
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+  - security
+  - testing
+  - pipeline
+  - api
+  - vulnerability
+home: https://github.com/your-org/cyber-security-test-pipeline
+sources:
+  - https://github.com/your-org/cyber-security-test-pipeline
+maintainers:
+  - name: Security Team
+    email: security@example.com

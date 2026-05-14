@@ -1,0 +1,93 @@
+{
+  "scan_name": "Example API Security Scan",
+  "target": {
+    "base_url": "https://api.example.com",
+    "scope": ["api.example.com", "*.api.example.com"],
+    "out_of_scope": ["admin.api.example.com", "internal.api.example.com"]
+  },
+  "authentication": {
+    "type": "bearer",
+    "token_endpoint": "https://api.example.com/auth/token",
+    "credentials": {
+      "username": "test_user",
+      "password": "test_password"
+    }
+  },
+  "scan_profile": {
+    "depth": 3,
+    "max_pages": 500,
+    "max_requests_per_endpoint": 100,
+    "follow_redirects": true,
+    "max_redirect_depth": 5
+  },
+  "concurrency": {
+    "http_workers": 10,
+    "nuclei_workers": 4,
+    "scan_workers": 5
+  },
+  "rate_limiting": {
+    "requests_per_second": 20,
+    "burst": 40,
+    "delay_between_requests_ms": 50
+  },
+  "tests": {
+    "injection": {
+      "sql_injection": true,
+      "command_injection": true,
+      "xss": true,
+      "xxe": true,
+      "ldap_injection": true,
+      "xpath_injection": true
+    },
+    "authentication": {
+      "brute_force": true,
+      "credential_stuffing": false,
+      "session_fixation": true,
+      "jwt_testing": true
+    },
+    "authorization": {
+      "idor": true,
+      "privilege_escalation": true,
+      "forced_browsing": true
+    },
+    "configuration": {
+      "security_headers": true,
+      "cors": true,
+      "ssl_tls": true,
+      "server_disclosure": true
+    },
+    "data_exposure": {
+      "sensitive_data": true,
+      "pii_detection": true,
+      "api_key_leak": true
+    },
+    "infrastructure": {
+      "ssrf": true,
+      "path_traversal": true,
+      "open_redirect": true
+    }
+  },
+  "payloads": {
+    "sql_injection": ["' OR '1'='1", "' UNION SELECT NULL--", "1; DROP TABLE users--"],
+    "xss": ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>", "javascript:alert(1)"],
+    "command_injection": ["; ls -la", "| cat /etc/passwd", "`whoami`"],
+    "path_traversal": ["../../../etc/passwd", "..\\..\\..\\windows\\system32\\drivers\\etc\\hosts"]
+  },
+  "output": {
+    "format": "json",
+    "dedupe_aliases": true,
+    "include_raw_requests": false,
+    "include_evidence_screenshots": false,
+    "report_template": "standard"
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "scan.log",
+    "include_http_traffic": false
+  },
+  "notifications": {
+    "on_critical_finding": true,
+    "on_scan_complete": true,
+    "channels": ["email", "slack"]
+  }
+}
