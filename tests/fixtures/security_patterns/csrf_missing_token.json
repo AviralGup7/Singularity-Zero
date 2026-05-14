@@ -1,0 +1,8 @@
+{
+  "url": "https://app.example.com/settings/profile",
+  "status_code": 200,
+  "headers": {
+    "Content-Type": "text/html"
+  },
+  "body": "<html><body><form action='/api/update-profile' method='POST'><input type='text' name='name' value='John'><input type='email' name='email' value='john@example.com'><button type='submit'>Save</button></form></body></html>"
+}

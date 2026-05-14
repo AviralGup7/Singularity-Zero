@@ -1,0 +1,207 @@
+# ──────────────────────────────────────────────────────────────────────
+# Worker Deployment for Cyber Security Test Pipeline
+# Includes Horizontal Pod Autoscaler based on queue depth
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cyber-worker
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/version: "2.0.0"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cyber-pipeline
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cyber-pipeline
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/version: "2.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: worker
+          image: cyber-pipeline:2.0.0
+          imagePullPolicy: Always
+          command:
+            - "python"
+            - "-m"
+            - "src.infrastructure.queue.worker"
+            - "--queue"
+            - "security-pipeline"
+            - "--concurrency"
+            - "4"
+            - "--max-jobs"
+            - "1000"
+          ports:
+            - containerPort: 8001
+              name: metrics
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: cyber-pipeline-config
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cyber-pipeline-secrets
+                  key: REDIS_PASSWORD
+          resources:
+            requests:
+              cpu: "1"
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - "python"
+                - "-c"
+                - |
+                  import redis, os
+                  r = redis.Redis(
+                    host=os.environ.get('REDIS_HOST', 'redis-master.cyber-pipeline.svc.cluster.local'),
+                    port=int(os.environ.get('REDIS_PORT', 6379)),
+                    password=os.environ.get('REDIS_PASSWORD', '')
+                  )
+                  r.ping()
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - "python"
+                - "-c"
+                - |
+                  import redis, os
+                  r = redis.Redis(
+                    host=os.environ.get('REDIS_HOST', 'redis-master.cyber-pipeline.svc.cluster.local'),
+                    port=int(os.environ.get('REDIS_PORT', 6379)),
+                    password=os.environ.get('REDIS_PASSWORD', '')
+                  )
+                  r.ping()
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: output-data
+              mountPath: /app/output
+            - name: app-data
+              mountPath: /app/data
+            - name: nuclei-templates
+              mountPath: /app/nuclei-templates
+              readOnly: true
+      volumes:
+        - name: output-data
+          persistentVolumeClaim:
+            claimName: cyber-pipeline-output
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: cyber-pipeline-data
+        - name: nuclei-templates
+          persistentVolumeClaim:
+            claimName: cyber-pipeline-nuclei-templates
+      terminationGracePeriodSeconds: 120
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values:
+                        - worker
+                topologyKey: kubernetes.io/hostname
+---
+# ──────────────────────────────────────────────────────────────────────
+# Horizontal Pod Autoscaler for Workers
+# Scales based on custom metrics (queue depth)
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cyber-worker-hpa
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cyber-worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    # Scale based on CPU utilization
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    # Scale based on memory utilization
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+# ──────────────────────────────────────────────────────────────────────
+# Pod Disruption Budget for Workers
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cyber-worker-pdb
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: worker
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cyber-pipeline
+      app.kubernetes.io/component: worker

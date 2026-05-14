@@ -1,0 +1,4 @@
+*.square.com
+*.squareup.com
+square.online
+*.square.online

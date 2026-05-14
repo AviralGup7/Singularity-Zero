@@ -1,0 +1,206 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PIP_CACHE_DIR: ${{ github.workspace }}/.cache/pip
+  NPM_CACHE_DIR: ${{ github.workspace }}/.cache/npm
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: "pip"
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PIP_CACHE_DIR }}
+          key: pip-lint-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-lint-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run ruff
+        run: ruff check .
+      - name: Run ruff format check
+        run: ruff format --check .
+      - name: Run ruff security check
+        run: ruff check --select S --ignore S101,S105,S106,S107 .
+      - name: Run detect-secrets
+        run: detect-secrets scan --baseline .secrets.baseline
+      - name: Run bandit
+        run: bandit -r src/ -ll -f json -o bandit-report.json
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+        if: always()
+
+  type-safety:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: "pip"
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+      - name: Run mypy
+        run: mypy .
+      - name: Run TypeScript check
+        working-directory: ./frontend
+        run: npm run check:types
+
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: ["3.14"]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PIP_CACHE_DIR }}
+          key: pip-test-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-test-${{ matrix.python-version }}-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run tests with coverage
+        run: pytest --cov=. --cov-report=xml --cov-report=term-missing -v
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.xml
+
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NPM_CACHE_DIR }}
+          key: npm-frontend-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: npm-frontend-
+      - name: Install dependencies
+        run: npm ci
+      - name: Run ESLint
+        run: npx eslint src/
+      - name: Run tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+
+  security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: "pip"
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PIP_CACHE_DIR }}
+          key: pip-security-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-security-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run pip-audit
+        run: pip-audit
+      - name: Run safety check
+        run: safety check
+      - name: Run Semgrep
+        uses: semgrep/scanning-action@v4
+        with:
+          config: auto
+          auditOn: push
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          # Use modern keyring approach instead of deprecated apt-key
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy-archive-keyring.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+      - name: Run Trivy vulnerability scanner on Dockerfile
+        run: trivy fs --scanners vuln --severity HIGH,CRITICAL .
+      - name: Generate SBOM
+        run: |
+          pip install cyclonedx-bom
+          python -m cyclonedx_py environment --output-file sbom.json --output-format json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+        if: always()
+      - name: Run GitLeaks secrets scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  iac-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Checkov on Kubernetes manifests
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: deploy/kubernetes/
+          framework: kubernetes
+          soft_fail: true
+      - name: Run Checkov on Docker Compose
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          file: docker-compose.optimized.yml
+          framework: dockerfile
+          soft_fail: true
+        continue-on-error: true

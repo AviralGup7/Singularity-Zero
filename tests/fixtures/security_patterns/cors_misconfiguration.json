@@ -1,0 +1,13 @@
+{
+  "url": "https://api.example.com/v1/users",
+  "status_code": 200,
+  "headers": {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
+    "Access-Control-Allow-Credentials": "true",
+    "Content-Type": "application/json"
+  },
+  "body": "{\"id\": 1, \"name\": \"test\", \"email\": \"test@example.com\"}",
+  "response_time": 0.15,
+  "redirect_chain": []
+}

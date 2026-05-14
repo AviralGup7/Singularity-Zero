@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cyber-pipeline.fullname" . }}-config
+  labels:
+    {{- include "cyber-pipeline.labels" . | nindent 4 }}
+data:
+  APP_SECRET_KEY: {{ .Values.config.appSecretKey | quote }}
+  APP_ENV: {{ .Values.config.appEnv | quote }}
+  APP_DEBUG: {{ .Values.config.appDebug | quote }}
+  CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
+  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  DATABASE_URL: {{ .Values.config.databaseUrl | quote }}
+  RATE_LIMIT_RPS: {{ .Values.config.rateLimitRps | quote }}
+  SCOPE_FILE: {{ .Values.config.scopeFile | quote }}
+  ENABLE_EXPLOITATION: {{ .Values.config.enableExploitation | quote }}
+  ENABLE_LEARNING: {{ .Values.config.enableLearning | quote }}
+  ENABLE_NOTIFICATIONS: {{ .Values.config.enableNotifications | quote }}
+  ENABLE_THREAT_INTEL: {{ .Values.config.enableThreatIntel | quote }}

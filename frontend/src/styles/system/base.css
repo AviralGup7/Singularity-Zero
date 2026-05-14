@@ -1,0 +1,160 @@
+/* ── Reset ───────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  min-height: 100%;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  color: var(--text-primary);
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ── Typography ─────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: var(--weight-title);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+p, ul, ol {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--easing-out);
+}
+
+a:hover {
+  color: var(--accent-2);
+}
+
+/* ── Skip Link ──────────────────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+}
+
+.skip-link:focus {
+  left: var(--space-4);
+  top: var(--space-4);
+  z-index: 200;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-small);
+}
+
+/* ── Form Elements ──────────────────────────────────────────── */
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--easing-out);
+}
+
+input, select, textarea {
+  border: var(--border-width) solid var(--border);
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-body);
+  color: var(--text-primary);
+  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--border-strong);
+}
+
+/* ── Focus Rings ────────────────────────────────────────────── */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--accent-soft);
+}
+
+/* ── Utility Classes ────────────────────────────────────────── */
+.text-muted     { color: var(--text-tertiary); }
+.text-secondary { color: var(--text-secondary); }
+.text-accent    { color: var(--accent); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* ── Keyboard Shortcut Badges ───────────────────────────────── */
+.kbd, kbd {
+  background: var(--surface-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  padding: 2px 6px;
+  line-height: 1.4;
+}
+
+/* ── Card Base ──────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--inner-padding);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out), transform var(--motion-fast) var(--easing-out);
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}

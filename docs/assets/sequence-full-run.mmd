@@ -1,0 +1,39 @@
+sequenceDiagram
+    participant CLI as CLI / Scheduler
+    participant OR as Orchestrator
+    participant DI as Discovery
+    participant MI as Mining
+    participant FI as Filtering
+    participant SC as Scoring
+    participant Q as Queue
+    participant WK as Worker (Execution)
+    participant AN as Analysis
+    participant RP as Reporting
+    participant DB as Dashboard
+    participant ST as Storage/Cache
+    participant OB as Observability
+
+    CLI->>OR: start run (scope file)
+    OR->>DI: run discovery
+    DI-->>OR: discovered hosts/URLs
+    OR->>FI: filter & dedupe
+    FI-->>OR: filtered candidates
+    OR->>MI: mine historical sources (wayback, gau, crawling)
+    MI-->>OR: mined endpoints
+    OR->>SC: score & prioritize
+    SC-->>OR: prioritized tasks
+    OR->>Q: enqueue scan tasks
+    loop worker pool
+        Q->>WK: worker pulls task
+        WK->>WK: execute scanner(s)
+        WK->>ST: store raw artifacts
+        WK->>AN: send raw results
+        AN->>AN: analyze & enrich results
+        AN->>ST: persist findings
+        AN->>RP: notify reporting / trigger report generation
+        RP->>DB: send SSE update (dashboard)
+    end
+    RP->>CLI: deliver final report (optional)
+    WK->>OB: emit metrics/logs
+    AN->>OB: emit metrics
+    RP->>OB: emit metrics

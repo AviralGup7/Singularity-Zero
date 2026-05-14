@@ -1,0 +1,91 @@
+/* ── Mobile / Overlay ───────────────────────────────────────── */
+.mobile-visible,
+.mobile-dock,
+.sidebar-overlay {
+  display: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Responsive Breakpoints
+   ══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1100px) {
+  .header-quick-actions {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(280px, 85vw);
+    transform: translateX(-101%);
+    z-index: 40;
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.50);
+    z-index: 39;
+    backdrop-filter: blur(2px);
+  }
+
+  .mobile-visible {
+    display: inline-flex;
+  }
+
+  .app-command-header {
+    height: auto;
+    min-height: var(--topbar-height);
+    padding: var(--space-3) var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .header-command-row,
+  .header-right-actions {
+    display: none;
+  }
+
+  .mobile-dock {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    background: rgba(12, 15, 20, 0.92);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+
+  .mobile-dock-item {
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+
+  .mobile-dock-item--active {
+    color: var(--accent);
+  }
+
+  .app-main-content {
+    padding: var(--space-4);
+    padding-bottom: 72px;
+  }
+}

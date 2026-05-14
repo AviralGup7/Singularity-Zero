@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PipelineInput",
+  "type": "object",
+  "properties": {
+    "contract_version": { "type": "string", "const": "v1" },
+    "target_name": { "type": "string" },
+    "scope_entries": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "run_id": { "type": "string" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object" }
+  },
+  "required": ["target_name", "scope_entries", "run_id"]
+}

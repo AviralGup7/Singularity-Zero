@@ -1,0 +1,43 @@
+{
+  "include": [
+    "src.analysis",
+    "src.core",
+    "src.pipeline",
+    "src.dashboard",
+    "src.recon",
+    "src.execution",
+    "src.reporting",
+    "src.intelligence",
+    "src.detection",
+    "src.decision",
+    "src.fuzzing",
+    "src.api_tests",
+    "src.infrastructure",
+    "src.learning",
+    "src.websocket_server"
+  ],
+  "exclude": [
+    "frontend",
+    "tests",
+    "scripts",
+    "**/__pycache__",
+    "**/.venv",
+    "**/.venv*",
+    ".venv312",
+    ".venv314",
+    "**/node_modules",
+    "**/.*",
+    "**/*.egg-info",
+    "**/*.egg"
+  ],
+  "pythonVersion": "3.14",
+  "typeCheckingMode": "strict",
+  "reportUnknownMemberType": "warning",
+  "reportUnknownVariableType": "warning",
+  "reportUnknownArgumentType": "warning",
+  "reportUnknownParameterType": "warning",
+  "reportUnknownLambdaType": "warning",
+  "reportMissingTypeArgument": "error",
+  "reportUnusedImport": "error",
+  "reportOptionalMemberAccess": "warning"
+}

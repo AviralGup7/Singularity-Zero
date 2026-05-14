@@ -1,0 +1,49 @@
+/* ── Status Badges ──────────────────────────────────────────── */
+.status-badge, .status-pill, .job-status, .stage-status-badge, .sev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+  padding: 2px var(--space-3);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+/* Dot indicator for badges */
+.status-badge::before, .status-pill::before, .job-status::before, .stage-status-badge::before, .sev-badge::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-running, .status-badge.status-running, .job-status.running, .stage-running .stage-status-badge {
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 30%, transparent);
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+}
+
+.status-completed, .status-badge.status-completed, .job-status.completed, .stage-completed .stage-status-badge {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.status-failed, .status-badge.status-failed, .job-status.failed, .stage-error .stage-status-badge {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 30%, transparent);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+
+.status-stopped, .job-status.stopped, .status-pill.status-warning, .stage-skipped .stage-status-badge {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}

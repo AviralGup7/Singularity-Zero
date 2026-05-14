@@ -1,0 +1,50 @@
+version: 1
+scope: cyber_pipeline
+modification_rules:
+  - layer: core
+    pattern: "src/core/**"
+    ai_modifiable: false
+    reason: "Foundation layer. Modification requires explicit human review and architecture test validation."
+    
+  - layer: recon
+    pattern: "src/recon/**"
+    ai_modifiable: true
+    requires_tests: true
+    constraints:
+      - "Must follow the Provider pattern for new sources."
+      - "Must update src/recon/discovery.py if adding new sub-stages."
+      
+  - layer: detection
+    pattern: "src/detection/detectors/**"
+    ai_modifiable: true
+    requires_tests: true
+    constraints:
+      - "Must implement the Detector interface."
+      - "Must register in the detector registry."
+      - "Must not use disabling SSL verification unless explicitly allowed."
+      
+  - layer: pipeline
+    pattern: "src/pipeline/services/pipeline_orchestrator/stages/**"
+    ai_modifiable: true
+    requires_tests: true
+    constraints:
+      - "Must use state_delta for state propagation."
+      - "Must maintain StageCheckpointGuard usage."
+      
+  - layer: infrastructure
+    pattern: "src/infrastructure/**"
+    ai_modifiable: false
+    reason: "Critical plumbing layer (Redis, mDNS). AI can suggest optimizations but not direct commits."
+
+  - layer: config
+    pattern: "configs/**"
+    ai_modifiable: true
+    constraints:
+      - "Must validate against corresponding JSON schema."
+      - "Must not commit secrets or API keys."
+
+verification_requirements:
+  - "Run 'ruff check . --fix' after every change."
+  - "Run 'mypy .' to ensure type safety."
+  - "Run 'pytest tests/unit' for impacted modules."
+  - "For core/pipeline changes, run 'pytest tests/architecture'."

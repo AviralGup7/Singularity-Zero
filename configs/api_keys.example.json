@@ -1,0 +1,16 @@
+{
+  "keys": [
+    {
+      "key": "replace-with-admin-api-key",
+      "role": "admin"
+    },
+    {
+      "key": "replace-with-worker-api-key",
+      "role": "worker"
+    },
+    {
+      "key": "replace-with-read-only-api-key",
+      "role": "read_only"
+    }
+  ]
+}

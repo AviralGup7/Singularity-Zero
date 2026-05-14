@@ -1,0 +1,42 @@
+/* ── Tables ─────────────────────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+th, td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-body);
+}
+
+th {
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: var(--text-small);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface-2);
+}
+
+th:first-child {
+  border-top-left-radius: var(--radius-md);
+}
+
+th:last-child {
+  border-top-right-radius: var(--radius-md);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr {
+  transition: background var(--motion-fast) var(--easing-out);
+}
+
+tbody tr:hover {
+  background: var(--surface-hover);
+}

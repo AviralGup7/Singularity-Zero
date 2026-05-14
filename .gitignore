@@ -1,0 +1,89 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+.venv312/
+.venv314/
+env/
+venv/
+ENV/
+
+# Caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+
+# Output artifacts
+output/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Mutation testing
+mutmut-results/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Environment files (NEVER track actual .env)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Database files (runtime artifacts)
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# TypeScript build artifacts
+frontend/tsconfig.tsbuildinfo
+frontend/frontend_build.txt
+
+# Playwright
+playwright-report/
+playwright/.cache/
+
+# Pipeline runtime data
+.pipeline/
+
+# Local Configs (NEVER track actual configs)
+configs/config.json
+configs/api_keys.json
+configs/scope.txt
+configs/settings.json
+!configs/*.example.json
+!configs/scope.example.txt
+
+# IDE/Editor
+*.tmp
+*.temp
