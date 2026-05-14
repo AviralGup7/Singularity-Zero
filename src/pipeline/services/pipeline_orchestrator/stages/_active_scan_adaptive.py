@@ -11,11 +11,11 @@ import asyncio
 import time
 from typing import Any
 
-from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
+from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.decision.adaptive_scan import AdaptiveScanCoordinator
 from src.pipeline.runner_support import emit_progress
-from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 
 from .active_scan import (
     _build_response_cache,
@@ -26,8 +26,6 @@ from .active_scan import (
     _run_json_probe_suite,
     _try_probe,
 )
-
-from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 

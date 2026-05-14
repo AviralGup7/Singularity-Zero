@@ -6,9 +6,8 @@ Provides a secure, isolated runtime for executing untrusted security detectors.
 from __future__ import annotations
 
 import json
-import logging
-import time
 import os
+import time
 from typing import Any
 
 # Fix #389: Guard wasmtime import behind feature flag to avoid startup penalty
@@ -38,7 +37,7 @@ class WASMPluginHost:
         self._engine = wasmtime.Engine()
         self._linker = wasmtime.Linker(self._engine)
         self._linker.define_wasi()
-        
+
         self._module = wasmtime.Module.from_file(self._engine, wasm_path)
         self._store = wasmtime.Store(self._engine)
         self._store.set_wasi(wasmtime.WasiConfig())
@@ -49,7 +48,7 @@ class WASMPluginHost:
         Input and Output are passed via JSON-serialized string buffers.
         """
         instance = self._linker.instantiate(self._store, self._module)
-        
+
         # Get memory and export functions
         exports = instance.exports(self._store)
         memory = exports.get("memory")
@@ -64,7 +63,7 @@ class WASMPluginHost:
         # 1. Prepare Input
         input_json = json.dumps(stage_input).encode()
         input_ptr = allocate(self._store, len(input_json))
-        
+
         # Write to WASM memory - use memory.write for efficiency
         # Fix #215: The wasmtime Python binding uses memory.write(store, ptr, data)
         memory.write(self._store, input_ptr, input_json)
@@ -81,10 +80,10 @@ class WASMPluginHost:
         output_len = int.from_bytes(output_len_bytes, "little")
         output_json_bytes = memory.read(self._store, output_ptr + 4, output_ptr + 4 + output_len)
         output_json = output_json_bytes.decode()
-        
+
         result = json.loads(output_json)
         result["_wasm_duration"] = duration
-        
+
         # 4. Cleanup
         if deallocate:
             deallocate(self._store, input_ptr)

@@ -22,12 +22,12 @@ def apply_url_filters(urls: set[str], filters: dict[str, Any] | None) -> set[str
     """Unified URL filtering with hardware-accelerated fast path for large datasets."""
     if not urls:
         return set()
-        
+
     if filters is None:
         filters = {}
-        
+
     ignored_exts = {item.lower().lstrip(".") for item in filters.get("ignore_extensions", [])}
-    
+
     # --- Frontier Fast Path: Vectorized Hardware Acceleration ---
     # We trigger the accelerator if we have a significant volume of data (>1000 URLs)
     if len(urls) > 1000:

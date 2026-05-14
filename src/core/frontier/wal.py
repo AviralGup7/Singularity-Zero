@@ -5,11 +5,11 @@ Uses Redis Streams to ensure durability of every state change across the mesh.
 
 from __future__ import annotations
 
-import json
 import time
 from typing import Any
 
 import redis
+
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)

@@ -52,6 +52,7 @@ class StageMetric(TypedDict, total=False):
 
 
 import logging
+
 from src.core.frontier.state import NeuralState
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ class StageResult:
     # ------------------------------------------------------------------
     # Neural-Mesh Resilience Core
     # ------------------------------------------------------------------
-    
+
     #: Internal CRDT state container for perfect synchronization
     _neural_state: NeuralState = field(default_factory=NeuralState, repr=False)
 
@@ -128,12 +129,12 @@ class StageResult:
         """Atomically merge an incremental delta using Neural-Mesh logic."""
         # 1. Update CRDT sets
         self._neural_state.apply_delta(delta)
-        
+
         # 2. Update auxiliary fields (Legacy/Non-resilient)
         for key, value in delta.items():
             if key in {"subdomains", "urls", "findings"}:
                  continue # Handled by CRDT
-            
+
             if hasattr(self, key):
                 current = getattr(self, key)
                 if isinstance(current, dict) and isinstance(value, dict):

@@ -35,9 +35,9 @@ def vectorized_url_filter(urls: list[str], forbidden_exts: set[str]) -> list[str
     """
     if not urls:
         return []
-        
+
     arr = np.array(urls, dtype=object)
-    
+
     # Fast vectorized extension extraction
     # Heuristic: split by dot and take last part
     def get_ext(u: str) -> str:
@@ -47,10 +47,10 @@ def vectorized_url_filter(urls: list[str], forbidden_exts: set[str]) -> list[str
 
     vec_get_ext = np.frompyfunc(get_ext, 1, 1)
     exts = vec_get_ext(arr)
-    
+
     # Vectorized 'in' check
     mask = np.array([e not in forbidden_exts for e in exts])
-    
+
     return arr[mask].tolist()
 
 def fast_secret_scanner(content_bytes: bytes) -> list[bytes]:

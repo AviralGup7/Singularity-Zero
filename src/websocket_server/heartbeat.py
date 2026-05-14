@@ -15,7 +15,6 @@ from src.websocket_server.manager import ConnectionManager
 from src.websocket_server.protocol import HeartbeatMessage  # Fix #358: top-level import
 
 if TYPE_CHECKING:
-    from src.websocket_server.broadcaster import Broadcaster
     from src.websocket_server.manager import ConnectionInfo
 
 # Fix #356: use project logger instead of stdlib logging

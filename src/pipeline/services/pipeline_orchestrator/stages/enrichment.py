@@ -8,12 +8,11 @@ from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
     filter_reportable_findings,
 )
-from src.analysis.intelligence.cvss_scoring import enrich_findings_with_cvss
 from src.core.contracts.finding_lifecycle import apply_lifecycle
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.core.plugins import resolve_plugin
-from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 from src.intelligence.correlation.engine import (
     calculate_compound_risk as _calculate_compound_risk,
 )
@@ -27,15 +26,13 @@ from src.intelligence.feeds.base import FeedError
 from src.intelligence.feeds.cve import CVEConfig, CVESyncClient
 from src.intelligence.feeds.mitre import MitreAttackMapper, MitreConfig
 from src.pipeline.runner_support import emit_progress
-
-from src.core.logging.trace_logging import get_pipeline_logger
+from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 
 logger = get_pipeline_logger(__name__)
 
 # Test seams / legacy aliases
 api_security_analyzer = None
 dns_security_analyzer = None
-enrich_findings_with_cvss = None
 correlate_findings = _correlate_findings
 detect_multi_vector_endpoints = _detect_multi_vector_endpoints
 calculate_compound_risk = _calculate_compound_risk

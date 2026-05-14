@@ -6,7 +6,6 @@ Implements real-time fingerprint mutation for WAF and behavioral evasion.
 from __future__ import annotations
 
 import secrets
-import time
 import uuid
 from typing import Any
 

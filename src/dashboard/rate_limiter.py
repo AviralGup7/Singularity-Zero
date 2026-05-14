@@ -18,7 +18,6 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
 
 logger = get_pipeline_logger(__name__)
 
@@ -187,7 +186,7 @@ class AdaptiveLimitController:
             entry = self._entries.get(key)
             if entry is None:
                 return base_limit, 0
-            
+
             if not entry.active(now):
                 # Penalty expired, but keep entry if we have latency history
                 if not entry.latency_history:
@@ -225,7 +224,7 @@ class AdaptiveLimitController:
                 entry.penalties = min(self._config.adaptive_max_penalties, entry.penalties + 1)
                 entry.last_signal = now
                 entry.expires_at = now + self._config.adaptive_decay_seconds
-            
+
             return entry.penalties
 
     async def reset(self, client_key: str | None = None) -> int:
@@ -374,7 +373,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Detect target throttling/WAF responses."""
         if response.status_code in self._config.adaptive_status_codes:
             return True
-        
+
         headers = {k.lower(): v.lower() for k, v in response.headers.items()}
         server = headers.get("server", "")
         for pattern in self._config.adaptive_waf_header_patterns:

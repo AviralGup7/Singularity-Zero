@@ -2,14 +2,14 @@
 
 import logging
 import time
+from dataclasses import asdict
 from datetime import UTC
 from typing import Any
-from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, Request
 
 from src.dashboard.fastapi.dependencies import get_cache_manager, get_config
-from src.dashboard.fastapi.schemas import HealthResponse, ReadinessResponse, MeshNodeSchema
+from src.dashboard.fastapi.schemas import HealthResponse, MeshNodeSchema, ReadinessResponse
 
 logger = logging.getLogger(__name__)
 

@@ -28,12 +28,11 @@ Usage:
         )
 """
 
-import os
 import hmac
+import os
 import threading
 import time
-import uuid
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import redis
@@ -189,7 +188,7 @@ class RedisSlidingWindowCounter:
 
     def __init__(
         self,
-        redis_client: "redis.Redis[Any] | redis.Redis[bytes]",
+        redis_client: redis.Redis[Any] | redis.Redis[bytes],
         window_seconds: int = 60,
         key_prefix: str = "ratelimit",
     ) -> None:

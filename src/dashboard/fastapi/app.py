@@ -2,10 +2,10 @@
 
 import asyncio
 import logging
+import mimetypes
 import os
 import time
 import uuid
-import mimetypes
 
 # Fix for Windows mimetypes
 mimetypes.add_type("application/javascript", ".js")

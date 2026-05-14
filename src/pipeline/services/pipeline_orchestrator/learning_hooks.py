@@ -2,9 +2,8 @@
 
 from typing import Any
 
-from src.learning.integration import LearningIntegration
-
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.learning.integration import LearningIntegration
 
 logger = get_pipeline_logger(__name__)
 

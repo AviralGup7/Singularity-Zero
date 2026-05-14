@@ -13,9 +13,9 @@ from typing import Any
 import httpx
 import requests
 
-from src.core.utils.url_validation import is_safe_url
 from src.core.frontier.chameleon import wrap_polymorphic_request
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.core.utils.url_validation import is_safe_url
 
 logger = get_pipeline_logger(__name__)
 
@@ -66,7 +66,7 @@ def safe_request(
     chameleon_config = wrap_polymorphic_request(request_headers)
     req_headers = chameleon_config["headers"]
     req_headers.setdefault("Accept", "application/json, text/html, */*")
-    
+
     # Use Chameleon's verify and timeout unless the caller explicitly overrides them.
     final_verify = chameleon_config.get("verify", True) if verify_ssl is None else verify_ssl
     final_timeout = chameleon_config.get("timeout", DEFAULT_TIMEOUT) if timeout is None else timeout
@@ -133,7 +133,7 @@ async def async_safe_request(
     chameleon_config = wrap_polymorphic_request(request_headers)
     req_headers = chameleon_config["headers"]
     req_headers.setdefault("Accept", "application/json, text/html, */*")
-    
+
     final_verify = chameleon_config.get("verify", True) if verify_ssl is None else verify_ssl
     final_timeout = chameleon_config.get("timeout", DEFAULT_TIMEOUT) if timeout is None else timeout
     final_follow = follow_redirects # Chameleon might provide this too but we prefer the explicit param

@@ -30,7 +30,7 @@ class MeshRateLimiter:
         """Re-calculate the local share of the global budget."""
         count = max(1, active_worker_count)
         self._local_budget = self.global_rps_limit / count
-        logger.info("Mesh Limiter: Local budget updated to %.2f RPS (Mesh Size: %d)", 
+        logger.info("Mesh Limiter: Local budget updated to %.2f RPS (Mesh Size: %d)",
                     self._local_budget, count)
 
     async def acquire(self) -> None:
@@ -42,11 +42,11 @@ class MeshRateLimiter:
                 elapsed = now - self._last_calc
                 self._tokens = min(self._local_budget, self._tokens + (elapsed * self._local_budget))
                 self._last_calc = now
-                
+
                 if self._tokens >= 1.0:
                     self._tokens -= 1.0
                     return
-                
+
                 # If not enough tokens, calculate wait time
                 wait_time = (1.0 - self._tokens) / self._local_budget
 

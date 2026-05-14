@@ -5,12 +5,10 @@ Implements a location-transparent actor model for elastic scan orchestration.
 
 from __future__ import annotations
 
-import logging
-import uuid
 import time
 from collections.abc import Callable
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
 import pykka
 
@@ -42,12 +40,12 @@ class ScanActor(pykka.ThreadingActor):
         if not isinstance(message, dict) or "command" not in message:
             logger.error("Ghost-Actor [%s] failure: Invalid message format", self.actor_id)
             return {"status": "error", "error": "Invalid message format"}
-            
+
         command = message.get("command")
-        
+
         if command == "execute":
             return self._execute_logic(message.get("input", {}))
-        
+
         elif command == "snapshot":
             return ActorState(
                 actor_id=self.actor_id,
@@ -55,13 +53,13 @@ class ScanActor(pykka.ThreadingActor):
                 data=self.state,
                 checkpoint_ts=time.time()
             )
-        
+
         elif command == "migrate":
             self.is_migrating = True
             snapshot = self.on_receive({"command": "snapshot"})
             self.stop()
             return snapshot
-            
+
         else:
             logger.error("Ghost-Actor [%s] failure: Unknown command %s", self.actor_id, command)
             return {"status": "error", "error": f"Unknown command: {command}"}

@@ -38,7 +38,7 @@ def normalize_url(url: str) -> str:
         raw_parsed = urlparse(candidate if "://" in candidate else f"https://{candidate}")
         scheme = (raw_parsed.scheme or "https").lower()
         netloc = raw_parsed.netloc.lower() or raw_parsed.path.lower()
-        
+
         # 1. Standard Port Normalization
         if ":" in netloc:
             host, port = netloc.rsplit(":", 1)

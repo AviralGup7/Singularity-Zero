@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json  # Fix #372: Move to top-level
 import time
-import json
 import uuid
 from enum import StrEnum
 from typing import Any
