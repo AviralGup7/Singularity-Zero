@@ -43,3 +43,5 @@ When tasked with modifying this codebase:
    - Run type checking: `mypy .`
    - Run linting: `ruff check . --fix`
    - If UI changes were made, verify Zod schema integrity in `frontend/src/api/schemas.ts`.
+5. **Git Protocol**:
+   - **MANDATE**: Perform occasional pushes to the remote GitHub repository (e.g., after significant feature completions or bug fixes) to ensure work is backed up and synchronized.
