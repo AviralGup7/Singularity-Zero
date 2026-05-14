@@ -1,3 +1,5 @@
+from typing import Any
+
 from src.core.plugins import list_plugins, register_plugin
 
 from .active import ACTIVE_PLUGIN_SPECS
