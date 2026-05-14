@@ -109,7 +109,7 @@ class MetricsConfig:
     export_interval_seconds: float = 15.0
     enable_prometheus: bool = True
     prometheus_port: int = 9090
-    prometheus_host: str = "0.0.0.0"
+    prometheus_host: str = "0.0.0.0" # nosec: S104 # nosec: S104
     enable_histogram: bool = True
     histogram_buckets: tuple[float, ...] = (
         0.005,

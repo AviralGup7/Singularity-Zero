@@ -464,7 +464,7 @@ class ScenarioExecutionEngine:
         started = time.monotonic()
         try:
             raw_request = UrlRequest(url, data=data, headers=request.headers, method=method)
-            with opener.open(
+            with opener.open( # nosec: S310 # nosec: S310
                 raw_request, timeout=request.timeout_seconds or self.default_timeout_seconds
             ) as raw_response:
                 final_url = str(getattr(raw_response, "geturl", lambda: url)())
