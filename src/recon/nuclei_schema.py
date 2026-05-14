@@ -21,10 +21,12 @@ except Exception:  # pragma: no cover - runtime environment may not have jsonsch
 SCHEMA_PATH = Path(__file__).with_name("nuclei_template_schema.json")
 
 
+from typing import Any, cast
+
 def load_schema() -> dict[str, Any]:
     """Load and return the bundled Nuclei template JSON Schema."""
     text = SCHEMA_PATH.read_text(encoding="utf-8")
-    return json.loads(text)
+    return cast(dict[str, Any], json.loads(text))
 
 
 def validate_template_file(filepath: str) -> None:

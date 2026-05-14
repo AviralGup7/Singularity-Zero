@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 
-def fix_except_blocks(directory="src"):
+def fix_except_blocks(directory: str = "src") -> None:
     pattern = re.compile(r"except\s+([a-zA-Z0-9_.]+)\s*,\s*([a-zA-Z0-9_.]+)\s*:")
     count = 0
     for root, _, files in os.walk(directory):

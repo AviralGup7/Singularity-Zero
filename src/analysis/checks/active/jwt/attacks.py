@@ -60,7 +60,7 @@ class NoneAlgorithmAttack:
         self.token = token
         self.attack_name = "alg_none_bypass"
 
-    def execute(self, url: str, session) -> dict[str, Any]:
+    def execute(self, url: str, session: Any) -> dict[str, Any]:
         """Execute the alg=none attack."""
         result: dict[str, Any] = {"attack": self.attack_name, "vulnerable": False, "details": []}
         try:
@@ -132,7 +132,7 @@ class AlgorithmConfusionAttack:
         self.token = token
         self.attack_name = "algorithm_confusion"
 
-    def execute(self, url: str, session) -> dict[str, Any]:
+    def execute(self, url: str, session: Any) -> dict[str, Any]:
         """Execute the algorithm confusion attack."""
         result: dict[str, Any] = {"attack": self.attack_name, "vulnerable": False, "details": []}
         try:
@@ -205,7 +205,7 @@ class KidPathTraversalAttack:
         self.token = token
         self.attack_name = "kid_path_traversal"
 
-    def execute(self, url: str, session) -> dict[str, Any]:
+    def execute(self, url: str, session: Any) -> dict[str, Any]:
         """Execute the kid path traversal attack."""
         result: dict[str, Any] = {"attack": self.attack_name, "vulnerable": False, "details": []}
         try:

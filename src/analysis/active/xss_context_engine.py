@@ -488,7 +488,7 @@ def detect_waf(status_code: int, headers_str: str, body: str) -> str | None:
     Score each known WAF against the response. Return highest-scoring
     WAF name, or None if no WAF detected.
     """
-    best = (0.0, None)
+    best: tuple[float, str | None] = (0.0, None)
     for sig in _WAF_SIGNATURES:
         score = 0.0
         if sig["page"] and sig["page"].search(body):

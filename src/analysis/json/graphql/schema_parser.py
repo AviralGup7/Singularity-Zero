@@ -83,7 +83,7 @@ def make_graphql_request(
         return {"status_code": 0, "body": "", "headers": {}, "success": False, "error": str(exc)}
 
 
-def detect_graphql_endpoints(urls: list[str], session) -> list[dict[str, Any]]:
+def detect_graphql_endpoints(urls: list[str], session: Any) -> list[dict[str, Any]]:
     """Detect GraphQL endpoints by probing common paths."""
     detected: list[dict[str, Any]] = []
     seen_hosts: set[str] = set()
@@ -170,3 +170,4 @@ def parse_schema_from_introspection(introspection_result: dict[str, Any]) -> dic
         )
 
     return parsed
+

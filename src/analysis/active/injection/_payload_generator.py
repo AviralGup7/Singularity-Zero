@@ -424,10 +424,10 @@ def _find_js_closer(pre: str) -> str:
         elif char == "[":
             breaker += "]"
         elif char == "}":
-            breaker = breaker.rstrip("}", 1)
+            breaker = breaker.removesuffix("}")
         elif char == ")":
-            breaker = breaker.rstrip(")", 1)
+            breaker = breaker.removesuffix(")")
         elif char == "]":
-            breaker = breaker.rstrip("]", 1)
+            breaker = breaker.removesuffix("]")
 
     return breaker[::-1]

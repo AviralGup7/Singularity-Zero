@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 
-def find_pass_in_except(directory="src"):
+def find_pass_in_except(directory: str = "src") -> None:
     for root, _, files in os.walk(directory):
         for file in files:
             if not file.endswith(".py"):

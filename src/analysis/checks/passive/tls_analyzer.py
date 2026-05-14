@@ -78,6 +78,8 @@ class TLSAnalyzer:
             with socket.create_connection((host, port), timeout=10) as sock:
                 with context.wrap_socket(sock, server_hostname=host) as ssock:
                     cert = ssock.getpeercert()
+                    if not cert:
+                        return findings
 
                     # Check expiration
                     not_after = cert.get("notAfter", "")
