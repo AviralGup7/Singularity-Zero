@@ -356,7 +356,7 @@ class SQLiteBackend:
                     "SELECT COUNT(*) FROM cache_entries WHERE expires_at IS NULL OR expires_at > ?",
                     (now,),
                 )
-                return cursor.fetchone()[0]
+                return int(cursor.fetchone()[0])
             finally:
                 self._close_conn()
 

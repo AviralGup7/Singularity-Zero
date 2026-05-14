@@ -379,7 +379,7 @@ if os.path.exists(f"{BASE}/.gitignore"):
     if "__pycache__" in gi and "node_modules" in gi:
         print("[OK] .gitignore - standard entries present")
     else:
-        add("low", "Git", ".gitignore may be missing important entries")
+        add("low", "Git", ".gitignore may be missing important entries", "Ensure .gitignore contains __pycache__ and node_modules")
 
 # Print summary
 print("\n" + "=" * 70)

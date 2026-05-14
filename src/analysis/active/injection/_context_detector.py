@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 ContextType = Literal["html", "attribute", "script", "comment", "dead"]
-QuoteStyle = Literal["", '"', "`", None]
+QuoteStyle = Literal["", "'", '"', "`"] | None
 
 
 @dataclass(frozen=True)

@@ -144,7 +144,7 @@ class NeuralState:
         self.findings = LWWset[dict[str, Any]]()
         self.metadata: dict[str, Any] = {}
 
-    def apply_delta(self, delta: dict[str, Any]):
+    def apply_delta(self, delta: dict[str, Any]) -> None:
         """Merge a state_delta using CRDT logic."""
         ts = delta.get("_ts", time.time())
 
