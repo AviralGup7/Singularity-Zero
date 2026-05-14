@@ -1,18 +1,32 @@
-/* ── Cards ──────────────────────────────────────────────────── */
-.card, .ops-card, .job-card, .job-stage-card, .pipeline-stat-card, .info-item, .fix-command-item, .finding-min-card {
+/* ══════════════════════════════════════════════════════════════
+   Card Variants
+   The base .card rule lives in base.css.
+   This file adds named card variants used across the app.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Named variants ──────────────────────────────────────────── */
+.ops-card,
+.job-card,
+.job-stage-card,
+.pipeline-stat-card,
+.info-item,
+.fix-command-item,
+.finding-min-card {
   background: var(--surface);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out);
+  transition: border-color var(--motion-fast) var(--easing-out),
+              box-shadow var(--motion-fast) var(--easing-out);
 }
 
-.card:hover, .job-card:hover {
+.job-card:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-md);
 }
 
+/* ── Semantic state variants ─────────────────────────────────── */
 .error-card {
   border-color: var(--bad);
   background: color-mix(in srgb, var(--bad) 5%, var(--surface));
@@ -21,4 +35,9 @@
 .warning-card {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 5%, var(--surface));
+}
+
+.success-card {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 5%, var(--surface));
 }

@@ -27,7 +27,7 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Typography ─────────────────────────────────────────────── */
+/* ── Headings ────────────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
   margin: 0;
   font-family: var(--font-heading);
@@ -41,6 +41,7 @@ p, ul, ol {
   margin: 0;
 }
 
+/* ── Links ───────────────────────────────────────────────────── */
 a {
   color: inherit;
   text-decoration: none;
@@ -51,7 +52,7 @@ a:hover {
   color: var(--accent-2);
 }
 
-/* ── Skip Link ──────────────────────────────────────────────── */
+/* ── Skip link ───────────────────────────────────────────────── */
 .skip-link {
   position: absolute;
   left: -9999px;
@@ -70,7 +71,7 @@ a:hover {
   font-size: var(--text-small);
 }
 
-/* ── Form Elements ──────────────────────────────────────────── */
+/* ── Form elements ───────────────────────────────────────────── */
 button, input, select, textarea {
   font: inherit;
   color: inherit;
@@ -90,7 +91,8 @@ input, select, textarea {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-body);
   color: var(--text-primary);
-  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out);
+  transition: border-color var(--motion-fast) var(--easing-out),
+              box-shadow var(--motion-fast) var(--easing-out);
 }
 
 input::placeholder,
@@ -104,7 +106,7 @@ textarea:hover {
   border-color: var(--border-strong);
 }
 
-/* ── Focus Rings ────────────────────────────────────────────── */
+/* ── Focus rings ─────────────────────────────────────────────── */
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
@@ -115,23 +117,7 @@ a:focus-visible {
   box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--accent-soft);
 }
 
-/* ── Utility Classes ────────────────────────────────────────── */
-.text-muted     { color: var(--text-tertiary); }
-.text-secondary { color: var(--text-secondary); }
-.text-accent    { color: var(--accent); }
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-
-/* ── Keyboard Shortcut Badges ───────────────────────────────── */
+/* ── Keyboard shortcut badge ─────────────────────────────────── */
 .kbd, kbd {
   background: var(--surface-3);
   border: var(--border-width) solid var(--border);
@@ -143,18 +129,32 @@ a:focus-visible {
   line-height: 1.4;
 }
 
-/* ── Card Base ──────────────────────────────────────────────── */
+/* ── Card base ───────────────────────────────────────────────── */
 .card {
   background: var(--surface);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--inner-padding);
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out), transform var(--motion-fast) var(--easing-out);
+  transition: border-color var(--motion-fast) var(--easing-out),
+              box-shadow var(--motion-fast) var(--easing-out),
+              transform var(--motion-fast) var(--easing-out);
 }
 
 .card:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
+}
+
+/* ── Screen-reader only ──────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }

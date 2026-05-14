@@ -1,4 +1,9 @@
-/* ── Layout Grids ───────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   Layout Grids
+   Structural multi-column grid patterns.
+   Single-purpose utility classes live in utilities.css.
+   ══════════════════════════════════════════════════════════════ */
+
 .grid {
   display: grid;
   gap: var(--space-4);
@@ -8,73 +13,29 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.grid-auto {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
 @media (max-width: 940px) {
-  .grid-2 {
-    grid-template-columns: 1fr;
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-/* ── Spacing utilities ──────────────────────────────────────── */
-.space-y-1 > * + * { margin-top: var(--space-1); }
-.space-y-2 > * + * { margin-top: var(--space-2); }
-.space-y-3 > * + * { margin-top: var(--space-3); }
-.space-y-4 > * + * { margin-top: var(--space-4); }
-.space-y-6 > * + * { margin-top: var(--space-6); }
-.space-y-8 > * + * { margin-top: var(--space-8); }
-
-/* ── Flex shortcuts ─────────────────────────────────────────── */
-.flex         { display: flex; }
-.flex-col     { display: flex; flex-direction: column; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.gap-2        { gap: var(--space-2); }
-.gap-3        { gap: var(--space-3); }
-.gap-4        { gap: var(--space-4); }
-.flex-wrap    { flex-wrap: wrap; }
-.flex-1       { flex: 1; }
-.min-w-0      { min-width: 0; }
-.w-full       { width: 100%; }
-.ml-auto      { margin-left: auto; }
-
-/* ── Margin / Padding shortcuts ─────────────────────────────── */
-.mb-16        { margin-bottom: var(--space-4); }
-.mb-4         { margin-bottom: var(--space-1); }
-.mt-1         { margin-top: var(--space-1); }
-.mt-2         { margin-top: var(--space-2); }
-.p-4          { padding: var(--space-4); }
-.p-6          { padding: var(--space-6); }
-.px-4         { padding-left: var(--space-4); padding-right: var(--space-4); }
-.py-2         { padding-top: var(--space-2); padding-bottom: var(--space-2); }
-
-/* ── Text shortcuts ─────────────────────────────────────────── */
-.text-sm      { font-size: var(--text-small); }
-.text-xs      { font-size: var(--text-micro); }
-.font-medium  { font-weight: 500; }
-.font-semibold{ font-weight: 600; }
-.font-mono    { font-family: var(--font-mono); }
-.truncate     { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-
-/* ── Cursor ─────────────────────────────────────────────────── */
-.cursor-pointer { cursor: pointer; }
-
-/* ── Transition ─────────────────────────────────────────────── */
-.transition-colors { transition: color var(--motion-fast) var(--easing-out); }
-
-/* ── Tailwind-compat color utilities ────────────────────────── */
-.text-ok      { color: var(--ok); }
-.text-bad     { color: var(--bad); }
-.text-warn    { color: var(--warn); }
-.text-accent  { color: var(--accent); }
-.bg-ok        { background: var(--ok); }
-.bg-bad       { background: var(--bad); }
-.bg-warn      { background: var(--warn); }
-.rounded-full { border-radius: var(--radius-pill); }
-.inline-block { display: inline-block; }
-.inline-flex  { display: inline-flex; }
-.block        { display: block; }
-.hidden       { display: none; }
-.w-2          { width: 8px; }
-.h-2          { height: 8px; }
-.ml-2         { margin-left: var(--space-2); }
-.hover\:text-accent:hover { color: var(--accent); }
+@media (max-width: 640px) {
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+}

@@ -2,14 +2,8 @@
    Application Shell & Core Layout
    ══════════════════════════════════════════════════════════════ */
 
-.app-shell {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  position: relative;
-  background: var(--bg);
-}
-
+/* ── Authenticated shell (sidebar + main) ────────────────────── */
+.app-shell,
 .app-shell--hud {
   min-height: 100vh;
   display: grid;
@@ -18,6 +12,7 @@
   background: var(--bg);
 }
 
+/* ── Auth-only shell (full-screen centred) ───────────────────── */
 .app-shell--auth {
   min-height: 100vh;
   display: flex;
@@ -26,6 +21,7 @@
   background: var(--bg);
 }
 
+/* ── Main content area ───────────────────────────────────────── */
 .app-main-wrapper {
   min-width: 0;
   display: flex;
@@ -46,6 +42,7 @@
   width: 100%;
 }
 
+/* ── Footer ──────────────────────────────────────────────────── */
 .app-footer {
   display: flex;
   align-items: center;

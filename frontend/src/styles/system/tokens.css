@@ -78,10 +78,10 @@
   --chart-orange-fill: rgba(245, 158, 11, 0.15);
 
   /* ── Typography ───────────────────────────────────────────── */
-  --font-ui:   "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-ui:      "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-heading: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", "Fira Code", monospace;
-  --font-body: var(--font-ui);
+  --font-mono:    "Geist Mono", "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --font-body:    var(--font-ui);
 
   /* ── Type Scale ───────────────────────────────────────────── */
   --text-page-title:    clamp(20px, 2vw, 24px);
@@ -113,19 +113,20 @@
   --radius-xxl:  24px;
   --radius-pill: 999px;
 
-  --border-width:       1px;
+  --border-width:        1px;
   --border-width-strong: 1px;
   --border-width-focus:  2px;
 
   /* ── Elevation (shadows) ──────────────────────────────────── */
-  --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.30);
-  --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.40), 0 1px 2px rgba(0, 0, 0, 0.20);
-  --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.40);
-  --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.50);
-  --shadow-xl:   0 16px 48px rgba(0, 0, 0, 0.60);
-  --shadow-panel: var(--shadow-sm);
-  --shadow-panel-hover: 0 4px 16px rgba(0, 0, 0, 0.40);
-  --shadow-sidebar: inset -1px 0 0 var(--border);
+  --shadow-xs:         0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm:         0 1px 3px rgba(0, 0, 0, 0.40), 0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-md:         0 4px 12px rgba(0, 0, 0, 0.40);
+  --shadow-lg:         0 8px 24px rgba(0, 0, 0, 0.50);
+  --shadow-xl:         0 16px 48px rgba(0, 0, 0, 0.60);
+  --shadow-panel:      var(--shadow-sm);
+  --shadow-panel-hover:0 4px 16px rgba(0, 0, 0, 0.40);
+  --shadow-sidebar:    inset -1px 0 0 var(--border);
+  --shadow-glow-sm:    0 0 12px rgba(59, 130, 246, 0.25);
 
   /* ── Spacing (4px base) ───────────────────────────────────── */
   --space-1:  4px;
@@ -138,18 +139,20 @@
   --space-10: 40px;
   --space-12: 48px;
 
-  --page-inset:           var(--space-6);
-  --sidebar-inner:        var(--space-4);
-  --section-gap:          var(--space-6);
-  --card-gap:             var(--space-4);
-  --row-gap:              var(--space-4);
-  --col-gap:              var(--space-4);
-  --inner-padding:        var(--space-5);
-  
+  --page-inset:    var(--space-6);
+  --sidebar-inner: var(--space-4);
+  --section-gap:   var(--space-6);
+  --card-gap:      var(--space-4);
+  --row-gap:       var(--space-4);
+  --col-gap:       var(--space-4);
+  --inner-padding: var(--space-5);
+
   --sidebar-width: 240px;
   --topbar-height: 56px;
 
-  /* Animations */
+  /* ── Motion ───────────────────────────────────────────────── */
   --motion-fast: 150ms;
-  --easing-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-base: 200ms;
+  --motion-slow: 350ms;
+  --easing-out:  cubic-bezier(0.16, 1, 0.3, 1);
 }
