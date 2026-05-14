@@ -131,7 +131,7 @@
     "globals": "^17.4.0",
     "jsdom": "^29.0.1",
     "playwright": "^1.59.1",
-    "postcss": "^8.5.8",
+    "postcss": "^8.5.14",
     "rollup-plugin-visualizer": "^7.0.1",
     "storybook": "^10.3.4",
     "tailwindcss": "^4.2.2",
