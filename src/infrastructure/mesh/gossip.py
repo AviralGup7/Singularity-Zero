@@ -13,7 +13,7 @@ import hmac
 import json
 import logging
 import os
-import random
+import secrets as random
 import time
 import uuid
 from dataclasses import asdict, dataclass, field

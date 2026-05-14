@@ -16,7 +16,7 @@ Usage::
 
 from __future__ import annotations
 
-import random
+import secrets as random
 from collections.abc import Sequence
 from dataclasses import dataclass
 
