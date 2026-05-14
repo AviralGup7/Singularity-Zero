@@ -2,17 +2,9 @@
 
 import logging
 from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, Query
-
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.dashboard.fastapi.schemas import ErrorResponse, ReplayResponse
-
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/api/replay", tags=["Replay"])
-
-
 from src.dashboard.fastapi.validation import (
     is_safe_replay_url,
     is_within_directory,
@@ -20,6 +12,15 @@ from src.dashboard.fastapi.validation import (
     validate_run_name,
     validate_target_name,
 )
+
+
+
+
+
+router = APIRouter(prefix="/api/replay", tags=["Replay"])
+
+
+logger = logging.getLogger(__name__)
 
 
 @router.get(

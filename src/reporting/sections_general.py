@@ -1,3 +1,7 @@
+import html
+import json
+from typing import Any
+
 from src.reporting.sections_graphs import (
     attack_graph_section,
     auth_context_mapping_section,
@@ -5,9 +9,6 @@ from src.reporting.sections_graphs import (
     finding_graph_section,
     shared_parameter_tracking_section,
 )
-import html
-import json
-from typing import Any
 
 COLLAPSE_LINE_THRESHOLD = 24
 COLLAPSE_CHAR_THRESHOLD = 1200

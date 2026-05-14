@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Audit logging framework with tamper-evident hash chaining.
 
 Provides structured, append-only audit logging for authentication,
@@ -7,7 +5,7 @@ authorization, admin actions, and security events. Each log entry
 includes a cryptographic hash of the previous entry to detect tampering.
 """
 
-
+from __future__ import annotations
 import hashlib
 import json
 import logging
@@ -20,7 +18,11 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, TextIO
 
+
+
+
 logger = logging.getLogger(__name__)
+
 
 
 class AuditEventType(StrEnum):

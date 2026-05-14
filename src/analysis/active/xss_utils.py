@@ -17,9 +17,7 @@ Key improvements learned from XSStrike patterns:
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-
 from src.recon.common import normalize_url
-
 from .xss_constants import (
     EVENT_HANDLERS,
     HANDLER_FILLINGS,
@@ -34,6 +32,10 @@ from .xss_constants import (
     XSS_REFLECTION_CANDIDATE_NAMES,
     XSS_SKIP_PARAM_NAMES,
 )
+from functools import lru_cache
+
+
+
 
 _SCRIPT_TAG_RE = re.compile(r"<script[^>]*>", re.IGNORECASE)
 _SCRIPT_CONTENT_RE = re.compile(r"(?s)<script.*?>(.*?)</script>")
@@ -195,7 +197,6 @@ def build_js_context_breaker(script: str, probe_marker: str) -> str:
     return result
 
 
-from functools import lru_cache
 
 
 @lru_cache(maxsize=256)

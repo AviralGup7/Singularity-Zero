@@ -142,23 +142,6 @@ class DistributedCheckpointStore:
         lease_key = f"{LEASE_KEY_PREFIX}{run_id}"
 
         # Lua script for atomic compare-and-swap
-        script = """
-        local current_owner = redis.call('HGET', KEYS[1], 'owner')
-        local lease = redis.call('GET', KEYS[2])
-        
-        if current_owner == false then
-            return 0  -- Checkpoint doesn't exist
-        end
-        
-        if lease ~= false and lease ~= ARGV[1] then
-            return -1  -- Lease held by someone else
-        end
-        
-        redis.call('HSET', KEYS[1], 'owner', ARGV[2])
-        redis.call('HSET', KEYS[1], 'updated_at', ARGV[3])
-        redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[4])
-        return 1
-        """
 
         try:
             result = self.redis.execute_script(

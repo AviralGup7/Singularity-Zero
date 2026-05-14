@@ -1,5 +1,5 @@
-import pytest
 from src.core.frontier.chameleon import RequestChameleon, wrap_polymorphic_request
+
 
 def test_chameleon_mutate_headers():
     chameleon = RequestChameleon()

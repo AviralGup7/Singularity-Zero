@@ -7,6 +7,7 @@ enabling coverage reporting against industry-standard vulnerability classificati
 from typing import Any
 
 from src.core.models import Config
+from src.core.plugins import register_plugin
 
 P1_VRT_CATALOG = [
     {
@@ -313,7 +314,6 @@ P1_VRT_CATALOG = [
 ]
 
 
-from src.core.plugins import register_plugin
 
 ENRICHMENT_PROVIDER = "enrichment_provider"
 

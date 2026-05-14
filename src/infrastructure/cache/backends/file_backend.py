@@ -1,5 +1,3 @@
-import builtins
-
 r"""File-based cache backend implementation.
 
 Compatible with the existing pipeline_platform/cache.py format.
@@ -7,6 +5,7 @@ Each cache entry is stored as a separate JSON file with optional
 gzip compression.
 """
 
+import builtins
 import gzip
 import json
 import logging
