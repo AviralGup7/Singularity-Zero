@@ -19,9 +19,15 @@ export function LiveJobIndicator() {
   }
 
   useEffect(() => {
-    fetchRunningJobs();
+    let mounted = true;
+    Promise.resolve().then(() => {
+      if (mounted) fetchRunningJobs();
+    });
     const interval = setInterval(fetchRunningJobs, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   if (error || runningJobs.length === 0) return null;

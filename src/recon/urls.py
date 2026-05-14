@@ -8,6 +8,8 @@ smaller modules for testability and reuse.
 
 from __future__ import annotations
 
+from src.core.models.stage_result import PipelineContext
+from src.core.contracts.pipeline_runtime import StageInput
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -16,9 +18,6 @@ from src.core.contracts.capabilities import UrlCollectorProtocol
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models import Config
 from src.core.plugins import list_plugins, register_plugin
-
-logger = get_pipeline_logger(__name__)
-
 from src.pipeline.tools import build_retry_policy, tool_available
 from src.recon.archive import run_archive_jobs
 from src.recon.collectors import aggregator as collectors_aggregator
@@ -34,6 +33,8 @@ from src.recon.js_discovery import (
     _collect_js_discovery_urls,
 )
 from src.recon.katana import run_katana
+
+logger = get_pipeline_logger(__name__)
 
 URL_COLLECTOR = "url_collector"
 
@@ -77,8 +78,6 @@ register_plugin(URL_COLLECTOR, "gau", type="archive_command", args=["gau", "--su
 register_plugin(URL_COLLECTOR, "waybackurls", type="archive_command", args=["waybackurls"])(None)
 
 
-from src.core.contracts.pipeline_runtime import StageInput
-from src.core.models.stage_result import PipelineContext
 
 
 def collect_urls(

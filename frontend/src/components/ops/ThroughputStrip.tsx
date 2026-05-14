@@ -25,7 +25,13 @@ export function ThroughputStrip({
   const [history, setHistory] = useState<number[]>(() => Array.from({ length: 32 }, () => 0));
 
   useEffect(() => {
-    setHistory((previous) => [...previous.slice(-31), safeVelocity]);
+    let mounted = true;
+    Promise.resolve().then(() => {
+      if (mounted) {
+        setHistory((previous) => [...previous.slice(-31), safeVelocity]);
+      }
+    });
+    return () => { mounted = false; };
   }, [safeVelocity]);
 
   const maxHistory = useMemo(() => {

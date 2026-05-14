@@ -11,7 +11,11 @@ export function PIIControls({ className }: PIIControlsProps) {
   const { user } = useAuth();
 
   useEffect(() => {
-    setVisible(isPIIVisible());
+    let mounted = true;
+    Promise.resolve().then(() => {
+      if (mounted) setVisible(isPIIVisible());
+    });
+    return () => { mounted = false; };
   }, []);
 
   const toggle = () => {
@@ -38,7 +42,11 @@ export function PIIAuditLogViewer() {
   const [logs, setLogs] = useState(getPIIAuditLog());
 
   useEffect(() => {
-    setLogs(getPIIAuditLog());
+    let mounted = true;
+    Promise.resolve().then(() => {
+      if (mounted) setLogs(getPIIAuditLog());
+    });
+    return () => { mounted = false; };
   }, []);
 
   if (logs.length === 0) return null;

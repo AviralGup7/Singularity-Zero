@@ -46,9 +46,16 @@ export function useJobDetail(jobId: string | undefined, ttl?: number) {
   });
 
   useEffect(() => {
+    let isMounted = true;
     if (result.data) {
-      setPoll(result.data.status === 'running');
+      // Defer state update to avoid cascading render warning
+      Promise.resolve().then(() => {
+        if (isMounted) {
+          setPoll(result.data?.status === 'running');
+        }
+      });
     }
+    return () => { isMounted = false; };
   }, [result.data]);
 
   return result;

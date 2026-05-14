@@ -54,21 +54,33 @@ export function useOnboardingTour(steps: OnboardingStep[] = DEFAULT_STEPS) {
   const highlightRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.completed) {
-          setIsComplete(true);
-          return;
+    let mounted = true;
+    const initializeTour = async () => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.completed) {
+            if (mounted) setIsComplete(true);
+            return;
+          }
+        }
+        if (mounted) {
+          setIsComplete(false);
+          setIsOpen(true);
+        }
+      } catch {
+        if (mounted) {
+          setIsComplete(false);
+          setIsOpen(true);
         }
       }
-      setIsComplete(false);
-      setIsOpen(true);
-    } catch {
-      setIsComplete(false);
-      setIsOpen(true);
-    }
+    };
+    
+    // Defer initialization to avoid synchronous state update in effect
+    void initializeTour();
+    
+    return () => { mounted = false; };
   }, []);
 
   const current = steps[currentStep] || steps[0];

@@ -104,7 +104,6 @@ export function RiskScorePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!selectedPoint && hottestPoint) setSelectedPoint(hottestPoint);
     if (selectedPoint && !history.some((entry) => entry.target_id === selectedPoint.target_id && entry.timestamp === selectedPoint.timestamp)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedPoint(hottestPoint);
     }
   }, [selectedPoint, history, hottestPoint]);
