@@ -133,7 +133,7 @@
     "playwright": "^1.59.1",
     "postcss": "^8.5.8",
     "rollup-plugin-visualizer": "^7.0.1",
-    "storybook": "^10.3.4",
+    "storybook": "^10.4.0",
     "tailwindcss": "^4.2.2",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.0",
