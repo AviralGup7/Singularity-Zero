@@ -26,6 +26,15 @@ ENV/
 coverage.xml
 htmlcov/
 
+# Logs and test results
+*.log
+test_results.txt
+_audit_findings.json
+test-results/
+playwright-report/
+blob-report/
+screenshots/
+
 # Output artifacts
 output/
 
@@ -41,24 +50,52 @@ nul
 *.swo
 *~
 
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
 # Mutation testing
 mutmut-results/
 
 # Node
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/coverage/
+.vite
 
-# Environment files (NEVER track actual .env)
+# Environment and Secrets (CRITICAL)
 .env
 .env.local
 .env.*.local
+*.env
 !.env.example
+.secrets
+secrets/
+credentials/
+*.key
+*.pem
+*.crt
+*.p12
 
-# Database files (runtime artifacts)
+# Security scan artifacts
+scan_results/
+vulnerability_reports/
+payload_logs/
+attack_surfaces/
+
+# Anti-forensic Ghost-VFS (CRITICAL - NEVER COMMIT)
+/tmp_ghost_vfs/
+*.vfs
+*.ramfs
+
+# Database and Cache state
 *.db
 *.sqlite
 *.sqlite3
+dump.rdb
+appendonly.aof
+*.rdb
 
 # Backup files
 *.bak
@@ -66,15 +103,16 @@ frontend/coverage/
 *.old
 
 # TypeScript build artifacts
+*.tsbuildinfo
 frontend/tsconfig.tsbuildinfo
 frontend/frontend_build.txt
 
 # Playwright
-playwright-report/
 playwright/.cache/
 
 # Pipeline runtime data
 .pipeline/
+resume.cfg
 
 # Local Configs (NEVER track actual configs)
 configs/config.json
@@ -83,6 +121,16 @@ configs/scope.txt
 configs/settings.json
 !configs/*.example.json
 !configs/scope.example.txt
+
+# Kubernetes/Helm (runtime configs only)
+helm/**/values.local.yaml
+helm/**/secrets.yaml
+
+# AI/Vibe Coding Instructions
+GEMINI.md
+**/GEMINI.md
+.kilo/
+**/sessions/
 
 # IDE/Editor
 *.tmp
