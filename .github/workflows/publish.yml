@@ -19,6 +19,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+      - name: Configure git user
+        run: |
+          git config --global user.name "Aviral Gupta"
+          git config --global user.email "aviral@users.noreply.github.com"
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -51,6 +55,10 @@ jobs:
       url: https://pypi.org/p/cyber-security-test-pipeline
     steps:
       - uses: actions/checkout@v6
+      - name: Configure git user
+        run: |
+          git config --global user.name "Aviral Gupta"
+          git config --global user.email "aviral@users.noreply.github.com"
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -83,6 +91,10 @@ jobs:
             image-suffix: ""
     steps:
       - uses: actions/checkout@v6
+      - name: Configure git user
+        run: |
+          git config --global user.name "Aviral Gupta"
+          git config --global user.email "aviral@users.noreply.github.com"
 
       - name: Extract release version
         id: version
@@ -129,6 +141,10 @@ jobs:
     if: hashFiles('Dockerfile.optimized') != ''
     steps:
       - uses: actions/checkout@v6
+      - name: Configure git user
+        run: |
+          git config --global user.name "Aviral Gupta"
+          git config --global user.email "aviral@users.noreply.github.com"
 
       - name: Extract release version
         id: version
