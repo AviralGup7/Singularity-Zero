@@ -5,11 +5,11 @@ export function VisibilityIndicator() {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
+    // mounted is only read in this component, removing it entirely since cleanup handles it
     const manager = getVisibilityManager();
     
     Promise.resolve().then(() => {
-      if (mounted) setIsVisible(manager.isDocumentVisible());
+      setIsVisible(manager.isDocumentVisible());
     });
 
     const cleanup = manager.registerCallbacks({

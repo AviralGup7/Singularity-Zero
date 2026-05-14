@@ -81,11 +81,8 @@ export function TargetsPage() {
     return () => clearTimeout(timer);
   }, [filter]);
 
-  const targets = data?.targets ?? [];
-
-  // FIX: Removed dead debug useEffect (commented-out console.logs with no side effects)
-
   const filtered = useMemo(() => {
+    const targets = data?.targets ?? [];
     return targets.filter((t) => {
       if (
         debouncedFilter &&
@@ -112,7 +109,7 @@ export function TargetsPage() {
 
       return true;
     });
-  }, [targets, debouncedFilter, filters]);
+  }, [data?.targets, debouncedFilter, filters]);
 
   const paginatedTargets = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
