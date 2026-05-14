@@ -43,7 +43,7 @@ class WeakSecretAttack:
         self.token = token
         self.attack_name = "weak_secret"
 
-    def execute(self, url: str, session) -> dict[str, Any]:
+    def execute(self, url: str, session: Any) -> dict[str, Any]:
         """Execute the weak secret brute-force attack."""
         result: dict[str, Any] = {"attack": self.attack_name, "vulnerable": False, "details": []}
         try:
@@ -136,7 +136,7 @@ class JkuInjectionAttack:
         self.token = token
         self.attack_name = "jku_injection"
 
-    def execute(self, url: str, session) -> dict[str, Any]:
+    def execute(self, url: str, session: Any) -> dict[str, Any]:
         """Execute the JKU injection attack."""
         result: dict[str, Any] = {"attack": self.attack_name, "vulnerable": False, "details": []}
         try:

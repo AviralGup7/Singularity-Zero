@@ -150,7 +150,7 @@ class WorkerDiscovery:
             ip = "127.0.0.1"
         finally:
             s.close()
-        return ip
+        return str(ip)
 
     def shutdown(self) -> None:
         """Unregister services and close Zeroconf."""
