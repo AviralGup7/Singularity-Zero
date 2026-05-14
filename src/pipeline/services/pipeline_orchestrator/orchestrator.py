@@ -1,4 +1,3 @@
-
 """Thin PipelineOrchestrator that delegates to stage runners."""
 
 import argparse
@@ -8,7 +7,6 @@ import os
 import time
 from pathlib import Path
 from typing import Any, TypedDict
-
 from src.core.checkpoint import (
     StageCheckpointGuard,
     attempt_recovery,
@@ -34,7 +32,6 @@ from src.pipeline.services.output_store import PipelineOutputStore
 from src.pipeline.services.pipeline_flow import pipeline_flow_manifest
 from src.pipeline.services.plugin_catalog import resolve_stage_runner
 from src.pipeline.storage import read_scope
-
 from . import parallel
 from ._constants import (
     DEFAULT_ITERATION_LIMIT,
@@ -52,8 +49,18 @@ from ._state_helpers import (
     resolve_stage_timeout,
     safe_checkpoint_stage_outcome,
 )
+from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
+from src.infrastructure.observability.audit_subscriber import register_audit_subscriber
+from src.infrastructure.observability.learning_subscriber import register_learning_subscriber
+from src.infrastructure.observability.notification_subscriber import (
+    register_notification_subscriber,
+)
+from src.infrastructure.observability.progress_subscriber import register_progress_subscriber
+from src.learning.integration import LearningIntegration
 
-logger = get_pipeline_logger(__name__)
+
+
+
 
 
 class FindingDict(TypedDict, total=False):
@@ -77,14 +84,7 @@ __all__ = [
 ]
 
 
-from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
-from src.infrastructure.observability.audit_subscriber import register_audit_subscriber
-from src.infrastructure.observability.learning_subscriber import register_learning_subscriber
-from src.infrastructure.observability.notification_subscriber import (
-    register_notification_subscriber,
-)
-from src.infrastructure.observability.progress_subscriber import register_progress_subscriber
-from src.learning.integration import LearningIntegration
+logger = get_pipeline_logger(__name__)
 
 
 class PipelineOrchestrator:

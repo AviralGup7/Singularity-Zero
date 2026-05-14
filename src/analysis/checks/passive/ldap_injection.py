@@ -9,7 +9,6 @@ import logging
 import re
 from typing import Any
 
-logger = logging.getLogger(__name__)
 
 from src.analysis.helpers import (
     build_endpoint_meta,
@@ -19,6 +18,7 @@ from src.analysis.helpers import (
     meaningful_query_pairs,
 )
 from src.analysis.helpers.scoring import normalized_confidence
+logger = logging.getLogger(__name__)
 
 CHECK_SPEC = {
     "key": "ldap_injection_surface_analyzer",

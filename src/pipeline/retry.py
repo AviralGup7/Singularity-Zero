@@ -1,15 +1,16 @@
 from __future__ import annotations
-
 import secrets as random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
-
 from src.core.contracts.pipeline import RETRY_DEFAULTS
 from src.core.logging.trace_logging import get_pipeline_logger
+from typing import TypeVar
 
-logger = get_pipeline_logger(__name__)
+
+
+
 
 # Fix Audit #79: Move side-effect initialization below imports
 # Use SystemRandom for non-predictable jitter (better than default PRNG for this use)
@@ -243,11 +244,11 @@ def sleep_before_retry(policy: RetryPolicy, attempt: int) -> float:
     return delay
 
 
-from typing import TypeVar
+logger = get_pipeline_logger(__name__)
 
 T = TypeVar('T')
 
-def execute_with_retry(
+def execute_with_retry[T](
     func: Callable[..., T],
     policy: RetryPolicy,
     metrics: RetryMetrics | None = None,

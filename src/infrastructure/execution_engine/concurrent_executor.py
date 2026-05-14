@@ -17,7 +17,6 @@ from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
-
 from src.infrastructure.execution_engine.load_balancer import LoadBalancer
 from src.infrastructure.execution_engine.models import (
     ExecutionConfig,
@@ -26,8 +25,11 @@ from src.infrastructure.execution_engine.models import (
     TaskStatus,
 )
 from src.infrastructure.execution_engine.resource_pool import ResourcePool, ResourcePoolManager
+from ._scheduler import _DAGScheduler
+from ._task_runner import _TaskRunner
 
-logger = logging.getLogger(__name__)
+
+
 
 ProgressCallback = Callable[[str, int, dict[str, Any]], None]
 
@@ -69,8 +71,7 @@ class ExecutionSummary:
         return self.failed == 0 and self.cancelled == 0 and self.timed_out == 0
 
 
-from ._scheduler import _DAGScheduler
-from ._task_runner import _TaskRunner
+logger = logging.getLogger(__name__)
 
 
 class ConcurrentExecutor:

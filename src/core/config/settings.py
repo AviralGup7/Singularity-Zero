@@ -1,7 +1,7 @@
 """Centralized configuration with Pydantic-based settings.
 
 Provides a unified configuration service using pydantic-settings for
-automatic environment variable loading, type validation, and 
+automatic environment variable loading, type validation, and
 environment-aware section selection.
 
 Unifies patterns from across the codebase into a single robust structure.

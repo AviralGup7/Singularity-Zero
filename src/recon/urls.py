@@ -8,15 +8,15 @@ smaller modules for testability and reuse.
 
 from __future__ import annotations
 
-from src.core.models.stage_result import PipelineContext
-from src.core.contracts.pipeline_runtime import StageInput
 import time
 from typing import Any
 from urllib.parse import urlparse
 
 from src.core.contracts.capabilities import UrlCollectorProtocol
+from src.core.contracts.pipeline_runtime import StageInput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models import Config
+from src.core.models.stage_result import PipelineContext
 from src.core.plugins import list_plugins, register_plugin
 from src.pipeline.tools import build_retry_policy, tool_available
 from src.recon.archive import run_archive_jobs
