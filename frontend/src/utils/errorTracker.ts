@@ -149,10 +149,10 @@ export class ErrorTracker {
       const raw = sessionStorage.getItem(ERROR_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        this.errors = parsed.map((e: any) => {
+        this.errors = parsed.map((e: Record<string, unknown>) => {
           const err = new Error(e.message as string);
-          err.name = e.name || 'Error';
-          err.stack = e.stack;
+          err.name = (e.name as string) || 'Error';
+          err.stack = e.stack as string;
           return {
             ...e,
             error: err,

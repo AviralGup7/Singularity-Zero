@@ -1,7 +1,6 @@
 import type {
   Target,
   Job,
-  FindingsSummary,
   DashboardStats,
 } from '@/types/api';
 import { apiClient, cachedGet } from './core';
@@ -9,17 +8,6 @@ import { apiClient, cachedGet } from './core';
 export { apiClient, cachedGet } from './core';
 
 export { getOnlineStatus } from './networkStatus';
-
-async function apiGetTargets(signal?: AbortSignal, ttl?: number): Promise<{ targets: Target[] }> {
-  return cachedGet<{ targets: Target[] }>('/api/targets', { signal, ttl });
-}
-
-async function apiGetJobs(signal?: AbortSignal, ttl?: number): Promise<Job[]> {
-  const res = await cachedGet<{ jobs: Job[]; total: number }>('/api/jobs', { signal, ttl });
-  return res.jobs ?? [];
-}
-
-import { getFindingsSummary } from './findings';
 
 export async function getDashboardStats(signal?: AbortSignal, ttl?: number): Promise<DashboardStats> {
   return cachedGet<DashboardStats>('/api/dashboard', { signal, ttl });

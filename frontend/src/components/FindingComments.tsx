@@ -21,7 +21,7 @@ const TEAM_MEMBERS = [
 ];
 
 function extractMentions(text: string): string[] {
-  const mentionRegex = /@(\w+(?:\s+\w+)*)/g;
+  const mentionRegex = /@([a-zA-Z0-9]+(?:\s[a-zA-Z0-9]+){0,2})/g;
   const mentions: string[] = [];
   let match;
   while ((match = mentionRegex.exec(text)) !== null) {

@@ -31,7 +31,7 @@ export function PerformanceDashboard() {
           // FIX: Use correct value per entry type
           let value: number;
           if (entry.entryType === 'layout-shift') {
-            value = (entry as any).value;
+            value = (entry as unknown as { value: number }).value;
           } else if (entry.entryType === 'largest-contentful-paint') {
             value = (entry as PerformanceEntry & { startTime: number }).startTime;
           } else {

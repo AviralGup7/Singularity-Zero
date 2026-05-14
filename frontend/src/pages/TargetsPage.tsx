@@ -114,7 +114,6 @@ export function TargetsPage() {
     });
   }, [targets, debouncedFilter, filters]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginatedTargets = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);

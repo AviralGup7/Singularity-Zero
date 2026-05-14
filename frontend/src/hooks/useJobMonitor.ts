@@ -13,11 +13,9 @@ import type { SseEvent } from './useSSEProgress';
 import { processJobMonitorSseEvent } from './useJobMonitorSse';
 import type { Job } from '../types/api';
 import {
-  compactPipelineError,
   mergeStageProgressLists,
   mergeTelemetry,
   normalizeActiveTimeline,
-  normalizeStageEntry,
   synthesizeCurrentStageEntry,
 } from './useJobMonitorUtils';
 import { 

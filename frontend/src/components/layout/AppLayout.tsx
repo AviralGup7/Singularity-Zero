@@ -6,7 +6,6 @@ import { APP_VERSION } from '../../config';
 import { useTheme } from '../../context/ThemeContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
-import { LiveJobIndicator } from '../LiveJobIndicator';
 import { FocusTrap } from '../FocusTrap';
 import { Icon } from '../Icon';
 import { CommandPalette } from '../CommandPalette';
@@ -117,11 +116,9 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, updater: themeUpdater } = useTheme();
-  const { settings } = useSettings();
   const { user } = useAuth();
   const navSections = useNavSections();
   const [showShortcuts, setShowShortcuts] = useState(false);
