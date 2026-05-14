@@ -360,7 +360,7 @@ class TracingManager:
         now = time.time()
         if hasattr(self, "_status_cache") and (now - getattr(self, "_status_cache_ts", 0)) < 60.0:
             return self._status_cache
-            
+
         req = request.Request(self.endpoint, method="GET")
         try:
             with request.urlopen(req, timeout=1.5):
@@ -369,7 +369,7 @@ class TracingManager:
             res = "connected"
         except Exception:
             res = "unreachable"
-            
+
         self._status_cache = res
         self._status_cache_ts = now
         return res

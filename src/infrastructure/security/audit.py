@@ -29,7 +29,6 @@ from __future__ import annotations
 import hashlib
 import hmac as hmac_module
 import json
-import logging
 import threading
 import time
 from datetime import UTC, datetime
@@ -39,8 +38,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from src.infrastructure.security.config import SecurityConfig
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.security.config import SecurityConfig
 
 # Fix #293: use pipeline logger instead of stdlib logger
 logger = get_pipeline_logger(__name__)
@@ -274,14 +273,14 @@ class AuditLogger:
             log_path.touch()
 
         self._current_size = log_path.stat().st_size
-        
+
         # Fix #294: Close existing file handle before re-opening
         if self._file_handle is not None:
             try:
                 self._file_handle.close()
             except Exception:
                 pass
-                
+
         self._file_handle = open(log_path, "a", encoding="utf-8")
 
         if self._current_size == 0:
@@ -331,14 +330,14 @@ class AuditLogger:
                 size = f.tell()
                 if size == 0:
                     return "genesis"
-                
+
                 pos = size - 1
                 while pos >= 0:
                     f.seek(pos)
                     if f.read(1) == b'\n' and pos != size - 1:
                         break
                     pos -= 1
-                    
+
                 f.seek(max(0, pos + 1))
                 last_line = f.readline().strip()
                 if last_line:
@@ -651,5 +650,5 @@ class AuditLogger:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit the context manager, ensuring the file handle is closed."""
         self.close()
-        
+
         # Fix #302: Removed dangerous __del__ method which acquired locks

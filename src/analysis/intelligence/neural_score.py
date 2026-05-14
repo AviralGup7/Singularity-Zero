@@ -5,8 +5,8 @@ Implements sophisticated multi-dimensional risk scoring for security findings.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
+
 import numpy as np
 
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -33,14 +33,14 @@ class NeuralScorer:
         """
         # 1. Normalized CVSS (0-10)
         cvss = float(finding.get("cvss_score", 5.0))
-        
+
         # 2. Confidence (0-1)
         confidence = float(finding.get("confidence", 0.5))
-        
+
         # 3. Exploitability (Inferred from type)
         type_str = finding.get("type", "").lower()
         exploitability = 0.9 if any(x in type_str for x in ["rce", "sqli", "idor"]) else 0.4
-        
+
         # 4. Neural-Mesh Consensus factor
         # If multiple tools found it, boost confidence
         sources = finding.get("metadata", {}).get("sources", [])
@@ -49,9 +49,9 @@ class NeuralScorer:
 
         # Vectorized Weighted Calculation
         factors = np.array([cvss, confidence * 10, target_criticality * 10, exploitability * 10])
-        weights = np.array([self.weights["cvss_base"], self.weights["confidence"], 
+        weights = np.array([self.weights["cvss_base"], self.weights["confidence"],
                            self.weights["business_impact"], self.weights["exploitability"]])
-        
+
         csi = np.dot(factors, weights)
         return round(csi, 2)
 
@@ -63,7 +63,7 @@ class NeuralScorer:
             target = finding.get("target", "unknown")
             criticality = target_map.get(target, 0.5)
             finding["csi_score"] = self.calculate_csi(finding, criticality)
-            
+
             # Map back to human severity based on CSI
             if finding["csi_score"] >= 9.0: finding["severity"] = "critical"
             elif finding["csi_score"] >= 7.0: finding["severity"] = "high"

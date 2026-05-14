@@ -31,8 +31,8 @@ import hmac as hmac_module
 import os
 from typing import Any
 
-from src.infrastructure.security.config import SecurityConfig
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.security.config import SecurityConfig
 
 logger = get_pipeline_logger(__name__)
 

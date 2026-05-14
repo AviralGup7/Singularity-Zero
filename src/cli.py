@@ -9,12 +9,9 @@ pipeline execution, and system maintenance.
 from __future__ import annotations
 
 import argparse
-import asyncio
 import os
 import sys
-import time
 from pathlib import Path
-from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -112,9 +109,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def handle_dashboard(args: argparse.Namespace) -> None:
     """Orchestrate the FastAPI dashboard startup."""
     from src.dashboard.fastapi.main import main as run_server
-    
+
     console.print(f"[info]Starting Cyber Dashboard on {args.host}:{args.port} with {args.workers} workers...[/info]")
-    
+
     argv = [
         "--host", args.host,
         "--port", str(args.port),
@@ -123,16 +120,16 @@ def handle_dashboard(args: argparse.Namespace) -> None:
     ]
     if args.reload:
         argv.append("--reload")
-        
+
     run_server(argv)
 
 
 def handle_worker(args: argparse.Namespace) -> None:
     """Orchestrate the distributed worker startup."""
     from src.infrastructure.queue.worker import main as run_worker
-    
+
     console.print(f"[info]Initializing Distributed Worker on queue: [accent]{args.queue}[/accent][/info]")
-    
+
     argv = [
         "--queue", args.queue,
         "--concurrency", str(args.concurrency)
@@ -141,16 +138,16 @@ def handle_worker(args: argparse.Namespace) -> None:
         argv.extend(["--worker-id", args.worker_id])
     if args.replication:
         argv.append("--enable-checkpoint-replication")
-        
+
     run_worker(argv)
 
 
 def handle_scan(args: argparse.Namespace) -> int:
     """Execute a localized pipeline run."""
     from src.pipeline.runtime import main as run_pipeline
-    
+
     console.print(f"[info]Launching Pipeline Run: [accent]{args.config}[/accent][/info]")
-    
+
     argv = [
         "--config", args.config,
         "--scope", args.scope
@@ -159,7 +156,7 @@ def handle_scan(args: argparse.Namespace) -> int:
         argv.append("--force-fresh-run")
     if args.dry_run:
         argv.append("--dry-run")
-        
+
     return run_pipeline(argv)
 
 
@@ -194,7 +191,7 @@ def handle_status() -> None:
 def main() -> int:
     _ensure_repo_root()
     _print_banner()
-    
+
     parser = _build_parser()
     if len(sys.argv) == 1:
         parser.print_help()
@@ -208,11 +205,11 @@ def main() -> int:
                 handle_dashboard(args)
             elif args.service == "worker":
                 handle_worker(args)
-        
+
         elif args.area == "scan":
             if args.command == "run":
                 return handle_scan(args)
-                
+
         elif args.area == "system":
             if args.cmd == "status":
                 handle_status()

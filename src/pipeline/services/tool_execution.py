@@ -20,12 +20,11 @@ from pathlib import Path
 
 from src.core.contracts.pipeline import TIMEOUT_DEFAULTS
 from src.core.logging.pipeline_logging import emit_retry_warning, emit_warning
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import StderrClassification, classify_stderr_lines
 from src.pipeline.retry import RetryPolicy, retry_ready, sleep_before_retry
 
 from .circuit_breaker import CircuitBreaker
-
-from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 

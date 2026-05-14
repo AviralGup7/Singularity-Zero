@@ -5,6 +5,7 @@ from typing import Any
 
 from src.analysis.behavior.service import run_service_enrichment
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.core.utils import normalize_scope_entry
 from src.pipeline.runner_support import (
@@ -22,8 +23,6 @@ from src.pipeline.services.services.recon_service import (
 from src.recon.live_hosts import probe_live_hosts
 from src.recon.subdomains import enumerate_subdomains
 from src.recon.urls import collect_urls
-
-from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 

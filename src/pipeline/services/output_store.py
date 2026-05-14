@@ -52,7 +52,7 @@ class PipelineOutputStore:
         self.dedupe_aliases = dedupe_aliases
         self.write_artifact_manifest = write_artifact_manifest
         self._ghost_vfs = ghost_vfs
-        
+
         if self._ghost_vfs:
             logger.info("OutputStore: [GHOST-MODE] Volatile RAM-only storage active.")
 
@@ -68,7 +68,7 @@ class PipelineOutputStore:
         run_id = run_dir_stamp()
         target_root = (output_root / target_name).resolve()
         local_run_dir = (target_root / run_id).resolve()
-        
+
         ghost_vfs = None
         if storage_config and storage_config.get("anti_forensic_mode"):
              ghost_vfs = GhostVFS()

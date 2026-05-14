@@ -18,8 +18,8 @@ except ImportError:
 
 from pydantic import BaseModel, Field
 
-from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.contracts.task_envelope import TASK_ENVELOPE_VERSION, TaskEnvelope
+from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 

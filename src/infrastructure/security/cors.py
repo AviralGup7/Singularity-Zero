@@ -25,8 +25,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
 
-from src.infrastructure.security.config import SecurityConfig
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.security.config import SecurityConfig
 
 logger = get_pipeline_logger(__name__)
 

@@ -12,9 +12,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from src.pipeline.storage import ensure_dir
-
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.pipeline.storage import ensure_dir
 
 logger = get_pipeline_logger(__name__)
 

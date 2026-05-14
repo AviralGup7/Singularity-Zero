@@ -1,8 +1,10 @@
+
 """Thin PipelineOrchestrator that delegates to stage runners."""
 
 import argparse
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any, TypedDict
@@ -270,16 +272,16 @@ class PipelineOrchestrator:
         """Run the full security testing pipeline with distributed concurrency protection."""
         flow_manifest = pipeline_flow_manifest()
         emit_progress("startup", "Loading configuration", 3)
-        
+
         preloaded_config = getattr(args, "_loaded_config", None)
         config = preloaded_config if preloaded_config is not None else load_config(Path(args.config).resolve())
-        
+
         # ──────────────────────────────────────────────────────────
         # Distributed Concurrency Guard (Overhaul #4)
         # ──────────────────────────────────────────────────────────
         from src.infrastructure.cache import CacheManager
         from src.infrastructure.cache.config import CacheConfig
-        
+
         # Use common settings for cache paths if not in config
         cache_db_path = getattr(config, "cache_db_path", str(config.output_dir / "cache" / "cache_layer.db"))
         cache_dir = getattr(config, "cache_dir", str(config.output_dir / "cache" / "files"))
@@ -291,13 +293,13 @@ class PipelineOrchestrator:
             redis_url=redis_url,
         )
         cache_mgr = CacheManager(config=cache_config)
-        
+
         target_name = str(getattr(config, "target_name", "unknown") or "unknown")
-        
+
         # Attempt to acquire a global lock for this target to prevent multi-worker collisions
         logger.info("Acquiring distributed lock for target: %s", target_name)
         lock_token = cache_mgr.acquire_recon_lock(target_name, ttl=3600, wait_timeout=5.0)
-        
+
         if not lock_token and config.redis_url:
             logger.error("Failed to acquire distributed lock: Target '%s' is already being scanned by another worker.", target_name)
             emit_progress("startup", f"Collision: {target_name} is already under active scan", 0, status="failed")

@@ -10,12 +10,11 @@ from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 from src.recon.common import normalize_url
-
-from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 

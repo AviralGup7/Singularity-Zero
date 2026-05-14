@@ -1,6 +1,5 @@
 import hashlib  # Fix #342: moved from _check_rollout to module level
 import json
-import logging
 import os
 import re
 import threading

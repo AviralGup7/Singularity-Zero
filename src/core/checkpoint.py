@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import logging
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -236,19 +235,18 @@ class CheckpointManager:
                 try:
                     loop = asyncio.get_running_loop()
                     task = loop.create_task(self._distributed.save_checkpoint(state, self.run_id))
-                    
+
                     def _on_done(t: asyncio.Task[Any]) -> None:
                         if t.cancelled():
                             _rollback(asyncio.CancelledError("Task cancelled"))
                         elif t.exception():
                             _rollback(t.exception()) # type: ignore
-                            
+
                     task.add_done_callback(_on_done)
                 except RuntimeError:
                     # Fix #331: Run synchronously if no loop, and rollback on failure
                     try:
-                        import threading
-                        # Cannot use asyncio.to_thread if there is no running loop, 
+                        # Cannot use asyncio.to_thread if there is no running loop,
                         # but we want to avoid asyncio.run() creating a new loop.
                         # Wait, if there is no running loop, we can just run the coroutine directly? No.
                         # Let's just create a new loop but close it properly, or dispatch to a background thread.

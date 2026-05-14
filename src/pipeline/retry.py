@@ -205,7 +205,7 @@ class RetryPolicy:
         base_delay = effective_backoff * (self.backoff_multiplier ** max(0, attempt_number - 2))
         if self.max_backoff_seconds > 0:
             base_delay = min(base_delay, self.max_backoff_seconds)
-        
+
         # Fix Audit #142: Use self.jitter_factor instead of param shadow
         jitter_range = base_delay * self.jitter_factor
         jittered = base_delay + (_SYSTEM_RANDOM.random() * 2 - 1) * jitter_range

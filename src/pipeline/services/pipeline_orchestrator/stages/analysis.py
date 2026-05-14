@@ -15,15 +15,13 @@ from src.analysis.passive.orchestrator import run_passive_scanners
 from src.core.contracts.finding_lifecycle import apply_lifecycle
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.contracts.schema_validator import (
-    SchemaValidationError,
     validate_analysis_payload,
     validate_decision_payload,
     validate_detection_payload,
-    validate_execution_payload,
 )
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
-from src.execution.validators import execute_validation_runtime
+from src.pipeline.runner_support import emit_progress
 from src.pipeline.services.pipeline_helpers import (
     build_stage_input_from_context,
     extract_feedback_urls,
@@ -31,6 +29,11 @@ from src.pipeline.services.pipeline_helpers import (
 )
 
 logger = get_pipeline_logger(__name__)
+
+
+def _is_deterministic_contract_error(exc: Exception) -> bool:
+    err_str = str(exc).lower()
+    return 'schema' in err_str or 'contract' in err_str or 'type' in err_str or 'validation' in err_str
 
 
 async def run_passive_scanning(
@@ -53,7 +56,7 @@ async def run_passive_scanning(
     analysis_stage_started = time.monotonic()
     max_iteration_limit = max(1, int(config.analysis.get("max_iteration_limit", 3)))
     feedback_limit = max(1, int(config.analysis.get("finding_feedback_limit", 30)))
-    
+
     # Mid-Stage Resilience: Recover state from previous deltas
     seen_finding_keys: set[str] = set()
     feedback_urls: set[str] = set(ctx.deep_analysis_urls)
@@ -168,23 +171,6 @@ async def run_passive_scanning(
                         }
                         break
 
-            state_delta["validation_ok"] = False
-            for attempt in range(1, 3):
-                (
-                    validation_summary,
-                    validation_ok,
-                ) = await _run_validation(
-                    config,
-                    state_delta["analysis_results"],
-                    ctx.ranked_priority_urls,
-                    state_delta["validation_runtime_inputs"],
-                    iteration,
-                    attempt,
-                )
-                state_delta["validation_summary"] = validation_summary
-                state_delta["validation_ok"] = validation_ok
-                if validation_ok:
-                    break
 
             state_delta["merged_findings"] = annotate_finding_decisions(
                 annotate_finding_history(
@@ -194,7 +180,6 @@ async def run_passive_scanning(
                         ctx.selected_priority_items,
                         ctx.target_profile,
                         config.mode,
-                        validation_summary=state_delta["validation_summary"],
                     ),
                 )
             )

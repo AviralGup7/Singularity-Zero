@@ -8,7 +8,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.dashboard.fastapi.dependencies import get_cache_manager, get_queue_client, require_admin, require_auth
+from src.dashboard.fastapi.dependencies import (
+    get_cache_manager,
+    get_queue_client,
+    require_admin,
+    require_auth,
+)
 from src.dashboard.fastapi.schemas import (
     ErrorResponse,
     HistoricalScoreResponse,

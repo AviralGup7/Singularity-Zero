@@ -5,12 +5,16 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.dashboard.fastapi.dependencies import check_rate_limit, get_queue_client, require_auth, get_config
-from src.dashboard.fastapi.schemas import ErrorResponse, AttackChainSchema
-from src.dashboard.fastapi.validation import validate_target_name
 from src.analysis.intelligence.lateral_graph import LateralGraph
+from src.dashboard.fastapi.dependencies import (
+    check_rate_limit,
+    get_queue_client,
+    require_auth,
+)
+from src.dashboard.fastapi.schemas import AttackChainSchema, ErrorResponse
+from src.dashboard.fastapi.validation import validate_target_name
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +43,7 @@ async def get_attack_chains(
     except Exception as e:
         logger.debug("Attack chain query failed (normal if no graph yet): %s", e)
         return []
-    
+
     formatted: list[dict[str, Any]] = []
     for chain in raw_chains:
         # Map [a1.id, f1.id, a2.id, f2.id] -> AttackChainSchema
@@ -53,7 +57,7 @@ async def get_attack_chains(
             "description": f"Potential lateral movement from {chain[0]} to {chain[2]} via {chain[1]}"
         }
         formatted.append(entry)
-        
+
     return formatted # type: ignore
 
 

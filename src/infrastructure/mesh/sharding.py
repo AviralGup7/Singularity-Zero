@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Any
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -50,13 +50,13 @@ class MeshShardManager:
         """Find the worker node responsible for this target."""
         if not self._ring:
             return None
-            
+
         h = self._hash(target_name)
         # Binary search for the first virtual node clockwise from 'h'
         idx = np.searchsorted(self._ring, h)
         if idx == len(self._ring):
             idx = 0
-            
+
         return self._node_map.get(self._ring[idx])
 
     def get_my_shards(self, local_node_id: str, targets: list[str]) -> list[str]:

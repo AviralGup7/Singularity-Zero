@@ -1,7 +1,6 @@
 """Finding history annotation and endpoint risk profiles."""
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 

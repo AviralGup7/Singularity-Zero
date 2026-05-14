@@ -5,7 +5,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.dashboard.fastapi.dependencies import check_rate_limit, get_queue_client, require_admin, require_auth
+from src.dashboard.fastapi.dependencies import (
+    check_rate_limit,
+    get_queue_client,
+    require_admin,
+    require_auth,
+)
 from src.dashboard.fastapi.schemas import (
     ErrorResponse,
     NoteCreateRequest,

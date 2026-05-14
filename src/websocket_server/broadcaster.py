@@ -6,7 +6,6 @@ backpressure handling, and per-connection async message queues.
 
 import asyncio
 import json
-import logging
 import os
 import uuid
 from collections import OrderedDict
@@ -210,11 +209,11 @@ class Broadcaster:
                 async for item in self._redis_pubsub.listen():
                     if item.get("type") != "message":
                         continue
-                    
+
                     raw = item.get("data")
                     if not isinstance(raw, (str, bytes)):
                         continue
-                        
+
                     try:
                         envelope = json.loads(raw)
                         # Fix #364: track fire-and-forget task; add error-logging done-callback.
@@ -245,14 +244,14 @@ class Broadcaster:
         message_json = envelope.get("message")
         if not isinstance(message_json, str):
             return 0
-            
+
         try:
             message = BaseMessage.from_json(message_json)
             scope = str(envelope.get("scope") or "")
             target = str(envelope.get("target") or "")
             exclude_raw = envelope.get("exclude") or []
             exclude = {str(item) for item in exclude_raw} if isinstance(exclude_raw, list) else set()
-            
+
             return await self._deliver_local(scope, target, message, exclude, skip_redis=True)
         except Exception as exc:
             logger.error("Envelope delivery failed: %s", exc)
@@ -280,7 +279,7 @@ class Broadcaster:
             # If we are in distributed mode, the primary path is always via Redis
             # to ensure consistent ordering across all workers.
             await self._publish(scope=scope, target=target, message=message, exclude=exclude)
-            # We return 1 to indicate 'accepted for delivery', though actual delivery 
+            # We return 1 to indicate 'accepted for delivery', though actual delivery
             # happens via the subscribe loop.
             return 1
 
@@ -478,7 +477,6 @@ class Broadcaster:
         Args:
             connection_id: Connection to dispatch for.
         """
-        from starlette.websockets import WebSocketState
 
         while True:
             info = await self.manager.get_connection(connection_id)

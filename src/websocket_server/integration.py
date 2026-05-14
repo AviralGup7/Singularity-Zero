@@ -27,6 +27,7 @@ from typing import Any
 from fastapi import FastAPI
 from starlette.websockets import WebSocket
 
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.websocket_server.broadcaster import Broadcaster
 from src.websocket_server.handlers import WebSocketHandler
 from src.websocket_server.heartbeat import HeartbeatMonitor
@@ -37,7 +38,6 @@ from src.websocket_server.protocol import (
     StatusMessage,
 )
 from src.websocket_server.reconnect import ReconnectionManager
-from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 

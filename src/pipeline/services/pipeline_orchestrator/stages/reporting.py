@@ -4,17 +4,16 @@ import asyncio
 import time
 from typing import Any
 
+from src.analysis.intelligence.aggregator import attach_queue_replay_links
+from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
+from src.core.logging.pipeline_logging import emit_info, emit_summary
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.core.plugins import resolve_plugin
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.screenshots import capture_screenshots
-from src.reporting import build_artifact_diff
-from src.core.logging.pipeline_logging import emit_info, emit_summary
-from src.analysis.intelligence.aggregator import attach_queue_replay_links
-from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
-
-from src.core.logging.trace_logging import get_pipeline_logger
+from src.reporting import build_artifact_diff
 
 logger = get_pipeline_logger(__name__)
 

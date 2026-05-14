@@ -5,13 +5,11 @@ RAM-only Volatile Virtual File System for anti-forensic scan artifacts.
 
 from __future__ import annotations
 
-import ctypes
-import logging
 import os
 import secrets
-from typing import Any
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
@@ -42,7 +40,7 @@ class GhostVFS:
         raw = self._files.get(path)
         if not raw:
             raise FileNotFoundError(f"Ghost-VFS: {path} not found")
-        
+
         nonce = raw[:12]
         ciphertext = raw[12:]
         return self._aesgcm.decrypt(nonce, ciphertext, None)
@@ -60,14 +58,14 @@ class GhostVFS:
     def self_destruct(self) -> None:
         """Wipe all data and keys from RAM securely."""
         self._files.clear()
-        
+
         # Fix Audit #9: Securely wipe the key from memory
-        # Fix #207: Python bytes are immutable. True secure wipe of bytes is 
+        # Fix #207: Python bytes are immutable. True secure wipe of bytes is
         # impossible without C-extensions. We overwrite references to encourage GC.
         if hasattr(self, "_key") and isinstance(self._key, bytes):
             try:
                 # Overwrite with random bytes before reassignment
-                # Note: Python's immutable bytes makes this tricky, but we can 
+                # Note: Python's immutable bytes makes this tricky, but we can
                 # at least minimize the window and clear the reference.
                 # In a real C-extension we would use memset(0).
                 # Here we overwrite the reference with a fresh random buffer
@@ -78,6 +76,6 @@ class GhostVFS:
             except Exception as e:
                 # Fix #208: Add logger.debug instead of bare pass
                 logger.debug("Ghost-VFS: Key wipe attempt failed: %s", e)
-        
+
         self._key = b""
         logger.warning("Ghost-VFS: Data plane PURGED")

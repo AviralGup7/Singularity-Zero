@@ -60,7 +60,7 @@ class FrontierRingBus:
                      self._dropped_events,
                  )
                  return
-    
+
             event = NeuralEvent(event_type, source, data, priority)
             self._buffer.append(event)
 
@@ -74,7 +74,7 @@ class FrontierRingBus:
         self._running = True
         self._wakeup_event.clear()
         logger.info("Neural-Mesh Ring Bus active (Capacity: %d)", self._buffer.maxlen)
-        
+
         while self._running:
             with self._lock:
                 if not self._buffer:
@@ -87,14 +87,14 @@ class FrontierRingBus:
                 await self._wakeup_event.wait()
                 self._wakeup_event.clear()
                 continue
-                
+
             for event in events:
-                
+
                 # Fix Audit #125: Create a new combined list to avoid mutation during iteration
                 specific = self._subscribers.get(event.type, [])
                 wildcard = self._subscribers.get("*", [])
                 handlers = list(specific) + list(wildcard)
-                
+
                 for handler in handlers:
                     try:
                         if asyncio.iscoroutinefunction(handler):
@@ -107,7 +107,7 @@ class FrontierRingBus:
                             handler(event)
                     except Exception as e:
                         logger.error("Bus handler failure: %s", e)
-            
+
             # Tiny yield to allow event producers to catch up
             await asyncio.sleep(0)
 

@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import base64
 import os
-from typing import Any
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
 
 class CyberVault:
     """
@@ -46,7 +46,7 @@ class CyberVault:
         salt = payload[:16]
         nonce = payload[16:28]
         ciphertext = payload[28:]
-        
+
         # Verify salt matches (if reusing vault instance)
         if salt != self._salt:
              # Fix Audit #8: Raise ValueError on salt mismatch

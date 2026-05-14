@@ -6,7 +6,6 @@ fingerprints, manual verification queues, and high-confidence shortlists.
 """
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -19,8 +18,8 @@ from src.analysis.automation.manual_queue import (
 )
 from src.analysis.behavior.technology import build_technology_summary
 from src.analysis.intelligence.findings_dedup import finding_key
-from src.execution.exploiters.exploit_automation import build_chain_simulation, build_proof_bundle
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.execution.exploiters.exploit_automation import build_chain_simulation, build_proof_bundle
 
 __all__ = [
     "build_attack_surface",

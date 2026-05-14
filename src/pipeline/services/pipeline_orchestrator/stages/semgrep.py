@@ -4,8 +4,6 @@ import asyncio
 import time
 from typing import Any
 
-from src.core.models.stage_result import PipelineContext
-from src.pipeline.runner_support import emit_progress
 from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
     annotate_finding_history,
@@ -14,9 +12,10 @@ from src.analysis.intelligence.aggregator import (
 )
 from src.core.contracts.finding_lifecycle import apply_lifecycle
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
-from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
-
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.core.models.stage_result import PipelineContext
+from src.pipeline.runner_support import emit_progress
+from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 
 logger = get_pipeline_logger(__name__)
 

@@ -1,3 +1,4 @@
+
 """High-throughput Bloom filter for URL frontier deduplication."""
 
 from __future__ import annotations
@@ -7,6 +8,7 @@ import math
 import os
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -81,7 +83,7 @@ class NeuralBloomFilter:
         """Return two MurmurHash3 seed arrays used for double hashing."""
         if items.size == 0:
             return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
-        
+
         # Batch with numpy vectorized operations to reduce interpreter overhead
         vec_hash = np.frompyfunc(mmh3.hash64, 1, 2)
         h1, h2 = vec_hash(items.astype(np.str_))

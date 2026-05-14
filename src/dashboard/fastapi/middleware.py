@@ -3,12 +3,10 @@
 import json as _audit_json
 import logging
 import time
-from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.types import ASGIApp
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +37,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         if request.method in self.SAFE_METHODS:
             return await call_next(request)
-        
+
         path = request.url.path
         if path in self.EXEMPT_PATHS or path.startswith("/reports/"):
             return await call_next(request)
@@ -93,7 +91,7 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # We only audit state-changing operations
         is_sensitive = request.method in {"POST", "PUT", "DELETE", "PATCH"}
-        
+
         if not is_sensitive:
             return await call_next(request)
 

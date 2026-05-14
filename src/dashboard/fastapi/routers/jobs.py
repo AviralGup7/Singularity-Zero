@@ -14,7 +14,12 @@ from fastapi.responses import StreamingResponse
 
 from src.dashboard.eta_engine import get_eta_engine
 from src.dashboard.fastapi.config import FeatureFlags
-from src.dashboard.fastapi.dependencies import check_rate_limit, get_queue_client, require_auth, require_worker
+from src.dashboard.fastapi.dependencies import (
+    check_rate_limit,
+    get_queue_client,
+    require_auth,
+    require_worker,
+)
 from src.dashboard.fastapi.routers.sse_events import SSEEventEmitter
 from src.dashboard.fastapi.schemas import (
     ErrorResponse,

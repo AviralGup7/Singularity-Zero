@@ -5,8 +5,8 @@ Links findings and assets into attack chains using the Kuzu graph database.
 
 from __future__ import annotations
 
-import logging
 import os
+
 try:
     import kuzu
 except ImportError:
@@ -48,7 +48,7 @@ class LateralGraph:
             # Nodes
             self._conn.execute("CREATE NODE TABLE Asset(id STRING, type STRING, PRIMARY KEY (id))")
             self._conn.execute("CREATE NODE TABLE Finding(id STRING, severity STRING, PRIMARY KEY (id))")
-            
+
             # Edges
             self._conn.execute("CREATE REL TABLE BELONGS_TO(FROM Asset TO Asset)")
             self._conn.execute("CREATE REL TABLE HAS_VULN(FROM Asset TO Finding)")
@@ -65,13 +65,13 @@ class LateralGraph:
         # Create Nodes
         self._conn.execute(f"MERGE (a:Asset {{id: '{asset_id}', type: 'endpoint'}})")
         self._conn.execute(f"MERGE (f:Finding {{id: '{fid}', severity: '{finding['severity']}'}})")
-        
+
         # Link Finding to Asset
-        self._conn.execute(f"MERGE (a)-[:HAS_VULN]->(f)")
-        
+        self._conn.execute("MERGE (a)-[:HAS_VULN]->(f)")
+
         # Heuristic: If finding is an IDOR or SSRF, it's a PIVOT point
         if "idor" in finding["type"] or "ssrf" in finding["type"]:
-             self._conn.execute(f"MERGE (f)-[:PIVOTS_TO]->(a)")
+             self._conn.execute("MERGE (f)-[:PIVOTS_TO]->(a)")
 
     def find_attack_chains(self) -> list[list[str]]:
         """

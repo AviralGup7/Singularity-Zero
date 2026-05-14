@@ -25,7 +25,7 @@ async def get_gap_analysis(
 ) -> DetectionGapResponse:
     """Analyze coverage gaps across vulnerability categories."""
     from src.reporting.detection_coverage import ALL_DETECTION_CATEGORIES
-    
+
     # 1. Map categories to their "ideal" check counts
     # In a real system, this would be more dynamic.
     ideal_counts = {
@@ -41,10 +41,10 @@ async def get_gap_analysis(
     # 2. Get actual findings/tests run for the target
     # If target is None, we look at global coverage
     output_root = services.query.output_root
-    
+
     # Simple heuristic: what modules have EVER run or are currently enabled
     # For now, we simulate this based on ALL_DETECTION_CATEGORIES
-    
+
     results: list[GapAnalysisEntry] = []
     total_coverage = 0
     modules_with_gaps = 0
@@ -55,13 +55,13 @@ async def get_gap_analysis(
         # for whether a module matching this category has been executed.
         covered = total if cat_id in ["xss", "ssrf", "misconfiguration"] else total - 1
         if cat_id in ["ai_surface", "race_condition"]: covered = 0
-        
+
         percent = int((covered / total) * 100)
         status = "complete" if percent == 100 else "partial" if percent > 0 else "missing"
-        
+
         if status != "complete":
             modules_with_gaps += 1
-            
+
         results.append(GapAnalysisEntry(
             module=info["name"],
             category=cat_id,
