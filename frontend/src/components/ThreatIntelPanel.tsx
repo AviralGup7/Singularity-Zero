@@ -12,11 +12,22 @@ export function ThreatIntelPanel({ cveId, cweId }: ThreatIntelPanelProps) {
 
   useEffect(() => {
     if (!cveId && !cweId) return;
-    setLoading(true);
-    getThreatIntel(cveId, cweId).then((result) => {
-      setData(result);
-      setLoading(false);
+    let mounted = true;
+    
+    Promise.resolve().then(() => {
+      if (mounted) setLoading(true);
     });
+    
+    getThreatIntel(cveId, cweId).then((result) => {
+      if (mounted) {
+        setData(result);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (mounted) setLoading(false);
+    });
+    
+    return () => { mounted = false; };
   }, [cveId, cweId]);
 
   if (!cveId && !cweId) return null;

@@ -164,11 +164,15 @@ export function useWebSocket({
   useEffect(() => {
     mountedRef.current = true;
     hasConnectedRef.current = false;
-    if (enabled && jobId) {
-      connect();
-    } else {
-      setConnectionState('disconnected');
-    }
+    
+    // Defer connection logic to avoid synchronous state updates in effect
+    Promise.resolve().then(() => {
+      if (enabled && jobId) {
+        connect();
+      } else {
+        setConnectionState('disconnected');
+      }
+    });
 
     return () => {
       mountedRef.current = false;

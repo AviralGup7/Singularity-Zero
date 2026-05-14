@@ -28,16 +28,28 @@ export function FindingDetailPanel({
 
   useEffect(() => {
     if (!detailFinding.id) return;
-    setLoadingRemediation(true);
+    let mounted = true;
+    
+    // Defer the initial loading state update
+    Promise.resolve().then(() => {
+      if (mounted) setLoadingRemediation(true);
+    });
+
     getFindingRemediation(detailFinding.id)
       .then((res) => {
-        setRemediation(res.suggestions || []);
-        setLoadingRemediation(false);
+        if (mounted) {
+          setRemediation(res.suggestions || []);
+          setLoadingRemediation(false);
+        }
       })
       .catch(() => {
-        setRemediation([]);
-        setLoadingRemediation(false);
+        if (mounted) {
+          setRemediation([]);
+          setLoadingRemediation(false);
+        }
       });
+      
+    return () => { mounted = false; };
   }, [detailFinding.id]);
 
   const isLogicBreach = detailFinding.type?.startsWith('logic_breach');

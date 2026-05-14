@@ -1,3 +1,10 @@
+from src.reporting.sections_graphs import (
+    attack_graph_section,
+    auth_context_mapping_section,
+    endpoint_relationship_graph_section,
+    finding_graph_section,
+    shared_parameter_tracking_section,
+)
 import html
 import json
 from typing import Any
@@ -115,13 +122,6 @@ def prioritized_endpoints_section(summary: dict[str, Any]) -> str:
     return f"<section><h2>Multi-Signal Prioritized Endpoints</h2><ul>{''.join(rows)}</ul></section>"
 
 
-from src.reporting.sections_graphs import (
-    attack_graph_section,
-    auth_context_mapping_section,
-    endpoint_relationship_graph_section,
-    finding_graph_section,
-    shared_parameter_tracking_section,
-)
 
 
 def flow_detection_section(analysis_results: dict[str, list[dict[str, Any]]]) -> str:
