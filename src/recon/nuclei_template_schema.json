@@ -1,0 +1,455 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://templates.-template",
+  "$ref": "#/$defs/templates.Template",
+  "$defs": {
+    "analyzers.AnalyzerTemplate": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "parameters": {
+          "$ref": "#/$defs/map[string]interface {}"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "parameters"
+      ]
+    },
+    "code.Request": {
+      "properties": {
+        "matchers": {
+          "items": {
+            "$ref": "#/$defs/matchers.Matcher"
+          },
+          "type": "array",
+          "title": "matchers to run on response",
+          "description": "Detection mechanism to identify whether the request was successful by doing pattern matching"
+        },
+        "extractors": {
+          "items": {
+            "$ref": "#/$defs/extractors.Extractor"
+          },
+          "type": "array",
+          "title": "extractors to run on response",
+          "description": "Extractors contains the extraction mechanism for the request to identify and extract parts of the response"
+        },
+        "matchers-condition": {
+          "type": "string",
+          "enum": [
+            "and",
+            "or"
+          ],
+          "title": "condition between the matchers",
+          "description": "Conditions between the matchers"
+        },
+        "id": {
+          "type": "string",
+          "title": "id of the request",
+          "description": "ID is the optional ID of the Request"
+        },
+        "engine": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "engine",
+          "description": "Engine"
+        },
+        "sandbox": {
+          "$ref": "#/$defs/code.Sandbox",
+          "title": "sandbox",
+          "description": "Sandbox"
+        },
+        "pre-condition": {
+          "type": "string",
+          "title": "pre-condition for the request",
+          "description": "PreCondition is a condition which is evaluated before sending the request"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "args",
+          "description": "Args"
+        },
+        "pattern": {
+          "type": "string",
+          "title": "pattern",
+          "description": "Pattern"
+        },
+        "source": {
+          "type": "string",
+          "title": "source file/snippet",
+          "description": "Source snippet"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "code.Sandbox": {
+      "properties": {
+        "working-dir": {
+          "type": "string",
+          "title": "working-dir",
+          "description": "Working directory"
+        },
+        "image": {
+          "type": "string",
+          "title": "image",
+          "description": "Image"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "dns.DNSRequestTypeHolder": {
+      "type": "string",
+      "enum": [
+        "A",
+        "NS",
+        "DS",
+        "CNAME",
+        "SOA",
+        "PTR",
+        "MX",
+        "TXT",
+        "AAAA",
+        "CAA",
+        "TLSA",
+        "ANY",
+        "SRV"
+      ],
+      "title": "type of DNS request to make",
+      "description": "Type is the type of DNS request to make"
+    },
+    "dns.Request": {
+      "properties": {
+        "matchers": {
+          "items": {
+            "$ref": "#/$defs/matchers.Matcher"
+          },
+          "type": "array",
+          "title": "matchers to run on response",
+          "description": "Detection mechanism to identify whether the request was successful by doing pattern matching"
+        },
+        "extractors": {
+          "items": {
+            "$ref": "#/$defs/extractors.Extractor"
+          },
+          "type": "array",
+          "title": "extractors to run on response",
+          "description": "Extractors contains the extraction mechanism for the request to identify and extract parts of the response"
+        },
+        "matchers-condition": {
+          "type": "string",
+          "enum": [
+            "and",
+            "or"
+          ],
+          "title": "condition between the matchers",
+          "description": "Conditions between the matchers"
+        },
+        "id": {
+          "type": "string",
+          "title": "id of the dns request",
+          "description": "ID is the optional ID of the DNS Request"
+        },
+        "name": {
+          "type": "string",
+          "title": "hostname to make dns request for",
+          "description": "Name is the Hostname to make DNS request for"
+        },
+        "type": {
+          "$ref": "#/$defs/dns.DNSRequestTypeHolder",
+          "title": "type of dns request to make",
+          "description": "Type is the type of DNS request to make"
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "inet",
+            "csnet",
+            "chaos",
+            "hesiod",
+            "none",
+            "any"
+          ],
+          "title": "class of DNS request",
+          "description": "Class is the class of the DNS request"
+        },
+        "retries": {
+          "type": "integer",
+          "title": "retries for dns request",
+          "description": "Retries is the number of retries for the DNS request"
+        },
+        "trace": {
+          "type": "boolean",
+          "title": "trace operation",
+          "description": "Trace performs a trace operation for the target."
+        },
+        "trace-max-recursion": {
+          "type": "integer",
+          "title": "trace-max-recursion level for dns request",
+          "description": "TraceMaxRecursion is the number of max recursion allowed for trace operations"
+        },
+        "attack": {
+          "$ref": "#/$defs/generators.AttackTypeHolder",
+          "title": "attack is the payload combination",
+          "description": "Attack is the type of payload combinations to perform"
+        },
+        "payloads": {
+          "$ref": "#/$defs/map[string]interface {}",
+          "title": "payloads for the network request",
+          "description": "Payloads contains any payloads for the current request"
+        },
+        "threads": {
+          "type": "integer",
+          "title": "threads for sending requests",
+          "description": "Threads specifies number of threads to use sending requests. This enables Connection Pooling"
+        },
+        "recursion": {
+          "type": "boolean",
+          "title": "recurse all servers",
+          "description": "Recursion determines if resolver should recurse all records to get fresh results"
+        },
+        "resolvers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Resolvers",
+          "description": "Define resolvers to use within the template"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "engine.Action": {
+      "properties": {
+        "args": {
+          "patternProperties": {
+            ".*": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          },
+          "title": "arguments for headless action",
+          "description": "Args contain arguments for the headless action"
+        },
+        "name": {
+          "type": "string",
+          "title": "name for headless action",
+          "description": "Name is the name assigned to the headless action"
+        },
+        "description": {
+          "type": "string",
+          "title": "description for headless action",
+          "description": "Description of the headless action"
+        },
+        "action": {
+          "$ref": "#/$defs/engine.ActionTypeHolder",
+          "title": "action to perform",
+          "description": "Type of actions to perform"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "action"
+      ]
+    },
+    "engine.ActionTypeHolder": {
+      "type": "string",
+      "enum": [
+        "navigate",
+        "script",
+        "click",
+        "rightclick",
+        "text",
+        "screenshot",
+        "time",
+        "select",
+        "files",
+        "waitdom",
+        "waitfcp",
+        "waitfmp",
+        "waitidle",
+        "waitload",
+        "waitstable",
+        "getresource",
+        "extract",
+        "setmethod",
+        "addheader",
+        "setheader",
+        "deleteheader",
+        "setbody",
+        "waitevent",
+        "waitdialog",
+        "keyboard",
+        "debug",
+        "sleep",
+        "waitvisible"
+      ],
+      "title": "action to perform",
+      "description": "Type of actions to perform"
+    },
+    "extractors.Extractor": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "name of the extractor",
+          "description": "Name of the extractor"
+        },
+        "type": {
+          "$ref": "#/$defs/extractors.ExtractorTypeHolder"
+        },
+        "regex": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "regex to extract from part",
+          "description": "Regex to extract from part"
+        },
+        "group": {
+          "type": "integer",
+          "title": "group to extract from regex",
+          "description": "Group to extract from regex"
+        },
+        "kval": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "kval pairs to extract from response",
+          "description": "Kval pairs to extract from response"
+        },
+        "json": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "json jq expressions to extract data",
+          "description": "JSON JQ expressions to evaluate from response part"
+        },
+        "xpath": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "html xpath expressions to extract data",
+          "description": "XPath allows using xpath expressions to extract items from html response"
+        },
+        "attribute": {
+          "type": "string",
+          "title": "optional attribute to extract from xpath",
+          "description": "Optional attribute to extract from response XPath"
+        },
+        "dsl": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "dsl expressions to extract",
+          "description": "Optional attribute to extract from response dsl"
+        },
+        "part": {
+          "type": "string",
+          "title": "part of response to extract data from",
+          "description": "Part of the request response to extract data from"
+        },
+        "internal": {
+          "type": "boolean",
+          "title": "mark extracted value for internal variable use",
+          "description": "Internal when set to true will allow using the value extracted in the next request for some protocols"
+        },
+        "case-insensitive": {
+          "type": "boolean",
+          "title": "use case insensitive extract",
+          "description": "use case insensitive extract"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "extractors.ExtractorTypeHolder": {
+      "type": "string",
+      "enum": [
+        "regex",
+        "kval",
+        "xpath",
+        "json",
+        "dsl"
+      ],
+      "title": "extractor type",
+      "description": "Type of extractor"
+    },
+    "generators.AttackTypeHolder": {
+      "type": "string",
+      "enum": [
+        "cluster",
+        "chain",
+        "payloads",
+        "permutation",
+        "cluster_advanced",
+        "bash"
+      ]
+    },
+    "matchers.Matcher": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "map[string]interface {}": {
+      "patternProperties": {
+        ".*": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/map[string]interface {}"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array"
+            },
+            {
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    }
+  }
+}

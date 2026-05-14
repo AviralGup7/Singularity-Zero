@@ -1,0 +1,195 @@
+# ──────────────────────────────────────────────────────────────────────
+# FastAPI Dashboard Deployment for Cyber Security Test Pipeline
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: cyber-dashboard
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: dashboard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cyber-dashboard
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/version: "2.0.0"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cyber-pipeline
+      app.kubernetes.io/component: dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cyber-pipeline
+        app.kubernetes.io/component: dashboard
+        app.kubernetes.io/version: "2.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: dashboard
+          image: cyber-pipeline:2.0.0
+          imagePullPolicy: Always
+          command:
+            - "uvicorn"
+            - "src.dashboard.fastapi.main:app"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8000"
+            - "--workers"
+            - "4"
+            - "--loop"
+            - "uvloop"
+            - "--http"
+            - "httptools"
+            - "--access-log"
+            - "--log-level"
+            - "info"
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: cyber-pipeline-config
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cyber-pipeline-secrets
+                  key: REDIS_PASSWORD
+            - name: APP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cyber-pipeline-secrets
+                  key: APP_SECRET_KEY
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: output-data
+              mountPath: /app/output
+            - name: app-data
+              mountPath: /app/data
+            - name: nuclei-templates
+              mountPath: /app/nuclei-templates
+              readOnly: true
+      volumes:
+        - name: output-data
+          persistentVolumeClaim:
+            claimName: cyber-pipeline-output
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: cyber-pipeline-data
+        - name: nuclei-templates
+          persistentVolumeClaim:
+            claimName: cyber-pipeline-nuclei-templates
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values:
+                        - dashboard
+                topologyKey: kubernetes.io/hostname
+---
+# Persistent Volume Claims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cyber-pipeline-output
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cyber-pipeline-data
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cyber-pipeline-nuclei-templates
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: cyber-pipeline
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard

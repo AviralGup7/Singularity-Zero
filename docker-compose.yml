@@ -1,0 +1,148 @@
+# Development Docker Compose for Cyber Security Test Pipeline
+# Simplified stack for local development with hot reload
+
+services:
+  # ──────────────────────────────────────────────────────────────────────
+  # Redis - Job Queue & Cache (no password for dev)
+  # ──────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.6-alpine
+    container_name: cyber-pipeline-dev-redis
+    restart: unless-stopped
+    command: redis-server --requirepass "${REDIS_PASSWORD:-devpassword}"
+    volumes:
+      - redis-data:/data
+    networks:
+      - cyber-pipeline-dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-devpassword}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ──────────────────────────────────────────────────────────────────────
+  # FastAPI Dashboard (hot reload for development)
+  # ──────────────────────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cyber-pipeline-dev-dashboard
+    restart: unless-stopped
+    command: >
+      uvicorn src.dashboard.fastapi.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/src
+      --log-level debug
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - pipeline-output:/app/output
+      - pipeline-data:/app/data
+      - pipeline-logs:/app/logs
+    environment:
+      APP_ENV: development
+      APP_DEBUG: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-devpassword}"
+      CACHE_BACKEND: redis
+      CACHE_TTL: 60
+      LOG_LEVEL: DEBUG
+      DATABASE_URL: sqlite:///./data/pipeline.db
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8080,http://localhost:5173"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      APP_SECRET_KEY: "${APP_SECRET_KEY:?APP_SECRET_KEY must be set}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cyber-pipeline-dev
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Queue Worker (single replica for dev)
+  # ──────────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cyber-pipeline-dev-worker
+    restart: unless-stopped
+    command: >
+      python -m src.infrastructure.queue.worker
+      --queue security-pipeline
+      --concurrency 2
+      --max-jobs 100
+    volumes:
+      - .:/app
+      - pipeline-output:/app/output
+      - pipeline-data:/app/data
+      - pipeline-logs:/app/logs
+    environment:
+      APP_ENV: development
+      APP_DEBUG: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-devpassword}"
+      LOG_LEVEL: DEBUG
+      WORKER_QUEUE: security-pipeline
+      WORKER_CONCURRENCY: 2
+      WORKER_MAX_JOBS: 100
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cyber-pipeline-dev
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD:-devpassword}'); r.ping()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+# ──────────────────────────────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────────────────────────────
+volumes:
+  redis-data:
+    driver: local
+  pipeline-output:
+    driver: local
+  pipeline-data:
+    driver: local
+  pipeline-logs:
+    driver: local
+
+# ──────────────────────────────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────────────────────────────
+networks:
+  cyber-pipeline-dev:
+    driver: bridge

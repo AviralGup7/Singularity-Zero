@@ -1,0 +1,9 @@
+def __getattr__(name: str):
+    if name == "main":
+        from src.dashboard.dashboard_cli import main
+
+        return main
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = ["main"]

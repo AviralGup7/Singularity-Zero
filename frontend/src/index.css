@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0C0F14;
+  --color-panel: #12161E;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-text: #F0F2F5;
+  --color-muted: #94A3B8;
+
+  --color-accent: #3B82F6;
+  --color-accent-dim: rgba(59, 130, 246, 0.12);
+  --color-bad: #EF4444;
+  --color-warn: #F59E0B;
+  --color-ok: #10B981;
+
+  --color-critical: #DC2626;
+  --color-high: #EA580C;
+  --color-medium: #F59E0B;
+  --color-low: #3B82F6;
+  --color-info: #64748B;
+
+  --font-sans: "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ── High-Performance Scrollbar ────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Base tailwind utility overrides */
+.glass-panel {
+  @apply bg-[#12161E]/90 border border-white/10 shadow-lg;
+}

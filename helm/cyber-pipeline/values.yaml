@@ -1,0 +1,103 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/YOUR_ORG/cyber-security-test-pipeline  # TODO: Replace with your actual GitHub org
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: cyber-pipeline.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: cyber-pipeline-redis-secret
+    existingSecretPasswordKey: redis-password
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+config:
+  # SECURITY: Override with a strong random key before any deployment.
+  # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
+  appSecretKey: ""
+  appEnv: "production"
+  appDebug: "false"
+  corsOrigins: ""
+  redisUrl: "redis://:${REDIS_PASSWORD}@redis-master:6379/0"
+  databaseUrl: "sqlite:///data/pipeline.db"
+  rateLimitRps: "10"
+  scopeFile: "/app/configs/scope.txt"
+  enableExploitation: "false"
+  enableLearning: "true"
+  enableNotifications: "false"
+  enableThreatIntel: "false"
+
+observability:
+  prometheus:
+    enabled: true
+    port: 9090
+  redis:
+    password: ""
+  grafana:
+    enabled: true
+    adminUser: "admin"
+    # SECURITY: Generate with: python -c "import secrets; print(secrets.token_urlsafe(16))"
+    adminPassword: ""
+  jaeger:
+    enabled: true
+    otlpEndpoint: "http://jaeger:4317"

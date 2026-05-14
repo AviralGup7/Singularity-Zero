@@ -1,0 +1,76 @@
+/* ── Buttons ────────────────────────────────────────────────── */
+.btn, .stop-btn, .restart-btn, .filter-btn, .view-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  background: var(--surface-2);
+  padding: 8px var(--space-4);
+  font-size: var(--text-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--easing-out);
+}
+
+.btn:hover, .stop-btn:hover, .restart-btn:hover, .filter-btn:hover, .view-toggle-btn:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+
+.btn:disabled, .stop-btn:disabled, .restart-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-sm, .btn-small {
+  padding: 6px var(--space-3);
+  font-size: var(--text-small);
+  border-radius: var(--radius-sm);
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--border-strong);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-2);
+}
+
+.btn-danger, .btn-error, .stop-btn {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #ffffff;
+}
+
+.btn-danger:hover, .stop-btn:hover {
+  background: color-mix(in srgb, var(--bad) 80%, black);
+  border-color: color-mix(in srgb, var(--bad) 80%, black);
+}
+
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}

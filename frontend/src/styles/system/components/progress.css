@@ -1,0 +1,32 @@
+/* ── Progress Bars ──────────────────────────────────────────── */
+.progress-bar, .stage-progress-bar-track, .job-stage-card-bar, .onboarding-progress {
+  border-radius: var(--radius-pill);
+  height: 6px;
+  background: var(--surface-3);
+  overflow: hidden;
+  width: 100%;
+}
+
+.progress-bar.large {
+  height: 8px;
+}
+
+.progress-fill, .stage-progress-bar-fill, .job-stage-card-fill, .onboarding-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width var(--motion-fast) ease-out;
+}
+
+.progress-fill.running {
+  background: var(--accent);
+}
+
+.progress-details, .job-metrics-inline {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}

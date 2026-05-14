@@ -1,0 +1,36 @@
+[importlinter]
+root_package = src
+
+[importlinter:contract:1]
+name = "Infrastructure must not depend on analysis"
+type = forbidden
+source_modules = src.infrastructure
+forbidden_modules = src.analysis
+
+[importlinter:contract:2]
+name = "Dashboard must not depend on pipeline internals"
+type = forbidden
+source_modules = src.dashboard
+forbidden_modules = src.pipeline.services
+
+[importlinter:contract:3]
+name = "Analysis subpackages are independent"
+type = independence
+modules =
+    src.analysis.passive
+    src.analysis.active
+    src.analysis.json
+    src.analysis.response
+    src.analysis.behavior
+
+[importlinter:contract:4]
+name = "Core has no outward dependencies"
+type = forbidden
+source_modules = src.core
+forbidden_modules = src.analysis, src.pipeline, src.dashboard
+
+[importlinter:contract:5]
+name = "Facade pattern: detection/decision must not import from analysis"
+type = forbidden
+source_modules = src.detection, src.decision
+forbidden_modules = src.analysis

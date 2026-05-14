@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cyber-pipeline.fullname" . }}
+  labels:
+    {{- include "cyber-pipeline.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "cyber-pipeline.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "cyber-pipeline.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "cyber-pipeline.serviceAccountName" . }}
+      containers:
+        - name: dashboard
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["cyber-dashboard-fastapi"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+           livenessProbe:
+             httpGet:
+               path: /api/health/live
+               port: http
+             initialDelaySeconds: 30
+             periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          envFrom:
+            - configMapRef:
+                name: {{ include "cyber-pipeline.fullname" . }}-config
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["cyber-worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "cyber-pipeline.fullname" . }}-config
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

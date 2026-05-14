@@ -1,0 +1,53 @@
+{
+  "target_name": "postprobe-timeout-repro",
+  "output_dir": "output",
+  "http_timeout_seconds": 3,
+  "mode": "idor",
+  "cache": {
+    "enabled": false
+  },
+  "tools": {
+    "subfinder": false,
+    "assetfinder": false,
+    "amass": false,
+    "httpx": true,
+    "gau": false,
+    "waybackurls": false,
+    "katana": false,
+    "nuclei": false,
+    "timeout_seconds": 15,
+    "retry_attempts": 1,
+    "retry_backoff_seconds": 0.0,
+    "retry_backoff_multiplier": 1.0,
+    "retry_max_backoff_seconds": 0.0,
+    "retry_on_timeout": true,
+    "retry_on_error": true
+  },
+  "httpx": {
+    "threads": 40,
+    "batch_size": 20,
+    "batch_concurrency": 4,
+    "timeout_seconds": 2,
+    "probe_timeout_seconds": 2,
+    "extra_args": []
+  },
+  "analysis": {
+    "service_enrichment": true,
+    "service_scan_max_hosts": 40,
+    "service_scan_ports": [80, 443, 8080],
+    "service_scan_workers": 1,
+    "service_scan_timeout_seconds": 2,
+    "service_scan_rate_per_second": 0.05
+  },
+  "filters": {
+    "stage_timeout_overrides": {
+      "live_hosts": 25
+    },
+    "priority_limit": {
+      "default": 10
+    },
+    "max_collected_urls": 50,
+    "priority_keywords": [],
+    "ignore_extensions": []
+  }
+}

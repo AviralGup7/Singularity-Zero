@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "resource_prediction": {
+    "ram_usage_mb": {
+      "base": 1024,
+      "growth_per_target": 2,
+      "growth_per_url": 0.01,
+      "max_limit": 32768,
+      "formula": "1024 + (target_count * 2) + (url_count * 0.01)"
+    },
+    "cpu_usage": {
+      "base_cores": 2,
+      "parallel_scaling": 0.8,
+      "formula": "min(system_cores, 2 + (concurrent_tasks * 0.8))"
+    },
+    "disk_usage_mb": {
+      "base": 500,
+      "per_scan_artifact": 50,
+      "formula": "500 + (completed_scans * 50)"
+    }
+  },
+  "stage_baselines": {
+    "subdomains": { "avg_duration_sec": 120, "complexity": "linear" },
+    "live_hosts": { "avg_duration_sec": 300, "complexity": "linear" },
+    "urls": { "avg_duration_sec": 450, "complexity": "linear" },
+    "active_scan": { "avg_duration_sec": 600, "complexity": "exponential" }
+  },
+  "bottleneck_indicators": [
+    {
+      "metric": "stage_duration",
+      "threshold_ratio": 2.0,
+      "action": "increase_concurrency"
+    },
+    {
+      "metric": "memory_usage",
+      "threshold_percent": 85,
+      "action": "enable_streaming_storage"
+    }
+  ]
+}
