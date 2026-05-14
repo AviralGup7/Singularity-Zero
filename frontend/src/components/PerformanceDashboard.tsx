@@ -9,9 +9,12 @@ interface MetricRecord {
 export function PerformanceDashboard() {
   const [metrics, setMetrics] = useState<MetricRecord[]>([]);
   const onReportRef = useRef<((m: MetricRecord) => void) | null>(null);
-  onReportRef.current = (m: MetricRecord) => {
-    setMetrics(prev => [...prev, m]);
-  };
+  
+  useEffect(() => {
+    onReportRef.current = (m: MetricRecord) => {
+      setMetrics(prev => [...prev, m]);
+    };
+  }, []);
 
   useEffect(() => {
     const navEntries = performance.getEntriesByType('navigation');
