@@ -1,0 +1,67 @@
+# Grafana datasource provisioning configuration
+# Auto-configures Prometheus and Jaeger datasources
+
+apiVersion: 1
+
+deleteDatasources: []
+
+datasources:
+  # ──────────────────────────────────────────────────────────────────────
+  # Prometheus - Metrics datasource
+  # ──────────────────────────────────────────────────────────────────────
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+      queryTimeout: 60s
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: jaeger
+      httpHeaderName1: 'X-Prometheus-Source'
+    secureJsonData:
+      httpHeaderValue1: 'grafana'
+    version: 1
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Jaeger - Tracing datasource
+  # ──────────────────────────────────────────────────────────────────────
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    isDefault: false
+    editable: true
+    jsonData:
+      nodeGraph:
+        enabled: true
+      tracesToLogs:
+        datasourceUid: 'prometheus'
+        tags: ['instance', 'job', 'service']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mapTagNamesEnabled: true
+        spanStartTimeShift: '-5m'
+        spanEndTimeShift: '5m'
+        filterByTraceID: true
+        filterBySpanID: true
+      tracesToMetrics:
+        datasourceUid: 'prometheus'
+        tags: [{ key: 'service.name', value: 'service' }]
+        queries:
+          - name: 'Request rate'
+            query: 'sum(rate(http_requests_total{service="$${__service}"}[5m]))'
+          - name: 'Error rate'
+            query: 'sum(rate(http_requests_total{service="$${__service}",status=~"5.."}[5m]))'
+          - name: 'Latency (p95)'
+            query: 'histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="$${__service}"}[5m])) by (le))'
+      spanStartTimeShift: '-1h'
+      spanEndTimeShift: '1h'
+      traceQuery:
+        timeShiftEnabled: true
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+    version: 1

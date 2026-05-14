@@ -1,0 +1,21 @@
+# Grafana dashboard provisioning configuration
+# Auto-loads dashboards from /var/lib/grafana/dashboards
+
+# Grafana dashboard provisioning configuration
+# Auto-loads dashboards from /var/lib/grafana/dashboards
+
+apiVersion: 1
+
+providers:
+  - name: 'cyber-security-pipeline'
+    orgId: 1
+    folder: 'Cyber Security Pipeline'
+    folderUid: 'cyber-pipeline'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

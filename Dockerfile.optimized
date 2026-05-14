@@ -1,0 +1,133 @@
+# ──────────────────────────────────────────────────────────────────────
+# Production Dockerfile for Cyber Security Test Pipeline
+# Multi-stage build, non-root user, optimized layer caching
+# ──────────────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────────
+# Stage 1: Build dependencies
+# ──────────────────────────────────────────────────────────────────────
+FROM python:3.14-slim-bookworm AS builder
+
+# Set environment variables for build
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies first (better layer caching)
+COPY pyproject.toml README.md ./
+RUN pip install --upgrade pip && \
+    pip install .
+
+# ──────────────────────────────────────────────────────────────────────
+# Stage 2: Production runtime
+# ──────────────────────────────────────────────────────────────────────
+FROM python:3.14-slim-bookworm AS production
+
+# Labels
+LABEL org.opencontainers.image.title="Cyber Security Test Pipeline" \
+      org.opencontainers.image.description="Automated API security testing pipeline with intelligent analysis" \
+      org.opencontainers.image.vendor="Cyber Security Pipeline Team" \
+      org.opencontainers.image.source="https://github.com/your-org/cyber-security-pipeline" \
+      org.opencontainers.image.licenses="MIT"
+
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    APP_HOME=/app \
+    APP_USER=cyber-pipeline \
+    APP_GROUP=cyber-pipeline \
+    APP_UID=1000 \
+    APP_GID=1000
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    tini \
+    libssl3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user
+RUN groupadd --gid ${APP_GID} ${APP_GROUP} && \
+    useradd --uid ${APP_UID} --gid ${APP_GID} --shell /bin/false --create-home ${APP_USER}
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set working directory
+WORKDIR ${APP_HOME}
+
+# Create application directories with correct permissions
+RUN mkdir -p ${APP_HOME}/output ${APP_HOME}/data ${APP_HOME}/logs ${APP_HOME}/nuclei-templates && \
+    chown -R ${APP_USER}:${APP_GROUP} ${APP_HOME}
+
+# Copy application code (after dependencies for better caching)
+COPY --chown=${APP_USER}:${APP_GROUP} . ${APP_HOME}/
+
+# Remove unnecessary files
+RUN rm -rf \
+    .git \
+    .github \
+    .kilo \
+    .venv \
+    .venv312 \
+    .venv314 \
+    .mypy_cache \
+    .pytest_cache \
+    .ruff_cache \
+    .hypothesis \
+    .tools \
+    tests \
+    __pycache__ \
+    .secrets.baseline \
+    mutmut_config.ini \
+    pyrightconfig.json \
+    .dockerignore \
+    .gitignore \
+    .pre-commit-config.yaml \
+    || true
+
+# Find and remove all __pycache__ directories and .pyc files
+RUN find ${APP_HOME} -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+RUN find ${APP_HOME} -type f -name "*.pyc" -delete 2>/dev/null || true
+
+# Set ownership
+RUN chown -R ${APP_USER}:${APP_GROUP} ${APP_HOME}
+
+# Switch to non-root user
+USER ${APP_USER}
+
+# Expose ports
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Use tini as init system for proper signal handling
+ENTRYPOINT ["tini", "--"]
+
+# Default command (override in docker-compose or kubernetes)
+CMD ["uvicorn", "src.dashboard.fastapi.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

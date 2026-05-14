@@ -1,0 +1,125 @@
+{
+  "version": "1.0",
+  "strategies": [
+    {
+      "trigger": { "stage_outcome": "failed", "error_pattern": "timeout" },
+      "actions": [
+        { "action": "increase_timeout", "multiplier": 1.5 },
+        { "action": "reduce_concurrency", "step_percent": 25 }
+      ]
+    },
+    {
+      "trigger": { "stage_outcome": "failed", "error_pattern": "ConnectionRefusedError" },
+      "actions": [
+        { "action": "verify_service_health", "service": "redis" },
+        { "action": "retry_with_backoff", "attempts": 3 }
+      ]
+    },
+    {
+      "trigger": { "stage_outcome": "failed", "error_pattern": "MemoryError" },
+      "actions": [
+        { "action": "reduce_batch_size", "multiplier": 0.5 },
+        { "action": "clear_in_memory_cache" }
+      ]
+    },
+    {
+      "trigger": { "stage_outcome": "skipped", "reason": "tool_not_found" },
+      "actions": [
+        { "action": "log_missing_dependency", "severity": "error" },
+        { "action": "disable_dependent_stages" }
+      ]
+    }
+  ],
+  "fix_commands": [
+    {
+      "id": "xss-output-encoding",
+      "match": { "keywords": ["xss", "cross site scripting", "script injection"] },
+      "title": "Harden output encoding and HTML sanitization",
+      "commands": [
+        "npm install dompurify",
+        "npm run test -- --runInBand"
+      ],
+      "rationale": "XSS findings usually need contextual output encoding plus sanitizer coverage around user-controlled HTML.",
+      "safety_note": "Apply to the affected frontend package and add a regression test for the vulnerable sink."
+    },
+    {
+      "id": "csrf-token-enforcement",
+      "match": { "keywords": ["csrf", "cross-site request forgery"] },
+      "title": "Enable CSRF token validation",
+      "commands": [
+        "python -m pytest tests -k csrf",
+        "npm run check:types"
+      ],
+      "rationale": "State-changing routes should require an origin check and an unguessable CSRF token.",
+      "safety_note": "Verify API clients send the token before enabling strict enforcement in production."
+    },
+    {
+      "id": "cors-allowlist",
+      "match": { "keywords": ["cors", "access-control-allow-origin", "origin reflection"] },
+      "title": "Replace permissive CORS with an allowlist",
+      "commands": [
+        "python -m pytest tests -k cors",
+        "ruff check src"
+      ],
+      "rationale": "CORS misconfiguration is normally remediated by removing wildcard or reflected origins and checking credentials handling.",
+      "safety_note": "Keep staging and production origins separate so test hosts do not become production-trusted origins."
+    },
+    {
+      "id": "hsts-clickjacking-headers",
+      "match": { "keywords": ["hsts", "clickjacking", "x-frame-options", "security headers"] },
+      "title": "Apply hardened browser security headers",
+      "commands": [
+        "python -m pytest tests -k headers",
+        "curl -I https://$TARGET_HOST"
+      ],
+      "rationale": "Missing HSTS or frame protections are best fixed at the edge or middleware layer and verified with a header probe.",
+      "safety_note": "Use a low HSTS max-age first if subdomain readiness is unknown."
+    },
+    {
+      "id": "idor-access-control",
+      "match": { "keywords": ["idor", "broken access control", "authorization bypass"] },
+      "title": "Add object-level authorization checks",
+      "commands": [
+        "python -m pytest tests -k access_control",
+        "python -m pytest tests -k idor"
+      ],
+      "rationale": "IDOR findings require server-side authorization checks on every object lookup, not client-side filtering.",
+      "safety_note": "Add tests for same-tenant, cross-tenant, owner, and non-owner access paths."
+    },
+    {
+      "id": "ssrf-egress-filtering",
+      "match": { "keywords": ["ssrf", "server-side request forgery", "metadata"] },
+      "title": "Constrain outbound fetch targets",
+      "commands": [
+        "python -m pytest tests -k ssrf",
+        "ruff check src"
+      ],
+      "rationale": "SSRF fixes should validate URL schemes, resolve and block private IP ranges, and deny cloud metadata hosts.",
+      "safety_note": "Validate after DNS resolution and before each redirect follow."
+    },
+    {
+      "id": "command-injection-safe-exec",
+      "match": { "keywords": ["command injection", "shell injection", "rce"] },
+      "title": "Remove shell execution from user-controlled paths",
+      "commands": [
+        "python -m pytest tests -k command_injection",
+        "bandit -r src -ll"
+      ],
+      "rationale": "Command injection remediation should replace shell strings with argument arrays and strict allowlists.",
+      "safety_note": "Do not escape and keep using shell=True; move to structured subprocess APIs."
+    },
+    {
+      "id": "jwt-validation",
+      "match": { "keywords": ["jwt", "token manipulation", "alg none"] },
+      "title": "Enforce strict JWT validation",
+      "commands": [
+        "python -m pytest tests -k jwt",
+        "ruff check src"
+      ],
+      "rationale": "JWT issues commonly require a fixed algorithm allowlist, issuer/audience checks, and key rotation hygiene.",
+      "safety_note": "Roll out key or issuer changes with a compatibility window for active sessions."
+    }
+  ],
+  "auto_recovery_enabled": true,
+  "max_auto_recovery_attempts": 2
+}

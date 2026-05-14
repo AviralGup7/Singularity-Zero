@@ -1,0 +1,64 @@
+/* ══════════════════════════════════════════════════════════════
+   Application Shell & Core Layout
+   ══════════════════════════════════════════════════════════════ */
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  position: relative;
+  background: var(--bg);
+}
+
+.app-main-wrapper {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.status-rail {
+  border-bottom: 1px solid var(--border);
+}
+
+.app-main-content {
+  flex: 1;
+  padding: var(--page-inset);
+  min-width: 0;
+  max-width: 1440px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: 48px;
+  padding: 0 var(--space-6);
+  border-top: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--text-small);
+  flex-shrink: 0;
+  max-width: 1440px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.footer-health {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.footer-health i {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--green);
+}
+
+.footer-muted {
+  color: var(--text-tertiary);
+}

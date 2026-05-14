@@ -1,0 +1,61 @@
+﻿/* Canonical style pipeline: tokens -> base -> layout -> components -> pages -> motion */
+@import './system/tokens.css';
+@import './system/base.css';
+@import './system/layout.css';
+@import './system/components.css';
+@import './system/pages.css';
+@import './system/motion.css';
+
+@media print {
+  .sidebar,
+  .sidebar-overlay,
+  .app-command-header,
+  .app-footer,
+  .command-palette,
+  .notification-center,
+  .modal-overlay-fixed,
+  .onboarding-tour,
+  .live-terminal-feed,
+  .hero-stats,
+  .quick-links,
+  .mobile-dock,
+  button,
+  nav,
+  [role='navigation'] {
+    display: none !important;
+  }
+
+  .app-shell,
+  .app-main-wrapper,
+  main {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th,
+  td {
+    border: 1px solid #ccc !important;
+    padding: 4px 8px !important;
+  }
+
+  .card,
+  .hero-stat,
+  .pipeline-stat-card {
+    break-inside: avoid;
+    border: 1px solid #bbb !important;
+    box-shadow: none !important;
+  }
+}

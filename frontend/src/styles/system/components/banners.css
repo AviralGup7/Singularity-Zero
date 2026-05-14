@@ -1,0 +1,28 @@
+/* ── Banners ────────────────────────────────────────────────── */
+.banner {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.banner.warning {
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: color-mix(in srgb, var(--warn) 90%, white);
+}
+
+.banner.error {
+  border-color: color-mix(in srgb, var(--bad) 30%, transparent);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  color: color-mix(in srgb, var(--bad) 90%, white);
+}
+
+.banner.ok {
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: color-mix(in srgb, var(--ok) 90%, white);
+}

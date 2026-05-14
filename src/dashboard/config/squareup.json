@@ -1,0 +1,30 @@
+{
+  "target_name": "squareup",
+  "output_dir": "src/dashboard/output",
+  "http_timeout_seconds": 20,
+  "mode": "full",
+  "cache": {"enabled": true, "ttl_seconds": 86400},
+  "tools": {
+    "subfinder": true,
+    "amass": false,
+    "httpx": true,
+    "nuclei": true,
+    "gaau": true,
+    "waybackurls": true,
+    "katana": true
+  },
+  "httpx": {"timeout": 10, "threads": 50, "follow_redirects": true},
+  "gau": {"threads": 5},
+  "waybackurls": {},
+  "katana": {"depth": 3, "max_time": 300},
+  "nuclei": {"templates": "nuclei-templates", "concurrency": 25, "severity": "critical,high,medium"},
+  "scoring": {"weights": {"critical": 10, "high": 7, "medium": 4, "low": 2}},
+  "filters": {"min_confidence": 0.5},
+  "screenshots": {"full_page": true, "viewport": {"width": 1920, "height": 1080}},
+  "analysis": {"passive": true, "active": false},
+  "review": {"auto_accept": false},
+  "extensions": {},
+  "concurrency": {"httpx": 50, "nuclei": 25, "katana": 10},
+  "output": {"format": ["json", "html"]},
+  "notifications": {"enabled": false}
+}

@@ -1,0 +1,8 @@
+{
+  "url": "https://api.example.com/auth/token",
+  "status_code": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"token\": \"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.\", \"algorithm\": \"none\", \"user_id\": 12345}"
+}

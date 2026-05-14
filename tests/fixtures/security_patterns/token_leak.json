@@ -1,0 +1,9 @@
+{
+  "url": "https://api.example.com/callback?access_token=ghp_abc123def456ghi789jkl012mno345pqr678&state=xyz",
+  "status_code": 302,
+  "headers": {
+    "Location": "https://app.example.com/dashboard?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123",
+    "Content-Type": "text/html"
+  },
+  "body": "<html><body><a href='https://app.example.com/dashboard?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123'>Click here</a></body></html>"
+}

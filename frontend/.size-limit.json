@@ -1,0 +1,22 @@
+[
+  {
+    "path": "dist/assets/index-*.js",
+    "limit": "95 KB",
+    "gzip": true
+  },
+  {
+    "path": "dist/assets/gsap-*.js",
+    "limit": "40 KB",
+    "gzip": true
+  },
+  {
+    "path": "dist/assets/react-vendor-*.js",
+    "limit": "230 KB",
+    "gzip": true
+  },
+  {
+    "path": "dist/assets/*.css",
+    "limit": "30 KB",
+    "gzip": true
+  }
+]

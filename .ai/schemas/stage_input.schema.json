@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StageInput",
+  "type": "object",
+  "properties": {
+    "contract_version": { "type": "string", "const": "v1" },
+    "stage_name": { "type": "string" },
+    "stage_index": { "type": "integer", "minimum": 0 },
+    "stage_total": { "type": "integer", "minimum": 1 },
+    "pipeline": { "$ref": "pipeline_input.schema.json" },
+    "state_snapshot": { "type": "object" },
+    "runtime": { "type": "object" }
+  },
+  "required": ["stage_name", "stage_index", "stage_total", "pipeline", "state_snapshot"]
+}

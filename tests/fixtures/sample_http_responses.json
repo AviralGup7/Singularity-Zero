@@ -1,0 +1,144 @@
+[
+  {
+    "description": "Standard 200 OK JSON response",
+    "url": "https://example.com/api/v1/users",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Frame-Options": "DENY",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+    },
+    "body": "{\"users\":[{\"id\":1,\"name\":\"admin\",\"role\":\"administrator\"}]}",
+    "response_time": 0.12,
+    "vulnerability_patterns": []
+  },
+  {
+    "description": "SQLi vulnerable response - error message reveals DB details",
+    "url": "https://example.com/api/v1/users?id=1' OR '1'='1",
+    "status_code": 500,
+    "headers": {
+      "Content-Type": "text/html",
+      "Server": "Apache/2.4.41 (Ubuntu)"
+    },
+    "body": "You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ''1' OR '1'='1' at line 1",
+    "response_time": 0.45,
+    "vulnerability_patterns": ["sql_error", "server_version_disclosure"]
+  },
+  {
+    "description": "XSS vulnerable response - reflected input without encoding",
+    "url": "https://example.com/search?q=<script>alert(1)</script>",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "text/html",
+      "X-XSS-Protection": "0"
+    },
+    "body": "<html><body>Search results for: <script>alert(1)</script></body></html>",
+    "response_time": 0.08,
+    "vulnerability_patterns": ["reflected_xss", "missing_xss_header"]
+  },
+  {
+    "description": "Missing security headers response",
+    "url": "https://example.com/api/v1/config",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Server": "nginx/1.18.0"
+    },
+    "body": "{\"api_key\":\"sk-test-12345\",\"debug\":true}",
+    "response_time": 0.05,
+    "vulnerability_patterns": ["missing_security_headers", "sensitive_data_exposure", "server_version_disclosure"]
+  },
+  {
+    "description": "IDOR vulnerable response - returns other user's data",
+    "url": "https://example.com/api/v1/users/999/profile",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"user_id\":999,\"email\":\"victim@example.com\",\"ssn\":\"123-45-6789\",\"address\":\"123 Main St\"}",
+    "response_time": 0.09,
+    "vulnerability_patterns": ["idor", "sensitive_data_exposure"]
+  },
+  {
+    "description": "Open redirect response",
+    "url": "https://example.com/redirect?url=https://evil.com",
+    "status_code": 302,
+    "headers": {
+      "Location": "https://evil.com",
+      "Content-Type": "text/html"
+    },
+    "body": "<html><body>Redirecting...</body></html>",
+    "response_time": 0.03,
+    "redirect_chain": ["https://example.com/redirect?url=https://evil.com", "https://evil.com"],
+    "vulnerability_patterns": ["open_redirect"]
+  },
+  {
+    "description": "CORS misconfiguration response",
+    "url": "https://example.com/api/v1/data",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Credentials": "true"
+    },
+    "body": "{\"data\":\"sensitive information\"}",
+    "response_time": 0.07,
+    "vulnerability_patterns": ["cors_misconfiguration"]
+  },
+  {
+    "description": "Authentication bypass response",
+    "url": "https://example.com/api/v1/admin/users",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"admin_users\":[{\"id\":1,\"username\":\"superadmin\",\"privileges\":\"all\"}]}",
+    "response_time": 0.11,
+    "vulnerability_patterns": ["auth_bypass", "sensitive_data_exposure"]
+  },
+  {
+    "description": "Path traversal response",
+    "url": "https://example.com/api/v1/files?path=../../../etc/passwd",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "text/plain"
+    },
+    "body": "root:x:0:0:root:/root:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin",
+    "response_time": 0.06,
+    "vulnerability_patterns": ["path_traversal"]
+  },
+  {
+    "description": "SSRF vulnerable response",
+    "url": "https://example.com/api/v1/fetch?url=http://169.254.169.254/latest/meta-data/",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "text/plain"
+    },
+    "body": "ami-id\ninstance-id\ninstance-type\nlocal-ipv4\npublic-ipv4\nsecurity-groups",
+    "response_time": 0.25,
+    "vulnerability_patterns": ["ssrf", "cloud_metadata_disclosure"]
+  },
+  {
+    "description": "Rate limiting missing response",
+    "url": "https://example.com/api/v1/login",
+    "status_code": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"message\":\"Login successful\",\"token\":\"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9\"}",
+    "response_time": 0.15,
+    "vulnerability_patterns": ["missing_rate_limit"]
+  },
+  {
+    "description": "Verbose error response with stack trace",
+    "url": "https://example.com/api/v1/process",
+    "status_code": 500,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": "{\"error\":\"NullPointerException\",\"stack_trace\":\"at com.example.Service.process(Service.java:42)\\n  at com.example.Controller.handle(Controller.java:15)\"}",
+    "response_time": 0.33,
+    "vulnerability_patterns": ["verbose_error", "stack_trace_disclosure"]
+  }
+]

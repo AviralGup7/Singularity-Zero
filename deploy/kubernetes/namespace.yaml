@@ -1,0 +1,12 @@
+# ──────────────────────────────────────────────────────────────────────
+# Namespace for Cyber Security Test Pipeline
+# ──────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cyber-pipeline
+  labels:
+    name: cyber-pipeline
+    app.kubernetes.io/name: cyber-pipeline
+    app.kubernetes.io/part-of: cyber-security-pipeline
+    environment: production

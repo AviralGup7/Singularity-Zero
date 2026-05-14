@@ -1,0 +1,13 @@
+{{- if gt (.Values.autoscaling.minReplicas | int) 1 }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "cyber-pipeline.fullname" . }}-pdb
+  labels:
+    {{- include "cyber-pipeline.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ sub (.Values.autoscaling.minReplicas | int) 1 }}
+  selector:
+    matchLabels:
+      {{- include "cyber-pipeline.selectorLabels" . | nindent 6 }}
+{{- end }}

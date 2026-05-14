@@ -1,0 +1,26 @@
+flowchart LR
+    SI[Scope Intake]
+    DI[Discovery]
+    FI[Filtering]
+    MI[Mining]
+    SC[Scoring & Prioritization]
+    EX[Execution / Scanners]
+    AN[Analysis & Detection]
+    RP[Reporting & Reports]
+    DB[Dashboard (FastAPI + SSE)]
+    WQ[Workers / Queue]
+    INF[Infrastructure (Cache, Storage, Observability)]
+
+    SI --> DI
+    DI --> FI
+    FI --> MI
+    MI --> SC
+    SC --> EX
+    EX --> AN
+    AN --> RP
+    RP --> DB
+    EX --> WQ
+    WQ --> EX
+    EX --> INF
+    RP --> INF
+    DB --> INF

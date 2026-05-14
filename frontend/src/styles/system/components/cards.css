@@ -1,0 +1,24 @@
+/* ── Cards ──────────────────────────────────────────────────── */
+.card, .ops-card, .job-card, .job-stage-card, .pipeline-stat-card, .info-item, .fix-command-item, .finding-min-card {
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out);
+}
+
+.card:hover, .job-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.error-card {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 5%, var(--surface));
+}
+
+.warning-card {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 5%, var(--surface));
+}

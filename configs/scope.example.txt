@@ -1,0 +1,5 @@
+# One asset per line.
+# Keep this aligned to the program scope you are authorized to test.
+example.com
+api.example.com
+*.example.com

@@ -1,0 +1,22 @@
+/* ── Modals & Overlays ──────────────────────────────────────── */
+.modal-overlay-fixed, .onboarding-tour, .error-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(12, 15, 20, 0.85);
+  backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.modal-card, .onboarding-card, .error-overlay-card {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  width: min(600px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-6);
+  box-shadow: var(--shadow-xl);
+}
