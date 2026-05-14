@@ -87,7 +87,7 @@ function parseVectorV3(vector: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const part of parts) {
     const [key, value] = part.split(':');
-    if (key && value) result[key] = value;
+    if (key && value && /^[A-Z]+$/.test(key)) result[key] = value;
   }
   return result;
 }
@@ -97,7 +97,7 @@ function parseVectorV4(vector: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const part of parts) {
     const [key, value] = part.split(':');
-    if (key && value) result[key] = value;
+    if (key && value && /^[A-Z]+$/.test(key)) result[key] = value;
   }
   return result;
 }
@@ -118,13 +118,17 @@ function calculateEnvironmentalScore(
   const envWeight: Record<string, number> = { N: 0, L: 0.1, M: 0.5, H: 1 };
   const impactWeight: Record<string, number> = { N: 0, L: 0.22, H: 0.56 };
 
+  const getWeight = (weightMap: Record<string, number>, key: string, fallback: number): number => {
+    return Object.prototype.hasOwnProperty.call(weightMap, key) ? weightMap[key] : fallback;
+  };
+
   const eImpact =
     1 -
-    (1 - impactWeight[c] * envWeight[cr]) *
-    (1 - impactWeight[i] * envWeight[ir]) *
-    (1 - impactWeight[a] * envWeight[ar]);
+    (1 - getWeight(impactWeight, c, 0) * getWeight(envWeight, cr, 1)) *
+    (1 - getWeight(impactWeight, i, 0) * getWeight(envWeight, ir, 1)) *
+    (1 - getWeight(impactWeight, a, 0) * getWeight(envWeight, ar, 1));
 
-  const iss = 1 - (1 - impactWeight[c]) * (1 - impactWeight[i]) * (1 - impactWeight[a]);
+  const iss = 1 - (1 - getWeight(impactWeight, c, 0)) * (1 - getWeight(impactWeight, i, 0)) * (1 - getWeight(impactWeight, a, 0));
   const baseImpact = s === 'U' ? 6.42 * iss : 7.52 * (iss - 0.029) - 3.25 * Math.pow(iss - 0.02, 15);
 
   if (baseImpact <= 0) return 0;
@@ -142,9 +146,9 @@ interface MetricBarProps {
   metricKey: string;
 }
 
-const MetricBar = memo(function MetricBar({ label, value, valueLabel, metricKey }: MetricBarProps) {
+const MetricBar = memo(function MetricBar({ label, value, valueLabel }: MetricBarProps) {
   const levelMap: Record<string, number> = { N: 0, L: 1, M: 2, H: 3, None: 0, Low: 1, Medium: 2, High: 3 };
-  const level = levelMap[value] ?? 0;
+  const level = Object.prototype.hasOwnProperty.call(levelMap, value) ? levelMap[value] : 0;
   const barWidth = `${((level + 1) / 4) * 100}%`;
   const barColor =
     level >= 3 ? 'var(--severity-critical)' :

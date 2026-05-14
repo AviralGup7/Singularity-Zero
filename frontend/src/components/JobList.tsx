@@ -272,7 +272,7 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
           <select 
             id="job-status-filter"
             value={filter}
-            onChange={(e) => setFilter(e.target.value as any)}
+            onChange={(e) => setFilter(e.target.value as 'all' | 'running' | 'completed' | 'failed')}
             className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-text focus:border-accent/50 outline-none appearance-none cursor-pointer min-w-[120px]"
           >
             <option value="all">All Jobs</option>

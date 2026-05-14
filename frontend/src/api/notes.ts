@@ -5,23 +5,23 @@ import { apiCache } from './cache';
 
 export async function getNotes(targetName: string, signal?: AbortSignal): Promise<NoteListResponse> {
   const res = await apiClient.get<NoteListResponse>(`/api/notes/${targetName}`, { signal });
-  res.data.notes = res.data.notes.map((n: any) => ({ 
+  res.data.notes = res.data.notes.map((n: Record<string, unknown>) => ({ 
     ...n, 
-    id: n.id || n.note_id 
+    id: String(n.id || n.note_id || '')
   } as Note));
   return res.data;
 }
 
 export async function createNote(targetName: string, payload: NoteCreateRequest, signal?: AbortSignal): Promise<Note> {
-  const { data } = await apiClient.post<any>(`/api/notes/${targetName}`, payload, { signal });
-  const note: Note = { ...data, id: data.id || data.note_id } as Note;
+  const { data } = await apiClient.post<Record<string, unknown>>(`/api/notes/${targetName}`, payload, { signal });
+  const note: Note = { ...data, id: String(data.id || data.note_id || '') } as Note;
   apiCache.invalidatePrefix(`/api/notes/${targetName}`);
   return note;
 }
 
 export async function updateNote(targetName: string, noteId: string, payload: NoteUpdateRequest, signal?: AbortSignal): Promise<Note> {
-  const { data } = await apiClient.put<any>(`/api/notes/${targetName}/${noteId}`, payload, { signal });
-  const note: Note = { ...data, id: data.id || data.note_id } as Note;
+  const { data } = await apiClient.put<Record<string, unknown>>(`/api/notes/${targetName}/${noteId}`, payload, { signal });
+  const note: Note = { ...data, id: String(data.id || data.note_id || '') } as Note;
   apiCache.invalidatePrefix(`/api/notes/${targetName}`);
   return note;
 }
