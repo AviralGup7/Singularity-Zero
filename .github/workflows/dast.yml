@@ -20,7 +20,7 @@ jobs:
       - name: Wait for application
         run: sleep 30
       - name: Run OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: ${{ github.event.inputs.target_url || 'http://localhost:8000' }}
           rules_file_name: ".zap/rules.tsv"
