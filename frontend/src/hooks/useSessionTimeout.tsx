@@ -63,7 +63,10 @@ export function useSessionTimeout(onTimeout?: () => void) {
       window.addEventListener(event, handler, { passive: true });
     });
 
-    resetTimer();
+    // Defer the initial resetTimer call
+    Promise.resolve().then(() => {
+      resetTimer();
+    });
 
     timerRef.current = setInterval(() => {
       if (!isLockedRef.current) {

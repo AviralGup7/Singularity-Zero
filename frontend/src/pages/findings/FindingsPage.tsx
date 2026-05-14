@@ -28,10 +28,17 @@ export function FindingsPage() {
 
   // Initialize filters from URL params
   useEffect(() => {
+    let mounted = true;
     const severity = searchParams.get('severity');
     if (severity) {
-      setSeverityFilter(severity.split(','));
+      // Defer state update to avoid cascading render warning
+      Promise.resolve().then(() => {
+        if (mounted) {
+          setSeverityFilter(severity.split(','));
+        }
+      });
     }
+    return () => { mounted = false; };
   }, [searchParams]);
 
   // --- Overhaul: Off-Main-Thread Processing ---

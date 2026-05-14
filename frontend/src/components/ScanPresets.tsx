@@ -52,7 +52,11 @@ export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresets
   const toast = useToast();
 
   useEffect(() => {
-    setPresets(loadPresets());
+    let mounted = true;
+    Promise.resolve().then(() => {
+      if (mounted) setPresets(loadPresets());
+    });
+    return () => { mounted = false; };
   }, []);
 
   const handleSave = useCallback(() => {

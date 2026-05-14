@@ -1,3 +1,4 @@
+from src.core.plugins import register_plugin
 import time
 from pathlib import Path
 from typing import Any
@@ -112,7 +113,6 @@ def build_artifact_diff(
     return diff_summary
 
 
-from src.core.plugins import register_plugin
 
 EXPORTER = "exporter"
 

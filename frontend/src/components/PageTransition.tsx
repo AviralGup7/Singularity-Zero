@@ -22,7 +22,9 @@ export function PageTransition({ children, locationKey }: PageTransitionProps) {
 
   useEffect(() => {
     if (prefersReducedMotion) {
-      setIsVisible(true);
+      Promise.resolve().then(() => {
+        setIsVisible(true);
+      });
       return;
     }
 

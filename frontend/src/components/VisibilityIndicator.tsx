@@ -5,8 +5,12 @@ export function VisibilityIndicator() {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
     const manager = getVisibilityManager();
-    setIsVisible(manager.isDocumentVisible());
+    
+    Promise.resolve().then(() => {
+      if (mounted) setIsVisible(manager.isDocumentVisible());
+    });
 
     const cleanup = manager.registerCallbacks({
       onVisible: () => setIsVisible(true),

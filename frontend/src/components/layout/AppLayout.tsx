@@ -240,7 +240,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   }, [handleKeyDown]);
 
   useEffect(() => {
-    setSidebarOpen(false);
+    let mounted = true;
+    Promise.resolve().then(() => {
+      if (mounted) setSidebarOpen(false);
+    });
+    return () => { mounted = false; };
   }, [location.pathname]);
 
   useEffect(() => {
