@@ -21,8 +21,8 @@ export function FindingsPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string[]>([]);
-  const [sortKey, setSortKey] = useState<keyof Finding>('severity');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortKey] = useState<keyof Finding>('severity');
+  const [sortDir] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [detailFinding, setDetailFinding] = useState<Finding | null>(null);
 

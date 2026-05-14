@@ -31,7 +31,10 @@ class ApiCache {
     }
     const obj = val as Record<string, unknown>;
     const keys = Object.keys(obj).sort();
-    const parts = keys.map(k => `"${k}":${this.stableStringify(obj[k])}`);
+    const parts = keys.map(k => {
+      const value = obj[k as keyof typeof obj];
+      return `"${k}":${this.stableStringify(value)}`;
+    });
     return `{${parts.join(',')}}`;
   }
 

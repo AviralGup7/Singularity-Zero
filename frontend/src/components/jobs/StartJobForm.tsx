@@ -17,7 +17,6 @@ const STEPS = ['Target', 'Modules', 'Configuration', 'Review'];
 export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
   const [expanded, setExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
   const [baseUrlError, setBaseUrlError] = useState<string | null>(null);
   const [scopeTextError, setScopeTextError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);

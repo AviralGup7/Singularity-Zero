@@ -1,6 +1,11 @@
 import { onCLS, onLCP, onFCP, onTTFB } from 'web-vitals';
 
-type Metric = any;
+interface Metric {
+  name: 'CLS' | 'FID' | 'LCP' | 'FCP' | 'TTFB';
+  value: number;
+  delta: number;
+  id: string;
+}
 
 interface WebVitalsState {
   CLS: number | null;
