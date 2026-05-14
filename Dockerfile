@@ -1,4 +1,4 @@
-FROM python:3.13-slim-bookworm AS frontend-builder
+FROM python:3.14-slim-bookworm AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -21,7 +21,7 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────
 # Runtime stage
 # ──────────────────────────────────────────────────────────
-FROM python:3.13-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 WORKDIR /app
 
