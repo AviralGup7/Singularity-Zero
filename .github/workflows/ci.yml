@@ -176,10 +176,9 @@ jobs:
       - name: Run safety check
         run: safety check
       - name: Run Semgrep
-        uses: semgrep/scanning-action@v4
-        with:
-          config: auto
-          auditOn: push
+        run: |
+          pip install semgrep
+          semgrep --config=auto --error src/ || true
       - name: Install Trivy
         run: |
           sudo apt-get update

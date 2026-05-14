@@ -63,6 +63,8 @@ dependencies = [
     # --- Actor & Sandbox ---
     "pykka>=4.0.0",
     "wasmtime>=29.0.0",
+    # --- Runtime type checking ---
+    "beartype>=0.18.0",
     # --- File watching ---
     "watchfiles>=1.0.0",
 ]
