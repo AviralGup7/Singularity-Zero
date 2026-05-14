@@ -5,7 +5,6 @@ Implements high-speed, zero-allocation binary serialization for distributed stat
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import msgpack

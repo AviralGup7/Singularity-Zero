@@ -7,12 +7,11 @@ from typing import Any
 from jsonschema import Draft7Validator
 
 from src.core.contracts.pipeline_runtime import PipelineInput, StageOutput
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
 from src.infrastructure.observability.alerts import get_alert_rule_checker
 
 from ._constants import STAGE_ORDER, STAGE_TIMEOUTS
-
-from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
@@ -66,14 +65,14 @@ def _finding_schema_validator() -> Draft7Validator:
 def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) -> None:
     """Validate the full StageOutput contract and deep-validate critical state keys."""
     payload = stage_output.to_dict()
-    
+
     # 1. Top-level contract validation
     errors = list(_stage_output_schema_validator().iter_errors(payload))
-    
+
     # 2. Deep validation for findings-related keys in state_delta
     state_delta = payload.get("state_delta", {})
     finding_keys = {"findings", "merged_findings", "reportable_findings", "vulnerabilities"}
-    
+
     for key in finding_keys:
         items = state_delta.get(key)
         if isinstance(items, (list, tuple)):

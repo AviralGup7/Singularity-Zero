@@ -34,7 +34,7 @@ class CircuitBreaker:
         self._last_failure_time: float = 0.0
         self._state: str = CircuitState.CLOSED
         self._lock = threading.Lock()
-        
+
         # Fix #346: Cache state with short TTL to reduce lock contention
         self._cached_state: str = CircuitState.CLOSED
         self._cached_state_time: float = 0.0
@@ -52,7 +52,7 @@ class CircuitBreaker:
                 if now - self._last_failure_time >= self.recovery_timeout:
                     self._state = CircuitState.HALF_OPEN
                     logger.info("Circuit breaker HALF_OPEN: attempting recovery")
-            
+
             # Update cache
             self._cached_state = self._state
             self._cached_state_time = now

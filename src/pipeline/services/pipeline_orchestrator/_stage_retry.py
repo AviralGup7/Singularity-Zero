@@ -64,7 +64,7 @@ async def run_stage_with_retry(
 
         pre_snapshot = ctx.result.to_dict()
         started = time.monotonic()
-        
+
         # Build formal StageInput with previous_deltas for mid-stage resume
         stage_input = isolated_ctx.build_stage_input(
             stage_name=stage_name,

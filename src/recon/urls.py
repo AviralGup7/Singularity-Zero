@@ -13,8 +13,12 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.core.contracts.capabilities import UrlCollectorProtocol
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models import Config
 from src.core.plugins import list_plugins, register_plugin
+
+logger = get_pipeline_logger(__name__)
+
 from src.pipeline.tools import build_retry_policy, tool_available
 from src.recon.archive import run_archive_jobs
 from src.recon.collectors import aggregator as collectors_aggregator
@@ -76,6 +80,7 @@ register_plugin(URL_COLLECTOR, "waybackurls", type="archive_command", args=["way
 from src.core.contracts.pipeline_runtime import StageInput
 from src.core.models.stage_result import PipelineContext
 
+
 def collect_urls(
     live_hosts: set[str],
     scope_entries: list[str],
@@ -108,11 +113,11 @@ def collect_urls(
                 logger.info("Resumed phase '%s' with %d URLs from checkpoint", phase_name, len(phase_urls))
 
     collection_started = time.monotonic()
-    
+
     def _save_phase_checkpoint(phase: str, phase_urls: set[str]) -> None:
         if ctx and phase_urls:
             ctx.save_checkpoint_delta(
-                "urls", 
+                "urls",
                 delta={"urls": list(phase_urls)},
                 metadata={"type": "phase_complete", "phase": phase}
             )

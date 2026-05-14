@@ -4,8 +4,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.logging.pipeline_logging import emit_info
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.pipeline.cache_backend import PersistentCache
 from src.reporting import build_dashboard_index, list_run_dirs
 

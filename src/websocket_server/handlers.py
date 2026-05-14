@@ -15,6 +15,7 @@ import uuid
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.websocket_server.auth import AuthenticationError, authenticate_websocket, send_auth_error
 from src.websocket_server.broadcaster import Broadcaster
 from src.websocket_server.heartbeat import HeartbeatMonitor
@@ -28,7 +29,6 @@ from src.websocket_server.protocol import (
     UnsubscribeMessage,
 )
 from src.websocket_server.reconnect import ReconnectionManager
-from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 

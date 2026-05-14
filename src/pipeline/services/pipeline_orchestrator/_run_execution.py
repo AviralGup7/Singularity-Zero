@@ -48,7 +48,7 @@ async def execute_remaining_stages(
     # Build the dependency graph
     dag = build_neural_mesh_dag(stage_methods)
     execution_plan = dag.get_execution_order()
-    
+
     logger.info("Neural-Mesh DAG Engine: Multi-tiered execution plan initialized")
     dag.visualize()
 
@@ -63,14 +63,14 @@ async def execute_remaining_stages(
             continue
 
         logger.info("Executing Neural-Mesh Tier %d: %s", tier_index, active_tier)
-        
+
         # Parallel execution of all stages in this tier
         tier_tasks = []
         for stage_name in active_tier:
             method = dag.get_method(stage_name)
             if not method:
                 continue
-                
+
             tier_tasks.append(
                 _execute_single_stage(
                     orchestrator,
@@ -86,10 +86,10 @@ async def execute_remaining_stages(
                     error_emitter
                 )
             )
-        
+
         # Wait for all stages in the current tier to complete before moving to the next
         results = await asyncio.gather(*tier_tasks, return_exceptions=True)
-        
+
         # Check for fatal failures in this tier
         for stage_name, res in zip(active_tier, results):
             if isinstance(res, Exception):
@@ -119,7 +119,7 @@ async def _execute_single_stage(
 ) -> int | None:
     """Internal helper to execute a single stage within a DAG tier."""
     stage_started = time.time()
-    
+
     # 1. Emit start progress
     progress_emitter(
         stage_name,
@@ -136,7 +136,7 @@ async def _execute_single_stage(
     )
 
     timeout = orchestrator._resolve_stage_timeout(stage_name, config, ctx)
-    
+
     # Load incremental deltas for mid-stage resume support
     previous_deltas = []
     if hasattr(checkpoint_mgr, "load_stage_deltas"):
@@ -157,15 +157,15 @@ async def _execute_single_stage(
                 scope_interceptor,
                 previous_deltas=previous_deltas,
             )
-            
+
             if stage_output is not None:
                 orchestrator._merge_stage_output(ctx, stage_name, stage_output)
-                
+
             elapsed = time.time() - stage_started
-            
+
             # Post-run recording
             await orchestrator._record_stage_post_run(stage_name, ctx, checkpoint_mgr, config.target_name)
-            
+
             # 2. Emit completion progress
             progress_emitter(
                 stage_name,
@@ -177,7 +177,7 @@ async def _execute_single_stage(
                 event_trigger="stage_complete",
                 stage_percent=100
             )
-            
+
             orchestrator._emit_event(
                 EventType.STAGE_COMPLETED,
                 source=f"stage.{stage_name}",
@@ -189,10 +189,10 @@ async def _execute_single_stage(
                 stage_metrics = ctx.result.module_metrics.get(stage_name, {})
                 if _metrics_indicate_fatal_failure(stage_metrics):
                     return 1
-                    
+
             return None
-            
-        except Exception as exc:
+
+        except Exception:
             logger.exception("Fatal failure in Neural-Mesh stage '%s'", stage_name)
             return 1
 

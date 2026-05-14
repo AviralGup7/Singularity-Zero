@@ -1,3 +1,5 @@
+from typing import Any
+
 """WebSocket connection manager.
 
 Provides thread-safe management of all active WebSocket connections with
@@ -6,11 +8,9 @@ stale connections, and configurable connection limits.
 """
 
 import asyncio
-import logging
-import time
-from collections import defaultdict
-from dataclasses import dataclass, field
 import threading
+import time
+from dataclasses import dataclass, field
 
 from starlette.websockets import WebSocket, WebSocketState
 

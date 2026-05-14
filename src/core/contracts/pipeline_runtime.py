@@ -34,7 +34,7 @@ def _freeze_value(value: Any) -> Any:
         return tuple(_freeze_value(item) for item in value)
     if isinstance(value, (set, frozenset)):
         return frozenset(_freeze_value(item) for item in value)
-    
+
     try:
         return copy.deepcopy(value)
     except Exception:

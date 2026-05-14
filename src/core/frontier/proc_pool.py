@@ -35,7 +35,7 @@ class FrontierProcessPool:
             self.pool_size = min(4, cpu_count)
         else:
             self.pool_size = pool_size
-            
+
         self._processes: list[ToolProcess] = []
         self._lock = asyncio.Lock()
 
@@ -96,7 +96,7 @@ class FrontierProcessPool:
              )
              stdout, stderr = await proc.communicate()
              if proc.returncode != 0:
-                 logger.error("One-off process '%s' failed (exit %d): %s", 
+                 logger.error("One-off process '%s' failed (exit %d): %s",
                             tool_name, proc.returncode, stderr.decode())
                  # Fix #211: Raise exception instead of returning partial output
                  raise RuntimeError(f"ToolExecutionError: One-off process {tool_name} failed (exit {proc.returncode})")
@@ -111,7 +111,7 @@ class FrontierProcessPool:
             # Send task to pre-warmed process stdin
             p.process.stdin.write(f"{task_data}\n".encode())
             await p.process.stdin.drain()
-            
+
             # Read response (assuming tool supports JSON-RPC line-by-line)
             line = await p.process.stdout.readline()
             return line.decode()

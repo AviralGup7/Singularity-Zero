@@ -5,9 +5,8 @@ Implements multi-context response analysis for IDOR and BAC detection.
 
 from __future__ import annotations
 
-import logging
-import json
 from typing import Any
+
 from diff_match_patch import diff_match_patch
 
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -29,16 +28,16 @@ class DifferentialLogicProber:
         """
         diffs = self._dmp.diff_main(base_response, compare_response)
         self._dmp.diff_cleanupSemantic(diffs)
-        
+
         # Calculate percentage of similarity
         levenshtein = self._dmp.diff_levenshtein(diffs)
         max_len = max(len(base_response), len(compare_response), 1)
         similarity = 1.0 - (levenshtein / max_len)
-        
+
         # Heuristic: If responses are > 95% similar but headers/auth differ,
         # it's likely a logic vulnerability.
         is_suspicious = similarity > 0.95 and levenshtein > 0
-        
+
         return {
             "similarity": round(similarity, 4),
             "levenshtein_distance": levenshtein,
@@ -64,10 +63,10 @@ class DifferentialLogicProber:
             for j in range(i + 1, len(endpoint_data)):
                 ctx_a = endpoint_data[i]
                 ctx_b = endpoint_data[j]
-                
+
                 # Compare responses from different users for the same endpoint
                 result = self.analyze_responses(ctx_a["body"], ctx_b["body"])
-                
+
                 if result["is_suspicious"]:
                     findings.append({
                         "type": "logic_breach:idor",

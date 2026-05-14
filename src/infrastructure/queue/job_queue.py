@@ -1,3 +1,4 @@
+
 """Main job queue implementation with priority scheduling and state management.
 
 Provides the core JobQueue class with job enqueue/dequeue, priority-based
@@ -6,16 +7,16 @@ dead-letter queue handling, and configurable retry policies.
 """
 
 import json
-import logging
 import time
 from collections.abc import Callable
 from typing import Any
 
 from src.core.contracts.task_envelope import TaskEnvelope
 from src.core.frontier.tracing_manager import get_tracing_manager
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.queue.models import Job, JobState, WorkerInfo
 from src.infrastructure.queue.redis_client import RedisClient
-from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
 
 # Fix #283: use pipeline logger instead of stdlib
 logger = get_pipeline_logger(__name__)
@@ -232,7 +233,7 @@ class JobQueue:
         self._handlers: dict[str, Callable[[Job], Any]] = {}
         self._scripts_registered = False
         self.scheduler = ResourceAwareScheduler() if enable_scheduler else None
-        
+
         # Fix #286: Register scripts once at initialization instead of per-call
         self._register_scripts()
 

@@ -15,12 +15,12 @@ import traceback
 from collections.abc import Callable
 from typing import Any
 
-from src.infrastructure.checkpoint import DistributedCheckpointStore
+from src.core.frontier.tracing_manager import get_tracing_manager
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.checkpoint import DistributedCheckpointStore
 from src.infrastructure.queue.job_queue import JobQueue
 from src.infrastructure.queue.models import Job, WorkerInfo
 from src.infrastructure.queue.redis_client import RedisClient
-from src.core.frontier.tracing_manager import get_tracing_manager
 
 logger = get_pipeline_logger(__name__)
 

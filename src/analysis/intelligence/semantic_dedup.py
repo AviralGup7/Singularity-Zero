@@ -5,9 +5,9 @@ Implements high-speed vector-space finding deduplication using NumPy.
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any
+
 import numpy as np
 
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -39,7 +39,7 @@ class SemanticDeduplicator:
             if token not in self._vocabulary:
                 self._vocabulary[token] = self._next_id
                 self._next_id += 1
-            
+
             idx = self._vocabulary[token]
             if idx < len(vec):
                 vec[idx] += 1
@@ -68,22 +68,22 @@ class SemanticDeduplicator:
             text = f"{finding.get('title', '')} {finding.get('description', '')}"
             tokens = self._tokenize(text)
             vec = self._vectorize(tokens)
-            
+
             is_duplicate = False
             for existing_vec in vectors:
                 # Truncate vectors to same size for comparison
                 size = min(len(vec), len(existing_vec))
                 sim = self.compute_similarity(vec[:size], existing_vec[:size])
-                
+
                 if sim > self._threshold:
                     is_duplicate = True
                     break
-            
+
             if not is_duplicate:
                 unique_findings.append(finding)
                 vectors.append(vec)
 
-        logger.info("Semantic Dedup: Reduced %d findings to %d unique signals", 
+        logger.info("Semantic Dedup: Reduced %d findings to %d unique signals",
                     len(findings), len(unique_findings))
         return unique_findings
 

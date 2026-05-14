@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from typing import Any
+
 from beartype import beartype
 
 from src.core.contracts.capabilities import (
@@ -17,6 +18,7 @@ from src.recon.ranking_support import load_history_feedback, select_deep_analysi
 from src.recon.scoring import infer_target_profile, rank_urls
 from src.recon.subdomains import enumerate_subdomains
 from src.recon.urls import extract_parameters
+
 
 @beartype
 async def run_url_collection_service(
