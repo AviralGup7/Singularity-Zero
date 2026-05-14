@@ -40,3 +40,199 @@ tbody tr {
 tbody tr:hover {
   background: var(--surface-hover);
 }
+
+/* ── Named Table Containers ─────────────────────────────────── */
+.targets-table-container,
+.findings-table-container {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.targets-table,
+.findings-table {
+  width: 100%;
+}
+
+/* ── Column helpers ─────────────────────────────────────────── */
+.bulk-select-col { width: 40px; }
+.col-id          { width: 80px; font-family: var(--font-mono); font-size: var(--text-small); color: var(--text-tertiary); }
+
+/* ── Cell types ─────────────────────────────────────────────── */
+.target-name-cell,
+.finding-id-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.target-name,
+.finding-id-text {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.finding-type,
+.finding-target,
+.finding-date,
+.finding-assignee,
+.finding-fp-status {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+
+.findings-cell {
+  padding: var(--space-2) var(--space-4);
+}
+
+.actions-cell {
+  white-space: nowrap;
+}
+
+.finding-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.finding-detail-title {
+  font-size: var(--text-section-title);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.severity-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+/* ── Assignee avatar ────────────────────────────────────────── */
+.assignee-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  border: 1px solid rgba(59,130,246,0.2);
+  color: var(--accent);
+  font-size: var(--text-micro);
+  font-weight: 600;
+}
+
+.assignee-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.assign-select,
+.assign-select-small {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--text-small);
+  padding: 2px var(--space-2);
+}
+
+.assign-select-small {
+  font-size: var(--text-micro);
+}
+
+/* ── New / Dup badges ───────────────────────────────────────── */
+.new-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent);
+  color: var(--ok);
+  font-size: var(--text-micro);
+  font-weight: 600;
+}
+
+.dup-badge,
+.dup-badge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--text-micro);
+  cursor: pointer;
+}
+
+/* ── Duplicate groups ───────────────────────────────────────── */
+.dup-list      { display: flex; flex-direction: column; gap: var(--space-2); }
+.dup-group     { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.dup-group-header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-2); }
+.dup-group-count { font-size: var(--text-small); color: var(--text-tertiary); margin-left: auto; }
+.dup-group-list { border-top: 1px solid var(--border); }
+.dup-item      { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); }
+.dup-item:last-child { border-bottom: none; }
+.dup-row, .dup-date, .dup-id, .dup-type, .dup-target { font-size: var(--text-small); color: var(--text-secondary); }
+
+.expanded-duplicates-section {
+  border-top: 1px solid var(--border);
+  padding: var(--space-4);
+  background: var(--surface-2);
+}
+
+/* ── FP dialogs ─────────────────────────────────────────────── */
+.fp-dialog-finding {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  margin-bottom: var(--space-4);
+}
+
+.fp-justification {
+  margin-top: var(--space-3);
+}
+
+.fp-justification-preview {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.fp-mark-btn, .fp-mark-btn-small,
+.fp-review-btn, .fp-review-btn-small {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--easing-out);
+}
+
+.fp-mark-btn, .fp-mark-btn-small {
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+  color: var(--warn);
+  padding: 4px var(--space-3);
+}
+
+.fp-review-btn, .fp-review-btn-small {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px var(--space-3);
+}
+
+.fp-mark-btn-small, .fp-review-btn-small {
+  padding: 2px var(--space-2);
+  font-size: var(--text-micro);
+}

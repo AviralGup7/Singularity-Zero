@@ -151,3 +151,69 @@
   color: var(--text-primary);
   border-color: var(--border-strong);
 }
+
+/* ── Banners ────────────────────────────────────────────────── */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-small);
+}
+
+.banner.warning {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: var(--warn);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 25%, transparent);
+}
+
+.banner.error {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  color: var(--bad);
+  border-bottom: 1px solid color-mix(in srgb, var(--bad) 25%, transparent);
+}
+
+/* ── Modals ─────────────────────────────────────────────────── */
+.modal-overlay-fixed {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.60);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.modal-card {
+  min-width: 360px;
+  max-width: 520px;
+  width: 100%;
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2) var(--space-6);
+  align-items: center;
+}
+
+.shortcut-row {
+  display: contents;
+}
+
+.shortcut-row span {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+
+.shortcut-row kbd {
+  justify-self: end;
+}
+
+/* ── Text status helpers ─────────────────────────────────────── */
+.text-bad   { color: var(--bad); }
+.text-ok    { color: var(--ok); }
+.text-warn  { color: var(--warn); }
+.text-info  { color: var(--info); }

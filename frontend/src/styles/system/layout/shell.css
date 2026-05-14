@@ -10,6 +10,22 @@
   background: var(--bg);
 }
 
+.app-shell--hud {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  position: relative;
+  background: var(--bg);
+}
+
+.app-shell--auth {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
 .app-main-wrapper {
   min-width: 0;
   display: flex;
