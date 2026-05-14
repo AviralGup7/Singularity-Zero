@@ -3,7 +3,6 @@
 import asyncio
 import time
 from typing import Any
-
 from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
     filter_reportable_findings,
@@ -27,8 +26,15 @@ from src.intelligence.feeds.cve import CVEConfig, CVESyncClient
 from src.intelligence.feeds.mitre import MitreAttackMapper, MitreConfig
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
+from src.intelligence.campaigns.campaign_builder import build_attack_campaigns
+from src.intelligence.graph.threat_graph import (
+    annotate_graph_for_campaigns,
+    build_threat_graph,
+    graph_risk_summary,
+)
 
-logger = get_pipeline_logger(__name__)
+
+
 
 # Test seams / legacy aliases
 api_security_analyzer = None
@@ -178,12 +184,7 @@ def _select_threat_intel_candidates(
     return selected
 
 
-from src.intelligence.campaigns.campaign_builder import build_attack_campaigns
-from src.intelligence.graph.threat_graph import (
-    annotate_graph_for_campaigns,
-    build_threat_graph,
-    graph_risk_summary,
-)
+logger = get_pipeline_logger(__name__)
 
 
 async def run_post_analysis_enrichments(

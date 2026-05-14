@@ -1,5 +1,3 @@
-import builtins
-
 """Redis cache backend implementation.
 
 Implements distributed caching via Redis with native TTL support.
@@ -7,12 +5,16 @@ Implements distributed caching via Redis with native TTL support.
 Requires the 'redis' package: pip install redis
 """
 
+import builtins
 import json
 import logging
 import threading
 from typing import Any
 
+
+
 logger = logging.getLogger(__name__)
+
 
 
 class RedisBackend:

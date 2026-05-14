@@ -12,8 +12,10 @@ Analyzes API endpoints for common security issues including:
 import json
 import re
 from typing import Any
-
 from src.analysis.helpers import endpoint_base_key, endpoint_signature, normalize_headers
+from src.core.plugins import register_plugin
+
+
 
 # Sensitive API path patterns that should require authentication
 SENSITIVE_API_PATTERNS = [
@@ -63,7 +65,6 @@ SENSITIVE_RESPONSE_FIELDS = {
 }
 
 
-from src.core.plugins import register_plugin
 
 ENRICHMENT_PROVIDER = "enrichment_provider"
 

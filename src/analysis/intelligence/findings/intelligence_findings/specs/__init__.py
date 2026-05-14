@@ -2,33 +2,7 @@
 
 from collections.abc import Callable
 from typing import Any
-
 from src.analysis.helpers import build_manual_hint
-
-# Type alias for spec tuples
-SpecTuple = tuple[
-    str,  # module name
-    str,  # category
-    Callable[[dict[str, Any]], str],  # severity function
-    str,  # title
-    Callable[[dict[str, Any]], str],  # description/next_step function
-]
-
-# Registry of all specs - populated by importing all spec modules
-SPECS: list[SpecTuple] = []
-
-
-def register_spec(spec: SpecTuple) -> None:
-    """Register a spec tuple."""
-    SPECS.append(spec)
-
-
-def get_all_specs() -> list[SpecTuple]:
-    """Get all registered specs."""
-    return list(SPECS)
-
-
-# Import all spec modules to populate the registry
 from . import (
     access_boundary,
     admin_panel,
@@ -117,5 +91,32 @@ from . import (
     version_diffing,
     websocket_endpoint,
 )
+
+
+
+# Type alias for spec tuples
+SpecTuple = tuple[
+    str,  # module name
+    str,  # category
+    Callable[[dict[str, Any]], str],  # severity function
+    str,  # title
+    Callable[[dict[str, Any]], str],  # description/next_step function
+]
+
+# Registry of all specs - populated by importing all spec modules
+SPECS: list[SpecTuple] = []
+
+
+def register_spec(spec: SpecTuple) -> None:
+    """Register a spec tuple."""
+    SPECS.append(spec)
+
+
+def get_all_specs() -> list[SpecTuple]:
+    """Get all registered specs."""
+    return list(SPECS)
+
+
+# Import all spec modules to populate the registry
 
 __all__ = ["SpecTuple", "register_spec", "get_all_specs", "SPECS"]

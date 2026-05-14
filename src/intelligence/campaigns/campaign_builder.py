@@ -1,6 +1,6 @@
 """Advanced Attack Path Simulation Campaigns.
 
-Turns validated findings and Threat Graph paths into multi-step 
+Turns validated findings and Threat Graph paths into multi-step
 attack campaign simulations based on evidence.
 """
 
@@ -35,7 +35,7 @@ def build_attack_campaigns(
     settings = settings or {}
     max_campaigns = int(settings.get("max_campaigns", 8))
     min_confidence = float(settings.get("min_confidence", 0.55))
-    include_mitre = bool(settings.get("include_mitre", True))
+    bool(settings.get("include_mitre", True))
     include_exfiltration = bool(settings.get("include_exfiltration_simulation", True))
 
     campaigns = []

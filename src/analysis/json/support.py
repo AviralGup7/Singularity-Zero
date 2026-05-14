@@ -9,7 +9,6 @@ import logging
 import re
 from typing import Any
 from urllib.parse import urlparse
-
 from src.analysis.helpers import (
     JSON_CONTENT_TOKENS,
     classify_endpoint,
@@ -18,8 +17,18 @@ from src.analysis.helpers import (
 )
 from src.analysis.passive.patterns import UUID_RE
 from src.analysis.text_utils import extract_key_fields
+from src.analysis.json.mutations import (
+    alternate_version_url,
+    mutate_dependency_urls,
+    mutate_error_probe_url,
+    mutate_filter_url,
+    mutate_pagination_url,
+    mutate_role_url,
+    mutate_state_url,
+)
 
-logger = logging.getLogger(__name__)
+
+
 ID_FIELD_RE = re.compile(
     r"(^id$|(^|_)(user|account|tenant|org|order|device|project|profile|member|customer|record|object|session)_id$|uuid$)"
 )
@@ -327,15 +336,7 @@ def resource_group_for_url(url: str) -> str:
     return ""
 
 
-from src.analysis.json.mutations import (
-    alternate_version_url,
-    mutate_dependency_urls,
-    mutate_error_probe_url,
-    mutate_filter_url,
-    mutate_pagination_url,
-    mutate_role_url,
-    mutate_state_url,
-)
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "access_boundary_state",

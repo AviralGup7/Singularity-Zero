@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-import builtins
-
 """SQLite cache backend implementation.
 
 Uses WAL mode and per-thread connections for concurrent read access.
@@ -9,7 +5,8 @@ Writing is serialised via a threading lock. Supports TTL, tags,
 dependency tracking, and LRU metadata.
 """
 
-
+from __future__ import annotations
+import builtins
 import json
 import logging
 import shutil
@@ -18,10 +15,15 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
-
 from .protocol import _ThreadLocalConnections
 
+
+
+
+
+
 logger = logging.getLogger(__name__)
+
 
 
 class SQLiteBackend:

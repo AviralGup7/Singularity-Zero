@@ -6,6 +6,11 @@ file size and group related logic.
 """
 
 from ._constants import PARALLEL_STAGE_GROUPS, STAGE_DEPS
+from ..pipeline_helpers import (
+    extract_feedback_urls,
+    finding_identity,
+)
+
 
 
 def build_parallel_graph() -> dict[str, list[str]]:
@@ -52,10 +57,6 @@ def all_deps_met(stage: str, completed: set[str], graph: dict[str, list[str]]) -
 """Helper functions for pipeline orchestration."""
 
 
-from ..pipeline_helpers import (
-    extract_feedback_urls,
-    finding_identity,
-)
 
 __all__ = [
     "finding_identity",

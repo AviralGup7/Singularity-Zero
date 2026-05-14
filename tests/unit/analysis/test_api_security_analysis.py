@@ -1,7 +1,6 @@
 import unittest
 from pathlib import Path
 from typing import Any
-
 from src.analysis.checks.exposure import (
     graphql_introspection_exposure_checker,
     http_method_exposure_checker,
@@ -20,13 +19,15 @@ from src.analysis.json.auth import (
 from src.analysis.response._core.response_analysis._redirect_analysis import (
     auth_boundary_redirect_detection,
 )
-
-pass  # DashboardHandler removed - legacy server eliminated
 from src.dashboard.services import DashboardHandler, DashboardServices
 from src.execution.validators.validators.idor import (
     promote_evidence_backed_results,
     validate_idor_candidates,
 )
+
+
+
+pass  # DashboardHandler removed - legacy server eliminated
 
 
 def make_response(

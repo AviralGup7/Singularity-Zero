@@ -2,7 +2,6 @@
 
 from functools import partial
 from typing import Any
-
 from src.analysis.behavior.service import run_service_enrichment
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -23,8 +22,15 @@ from src.pipeline.services.services.recon_service import (
 from src.recon.live_hosts import probe_live_hosts
 from src.recon.subdomains import enumerate_subdomains
 from src.recon.urls import collect_urls
+from src.pipeline.services.services.recon_service import (
+    run_live_hosts_service,
+)
+from src.pipeline.services.services.recon_service import (
+    run_url_collection_service,
+)
 
-logger = get_pipeline_logger(__name__)
+
+
 
 # Test seams
 enumerate_subdomains = enumerate_subdomains
@@ -140,9 +146,6 @@ async def run_subdomain_enumeration(
         )
 
 
-from src.pipeline.services.services.recon_service import (
-    run_live_hosts_service,
-)
 
 
 async def run_live_hosts(
@@ -231,9 +234,7 @@ async def run_live_hosts(
         )
 
 
-from src.pipeline.services.services.recon_service import (
-    run_url_collection_service,
-)
+logger = get_pipeline_logger(__name__)
 
 
 async def run_url_collection(

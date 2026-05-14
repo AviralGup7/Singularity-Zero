@@ -1,5 +1,3 @@
-import builtins
-
 """In-memory cache backend implementation.
 
 Simple dictionary-based cache with TTL support.
@@ -7,9 +5,13 @@ Not persistent - all data is lost when the process exits.
 Thread-safe via threading.Lock.
 """
 
+import builtins
 import threading
 import time
 from typing import Any
+
+
+
 
 
 class MemoryBackend:

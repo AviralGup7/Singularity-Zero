@@ -9,7 +9,6 @@ import logging
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-
 from src.analysis.helpers import (
     endpoint_signature,
     is_auth_flow_endpoint,
@@ -18,8 +17,10 @@ from src.analysis.helpers import (
 )
 from src.core.models import ValidationResult
 from src.execution.validators.validators.shared import to_validation_result
+from src.core.plugins import register_plugin
 
-logger = logging.getLogger(__name__)
+
+
 
 # XSS test markers (safe, non-executing)
 XSS_TEST_MARKERS = [
@@ -347,7 +348,7 @@ def _active_xss_test(target_url: str, http_client: Any) -> dict[str, Any]:
     }
 
 
-from src.core.plugins import register_plugin
+logger = logging.getLogger(__name__)
 
 VALIDATOR = "validator"
 

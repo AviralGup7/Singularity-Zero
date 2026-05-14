@@ -13,7 +13,6 @@ import logging
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-logger = logging.getLogger(__name__)
 from .cloud_constants import (
     AZURE_METADATA_HEADER,
     CLOUD_METADATA_ENDPOINTS,
@@ -22,6 +21,7 @@ from .cloud_constants import (
     IMDSV2_TOKEN_HEADER,
     INFRASTRUCTURE_SERVICE_PATHS,
 )
+logger = logging.getLogger(__name__)
 
 
 def probe_cloud_metadata(url: str, session) -> dict[str, Any]:

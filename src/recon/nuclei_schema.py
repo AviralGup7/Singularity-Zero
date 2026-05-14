@@ -6,10 +6,12 @@ installed so callers can decide how to handle the missing dependency.
 """
 
 from __future__ import annotations
-
 import json
 from pathlib import Path
 from typing import Any
+from typing import cast
+
+
 
 try:
     import jsonschema
@@ -21,7 +23,7 @@ except Exception:  # pragma: no cover - runtime environment may not have jsonsch
 SCHEMA_PATH = Path(__file__).with_name("nuclei_template_schema.json")
 
 
-from typing import Any, cast
+
 
 def load_schema() -> dict[str, Any]:
     """Load and return the bundled Nuclei template JSON Schema."""

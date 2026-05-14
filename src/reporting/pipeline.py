@@ -1,4 +1,3 @@
-from src.core.plugins import register_plugin
 import time
 from pathlib import Path
 from typing import Any
@@ -13,6 +12,7 @@ from src.analysis.intelligence.endpoint_graphs import (
     build_shared_parameter_tracking,
 )
 from src.core.models import DIFF_TARGETS
+from src.core.plugins import register_plugin
 from src.core.utils import ist_timestamp
 from src.pipeline.storage import read_lines, write_json, write_lines
 from src.reporting.html import build_dashboard_index as render_dashboard_index

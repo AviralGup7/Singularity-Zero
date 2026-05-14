@@ -1,5 +1,3 @@
-from typing import Any
-
 """WebSocket connection manager.
 
 Provides thread-safe management of all active WebSocket connections with
@@ -7,17 +5,21 @@ support for per-user tracking, connection groups, automatic cleanup of
 stale connections, and configurable connection limits.
 """
 
+from typing import Any
 import asyncio
 import threading
 import time
 from dataclasses import dataclass, field
-
 from starlette.websockets import WebSocket, WebSocketState
-
 from src.core.logging.trace_logging import get_pipeline_logger
 
-# Fix #308: use project-wide structured logger
+
+
+
+
 logger = get_pipeline_logger(__name__)
+
+# Fix #308: use project-wide structured logger
 
 
 @dataclass

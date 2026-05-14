@@ -6,18 +6,20 @@ and verifying token validation behavior.
 """
 
 from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from src.core.models import ValidationResult
-
 from src.analysis.helpers import (
     endpoint_signature,
     is_auth_flow_endpoint,
     is_low_value_endpoint,
     normalized_confidence,
 )
+from src.core.plugins import register_plugin
+
+
+
+if TYPE_CHECKING:
+    from src.core.models import ValidationResult
+
 
 # HTTP methods that require CSRF protection
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -32,7 +34,6 @@ CSRF_PROTECTION_HEADERS = {
 }
 
 
-from src.core.plugins import register_plugin
 
 VALIDATOR = "validator"
 

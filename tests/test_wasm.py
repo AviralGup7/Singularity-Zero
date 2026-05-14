@@ -1,6 +1,8 @@
+
 import pytest
-import os
+
 from src.core.frontier.wasm import WASMPluginHost
+
 
 def test_wasm_mock_execution(monkeypatch):
     monkeypatch.setenv("FEATURE_WASM_PLUGINS", "false")

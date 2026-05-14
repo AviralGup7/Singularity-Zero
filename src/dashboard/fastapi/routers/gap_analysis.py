@@ -40,7 +40,6 @@ async def get_gap_analysis(
 
     # 2. Get actual findings/tests run for the target
     # If target is None, we look at global coverage
-    output_root = services.query.output_root
 
     # Simple heuristic: what modules have EVER run or are currently enabled
     # For now, we simulate this based on ALL_DETECTION_CATEGORIES
