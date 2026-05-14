@@ -139,6 +139,8 @@ async def run_live_hosts_service(
         )
 
 @beartype
+@beartype
+@beartype
 async def run_subdomain_enumeration_service(
     stage_input: StageInput,
     *,
@@ -248,6 +250,8 @@ async def run_subdomain_enumeration_service(
         )
 
 @beartype
+@beartype
+@beartype
 async def run_parameter_extraction_stage(stage_input: StageInput) -> StageOutput:
     """Service entry point for parameter extraction with strict type guards."""
     started = time.monotonic()
@@ -299,6 +303,8 @@ async def run_parameter_extraction_stage(stage_input: StageInput) -> StageOutput
             },
         )
 
+@beartype
+@beartype
 @beartype
 async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
     """Service entry point for priority ranking with strict type guards."""

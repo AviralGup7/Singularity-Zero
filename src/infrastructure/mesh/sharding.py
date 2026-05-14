@@ -44,7 +44,7 @@ class MeshShardManager:
 
     def _hash(self, key: str) -> int:
         """Deterministically hash a string to an integer."""
-        return int(hashlib.md5(key.encode()).hexdigest(), 16)
+        return int(hashlib.sha256(key.encode()).hexdigest(), 16)
 
     def get_shard_leader(self, target_name: str) -> str | None:
         """Find the worker node responsible for this target."""
@@ -57,7 +57,7 @@ class MeshShardManager:
         if idx == len(self._ring):
             idx = 0
             
-        return self._node_map[self._ring[idx]]
+        return self._node_map.get(self._ring[idx])
 
     def get_my_shards(self, local_node_id: str, targets: list[str]) -> list[str]:
         """Filter a list of targets to only those owned by the local node."""
