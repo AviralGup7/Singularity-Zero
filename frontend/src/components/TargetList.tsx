@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback, memo } from 'react';
 import { getTargets } from '../api/client';
-import { useToast } from './Toast';
+import { useToast } from '../hooks/useToast';
 import { EmptyState } from './ui/EmptyState';
 import type { Target } from '../types/api';
 

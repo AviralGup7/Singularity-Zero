@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { getCustodyChain } from '@/utils/chainOfCustody';
 
 interface ChainOfCustodyViewerProps {
@@ -6,11 +6,7 @@ interface ChainOfCustodyViewerProps {
 }
 
 export function ChainOfCustodyViewer({ evidenceId }: ChainOfCustodyViewerProps) {
-  const [chain, setChain] = useState(getCustodyChain(evidenceId));
-
-  useEffect(() => {
-    setChain(getCustodyChain(evidenceId));
-  }, [evidenceId]);
+  const chain = useMemo(() => getCustodyChain(evidenceId), [evidenceId]);
 
   if (chain.length === 0) return null;
 

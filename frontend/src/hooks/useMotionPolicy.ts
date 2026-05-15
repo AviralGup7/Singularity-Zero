@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useTheme } from '@/context/ThemeContext';
-import { useDisplay } from '@/context/DisplayContext';
+import { useTheme } from '@/hooks/useTheme';
+import { useDisplay } from '@/hooks/useDisplay';
 import {
   resolveMotionPolicy,
   resolveComponentMotionStrategy,

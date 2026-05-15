@@ -7,7 +7,6 @@ export interface LogLineProps {
 }
 
 export const LogLine = memo(function LogLine({ line, index, style }: LogLineProps) {
-  // FIX: Direct call is faster than useMemo for simple string computation
   const cssClass = classifyLogLine(line);
 
   return (
@@ -21,7 +20,7 @@ export const LogLine = memo(function LogLine({ line, index, style }: LogLineProp
   );
 });
 
-export function classifyLogLine(line: string): string {
+function classifyLogLine(line: string): string {
   const lower = line.toLowerCase();
   if (
     lower.includes('error') ||

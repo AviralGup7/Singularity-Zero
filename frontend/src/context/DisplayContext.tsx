@@ -1,35 +1,10 @@
-import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
+import { useState, useEffect, type ReactNode, useCallback } from 'react';
 import { safeStorage } from '@/utils/storage';
+import { DisplayContext } from './display-context';
 
-export type DensityMode = 'compact' | 'comfortable' | 'spacious';
-export type FontSize = 'small' | 'medium' | 'large';
+export type { DensityMode, FontSize, DisplayState, DisplayUpdater } from './display-context';
 
-export interface DisplayState {
-  density: DensityMode;
-  fontSize: FontSize;
-  animations: boolean;
-  gridBackground: boolean;
-  reduceMotion: boolean;
-  highContrast: boolean;
-  focusIndicators: boolean;
-  screenReaderOptimizations: boolean;
-  systemReducedMotion: boolean;
-  constrainedDevice: boolean;
-}
-
-export interface DisplayUpdater {
-  updateDisplay: (partial: Partial<DisplayState>) => void;
-  setDensity: (density: DensityMode) => void;
-  setFontSize: (size: FontSize) => void;
-  setAnimations: (enabled: boolean) => void;
-  setGridBackground: (enabled: boolean) => void;
-  setReduceMotion: (enabled: boolean) => void;
-  setHighContrast: (enabled: boolean) => void;
-  setFocusIndicators: (enabled: boolean) => void;
-  setScreenReaderOptimizations: (enabled: boolean) => void;
-}
-
-const DisplayContext = createContext<{ display: DisplayState; updater: DisplayUpdater } | undefined>(undefined);
+import type { DisplayState } from './display-context';
 
 const defaultDisplay: DisplayState = {
   density: 'comfortable',
@@ -123,8 +98,8 @@ export function DisplayProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setDensity = useCallback((density: DensityMode) => updateDisplay({ density }), [updateDisplay]);
-  const setFontSize = useCallback((fontSize: FontSize) => updateDisplay({ fontSize }), [updateDisplay]);
+  const setDensity = useCallback((density: DisplayState['density']) => updateDisplay({ density }), [updateDisplay]);
+  const setFontSize = useCallback((fontSize: DisplayState['fontSize']) => updateDisplay({ fontSize }), [updateDisplay]);
   const setAnimations = useCallback((animations: boolean) => updateDisplay({ animations }), [updateDisplay]);
   const setGridBackground = useCallback((gridBackground: boolean) => updateDisplay({ gridBackground }), [updateDisplay]);
   const setReduceMotion = useCallback((reduceMotion: boolean) => updateDisplay({ reduceMotion }), [updateDisplay]);
@@ -137,10 +112,4 @@ export function DisplayProvider({ children }: { children: ReactNode }) {
       {children}
     </DisplayContext.Provider>
   );
-}
-
-export function useDisplay() {
-  const context = useContext(DisplayContext);
-  if (!context) throw new Error('useDisplay must be used within a DisplayProvider');
-  return context;
 }

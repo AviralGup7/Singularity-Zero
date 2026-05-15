@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { LogIn, ChevronDown, LockKeyhole, ScanLine, Shield, User, Workflow, ShieldCheck } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION } from '@/config';
 import type { UserRole } from '@/context/AuthContext';
 

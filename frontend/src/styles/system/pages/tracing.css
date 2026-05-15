@@ -1,0 +1,179 @@
+/* ══════════════════════════════════════════════════════════════
+   Tracing / Waterfall Page
+   ══════════════════════════════════════════════════════════════ */
+
+.trace-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: var(--text-primary);
+}
+
+.trace-banner a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  color: var(--accent);
+}
+
+.trace-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.trace-field {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 220px;
+}
+
+.trace-field label {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 500;
+}
+
+.trace-field input {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  padding: 0 var(--space-3);
+}
+
+.trace-segments {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  height: 36px;
+}
+
+.trace-segments button {
+  min-width: 54px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.trace-segments button:last-child {
+  border-right: 0;
+}
+
+.trace-segments button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.trace-refresh {
+  margin-left: auto;
+}
+
+.trace-grid-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.85fr) minmax(0, 1.35fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.trace-table-shell,
+.trace-waterfall-shell {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.trace-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.trace-table th,
+.trace-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.trace-table th {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 500;
+  background: var(--surface-2);
+}
+
+.trace-table tr {
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--easing-out);
+}
+
+.trace-table tbody tr:hover,
+.trace-table tbody tr.selected {
+  background: var(--surface-hover);
+}
+
+.trace-table td strong {
+  display: block;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.trace-table td span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  margin-top: 2px;
+}
+
+.trace-status {
+  display: inline-flex;
+  border-radius: var(--radius-pill);
+  padding: 2px var(--space-3);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.trace-status.ok {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.trace-status.error {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+
+.trace-waterfall-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.trace-waterfall-scroll {
+  overflow-x: auto;
+}
+
+.trace-waterfall {
+  min-width: 900px;
+  display: block;
+}

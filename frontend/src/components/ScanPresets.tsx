@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useToast } from './Toast';
+import { useToast } from '../hooks/useToast';
 
 interface ScanPreset {
   id: string;

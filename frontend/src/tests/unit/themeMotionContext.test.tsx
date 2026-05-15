@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { ThemeProvider } from '@/context/ThemeContext'; import { useTheme } from '@/hooks/useTheme';
 
 function MotionContextProbe() {
   const { theme, updater } = useTheme();
