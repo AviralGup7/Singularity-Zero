@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { useToast } from '@/components/Toast';
+import { useToast } from '@/hooks/useToast';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { parseUrls, validateUrl } from '@/lib/utils';
 

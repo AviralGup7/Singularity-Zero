@@ -18,15 +18,6 @@ from src.analysis.helpers import (
 )
 from src.analysis.passive.patterns import UUID_RE
 from src.analysis.text_utils import extract_key_fields
-from src.analysis.json.mutations import (
-    alternate_version_url,
-    mutate_dependency_urls,
-    mutate_error_probe_url,
-    mutate_filter_url,
-    mutate_pagination_url,
-    mutate_role_url,
-    mutate_state_url,
-)
 
 from ._constants import (
     AUTH_REQUIRED_FIELD_HINTS,

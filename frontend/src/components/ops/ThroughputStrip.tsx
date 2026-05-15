@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
-import { useVisual } from '@/context/VisualContext';
+import { useVisual } from '@/hooks/useVisual';
 import type { CSSProperties } from 'react';
 
 interface ThroughputStripProps {

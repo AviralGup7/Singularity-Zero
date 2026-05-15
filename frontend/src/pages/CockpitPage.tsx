@@ -13,7 +13,7 @@ import { getNotes, createNote } from '@/api/notes';
 import type { Note } from '@/api/notes';
 import { apiClient } from '@/api/client';
 import { AttackChainVisualizer } from '@/components/AttackChainVisualizer';
-import { useToast } from '@/components/Toast';
+import { useToast } from '@/hooks/useToast';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // High-Performance Instanced Components

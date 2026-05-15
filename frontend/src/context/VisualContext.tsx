@@ -1,15 +1,8 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { DEFAULT_VISUAL_STATE, type VisualState } from '@/lib/visualState';
+import { VisualContext } from './visual-context';
 
-interface VisualContextValue {
-  state: VisualState;
-  setState: (state: VisualState) => void;
-}
-
-const VisualContext = createContext<VisualContextValue>({
-  state: DEFAULT_VISUAL_STATE,
-  setState: () => {},
-});
+export type { VisualContextValue } from './visual-context';
 
 interface VisualProviderProps {
   children: ReactNode;
@@ -25,8 +18,3 @@ export function VisualProvider({ children, initialValue }: VisualProviderProps) 
     </VisualContext.Provider>
   );
 }
-
-export function useVisual() {
-  return useContext(VisualContext);
-}
-

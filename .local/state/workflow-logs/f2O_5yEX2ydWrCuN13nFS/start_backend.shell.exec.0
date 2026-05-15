@@ -1,0 +1,7 @@
+[32mINFO[0m:     Started server process [[36m71[0m]
+[32mINFO[0m:     Waiting for application startup.
+[32mINFO[0m:     Application startup complete.
+[32mINFO[0m:     Uvicorn running on [1mhttp://0.0.0.0:8080[0m (Press CTRL+C to quit)
+[32mINFO[0m:     127.0.0.1:50534 - "[1mGET /api/health/live HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:60468 - "[1mGET /api/health/live HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:60480 - "[1mGET /api/health/live HTTP/1.1[0m" [32m200 OK[0m

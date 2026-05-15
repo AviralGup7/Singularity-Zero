@@ -4,7 +4,7 @@ import { SkeletonTable } from '../components/ui/Skeleton';
 import { Pagination } from '../components/ui/Pagination';
 import { useApi } from '../hooks/useApi';
 import { startJob } from '../api/client';
-import { useToast } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import { UrlCollectionSystem } from '../components/UrlCollectionSystem';
 
 const PAGE_SIZE = 10;

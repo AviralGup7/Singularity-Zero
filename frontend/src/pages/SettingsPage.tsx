@@ -3,9 +3,9 @@ import {
   Link, FileText, Plug, Target, FlaskConical, Accessibility, Zap,
   ScrollText, TrafficCone, User, Keyboard, Database, Info, Globe,
 } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
-import { useDisplay } from '../context/DisplayContext';
-import { useSettings, type AppSettings } from '../context/SettingsContext';
+import { useTheme } from '@/hooks/useTheme';
+import { useDisplay } from '@/hooks/useDisplay';
+import { useSettings } from '@/hooks/useSettings'; import type { AppSettings } from '@/context/SettingsContext';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';

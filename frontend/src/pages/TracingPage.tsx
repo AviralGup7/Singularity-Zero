@@ -156,10 +156,7 @@ export function TracingPage() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!selectedTraceId) {
-      setTraceDetail(null);
-      return;
-    }
+    if (!selectedTraceId) return;
     const controller = new AbortController();
     getTrace(selectedTraceId, controller.signal)
       .then(setTraceDetail)

@@ -5,6 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function safeGet<V>(obj: Record<string, V>, key: string): V | undefined;
+export function safeGet<V>(obj: Record<string, V>, key: string, fallback: V): V;
+export function safeGet<V>(obj: Record<string, V>, key: string, fallback?: V): V | undefined {
+  return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : fallback;
+}
+
 export function classifyLogLine(line: string): string {
   const lower = line.toLowerCase();
   if (lower.includes('error') || lower.includes('exception') || lower.includes('fatal') || lower.includes('traceback')) return 'log-line log-error';
@@ -35,9 +41,9 @@ export function getStageIcon(stage: string): string {
 export function calculateHealthScore(
   severityTotals: Record<string, number>
 ): { score: number; label: string; tone: string } {
-  const critical = severityTotals.critical || 0;
-  const high = severityTotals.high || 0;
-  const medium = severityTotals.medium || 0;
+  const critical = severityTotals['critical'] || 0;
+  const high = severityTotals['high'] || 0;
+  const medium = severityTotals['medium'] || 0;
   const score = Math.max(0, 100 - Math.min(100, critical * 15 + high * 8 + medium * 3));
   const label =
     score >= 70 ? 'Healthy' :
@@ -95,7 +101,6 @@ export function parseUrls(url: string): string[] {
 export function validateUrl(url: string): { valid: boolean; error?: string } {
   if (!url || !url.trim()) return { valid: false, error: 'URL is required' };
 
-  // Support comma-separated or newline-separated multi-URL
   const urls = url.split(/[,;\n]+/).map(u => u.trim()).filter(Boolean);
 
   if (urls.length === 0) return { valid: false, error: 'URL is required' };
@@ -104,7 +109,6 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
     const trimmed = rawUrl.trim();
     if (!trimmed) continue;
 
-    // Auto-add https:// if missing
     const urlWithProtocol = trimmed.match(/^https?:\/\//) ? trimmed : `https://${trimmed}`;
 
     try {
@@ -140,8 +144,8 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
 export function formatFindingDate(timestamp: number | string | undefined | null): string {
   if (!timestamp) return '—';
   try {
-    const date = typeof timestamp === 'number' 
-      ? new Date(timestamp * (timestamp > 9999999999 ? 1 : 1000)) 
+    const date = typeof timestamp === 'number'
+      ? new Date(timestamp * (timestamp > 9999999999 ? 1 : 1000))
       : new Date(timestamp);
     return date.toLocaleDateString();
   } catch {

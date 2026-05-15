@@ -213,9 +213,6 @@ export function MeshHealthPage() {
     params: { status: 'running', page_size: 1 },
   });
 
-  useEffect(() => {
-    if (data) setMeshHealth(data);
-  }, [data]);
 
   const activeJobId = runningJobs?.jobs?.[0]?.id;
   const handleSseEvent = useCallback((event: SseEvent<MeshHealth>) => {
@@ -239,7 +236,10 @@ export function MeshHealthPage() {
   }, [health, selectedNodeId]);
 
   useEffect(() => {
-    if (!selectedNodeId && selectedNode?.id) setSelectedNodeId(selectedNode.id);
+    if (!selectedNodeId && selectedNode?.id) {
+      const tid = setTimeout(() => setSelectedNodeId(selectedNode.id!), 0);
+      return () => clearTimeout(tid);
+    }
   }, [selectedNode, selectedNodeId]);
 
   const selectedStats = selectedNode && health?.peer_stats ? health.peer_stats[selectedNode.id] : undefined;

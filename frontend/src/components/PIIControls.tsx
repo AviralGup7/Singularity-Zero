@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { isPIIVisible, setPIIVisible, getPIIAuditLog, type PIIMatch } from '@/utils/piiRedactor';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PIIControlsProps {
   className?: string;

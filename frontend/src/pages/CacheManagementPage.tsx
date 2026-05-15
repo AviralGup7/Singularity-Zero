@@ -226,12 +226,12 @@ export function CacheManagementPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    const loadingTid = setTimeout(() => setLoading(true), 0);
     refreshOverview(controller.signal)
       .then(() => refreshKeys(pattern, controller.signal))
       .then(() => setError(null))
       .catch((err: { message?: string }) => setError(err.message || 'Failed to load cache telemetry'))
-      .finally(() => setLoading(false));
+      .finally(() => { clearTimeout(loadingTid); setLoading(false); });
 
     const interval = window.setInterval(() => {
       refreshOverview().catch((err: { message?: string }) => setError(err.message || 'Failed to refresh cache telemetry'));

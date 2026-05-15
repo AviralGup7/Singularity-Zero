@@ -1,5 +1,5 @@
-import { useAuth } from '../../context/AuthContext';
-import { useSettings } from '../../context/SettingsContext';
+import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/hooks/useSettings';
 import { useCallback, useState } from 'react';
 import { SettingsSectionCard } from './SettingsComponents';
 import { User, LogOut, Download, Upload } from 'lucide-react';
