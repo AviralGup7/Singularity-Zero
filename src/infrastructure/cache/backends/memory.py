@@ -11,9 +11,6 @@ import time
 from typing import Any
 
 
-
-
-
 class MemoryBackend:
     """In-memory cache backend for testing and L1 tier.
 

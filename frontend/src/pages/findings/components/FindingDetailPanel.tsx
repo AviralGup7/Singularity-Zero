@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Shield, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Finding, RemediationSuggestion, EvidenceItem } from '../../../types/api';
@@ -72,7 +72,7 @@ export function FindingDetailPanel({
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="w-full max-w-4xl max-h-[90vh] bg-bg border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
-        onClick={e => e.stopPropagation()}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="finding-detail-title"

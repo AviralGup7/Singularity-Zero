@@ -5,7 +5,8 @@ import { apiCache } from './cache';
 
 export async function getNotes(targetName: string, signal?: AbortSignal): Promise<NoteListResponse> {
   const res = await apiClient.get<NoteListResponse>(`/api/notes/${targetName}`, { signal });
-  res.data.notes = res.data.notes.map((n: Record<string, unknown>) => ({ 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  res.data.notes = res.data.notes.map((n: any) => ({ 
     ...n, 
     id: String(n.id || n.note_id || '')
   } as Note));

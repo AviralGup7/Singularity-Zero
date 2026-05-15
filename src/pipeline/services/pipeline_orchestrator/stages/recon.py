@@ -2,6 +2,7 @@
 
 from functools import partial
 from typing import Any
+
 from src.analysis.behavior.service import run_service_enrichment
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -15,22 +16,15 @@ from src.pipeline.services.pipeline_helpers import (
     build_stage_input_from_context,
 )
 from src.pipeline.services.services.recon_service import (
+    run_live_hosts_service,
     run_parameter_extraction_stage,
     run_priority_ranking_stage,
     run_subdomain_enumeration_service,
+    run_url_collection_service,
 )
 from src.recon.live_hosts import probe_live_hosts
 from src.recon.subdomains import enumerate_subdomains
 from src.recon.urls import collect_urls
-from src.pipeline.services.services.recon_service import (
-    run_live_hosts_service,
-)
-from src.pipeline.services.services.recon_service import (
-    run_url_collection_service,
-)
-
-
-
 
 # Test seams
 enumerate_subdomains = enumerate_subdomains

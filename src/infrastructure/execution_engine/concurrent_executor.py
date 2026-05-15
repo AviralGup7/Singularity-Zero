@@ -17,6 +17,7 @@ from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
+
 from src.infrastructure.execution_engine.load_balancer import LoadBalancer
 from src.infrastructure.execution_engine.models import (
     ExecutionConfig,
@@ -25,11 +26,9 @@ from src.infrastructure.execution_engine.models import (
     TaskStatus,
 )
 from src.infrastructure.execution_engine.resource_pool import ResourcePool, ResourcePoolManager
+
 from ._scheduler import _DAGScheduler
 from ._task_runner import _TaskRunner
-
-
-
 
 ProgressCallback = Callable[[str, int, dict[str, Any]], None]
 

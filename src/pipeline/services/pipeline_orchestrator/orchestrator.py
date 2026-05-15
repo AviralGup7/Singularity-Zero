@@ -7,6 +7,7 @@ import os
 import time
 from pathlib import Path
 from typing import Any, TypedDict
+
 from src.core.checkpoint import (
     StageCheckpointGuard,
     attempt_recovery,
@@ -21,7 +22,15 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.middleware import OutboundRequestInterceptor, ScopeValidator
 from src.core.models.stage_result import PipelineContext, StageResult
 from src.core.utils import normalize_scope_entry
+from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
+from src.infrastructure.observability.audit_subscriber import register_audit_subscriber
 from src.infrastructure.observability.event_subscribers import register_event_metrics_subscribers
+from src.infrastructure.observability.learning_subscriber import register_learning_subscriber
+from src.infrastructure.observability.notification_subscriber import (
+    register_notification_subscriber,
+)
+from src.infrastructure.observability.progress_subscriber import register_progress_subscriber
+from src.learning.integration import LearningIntegration
 from src.pipeline.cache import cache_enabled
 from src.pipeline.retry import RetryMetrics, RetryPolicy
 from src.pipeline.runner_support import (
@@ -32,6 +41,7 @@ from src.pipeline.services.output_store import PipelineOutputStore
 from src.pipeline.services.pipeline_flow import pipeline_flow_manifest
 from src.pipeline.services.plugin_catalog import resolve_stage_runner
 from src.pipeline.storage import read_scope
+
 from . import parallel
 from ._constants import (
     DEFAULT_ITERATION_LIMIT,
@@ -49,18 +59,6 @@ from ._state_helpers import (
     resolve_stage_timeout,
     safe_checkpoint_stage_outcome,
 )
-from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
-from src.infrastructure.observability.audit_subscriber import register_audit_subscriber
-from src.infrastructure.observability.learning_subscriber import register_learning_subscriber
-from src.infrastructure.observability.notification_subscriber import (
-    register_notification_subscriber,
-)
-from src.infrastructure.observability.progress_subscriber import register_progress_subscriber
-from src.learning.integration import LearningIntegration
-
-
-
-
 
 
 class FindingDict(TypedDict, total=False):

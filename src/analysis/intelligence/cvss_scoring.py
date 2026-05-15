@@ -7,8 +7,8 @@ enabling standardized severity assessment and professional report generation.
 import math
 from dataclasses import dataclass
 from typing import Any
-from src.core.plugins import register_plugin
 
+from src.core.plugins import register_plugin
 
 
 @dataclass(frozen=True)

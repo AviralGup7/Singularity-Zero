@@ -6,7 +6,9 @@ and verifying token validation behavior.
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
+
 from src.analysis.helpers import (
     endpoint_signature,
     is_auth_flow_endpoint,
@@ -14,8 +16,6 @@ from src.analysis.helpers import (
     normalized_confidence,
 )
 from src.core.plugins import register_plugin
-
-
 
 if TYPE_CHECKING:
     from src.core.models import ValidationResult

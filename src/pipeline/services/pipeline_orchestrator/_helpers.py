@@ -5,12 +5,11 @@ dependency checks. These were pulled out of `orchestrator.py` to reduce
 file size and group related logic.
 """
 
-from ._constants import PARALLEL_STAGE_GROUPS, STAGE_DEPS
 from ..pipeline_helpers import (
     extract_feedback_urls,
     finding_identity,
 )
-
+from ._constants import PARALLEL_STAGE_GROUPS, STAGE_DEPS
 
 
 def build_parallel_graph() -> dict[str, list[str]]:

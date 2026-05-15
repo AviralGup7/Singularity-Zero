@@ -7,9 +7,9 @@ from src.pipeline.services.pipeline_orchestrator._run_execution import (
 
 def test_recon_validation_failure_does_not_emit_blank_urls_failure_reason() -> None:
     ctx = PipelineContext()
-    ctx.result.subdomains = {"api.example.com"}
+    ctx.result.apply_state_delta({"subdomains": ["api.example.com"]})
     ctx.result.live_hosts = set()
-    ctx.result.urls = set()
+    # urls is empty by default in a new context
     ctx.result.stage_status["urls"] = StageStatus.COMPLETED.value
     ctx.result.module_metrics["urls"] = {
         "status": "warning",
