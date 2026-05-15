@@ -20,7 +20,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5000,
+    allowedHosts: true,
     watch: {
       ignored: ['**/src/styles/cyberpunk/**'],
     },
