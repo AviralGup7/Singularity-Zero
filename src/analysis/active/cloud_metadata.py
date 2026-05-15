@@ -25,7 +25,7 @@ from .cloud_constants import (
 logger = logging.getLogger(__name__)
 
 
-def probe_cloud_metadata(url: str, session) -> dict[str, Any]:
+def probe_cloud_metadata(url: str, session: Any) -> dict[str, Any]:
     """Test if cloud metadata endpoints are accessible through the target.
 
     Attempts to reach known cloud provider metadata endpoints by appending
@@ -127,7 +127,7 @@ def probe_cloud_metadata(url: str, session) -> dict[str, Any]:
     }
 
 
-def probe_cloud_storage_exposure(url: str, session) -> dict[str, Any]:
+def probe_cloud_storage_exposure(url: str, session: Any) -> dict[str, Any]:
     """Test for cloud storage bucket misconfigurations through the target.
 
     Probes common storage-related paths on the target to detect exposed
@@ -225,7 +225,7 @@ def probe_cloud_storage_exposure(url: str, session) -> dict[str, Any]:
     }
 
 
-def probe_infrastructure_services(url: str, session) -> dict[str, Any]:
+def probe_infrastructure_services(url: str, session: Any) -> dict[str, Any]:
     """Test for exposed infrastructure management services.
 
     Probes for Docker API, Kubernetes API, Redis, Elasticsearch,
@@ -377,7 +377,7 @@ def probe_infrastructure_services(url: str, session) -> dict[str, Any]:
 
 
 def run_cloud_metadata_probes(
-    urls: list[str], session, config: dict[str, Any] | None = None
+    urls: list[str], session: Any, config: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Main entry point for cloud metadata and infrastructure exposure testing.
 

@@ -324,47 +324,51 @@ def xxe_surface_detector(
         if endpoint_key in seen:
             continue
 
-        signals: list[str] = []
-        signals.extend(_check_content_type(response))
-        signals.extend(_check_tech_fingerprints(response))
-        signals.extend(_check_xxe_errors(response))
+        resp_signals: list[str] = []
+        resp_signals.extend(_check_content_type(response))
+        resp_signals.extend(_check_tech_fingerprints(response))
+        resp_signals.extend(_check_xxe_errors(response))
 
-        if not signals:
+        if not resp_signals:
             continue
 
         seen.add(endpoint_key)
 
-        severity = _calculate_severity(signals)
-        risk_score = _calculate_risk_score(signals)
+        severity = _calculate_severity(resp_signals)
+        risk_score = _calculate_risk_score(resp_signals)
         confidence = normalized_confidence(
             base=0.45,
             score=risk_score,
-            signals=signals,
+            signals=resp_signals,
             cap=0.92,
         )
 
-        title_parts: list[str] = []
-        if "xxe_error_in_response" in signals:
-            title_parts.append("XXE Error in Response")
-        if "entity_declaration_hint" in signals:
-            title_parts.append("Entity Declaration Detected")
-        if "file_uri_reference" in signals:
-            title_parts.append("File URI Reference Found")
-        if any(s.startswith("xml_content_type:") for s in signals):
-            title_parts.append("XML Content-Type Detected")
-        if "svg_content_type" in signals:
-            title_parts.append("SVG Content-Type Detected")
-        if any(s.startswith("xml_parser_detected:") for s in signals):
-            title_parts.append("XML Parser Fingerprinted")
+        resp_title_parts: list[str] = []
+        if "xxe_error_in_response" in resp_signals:
+            resp_title_parts.append("XXE Error in Response")
+        if "entity_declaration_hint" in resp_signals:
+            resp_title_parts.append("Entity Declaration Detected")
+        if "file_uri_reference" in resp_signals:
+            resp_title_parts.append("File URI Reference Found")
+        if any(s.startswith("xml_content_type:") for s in resp_signals):
+            resp_title_parts.append("XML Content-Type Detected")
+        if "svg_content_type" in resp_signals:
+            resp_title_parts.append("SVG Content-Type Detected")
+        if any(s.startswith("xml_parser_detected:") for s in resp_signals):
+            resp_title_parts.append("XML Parser Fingerprinted")
 
-        title = "; ".join(title_parts) if title_parts else "XXE Surface Detected in Response"
+        title = (
+            "; ".join(resp_title_parts)
+            if resp_title_parts
+            else "XXE Surface Detected in Response"
+        )
 
         findings.append(
             {
                 "url": url,
                 "endpoint_key": endpoint_key,
                 "endpoint_type": classify_endpoint(url),
-                "signals": sorted(signals),
+                "signals": sorted(resp_signals),
                 "risk_score": risk_score,
                 "severity": severity,
                 "confidence": round(confidence, 2),

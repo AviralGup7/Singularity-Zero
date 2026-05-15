@@ -8,20 +8,30 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Any
+from typing import Any, cast
 
 # Fix #389: Guard wasmtime import behind feature flag to avoid startup penalty
 if os.environ.get("FEATURE_WASM_PLUGINS", "false").lower() == "true":
     import wasmtime
 else:
     class _MockWasmtime:
-        Engine = object
-        Linker = object
-        Module = object
-        Store = object
-        WasiConfig = object
-        Memory = object
-        Func = object
+        class Engine: pass
+        class Linker:
+            def __init__(self, engine: Any) -> None: pass
+            def define_wasi(self) -> None: pass
+            def instantiate(self, store: Any, module: Any) -> Any: pass
+        class Module:
+            @staticmethod
+            def from_file(engine: Any, path: str) -> Any: pass
+        class Store:
+            def __init__(self, engine: Any) -> None: pass
+            def set_wasi(self, config: Any) -> None: pass
+        class WasiConfig: pass
+        class Memory:
+            def write(self, store: Any, ptr: int, data: bytes) -> None: pass
+            def read(self, store: Any, start: int, end: int) -> bytes: return b""
+        class Func:
+            def __call__(self, *args: Any) -> Any: pass
     wasmtime = _MockWasmtime()  # type: ignore
 
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -57,37 +67,37 @@ class WASMPluginHost:
         deallocate = exports.get("deallocate")
 
         # Fix #214: check that allocate is actually a wasmtime.Func
-        if not all((isinstance(memory, wasmtime.Memory), isinstance(allocate, wasmtime.Func), callable(run))):
+        if not (isinstance(memory, wasmtime.Memory) and isinstance(allocate, wasmtime.Func) and isinstance(run, wasmtime.Func)):
              raise RuntimeError("WASM module missing required exports (memory, allocate, run_detector)")
 
         # 1. Prepare Input
         input_json = json.dumps(stage_input).encode()
-        input_ptr = allocate(self._store, len(input_json))
+        input_ptr = cast(Any, allocate)(self._store, len(input_json))
 
         # Write to WASM memory - use memory.write for efficiency
         # Fix #215: The wasmtime Python binding uses memory.write(store, ptr, data)
-        memory.write(self._store, input_ptr, input_json)
+        cast(Any, memory).write(self._store, input_ptr, input_json)
 
         # 2. Execute
         logger.info("Executing WASM Plugin...")
         start = time.monotonic()
-        output_ptr = run(self._store, input_ptr, len(input_json))
+        output_ptr = cast(Any, run)(self._store, input_ptr, len(input_json))
         duration = time.monotonic() - start
 
         # 3. Retrieve Output
         # (Assuming the first 4 bytes at output_ptr contain the length)
-        output_len_bytes = memory.read(self._store, output_ptr, output_ptr + 4)
+        output_len_bytes = cast(Any, memory).read(self._store, output_ptr, output_ptr + 4)
         output_len = int.from_bytes(output_len_bytes, "little")
-        output_json_bytes = memory.read(self._store, output_ptr + 4, output_ptr + 4 + output_len)
+        output_json_bytes = cast(Any, memory).read(self._store, output_ptr + 4, output_ptr + 4 + output_len)
         output_json = output_json_bytes.decode()
 
-        result = json.loads(output_json)
+        result = cast(dict[str, Any], json.loads(output_json))
         result["_wasm_duration"] = duration
 
         # 4. Cleanup
-        if deallocate:
-            deallocate(self._store, input_ptr)
-            deallocate(self._store, output_ptr)
+        if deallocate and isinstance(deallocate, wasmtime.Func):
+            cast(Any, deallocate)(self._store, input_ptr)
+            cast(Any, deallocate)(self._store, output_ptr)
 
         return result
 

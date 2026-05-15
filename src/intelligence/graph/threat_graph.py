@@ -4,6 +4,8 @@ Provides functions for building comprehensive threat graphs,
 identifying critical attack paths, and computing risk summaries.
 """
 
+from typing import Any, cast
+
 
 def build_threat_graph(
     findings: list[dict],
@@ -24,7 +26,9 @@ def build_threat_graph(
     """
     from src.analysis.intelligence.endpoint_attack_graph import build_attack_graph
 
-    graph = build_attack_graph(findings, endpoints or [])
+    # FIXME: endpoints is a list but build_attack_graph expects a dict for analysis_results.
+    # Casting to Any for now to maintain existing behavior.
+    graph = cast(dict[str, Any], build_attack_graph(findings, cast(Any, endpoints or [])))
 
     # Enrich with threat intelligence markers
     cve_count = 0
@@ -169,8 +173,8 @@ def annotate_graph_for_campaigns(graph: dict, validation_results: dict) -> dict:
     for edge in edges:
         source_id = edge.get("source")
         target_id = edge.get("target")
-        source_node = next((n for n in nodes if n.get("id") == source_id), {})
-        target_node = next((n for n in nodes if n.get("id") == target_id), {})
+        source_node: dict[str, Any] = next((n for n in nodes if n.get("id") == source_id), {})
+        target_node: dict[str, Any] = next((n for n in nodes if n.get("id") == target_id), {})
 
         # Mark SSRF internal reachability
         if "ssrf" in str(source_node.get("category", "")).lower():

@@ -6,6 +6,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Any, cast
 
 from hermes_tools import read_file, search_files
 
@@ -14,27 +15,27 @@ logger = logging.getLogger(__name__)
 print = logger.info
 
 BASE = str(Path(__file__).resolve().parent)
-findings = {"critical": [], "high": [], "medium": [], "low": [], "info": []}
+findings: dict[str, list[dict[str, str]]] = {"critical": [], "high": [], "medium": [], "low": [], "info": []}
 
 
-def add(severity, area, finding, recommendation, detail=""):
+def add(severity: str, area: str, finding: str, recommendation: str, detail: str = "") -> None:
     findings[severity].append(
         {"area": area, "finding": finding, "recommendation": recommendation, "detail": detail}
     )
 
 
-def read(p):
+def read(p: str) -> str:
     try:
         r = read_file(path=p)
-        return r.get("content", "")
+        return str(r.get("content", ""))
     except Exception as e:
         logger.debug("read_file failed for %s: %s", p, e)
         return ""
 
 
-def search(pat, path=BASE, limit=30):
+def search(pat: str, path: str = BASE, limit: int = 30) -> dict[str, Any]:
     try:
-        return search_files(pattern=pat, path=path, output_mode="files_only", limit=limit)
+        return cast(dict[str, Any], search_files(pattern=pat, path=path, output_mode="files_only", limit=limit))
     except Exception as e:
         logger.debug("search_files failed for pattern %s in %s: %s", pat, path, e)
         return {"matches": [], "total_count": 0}

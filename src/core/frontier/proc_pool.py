@@ -10,6 +10,7 @@ import os
 import signal
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -42,7 +43,7 @@ class FrontierProcessPool:
     async def warm_pool(self, tool_name: str, base_args: list[str]) -> None:
         """Spawn initial process set."""
         # Fix Audit #14: Windows compatibility for preexec_fn
-        spawn_kwargs = {
+        spawn_kwargs: dict[str, Any] = {
             "stdin": asyncio.subprocess.PIPE,
             "stdout": asyncio.subprocess.PIPE,
             "stderr": asyncio.subprocess.PIPE,
@@ -106,6 +107,10 @@ class FrontierProcessPool:
             # Fix #209: Check if process is dead using returncode instead of stdin.is_closing()
             if p.process.returncode is not None:
                 logger.warning("Process %d is dead, cannot execute task", p.id)
+                return ""
+
+            if p.process.stdin is None or p.process.stdout is None:
+                logger.error("Process %d missing stdin/stdout", p.id)
                 return ""
 
             # Send task to pre-warmed process stdin

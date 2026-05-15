@@ -1,4 +1,7 @@
-def __getattr__(name: str):
+from typing import Any
+
+
+def __getattr__(name: str) -> Any:
     if name == "ANALYSIS_PLUGIN_SPECS":
         from src.analysis.plugins import ANALYSIS_PLUGIN_SPECS
 

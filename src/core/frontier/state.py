@@ -62,7 +62,7 @@ class LWWset[T]:
         item: T,
         timestamp: float | None = None,
         vclock: VectorClock | None = None,
-    ):
+    ) -> None:
         # Fix #235: use 'is not None' so timestamp=0.0 (epoch) is preserved.
         ts = timestamp if timestamp is not None else time.time()
         key = self._key(item)
@@ -75,14 +75,14 @@ class LWWset[T]:
         item: T,
         timestamp: float | None = None,
         vclock: VectorClock | None = None,
-    ):
+    ) -> None:
         ts = timestamp or time.time()
         key = self._key(item)
         existing = self._elements.get(key)
         if existing is None or ts > existing.timestamp:
             self._elements[key] = LWWElement(item, vclock or VectorClock(), ts, deleted=True)
 
-    def merge(self, other: LWWset[T]):
+    def merge(self, other: LWWset[T]) -> None:
         """Commutative, Associative, and Idempotent merge."""
         for item, element in other._elements.items():
             existing = self._elements.get(item)
