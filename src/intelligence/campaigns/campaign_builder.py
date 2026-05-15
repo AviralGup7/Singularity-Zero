@@ -38,7 +38,7 @@ def build_attack_campaigns(
     bool(settings.get("include_mitre", True))
     include_exfiltration = bool(settings.get("include_exfiltration_simulation", True))
 
-    campaigns = []
+    campaigns: list[dict[str, Any]] = []
 
     # 1. Identify validated entry points from the graph
     nodes = threat_graph.get("nodes", [])
@@ -81,7 +81,7 @@ def build_attack_campaigns(
 
         # Check if the entry node of this path corresponds to a validated finding
         entry_node_id = path[0]
-        entry_node = next((n for n in nodes if n.get("id") == entry_node_id), {})
+        entry_node: dict[str, Any] = next((n for n in nodes if n.get("id") == entry_node_id), {})
 
         finding_id = entry_node.get("finding_id", entry_node_id)
         if finding_id not in validated_ids:
@@ -97,11 +97,11 @@ def build_attack_campaigns(
         tactics = set()
 
         for i, node_id in enumerate(path):
-            node = next((n for n in nodes if n.get("id") == node_id), {})
+            node: dict[str, Any] = next((n for n in nodes if n.get("id") == node_id), {})
             prev_node_id = path[i-1] if i > 0 else None
 
             if prev_node_id:
-                edge = next((e for e in edges if e.get("source") == prev_node_id and e.get("target") == node_id), {})
+                edge: dict[str, Any] = next((e for e in edges if e.get("source") == prev_node_id and e.get("target") == node_id), {})
                 path_edges.append(edge)
 
             tactic = node.get("tactic") or _infer_mitre_tactic(node)

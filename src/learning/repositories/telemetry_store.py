@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .attack_chains_repo import AttackChainsRepo
 from .confidence_repo import ConfidenceRepo
@@ -88,7 +88,7 @@ class TelemetryStore:
         self.initialize()
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.close()
 
     def __del__(self) -> None:
@@ -333,7 +333,7 @@ class TelemetryStore:
             (cutoff,),
         )
         conn.commit()
-        return cur.rowcount
+        return cast(int, cur.rowcount)
 
     def get_db_size(self) -> dict[str, int]:
         """Get database size information."""

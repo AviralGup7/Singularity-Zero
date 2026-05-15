@@ -159,13 +159,6 @@ class StageResult:
     nuclei_findings: list[dict[str, Any]] = field(default_factory=list)
 
     # ------------------------------------------------------------------
-    # Stage tracking
-    # ------------------------------------------------------------------
-
-    #: Per-stage execution status keyed by stage name
-    stage_status: dict[str, str] = field(default_factory=dict)
-
-    # ------------------------------------------------------------------
     # Serialization helpers
     # ------------------------------------------------------------------
 
@@ -260,17 +253,17 @@ class PipelineContext:
     """
 
     result: StageResult = field(default_factory=StageResult)
+    output_store: Any = None
+    _checkpoint_mgr: Any = field(default=None, repr=False)
 
     def save_checkpoint_delta(self, stage_name: str, delta: dict[str, Any], metadata: dict[str, Any] | None = None) -> None:
         """Persist an incremental stage delta to the checkpoint manager for mid-stage resume."""
-        if hasattr(self, "_checkpoint_mgr") and self._checkpoint_mgr:
+        if self._checkpoint_mgr:
             try:
                 self._checkpoint_mgr.save_stage_delta(stage_name, delta, metadata=metadata)
                 logger.debug("Persisted mid-stage delta for '%s': %s", stage_name, list(delta.keys()))
             except Exception as exc:
                 logger.warning("Failed to save mid-stage delta for '%s': %s", stage_name, exc)
-
-    _checkpoint_mgr: Any = None
 
     # ------------------------------------------------------------------
     # Stage lifecycle helpers

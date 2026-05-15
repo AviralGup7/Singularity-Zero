@@ -6,7 +6,7 @@ import hmac
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -117,18 +117,17 @@ def _safe_request(
             "success": False,
             "error": str(e),
         }
-    except Exception as e:
-        return {
-            "status": 0,
-            "headers": {},
-            "body": "",
-            "body_length": 0,
-            "success": False,
-            "error": str(e),
-        }
+    return {
+        "status": 0,
+        "headers": {},
+        "body": "",
+        "body_length": 0,
+        "success": False,
+        "error": str(e),
+    }
 
 
-def _extract_jwt(url: str, session) -> str | None:
+def _extract_jwt(url: str, session: Any) -> str | None:
     for header_name in JWT_AUTH_HEADERS:
         if hasattr(session, "headers") and header_name in session.headers:
             val = session.headers[header_name]
@@ -136,21 +135,21 @@ def _extract_jwt(url: str, session) -> str | None:
                 val = val[7:]
             match = JWT_RE.match(val)
             if match:
-                return val
+                return cast(str, val)
     return None
 
 
-def _get_original_status(url: str, session) -> int:
+def _get_original_status(url: str, session: Any) -> int:
     try:
         if hasattr(session, "get"):
             resp = session.get(url, timeout=8, verify=True)
-            return resp.status_code
-        return _safe_request(url, timeout=8).get("status", 0)
+            return cast(int, resp.status_code)
+        return cast(int, _safe_request(url, timeout=8).get("status", 0))
     except Exception:
         return 0
 
 
-def _send_with_token(url: str, token: str, auth_header: str, session) -> dict[str, Any]:
+def _send_with_token(url: str, token: str, auth_header: str, session: Any) -> dict[str, Any]:
     try:
         if hasattr(session, "request"):
             resp = session.request(

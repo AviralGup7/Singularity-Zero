@@ -15,7 +15,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .protocol import _ThreadLocalConnections
 
@@ -374,7 +374,7 @@ class SQLiteBackend:
                     (now,),
                 )
                 conn.commit()
-                return cursor.rowcount
+                return cast(int, cursor.rowcount)
             finally:
                 self._close_conn()
 

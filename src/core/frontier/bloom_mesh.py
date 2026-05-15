@@ -7,6 +7,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 
 import msgspec
@@ -57,7 +58,7 @@ class BloomMeshSynchronizer:
             else os.getenv("BLOOM_SYNC_INTERVAL_SEC", DEFAULT_SYNC_INTERVAL_SECONDS)
         )
         self.channel = channel
-        self.clock = VectorClock({node_id: 0})
+        self.clock = VectorClock(MappingProxyType({node_id: 0}))
         self.snapshot_index: LWWset[str] = LWWset()
         self.remote_clocks: dict[str, VectorClock] = {}
         self.remote_health: dict[str, BloomNodeHealth] = {}
@@ -162,7 +163,7 @@ class BloomMeshSynchronizer:
             last_sync_time=float(data["timestamp"]),
             capacity=int(data["capacity"]),
             hash_count=int(data["hash_count"]),
-            clock=remote_clock.versions,
+            clock=dict(remote_clock.versions),
             stale=False,
         )
         self._record_saturation()
@@ -181,7 +182,7 @@ class BloomMeshSynchronizer:
             last_sync_time=self._last_sync_time,
             capacity=int(stats["capacity"]),
             hash_count=int(stats["hash_count"]),
-            clock=self.clock.versions,
+            clock=dict(self.clock.versions),
             stale=False,
         )
         nodes = [local, *self.remote_health.values()]

@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qsl, urlparse
 
 import requests
@@ -128,20 +128,19 @@ class _SessionAdapter:
         headers: dict[str, str] | None = None,
         timeout: int = 10,
         verify: bool = True,
-    ):
+    ) -> Any:
         all_headers = dict(self.headers)
         if headers:
             all_headers.update(headers)
         resp = _safe_request(url, method=method, headers=all_headers, timeout=timeout)
         obj = type("_Response", (), {})()
-        obj.status_code = resp.get("status", 0)
-        obj.text = resp.get("body", "")
-        obj.headers = resp.get("headers", {})
+        setattr(obj, "status_code", resp.get("status", 0))
+        setattr(obj, "text", resp.get("body", ""))
+        setattr(obj, "headers", resp.get("headers", {}))
         return obj
 
-    def get(self, url: str, timeout: int = 10, verify: bool = True):
+    def get(self, url: str, timeout: int = 10, verify: bool = True) -> Any:
         return self.request("GET", url, timeout=timeout, verify=verify)
-
 
 def _extract_jwts_from_response(response: dict[str, Any]) -> list[str]:
     """Extract JWT tokens from response body and headers."""
@@ -169,7 +168,7 @@ def _extract_jwt_from_headers(headers: dict[str, Any]) -> str | None:
             if val.startswith("Bearer "):
                 val = val[7:]
             if JWT_RE.match(val):
-                return val
+                return cast(str, val)
     return None
 
 
@@ -202,7 +201,7 @@ def _build_finding(
     }
 
 
-def run_jwt_attack_suite(token: str, url: str, session, config: Any = None) -> dict:
+def run_jwt_attack_suite(token: str, url: str, session: Any, config: Any = None) -> dict[str, Any]:
     """Run the full JWT attack suite against a target URL.
 
     Args:

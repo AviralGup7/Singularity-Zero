@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -320,7 +321,7 @@ class ResourcePoolManager:
     async def start_monitoring(
         self,
         interval_seconds: float = 60.0,
-        load_callback: callable | None = None,
+        load_callback: Callable[[], Awaitable[float]] | None = None,
     ) -> None:
         """Start periodic health monitoring in the background.
 

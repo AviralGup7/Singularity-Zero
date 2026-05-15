@@ -192,13 +192,13 @@ XXE_NETDOC_PAYLOAD = (
 
 # Combined XML bomb payloads list
 XML_BOMB_PAYLOADS = [
-    BILLION_LOUGHS_PAYLOAD,
-    QUADRATIC_BLOWUP_PAYLOAD,
-    XXE_FILE_READ_PAYLOAD,
-    XXE_WINDOWS_PAYLOAD,
-    XXE_PHP_FILTER_PAYLOAD,
-    XXE_EXTERNAL_DTD_PAYLOAD,
-    XXE_BLIND_PAYLOAD,
-    XXE_EXPECT_PAYLOAD,
-    XXE_NETDOC_PAYLOAD,
+    ("billion_laughs", BILLION_LOUGHS_PAYLOAD),
+    ("quadratic_blowup", QUADRATIC_BLOWUP_PAYLOAD),
+    ("xxe_file_read", XXE_FILE_READ_PAYLOAD),
+    ("xxe_windows", XXE_WINDOWS_PAYLOAD),
+    ("xxe_php_filter", XXE_PHP_FILTER_PAYLOAD),
+    ("xxe_external_dtd", XXE_EXTERNAL_DTD_PAYLOAD),
+    ("xxe_blind", XXE_BLIND_PAYLOAD),
+    ("xxe_expect", XXE_EXPECT_PAYLOAD),
+    ("xxe_netdoc", XXE_NETDOC_PAYLOAD),
 ]

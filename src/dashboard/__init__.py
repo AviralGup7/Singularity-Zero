@@ -1,4 +1,7 @@
-def __getattr__(name: str):
+from typing import Any
+
+
+def __getattr__(name: str) -> Any:
     if name == "main":
         from src.dashboard.dashboard_cli import main
 

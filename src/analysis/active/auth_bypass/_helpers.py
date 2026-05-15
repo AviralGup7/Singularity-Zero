@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -83,5 +83,5 @@ def _extract_jwt_from_headers(headers: dict[str, Any]) -> str | None:
                 val = val[7:]
             match = JWT_RE.match(val)
             if match:
-                return val
+                return cast(str, val)
     return None

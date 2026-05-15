@@ -6,7 +6,7 @@ from . import register_spec
 
 
 def _severity(item: dict[str, Any]) -> str:
-    return item.get("severity", "medium")
+    return str(item.get("severity", "medium"))
 
 
 def _description(item: dict[str, Any]) -> str:

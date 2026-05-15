@@ -116,7 +116,7 @@ class ContextDetector:
                     tag=tag_name,
                     attribute_name=attr_info.get("name"),
                     attribute_value_before_marker=attr_info.get("value_before"),
-                    quote_style=attr_info.get("quote"),
+                    quote_style=attr_info.get("quote"),  # type: ignore[arg-type]
                 )
 
         # 3. Check bare HTML contexts
@@ -197,7 +197,7 @@ def _detect_quote(content: str, idx: int, marker: str) -> QuoteStyle:
     window = content[start:end]
     for ch in ["'", '"', "`"]:
         if ch in window:
-            return ch
+            return ch  # type: ignore[return-value]
     return None
 
 

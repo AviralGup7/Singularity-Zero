@@ -6,7 +6,7 @@ Uses Redis Streams to ensure durability of every state change across the mesh.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, cast
 
 import redis
 
@@ -37,10 +37,10 @@ class FrontierWAL:
 
         try:
             import msgpack
-            payload = {
+            payload: dict[bytes, bytes] = {
                 b"ts": str(time.time()).encode(),
                 b"stage": stage_name.encode(),
-                b"delta": msgpack.packb(delta, use_bin_type=True)
+                b"delta": cast(bytes, msgpack.packb(delta, use_bin_type=True))
             }
             # Append to Redis Stream
             # Maxlen ensures we don't grow infinitely - increased to 10,000 per Audit #71
@@ -57,9 +57,9 @@ class FrontierWAL:
         try:
             import msgpack
             deltas = []
-            cursor = b"-"
+            cursor: bytes = b"-"
             while True:
-                raw_items = self._client.xrange(self._stream_key, min=cursor, max=b"+", count=1000)
+                raw_items = cast(list[Any], self._client.xrange(self._stream_key, min=cursor, max=b"+", count=1000))
                 if not raw_items:
                     break
                 for item_id, item in raw_items:

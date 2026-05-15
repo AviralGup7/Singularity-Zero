@@ -489,54 +489,58 @@ def open_redirect_detector(
         if endpoint_key in seen:
             continue
 
-        signals: list[str] = []
-        signals.extend(_check_meta_refresh(response))
-        signals.extend(_check_js_redirects(response))
-        signals.extend(_check_location_header(response))
-        signals.extend(_check_open_redirect_errors(response))
-        signals.extend(_check_google_reflection(response))
-        signals.extend(_check_dom_sinks(response))
+        resp_signals: list[str] = []
+        resp_signals.extend(_check_meta_refresh(response))
+        resp_signals.extend(_check_js_redirects(response))
+        resp_signals.extend(_check_location_header(response))
+        resp_signals.extend(_check_open_redirect_errors(response))
+        resp_signals.extend(_check_google_reflection(response))
+        resp_signals.extend(_check_dom_sinks(response))
 
-        if not signals:
+        if not resp_signals:
             continue
 
         seen.add(endpoint_key)
 
-        severity = _calculate_severity(signals)
-        risk_score = _calculate_risk_score(signals)
+        severity = _calculate_severity(resp_signals)
+        risk_score = _calculate_risk_score(resp_signals)
         confidence = normalized_confidence(
             base=0.45,
             score=risk_score,
-            signals=signals,
+            signals=resp_signals,
             cap=0.92,
         )
 
-        title_parts: list[str] = []
-        if any(s.startswith("js_redirect_external:") for s in signals):
-            title_parts.append("JavaScript Redirect to External URL")
-        if any(s.startswith("meta_refresh_external:") for s in signals):
-            title_parts.append("Meta Refresh to External URL")
-        if "location_header_external" in signals:
-            title_parts.append("Location Header Points to External Domain")
-        if "open_redirect_error_in_response" in signals:
-            title_parts.append("Open Redirect Error Detected")
-        if "js_redirect_variable_based" in signals:
-            title_parts.append("Variable-Based JavaScript Redirect")
-        if "location_header_param_reflection" in signals:
-            title_parts.append("Location Header Reflects Parameters")
-        if any(s.startswith("google_reflection") for s in signals):
-            title_parts.append("Google Reflection Detected (Open Redirect)")
-        if any(s.startswith("dom_sink:") for s in signals):
-            title_parts.append("Dangerous DOM Redirect Sinks Detected")
+        resp_title_parts: list[str] = []
+        if any(s.startswith("js_redirect_external:") for s in resp_signals):
+            resp_title_parts.append("JavaScript Redirect to External URL")
+        if any(s.startswith("meta_refresh_external:") for s in resp_signals):
+            resp_title_parts.append("Meta Refresh to External URL")
+        if "location_header_external" in resp_signals:
+            resp_title_parts.append("Location Header Points to External Domain")
+        if "open_redirect_error_in_response" in resp_signals:
+            resp_title_parts.append("Open Redirect Error Detected")
+        if "js_redirect_variable_based" in resp_signals:
+            resp_title_parts.append("Variable-Based JavaScript Redirect")
+        if "location_header_param_reflection" in resp_signals:
+            resp_title_parts.append("Location Header Reflects Parameters")
+        if any(s.startswith("google_reflection") for s in resp_signals):
+            resp_title_parts.append("Google Reflection Detected (Open Redirect)")
+        if any(s.startswith("dom_sink:") for s in resp_signals):
+            resp_title_parts.append("Dangerous DOM Redirect Sinks Detected")
 
-        title = "; ".join(title_parts) if title_parts else "Open Redirect Response Issue Detected"
+        title = (
+            "; ".join(resp_title_parts)
+            if resp_title_parts
+            else "Open Redirect Response Issue Detected"
+        )
 
         findings.append(
             {
                 "url": url,
                 "endpoint_key": endpoint_key,
                 "endpoint_type": classify_endpoint(url),
-                "signals": sorted(signals),
+                "signals": sorted(resp_signals),
                 "risk_score": risk_score,
                 "severity": severity,
                 "confidence": round(confidence, 2),

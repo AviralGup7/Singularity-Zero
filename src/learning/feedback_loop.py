@@ -115,10 +115,10 @@ class FeedbackLoopEngine:
 
         return adaptations
 
-    def _compute_target_adaptations(self, adaptations: ScanAdaptation, runs: list[dict]) -> None:
+    def _compute_target_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
         """Compute target endpoint boosts and suppressions."""
         # Aggregate feedback by endpoint
-        endpoint_stats: dict[str, dict[str, int]] = {}
+        endpoint_stats: dict[str, dict[str, Any]] = {}
 
         for run in runs:
             events = self.store.get_feedback_events_for_run(run["run_id"])
@@ -158,13 +158,13 @@ class FeedbackLoopEngine:
                 suppression = min(-5.0, -stats["total_weight"] * fp_rate)
                 adaptations.target_suppressions[ep] = round(suppression, 2)
 
-    def _compute_plugin_adaptations(self, adaptations: ScanAdaptation, runs: list[dict]) -> None:
+    def _compute_plugin_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
         """Compute plugin enable/disable and intensity overrides."""
         plugin_stats: dict[str, dict[str, int]] = {}
 
         for run in runs:
-            stats = self.store.get_plugin_stats(run["run_id"])
-            for ps in stats:
+            run_plugin_stats = self.store.get_plugin_stats(run["run_id"])
+            for ps in run_plugin_stats:
                 name = ps.get("plugin_name", "")
                 if not name:
                     continue
@@ -175,9 +175,9 @@ class FeedbackLoopEngine:
                         "fp": 0,
                         "runs": 0,
                     }
-                plugin_stats[name]["findings"] += ps.get("findings_produced", 0)
-                plugin_stats[name]["tp"] += ps.get("true_positives", 0)
-                plugin_stats[name]["fp"] += ps.get("false_positives", 0)
+                plugin_stats[name]["findings"] += int(ps.get("findings_produced", 0))
+                plugin_stats[name]["tp"] += int(ps.get("true_positives", 0))
+                plugin_stats[name]["fp"] += int(ps.get("false_positives", 0))
                 plugin_stats[name]["runs"] += 1
 
         for name, stats in plugin_stats.items():
@@ -193,7 +193,7 @@ class FeedbackLoopEngine:
                 # Very noisy plugin — consider disabling
                 adaptations.plugin_intensity_overrides[name] = "light"
 
-    def _compute_payload_adaptations(self, adaptations: ScanAdaptation, runs: list[dict]) -> None:
+    def _compute_payload_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
         """Compute payload strategy updates based on historical success."""
         category_stats: dict[str, dict[str, int]] = {}
 
@@ -225,7 +225,7 @@ class FeedbackLoopEngine:
 
             adaptations.payload_strategy_updates[cat][param_type] = round(success_rate, 4)
 
-    def _compute_threshold_adaptations(self, adaptations: ScanAdaptation, runs: list[dict]) -> None:
+    def _compute_threshold_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
         """Compute threshold adjustments per category."""
         category_stats: dict[str, dict[str, int]] = {}
 
@@ -253,7 +253,7 @@ class FeedbackLoopEngine:
                 # Low FP rate — can afford to lower thresholds
                 adaptations.threshold_adjustments[cat] = round(-0.02, 4)
 
-    def _compute_nuclei_adaptations(self, adaptations: ScanAdaptation, runs: list[dict]) -> None:
+    def _compute_nuclei_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
         """Compute nuclei template tag boosts."""
         category_boosts: dict[str, float] = {}
 
@@ -273,7 +273,7 @@ class FeedbackLoopEngine:
                 adaptations.nuclei_template_boosts[cat] = round(min(boost, 5.0), 2)
 
     def _queue_active_exploits(
-        self, adaptations: ScanAdaptation, runs: list[dict], mode: str
+        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]], mode: str
     ) -> None:
         """Queue endpoints for active exploitation."""
         # Find high-confidence unvalidated findings

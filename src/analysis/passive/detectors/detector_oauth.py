@@ -349,40 +349,42 @@ def oauth_misconfiguration_detector(
         if endpoint_key in seen:
             continue
 
-        signals: list[str] = []
-        signals.extend(_check_oauth_errors(response))
-        signals.extend(_check_token_in_redirect(response))
+        resp_signals: list[str] = []
+        resp_signals.extend(_check_oauth_errors(response))
+        resp_signals.extend(_check_token_in_redirect(response))
 
-        if not signals:
+        if not resp_signals:
             continue
 
         seen.add(endpoint_key)
 
-        severity = _calculate_severity(signals)
-        risk_score = _calculate_risk_score(signals)
+        severity = _calculate_severity(resp_signals)
+        risk_score = _calculate_risk_score(resp_signals)
         confidence = normalized_confidence(
             base=0.50,
             score=risk_score,
-            signals=signals,
+            signals=resp_signals,
             cap=0.95,
         )
 
-        title_parts: list[str] = []
-        if "oauth_error_in_response" in signals:
-            title_parts.append("OAuth Error in Response")
-        if "token_in_redirect_url" in signals:
-            title_parts.append("Token in Redirect URL")
-        if "token_in_redirect_body" in signals:
-            title_parts.append("Token in Redirect Body")
+        resp_title_parts: list[str] = []
+        if "oauth_error_in_response" in resp_signals:
+            resp_title_parts.append("OAuth Error in Response")
+        if "token_in_redirect_url" in resp_signals:
+            resp_title_parts.append("Token in Redirect URL")
+        if "token_in_redirect_body" in resp_signals:
+            resp_title_parts.append("Token in Redirect Body")
 
-        title = "; ".join(title_parts) if title_parts else "OAuth Response Issue Detected"
+        title = (
+            "; ".join(resp_title_parts) if resp_title_parts else "OAuth Response Issue Detected"
+        )
 
         findings.append(
             {
                 "url": url,
                 "endpoint_key": endpoint_key,
                 "endpoint_type": classify_endpoint(url),
-                "signals": sorted(signals),
+                "signals": sorted(resp_signals),
                 "risk_score": risk_score,
                 "severity": severity,
                 "confidence": round(confidence, 2),

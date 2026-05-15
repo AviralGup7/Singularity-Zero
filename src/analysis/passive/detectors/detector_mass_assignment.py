@@ -392,40 +392,44 @@ def mass_assignment_detector(
         if endpoint_key in seen:
             continue
 
-        signals: list[str] = []
-        signals.extend(_check_content_type_json(response))
-        signals.extend(_check_response_body_fields(response))
+        resp_signals: list[str] = []
+        resp_signals.extend(_check_content_type_json(response))
+        resp_signals.extend(_check_response_body_fields(response))
 
-        if not signals:
+        if not resp_signals:
             continue
 
         seen.add(endpoint_key)
 
-        severity = _calculate_severity(signals)
-        risk_score = _calculate_risk_score(signals)
+        severity = _calculate_severity(resp_signals)
+        risk_score = _calculate_risk_score(resp_signals)
         confidence = normalized_confidence(
             base=0.42,
             score=risk_score,
-            signals=signals,
+            signals=resp_signals,
             cap=0.90,
         )
 
-        title_parts: list[str] = []
-        if "admin_fields_in_response" in signals:
-            title_parts.append("Admin Fields Exposed in Response")
-        if any(s.startswith("sensitive_fields_in_response:") for s in signals):
-            title_parts.append("Sensitive Fields in Response Body")
-        if "json_api_endpoint" in signals:
-            title_parts.append("JSON API Endpoint Identified")
+        resp_title_parts: list[str] = []
+        if "admin_fields_in_response" in resp_signals:
+            resp_title_parts.append("Admin Fields Exposed in Response")
+        if any(s.startswith("sensitive_fields_in_response:") for s in resp_signals):
+            resp_title_parts.append("Sensitive Fields in Response Body")
+        if "json_api_endpoint" in resp_signals:
+            resp_title_parts.append("JSON API Endpoint Identified")
 
-        title = "; ".join(title_parts) if title_parts else "Mass Assignment Response Indicator"
+        title = (
+            "; ".join(resp_title_parts)
+            if resp_title_parts
+            else "Mass Assignment Response Indicator"
+        )
 
         findings.append(
             {
                 "url": url,
                 "endpoint_key": endpoint_key,
                 "endpoint_type": classify_endpoint(url),
-                "signals": sorted(signals),
+                "signals": sorted(resp_signals),
                 "risk_score": risk_score,
                 "severity": severity,
                 "confidence": round(confidence, 2),

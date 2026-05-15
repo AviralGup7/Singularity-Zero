@@ -368,46 +368,48 @@ def logging_security_detector(
         if endpoint_key in seen:
             continue
 
-        signals: list[str] = []
-        signals.extend(_check_verbose_logging_headers(response))
-        signals.extend(_check_debug_logging_in_response(response))
+        resp_signals: list[str] = []
+        resp_signals.extend(_check_verbose_logging_headers(response))
+        resp_signals.extend(_check_debug_logging_in_response(response))
 
-        if not signals:
+        if not resp_signals:
             continue
 
         seen.add(endpoint_key)
 
-        severity = _calculate_severity(signals)
-        risk_score = _calculate_risk_score(signals)
+        severity = _calculate_severity(resp_signals)
+        risk_score = _calculate_risk_score(resp_signals)
         confidence = normalized_confidence(
             base=0.42,
             score=risk_score,
-            signals=signals,
+            signals=resp_signals,
             cap=0.92,
         )
 
-        title_parts: list[str] = []
-        if "debug_logging_indicator" in signals:
-            title_parts.append("Debug Logging Detected in Response")
-        if "log_content_in_response" in signals:
-            title_parts.append("Log Content Exposed in Response")
-        if "sensitive_data_in_log_output" in signals:
-            title_parts.append("Sensitive Data in Log Output")
-        if any(s.startswith("verbose_logging_header:") for s in signals):
-            title_parts.append("Verbose Logging Headers Present")
-        if "debug_header_present" in signals:
-            title_parts.append("Debug Header Present")
-        if "timing_header_present" in signals:
-            title_parts.append("Timing Header Present")
+        resp_title_parts: list[str] = []
+        if "debug_logging_indicator" in resp_signals:
+            resp_title_parts.append("Debug Logging Detected in Response")
+        if "log_content_in_response" in resp_signals:
+            resp_title_parts.append("Log Content Exposed in Response")
+        if "sensitive_data_in_log_output" in resp_signals:
+            resp_title_parts.append("Sensitive Data in Log Output")
+        if any(s.startswith("verbose_logging_header:") for s in resp_signals):
+            resp_title_parts.append("Verbose Logging Headers Present")
+        if "debug_header_present" in resp_signals:
+            resp_title_parts.append("Debug Header Present")
+        if "timing_header_present" in resp_signals:
+            resp_title_parts.append("Timing Header Present")
 
-        title = "; ".join(title_parts) if title_parts else "Logging Response Issue Detected"
+        title = (
+            "; ".join(resp_title_parts) if resp_title_parts else "Logging Response Issue Detected"
+        )
 
         findings.append(
             {
                 "url": url,
                 "endpoint_key": endpoint_key,
                 "endpoint_type": classify_endpoint(url),
-                "signals": sorted(signals),
+                "signals": sorted(resp_signals),
                 "risk_score": risk_score,
                 "severity": severity,
                 "confidence": round(confidence, 2),

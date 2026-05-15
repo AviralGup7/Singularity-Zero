@@ -1,7 +1,7 @@
 """JWT claim manipulation attack."""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from ._helpers import (
     JWT_AUTH_HEADERS,
@@ -14,7 +14,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_claim_manipulation(token: str, url: str, session) -> dict:
+def test_claim_manipulation(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test JWT claim manipulation.
 
     Modifies JWT claims like sub, role, admin to test if the server
@@ -36,7 +36,7 @@ def test_claim_manipulation(token: str, url: str, session) -> dict:
 
         original_status = _get_original_status(url, session)
 
-        claim_tests = [
+        claim_tests: list[dict[str, Any]] = [
             {
                 "name": "admin_claim",
                 "payload": {**dict(payload), "admin": True, "role": "admin"},
@@ -48,7 +48,7 @@ def test_claim_manipulation(token: str, url: str, session) -> dict:
         ]
 
         for test in claim_tests:
-            manipulated_token = _create_jwt(header, test["payload"])
+            manipulated_token = _create_jwt(header, cast(dict, test["payload"]))
 
             for auth_header in JWT_AUTH_HEADERS:
                 resp = _send_with_token(url, manipulated_token, auth_header, session)

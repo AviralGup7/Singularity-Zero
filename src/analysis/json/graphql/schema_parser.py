@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ GRAPHQL_ENDPOINT_PATHS = [
 def parse_json_body(body: str) -> dict[str, Any] | list[Any] | None:
     """Safely parse a JSON body."""
     try:
-        return json.loads(body)
+        return cast(dict[str, Any] | list[Any] | None, json.loads(body))
     except (json.JSONDecodeError, ValueError):
         return None
 
@@ -59,7 +59,7 @@ def has_graphql_indicators(body: str, status_code: int) -> bool:
 
 
 def make_graphql_request(
-    endpoint: str, session, query: str, operation_name: str | None = None
+    endpoint: str, session: Any, query: str, operation_name: str | None = None
 ) -> dict[str, Any]:
     """Send a GraphQL POST request and return parsed response info."""
     body = {"query": query}
