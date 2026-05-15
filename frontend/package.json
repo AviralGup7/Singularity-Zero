@@ -130,7 +130,7 @@
     "eslint-plugin-storybook": "^10.3.4",
     "globals": "^17.4.0",
     "jsdom": "^29.0.1",
-    "playwright": "^1.59.1",
+    "playwright": "^1.60.0",
     "postcss": "^8.5.8",
     "rollup-plugin-visualizer": "^7.0.1",
     "storybook": "^10.3.4",
