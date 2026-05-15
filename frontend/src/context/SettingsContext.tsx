@@ -1,23 +1,12 @@
-import { createContext, useContext, useState, useEffect, type ReactNode, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import { AppSettingsSchema } from '@/api/schemas';
-import { z } from 'zod';
 import { safeStorage } from '@/utils/storage';
 import { useDebouncedPersist } from '@/hooks/useDebouncedPersist';
+import { SettingsContext } from './settings-context';
 
-export type AppSettings = z.infer<typeof AppSettingsSchema>;
+export type { AppSettings, SettingsUpdater } from './settings-context';
 
-export interface SettingsUpdater {
-  updateSection: <T extends keyof AppSettings>(section: T, partial: Partial<AppSettings[T]>) => void;
-  resetToDefaults: () => void;
-  exportSettings: () => string;
-  importSettings: (settings: Partial<AppSettings>) => void;
-  saveProfile: (name: string) => void;
-  loadProfile: (id: string) => void;
-  deleteProfile: (id: string) => void;
-  setActiveProfile: (id: string | null) => void;
-}
-
-const SettingsContext = createContext<{ settings: AppSettings; updater: SettingsUpdater } | undefined>(undefined);
+import type { AppSettings } from './settings-context';
 
 const defaultSettings: AppSettings = AppSettingsSchema.parse({});
 
@@ -26,13 +15,13 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
   for (const key of Object.keys(source)) {
     const sourceVal = source[key as keyof T];
     const targetVal = target[key as keyof T];
-    
+
     if (sourceVal !== undefined) {
       if (sourceVal !== null && typeof sourceVal === 'object' && !Array.isArray(sourceVal) &&
           targetVal !== null && typeof targetVal === 'object' && !Array.isArray(targetVal)) {
-        result[key] = deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
+        Object.assign(result, { [key]: deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>) });
       } else {
-        result[key] = sourceVal;
+        Object.assign(result, { [key]: sourceVal });
       }
     }
   }
@@ -62,8 +51,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const updateSection = useCallback(<T extends keyof AppSettings>(section: T, partial: Partial<AppSettings[T]>) => {
     setSettings(prev => {
-      const existingSection = prev[section];
-      if (existingSection !== null && typeof existingSection === 'object' && !Array.isArray(existingSection)) {
+      const entries = Object.entries(prev as Record<string, unknown>);
+      const found = entries.find(([k]) => k === (section as string));
+      const existingSection = found ? found[1] : undefined;
+      if (existingSection !== null && existingSection !== undefined && typeof existingSection === 'object' && !Array.isArray(existingSection)) {
         const merged = deepMerge(existingSection as Record<string, unknown>, partial as Record<string, unknown>);
         return { ...prev, [section]: merged };
       }
@@ -111,24 +102,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updater = useMemo(() => ({
-    updateSection,
-    resetToDefaults,
-    exportSettings,
-    importSettings,
-    saveProfile,
-    loadProfile,
-    deleteProfile,
-    setActiveProfile
-  }), [
-    updateSection,
-    resetToDefaults,
-    exportSettings,
-    importSettings,
-    saveProfile,
-    loadProfile,
-    deleteProfile,
-    setActiveProfile
-  ]);
+    updateSection, resetToDefaults, exportSettings, importSettings,
+    saveProfile, loadProfile, deleteProfile, setActiveProfile
+  }), [updateSection, resetToDefaults, exportSettings, importSettings, saveProfile, loadProfile, deleteProfile, setActiveProfile]);
 
   const contextValue = useMemo(() => ({ settings, updater }), [settings, updater]);
 
@@ -137,10 +113,4 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       {children}
     </SettingsContext.Provider>
   );
-}
-
-export function useSettings() {
-  const context = useContext(SettingsContext);
-  if (!context) throw new Error('useSettings must be used within a SettingsProvider');
-  return context;
 }

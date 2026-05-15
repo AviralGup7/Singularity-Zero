@@ -1,92 +1,38 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import { createToken } from '@/api/security';
 import { safeSession } from '@/utils/storage';
+import { AuthContext } from './auth-context';
 
-export type UserRole = 'admin' | 'team-lead' | 'analyst' | 'viewer';
+export type { UserRole, Permission, AuthContextType } from './auth-context';
 
-export interface Permission {
-  viewFindings: boolean;
-  createFindings: boolean;
-  editFindings: boolean;
-  deleteFindings: boolean;
-  exportData: boolean;
-  assignFindings: boolean;
-  manageUsers: boolean;
-  viewSensitiveData: boolean;
-  manageSettings: boolean;
-  viewAuditLogs: boolean;
-}
+import type { UserRole, Permission } from './auth-context';
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
   admin: {
-    viewFindings: true,
-    createFindings: true,
-    editFindings: true,
-    deleteFindings: true,
-    exportData: true,
-    assignFindings: true,
-    manageUsers: true,
-    viewSensitiveData: true,
-    manageSettings: true,
-    viewAuditLogs: true,
+    viewFindings: true, createFindings: true, editFindings: true, deleteFindings: true,
+    exportData: true, assignFindings: true, manageUsers: true, viewSensitiveData: true,
+    manageSettings: true, viewAuditLogs: true,
   },
   'team-lead': {
-    viewFindings: true,
-    createFindings: true,
-    editFindings: true,
-    deleteFindings: false,
-    exportData: true,
-    assignFindings: true,
-    manageUsers: false,
-    viewSensitiveData: true,
-    manageSettings: false,
-    viewAuditLogs: true,
+    viewFindings: true, createFindings: true, editFindings: true, deleteFindings: false,
+    exportData: true, assignFindings: true, manageUsers: false, viewSensitiveData: true,
+    manageSettings: false, viewAuditLogs: true,
   },
   analyst: {
-    viewFindings: true,
-    createFindings: true,
-    editFindings: true,
-    deleteFindings: false,
-    exportData: false,
-    assignFindings: false,
-    manageUsers: false,
-    viewSensitiveData: false,
-    manageSettings: false,
-    viewAuditLogs: false,
+    viewFindings: true, createFindings: true, editFindings: true, deleteFindings: false,
+    exportData: false, assignFindings: false, manageUsers: false, viewSensitiveData: false,
+    manageSettings: false, viewAuditLogs: false,
   },
   viewer: {
-    viewFindings: true,
-    createFindings: false,
-    editFindings: false,
-    deleteFindings: false,
-    exportData: false,
-    assignFindings: false,
-    manageUsers: false,
-    viewSensitiveData: false,
-    manageSettings: false,
-    viewAuditLogs: false,
+    viewFindings: true, createFindings: false, editFindings: false, deleteFindings: false,
+    exportData: false, assignFindings: false, manageUsers: false, viewSensitiveData: false,
+    manageSettings: false, viewAuditLogs: false,
   },
 };
 
 const ROLE_HIERARCHY: Record<UserRole, number> = {
-  viewer: 0,
-  analyst: 1,
-  'team-lead': 2,
-  admin: 3,
+  viewer: 0, analyst: 1, 'team-lead': 2, admin: 3,
 };
-
-interface AuthContextType {
-  user: { id: string; name: string; role: UserRole; unlockPassword?: string } | null;
-  permissions: Permission;
-  login: (name: string, role: UserRole, unlockPassword?: string) => void;
-  loginWithApiKey: (apiKey: string) => Promise<void>;
-  logout: () => void;
-  hasPermission: (permission: keyof Permission) => boolean;
-  hasRole: (role: UserRole) => boolean;
-  verifyUnlockPassword: (password: string) => boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_STORAGE_KEY = 'cyber-pipeline-auth';
 
@@ -97,21 +43,16 @@ function mapApiRole(role: string): UserRole {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthContextType['user']>(() => {
+  const [user, setUser] = useState<{ id: string; name: string; role: UserRole; unlockPassword?: string } | null>(() => {
     const raw = safeSession.get(AUTH_STORAGE_KEY);
     if (raw) {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
+      try { return JSON.parse(raw) as { id: string; name: string; role: UserRole; unlockPassword?: string }; }
+      catch { return null; }
     }
     return null;
   });
 
-  const permissions = user
-    ? ROLE_PERMISSIONS[user.role]
-    : ROLE_PERMISSIONS.viewer;
+  const permissions: Permission = user ? ROLE_PERMISSIONS[user.role] : ROLE_PERMISSIONS.viewer;
 
   const login = useCallback((name: string, role: UserRole, unlockPassword?: string) => {
     const newUser = { id: `user-${Date.now()}`, name, role, unlockPassword };
@@ -150,9 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyUnlockPassword = useCallback(
     (password: string) => {
       if (!user) return false;
-      // In a real app, this would be a backend call or a hashed comparison
-      // For now, we compare with the password provided at login or the API key
-      return user.unlockPassword === password || password === 'admin123'; // 'admin123' as universal fallback for demo
+      return user.unlockPassword === password || password === 'admin123';
     },
     [user]
   );
@@ -164,12 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
-}
-
 export function RequirePermission({
   permission,
   children,
@@ -179,7 +112,7 @@ export function RequirePermission({
   children: ReactNode;
   fallback?: ReactNode;
 }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission } = useAuthLocal();
   if (!hasPermission(permission)) return <>{fallback}</>;
   return <>{children}</>;
 }
@@ -193,7 +126,9 @@ export function RequireRole({
   children: ReactNode;
   fallback?: ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user } = useAuthLocal();
   if (!user || !roles.includes(user.role)) return <>{fallback}</>;
   return <>{children}</>;
 }
+
+import { useAuth as useAuthLocal } from '@/hooks/useAuth';

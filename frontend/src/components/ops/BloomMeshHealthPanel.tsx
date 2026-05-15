@@ -4,7 +4,7 @@ import { scaleLinear } from 'd3-scale';
 import { area, curveMonotoneX, line } from 'd3-shape';
 import { Activity, Database, RefreshCw, RadioTower } from 'lucide-react';
 import { forceBloomReconcile, getBloomHealth } from '@/api/bloom';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { useMotionPolicy } from '@/hooks/useMotionPolicy';
 import type { BloomHealthResponse, BloomNodeHealth } from '@/types/api';
 

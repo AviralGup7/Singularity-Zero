@@ -6,10 +6,21 @@ interface MetricRecord {
   timestamp: string;
 }
 
+function getNavMetrics(): MetricRecord[] {
+  const navEntries = performance.getEntriesByType('navigation');
+  if (navEntries.length === 0) return [];
+  const nav = navEntries[0] as PerformanceNavigationTiming;
+  return [
+    { name: 'TTFB', value: nav.responseStart, timestamp: new Date().toISOString() },
+    { name: 'DCL', value: nav.domContentLoadedEventEnd, timestamp: new Date().toISOString() },
+    { name: 'Load', value: nav.loadEventEnd, timestamp: new Date().toISOString() },
+  ];
+}
+
 export function PerformanceDashboard() {
-  const [metrics, setMetrics] = useState<MetricRecord[]>([]);
+  const [metrics, setMetrics] = useState<MetricRecord[]>(getNavMetrics);
   const onReportRef = useRef<((m: MetricRecord) => void) | null>(null);
-  
+
   useEffect(() => {
     onReportRef.current = (m: MetricRecord) => {
       setMetrics(prev => [...prev, m]);
@@ -17,21 +28,9 @@ export function PerformanceDashboard() {
   }, []);
 
   useEffect(() => {
-    const navEntries = performance.getEntriesByType('navigation');
-    if (navEntries.length > 0) {
-      const nav = navEntries[0] as PerformanceNavigationTiming;
-      // FIX: Use correct metric values (not loadEventEnd for LCP)
-      setMetrics([
-        { name: 'TTFB', value: nav.responseStart, timestamp: new Date().toISOString() },
-        { name: 'DCL', value: nav.domContentLoadedEventEnd, timestamp: new Date().toISOString() },
-        { name: 'Load', value: nav.loadEventEnd, timestamp: new Date().toISOString() },
-      ]);
-    }
-
     try {
       const observer = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-          // FIX: Use correct value per entry type
           let value: number;
           if (entry.entryType === 'layout-shift') {
             value = (entry as unknown as { value: number }).value;
@@ -53,11 +52,11 @@ export function PerformanceDashboard() {
 
       try {
         observer.observe({ type: 'largest-contentful-paint', buffered: true });
-      } catch { /* not supported */ }
+      } catch (_e) { /* not supported */ }
       try {
         observer.observe({ type: 'layout-shift', buffered: true });
-      } catch { /* not supported */ }
-    } catch { /* not supported */ }
+      } catch (_e) { /* not supported */ }
+    } catch (_e) { /* not supported */ }
   }, []);
 
   const formatMs = (ms: number): string => {

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { getJobs, stopJob, restartJob } from '../api/client';
-import { useToast } from './Toast';
+import { useToast } from '../hooks/useToast';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { EmptyState } from './ui/EmptyState';
 import { Skeleton } from './ui/Skeleton';

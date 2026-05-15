@@ -1,0 +1,2018 @@
+Run ruff check .
+warning: Invalid `# noqa` directive on src/analysis/intelligence/findings/intelligence_findings/__init__.py:22: expected a comma-separated list of codes (e.g., `# noqa: F401, F841`).
+warning: Invalid `# noqa` directive on src/analysis/intelligence/findings/intelligence_findings/__init__.py:85: expected a comma-separated list of codes (e.g., `# noqa: F401, F841`).
+E402 Module level import not at top of file
+  --> scripts/run_square_dashboard_canary.py:14:1
+   |
+12 |     sys.path.insert(0, str(REPO_ROOT))
+13 |
+14 | from src.dashboard.configuration import default_mode_name, default_module_names, load_template
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+15 | from src.dashboard.launcher_forensics import (
+16 |     SQUARE_REFERENCE_JOB_ID,
+   |
+
+E402 Module level import not at top of file
+  --> scripts/run_square_dashboard_canary.py:15:1
+   |
+14 |   from src.dashboard.configuration import default_mode_name, default_module_names, load_template
+15 | / from src.dashboard.launcher_forensics import (
+16 | |     SQUARE_REFERENCE_JOB_ID,
+17 | |     build_launcher_replay_manifest,
+18 | |     capture_launcher_replay_manifest,
+19 | |     compare_launcher_replay_manifests,
+20 | | )
+   | |_^
+21 |   from src.dashboard.services import DashboardServices
+   |
+
+E402 Module level import not at top of file
+  --> scripts/run_square_dashboard_canary.py:21:1
+   |
+19 |     compare_launcher_replay_manifests,
+20 | )
+21 | from src.dashboard.services import DashboardServices
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/analysis/_core/http_request.py:69:13
+   |
+67 |                   status = getattr(resp_obj, "status_code", 0)
+68 |                   resp_headers = dict(resp_obj.headers)
+69 | /             except Exception:
+70 | |                 pass
+   | |____________________^
+71 |           return {
+72 |               "status": status,
+   |
+
+S105 Possible hardcoded password assigned to: "INVALID_PASSWORD"
+  --> src/analysis/active/brute_force/_constants.py:59:20
+   |
+58 | INVALID_USERNAME = "this_user_does_not_exist_xyz123"
+59 | INVALID_PASSWORD = "wrong_password_attempt_123"
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+60 | COMMON_USERNAMES = ["admin", "user", "test", "administrator", "root"]
+61 | COMMON_PASSWORDS = ["password", "123456", "password123", "admin123", "letmein"]
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/active/brute_force/cookie_manipulation.py:12:1
+   |
+10 | logger = logging.getLogger(__name__)
+11 |
+12 | from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+13 | from src.analysis.helpers._probe_utils import probe_confidence, probe_severity
+14 | from src.analysis.passive.runtime import ResponseCache
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/active/brute_force/cookie_manipulation.py:13:1
+   |
+12 | from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
+13 | from src.analysis.helpers._probe_utils import probe_confidence, probe_severity
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+14 | from src.analysis.passive.runtime import ResponseCache
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/active/brute_force/cookie_manipulation.py:14:1
+   |
+12 | from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
+13 | from src.analysis.helpers._probe_utils import probe_confidence, probe_severity
+14 | from src.analysis.passive.runtime import ResponseCache
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+15 |
+16 | COOKIE_OVERFLOW_VALUE = "A" * 10000
+   |
+
+S105 Possible hardcoded password assigned to: "IMDSV2_TOKEN_HEADER"
+   --> src/analysis/active/cloud_constants.py:112:23
+    |
+110 | }
+111 |
+112 | IMDSV2_TOKEN_HEADER = "X-aws-ec2-metadata-token"
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+113 | GCP_METADATA_HEADER = "Metadata-Flavor"
+114 | AZURE_METADATA_HEADER = "Metadata"
+    |
+
+E402 Module level import not at top of file
+  --> src/analysis/active/cloud_metadata.py:17:1
+   |
+16 |   logger = logging.getLogger(__name__)
+17 | / from .cloud_constants import (
+18 | |     AZURE_METADATA_HEADER,
+19 | |     CLOUD_METADATA_ENDPOINTS,
+20 | |     CLOUD_STORAGE_PATHS,
+21 | |     GCP_METADATA_HEADER,
+22 | |     IMDSV2_TOKEN_HEADER,
+23 | |     INFRASTRUCTURE_SERVICE_PATHS,
+24 | | )
+   | |_^
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/analysis/active/injection/_efficiency.py:73:5
+   |
+71 |           if url_encoded in response_text or url_encoded.lower() in response_text.lower():
+72 |               return 80
+73 | /     except Exception:
+74 | |         pass
+   | |____________^
+75 |
+76 |       # Backslash escaping
+   |
+
+S311 Standard pseudo-random generators are not suitable for cryptographic purposes
+   --> src/analysis/active/injection/_payload_generator.py:117:20
+    |
+115 | def random_upper(s: str) -> str:
+116 |     """Randomly uppercase characters in a string for case evasion."""
+117 |     return "".join(random.choice((c.upper(), c.lower())) for c in s)
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+
+S311 Standard pseudo-random generators are not suitable for cryptographic purposes
+  --> src/analysis/active/injection/crlf/_user_agents.py:25:12
+   |
+23 | def _rotate_user_agent() -> str:
+24 |     """Return a random User-Agent from the pool."""
+25 |     return random.choice(USER_AGENT_POOL)
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/active/injection/grafana_ssrf.py:219:13
+    |
+217 |                       }
+218 |                   )
+219 | /             except Exception:
+220 | |                 pass
+    | |____________________^
+221 |
+222 |               try:
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/active/injection/grafana_ssrf.py:226:13
+    |
+224 |                       f"{base_url}{GRAFANA_ALERT_NOTIFICATIONS}/{notification_id}",
+225 |                   )
+226 | /             except Exception:
+227 | |                 pass
+    | |____________________^
+228 |
+229 |       return findings
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/analysis/active/injection/jwt_manipulation.py:84:13
+   |
+82 |                   status = getattr(resp_obj, "status_code", 0)
+83 |                   headers = dict(resp_obj.headers)
+84 | /             except Exception:
+85 | |                 pass
+   | |____________________^
+86 |           return {
+87 |               "status": status,
+   |
+
+N806 Variable `TEMPLATE_RELEVANT_PARAMS` in function should be lowercase
+  --> src/analysis/active/injection/ssti.py:48:5
+   |
+46 |     ]
+47 |
+48 |     TEMPLATE_RELEVANT_PARAMS = {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+49 |         "template",
+50 |         "view",
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/active/jwt_attacks/_helpers.py:110:13
+    |
+108 |                   status = getattr(resp_obj, "status_code", 0)
+109 |                   headers = dict(resp_obj.headers)
+110 | /             except Exception:
+111 | |                 pass
+    | |____________________^
+112 |           return {
+113 |               "status": status,
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/analysis/active/tenant_isolation/http_utils.py:45:13
+   |
+43 |                   status = getattr(resp_obj, "status_code", 0)
+44 |                   headers = dict(resp_obj.headers)
+45 | /             except Exception:
+46 | |                 pass
+   | |____________________^
+47 |           return {
+48 |               "status": status,
+   |
+
+E402 Module level import not at top of file
+   --> src/analysis/active/xss_utils.py:198:1
+    |
+198 | from functools import lru_cache
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+
+E402 Module level import not at top of file
+  --> src/analysis/behavior/api_security.py:66:1
+   |
+66 | from src.core.plugins import register_plugin
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+67 |
+68 | ENRICHMENT_PROVIDER = "enrichment_provider"
+   |
+
+S112 `try`-`except`-`continue` detected, consider logging the exception
+  --> src/analysis/behavior/artifacts.py:57:9
+   |
+55 |           try:
+56 |               payload = json.loads(path.read_text(encoding="utf-8"))
+57 | /         except Exception:  # noqa: BLE001
+58 | |             continue
+   | |____________________^
+59 |           if isinstance(payload, list):
+60 |               return payload
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/behavior/service_runtime.py:273:13
+    |
+271 |               try:
+272 |                   sock.sendall(b"\r\n")
+273 | /             except Exception:  # noqa: BLE001
+274 | |                 pass
+    | |____________________^
+275 |               return sock.recv(256).decode("utf-8", errors="replace").strip()
+276 |       except Exception:  # noqa: BLE001
+    |
+
+E402 Module level import not at top of file
+  --> src/analysis/checks/active/cache_deception/__init__.py:20:1
+   |
+18 | logger = logging.getLogger(__name__)
+19 |
+20 | from ._constants import CHECK_SPEC
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+21 | from ._helpers import (
+22 |     build_finding,
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/checks/active/cache_deception/__init__.py:21:1
+   |
+20 |   from ._constants import CHECK_SPEC
+21 | / from ._helpers import (
+22 | |     build_finding,
+23 | |     build_path_traversal_urls,
+24 | |     build_static_extension_urls,
+25 | |     has_cacheable_response,
+26 | |     is_sensitive_endpoint,
+27 | |     response_contains_sensitive_data,
+28 | |     safe_request,
+29 | | )
+   | |_^
+30 |
+31 |   __all__ = ["cache_deception_probe", "CHECK_SPEC"]
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/active/cache_deception/_helpers.py:117:13
+    |
+115 |                   status = getattr(resp_obj, "status_code", 0)
+116 |                   headers = dict(resp_obj.headers)
+117 | /             except Exception:
+118 | |                 pass
+    | |____________________^
+119 |           return {
+120 |               "status": status,
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/active/clickjacking_test.py:141:13
+    |
+139 |                   status = getattr(resp_obj, "status_code", 0)
+140 |                   headers = dict(resp_obj.headers)
+141 | /             except Exception:
+142 | |                 pass
+    | |____________________^
+143 |           return {
+144 |               "status": status,
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/analysis/checks/active/deserialization_probe/_helpers.py:85:13
+   |
+83 |                   status = getattr(resp_obj, "status_code", 0)
+84 |                   headers = dict(resp_obj.headers)
+85 | /             except Exception:
+86 | |                 pass
+   | |____________________^
+87 |           return {
+88 |               "status": status,
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/active/email_header_injection.py:190:13
+    |
+188 |                   status = getattr(resp_obj, "status_code", 0)
+189 |                   headers = dict(resp_obj.headers)
+190 | /             except Exception:
+191 | |                 pass
+    | |____________________^
+192 |           return {
+193 |               "status": status,
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/active/file_upload_probe.py:183:13
+    |
+181 |                   status = getattr(resp_obj, "status_code", 0)
+182 |                   headers = dict(resp_obj.headers)
+183 | /             except Exception:
+184 | |                 pass
+    | |____________________^
+185 |           return {
+186 |               "status": status,
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/active/idor_probe.py:133:13
+    |
+131 |                   status = getattr(resp_obj, "status_code", 0)
+132 |                   headers = dict(resp_obj.headers)
+133 | /             except Exception:
+134 | |                 pass
+    | |____________________^
+135 |           return {
+136 |               "status": status,
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/active/jwt/jwt_check.py:97:13
+    |
+ 95 |                   status = getattr(resp_obj, "status_code", 0)
+ 96 |                   headers = dict(resp_obj.headers)
+ 97 | /             except Exception:
+ 98 | |                 pass
+    | |____________________^
+ 99 |           return {
+100 |               "status": status,
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/active/mass_assignment.py:178:13
+    |
+176 |                   status = getattr(resp_obj, "status_code", 0)
+177 |                   headers = dict(resp_obj.headers)
+178 | /             except Exception:
+179 | |                 pass
+    | |____________________^
+180 |           return {
+181 |               "status": status,
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/active/mass_assignment.py:286:13
+    |
+284 |               try:
+285 |                   resp = response_cache.get(url)
+286 | /             except Exception:
+287 | |                 pass
+    | |____________________^
+288 |           if not _is_json_endpoint(url, resp):
+289 |               continue
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/analysis/checks/active/ssrf_oob_validator/_helpers.py:73:13
+   |
+71 |                   status = getattr(resp_obj, "status_code", 0)
+72 |                   headers = dict(resp_obj.headers)
+73 | /             except Exception:
+74 | |                 pass
+   | |____________________^
+75 |           return {
+76 |               "status": status,
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/analysis/checks/active/xml_bomb_detector/_helpers.py:67:13
+   |
+65 |                   status = getattr(resp_obj, "status_code", 0)
+66 |                   headers = dict(resp_obj.headers)
+67 | /             except Exception:
+68 | |                 pass
+   | |____________________^
+69 |           return {
+70 |               "status": status,
+   |
+
+S108 Probable insecure usage of temporary file or directory: "/tmp/log"
+   --> src/analysis/checks/exposure/_impl.py:646:9
+    |
+644 |         "/trace",
+645 |         "/var/log",
+646 |         "/tmp/log",
+    |         ^^^^^^^^^^
+647 |         "/app/log",
+648 |         "/access.log",
+    |
+
+S112 `try`-`except`-`continue` detected, consider logging the exception
+   --> src/analysis/checks/exposure/dns_record_analyzer.py:293:9
+    |
+291 |               if host:
+292 |                   target_domains.add(host.lstrip("www."))
+293 | /         except Exception:
+294 | |             continue
+    | |____________________^
+295 |
+296 |       primary_target = min(target_domains, key=len) if target_domains else ""
+    |
+
+S112 `try`-`except`-`continue` detected, consider logging the exception
+   --> src/analysis/checks/exposure/dns_record_analyzer.py:442:9
+    |
+441 |               host = _up(url).netloc.lower()
+442 | /         except Exception:
+443 | |             continue
+    | |____________________^
+444 |           if not host:
+445 |               continue
+    |
+
+E402 Module level import not at top of file
+  --> src/analysis/checks/passive/ldap_injection.py:14:1
+   |
+12 |   logger = logging.getLogger(__name__)
+13 |
+14 | / from src.analysis.helpers import (
+15 | |     build_endpoint_meta,
+16 | |     classify_endpoint,
+17 | |     endpoint_base_key,
+18 | |     endpoint_signature,
+19 | |     meaningful_query_pairs,
+20 | | )
+   | |_^
+21 |   from src.analysis.helpers.scoring import normalized_confidence
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/checks/passive/ldap_injection.py:21:1
+   |
+19 |     meaningful_query_pairs,
+20 | )
+21 | from src.analysis.helpers.scoring import normalized_confidence
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+22 |
+23 | CHECK_SPEC = {
+   |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/checks/passive/tls_analyzer.py:179:13
+    |
+177 |                               )
+178 |                           )
+179 | /             except Exception:
+180 | |                 pass  # Protocol not supported - good
+    | |____________________^
+181 |
+182 |           return findings
+    |
+
+S104 Possible binding to all interfaces
+   --> src/analysis/helpers/_token_analysis.py:174:78
+    |
+173 |     if any(
+174 |         token in lowered for token in ("localhost", "localhost.localdomain", "0.0.0.0", "[::1]")
+    |                                                                              ^^^^^^^^^
+175 |     ):
+176 |         return True
+    |
+
+E402 Module level import not at top of file
+   --> src/analysis/intelligence/cvss_scoring.py:666:1
+    |
+666 | from src.core.plugins import register_plugin
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+667 |
+668 | ENRICHMENT_PROVIDER = "enrichment_provider"
+    |
+
+N806 Variable `BLOCK_STATUS_CODES` in function should be lowercase
+   --> src/analysis/intelligence/decision_engine.py:402:5
+    |
+401 |     # Status codes that indicate blocking (WAF, rate limit)
+402 |     BLOCK_STATUS_CODES = {403, 406, 418, 429}
+    |     ^^^^^^^^^^^^^^^^^^
+403 |     original_was_blocked = original_status in BLOCK_STATUS_CODES
+    |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/analysis/intelligence/differential_prober.py:6:1
+   |
+ 4 |   """
+ 5 |
+ 6 | / from __future__ import annotations
+ 7 | |
+ 8 | | import logging
+ 9 | | import json
+10 | | from typing import Any
+11 | | from diff_match_patch import diff_match_patch
+12 | |
+13 | | from src.core.logging.trace_logging import get_pipeline_logger
+   | |______________________________________________________________^
+14 |
+15 |   logger = get_pipeline_logger(__name__)
+   |
+help: Organize imports
+
+F401 [*] `logging` imported but unused
+  --> src/analysis/intelligence/differential_prober.py:8:8
+   |
+ 6 | from __future__ import annotations
+ 7 |
+ 8 | import logging
+   |        ^^^^^^^
+ 9 | import json
+10 | from typing import Any
+   |
+help: Remove unused import: `logging`
+
+F401 [*] `json` imported but unused
+  --> src/analysis/intelligence/differential_prober.py:9:8
+   |
+ 8 | import logging
+ 9 | import json
+   |        ^^^^
+10 | from typing import Any
+11 | from diff_match_patch import diff_match_patch
+   |
+help: Remove unused import: `json`
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/differential_prober.py:32:1
+   |
+30 |         diffs = self._dmp.diff_main(base_response, compare_response)
+31 |         self._dmp.diff_cleanupSemantic(diffs)
+32 |         
+   | ^^^^^^^^
+33 |         # Calculate percentage of similarity
+34 |         levenshtein = self._dmp.diff_levenshtein(diffs)
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/differential_prober.py:37:1
+   |
+35 |         max_len = max(len(base_response), len(compare_response), 1)
+36 |         similarity = 1.0 - (levenshtein / max_len)
+37 |         
+   | ^^^^^^^^
+38 |         # Heuristic: If responses are > 95% similar but headers/auth differ,
+39 |         # it's likely a logic vulnerability.
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/differential_prober.py:41:1
+   |
+39 |         # it's likely a logic vulnerability.
+40 |         is_suspicious = similarity > 0.95 and levenshtein > 0
+41 |         
+   | ^^^^^^^^
+42 |         return {
+43 |             "similarity": round(similarity, 4),
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/differential_prober.py:67:1
+   |
+65 |                 ctx_a = endpoint_data[i]
+66 |                 ctx_b = endpoint_data[j]
+67 |                 
+   | ^^^^^^^^^^^^^^^^
+68 |                 # Compare responses from different users for the same endpoint
+69 |                 result = self.analyze_responses(ctx_a["body"], ctx_b["body"])
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/differential_prober.py:70:1
+   |
+68 |                 # Compare responses from different users for the same endpoint
+69 |                 result = self.analyze_responses(ctx_a["body"], ctx_b["body"])
+70 |                 
+   | ^^^^^^^^^^^^^^^^
+71 |                 if result["is_suspicious"]:
+72 |                     findings.append({
+   |
+help: Remove whitespace from blank line
+
+F401 [*] `logging` imported but unused
+ --> src/analysis/intelligence/findings/intelligence_findings/_history.py:4:8
+  |
+3 | import json
+4 | import logging
+  |        ^^^^^^^
+5 | from pathlib import Path
+6 | from typing import Any
+  |
+help: Remove unused import: `logging`
+
+E402 Module level import not at top of file
+   --> src/analysis/intelligence/findings/intelligence_findings/specs/__init__.py:32:1
+    |
+ 31 |   # Import all spec modules to populate the registry
+ 32 | / from . import (
+ 33 | |     access_boundary,
+ 34 | |     admin_panel,
+ 35 | |     ai_surface,
+ 36 | |     api_version,
+ 37 | |     auth_boundary_redirect,
+ 38 | |     auth_header_tampering,
+ 39 | |     backup_file,
+ 40 | |     bulk_endpoint,
+ 41 | |     cache_control,
+ 42 | |     cache_poisoning,
+ 43 | |     cdn_waf_gap,
+ 44 | |     cloud_storage,
+ 45 | |     cookie_security,
+ 46 | |     cors_misconfig,
+ 47 | |     cors_preflight,
+ 48 | |     cross_tenant_pii,
+ 49 | |     cross_user_access,
+ 50 | |     csp_weakness,
+ 51 | |     debug_artifacts,
+ 52 | |     default_credentials,
+ 53 | |     dev_staging,
+ 54 | |     directory_listing,
+ 55 | |     dns_misconfig,
+ 56 | |     email_leakage,
+ 57 | |     env_file,
+ 58 | |     error_inference,
+ 59 | |     error_stack_trace,
+ 60 | |     exposed_service,
+ 61 | |     filter_parameter_fuzzer,
+ 62 | |     flow_integrity,
+ 63 | |     frontend_config,
+ 64 | |     graphql_active,
+ 65 | |     graphql_errors,
+ 66 | |     graphql_introspection,
+ 67 | |     graphql_introspection_check,
+ 68 | |     grpc_reflection,
+ 69 | |     head_method,
+ 70 | |     header_checker,
+ 71 | |     hsts_weakness,
+ 72 | |     http_method_exposure,
+ 73 | |     http_method_override,
+ 74 | |     json_mutation,
+ 75 | |     jsonp_endpoint,
+ 76 | |     locale_debug,
+ 77 | |     log_file,
+ 78 | |     logout_invalidation,
+ 79 | |     multi_endpoint_auth,
+ 80 | |     multi_step_flow,
+ 81 | |     nested_object_traversal,
+ 82 | |     nonstandard_service,
+ 83 | |     openapi_swagger,
+ 84 | |     options_method,
+ 85 | |     origin_reflection,
+ 86 | |     pagination_walker,
+ 87 | |     parameter_dependency,
+ 88 | |     parameter_pollution,
+ 89 | |     parameter_pollution_exploit,
+ 90 | |     password_flow,
+ 91 | |     payment_provider,
+ 92 | |     privilege_escalation,
+ 93 | |     public_repo,
+ 94 | |     race_condition,
+ 95 | |     rate_limit_headers,
+ 96 | |     rate_limit_signals,
+ 97 | |     redirect_chain,
+ 98 | |     referer_propagation,
+ 99 | |     referrer_policy,
+100 | |     reflected_xss,
+101 | |     response_size_anomaly,
+102 | |     response_structure,
+103 | |     role_based_endpoint,
+104 | |     semgrep,
+105 | |     server_side_injection,
+106 | |     service_worker,
+107 | |     session_reuse,
+108 | |     sqli_safe,
+109 | |     state_transition,
+110 | |     stored_xss,
+111 | |     subdomain_takeover,
+112 | |     third_party_key,
+113 | |     tls_ssl,
+114 | |     token_scope,
+115 | |     trace_method,
+116 | |     unauth_access,
+117 | |     version_diffing,
+118 | |     websocket_endpoint,
+119 | | )
+    | |_^
+120 |
+121 |   __all__ = ["SpecTuple", "register_spec", "get_all_specs", "SPECS"]
+    |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/analysis/intelligence/insights.py:8:1
+   |
+ 6 |   """
+ 7 |
+ 8 | / import json
+ 9 | | import logging
+10 | | from pathlib import Path
+11 | | from typing import Any
+12 | |
+13 | | from src.analysis.automation.manual_queue import (
+14 | |     MANUAL_QUEUE_CATEGORIES,
+15 | |     attach_queue_replay_links,
+16 | |     build_automation_tasks,
+17 | |     build_review_brief,
+18 | |     derive_endpoint_type,
+19 | | )
+20 | | from src.analysis.behavior.technology import build_technology_summary
+21 | | from src.analysis.intelligence.findings_dedup import finding_key
+22 | | from src.execution.exploiters.exploit_automation import build_chain_simulation, build_proof_bundle
+23 | | from src.core.logging.trace_logging import get_pipeline_logger
+   | |______________________________________________________________^
+24 |
+25 |   __all__ = [
+   |
+help: Organize imports
+
+F401 [*] `logging` imported but unused
+  --> src/analysis/intelligence/insights.py:9:8
+   |
+ 8 | import json
+ 9 | import logging
+   |        ^^^^^^^
+10 | from pathlib import Path
+11 | from typing import Any
+   |
+help: Remove unused import: `logging`
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/analysis/intelligence/lateral_graph.py:6:1
+   |
+ 4 |   """
+ 5 |
+ 6 | / from __future__ import annotations
+ 7 | |
+ 8 | | import logging
+ 9 | | import os
+   | |_________^
+10 |   try:
+11 |       import kuzu
+   |
+help: Organize imports
+
+F401 [*] `logging` imported but unused
+  --> src/analysis/intelligence/lateral_graph.py:8:8
+   |
+ 6 | from __future__ import annotations
+ 7 |
+ 8 | import logging
+   |        ^^^^^^^
+ 9 | import os
+10 | try:
+   |
+help: Remove unused import: `logging`
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/lateral_graph.py:51:1
+   |
+49 |             self._conn.execute("CREATE NODE TABLE Asset(id STRING, type STRING, PRIMARY KEY (id))")
+50 |             self._conn.execute("CREATE NODE TABLE Finding(id STRING, severity STRING, PRIMARY KEY (id))")
+51 |             
+   | ^^^^^^^^^^^^
+52 |             # Edges
+53 |             self._conn.execute("CREATE REL TABLE BELONGS_TO(FROM Asset TO Asset)")
+   |
+help: Remove whitespace from blank line
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/analysis/intelligence/lateral_graph.py:56:9
+   |
+54 |               self._conn.execute("CREATE REL TABLE HAS_VULN(FROM Asset TO Finding)")
+55 |               self._conn.execute("CREATE REL TABLE PIVOTS_TO(FROM Finding TO Asset)")
+56 | /         except Exception:
+57 | |             # Schema already exists
+58 | |             pass
+   | |________________^
+59 |
+60 |       def ingest_finding(self, asset_id: str, finding: dict[str, Any]):
+   |
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/lateral_graph.py:68:1
+   |
+66 |         self._conn.execute(f"MERGE (a:Asset {{id: '{asset_id}', type: 'endpoint'}})")
+67 |         self._conn.execute(f"MERGE (f:Finding {{id: '{fid}', severity: '{finding['severity']}'}})")
+68 |         
+   | ^^^^^^^^
+69 |         # Link Finding to Asset
+70 |         self._conn.execute(f"MERGE (a)-[:HAS_VULN]->(f)")
+   |
+help: Remove whitespace from blank line
+
+F541 [*] f-string without any placeholders
+  --> src/analysis/intelligence/lateral_graph.py:70:28
+   |
+69 |         # Link Finding to Asset
+70 |         self._conn.execute(f"MERGE (a)-[:HAS_VULN]->(f)")
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+71 |         
+72 |         # Heuristic: If finding is an IDOR or SSRF, it's a PIVOT point
+   |
+help: Remove extraneous `f` prefix
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/lateral_graph.py:71:1
+   |
+69 |         # Link Finding to Asset
+70 |         self._conn.execute(f"MERGE (a)-[:HAS_VULN]->(f)")
+71 |         
+   | ^^^^^^^^
+72 |         # Heuristic: If finding is an IDOR or SSRF, it's a PIVOT point
+73 |         if "idor" in finding["type"] or "ssrf" in finding["type"]:
+   |
+help: Remove whitespace from blank line
+
+F541 [*] f-string without any placeholders
+  --> src/analysis/intelligence/lateral_graph.py:74:33
+   |
+72 |         # Heuristic: If finding is an IDOR or SSRF, it's a PIVOT point
+73 |         if "idor" in finding["type"] or "ssrf" in finding["type"]:
+74 |              self._conn.execute(f"MERGE (f)-[:PIVOTS_TO]->(a)")
+   |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+75 |
+76 |     def find_attack_chains(self) -> list[list[str]]:
+   |
+help: Remove extraneous `f` prefix
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/analysis/intelligence/neural_score.py:6:1
+   |
+ 4 |   """
+ 5 |
+ 6 | / from __future__ import annotations
+ 7 | |
+ 8 | | import logging
+ 9 | | from typing import Any
+10 | | import numpy as np
+11 | |
+12 | | from src.core.logging.trace_logging import get_pipeline_logger
+   | |______________________________________________________________^
+13 |
+14 |   logger = get_pipeline_logger(__name__)
+   |
+help: Organize imports
+
+F401 [*] `logging` imported but unused
+  --> src/analysis/intelligence/neural_score.py:8:8
+   |
+ 6 | from __future__ import annotations
+ 7 |
+ 8 | import logging
+   |        ^^^^^^^
+ 9 | from typing import Any
+10 | import numpy as np
+   |
+help: Remove unused import: `logging`
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/neural_score.py:36:1
+   |
+34 |         # 1. Normalized CVSS (0-10)
+35 |         cvss = float(finding.get("cvss_score", 5.0))
+36 |         
+   | ^^^^^^^^
+37 |         # 2. Confidence (0-1)
+38 |         confidence = float(finding.get("confidence", 0.5))
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/neural_score.py:39:1
+   |
+37 |         # 2. Confidence (0-1)
+38 |         confidence = float(finding.get("confidence", 0.5))
+39 |         
+   | ^^^^^^^^
+40 |         # 3. Exploitability (Inferred from type)
+41 |         type_str = finding.get("type", "").lower()
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/neural_score.py:43:1
+   |
+41 |         type_str = finding.get("type", "").lower()
+42 |         exploitability = 0.9 if any(x in type_str for x in ["rce", "sqli", "idor"]) else 0.4
+43 |         
+   | ^^^^^^^^
+44 |         # 4. Neural-Mesh Consensus factor
+45 |         # If multiple tools found it, boost confidence
+   |
+help: Remove whitespace from blank line
+
+W291 [*] Trailing whitespace
+  --> src/analysis/intelligence/neural_score.py:52:83
+   |
+50 |         # Vectorized Weighted Calculation
+51 |         factors = np.array([cvss, confidence * 10, target_criticality * 10, exploitability * 10])
+52 |         weights = np.array([self.weights["cvss_base"], self.weights["confidence"], 
+   |                                                                                   ^
+53 |                            self.weights["business_impact"], self.weights["exploitability"]])
+   |
+help: Remove trailing whitespace
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/neural_score.py:54:1
+   |
+52 |         weights = np.array([self.weights["cvss_base"], self.weights["confidence"], 
+53 |                            self.weights["business_impact"], self.weights["exploitability"]])
+54 |         
+   | ^^^^^^^^
+55 |         csi = np.dot(factors, weights)
+56 |         return round(csi, 2)
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/neural_score.py:66:1
+   |
+64 |             criticality = target_map.get(target, 0.5)
+65 |             finding["csi_score"] = self.calculate_csi(finding, criticality)
+66 |             
+   | ^^^^^^^^^^^^
+67 |             # Map back to human severity based on CSI
+68 |             if finding["csi_score"] >= 9.0: finding["severity"] = "critical"
+   |
+help: Remove whitespace from blank line
+
+E701 Multiple statements on one line (colon)
+  --> src/analysis/intelligence/neural_score.py:68:43
+   |
+67 |             # Map back to human severity based on CSI
+68 |             if finding["csi_score"] >= 9.0: finding["severity"] = "critical"
+   |                                           ^
+69 |             elif finding["csi_score"] >= 7.0: finding["severity"] = "high"
+70 |             elif finding["csi_score"] >= 4.0: finding["severity"] = "medium"
+   |
+
+E701 Multiple statements on one line (colon)
+  --> src/analysis/intelligence/neural_score.py:69:45
+   |
+67 |             # Map back to human severity based on CSI
+68 |             if finding["csi_score"] >= 9.0: finding["severity"] = "critical"
+69 |             elif finding["csi_score"] >= 7.0: finding["severity"] = "high"
+   |                                             ^
+70 |             elif finding["csi_score"] >= 4.0: finding["severity"] = "medium"
+71 |             else: finding["severity"] = "low"
+   |
+
+E701 Multiple statements on one line (colon)
+  --> src/analysis/intelligence/neural_score.py:70:45
+   |
+68 |             if finding["csi_score"] >= 9.0: finding["severity"] = "critical"
+69 |             elif finding["csi_score"] >= 7.0: finding["severity"] = "high"
+70 |             elif finding["csi_score"] >= 4.0: finding["severity"] = "medium"
+   |                                             ^
+71 |             else: finding["severity"] = "low"
+   |
+
+E701 Multiple statements on one line (colon)
+  --> src/analysis/intelligence/neural_score.py:71:17
+   |
+69 |             elif finding["csi_score"] >= 7.0: finding["severity"] = "high"
+70 |             elif finding["csi_score"] >= 4.0: finding["severity"] = "medium"
+71 |             else: finding["severity"] = "low"
+   |                 ^
+72 |
+73 |         return sorted(findings, key=lambda x: x["csi_score"], reverse=True)
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/analysis/intelligence/semantic_dedup.py:6:1
+   |
+ 4 |   """
+ 5 |
+ 6 | / from __future__ import annotations
+ 7 | |
+ 8 | | import logging
+ 9 | | import re
+10 | | from typing import Any
+11 | | import numpy as np
+12 | |
+13 | | from src.core.logging.trace_logging import get_pipeline_logger
+   | |______________________________________________________________^
+14 |
+15 |   logger = get_pipeline_logger(__name__)
+   |
+help: Organize imports
+
+F401 [*] `logging` imported but unused
+  --> src/analysis/intelligence/semantic_dedup.py:8:8
+   |
+ 6 | from __future__ import annotations
+ 7 |
+ 8 | import logging
+   |        ^^^^^^^
+ 9 | import re
+10 | from typing import Any
+   |
+help: Remove unused import: `logging`
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/semantic_dedup.py:42:1
+   |
+40 |                 self._vocabulary[token] = self._next_id
+41 |                 self._next_id += 1
+42 |             
+   | ^^^^^^^^^^^^
+43 |             idx = self._vocabulary[token]
+44 |             if idx < len(vec):
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/semantic_dedup.py:71:1
+   |
+69 |             tokens = self._tokenize(text)
+70 |             vec = self._vectorize(tokens)
+71 |             
+   | ^^^^^^^^^^^^
+72 |             is_duplicate = False
+73 |             for existing_vec in vectors:
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/semantic_dedup.py:77:1
+   |
+75 |                 size = min(len(vec), len(existing_vec))
+76 |                 sim = self.compute_similarity(vec[:size], existing_vec[:size])
+77 |                 
+   | ^^^^^^^^^^^^^^^^
+78 |                 if sim > self._threshold:
+79 |                     is_duplicate = True
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/analysis/intelligence/semantic_dedup.py:81:1
+   |
+79 |                     is_duplicate = True
+80 |                     break
+81 |             
+   | ^^^^^^^^^^^^
+82 |             if not is_duplicate:
+83 |                 unique_findings.append(finding)
+   |
+help: Remove whitespace from blank line
+
+W291 [*] Trailing whitespace
+  --> src/analysis/intelligence/semantic_dedup.py:86:80
+   |
+84 |                 vectors.append(vec)
+85 |
+86 |         logger.info("Semantic Dedup: Reduced %d findings to %d unique signals", 
+   |                                                                                ^
+87 |                     len(findings), len(unique_findings))
+88 |         return unique_findings
+   |
+help: Remove trailing whitespace
+
+S112 `try`-`except`-`continue` detected, consider logging the exception
+   --> src/analysis/json/graphql/schema_parser.py:120:13
+    |
+118 |                       seen_hosts.add(host_key)
+119 |                       break
+120 | /             except Exception:
+121 | |                 continue
+    | |________________________^
+122 |
+123 |           if host_key not in seen_hosts:
+    |
+
+S112 `try`-`except`-`continue` detected, consider logging the exception
+   --> src/analysis/json/graphql/schema_parser.py:140:17
+    |
+138 |                               seen_hosts.add(host_key)
+139 |                               break
+140 | /                 except Exception:
+141 | |                     continue
+    | |____________________________^
+142 |
+143 |       return detected
+    |
+
+S112 `try`-`except`-`continue` detected, consider logging the exception
+   --> src/analysis/json/graphql_introspection.py:308:13
+    |
+306 |                       seen_hosts.add(host_key)
+307 |                       break
+308 | /             except Exception:
+309 | |                 continue
+    | |________________________^
+310 |
+311 |           if host_key not in seen_hosts:
+    |
+
+S112 `try`-`except`-`continue` detected, consider logging the exception
+   --> src/analysis/json/graphql_introspection.py:328:17
+    |
+326 |                               seen_hosts.add(host_key)
+327 |                               break
+328 | /                 except Exception:
+329 | |                     continue
+    | |____________________________^
+330 |
+331 |       return detected
+    |
+
+E402 Module level import not at top of file
+   --> src/analysis/json/support.py:330:1
+    |
+330 | / from src.analysis.json.mutations import (
+331 | |     alternate_version_url,
+332 | |     mutate_dependency_urls,
+333 | |     mutate_error_probe_url,
+334 | |     mutate_filter_url,
+335 | |     mutate_pagination_url,
+336 | |     mutate_role_url,
+337 | |     mutate_state_url,
+338 | | )
+    | |_^
+339 |
+340 |   __all__ = [
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/json/token_scope.py:139:17
+    |
+137 |                       header_obj = json.loads(decoded)
+138 |                       jwt_alg_hint = str(header_obj.get("alg", ""))
+139 | /                 except Exception:  # noqa: BLE001
+140 | |                     pass
+    | |________________________^
+141 |
+142 |           admin_scope_hint = any("admin" in field for field in granted) or privilege_score >= 3
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/analysis/passive/detector_oauth/_helpers.py:171:9
+    |
+169 |                       evidence_parts.append(f"redirect to external HTTP URL: {redirect_uri[:80]}")
+170 |                       severity_score += 3
+171 | /         except Exception:
+172 | |             pass
+    | |________________^
+173 |
+174 |       if not issues:
+    |
+
+E402 Module level import not at top of file
+   --> src/analysis/passive/runtime.py:576:1
+    |
+574 |   ]
+575 |
+576 | / from src.analysis.text_utils import (
+577 | |     extract_key_fields,
+578 | |     json_headers,
+579 | |     looks_random,
+580 | |     normalize_compare_text,
+581 | |     redact_value,
+582 | |     redacted_snippet,
+583 | |     shannon_entropy,
+584 | | )
+    | |_^
+    |
+
+F821 Undefined name `Any`
+   --> src/analysis/plugins/_main.py:356:27
+    |
+356 | def _get_specs() -> tuple[Any, ...]:
+    |                           ^^^
+357 |     _register_specs()
+358 |     return tuple(reg.provider for reg in list_plugins(DETECTOR_SPEC))
+    |
+
+F821 Undefined name `Any`
+   --> src/analysis/plugins/_main.py:364:21
+    |
+362 | # but for backward compatibility we keep the module-level names.
+363 |
+364 | _SPECS_CACHE: tuple[Any, ...] | None = None
+    |                     ^^^
+    |
+
+F821 Undefined name `Any`
+   --> src/analysis/plugins/_main.py:367:42
+    |
+367 | def get_analysis_plugin_specs() -> tuple[Any, ...]:
+    |                                          ^^^
+368 |     global _SPECS_CACHE
+369 |     if _SPECS_CACHE is None:
+    |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:16:1
+   |
+14 | JSON_CONTENT_HINTS = JSON_CONTENT_TOKENS
+15 |
+16 | from ._auth_tampering import auth_header_tampering_variations
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+17 | from ._classification import build_mutation_strategy_coverage, build_response_classification_summary
+18 | from ._diff_engine import response_diff_engine
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:17:1
+   |
+16 | from ._auth_tampering import auth_header_tampering_variations
+17 | from ._classification import build_mutation_strategy_coverage, build_response_classification_summary
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+18 | from ._diff_engine import response_diff_engine
+19 | from ._diff_utils import variant_diff_summary as _variant_diff_summary
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:18:1
+   |
+16 | from ._auth_tampering import auth_header_tampering_variations
+17 | from ._classification import build_mutation_strategy_coverage, build_response_classification_summary
+18 | from ._diff_engine import response_diff_engine
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+19 | from ._diff_utils import variant_diff_summary as _variant_diff_summary
+20 | from ._flow_detection import flow_detector, multi_step_flow_breaking_probe
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:19:1
+   |
+17 | from ._classification import build_mutation_strategy_coverage, build_response_classification_summary
+18 | from ._diff_engine import response_diff_engine
+19 | from ._diff_utils import variant_diff_summary as _variant_diff_summary
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+20 | from ._flow_detection import flow_detector, multi_step_flow_breaking_probe
+21 | from ._http_method_override import http_method_override_probe
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:20:1
+   |
+18 | from ._diff_engine import response_diff_engine
+19 | from ._diff_utils import variant_diff_summary as _variant_diff_summary
+20 | from ._flow_detection import flow_detector, multi_step_flow_breaking_probe
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+21 | from ._http_method_override import http_method_override_probe
+22 | from ._json_mutations import json_mutation_attacks, post_body_mutation_attacks
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:21:1
+   |
+19 | from ._diff_utils import variant_diff_summary as _variant_diff_summary
+20 | from ._flow_detection import flow_detector, multi_step_flow_breaking_probe
+21 | from ._http_method_override import http_method_override_probe
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+22 | from ._json_mutations import json_mutation_attacks, post_body_mutation_attacks
+23 | from ._parameter_pollution import parameter_pollution_exploitation
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:22:1
+   |
+20 | from ._flow_detection import flow_detector, multi_step_flow_breaking_probe
+21 | from ._http_method_override import http_method_override_probe
+22 | from ._json_mutations import json_mutation_attacks, post_body_mutation_attacks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+23 | from ._parameter_pollution import parameter_pollution_exploitation
+24 | from ._redirect_analysis import auth_boundary_redirect_detection, redirect_chain_analyzer
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:23:1
+   |
+21 | from ._http_method_override import http_method_override_probe
+22 | from ._json_mutations import json_mutation_attacks, post_body_mutation_attacks
+23 | from ._parameter_pollution import parameter_pollution_exploitation
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+24 | from ._redirect_analysis import auth_boundary_redirect_detection, redirect_chain_analyzer
+25 | from ._snapshot import response_snapshot_system
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:24:1
+   |
+22 | from ._json_mutations import json_mutation_attacks, post_body_mutation_attacks
+23 | from ._parameter_pollution import parameter_pollution_exploitation
+24 | from ._redirect_analysis import auth_boundary_redirect_detection, redirect_chain_analyzer
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25 | from ._snapshot import response_snapshot_system
+   |
+
+E402 Module level import not at top of file
+  --> src/analysis/response/_core/response_analysis/__init__.py:25:1
+   |
+23 | from ._parameter_pollution import parameter_pollution_exploitation
+24 | from ._redirect_analysis import auth_boundary_redirect_detection, redirect_chain_analyzer
+25 | from ._snapshot import response_snapshot_system
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+26 |
+27 | __all__ = [
+   |
+
+N802 Function name `Session` should be lowercase
+  --> src/api_tests/apitester/api_key_security.py:14:9
+   |
+13 | class _RequestsLike(Protocol):
+14 |     def Session(self) -> Any: ...
+   |         ^^^^^^^
+   |
+help: Consider adding `@typing.override` if this method overrides a method from a superclass
+
+N802 Function name `Session` should be lowercase
+  --> src/api_tests/apitester/baseline_variant.py:17:9
+   |
+16 | class _RequestsLike(Protocol):
+17 |     def Session(self) -> Any: ...
+   |         ^^^^^^^
+   |
+help: Consider adding `@typing.override` if this method overrides a method from a superclass
+
+F401 [*] `asyncio` imported but unused
+  --> src/cli.py:12:8
+   |
+11 | import argparse
+12 | import asyncio
+   |        ^^^^^^^
+13 | import os
+14 | import sys
+   |
+help: Remove unused import: `asyncio`
+
+F401 [*] `time` imported but unused
+  --> src/cli.py:15:8
+   |
+13 | import os
+14 | import sys
+15 | import time
+   |        ^^^^
+16 | from pathlib import Path
+17 | from typing import Any
+   |
+help: Remove unused import: `time`
+
+F401 [*] `typing.Any` imported but unused
+  --> src/cli.py:17:20
+   |
+15 | import time
+16 | from pathlib import Path
+17 | from typing import Any
+   |                    ^^^
+18 |
+19 | from rich.console import Console
+   |
+help: Remove unused import: `typing.Any`
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:115:1
+    |
+113 |     """Orchestrate the FastAPI dashboard startup."""
+114 |     from src.dashboard.fastapi.main import main as run_server
+115 |     
+    | ^^^^
+116 |     console.print(f"[info]Starting Cyber Dashboard on {args.host}:{args.port} with {args.workers} workers...[/info]")
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:117:1
+    |
+116 |     console.print(f"[info]Starting Cyber Dashboard on {args.host}:{args.port} with {args.workers} workers...[/info]")
+117 |     
+    | ^^^^
+118 |     argv = [
+119 |         "--host", args.host,
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:126:1
+    |
+124 |     if args.reload:
+125 |         argv.append("--reload")
+126 |         
+    | ^^^^^^^^
+127 |     run_server(argv)
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:133:1
+    |
+131 |     """Orchestrate the distributed worker startup."""
+132 |     from src.infrastructure.queue.worker import main as run_worker
+133 |     
+    | ^^^^
+134 |     console.print(f"[info]Initializing Distributed Worker on queue: [accent]{args.queue}[/accent][/info]")
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:135:1
+    |
+134 |     console.print(f"[info]Initializing Distributed Worker on queue: [accent]{args.queue}[/accent][/info]")
+135 |     
+    | ^^^^
+136 |     argv = [
+137 |         "--queue", args.queue,
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:144:1
+    |
+142 |     if args.replication:
+143 |         argv.append("--enable-checkpoint-replication")
+144 |         
+    | ^^^^^^^^
+145 |     run_worker(argv)
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:151:1
+    |
+149 |     """Execute a localized pipeline run."""
+150 |     from src.pipeline.runtime import main as run_pipeline
+151 |     
+    | ^^^^
+152 |     console.print(f"[info]Launching Pipeline Run: [accent]{args.config}[/accent][/info]")
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:153:1
+    |
+152 |     console.print(f"[info]Launching Pipeline Run: [accent]{args.config}[/accent][/info]")
+153 |     
+    | ^^^^
+154 |     argv = [
+155 |         "--config", args.config,
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:162:1
+    |
+160 |     if args.dry_run:
+161 |         argv.append("--dry-run")
+162 |         
+    | ^^^^^^^^
+163 |     return run_pipeline(argv)
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:197:1
+    |
+195 |     _ensure_repo_root()
+196 |     _print_banner()
+197 |     
+    | ^^^^
+198 |     parser = _build_parser()
+199 |     if len(sys.argv) == 1:
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:211:1
+    |
+209 |             elif args.service == "worker":
+210 |                 handle_worker(args)
+211 |         
+    | ^^^^^^^^
+212 |         elif args.area == "scan":
+213 |             if args.command == "run":
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/cli.py:215:1
+    |
+213 |             if args.command == "run":
+214 |                 return handle_scan(args)
+215 |                 
+    | ^^^^^^^^^^^^^^^^
+216 |         elif args.area == "system":
+217 |             if args.cmd == "status":
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/accelerators.py:38:1
+   |
+36 |     if not urls:
+37 |         return []
+38 |         
+   | ^^^^^^^^
+39 |     arr = np.array(urls, dtype=object)
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/accelerators.py:40:1
+   |
+39 |     arr = np.array(urls, dtype=object)
+40 |     
+   | ^^^^
+41 |     # Fast vectorized extension extraction
+42 |     # Heuristic: split by dot and take last part
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/accelerators.py:50:1
+   |
+48 |     vec_get_ext = np.frompyfunc(get_ext, 1, 1)
+49 |     exts = vec_get_ext(arr)
+50 |     
+   | ^^^^
+51 |     # Vectorized 'in' check
+52 |     mask = np.array([e not in forbidden_exts for e in exts])
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/accelerators.py:53:1
+   |
+51 |     # Vectorized 'in' check
+52 |     mask = np.array([e not in forbidden_exts for e in exts])
+53 |     
+   | ^^^^
+54 |     return arr[mask].tolist()
+   |
+help: Remove whitespace from blank line
+
+E701 Multiple statements on one line (colon)
+  --> src/core/accelerators.py:69:17
+   |
+67 |     """
+68 |     def shannon(s: str) -> float:
+69 |         if not s: return 0.0
+   |                 ^
+70 |         probabilities = [float(s.count(c)) / len(s) for c in set(s)]
+71 |         return -sum(p * np.log2(p) for p in probabilities)
+   |
+
+F401 [*] `logging` imported but unused
+  --> src/core/checkpoint.py:13:8
+   |
+11 | import hashlib
+12 | import json
+13 | import logging
+   |        ^^^^^^^
+14 | import time
+15 | from dataclasses import asdict, dataclass, field
+   |
+help: Remove unused import: `logging`
+
+W293 [*] Blank line contains whitespace
+   --> src/core/checkpoint.py:239:1
+    |
+237 |                     loop = asyncio.get_running_loop()
+238 |                     task = loop.create_task(self._distributed.save_checkpoint(state, self.run_id))
+239 |                     
+    | ^^^^^^^^^^^^^^^^^^^^
+240 |                     def _on_done(t: asyncio.Task[Any]) -> None:
+241 |                         if t.cancelled():
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src/core/checkpoint.py:245:1
+    |
+243 |                         elif t.exception():
+244 |                             _rollback(t.exception()) # type: ignore
+245 |                             
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+246 |                     task.add_done_callback(_on_done)
+247 |                 except RuntimeError:
+    |
+help: Remove whitespace from blank line
+
+F401 [*] `threading` imported but unused
+   --> src/core/checkpoint.py:250:32
+    |
+248 |                     # Fix #331: Run synchronously if no loop, and rollback on failure
+249 |                     try:
+250 |                         import threading
+    |                                ^^^^^^^^^
+251 |                         # Cannot use asyncio.to_thread if there is no running loop, 
+252 |                         # but we want to avoid asyncio.run() creating a new loop.
+    |
+help: Remove unused import: `threading`
+
+W291 [*] Trailing whitespace
+   --> src/core/checkpoint.py:251:84
+    |
+249 |                     try:
+250 |                         import threading
+251 |                         # Cannot use asyncio.to_thread if there is no running loop, 
+    |                                                                                    ^
+252 |                         # but we want to avoid asyncio.run() creating a new loop.
+253 |                         # Wait, if there is no running loop, we can just run the coroutine directly? No.
+    |
+help: Remove trailing whitespace
+
+W291 Trailing whitespace
+ --> src/core/config/settings.py:4:61
+  |
+3 | Provides a unified configuration service using pydantic-settings for
+4 | automatic environment variable loading, type validation, and 
+  |                                                             ^
+5 | environment-aware section selection.
+  |
+help: Remove trailing whitespace
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/core/config/settings.py:152:9
+    |
+150 |               section = raw.get(env, {})
+151 |               json_data = {**defaults, **section}
+152 | /         except Exception:
+153 | |             pass
+    | |________________^
+154 |
+155 |       # Pydantic BaseSettings handles environment overrides automatically
+    |
+
+W293 [*] Blank line contains whitespace
+  --> src/core/contracts/pipeline_runtime.py:37:1
+   |
+35 |     if isinstance(value, (set, frozenset)):
+36 |         return frozenset(_freeze_value(item) for item in value)
+37 |     
+   | ^^^^
+38 |     try:
+39 |         return copy.deepcopy(value)
+   |
+help: Remove whitespace from blank line
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> src/core/contracts/pipeline_runtime.py:46:13
+   |
+44 |                       {key: _freeze_value(item) for key, item in vars(value).items()}
+45 |                   )
+46 | /             except Exception:
+47 | |                 pass
+   | |____________________^
+48 |           return reprlib.repr(value)
+   |
+
+F401 [*] `logging` imported but unused
+ --> src/core/feature_flags.py:3:8
+  |
+1 | import hashlib  # Fix #342: moved from _check_rollout to module level
+2 | import json
+3 | import logging
+  |        ^^^^^^^
+4 | import os
+5 | import re
+  |
+help: Remove unused import: `logging`
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/bloom.py:84:1
+   |
+82 |         if items.size == 0:
+83 |             return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
+84 |         
+   | ^^^^^^^^
+85 |         # Batch with numpy vectorized operations to reduce interpreter overhead
+86 |         vec_hash = np.frompyfunc(mmh3.hash64, 1, 2)
+   |
+help: Remove whitespace from blank line
+
+F821 Undefined name `Any`
+   --> src/core/frontier/bloom.py:235:38
+    |
+233 |         )
+234 |
+235 |     def get_stats(self) -> dict[str, Any]:  # Fix #231: typed return hint
+    |                                      ^^^
+236 |         """Return filter diagnostics."""
+237 |         ones = int(np.bitwise_count(self.bits).sum())
+    |
+
+F401 [*] `time` imported but unused
+  --> src/core/frontier/chameleon.py:9:8
+   |
+ 8 | import secrets
+ 9 | import time
+   |        ^^^^
+10 | import uuid
+11 | from typing import Any
+   |
+help: Remove unused import: `time`
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/core/frontier/ghost_actor.py:6:1
+   |
+ 4 |   """
+ 5 |
+ 6 | / from __future__ import annotations
+ 7 | |
+ 8 | | import logging
+ 9 | | import uuid
+10 | | import time
+11 | | from collections.abc import Callable
+12 | | from typing import Any
+13 | | from dataclasses import dataclass
+14 | |
+15 | | import pykka
+16 | |
+17 | | from src.core.logging.trace_logging import get_pipeline_logger
+   | |______________________________________________________________^
+18 |
+19 |   logger = get_pipeline_logger(__name__)
+   |
+help: Organize imports
+
+F401 [*] `logging` imported but unused
+  --> src/core/frontier/ghost_actor.py:8:8
+   |
+ 6 | from __future__ import annotations
+ 7 |
+ 8 | import logging
+   |        ^^^^^^^
+ 9 | import uuid
+10 | import time
+   |
+help: Remove unused import: `logging`
+
+F401 [*] `uuid` imported but unused
+  --> src/core/frontier/ghost_actor.py:9:8
+   |
+ 8 | import logging
+ 9 | import uuid
+   |        ^^^^
+10 | import time
+11 | from collections.abc import Callable
+   |
+help: Remove unused import: `uuid`
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/ghost_actor.py:45:1
+   |
+43 |             logger.error("Ghost-Actor [%s] failure: Invalid message format", self.actor_id)
+44 |             return {"status": "error", "error": "Invalid message format"}
+45 |             
+   | ^^^^^^^^^^^^
+46 |         command = message.get("command")
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/ghost_actor.py:47:1
+   |
+46 |         command = message.get("command")
+47 |         
+   | ^^^^^^^^
+48 |         if command == "execute":
+49 |             return self._execute_logic(message.get("input", {}))
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/ghost_actor.py:50:1
+   |
+48 |         if command == "execute":
+49 |             return self._execute_logic(message.get("input", {}))
+50 |         
+   | ^^^^^^^^
+51 |         elif command == "snapshot":
+52 |             return ActorState(
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/ghost_actor.py:58:1
+   |
+56 |                 checkpoint_ts=time.time()
+57 |             )
+58 |         
+   | ^^^^^^^^
+59 |         elif command == "migrate":
+60 |             self.is_migrating = True
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/ghost_actor.py:64:1
+   |
+62 |             self.stop()
+63 |             return snapshot
+64 |             
+   | ^^^^^^^^^^^^
+65 |         else:
+66 |             logger.error("Ghost-Actor [%s] failure: Unknown command %s", self.actor_id, command)
+   |
+help: Remove whitespace from blank line
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/core/frontier/ghost_vfs.py:6:1
+   |
+ 4 |   """
+ 5 |
+ 6 | / from __future__ import annotations
+ 7 | |
+ 8 | | import ctypes
+ 9 | | import logging
+10 | | import os
+11 | | import secrets
+12 | | from typing import Any
+13 | |
+14 | | from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+15 | | from src.core.logging.trace_logging import get_pipeline_logger
+   | |______________________________________________________________^
+16 |
+17 |   logger = get_pipeline_logger(__name__)
+   |
+help: Organize imports
+
+F401 [*] `ctypes` imported but unused
+  --> src/core/frontier/ghost_vfs.py:8:8
+   |
+ 6 | from __future__ import annotations
+ 7 |
+ 8 | import ctypes
+   |        ^^^^^^
+ 9 | import logging
+10 | import os
+   |
+help: Remove unused import: `ctypes`
+
+F401 [*] `logging` imported but unused
+  --> src/core/frontier/ghost_vfs.py:9:8
+   |
+ 8 | import ctypes
+ 9 | import logging
+   |        ^^^^^^^
+10 | import os
+11 | import secrets
+   |
+help: Remove unused import: `logging`
+
+F401 [*] `typing.Any` imported but unused
+  --> src/core/frontier/ghost_vfs.py:12:20
+   |
+10 | import os
+11 | import secrets
+12 | from typing import Any
+   |                    ^^^
+13 |
+14 | from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+   |
+help: Remove unused import: `typing.Any`
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/ghost_vfs.py:45:1
+   |
+43 |         if not raw:
+44 |             raise FileNotFoundError(f"Ghost-VFS: {path} not found")
+45 |         
+   | ^^^^^^^^
+46 |         nonce = raw[:12]
+47 |         ciphertext = raw[12:]
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/ghost_vfs.py:63:1
+   |
+61 |         """Wipe all data and keys from RAM securely."""
+62 |         self._files.clear()
+63 |         
+   | ^^^^^^^^
+64 |         # Fix Audit #9: Securely wipe the key from memory
+65 |         # Fix #207: Python bytes are immutable. True secure wipe of bytes is 
+   |
+help: Remove whitespace from blank line
+
+W291 [*] Trailing whitespace
+  --> src/core/frontier/ghost_vfs.py:65:77
+   |
+64 |         # Fix Audit #9: Securely wipe the key from memory
+65 |         # Fix #207: Python bytes are immutable. True secure wipe of bytes is 
+   |                                                                             ^
+66 |         # impossible without C-extensions. We overwrite references to encourage GC.
+67 |         if hasattr(self, "_key") and isinstance(self._key, bytes):
+   |
+help: Remove trailing whitespace
+
+W291 [*] Trailing whitespace
+  --> src/core/frontier/ghost_vfs.py:70:79
+   |
+68 |             try:
+69 |                 # Overwrite with random bytes before reassignment
+70 |                 # Note: Python's immutable bytes makes this tricky, but we can 
+   |                                                                               ^
+71 |                 # at least minimize the window and clear the reference.
+72 |                 # In a real C-extension we would use memset(0).
+   |
+help: Remove trailing whitespace
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/ghost_vfs.py:81:1
+   |
+79 |                 # Fix #208: Add logger.debug instead of bare pass
+80 |                 logger.debug("Ghost-VFS: Key wipe attempt failed: %s", e)
+81 |         
+   | ^^^^^^^^
+82 |         self._key = b""
+83 |         logger.warning("Ghost-VFS: Data plane PURGED")
+   |
+help: Remove whitespace from blank line
+
+F401 [*] `logging` imported but unused
+ --> src/core/frontier/marshaller.py:8:8
+  |
+6 | from __future__ import annotations
+7 |
+8 | import logging
+  |        ^^^^^^^
+9 | from typing import Any
+  |
+help: Remove unused import: `logging`
+
+W291 [*] Trailing whitespace
+  --> src/core/frontier/mesh_limiter.py:33:86
+   |
+31 |         count = max(1, active_worker_count)
+32 |         self._local_budget = self.global_rps_limit / count
+33 |         logger.info("Mesh Limiter: Local budget updated to %.2f RPS (Mesh Size: %d)", 
+   |                                                                                      ^
+34 |                     self._local_budget, count)
+   |
+help: Remove trailing whitespace
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/mesh_limiter.py:45:1
+   |
+43 |                 self._tokens = min(self._local_budget, self._tokens + (elapsed * self._local_budget))
+44 |                 self._last_calc = now
+45 |                 
+   | ^^^^^^^^^^^^^^^^
+46 |                 if self._tokens >= 1.0:
+47 |                     self._tokens -= 1.0
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/mesh_limiter.py:49:1
+   |
+47 |                     self._tokens -= 1.0
+48 |                     return
+49 |                 
+   | ^^^^^^^^^^^^^^^^
+50 |                 # If not enough tokens, calculate wait time
+51 |                 wait_time = (1.0 - self._tokens) / self._local_budget
+   |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+  --> src/core/frontier/proc_pool.py:38:1
+   |
+36 |         else:
+37 |             self.pool_size = pool_size
+38 |             
+   | ^^^^^^^^^^^^
+39 |         self._processes: list[ToolProcess] = []
+40 |         self._lock = asyncio.Lock()
+   |
+help: Remove whitespace from blank line
+
+W291 [*] Trailing whitespace
+   --> src/core/frontier/proc_pool.py:99:75
+    |
+ 97 |              stdout, stderr = await proc.communicate()
+ 98 |              if proc.returncode != 0:

@@ -2,7 +2,7 @@ import { max } from 'd3-array';
 import { scaleLinear } from 'd3-scale';
 import { area, curveMonotoneX, curveStepAfter, stack } from 'd3-shape';
 import { memo, useMemo, useState } from 'react';
-import { useVisual } from '@/context/VisualContext';
+import { useVisual } from '@/hooks/useVisual';
 
 export interface SeverityTrendDataPoint {
   date: string;

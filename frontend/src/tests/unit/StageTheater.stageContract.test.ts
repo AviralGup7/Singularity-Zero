@@ -3,7 +3,7 @@ import type { Job, StageProgressEntry } from '../../types/api';
 import {
   buildStageTheaterNodesFromJob,
   buildStageTheaterNodesFromJobs,
-} from '../../components/ops/StageTheater';
+} from '../../lib/stageTheaterUtils';
 
 function makeStageEntry(
   stage: string,

@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { safeGet } from '@/lib/utils';
 import { Icon } from './Icon';
 
 export interface SearchableItem {
@@ -47,29 +48,37 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    const tid = setTimeout(() => {
       setQuery('');
       setSelectedIndex(0);
       setRecentSearches(getRecentSearches());
-    }
+    }, 0);
+    return () => clearTimeout(tid);
   }, [open]);
 
-  const filtered = query.length > 0
+  const filtered = useMemo(() => query.length > 0
     ? items.filter(item =>
         item.title.toLowerCase().includes(query.toLowerCase()) ||
         (item.subtitle && item.subtitle.toLowerCase().includes(query.toLowerCase())) ||
         (item.meta && item.meta.toLowerCase().includes(query.toLowerCase()))
       )
-    : [];
+    : [], [items, query]);
 
-  const grouped = filtered.reduce<Record<string, SearchableItem[]>>((acc, item) => {
-    const key = item.type;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {});
+  const grouped = useMemo(() => {
+    const result: Record<string, SearchableItem[]> = {};
+    for (const item of filtered) {
+      const existing = safeGet(result, item.type);
+      if (existing) {
+        existing.push(item);
+      } else {
+        Object.assign(result, { [item.type]: [item] });
+      }
+    }
+    return result;
+  }, [filtered]);
 
-  const flatResults = Object.values(grouped).flat();
+  const flatResults = useMemo(() => Object.values(grouped).flat(), [grouped]);
 
   const typeLabels: Record<string, string> = {
     target: 'Targets',
@@ -91,10 +100,7 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
     onClose();
   }, [navigate, onClose, query]);
 
-  // FIX: Reset selectedIndex when results change to prevent out-of-bounds
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [flatResults.length]);
+  const clampedIndex = Math.min(selectedIndex, Math.max(0, flatResults.length - 1));
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
@@ -105,12 +111,13 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
       setSelectedIndex(prev => Math.max(prev - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (flatResults[selectedIndex]) handleSelect(flatResults[selectedIndex]);
+      const item = flatResults[clampedIndex];
+      if (item) handleSelect(item);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
     }
-  }, [flatResults, selectedIndex, handleSelect, onClose]);
+  }, [flatResults, clampedIndex, handleSelect, onClose]);
 
   useEffect(() => {
     if (listRef.current && selectedIndex >= 0) {
@@ -151,7 +158,7 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
             aria-label="Search"
             aria-autocomplete="list"
             aria-controls="command-palette-listbox"
-            aria-activedescendant={flatResults[selectedIndex] ? `item-${flatResults[selectedIndex].id}` : undefined}
+            aria-activedescendant={flatResults[clampedIndex] ? `item-${flatResults[clampedIndex].id}` : undefined}
           />
           <kbd className="command-palette-kbd">ESC</kbd>
         </div>
@@ -194,13 +201,13 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
               {Object.entries(grouped).map(([type, groupItems]) => (
                 <li key={type} className="command-palette-group" role="presentation">
                   <div className="command-palette-group-header">
-                    <Icon name={typeIcons[type] || 'file'} size={14} />
-                    {typeLabels[type] || type}
+                    <Icon name={safeGet(typeIcons, type) ?? 'file'} size={14} />
+                    {safeGet(typeLabels, type) ?? type}
                   </div>
                   <ul role="presentation">
                     {groupItems.map(item => {
                       const index = globalIndex++;
-                      const selected = index === selectedIndex;
+                      const selected = index === clampedIndex;
                       return (
                         <li
                           key={item.id}

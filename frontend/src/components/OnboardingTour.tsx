@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useDisplay } from '../context/DisplayContext';
+import { useDisplay } from '@/hooks/useDisplay';
 
 interface TourStep {
   title: string;
@@ -46,7 +46,7 @@ const TOUR_STEPS: TourStep[] = [
 
 const STORAGE_KEY = 'cyber-pipeline-onboarding-complete';
 
-export function useOnboardingTour() {
+function useOnboardingTour() {
   const { display } = useDisplay();
   const [active, setActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);

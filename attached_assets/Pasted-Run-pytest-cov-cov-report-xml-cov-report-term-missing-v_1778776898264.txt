@@ -1,0 +1,359 @@
+Run pytest --cov=. --cov-report=xml --cov-report=term-missing -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.4, pytest-9.0.3, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.14.4/x64/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'ci' -> database=None, deadline=None, print_blob=True, derandomize=True, suppress_health_check=(HealthCheck.too_slow,)
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /home/runner/work/Singularity-Zero/Singularity-Zero
+configfile: pyproject.toml
+testpaths: tests, benchmarks
+plugins: hypothesis-6.152.7, asyncio-1.3.0, cov-7.1.0, benchmark-5.2.3, anyio-4.13.0, locust-2.44.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2489 items / 13 errors
+
+==================================== ERRORS ====================================
+_______________ ERROR collecting tests/e2e/test_full_pipeline.py _______________
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/e2e/test_full_pipeline.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/e2e/test_full_pipeline.py:7: in <module>
+    from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/__init__.py:21: in <module>
+    from .stages.analysis import run_passive_scanning
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+_____ ERROR collecting tests/integration/test_semgrep_stage_integration.py _____
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/integration/test_semgrep_stage_integration.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/integration/test_semgrep_stage_integration.py:7: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages.semgrep import run_semgrep_stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+__ ERROR collecting tests/unit/pipeline/test_access_control_stage_runtime.py ___
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_access_control_stage_runtime.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_access_control_stage_runtime.py:10: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import access_control as stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+____ ERROR collecting tests/unit/pipeline/test_active_scan_probe_wiring.py _____
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_active_scan_probe_wiring.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_active_scan_probe_wiring.py:9: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import active_scan
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+_______ ERROR collecting tests/unit/pipeline/test_enrichment_handoff.py ________
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_enrichment_handoff.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_enrichment_handoff.py:6: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import enrichment as enrichment_stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+__ ERROR collecting tests/unit/pipeline/test_orchestrator_checkpoint_truth.py __
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_checkpoint_truth.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_checkpoint_truth.py:10: in <module>
+    from src.pipeline.services.pipeline_orchestrator import orchestrator as orch_mod
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+___ ERROR collecting tests/unit/pipeline/test_orchestrator_domain_events.py ____
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_domain_events.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_domain_events.py:10: in <module>
+    from src.pipeline.services.pipeline_orchestrator import orchestrator as orch_mod
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+___ ERROR collecting tests/unit/pipeline/test_orchestrator_recon_failfast.py ___
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_recon_failfast.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_recon_failfast.py:9: in <module>
+    from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+_ ERROR collecting tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py _
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py:2: in <module>
+    from src.pipeline.services.pipeline_orchestrator._run_execution import (
+E   ImportError: cannot import name '_collect_failed_stages' from 'src.pipeline.services.pipeline_orchestrator._run_execution' (/home/runner/work/Singularity-Zero/Singularity-Zero/src/pipeline/services/pipeline_orchestrator/_run_execution.py)
+_ ERROR collecting tests/unit/pipeline/test_orchestrator_stage_timeout_reporting.py _
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_stage_timeout_reporting.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_stage_timeout_reporting.py:10: in <module>
+    from src.pipeline.services.pipeline_orchestrator import orchestrator as orch_mod
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+_ ERROR collecting tests/unit/pipeline/test_passive_scan_contract_handling.py __
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_passive_scan_contract_handling.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_passive_scan_contract_handling.py:8: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import analysis as stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+__ ERROR collecting tests/unit/pipeline/test_recon_stage_contract_services.py __
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_recon_stage_contract_services.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_recon_stage_contract_services.py:9: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import recon as recon_stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+________ ERROR collecting tests/unit/pipeline/test_recon_strict_fail.py ________
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_recon_strict_fail.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_recon_strict_fail.py:12: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import _recon_network as recon_network_impl
+src/pipeline/services/pipeline_orchestrator/__init__.py:24: in <module>
+    from .stages.recon import (
+src/pipeline/services/pipeline_orchestrator/stages/__init__.py:7: in <module>
+    from .recon import (
+src/pipeline/services/pipeline_orchestrator/stages/recon.py:17: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/__init__.py:1: in <module>
+    from src.pipeline.services.services.recon_service import (
+src/pipeline/services/services/recon_service.py:6: in <module>
+    from beartype import beartype
+E   ModuleNotFoundError: No module named 'beartype'
+=========================== short test summary info ============================
+ERROR tests/e2e/test_full_pipeline.py
+ERROR tests/integration/test_semgrep_stage_integration.py
+ERROR tests/unit/pipeline/test_access_control_stage_runtime.py
+ERROR tests/unit/pipeline/test_active_scan_probe_wiring.py
+ERROR tests/unit/pipeline/test_enrichment_handoff.py
+ERROR tests/unit/pipeline/test_orchestrator_checkpoint_truth.py
+ERROR tests/unit/pipeline/test_orchestrator_domain_events.py
+ERROR tests/unit/pipeline/test_orchestrator_recon_failfast.py
+ERROR tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py
+ERROR tests/unit/pipeline/test_orchestrator_stage_timeout_reporting.py
+ERROR tests/unit/pipeline/test_passive_scan_contract_handling.py
+ERROR tests/unit/pipeline/test_recon_stage_contract_services.py
+ERROR tests/unit/pipeline/test_recon_strict_fail.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 13 errors during collection !!!!!!!!!!!!!!!!!!!
+======================= 24 warnings, 13 errors in 29.45s =======================
+Error: Process completed with exit code 2.

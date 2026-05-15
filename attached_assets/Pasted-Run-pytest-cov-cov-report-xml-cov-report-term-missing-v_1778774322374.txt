@@ -1,0 +1,368 @@
+Run pytest --cov=. --cov-report=xml --cov-report=term-missing -v
+============================= test session starts ==============================
+platform linux -- Python 3.14.4, pytest-9.0.3, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.14.4/x64/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'ci' -> database=None, deadline=None, print_blob=True, derandomize=True, suppress_health_check=(HealthCheck.too_slow,)
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /home/runner/work/Singularity-Zero/Singularity-Zero
+configfile: pyproject.toml
+testpaths: tests, benchmarks
+plugins: hypothesis-6.152.7, asyncio-1.3.0, cov-7.1.0, benchmark-5.2.3, anyio-4.13.0, locust-2.44.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2488 items / 14 errors
+
+==================================== ERRORS ====================================
+_______________ ERROR collecting tests/e2e/test_full_pipeline.py _______________
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/e2e/test_full_pipeline.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/e2e/test_full_pipeline.py:7: in <module>
+    from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+_____ ERROR collecting tests/integration/test_semgrep_stage_integration.py _____
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/integration/test_semgrep_stage_integration.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/integration/test_semgrep_stage_integration.py:7: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages.semgrep import run_semgrep_stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+__ ERROR collecting tests/unit/pipeline/test_access_control_stage_runtime.py ___
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_access_control_stage_runtime.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_access_control_stage_runtime.py:10: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import access_control as stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+___ ERROR collecting tests/unit/pipeline/test_active_scan_import_contract.py ___
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_active_scan_import_contract.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_active_scan_import_contract.py:1: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages.active_scan import (
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+____ ERROR collecting tests/unit/pipeline/test_active_scan_probe_wiring.py _____
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_active_scan_probe_wiring.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_active_scan_probe_wiring.py:9: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import active_scan
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+_______ ERROR collecting tests/unit/pipeline/test_enrichment_handoff.py ________
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_enrichment_handoff.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_enrichment_handoff.py:6: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import enrichment as enrichment_stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+__ ERROR collecting tests/unit/pipeline/test_orchestrator_checkpoint_truth.py __
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_checkpoint_truth.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_checkpoint_truth.py:10: in <module>
+    from src.pipeline.services.pipeline_orchestrator import orchestrator as orch_mod
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+___ ERROR collecting tests/unit/pipeline/test_orchestrator_domain_events.py ____
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_domain_events.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_domain_events.py:10: in <module>
+    from src.pipeline.services.pipeline_orchestrator import orchestrator as orch_mod
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+___ ERROR collecting tests/unit/pipeline/test_orchestrator_recon_failfast.py ___
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_recon_failfast.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_recon_failfast.py:9: in <module>
+    from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+_ ERROR collecting tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py _
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py:2: in <module>
+    from src.pipeline.services.pipeline_orchestrator._run_execution import (
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+_ ERROR collecting tests/unit/pipeline/test_orchestrator_stage_timeout_reporting.py _
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_orchestrator_stage_timeout_reporting.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_orchestrator_stage_timeout_reporting.py:10: in <module>
+    from src.pipeline.services.pipeline_orchestrator import orchestrator as orch_mod
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+_ ERROR collecting tests/unit/pipeline/test_passive_scan_contract_handling.py __
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_passive_scan_contract_handling.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_passive_scan_contract_handling.py:8: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import analysis as stage
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+__ ERROR collecting tests/unit/pipeline/test_recon_stage_contract_services.py __
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_recon_stage_contract_services.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_recon_stage_contract_services.py:8: in <module>
+    from src.pipeline.services.pipeline_orchestrator.orchestrator import PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+________ ERROR collecting tests/unit/pipeline/test_recon_strict_fail.py ________
+ImportError while importing test module '/home/runner/work/Singularity-Zero/Singularity-Zero/tests/unit/pipeline/test_recon_strict_fail.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/python.py:507: in importtestmodule
+    mod = import_path(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:549: in import_path
+    mod = _import_module_using_spec(
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/pathlib.py:725: in _import_module_using_spec
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/hostedtoolcache/Python/3.14.4/x64/lib/python3.14/site-packages/_pytest/assertion/rewrite.py:197: in exec_module
+    exec(co, module.__dict__)
+tests/unit/pipeline/test_recon_strict_fail.py:12: in <module>
+    from src.pipeline.services.pipeline_orchestrator.stages import _recon_network as recon_network_impl
+src/pipeline/services/pipeline_orchestrator/__init__.py:20: in <module>
+    from .orchestrator import FindingDict, PipelineOrchestrator
+src/pipeline/services/pipeline_orchestrator/orchestrator.py:43: in <module>
+    from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
+src/pipeline/services/pipeline_orchestrator/_run_execution.py:11: in <module>
+    from .dag_engine import build_neural_mesh_dag
+src/pipeline/services/pipeline_orchestrator/dag_engine.py:8: in <module>
+    import networkx as nx
+E   ModuleNotFoundError: No module named 'networkx'
+=========================== short test summary info ============================
+ERROR tests/e2e/test_full_pipeline.py
+ERROR tests/integration/test_semgrep_stage_integration.py
+ERROR tests/unit/pipeline/test_access_control_stage_runtime.py
+ERROR tests/unit/pipeline/test_active_scan_import_contract.py
+ERROR tests/unit/pipeline/test_active_scan_probe_wiring.py
+ERROR tests/unit/pipeline/test_enrichment_handoff.py
+ERROR tests/unit/pipeline/test_orchestrator_checkpoint_truth.py
+ERROR tests/unit/pipeline/test_orchestrator_domain_events.py
+ERROR tests/unit/pipeline/test_orchestrator_recon_failfast.py
+ERROR tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py
+ERROR tests/unit/pipeline/test_orchestrator_stage_timeout_reporting.py
+ERROR tests/unit/pipeline/test_passive_scan_contract_handling.py
+ERROR tests/unit/pipeline/test_recon_stage_contract_services.py
+ERROR tests/unit/pipeline/test_recon_strict_fail.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 14 errors during collection !!!!!!!!!!!!!!!!!!!
+======================= 24 warnings, 14 errors in 27.94s =======================
+Error: Process completed with exit code 2.

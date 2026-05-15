@@ -1,8 +1,6 @@
-import type { Variants } from 'framer-motion';
 import type { VisualState } from './visualState';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const stageVariants: any = {
+export const stageVariants: Record<string, unknown> = {
   idle: {
     scale: 1,
     opacity: 0.72,
@@ -31,4 +29,3 @@ export const stageVariants: any = {
     filter: 'drop-shadow(0 0 10px rgba(255, 59, 59, 0.6))',
   }),
 };
-

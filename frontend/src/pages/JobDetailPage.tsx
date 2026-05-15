@@ -13,7 +13,8 @@ import { JobStatusHeader } from '../components/jobs/JobStatusHeader';
 import { JobLogViewer } from '../components/jobs/JobLogViewer';
 import { JobTimelineComponent } from '../components/JobTimelineComponent';
 import { StageProgressBars } from '../components/StageProgressBars';
-import { StageTheater, buildStageTheaterNodesFromJob } from '../components/ops/StageTheater';
+import { StageTheater } from '../components/ops/StageTheater';
+import { buildStageTheaterNodesFromJob } from '../lib/stageTheaterUtils';
 import { ThroughputStrip } from '../components/ops/ThroughputStrip';
 import { VisualProvider } from '@/context/VisualContext';
 import { mapToVisualState } from '@/lib/mapToVisualState';
@@ -62,7 +63,7 @@ export function JobDetailPage() {
       scanVelocity,
       activeTasks: Number(telemetry?.active_task_count ?? 0),
     };
-  }, [job?.progress_telemetry, job?.progress_percent, job?.stage_percent]);
+  }, [job]);
   const visualState = useMemo(
     () => mapToVisualState(job, { sseError }),
     [job, sseError]
@@ -74,12 +75,18 @@ export function JobDetailPage() {
       return;
     }
     const controller = new AbortController();
-    setRemediationLoading(true);
+    const tid = setTimeout(() => setRemediationLoading(true), 0);
     getJobRemediation(jobId, controller.signal)
       .then((response) => setRemediation(response.suggestions ?? []))
       .catch(() => setRemediation([]))
-      .finally(() => setRemediationLoading(false));
-    return () => controller.abort();
+      .finally(() => {
+        clearTimeout(tid);
+        setRemediationLoading(false);
+      });
+    return () => {
+      controller.abort();
+      clearTimeout(tid);
+    };
   }, [jobId, isFailedJob]);
 
   const openTracePanel = useCallback(async () => {
