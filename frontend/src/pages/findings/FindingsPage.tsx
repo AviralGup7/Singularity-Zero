@@ -5,7 +5,7 @@ import { useApi } from '../../hooks/useApi';
 import { useProcessedFindings } from '../../hooks/useProcessedFindings';
 import { VirtualizedFindingsList } from '../../components/VirtualizedFindingsList';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { useToast } from '../../components/Toast';
+import { useToast } from '../../hooks/useToast';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
 import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2 } from 'lucide-react';

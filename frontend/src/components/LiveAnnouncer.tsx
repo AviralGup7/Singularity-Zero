@@ -1,17 +1,5 @@
-import { useState, useCallback, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
-
-interface AnnouncerContextType {
-  announceAssertive: (message: string) => void;
-  announcePolite: (message: string) => void;
-}
-
-const AnnouncerContext = createContext<AnnouncerContextType | null>(null);
-
-export function useAnnouncer(): AnnouncerContextType {
-  const ctx = useContext(AnnouncerContext);
-  if (!ctx) throw new Error('useAnnouncer must be used within LiveAnnouncer');
-  return ctx;
-}
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { AnnouncerContext } from '@/hooks/useAnnouncer';
 
 interface LiveAnnouncerProps {
   children: ReactNode;
@@ -20,7 +8,6 @@ interface LiveAnnouncerProps {
 export function LiveAnnouncer({ children }: LiveAnnouncerProps) {
   const [assertiveMessage, setAssertiveMessage] = useState('');
   const [politeMessage, setPoliteMessage] = useState('');
-  // FIX: Track timeouts for cleanup on unmount
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const announceAssertive = useCallback((message: string) => {
@@ -35,10 +22,10 @@ export function LiveAnnouncer({ children }: LiveAnnouncerProps) {
     timeoutsRef.current.push(t);
   }, []);
 
-  // FIX: Clean up all timeouts on unmount
   useEffect(() => {
+    const timeouts = timeoutsRef.current;
     return () => {
-      timeoutsRef.current.forEach(clearTimeout);
+      timeouts.forEach(clearTimeout);
     };
   }, []);
 

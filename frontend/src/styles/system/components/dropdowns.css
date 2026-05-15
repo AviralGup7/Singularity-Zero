@@ -1,0 +1,42 @@
+/* ══════════════════════════════════════════════════════════════
+   Dropdowns & Menus
+   ══════════════════════════════════════════════════════════════ */
+
+.dropdown-menu {
+  margin-top: var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  min-width: 180px;
+  display: grid;
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-1);
+  z-index: 50;
+}
+
+.dropdown-item {
+  padding: 6px var(--space-3);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--text-body);
+  transition: background var(--motion-fast) var(--easing-out);
+}
+
+.dropdown-item:hover {
+  background: var(--surface-2);
+}
+
+.dropdown-item--danger {
+  color: var(--bad);
+}
+
+.dropdown-item--danger:hover {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+
+.dropdown-separator {
+  height: 1px;
+  background: var(--border);
+  margin: var(--space-1) 0;
+}

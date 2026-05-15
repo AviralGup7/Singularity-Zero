@@ -3,8 +3,8 @@ import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } fro
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { APP_VERSION } from '../../config';
-import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/hooks/useAuth';
 import { FocusTrap } from '../FocusTrap';
 import { Icon } from '../Icon';
 import { CommandPalette } from '../CommandPalette';
@@ -257,7 +257,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
   }, []);
 
-  const allCommandItems = useMemo(() => getAllItems(), [location.pathname]);
+  const allCommandItems = useMemo(() => getAllItems(), []);
 
   const quickActions = [
     { label: 'New Scan', path: '/targets', icon: 'plus' },

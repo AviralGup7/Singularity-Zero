@@ -6,7 +6,7 @@ import {
   restartJob as apiRestartJob,
   getHistoricalDurations,
 } from '../api/client';
-import { useToast } from '../components/Toast';
+import { useToast } from './useToast';
 import { useWebSocket } from './useWebSocket';
 import { useSSEProgress } from './useSSEProgress';
 import type { SseEvent } from './useSSEProgress';

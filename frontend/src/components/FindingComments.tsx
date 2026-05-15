@@ -39,7 +39,7 @@ interface FindingCommentsProps {
   targetName?: string;
 }
 
-export function useFindingComments(findingId: string, targetName?: string) {
+function useFindingComments(findingId: string, targetName?: string) {
   const [comments, setComments] = useState<FindingComment[]>([]);
   const [apiNotes, setApiNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);

@@ -19,15 +19,6 @@ export interface PIIAuditEntry {
 
 const PII_AUDIT_STORAGE_KEY = 'cyber-pipeline-pii-audit';
 const PII_VISIBILITY_KEY = 'cyber-pipeline-pii-visibility';
-const PII_PATTERNS_RAW: Record<PIICategory, RegExp> = {
-  email: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
-  phone: /(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
-  ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
-  creditCard: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
-  ipAddress: /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g,
-  name: /(?:Name|User|Author|Owner|Sender|From|Customer|Client|Contact):\s+([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){0,2})/g,
-  custom: /(?:password|secret|token|api[_-]?key)\s*[:=]\s*\S+/gi,
-};
 
 const REDACTION_MASKS: Record<PIICategory, string> = {
   email: '[EMAIL_REDACTED]',
@@ -42,15 +33,24 @@ const REDACTION_MASKS: Record<PIICategory, string> = {
 export function detectPII(text: string): PIIMatch[] {
   const matches: PIIMatch[] = [];
 
-  for (const [category, patternRaw] of Object.entries(PII_PATTERNS_RAW)) {
-    // FIX: Clone regex to prevent state sharing across calls
-    const pattern = new RegExp(patternRaw.source, patternRaw.flags);
+  const checks: Array<[PIICategory, RegExp]> = [
+    ['email', /[\w.%+-]+@[\w.-]+\.[a-zA-Z]{2,}/g],
+    ['phone', /(?:\+?1[-. ]?)?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}/g],
+    ['ssn', /\b\d{3}-\d{2}-\d{4}\b/g],
+    ['creditCard', /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g],
+    ['ipAddress', /\b\d{1,3}(?:\.\d{1,3}){3}\b/g],
+    ['name', /(?:Name|User|Author|Owner|Sender|From|Customer|Client|Contact):\s+[A-Z][a-z][\w ]{1,30}/g],
+    ['custom', /(?:password|secret|token|api[-_]?key)\s*[:=]\s*\S+/gi],
+  ];
+
+  for (const [category, pattern] of checks) {
+    const mask = REDACTION_MASKS[category];
     let match;
     while ((match = pattern.exec(text)) !== null) {
       matches.push({
-        category: category as PIICategory,
+        category,
         value: match[0],
-        redacted: REDACTION_MASKS[category as PIICategory],
+        redacted: mask,
         start: match.index,
         end: match.index + match[0].length,
       });
@@ -131,19 +131,18 @@ export function setPIIVisible(visible: boolean, user = 'anonymous'): void {
 
 export function scanObjectForPII(obj: unknown): Record<string, PIIMatch[]> {
   const results: Record<string, PIIMatch[]> = {};
-  // FIX: Track visited objects to prevent infinite recursion on circular refs
   const visited = new WeakSet<object>();
 
   function scan(value: unknown, path: string): void {
     if (typeof value === 'string') {
-      const matches = detectPII(value);
-      if (matches.length > 0) {
-        results[path] = matches;
+      const piiMatches = detectPII(value);
+      if (piiMatches.length > 0) {
+        Object.assign(results, { [path]: piiMatches });
       }
     } else if (Array.isArray(value)) {
       value.forEach((item, i) => scan(item, `${path}[${i}]`));
     } else if (value && typeof value === 'object') {
-      if (visited.has(value)) return; // Skip circular refs
+      if (visited.has(value)) return;
       visited.add(value);
       for (const [key, val] of Object.entries(value)) {
         scan(val, path ? `${path}.${key}` : key);
@@ -166,7 +165,7 @@ export function redactObjectPII(obj: Record<string, unknown>): Record<string, un
     if (value && typeof value === 'object') {
       const result: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(value)) {
-        result[key] = redact(val);
+        Object.assign(result, { [key]: redact(val) });
       }
       return result;
     }

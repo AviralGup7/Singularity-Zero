@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getDefaults, getRegistry } from '../../api/client';
-import { useToast } from '../Toast';
+import { useToast } from '../../hooks/useToast';
 import { checkModuleDependencies, autoResolveDependencies } from '../../utils/moduleDependencies';
 import type { ModuleOption, ModuleGroup, ModePreset } from '../../types/api';
 
