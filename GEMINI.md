@@ -26,6 +26,11 @@ You are operating within a **Frontier-Level Autonomous Security Engine**. The co
 - The pipeline utilizes a **Polymorphic Chameleon** (`src/core/frontier/chameleon.py`) to bypass behavioral WAFs. Do not hardcode static User-Agents or headers.
 - Findings are evaluated using **Semantic Deduplication** (Cosine Similarity) and the **Differential Logic Prober** (Levenshtein distance). Avoid writing rigid Regex deduplication logic.
 
+### 6. Git Branch Policy
+- **MANDATE**: Always work directly on the `main` branch.
+- **NEVER** create auxiliary branches (feature, fix, refactor, etc.).
+- All commits must be made directly to `main` and pushed to the remote repository.
+
 ---
 
 ## 🤖 AI Workflow Protocols
