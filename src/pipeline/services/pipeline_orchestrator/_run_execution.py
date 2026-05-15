@@ -227,3 +227,34 @@ def resolve_pipeline_exit_code(
         details={"duration_seconds": round(duration, 2), "findings": findings_count},
     )
     return 0
+
+
+def _validate_recon_outputs(ctx: PipelineContext) -> None:
+    """Validate that recon produced actionable outputs."""
+    # print(f"DEBUG: urls={ctx.result.urls}, status={ctx.result.stage_status.get('urls')}")
+    # If urls are empty but recon stages are COMPLETED, we failed to find anything.
+    if not ctx.result.urls and ctx.result.stage_status.get("urls") == StageStatus.COMPLETED.value:
+        ctx.result.stage_status["recon_validation"] = StageStatus.FAILED.value
+        ctx.result.module_metrics["recon_validation"] = {
+            "status": "failed",
+            "reason": "Pipeline finished recon without discoverable URLs.",
+            "fatal": True,
+        }
+
+
+def _collect_failed_stages(ctx: PipelineContext) -> list[tuple[str, str]]:
+    """Gather all fatal stage failures for reporting."""
+    failed_stages = []
+    for stage_name, status in ctx.result.stage_status.items():
+        if status == StageStatus.FAILED.value:
+            metrics = ctx.result.module_metrics.get(stage_name, {})
+            # Only report if it's considered fatal
+            if metrics.get("fatal", True):
+                reason = (
+                    metrics.get("failure_reason")
+                    or metrics.get("reason")
+                    or metrics.get("error")
+                    or f"Stage {stage_name} failed"
+                )
+                failed_stages.append((stage_name, reason))
+    return failed_stages

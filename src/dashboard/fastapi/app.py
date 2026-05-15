@@ -9,11 +9,13 @@ import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+
 from src.dashboard.fastapi.config import DashboardConfig, FeatureFlags
 from src.dashboard.fastapi.middleware import (
     AuditLoggingMiddleware,
@@ -35,7 +37,6 @@ from src.websocket_server.integration import (
     integrate_with_pipeline_progress,
     setup_websocket_routes,
 )
-
 
 # Fix for Windows mimetypes
 mimetypes.add_type("application/javascript", ".js")

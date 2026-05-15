@@ -55,14 +55,14 @@ export function useOnboardingTour() {
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-useEffect(() => {
-  const seen = localStorage.getItem(STORAGE_KEY);
-  if (!seen && !display.reduceMotion) {
-    Promise.resolve().then(() => {
-      setActive(true);
-    });
-  }
-}, [display.reduceMotion]);
+
+    const seen = localStorage.getItem(STORAGE_KEY);
+    if (!seen && !display.reduceMotion) {
+      Promise.resolve().then(() => {
+        setActive(true);
+      });
+    }
+  }, [display.reduceMotion]);
 
   const next = useCallback(() => {
     if (currentStep < TOUR_STEPS.length - 1) {

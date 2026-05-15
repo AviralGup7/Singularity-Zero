@@ -9,6 +9,7 @@ import logging
 import re
 from typing import Any
 from urllib.parse import urlparse
+
 from src.analysis.helpers import (
     JSON_CONTENT_TOKENS,
     classify_endpoint,
@@ -27,7 +28,18 @@ from src.analysis.json.mutations import (
     mutate_state_url,
 )
 
-
+from ._constants import (
+    AUTH_REQUIRED_FIELD_HINTS,
+    DEPENDENCY_PARAM_NAMES,
+    FILTER_MUTATIONS,
+    PAGINATION_PARAM_NAMES,
+    PUBLIC_AUTH_PAGE_HINTS,
+    RESOURCE_SKIP_SEGMENTS,
+    ROLE_MUTATION_PARAM_NAMES,
+    SESSION_PARAM_NAMES,
+    STATE_PARAM_NAMES,
+    WRITE_PATH_HINTS,
+)
 
 ID_FIELD_RE = re.compile(
     r"(^id$|(^|_)(user|account|tenant|org|order|device|project|profile|member|customer|record|object|session)_id$|uuid$)"
@@ -89,123 +101,7 @@ SENSITIVE_FIELD_TOKENS = (
     "salt",
     "encryption_key",
 )
-RESOURCE_SKIP_SEGMENTS = {"api", "rest", "graphql", "v1", "v2", "v3", "internal"}
-PAGINATION_PARAM_NAMES = {"page", "offset", "limit", "per_page", "page_size"}
-FILTER_MUTATIONS = {
-    "role": "admin",
-    "roles": "admin",
-    "status": "all",
-    "state": "all",
-    "type": "all",
-    "view": "full",
-    "scope": "global",
-    "tenant": "global",
-    "include": "all",
-    "include_deleted": "true",
-    "archived": "true",
-    # Additional filter mutations for broader coverage
-    "is_admin": "true",
-    "admin": "true",
-    "permissions": "admin",
-    "permission": "admin",
-    "filter": "all",
-    "show_all": "true",
-    "show_deleted": "true",
-    "show_hidden": "true",
-    "show_inactive": "true",
-    "show_archived": "true",
-    "show_private": "true",
-    "show_internal": "true",
-    "visibility": "all",
-    "access_level": "admin",
-    "user_role": "admin",
-    "account_type": "admin",
-    "organization": "all",
-    "org_id": "0",
-    "team": "all",
-    "group": "all",
-    "category": "all",
-    "level": "all",
-    "depth": "all",
-    "limit": "999999",
-    "max_results": "999999",
-    "page_size": "999999",
-}
 EMAIL_VALUE_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
-ROLE_MUTATION_PARAM_NAMES = {"role", "roles", "scope", "permission", "permissions", "admin"}
-SESSION_PARAM_NAMES = {
-    "token",
-    "access_token",
-    "id_token",
-    "refresh_token",
-    "session",
-    "sessionid",
-    "sid",
-    "jwt",
-    "auth",
-}
-DEPENDENCY_PARAM_NAMES = {
-    "price",
-    "quantity",
-    "qty",
-    "amount",
-    "total",
-    "currency",
-    "discount",
-    "coupon",
-    "promo",
-    "role",
-    "roles",
-    "permission",
-    "permissions",
-    "scope",
-}
-STATE_PARAM_NAMES = {
-    "status",
-    "state",
-    "step",
-    "stage",
-    "action",
-    "confirm",
-    "approved",
-    "complete",
-    "completed",
-}
-AUTH_REQUIRED_FIELD_HINTS = {
-    "email",
-    "user_id",
-    "account_id",
-    "tenant_id",
-    "session",
-    "token",
-    "role",
-    "permissions",
-}
-PUBLIC_AUTH_PAGE_HINTS = {
-    "login",
-    "signin",
-    "sign in",
-    "register",
-    "forgot password",
-    "reset password",
-    "create account",
-}
-WRITE_PATH_HINTS = {
-    "/create",
-    "/delete",
-    "/destroy",
-    "/logout",
-    "/purchase",
-    "/refund",
-    "/remove",
-    "/reset",
-    "/revoke",
-    "/session/end",
-    "/session/logout",
-    "/signout",
-    "/update",
-    "/write",
-}
 
 
 def parse_json_payload(response: dict[str, Any]) -> dict[str, Any] | list[Any] | None:
@@ -340,7 +236,6 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "access_boundary_state",
-    "alternate_version_url",
     "AUTH_REQUIRED_FIELD_HINTS",
     "classify_sensitive_field",
     "DEPENDENCY_PARAM_NAMES",
@@ -350,12 +245,6 @@ __all__ = [
     "flow_stage_hint",
     "ID_FIELD_RE",
     "is_low_risk_read_candidate",
-    "mutate_dependency_urls",
-    "mutate_error_probe_url",
-    "mutate_filter_url",
-    "mutate_pagination_url",
-    "mutate_role_url",
-    "mutate_state_url",
     "PAGINATION_PARAM_NAMES",
     "parse_json_payload",
     "PUBLIC_AUTH_PAGE_HINTS",

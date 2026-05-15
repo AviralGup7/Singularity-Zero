@@ -6,6 +6,7 @@ dependency tracking, and LRU metadata.
 """
 
 from __future__ import annotations
+
 import builtins
 import json
 import logging
@@ -15,12 +16,8 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+
 from .protocol import _ThreadLocalConnections
-
-
-
-
-
 
 logger = logging.getLogger(__name__)
 

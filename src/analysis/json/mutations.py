@@ -8,14 +8,14 @@ Extracted from json_analysis_support.py for better separation of concerns.
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from src.analysis.helpers import decode_candidate_value
-from src.analysis.json.support import (
+from ._constants import (
     DEPENDENCY_PARAM_NAMES,
     FILTER_MUTATIONS,
     PAGINATION_PARAM_NAMES,
     ROLE_MUTATION_PARAM_NAMES,
     STATE_PARAM_NAMES,
 )
+from src.analysis.helpers import decode_candidate_value
 from src.analysis.passive.patterns import UUID_RE
 from src.recon.common import normalize_url
 

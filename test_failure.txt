@@ -1,0 +1,29 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /mnt/d/cyber security test pipeline - Copy/.venv-linux/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'default'
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /mnt/d/cyber security test pipeline - Copy
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.152.4, locust-2.43.4, asyncio-1.3.0, benchmark-5.2.3, cov-7.1.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/unit/pipeline/test_orchestrator_recon_validation_reporting.py::test_recon_validation_failure_does_not_emit_blank_urls_failure_reason <- D:\cyber security test pipeline - Copy\tests\unit\pipeline\test_orchestrator_recon_validation_reporting.py FAILED [100%]/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.dashboard was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.fuzzing was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.infrastructure.queue was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.infrastructure.execution_engine was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.infrastructure.cache was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.dashboard.fastapi was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.websocket_server was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.api_tests was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+/mnt/d/cyber security test pipeline - Copy/.venv-linux/lib/python3.14/site-packages/coverage/inorout.py:561: CoverageWarning: Module src.exploitation was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.13.5/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")

@@ -6,14 +6,18 @@ targets when vulnerabilities are found.
 """
 
 from __future__ import annotations
+
 import asyncio
 import time
 from typing import Any
+from urllib.parse import urlparse
+
 from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.decision.adaptive_scan import AdaptiveScanCoordinator
 from src.pipeline.runner_support import emit_progress
+
 from .active_scan import (
     _build_response_cache,
     _load_active_probe_functions,
@@ -23,12 +27,6 @@ from .active_scan import (
     _run_json_probe_suite,
     _try_probe,
 )
-from urllib.parse import urlparse
-
-
-
-
-
 
 
 class CompositeActiveProbe:
