@@ -3,6 +3,7 @@
 import asyncio
 import time
 from typing import Any
+
 from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
     filter_reportable_findings,
@@ -12,6 +13,7 @@ from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageO
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.core.plugins import resolve_plugin
+from src.intelligence.campaigns.campaign_builder import build_attack_campaigns
 from src.intelligence.correlation.engine import (
     calculate_compound_risk as _calculate_compound_risk,
 )
@@ -24,17 +26,13 @@ from src.intelligence.correlation.engine import (
 from src.intelligence.feeds.base import FeedError
 from src.intelligence.feeds.cve import CVEConfig, CVESyncClient
 from src.intelligence.feeds.mitre import MitreAttackMapper, MitreConfig
-from src.pipeline.runner_support import emit_progress
-from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
-from src.intelligence.campaigns.campaign_builder import build_attack_campaigns
 from src.intelligence.graph.threat_graph import (
     annotate_graph_for_campaigns,
     build_threat_graph,
     graph_risk_summary,
 )
-
-
-
+from src.pipeline.runner_support import emit_progress
+from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 
 # Test seams / legacy aliases
 api_security_analyzer = None

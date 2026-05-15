@@ -5,17 +5,15 @@ support for per-user tracking, connection groups, automatic cleanup of
 stale connections, and configurable connection limits.
 """
 
-from typing import Any
 import asyncio
 import threading
 import time
 from dataclasses import dataclass, field
+from typing import Any
+
 from starlette.websockets import WebSocket, WebSocketState
+
 from src.core.logging.trace_logging import get_pipeline_logger
-
-
-
-
 
 logger = get_pipeline_logger(__name__)
 

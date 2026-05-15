@@ -1,14 +1,14 @@
 from __future__ import annotations
+
 import json
+import logging
 import time
 from dataclasses import MISSING, dataclass, field
 from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any, TypedDict
-import logging
+
 from src.core.frontier.state import NeuralState
-
-
 
 
 class StageName(StrEnum):

@@ -21,6 +21,7 @@ from .cloud_constants import (
     IMDSV2_TOKEN_HEADER,
     INFRASTRUCTURE_SERVICE_PATHS,
 )
+
 logger = logging.getLogger(__name__)
 
 

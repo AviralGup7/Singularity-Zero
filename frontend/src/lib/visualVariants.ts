@@ -1,7 +1,8 @@
 import type { Variants } from 'framer-motion';
 import type { VisualState } from './visualState';
 
-export const stageVariants: Variants = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const stageVariants: any = {
   idle: {
     scale: 1,
     opacity: 0.72,

@@ -2,7 +2,9 @@
 
 from collections.abc import Callable
 from typing import Any
+
 from src.analysis.helpers import build_manual_hint
+
 from . import (
     access_boundary,
     admin_panel,
@@ -91,8 +93,6 @@ from . import (
     version_diffing,
     websocket_endpoint,
 )
-
-
 
 # Type alias for spec tuples
 SpecTuple = tuple[

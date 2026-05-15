@@ -13,13 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
+
 import urllib3
+
 from src.analysis.passive.patterns import TEXTUAL_CONTENT_TYPES
-from src.core.models import DEFAULT_USER_AGENT
-from src.core.utils.url_validation import is_safe_url
-from src.pipeline.cache import load_cached_json, response_cache_fresh, save_cached_json
-from src.pipeline.retry import RetryPolicy
-from src.recon.common import normalize_url
 from src.analysis.text_utils import (
     extract_key_fields,
     json_headers,
@@ -29,11 +26,11 @@ from src.analysis.text_utils import (
     redacted_snippet,
     shannon_entropy,
 )
-
-
-
-
-
+from src.core.models import DEFAULT_USER_AGENT
+from src.core.utils.url_validation import is_safe_url
+from src.pipeline.cache import load_cached_json, response_cache_fresh, save_cached_json
+from src.pipeline.retry import RetryPolicy
+from src.recon.common import normalize_url
 
 RequestRetryPolicy = RetryPolicy
 

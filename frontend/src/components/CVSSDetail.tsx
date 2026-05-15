@@ -146,7 +146,7 @@ interface MetricBarProps {
   metricKey: string;
 }
 
-const MetricBar = memo(function MetricBar({ label, value, valueLabel }: MetricBarProps) {
+const MetricBar = memo(function MetricBar({ label, value, valueLabel, metricKey }: MetricBarProps) {
   const levelMap: Record<string, number> = { N: 0, L: 1, M: 2, H: 3, None: 0, Low: 1, Medium: 2, High: 3 };
   const level = Object.prototype.hasOwnProperty.call(levelMap, value) ? levelMap[value] : 0;
   const barWidth = `${((level + 1) / 4) * 100}%`;

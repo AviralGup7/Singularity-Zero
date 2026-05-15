@@ -6,6 +6,7 @@ includes a cryptographic hash of the previous entry to detect tampering.
 """
 
 from __future__ import annotations
+
 import hashlib
 import json
 import logging
@@ -17,9 +18,6 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, TextIO
-
-
-
 
 logger = logging.getLogger(__name__)
 

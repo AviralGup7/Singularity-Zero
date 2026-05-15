@@ -6,12 +6,10 @@ installed so callers can decide how to handle the missing dependency.
 """
 
 from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Any
-from typing import cast
-
-
+from typing import Any, cast
 
 try:
     import jsonschema

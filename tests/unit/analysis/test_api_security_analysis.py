@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 from typing import Any
+
 from src.analysis.checks.exposure import (
     graphql_introspection_exposure_checker,
     http_method_exposure_checker,
@@ -24,8 +25,6 @@ from src.execution.validators.validators.idor import (
     promote_evidence_backed_results,
     validate_idor_candidates,
 )
-
-
 
 pass  # DashboardHandler removed - legacy server eliminated
 

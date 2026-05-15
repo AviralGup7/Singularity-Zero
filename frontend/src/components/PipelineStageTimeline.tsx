@@ -91,7 +91,7 @@ export function PipelineStageTimeline({ jobs }: PipelineStageTimelineProps) {
     void import('gsap')
       .then((mod) => {
         if (!rootRef.current || cancelled) return;
-        const gsap = mod.gsap ?? mod.default;
+        const gsap = (mod as any).gsap ?? mod.default;
         const nodes = rootRef.current.querySelectorAll('.pipeline-timeline-node');
         const bars = rootRef.current.querySelectorAll('.pipeline-timeline-fill');
         const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });

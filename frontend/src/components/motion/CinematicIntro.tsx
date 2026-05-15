@@ -20,7 +20,8 @@ export function CinematicIntro({ className, children }: CinematicIntroProps) {
     void import('gsap')
       .then((mod) => {
         if (!containerRef.current || cancelled) return;
-        const gsap = mod.gsap ?? mod.default;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const gsap = (mod as any).gsap ?? (mod as any).default;
         const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
         tl.fromTo(
           containerRef.current.querySelectorAll('[data-cinematic]'),

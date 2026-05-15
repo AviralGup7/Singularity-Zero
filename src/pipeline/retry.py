@@ -1,16 +1,13 @@
 from __future__ import annotations
+
 import secrets as random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
+
 from src.core.contracts.pipeline import RETRY_DEFAULTS
 from src.core.logging.trace_logging import get_pipeline_logger
-from typing import TypeVar
-
-
-
-
 
 # Fix Audit #79: Move side-effect initialization below imports
 # Use SystemRandom for non-predictable jitter (better than default PRNG for this use)

@@ -12,15 +12,14 @@ Key patterns from the Go codebase adapted for Python:
 """
 
 from __future__ import annotations
+
 import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
 from src.decision.priority_queue import CorrelationPriorityQueue
-
-
-
 
 
 @dataclass

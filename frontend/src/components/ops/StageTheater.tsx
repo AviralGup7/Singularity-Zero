@@ -1,6 +1,5 @@
 import { linkVertical } from 'd3-shape';
 import { motion } from 'framer-motion';
-import type { Transition } from 'framer-motion';
 import type { CSSProperties } from 'react';
 import { useMemo } from 'react';
 import { useVisual } from '@/context/VisualContext';
@@ -560,7 +559,7 @@ function resolveNodeVisualAnimation(
 function resolveNodeTransition(
   mode: 'idle' | 'active' | 'unstable' | 'critical',
   visualState: VisualState
-): Transition {
+): any {
   if (mode === 'critical') {
     return {
       duration: Math.max(0.18, 0.34 - visualState.urgency * 0.12),
