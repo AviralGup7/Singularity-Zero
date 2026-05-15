@@ -43,8 +43,8 @@ class ProbeTemplate:
     """
 
     method: str
-    path: str = ""
     headers: dict[str, str]
+    path: str = ""
     content: bytes | None = None
     params: dict[str, str] | None = None
     follow_redirects: bool = False
@@ -135,7 +135,7 @@ class ProbeTemplateSet:
         """Get a probe template by name."""
         return self._templates.get(name)
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self._templates.items())
 
     def __len__(self) -> int:

@@ -17,11 +17,11 @@ logger = get_pipeline_logger(__name__)
 class PipelineDAG:
     """Manages the dependency graph of pipeline stages."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._graph = nx.DiGraph()
-        self._stage_methods = {}
+        self._stage_methods: dict[str, Any] = {}
 
-    def add_stage(self, name: str, method: Any, dependencies: list[str] | None = None):
+    def add_stage(self, name: str, method: Any, dependencies: list[str] | None = None) -> None:
         """Register a stage and its requirements."""
         self._graph.add_node(name)
         self._stage_methods[name] = method
@@ -54,7 +54,7 @@ class PipelineDAG:
     def get_method(self, stage_name: str) -> Any:
         return self._stage_methods.get(stage_name)
 
-    def visualize(self):
+    def visualize(self) -> None:
         """Log the computed execution flow."""
         tiers = self.get_execution_order()
         for i, tier in enumerate(tiers):

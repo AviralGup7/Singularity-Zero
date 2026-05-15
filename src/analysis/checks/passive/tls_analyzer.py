@@ -110,7 +110,7 @@ class TLSAnalyzer:
                             )
 
                     # Check subject
-                    subject_items = cert.get("subject", [])
+                    subject_items: Any = cert.get("subject", [])
                     subject: dict[str, str] = {}
                     for item in subject_items:
                         if isinstance(item, (list, tuple)) and len(item) > 0:

@@ -29,7 +29,7 @@ class FrontierRingBus:
     Optimized for massive event emission rates with zero heap fragmentation.
     """
     def __init__(self, capacity: int = 10000) -> None:
-        self._buffer = deque(maxlen=capacity)
+        self._buffer: deque[NeuralEvent] = deque(maxlen=capacity)
         self._subscribers: dict[str, list[Callable[[NeuralEvent], Any]]] = {}
         self._running = False
         self._downsample_threshold = capacity // 2

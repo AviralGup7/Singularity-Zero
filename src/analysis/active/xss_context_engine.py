@@ -442,13 +442,21 @@ def _generate_waf_evasion_payloads(vectors: dict[int, set[str]]) -> None:
     ]
     for payload in evasion:
         vectors[5].add(payload)
+from typing import Any, Literal, TypedDict, cast
+import re
+
+class WafSignature(TypedDict):
+    name: str
+    headers: re.Pattern | None
+    page: re.Pattern | None
+    code: re.Pattern | None
 
 
 # ---- WAF Signature Detection ----
 
 # Minimal WAF signatures based on response characteristics
 # Learned from XSStrike's wafDetector
-_WAF_SIGNATURES = [
+_WAF_SIGNATURES: list[WafSignature] = [
     {
         "name": "Cloudflare",
         "headers": re.compile(r"server:\s?cloudflare", re.I),

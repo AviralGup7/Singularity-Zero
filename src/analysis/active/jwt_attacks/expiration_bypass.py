@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 from ._helpers import (
     JWT_AUTH_HEADERS,
@@ -15,7 +15,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_expiration_bypass(token: str, url: str, session) -> dict:
+def test_expiration_bypass(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test exp/iat/nbf lifetime manipulation.
 
     Creates tokens with expired, far-future, and missing lifetime claims
@@ -37,7 +37,7 @@ def test_expiration_bypass(token: str, url: str, session) -> dict:
 
         original_status = _get_original_status(url, session)
 
-        lifetime_tests = [
+        lifetime_tests: list[dict[str, Any]] = [
             {
                 "name": "expired_token",
                 "payload": {
@@ -64,7 +64,7 @@ def test_expiration_bypass(token: str, url: str, session) -> dict:
         ]
 
         for test in lifetime_tests:
-            test_token = _create_jwt(header, test["payload"])
+            test_token = _create_jwt(header, cast(dict, test["payload"]))
 
             for auth_header in JWT_AUTH_HEADERS:
                 resp = _send_with_token(url, test_token, auth_header, session)

@@ -10,20 +10,22 @@ from typing import Any
 from .schema_parser import (
     detect_graphql_endpoints,
 )
-from .vulnerability_checker import (
-    build_summary,
-    collect_all_findings,
+from src.analysis.json.graphql_introspection import (
     test_batch_aliasing,
     test_introspection,
     test_mutation_exposure,
     test_query_depth,
+)
+from .vulnerability_checker import (
+    build_summary,
+    collect_all_findings,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def run_graphql_analysis(
-    urls: list[str], session, config: dict[str, Any] | None = None
+    urls: list[str], session: Any, config: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Main entry point for GraphQL introspection analysis."""
     config = config or {}

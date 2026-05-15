@@ -6,7 +6,7 @@ Includes both standard and precomputed variants for performance optimization.
 """
 
 from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from src.analysis.helpers import (
@@ -378,7 +378,7 @@ def rank_urls(
     custom_priority_keywords = [str(item).lower() for item in filters.get("priority_keywords", [])]
     custom_keyword_bonus = int(scoring.get("custom_keyword_bonus", 2))
     flow_graph = build_flow_graph(url_list)
-    flow_map: dict[str, dict[str, object]] = flow_graph.get("per_url", {})
+    flow_map: dict[str, dict[str, Any]] = cast(dict[str, dict[str, Any]], flow_graph.get("per_url", {}))
     ranked = []
     seen_canonical: set[str] = set()
     for url in url_list:
@@ -466,8 +466,8 @@ def rank_urls(
                 "decision_override": decision_override,
                 "flow_label": flow_meta.get("flow_label", ""),
                 "flow_stage": flow_meta.get("flow_stage"),
-                "flow_position": int(flow_meta.get("flow_position", 0)),
-                "flow_chain_size": int(flow_meta.get("flow_chain_size", 0)),
+                "flow_position": int(cast(Any, flow_meta.get("flow_position", 0))),
+                "flow_chain_size": int(cast(Any, flow_meta.get("flow_chain_size", 0))),
                 "flow_group": str(flow_meta.get("flow_label", ""))
                 + "|"
                 + str(flow_meta.get("flow_host", "")),

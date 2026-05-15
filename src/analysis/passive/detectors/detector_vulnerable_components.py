@@ -350,51 +350,55 @@ def vulnerable_component_detector(
         if endpoint_key in seen:
             continue
 
-        signals: list[str] = []
-        signals.extend(_check_server_version(response))
-        signals.extend(_check_powered_by(response))
-        signals.extend(_check_framework_headers(response))
-        signals.extend(_check_vulnerable_versions(response))
-        signals.extend(_check_default_config(response))
+        resp_signals: list[str] = []
+        resp_signals.extend(_check_server_version(response))
+        resp_signals.extend(_check_powered_by(response))
+        resp_signals.extend(_check_framework_headers(response))
+        resp_signals.extend(_check_vulnerable_versions(response))
+        resp_signals.extend(_check_default_config(response))
 
-        if not signals:
+        if not resp_signals:
             continue
 
         seen.add(endpoint_key)
 
-        severity = _calculate_severity(signals)
-        risk_score = _calculate_risk_score(signals)
+        severity = _calculate_severity(resp_signals)
+        risk_score = _calculate_risk_score(resp_signals)
         confidence = normalized_confidence(
             base=0.40,
             score=risk_score,
-            signals=signals,
+            signals=resp_signals,
             cap=0.92,
         )
 
-        title_parts: list[str] = []
-        if any(s.startswith("vulnerable_version:") for s in signals):
-            title_parts.append("Known Vulnerable Version Detected")
-        if any(s.startswith("server_version_disclosure:") for s in signals):
-            title_parts.append("Server Version Disclosure")
-        if any(s.startswith("powered_by_disclosure:") for s in signals):
-            title_parts.append("Framework Version Disclosure")
-        if "debug_mode_enabled" in signals:
-            title_parts.append("Debug Mode Enabled")
-        if "default_configuration_detected" in signals:
-            title_parts.append("Default Configuration Detected")
-        if any(s.startswith("non_production_environment:") for s in signals):
-            title_parts.append("Non-Production Environment Detected")
-        if any(s.startswith("framework_header:") for s in signals):
-            title_parts.append("Framework Header Disclosure")
+        resp_title_parts: list[str] = []
+        if any(s.startswith("vulnerable_version:") for s in resp_signals):
+            resp_title_parts.append("Known Vulnerable Version Detected")
+        if any(s.startswith("server_version_disclosure:") for s in resp_signals):
+            resp_title_parts.append("Server Version Disclosure")
+        if any(s.startswith("powered_by_disclosure:") for s in resp_signals):
+            resp_title_parts.append("Framework Version Disclosure")
+        if "debug_mode_enabled" in resp_signals:
+            resp_title_parts.append("Debug Mode Enabled")
+        if "default_configuration_detected" in resp_signals:
+            resp_title_parts.append("Default Configuration Detected")
+        if any(s.startswith("non_production_environment:") for s in resp_signals):
+            resp_title_parts.append("Non-Production Environment Detected")
+        if any(s.startswith("framework_header:") for s in resp_signals):
+            resp_title_parts.append("Framework Header Disclosure")
 
-        title = "; ".join(title_parts) if title_parts else "Vulnerable Component Indicator Detected"
+        title = (
+            "; ".join(resp_title_parts)
+            if resp_title_parts
+            else "Vulnerable Component Indicator Detected"
+        )
 
         findings.append(
             {
                 "url": url,
                 "endpoint_key": endpoint_key,
                 "endpoint_type": classify_endpoint(url),
-                "signals": sorted(signals),
+                "signals": sorted(resp_signals),
                 "risk_score": risk_score,
                 "severity": severity,
                 "confidence": round(confidence, 2),

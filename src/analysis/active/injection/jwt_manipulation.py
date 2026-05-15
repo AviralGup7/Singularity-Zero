@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import json
 import re
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qsl, urlparse
 
 import requests
@@ -159,7 +159,7 @@ def _extract_jwt_from_headers(headers: dict[str, Any]) -> str | None:
             if val.startswith("Bearer "):
                 val = val[7:]
             if JWT_RE.match(val):
-                return val
+                return cast(str, val)
     return None
 
 

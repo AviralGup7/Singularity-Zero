@@ -1,5 +1,8 @@
+from typing import Any
+
+
 # Lazy imports to avoid circular dependency
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name == "generate_run_report":
         from src.reporting.pages import generate_run_report as _gen
 

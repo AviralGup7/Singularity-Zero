@@ -6,7 +6,7 @@ and nbf/iat (not-before/issued-at) bypass via altered token lifetimes.
 
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 from .attacks import JWT_AUTH_HEADERS, create_jwt, decode_jwt_part
 
@@ -24,7 +24,7 @@ class LifetimeManipulationAttack:
         self.token = token
         self.attack_name = "lifetime_manipulation"
 
-    def execute(self, url: str, session) -> dict[str, Any]:
+    def execute(self, url: str, session: Any) -> dict[str, Any]:
         """Execute the lifetime manipulation attack."""
         result: dict[str, Any] = {"attack": self.attack_name, "vulnerable": False, "details": []}
         try:

@@ -18,6 +18,15 @@ from src.analysis.helpers import (
 )
 from src.analysis.passive.patterns import UUID_RE
 from src.analysis.text_utils import extract_key_fields
+from src.analysis.json.mutations import (
+    alternate_version_url,
+    mutate_dependency_urls,
+    mutate_error_probe_url,
+    mutate_filter_url,
+    mutate_pagination_url,
+    mutate_role_url,
+    mutate_state_url,
+)
 
 from ._constants import (
     AUTH_REQUIRED_FIELD_HINTS,
@@ -227,6 +236,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "access_boundary_state",
+    "alternate_version_url",
     "AUTH_REQUIRED_FIELD_HINTS",
     "classify_sensitive_field",
     "DEPENDENCY_PARAM_NAMES",
@@ -236,6 +246,12 @@ __all__ = [
     "flow_stage_hint",
     "ID_FIELD_RE",
     "is_low_risk_read_candidate",
+    "mutate_dependency_urls",
+    "mutate_error_probe_url",
+    "mutate_filter_url",
+    "mutate_pagination_url",
+    "mutate_role_url",
+    "mutate_state_url",
     "PAGINATION_PARAM_NAMES",
     "parse_json_payload",
     "PUBLIC_AUTH_PAGE_HINTS",
