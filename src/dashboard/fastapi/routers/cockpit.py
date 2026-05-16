@@ -81,7 +81,7 @@ def _get_run_dir(output_root: Path, target: str, run: str | None, job_id: str | 
                         summary = json.loads(summary_path.read_text(encoding="utf-8"))
                         if summary.get("job_id") == job_id:
                             return child
-                    except Exception:
+                    except Exception:  # noqa: S112
                         continue
 
     # Fallback to latest run
@@ -279,7 +279,7 @@ async def list_forensic_exchanges(
                     "method": data.get("method"),
                     "response_status": data.get("response", {}).get("status")
                 })
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
 
     # Also check in run directories
@@ -297,7 +297,7 @@ async def list_forensic_exchanges(
                             "method": data.get("method"),
                             "response_status": data.get("response", {}).get("status")
                         })
-                    except Exception:
+                    except Exception:  # noqa: S112
                         continue
 
     # Sort by timestamp descending

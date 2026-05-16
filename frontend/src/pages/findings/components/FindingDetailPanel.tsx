@@ -94,7 +94,6 @@ export function FindingDetailPanel({
              </div>
              <div>
                 <h3 id="finding-detail-title" className="text-xl font-black text-text uppercase tracking-tighter">{detailFinding.title}</h3>
-  // eslint-disable-next-line security/detect-object-injection
                 <div className="flex items-center gap-3 text-[10px] text-muted font-mono uppercase tracking-widest mt-1">
                    <span>ID: {detailFinding.id}</span>
                    <span>•</span>
@@ -109,22 +108,18 @@ export function FindingDetailPanel({
         <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-cyber">
            <div className="grid grid-cols-4 gap-4">
               <div className="glass-panel p-4 rounded-xl">
-  // eslint-disable-next-line security/detect-object-injection
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">CSI Index</div>
                  <div className="text-2xl font-black text-accent">{detailFinding.csi_score || 'N/A'}</div>
               </div>
               <div className="glass-panel p-4 rounded-xl">
-  // eslint-disable-next-line security/detect-object-injection
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Confidence</div>
                  <div className="text-2xl font-black text-white">{Math.round(detailFinding.confidence * 100)}%</div>
               </div>
               <div className="glass-panel p-4 rounded-xl">
-  // eslint-disable-next-line security/detect-object-injection
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">State</div>
                  <div className="text-sm font-black text-text uppercase mt-2">{detailFinding.lifecycle_state}</div>
               </div>
               <div className="glass-panel p-4 rounded-xl">
-  // eslint-disable-next-line security/detect-object-injection
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Severity</div>
                  <div className={`text-sm font-black uppercase mt-2 ${
                    detailFinding.severity === 'critical' ? 'text-bad' : 'text-accent'
@@ -154,7 +149,6 @@ export function FindingDetailPanel({
               ))}
            </div>
 
-  // eslint-disable-next-line security/detect-object-injection
            <div className="min-h-[300px]">
               {detailTab === 'csi' && (
                 <div className="space-y-6">
@@ -169,12 +163,10 @@ export function FindingDetailPanel({
                      </div>
                    ) : remediation.length > 0 ? (
                      <div className="grid gap-2">
-  // eslint-disable-next-line security/detect-object-injection
                        <div className="text-[9px] font-black text-muted uppercase tracking-widest">Remediation Signals</div>
                        {remediation.slice(0, 3).map((item) => (
                          <div key={item.id} className="p-3 bg-black/30 border border-white/5 rounded-xl">
                            <div className="text-xs font-bold text-text">{item.title}</div>
-  // eslint-disable-next-line security/detect-object-injection
                            {item.rationale && <p className="text-[10px] text-muted mt-1">{item.rationale}</p>}
                          </div>
                        ))}
@@ -205,12 +197,9 @@ export function FindingDetailPanel({
         {/* Footer Actions */}
         <div className="px-8 py-6 bg-white/5 border-t border-white/5 flex justify-between items-center">
            <div className="flex gap-4">
-  // eslint-disable-next-line security/detect-object-injection
               <button className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black">Flag False Positive</button>
-  // eslint-disable-next-line security/detect-object-injection
               <button className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black">Retest Link</button>
            </div>
-  // eslint-disable-next-line security/detect-object-injection
            <button className="btn-primary btn-small uppercase tracking-widest text-[9px] font-black" onClick={onClose}>Acknowledge</button>
         </div>
       </motion.div>

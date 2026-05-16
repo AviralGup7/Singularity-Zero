@@ -22,11 +22,8 @@ export const DurationForecast = memo(function DurationForecast({ durations, load
         role="status"
         aria-label="Loading duration forecast"
       >
-  // eslint-disable-next-line security/detect-object-injection
         <div className="h-4 bg-[var(--muted)]/20 rounded-sm w-48 mb-3" />
-  // eslint-disable-next-line security/detect-object-injection
         <div className="h-3 bg-[var(--muted)]/20 rounded-sm w-32 mb-2" />
-  // eslint-disable-next-line security/detect-object-injection
         <div className="h-3 bg-[var(--muted)]/20 rounded-sm w-64" />
       </div>
     );
@@ -44,7 +41,6 @@ export const DurationForecast = memo(function DurationForecast({ durations, load
         role="status"
         aria-label="No duration forecast available"
       >
-  // eslint-disable-next-line security/detect-object-injection
         <p className="text-[var(--muted)] text-[length:var(--text-sm)] font-mono">
           No historical duration data available. Duration estimates will appear after more scans complete.
         </p>
@@ -73,18 +69,14 @@ export const DurationForecast = memo(function DurationForecast({ durations, load
       role="region"
       aria-label="Duration forecast"
     >
-  // eslint-disable-next-line security/detect-object-injection
       <h3 className="border-b border-[var(--line)] pb-2 mb-3 font-mono text-[length:var(--text-lg)] font-bold text-[var(--accent)] uppercase tracking-wider">
         ⏱️ Duration Forecast
       </h3>
 
-  // eslint-disable-next-line security/detect-object-injection
       <p className="text-[var(--muted)] text-[length:var(--text-sm)] font-mono mb-4">
         This scan typically takes{' '}
-  // eslint-disable-next-line security/detect-object-injection
         <span className="text-[var(--accent)]">{formatDuration(p50)}</span>
         {' – '}
-  // eslint-disable-next-line security/detect-object-injection
         <span className="text-[var(--warn)]">{formatDuration(p90)}</span>
         {' '}based on historical data
       </p>
@@ -98,19 +90,15 @@ export const DurationForecast = memo(function DurationForecast({ durations, load
 
       {stageEntries.length > 0 && (
         <div>
-  // eslint-disable-next-line security/detect-object-injection
           <h4 className="font-mono text-[length:var(--text-sm)] font-bold text-[var(--text)] uppercase tracking-wider mb-2">
             Per-Stage Breakdown
           </h4>
           <div className="space-y-2">
-  // eslint-disable-next-line security/detect-object-injection
             {stageEntries.map(([stage, stats]) => (
               <div key={stage} className="flex items-center gap-3">
-  // eslint-disable-next-line security/detect-object-injection
                 <span className="font-mono text-[length:var(--text-xs)] text-[var(--text)] w-24 truncate" title={stage}>
                   {stage}
                 </span>
-  // eslint-disable-next-line security/detect-object-injection
                 <div className="flex-1 h-3 bg-[var(--muted)]/10 rounded-sm overflow-hidden">
                   <div
    
@@ -123,11 +111,9 @@ export const DurationForecast = memo(function DurationForecast({ durations, load
                     aria-label={`${stage}: ${formatDuration(stats.mean)} average`}
                   />
                 </div>
-  // eslint-disable-next-line security/detect-object-injection
                 <span className="font-mono text-[length:var(--text-xs)] text-[var(--muted)] w-16 text-right">
                   {formatDuration(stats.mean)}
                 </span>
-  // eslint-disable-next-line security/detect-object-injection
                 <span className="font-mono text-[length:var(--text-xs)] text-[var(--muted)] w-12 text-right opacity-60">
                   n={stats.count}
                 </span>
@@ -144,11 +130,9 @@ function ForecastStat({ label, value }: { label: string; value: number }) {
   return (
    
     <div className="text-center p-2 bg-[var(--muted)]/5 border border-[var(--line)] rounded-sm">
-  // eslint-disable-next-line security/detect-object-injection
       <div className="font-mono text-[length:var(--text-xs)] text-[var(--muted)] uppercase mb-1">
         {label}
       </div>
-  // eslint-disable-next-line security/detect-object-injection
       <div className="font-mono text-[length:var(--text-sm)] font-bold text-[var(--accent)]">
         {formatDuration(value)}
       </div>

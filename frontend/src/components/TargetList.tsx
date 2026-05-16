@@ -58,7 +58,6 @@ const TargetCard = memo(function TargetCard({ target }: { target: Target }) {
 
       {severityEntries.length > 0 && (
         <div className="severity-badges">
-  // eslint-disable-next-line security/detect-object-injection
           {severityEntries.map(([sev, count]) => (
             <SeverityBadge key={sev} severity={sev} count={count} />
           ))}

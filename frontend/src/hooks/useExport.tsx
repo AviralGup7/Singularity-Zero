@@ -26,10 +26,8 @@ function stripPII(data: Record<string, unknown>[]): Record<string, unknown>[] {
    
     for (const [key, value] of Object.entries(row)) {
       if (piiKeys.some((pii) => key.toLowerCase().includes(pii))) {
-  // eslint-disable-next-line security/detect-object-injection
         cleaned[key] = '[REDACTED]';
       } else {
-  // eslint-disable-next-line security/detect-object-injection
         cleaned[key] = value;
       }
     }
@@ -46,7 +44,6 @@ function exportToCSV(data: Record<string, unknown>[], filename: string): void {
     headers.join(','),
     ...data.map((row) =>
       headers.map((h) => {
-  // eslint-disable-next-line security/detect-object-injection
         const val = row[h];
         const str = val === null || val === undefined ? '' : String(val);
         return str.includes(',') || str.includes('"') || str.includes('\n')

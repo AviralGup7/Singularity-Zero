@@ -24,7 +24,6 @@ export function Dropdown({ trigger, children, align = 'left', className }: Dropd
       <DropdownMenuTrigger asChild>
         <span className="inline-block">{trigger}</span>
       </DropdownMenuTrigger>
-  // eslint-disable-next-line security/detect-object-injection
       <DropdownMenuContent align={alignMap[align]} className={className}>
         {children}
       </DropdownMenuContent>

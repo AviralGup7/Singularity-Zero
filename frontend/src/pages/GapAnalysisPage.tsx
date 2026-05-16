@@ -239,7 +239,6 @@ export function GapAnalysisPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-  // eslint-disable-next-line security/detect-object-injection
               <tr className="bg-white/5 text-[10px] uppercase tracking-tighter font-black text-muted border-b border-white/5">
                 <th className="p-4 cursor-pointer hover:text-text transition-colors" onClick={() => handleSort('module')}>
                   Module {sortKey === 'module' && (sortDir === 'asc' ? '↑' : '↓')}
@@ -263,7 +262,6 @@ export function GapAnalysisPage() {
                     <div className="font-bold text-sm text-text">{row.module}</div>
                   </td>
                   <td className="p-4">
-  // eslint-disable-next-line security/detect-object-injection
                     <span className="text-[10px] font-mono text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/20">
                       {row.category}
                     </span>
@@ -285,14 +283,12 @@ export function GapAnalysisPage() {
                           style={{ width: `${row.coverage_percent}%` }}
                         />
                       </div>
-  // eslint-disable-next-line security/detect-object-injection
                       <span className="text-[9px] font-mono text-muted tabular-nums">
                         {row.covered_checks}/{row.total_checks}
                       </span>
                     </div>
                   </td>
                   <td className="p-4">
-  // eslint-disable-next-line security/detect-object-injection
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
                       row.status === 'complete' ? 'bg-ok/10 text-ok border border-ok/20' :
                       row.status === 'partial' ? 'bg-warn/10 text-warn border border-warn/20' :
@@ -348,10 +344,8 @@ export function GapAnalysisPage() {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h4 className="font-bold text-text">{row.module}</h4>
-  // eslint-disable-next-line security/detect-object-injection
                       <p className="text-[10px] text-muted uppercase tracking-wider">Module deficiency report</p>
                     </div>
-  // eslint-disable-next-line security/detect-object-injection
                     <div className="bg-warn/10 text-warn text-[10px] font-bold px-2 py-0.5 rounded border border-warn/20">
                       -{row.missing_checks} Checks
                     </div>
@@ -361,14 +355,12 @@ export function GapAnalysisPage() {
                     {Array.from({ length: row.missing_checks }).map((_, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs text-muted/80 font-mono">
                         <span className="text-warn opacity-50">•</span>
-  // eslint-disable-next-line security/detect-object-injection
                         <span>[CORE_CAP_ERR_{row.category.toUpperCase()}_{i + 1}] Missing coverage for edge-case validation</span>
                       </div>
                     ))}
                   </div>
                   
                   <div className="mt-4 pt-4 border-t border-white/5">
-  // eslint-disable-next-line security/detect-object-injection
                     <button className="text-[10px] text-accent hover:underline font-bold uppercase tracking-widest">
                       View Mitigation Guide
                     </button>

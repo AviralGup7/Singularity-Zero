@@ -80,7 +80,6 @@ export function JobsPage() {
           />
         </div>
         <div className="filter-buttons" role="group" aria-label="Filter by status">
-  // eslint-disable-next-line security/detect-object-injection
           {['all', 'running', 'completed', 'failed', 'stopped'].map((status) => (
             <button
               key={status}

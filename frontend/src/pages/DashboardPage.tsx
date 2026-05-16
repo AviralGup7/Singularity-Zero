@@ -115,7 +115,6 @@ export function DashboardPage() {
                       <span className="text-sm font-medium text-text group-hover:text-accent transition-colors">{job.id.slice(0, 8)}</span>
                       <span className="text-xs text-muted truncate">{job.target_name}</span>
                     </div>
-  // eslint-disable-next-line security/detect-object-injection
                     <div className="text-[11px] text-muted uppercase tracking-wide">{job.stage_label || job.stage}</div>
                   </div>
 

@@ -95,12 +95,10 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
       const nonDefaultExec = Object.entries(form.executionOptions)
    
         .filter(([, v]) => v)
-  // eslint-disable-next-line security/detect-object-injection
         .reduce((acc, [k, v]) => { acc[k] = v; return acc; }, {} as Record<string, boolean>);
       const nonEmptyOverrides = Object.entries(form.runtimeOverrides)
    
         .filter(([, v]) => v.trim().length > 0)
-  // eslint-disable-next-line security/detect-object-injection
         .reduce((acc, [k, v]) => { acc[k] = v.trim(); return acc; }, {} as Record<string, string>);
       const scope = form.scopeText.trim() || undefined;
 

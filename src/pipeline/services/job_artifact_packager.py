@@ -230,7 +230,7 @@ class JobArtifactPackager:
         """Return current git commit hash and dirty flag."""
         try:
             hash_result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
+                ["git", "rev-parse", "HEAD"],  # noqa: S607
                 capture_output=True,
                 text=True,
                 timeout=10,

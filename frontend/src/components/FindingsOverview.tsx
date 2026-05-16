@@ -79,12 +79,10 @@ export default function FindingsOverview() {
           tabIndex={0}
         >
           <Shield className="absolute -right-4 -bottom-4 w-24 h-24 text-white/5 group-hover:text-white/10 transition-all" />
-  // eslint-disable-next-line security/detect-object-injection
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
             <Zap size={12} className="text-accent" /> Findings
           </div>
           <div className="text-3xl font-black text-white">{metrics.total}</div>
-  // eslint-disable-next-line security/detect-object-injection
           <div className="text-[10px] text-muted mt-1 uppercase tracking-tighter">Verified intelligence points</div>
         </div>
 
@@ -97,12 +95,10 @@ export default function FindingsOverview() {
           tabIndex={0}
         >
           <Target className="absolute -right-4 -bottom-4 w-24 h-24 text-white/5 group-hover:text-white/10 transition-all" />
-  // eslint-disable-next-line security/detect-object-injection
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
             <Activity size={12} className="text-accent" /> Scan Coverage
           </div>
           <div className="text-3xl font-black text-white">{metrics.coverage}</div>
-  // eslint-disable-next-line security/detect-object-injection
           <div className="text-[10px] text-muted mt-1 uppercase tracking-tighter">Targets with active findings</div>
         </div>
 
@@ -115,18 +111,15 @@ export default function FindingsOverview() {
           role="button"
           tabIndex={0}
         >
-  // eslint-disable-next-line security/detect-object-injection
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
             <Shield size={12} className="text-accent" /> Security Score
           </div>
           <div className={`text-4xl font-black ${metrics.color}`}>{metrics.securityScore}</div>
-  // eslint-disable-next-line security/detect-object-injection
           <div className="text-[10px] text-muted mt-1 uppercase tracking-tighter">Weighted resilience index</div>
         </div>
 
         {/* Posture */}
         <div className="glass-panel p-6 rounded-2xl cursor-default">
-  // eslint-disable-next-line security/detect-object-injection
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
              Posture Status
           </div>
@@ -140,10 +133,8 @@ export default function FindingsOverview() {
 
       {/* Severity Breakdown */}
       <div className="glass-panel p-8 rounded-2xl border border-white/5">
-  // eslint-disable-next-line security/detect-object-injection
         <h4 className="text-[10px] font-black text-muted uppercase tracking-[0.3em] mb-8">Severity Distribution Matrix</h4>
         <div className="flex items-end h-32 gap-4">
-  // eslint-disable-next-line security/detect-object-injection
           {['critical', 'high', 'medium', 'low', 'info'].map(sev => {
             const count = (summary.severity_totals ? (Reflect.get(summary.severity_totals, sev) as number) : 0) || 0;
             const maxCount = Math.max(...Object.values(summary.severity_totals || {}), 1);
@@ -172,13 +163,11 @@ export default function FindingsOverview() {
                 <div className="relative w-full flex flex-col justify-end h-full">
                   <div className={`w-full rounded-t-lg transition-all duration-700 group-hover:scale-x-110 ${Reflect.get(colors, sev)}`} 
                        style={{ height: `${Math.max(5, height)}%` }}>
-  // eslint-disable-next-line security/detect-object-injection
                     <div className="opacity-0 group-hover:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-white transition-opacity">
                       {count}
                     </div>
                   </div>
                 </div>
-  // eslint-disable-next-line security/detect-object-injection
                 <span className="text-[9px] font-black text-muted uppercase tracking-widest group-hover:text-white transition-colors">{sev}</span>
               </div>
             );

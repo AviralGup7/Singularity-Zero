@@ -171,12 +171,10 @@ export const ModulePerformanceChart = memo(function ModulePerformanceChart({ dat
       </div>
       <div className="chart-summary">
         <span className="chart-summary-item">
-  // eslint-disable-next-line security/detect-object-injection
           <span className="chart-summary-dot" style={{ backgroundColor: BAR_COLORS[0] }} />
           Duration (s)
         </span>
         <span className="chart-summary-item">
-  // eslint-disable-next-line security/detect-object-injection
           <span className="chart-summary-dot" style={{ backgroundColor: BAR_COLORS[3] }} />
           Findings
         </span>
@@ -186,13 +184,11 @@ export const ModulePerformanceChart = memo(function ModulePerformanceChart({ dat
           <div className="cyber-tooltip-header">{hovered.name}</div>
           <div className="cyber-tooltip-body">
             <div className="cyber-tooltip-row">
-  // eslint-disable-next-line security/detect-object-injection
               <span className="cyber-tooltip-dot" style={{ backgroundColor: BAR_COLORS[0] }} />
               <span className="cyber-tooltip-label">duration:</span>
               <span className="cyber-tooltip-value">{hovered.duration.toFixed(2)}s</span>
             </div>
             <div className="cyber-tooltip-row">
-  // eslint-disable-next-line security/detect-object-injection
               <span className="cyber-tooltip-dot" style={{ backgroundColor: BAR_COLORS[3] }} />
               <span className="cyber-tooltip-label">findings:</span>
               <span className="cyber-tooltip-value">{hovered.findings}</span>

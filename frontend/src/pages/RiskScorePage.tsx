@@ -124,7 +124,6 @@ export function RiskScorePage() {
 
   const lineData = useMemo(() => columns.map((day) => {
     const row: Record<string, string | number> = { day: day.slice(5) };
-  // eslint-disable-next-line security/detect-object-injection
     for (const target of visibleTargets) row[target] = heatmapByTargetDay.get(`${target}:${day}`)?.csi_value ?? 0;
     return row;
    
@@ -257,7 +256,6 @@ export function RiskScorePage() {
                 <LineChart data={lineData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
                   <XAxis dataKey="day" stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-  // eslint-disable-next-line security/detect-object-injection
                   <YAxis domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
                   <Legend />
@@ -279,11 +277,9 @@ export function RiskScorePage() {
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
-  // eslint-disable-next-line security/detect-object-injection
                   <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
                   <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
                   <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
-  // eslint-disable-next-line security/detect-object-injection
                   <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -300,7 +296,6 @@ export function RiskScorePage() {
                 <p>{selectedPoint.timestamp.slice(0, 10)} - CSI {selectedPoint.csi_value.toFixed(1)} ({scoreLabel(selectedPoint.csi_value)})</p>
               </div>
               <div className="risk-severity-breakdown">
-  // eslint-disable-next-line security/detect-object-injection
                 {Object.entries(selectedPoint.severity_breakdown).map(([severity, count]) => (
                   <span key={severity} className={`status-pill status-${severity}`}>{severity}: {count}</span>
                 ))}

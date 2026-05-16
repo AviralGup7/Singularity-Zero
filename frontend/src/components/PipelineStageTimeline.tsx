@@ -27,7 +27,6 @@ const STAGE_ALIASES: Record<string, string> = {
 function normalizeStageName(stageName: string | undefined): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
-  // eslint-disable-next-line security/detect-object-injection
   return STAGE_ALIASES[normalized] ?? normalized;
 }
 

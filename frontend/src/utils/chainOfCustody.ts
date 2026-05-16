@@ -173,7 +173,6 @@ function saveEvidenceRecord(record: EvidenceRecord): void {
     const records = getAllEvidenceRecords();
     const idx = records.findIndex((r) => r.id === record.id);
     if (idx >= 0) {
-  // eslint-disable-next-line security/detect-object-injection
       records[idx] = record;
     } else {
       records.push(record);

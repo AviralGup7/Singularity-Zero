@@ -91,7 +91,6 @@ export function StatePulse({ state, className }: StatePulseProps) {
    
     const ring = cloned.layers?.[0]?.shapes?.[1];
     if (ring && typeof ring === 'object' && 'c' in ring) {
-  // eslint-disable-next-line security/detect-object-injection
       (ring as { c: { a: number; k: number[] } }).c.k = hexToRgbArray(stateColor[state]);
     }
     return cloned;
@@ -101,7 +100,6 @@ export function StatePulse({ state, className }: StatePulseProps) {
   if (!policy.allowLottie) {
     return (
       <span className={`state-pulse-fallback state-pulse-${state} ${className ?? ''}`}>
-  // eslint-disable-next-line security/detect-object-injection
         {fallbackLabel[state]}
       </span>
     );

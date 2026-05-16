@@ -48,46 +48,37 @@ export function StalledExplainerPanel({
       <div className="flex items-start gap-3">
         <span className="text-xl animate-pulse flex-shrink-0" aria-hidden="true">⏳</span>
         <div className="flex-1 min-w-0">
-  // eslint-disable-next-line security/detect-object-injection
           <p className="font-mono text-[length:var(--text-sm)] font-bold text-[var(--warn)] uppercase tracking-wider mb-1">
             Scan is still running — no action needed
           </p>
-  // eslint-disable-next-line security/detect-object-injection
           <p className="text-[var(--text)] text-[length:var(--text-sm)] opacity-80 mb-2">
             {probableCause}
           </p>
-  // eslint-disable-next-line security/detect-object-injection
           <div className="flex flex-wrap gap-3 text-[length:var(--text-xs)] font-mono text-[var(--muted)] mb-2">
             <span>
               Stage:{' '}
-  // eslint-disable-next-line security/detect-object-injection
               <span className="text-[var(--warn)]">{stageLabel || stage}</span>
             </span>
             <span>
               Last update:{' '}
-  // eslint-disable-next-line security/detect-object-injection
               <span className="text-[var(--warn)]">{formatSeconds(secondsSinceUpdate)} ago</span>
             </span>
             {elapsedLabel && (
               <span>
                 Elapsed:{' '}
-  // eslint-disable-next-line security/detect-object-injection
                 <span className="text-[var(--warn)]">{elapsedLabel}</span>
               </span>
             )}
             {expectedDuration && (
               <span>
                 Expected:{' '}
-  // eslint-disable-next-line security/detect-object-injection
                 <span className="text-[var(--warn)]">{expectedDuration}</span>
               </span>
             )}
           </div>
           {suggestedActions.length > 0 && (
             <div className="mt-2">
-  // eslint-disable-next-line security/detect-object-injection
               <p className="text-[length:var(--text-xs)] font-mono text-[var(--warn)] mb-1">Suggested actions:</p>
-  // eslint-disable-next-line security/detect-object-injection
               <ul className="list-disc list-inside text-[length:var(--text-xs)] font-mono text-[var(--muted)] space-y-0.5">
                 {suggestedActions.map((action, i) => (
                   <li key={i}>{action}</li>

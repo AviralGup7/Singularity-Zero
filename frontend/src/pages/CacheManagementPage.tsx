@@ -39,7 +39,6 @@ function formatBytes(bytes?: number | null): string {
    
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  // eslint-disable-next-line security/detect-object-injection
   return `${(value / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
@@ -64,7 +63,6 @@ function StatusPill({ connected }: { connected: boolean }) {
   return (
    
     <span className={`inline-flex items-center gap-2 text-xs font-mono ${connected ? 'text-[var(--ok)]' : 'text-[var(--muted)]'}`}>
-  // eslint-disable-next-line security/detect-object-injection
       <span className={`h-2 w-2 rounded-full ${connected ? 'bg-[var(--ok)]' : 'bg-[var(--muted)]'}`} />
       {connected ? 'Connected' : 'Not connected'}
     </span>
@@ -92,12 +90,9 @@ function MetricCard({
     <section className="card p-4 min-h-[132px]">
       <div className="flex items-start justify-between gap-3">
         <div>
-  // eslint-disable-next-line security/detect-object-injection
           <p className="text-xs text-[var(--muted)] font-mono uppercase tracking-wider">{label}</p>
-  // eslint-disable-next-line security/detect-object-injection
           <p className="mt-2 text-2xl font-bold text-[var(--text)]">{value}</p>
         </div>
-  // eslint-disable-next-line security/detect-object-injection
         <div className="rounded border border-[var(--line)] p-2 text-[var(--accent)]" aria-hidden="true">
           {icon}
         </div>
@@ -105,7 +100,6 @@ function MetricCard({
       {progress !== undefined && (
         <Progress className="mt-4" value={clampPercent(progress)} variant={variant} size="sm" />
       )}
-  // eslint-disable-next-line security/detect-object-injection
       {helper && <p className="mt-3 text-xs text-[var(--muted)]">{helper}</p>}
     </section>
   );
@@ -123,15 +117,12 @@ function HitRateGauge({ value }: { value?: number | null }) {
         }}
         aria-label={`Hit rate ${Math.round(percent)} percent`}
       >
-  // eslint-disable-next-line security/detect-object-injection
         <div className="grid h-16 w-16 place-items-center rounded-full bg-[var(--bg)] text-lg font-bold">
           {formatRatio(value)}
         </div>
       </div>
       <div className="min-w-0">
-  // eslint-disable-next-line security/detect-object-injection
         <p className="font-mono text-xs uppercase tracking-wider text-[var(--muted)]">Hit Rate</p>
-  // eslint-disable-next-line security/detect-object-injection
         <p className="mt-1 text-sm text-[var(--text)]">Miss rate {formatRatio(value === null || value === undefined ? null : 1 - value)}</p>
       </div>
     </div>
@@ -157,14 +148,12 @@ function PerformanceLineChart({
   const chartHeight = height - padding.top - padding.bottom;
   const xFor = (index: number) => padding.left + (data.length === 1 ? 0 : (index / (data.length - 1)) * chartWidth);
   const yFor = (value: number) => padding.top + (1 - clampPercent(value) / 100) * chartHeight;
-  // eslint-disable-next-line security/detect-object-injection
   const pathFor = (key: 'hit' | 'miss') => data.map((point, index) => `${xFor(index)},${yFor(point[key])}`).join(' ');
   const xTicks = data.filter((_, index) => index === 0 || index === data.length - 1 || index % Math.max(1, Math.floor(data.length / 4)) === 0);
 
   return (
     <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Cache hit and miss rate history">
       <title>Cache performance history</title>
-  // eslint-disable-next-line security/detect-object-injection
       {[0, 25, 50, 75, 100].map(tick => (
         <g key={tick}>
           <line x1={padding.left} x2={width - padding.right} y1={yFor(tick)} y2={yFor(tick)} stroke="var(--line)" strokeDasharray="4 4" />
@@ -371,9 +360,7 @@ export function CacheManagementPage() {
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-  // eslint-disable-next-line security/detect-object-injection
           <h1 className="text-2xl font-bold text-[var(--text)]">Cache Management</h1>
-  // eslint-disable-next-line security/detect-object-injection
           <p className="text-sm text-[var(--muted)]">Redis, SQLite, key exploration, and rolling cache performance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -395,18 +382,15 @@ export function CacheManagementPage() {
       {(error || message) && (
         <div className="banner" role="status">
           <span>{error || message}</span>
-  // eslint-disable-next-line security/detect-object-injection
           <button className="ml-3 text-xs text-[var(--muted)] hover:text-[var(--text)]" onClick={() => { setError(null); setMessage(null); }}>
             Dismiss
           </button>
         </div>
       )}
 
-  // eslint-disable-next-line security/detect-object-injection
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-  // eslint-disable-next-line security/detect-object-injection
             <h2 className="font-mono text-sm uppercase tracking-wider text-[var(--muted)]">Redis Overview</h2>
             <StatusPill connected={!!status?.redis.connected} />
           </div>
@@ -425,7 +409,6 @@ export function CacheManagementPage() {
               helper={`${status?.redis.connected_clients ?? 0} clients connected`}
               tone="success"
             />
-  // eslint-disable-next-line security/detect-object-injection
             <section className="card p-4 min-h-[132px]">
               <HitRateGauge value={status?.redis.hit_rate} />
             </section>
@@ -434,7 +417,6 @@ export function CacheManagementPage() {
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-  // eslint-disable-next-line security/detect-object-injection
             <h2 className="font-mono text-sm uppercase tracking-wider text-[var(--muted)]">SQLite Overview</h2>
             <StatusPill connected={!!status?.sqlite.connected} />
           </div>
@@ -458,14 +440,11 @@ export function CacheManagementPage() {
         </div>
       </section>
 
-  // eslint-disable-next-line security/detect-object-injection
       <section className="grid gap-6 xl:grid-cols-[1fr_0.85fr]">
         <div className="card p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-  // eslint-disable-next-line security/detect-object-injection
               <h2 className="text-lg font-semibold text-[var(--text)]">Key Explorer</h2>
-  // eslint-disable-next-line security/detect-object-injection
               <p className="text-sm text-[var(--muted)]">{keys?.connected ? `${keys.count} keys shown` : 'Not connected'}</p>
             </div>
             <form className="flex flex-col gap-2 sm:flex-row" onSubmit={handleSearch}>
@@ -477,16 +456,13 @@ export function CacheManagementPage() {
             </form>
           </div>
 
-  // eslint-disable-next-line security/detect-object-injection
           <div className="mt-4 overflow-hidden border border-[var(--line)]">
-  // eslint-disable-next-line security/detect-object-injection
             <div className="grid grid-cols-[1fr_86px_92px_84px] gap-3 bg-[var(--panel)] px-3 py-2 text-xs font-mono uppercase tracking-wider text-[var(--muted)]">
               <span>Key</span>
               <span>TTL</span>
               <span>Size</span>
               <span className="text-right">Action</span>
             </div>
-  // eslint-disable-next-line security/detect-object-injection
             <div className="max-h-[360px] overflow-auto">
               {!keys?.connected && (
    
@@ -500,14 +476,10 @@ export function CacheManagementPage() {
    
                 <div key={item.key} className="grid grid-cols-[1fr_86px_92px_84px] items-center gap-3 border-t border-[var(--line)] px-3 py-2 text-sm">
                   <div className="min-w-0">
-  // eslint-disable-next-line security/detect-object-injection
                     <p className="truncate font-mono text-[var(--text)]" title={item.key}>{item.key}</p>
-  // eslint-disable-next-line security/detect-object-injection
                     <p className="text-xs text-[var(--muted)]">{item.type || 'unknown'}</p>
                   </div>
-  // eslint-disable-next-line security/detect-object-injection
                   <span className="font-mono text-xs text-[var(--muted)]">{ttlLabel(item.ttl)}</span>
-  // eslint-disable-next-line security/detect-object-injection
                   <span className="font-mono text-xs text-[var(--muted)]">{formatBytes(item.size)}</span>
                   <Button size="sm" variant="ghost" onClick={() => handleDeletePattern(item.key)} disabled={actionLoading}>
                     <Trash2 size={14} aria-hidden="true" />
@@ -521,7 +493,6 @@ export function CacheManagementPage() {
 
         <div className="space-y-6">
           <section className="card p-4">
-  // eslint-disable-next-line security/detect-object-injection
             <h2 className="text-lg font-semibold text-[var(--text)]">Actions</h2>
             <div className="mt-4 flex flex-col gap-3">
               <Input
@@ -540,17 +511,13 @@ export function CacheManagementPage() {
           <section className="card p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-  // eslint-disable-next-line security/detect-object-injection
                 <h2 className="text-lg font-semibold text-[var(--text)]">Cache Simulator</h2>
-  // eslint-disable-next-line security/detect-object-injection
                 <p className="truncate text-xs text-[var(--muted)]" title={simulator.key}>{simulator.key}</p>
               </div>
-  // eslint-disable-next-line security/detect-object-injection
               <Server className="text-[var(--accent)]" size={20} aria-hidden="true" />
             </div>
             <div className="mt-4 space-y-3">
               <div>
-  // eslint-disable-next-line security/detect-object-injection
                 <div className="flex justify-between text-xs font-mono text-[var(--muted)]">
                   <span>Cached lookup</span>
                   <span>{simulator.warm}ms</span>
@@ -558,19 +525,16 @@ export function CacheManagementPage() {
                 <Progress value={simulator.warm} max={simulator.cold} size="sm" variant="completed" />
               </div>
               <div>
-  // eslint-disable-next-line security/detect-object-injection
                 <div className="flex justify-between text-xs font-mono text-[var(--muted)]">
                   <span>After clear</span>
                   <span>{simulator.cold}ms</span>
                 </div>
                 <Progress value={simulator.cold} max={simulator.cold} size="sm" variant="failed" />
               </div>
-  // eslint-disable-next-line security/detect-object-injection
               <p className="text-sm text-[var(--text)]">{simulator.delta}ms estimated lookup penalty on the next miss.</p>
               {policy.allowFramer && (
    
                 <div className="relative h-8 overflow-hidden border border-[var(--line)] bg-[var(--panel)]" aria-hidden="true">
-  // eslint-disable-next-line security/detect-object-injection
                   {[0, 1, 2].map(index => (
                     <motion.span
                       key={index}
@@ -592,15 +556,11 @@ export function CacheManagementPage() {
       <section className="card p-4">
         <div className="mb-4 flex items-center justify-between">
           <div>
-  // eslint-disable-next-line security/detect-object-injection
             <h2 className="text-lg font-semibold text-[var(--text)]">Performance History</h2>
-  // eslint-disable-next-line security/detect-object-injection
             <p className="text-sm text-[var(--muted)]">Last hour at one-minute resolution.</p>
           </div>
-  // eslint-disable-next-line security/detect-object-injection
           <Activity className="text-[var(--accent)]" size={20} aria-hidden="true" />
         </div>
-  // eslint-disable-next-line security/detect-object-injection
         <div className="h-[280px]">
           <PerformanceLineChart data={chartData} animate={policy.allowFramer} />
         </div>

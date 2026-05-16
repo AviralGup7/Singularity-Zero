@@ -422,7 +422,6 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <div className="header-right-actions">
             <div className="header-live-pill">
-  // eslint-disable-next-line security/detect-object-injection
               {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) : 'A'}
             </div>
           </div>

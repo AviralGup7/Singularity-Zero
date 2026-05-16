@@ -31,7 +31,6 @@ export const IterationProgressBar = memo(function IterationProgressBar({
       aria-live="polite"
     >
       <div className="flex items-center justify-between mb-3">
-  // eslint-disable-next-line security/detect-object-injection
         <h3 className="font-mono text-[length:var(--text-lg)] font-bold text-[var(--accent)] uppercase tracking-wider">
           🔄 Passive Analysis
         </h3>
@@ -69,7 +68,6 @@ export const IterationProgressBar = memo(function IterationProgressBar({
             style={{ width: `${clampedPercent}%` }}
           />
         </div>
-  // eslint-disable-next-line security/detect-object-injection
         <div className="flex items-center justify-between mt-1 text-[length:var(--text-xs)] font-mono text-[var(--muted)]">
           <span>{Math.round(clampedPercent)}% complete</span>
           {previousFindings !== undefined && previousFindings > 0 && (

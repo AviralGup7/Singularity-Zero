@@ -39,7 +39,6 @@ const Progress = React.forwardRef<
         {...props}
       >
         <ProgressPrimitive.Indicator
-  // eslint-disable-next-line security/detect-object-injection
           className={cn('h-full w-full flex-1 transition-all duration-300', colors[variant])}
           style={{ transform: `translateX(-${100 - percent}%)` }}
         />

@@ -78,12 +78,10 @@ export function ThreatIntelPanel({ cveId, cweId }: ThreatIntelPanelProps) {
                 {(data.epss.epss * 100).toFixed(2)}%
               </span>
               {' '}
-  // eslint-disable-next-line security/detect-object-injection
               <span className="text-xs text-[var(--muted)]">
                 ({getEPSSLabel(data.epss.epss)})
               </span>
             </div>
-  // eslint-disable-next-line security/detect-object-injection
             <div className="text-xs text-[var(--muted)]">
               Percentile: {data.epss.percentile}%
             </div>

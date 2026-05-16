@@ -282,7 +282,6 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
         </div>
         
         <div className="flex items-center gap-3">
-  // eslint-disable-next-line security/detect-object-injection
           <label htmlFor="job-status-filter" className="text-[10px] font-black text-muted uppercase tracking-widest">Filter</label>
           <select 
             id="job-status-filter"

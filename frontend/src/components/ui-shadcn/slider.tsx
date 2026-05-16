@@ -14,9 +14,7 @@ const Slider = React.forwardRef<
     orientation?: "horizontal" | "vertical"
   }
 >(({ className, defaultValue, value, min = 0, max = 100, step = 1, disabled, orientation = "horizontal", ...props }, ref) => {
-  // eslint-disable-next-line security/detect-object-injection
   const currentValues = value ?? defaultValue ?? [0]
-  // eslint-disable-next-line security/detect-object-injection
   const percentage = ((currentValues[0] - min) / (max - min)) * 100
 
   return (
@@ -29,7 +27,6 @@ const Slider = React.forwardRef<
       role="slider"
       aria-valuemin={min}
       aria-valuemax={max}
-  // eslint-disable-next-line security/detect-object-injection
       aria-valuenow={currentValues[0]}
       aria-disabled={disabled}
       aria-orientation={orientation}

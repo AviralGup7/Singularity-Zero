@@ -89,7 +89,6 @@ export function useOnboardingTour(steps: OnboardingStep[] = DEFAULT_STEPS) {
     return () => { mounted = false; };
   }, []);
 
-  // eslint-disable-next-line security/detect-object-injection
   const current = steps[currentStep] || steps[0];
 
   useEffect(() => {

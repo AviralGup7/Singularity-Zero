@@ -131,9 +131,7 @@ export function NotificationCenter({
 
   const grouped = filtered.reduce<Record<string, Notification[]>>((acc, n) => {
     const key = n.type;
-  // eslint-disable-next-line security/detect-object-injection
     if (!acc[key]) acc[key] = [];
-  // eslint-disable-next-line security/detect-object-injection
     acc[key].push(n);
     return acc;
   }, {});
@@ -190,7 +188,6 @@ export function NotificationCenter({
           </div>
 
           <div className="notification-filters">
-  // eslint-disable-next-line security/detect-object-injection
             {(['all', 'scan_complete', 'scan_failed', 'new_finding', 'error'] as const).map(type => (
               <button
                 key={type}

@@ -30,7 +30,6 @@ export function ScanSummaryCard({ job, historicalComparison }: ScanSummaryCardPr
       role="region"
       aria-label="Scan summary"
     >
-  // eslint-disable-next-line security/detect-object-injection
       <h3 className="border-b border-[var(--line)] pb-2 mb-3 font-mono text-[length:var(--text-lg)] font-bold text-[var(--accent)] uppercase tracking-wider">
         ✅ Scan Complete
       </h3>
@@ -38,7 +37,6 @@ export function ScanSummaryCard({ job, historicalComparison }: ScanSummaryCardPr
       <div className="summary-grid mb-4">
         <div className="summary-item">
           <span className="summary-label">Duration</span>
-  // eslint-disable-next-line security/detect-object-injection
           <span className="summary-value font-mono text-[var(--accent)]">{durationLabel}</span>
         </div>
         <div className="summary-item">
@@ -67,13 +65,11 @@ export function ScanSummaryCard({ job, historicalComparison }: ScanSummaryCardPr
 
       {totalFindings > 0 && (
         <div className="mb-4">
-  // eslint-disable-next-line security/detect-object-injection
           <h4 className="font-mono text-[length:var(--text-sm)] font-bold text-[var(--text)] uppercase tracking-wider mb-2">
             Findings by Severity
           </h4>
           <div className="flex flex-wrap gap-2">
             {SEVERITY_ORDER.map((sev) => {
-  // eslint-disable-next-line security/detect-object-injection
               const count = severityTotals[sev] ?? 0;
               if (count === 0) return null;
               return (
@@ -138,7 +134,6 @@ function severityColorClass(sev: string): string {
    
     info: 'bg-[var(--muted)]/20 text-[var(--muted)] border-[var(--muted)]/40',
   };
-  // eslint-disable-next-line security/detect-object-injection
   return map[sev] ?? map.info;
 }
 

@@ -56,7 +56,6 @@ export function PIIAuditLogViewer() {
   return (
    
     <div className="border border-[var(--line)] p-3 mt-2">
-  // eslint-disable-next-line security/detect-object-injection
       <h4 className="font-mono text-[var(--accent)] text-xs font-bold uppercase tracking-wider mb-2">
         PII Audit Log ({logs.length})
       </h4>
@@ -64,15 +63,12 @@ export function PIIAuditLogViewer() {
         {logs.slice(0, 50).map((entry) => (
    
           <div key={entry.id} className="text-xs font-mono py-1 border-b border-[var(--table-border)]">
-  // eslint-disable-next-line security/detect-object-injection
             <span className={entry.action === 'revealed' ? 'text-[var(--warn)]' : 'text-[var(--ok)]'}>
               {entry.action}
             </span>
             {' '}
-  // eslint-disable-next-line security/detect-object-injection
             <span className="text-[var(--text)]">{entry.category}</span>
             {' '}
-  // eslint-disable-next-line security/detect-object-injection
             <span className="text-[var(--muted)]">
               by {entry.user} at {new Date(entry.timestamp).toLocaleString()}
             </span>
@@ -108,6 +104,5 @@ export function PIIAwareText({ text, category = 'custom' }: { text: string; cate
     custom: '[SENSITIVE REDACTED]',
   };
 
-  // eslint-disable-next-line security/detect-object-injection
   return <span className="pii-redacted-text">{REDACTION_MAP[category] || '[REDACTED]'}</span>;
 }

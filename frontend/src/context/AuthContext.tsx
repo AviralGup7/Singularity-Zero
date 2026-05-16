@@ -78,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const hasPermission = useCallback(
-  // eslint-disable-next-line security/detect-object-injection
     (permission: keyof Permission) => permissions[permission],
    
     [permissions]
@@ -87,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = useCallback(
     (role: UserRole) => {
       if (!user) return role === 'viewer';
-  // eslint-disable-next-line security/detect-object-injection
       return ROLE_HIERARCHY[user.role] >= ROLE_HIERARCHY[role];
     },
    

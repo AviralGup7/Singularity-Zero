@@ -67,17 +67,13 @@ export function JobTimelineComponent({ jobId }: { jobId: string }) {
         </div>
       )}
       <div className="relative pl-8 space-y-3">
-  // eslint-disable-next-line security/detect-object-injection
         <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-[#1f2937]" />
         {timeline.map((entry, i) => {
           const colorKey = entry.stage?.toLowerCase() || 'default';
-  // eslint-disable-next-line security/detect-object-injection
           const color = STAGE_COLORS[colorKey] || STAGE_COLORS.default;
           return (
             <div key={i} className="relative">
-  // eslint-disable-next-line security/detect-object-injection
               <div className={`absolute left-[-20px] top-1.5 w-2.5 h-2.5 rounded-full ${color}`} />
-  // eslint-disable-next-line security/detect-object-injection
               <div className="card p-3 border border-[#1f2937]">
                 <div className="flex items-center justify-between">
                   <div>

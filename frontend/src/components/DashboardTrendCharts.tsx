@@ -73,7 +73,6 @@ function StackedBarChart({ data, width, height, maxVal }: { data: Array<{ critic
       const x = i * (barWidth + 2);
       const y = height - cumulativeHeight - barH - 15;
       elements.push(
-  // eslint-disable-next-line security/detect-object-injection
         <rect key={`${i}-${key}`} x={x} y={y} width={barWidth} height={barH} fill={colors[key]} rx={1} />
       );
       cumulativeHeight += barH;

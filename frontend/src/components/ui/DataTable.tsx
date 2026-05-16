@@ -115,11 +115,8 @@ export function DataTable<T extends Record<string, unknown>>({
 
   return (
     <div className={cn('w-full', className)}>
-  // eslint-disable-next-line security/detect-object-injection
       <div className="overflow-x-auto border border-[var(--line)] bg-[var(--panel)]">
-  // eslint-disable-next-line security/detect-object-injection
         <table className="w-full text-[length:var(--text-sm)] font-mono">
-  // eslint-disable-next-line security/detect-object-injection
           <thead className="bg-[var(--table-header-bg)] border-b border-[var(--line)]">
             <tr>
               {columns.map((col) => (
@@ -169,7 +166,6 @@ export function DataTable<T extends Record<string, unknown>>({
                   {columns.map((col) => (
    
                     <td key={col.key} className={cn('px-3 py-2 text-[var(--text)]', col.className)}>
-  // eslint-disable-next-line security/detect-object-injection
                       {col.render ? col.render(item) : (item[col.key as keyof T] as React.ReactNode)}
                     </td>
                   ))}

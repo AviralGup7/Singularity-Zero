@@ -38,7 +38,6 @@ export function ExperimentalSection({
           <SettingToggle label="Attack Validation" checked={attackValidation} onChange={onAttackValidationChange} description="Validate findings with safe exploitation" />
           <SettingToggle label="Graph Intelligence" checked={graphIntelligence} onChange={onGraphIntelligenceChange} description="Use Kuzu graph-based analysis for kill-chains" />
           <div className="my-4 border-t border-white/5 pt-4">
-  // eslint-disable-next-line security/detect-object-injection
              <h5 className="text-[10px] font-black text-accent uppercase tracking-widest mb-4">Neural-Mesh Frontier Protocols</h5>
              <SettingToggle label="Polymorphic Evasion" checked={polymorphicEvasion} onChange={onPolymorphicEvasionChange} description="Real-time request fingerprint mutation (WAF bypass)" />
              <SettingToggle label="Anti-Forensic Mode" checked={antiForensicMode} onChange={onAntiForensicModeChange} description="RAM-only Ghost-VFS storage (Zero persistent footprint)" />

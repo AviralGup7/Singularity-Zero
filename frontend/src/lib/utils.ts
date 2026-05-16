@@ -8,7 +8,6 @@ export function cn(...inputs: ClassValue[]) {
 export function safeGet<V>(obj: Record<string, V>, key: string): V | undefined;
 export function safeGet<V>(obj: Record<string, V>, key: string, fallback: V): V;
 export function safeGet<V>(obj: Record<string, V>, key: string, fallback?: V): V | undefined {
-  // eslint-disable-next-line security/detect-object-injection
   return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : fallback;
 }
 
@@ -97,7 +96,6 @@ export function formatBytes(bytes: number): string {
    
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  // eslint-disable-next-line security/detect-object-injection
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 

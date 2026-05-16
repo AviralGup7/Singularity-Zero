@@ -36,7 +36,6 @@ const FindingRow = memo(function FindingRow({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-  // eslint-disable-next-line security/detect-object-injection
             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
               finding.severity === 'critical' ? 'bg-critical text-white' : 
               finding.severity === 'high' ? 'bg-high text-white' : 
@@ -47,28 +46,22 @@ const FindingRow = memo(function FindingRow({
             <h4 className="text-sm font-bold text-text truncate leading-none">{finding.title}</h4>
           </div>
           
-  // eslint-disable-next-line security/detect-object-injection
           <div className="flex items-center gap-3 text-[10px] text-muted font-mono">
             <span className="flex items-center gap-1"><Shield size={10} /> {finding.type}</span>
-  // eslint-disable-next-line security/detect-object-injection
             <span className="flex items-center gap-1 max-w-[200px] truncate"><ExternalLink size={10} /> {finding.url || finding.host}</span>
           </div>
         </div>
 
         <div className="shrink-0 flex items-center gap-6 pr-4">
           <div className="flex flex-col items-end">
-  // eslint-disable-next-line security/detect-object-injection
             <span className="text-[10px] text-white font-bold">{Math.round(finding.confidence * 100)}%</span>
-  // eslint-disable-next-line security/detect-object-injection
             <span className="text-[9px] text-muted uppercase tracking-tighter">Confidence</span>
           </div>
           <div className="w-px h-8 bg-white/5" />
           <div className="text-right">
-  // eslint-disable-next-line security/detect-object-injection
             <div className="text-[10px] text-muted flex items-center gap-1 justify-end">
               <Clock size={10} /> {new Date(timestamp).toLocaleDateString()}
             </div>
-  // eslint-disable-next-line security/detect-object-injection
             <div className="text-[9px] text-accent uppercase tracking-widest font-black">
               {finding.lifecycle_state}
             </div>
@@ -82,11 +75,9 @@ const FindingRow = memo(function FindingRow({
 const FindingHeader = memo(function FindingHeader({ count }: { count: number }) {
   return (
     <div className="px-6 py-4 flex justify-between items-center bg-black/40 border-b border-white/5 sticky top-0 z-10 backdrop-blur-md">
-  // eslint-disable-next-line security/detect-object-injection
       <span className="text-[10px] font-black text-muted uppercase tracking-widest">
         Aggregated Intelligence Grid ({count} points)
       </span>
-  // eslint-disable-next-line security/detect-object-injection
       <div className="flex gap-4 text-[9px] text-muted uppercase">
         <span>Filter: All</span>
         <span>Sort: Severity</span>
@@ -117,7 +108,6 @@ export const VirtualizedFindingsList = memo(function VirtualizedFindingsList({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted opacity-30 gap-4">
         <Shield size={48} strokeWidth={1} />
-  // eslint-disable-next-line security/detect-object-injection
         <p className="text-xs uppercase tracking-[0.2em]">Scan Grid Clear - No Findings</p>
       </div>
     );

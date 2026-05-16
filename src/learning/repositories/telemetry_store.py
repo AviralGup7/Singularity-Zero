@@ -327,7 +327,7 @@ class TelemetryStore:
         self._validate_schema(table, column)
         conn = self._get_conn()
         cur = conn.cursor()
-        query = f"DELETE FROM {table} WHERE {column} < ?"
+        query = f"DELETE FROM {table} WHERE {column} < ?"  # noqa: S608
         cur.execute(
             query,
             (cutoff,),

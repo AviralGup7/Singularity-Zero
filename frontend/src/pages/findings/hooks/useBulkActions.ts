@@ -55,7 +55,6 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-  // eslint-disable-next-line security/detect-object-injection
         next[id] = { ...(prev[id] || {}), ...updates };
         addAuditLog(id, 'bulk_status_change', `Changed to ${status}`);
       }
@@ -73,7 +72,6 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-  // eslint-disable-next-line security/detect-object-injection
         next[id] = { ...(prev[id] || {}), ...updates };
         addAuditLog(id, 'bulk_false_positive', 'Marked as false positive');
       }
@@ -92,7 +90,6 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-  // eslint-disable-next-line security/detect-object-injection
         next[id] = { ...(prev[id] || {}), assignedTo: assignee };
         addAuditLog(id, 'bulk_assign', `Assigned to ${assignee}`);
       }
@@ -110,7 +107,6 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-  // eslint-disable-next-line security/detect-object-injection
         next[id] = { ...(prev[id] || {}), _deleted: true } as unknown as Partial<Finding>;
         addAuditLog(id, 'bulk_delete', 'Deleted via bulk action');
       }

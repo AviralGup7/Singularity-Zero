@@ -100,7 +100,6 @@ export function useJobFormState() {
         const overrides: Record<string, string> = {};
    
         for (const [key, value] of Object.entries(defaults.form_defaults ?? {})) {
-  // eslint-disable-next-line security/detect-object-injection
           overrides[key] = value;
         }
         setRuntimeOverrides(overrides);
@@ -141,7 +140,6 @@ export function useJobFormState() {
   }, []);
 
   const toggleExecutionOption = useCallback((key: string) => {
-  // eslint-disable-next-line security/detect-object-injection
     setExecutionOptions(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 

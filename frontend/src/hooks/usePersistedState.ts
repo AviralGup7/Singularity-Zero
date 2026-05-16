@@ -5,7 +5,6 @@ import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 
  * Replaces the redundant localStorage logic across ThemeContext, DisplayContext, and SettingsContext.
  *
  * Usage:
-  // eslint-disable-next-line security/detect-object-injection
  *   const [theme, setTheme] = usePersistedState('cyber-pipeline-theme', defaultTheme, { ttl: 300 });
  */
 export function usePersistedState<T>(

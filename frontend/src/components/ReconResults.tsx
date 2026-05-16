@@ -65,7 +65,6 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
           <div className="flex items-center gap-3">
             <span className="recon-section-icon">🌐</span>
             <span className="recon-section-label font-bold uppercase tracking-wider text-sm">Subdomain Enumeration</span>
-  // eslint-disable-next-line security/detect-object-injection
             <span className="recon-section-count bg-accent/20 text-accent px-2 py-0.5 rounded-full text-[10px]">{(subdomains || []).length}</span>
           </div>
           {subdomains.length > 0 && (
@@ -94,7 +93,6 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
                     <tr key={idx} className="hover:bg-white/[0.02]">
                       <td className="py-2 font-bold text-text">{sd?.domain ?? '—'}</td>
                       <td className="py-2">
-  // eslint-disable-next-line security/detect-object-injection
                         <span className={`px-1.5 py-0.5 rounded-[4px] font-bold text-[9px] uppercase ${sd?.resolved ? 'bg-ok/10 text-ok' : 'bg-muted/10 text-muted'}`}>
                           {sd?.resolved ? 'Resolved' : 'Unresolved'}
                         </span>
@@ -123,7 +121,6 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
           <div className="flex items-center gap-3">
             <span className="recon-section-icon">🔗</span>
             <span className="recon-section-label font-bold uppercase tracking-wider text-sm">URL Discovery</span>
-  // eslint-disable-next-line security/detect-object-injection
             <span className="recon-section-count bg-accent/20 text-accent px-2 py-0.5 rounded-full text-[10px]">{(urls || []).length}</span>
           </div>
           {urls.length > 0 && (
@@ -188,7 +185,6 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
         <summary className="recon-section-header p-4 bg-white/5 cursor-pointer hover:bg-white/10 transition-colors flex items-center gap-3">
           <span className="recon-section-icon">🔧</span>
           <span className="recon-section-label font-bold uppercase tracking-wider text-sm">Parameter Extraction</span>
-  // eslint-disable-next-line security/detect-object-injection
           <span className="recon-section-count bg-accent/20 text-accent px-2 py-0.5 rounded-full text-[10px]">{(parameters || []).length}</span>
         </summary>
         <div className="recon-section-content p-4">
@@ -200,7 +196,6 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
                 <div key={idx} className="recon-param-item bg-white/5 p-3 rounded-lg border border-white/5 group">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-  // eslint-disable-next-line security/detect-object-injection
                       <span className="bg-accent/10 text-accent px-1.5 py-0.5 rounded font-black text-[9px] uppercase tracking-widest">{param?.method ?? '—'}</span>
                       <span className="text-xs text-text/80 truncate font-mono">{param?.url ?? '—'}</span>
                     </div>

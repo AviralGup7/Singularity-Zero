@@ -185,7 +185,6 @@ export function EvidenceDisplay({ evidence, className, defaultRedacted = false }
                   <div className={cn('evidence-raw-data', redacted && 'redacted')}>
                     <div className="evidence-raw-header">
                       <span>Raw Data</span>
-  // eslint-disable-next-line security/detect-object-injection
                       {redacted && <span className="redacted-label">[REDACTED]</span>}
                     </div>
                     <pre>{displayData}</pre>

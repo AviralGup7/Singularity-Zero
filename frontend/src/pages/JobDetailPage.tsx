@@ -266,7 +266,6 @@ export function JobDetailPage() {
         <div className="card">
           <h3>Execution Options</h3>
           <div className="info-grid">
-  // eslint-disable-next-line security/detect-object-injection
             {Object.entries(job.execution_options).map(([key, value]) => (
               value ? <InfoItem key={key} label={key.replace(/_/g, ' ')} value="Enabled" /> : null
             ))}

@@ -139,7 +139,6 @@ export function NotificationsSection({
             <div className="webhook-events mt-4">
               <h4 className="text-sm font-semibold mb-2">Events to send:</h4>
               <div className="flex flex-wrap gap-2">
-  // eslint-disable-next-line security/detect-object-injection
                 {['scan_started', 'scan_completed', 'scan_failed', 'critical_finding', 'job_stalled'].map((event) => (
                   <label key={event} className="webhook-event-checkbox">
                     <input type="checkbox" defaultChecked />

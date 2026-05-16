@@ -81,7 +81,6 @@ export function PluginProgressGrid({
         role="status"
         aria-label="Loading plugin progress"
       >
-  // eslint-disable-next-line security/detect-object-injection
         <div className="h-4 bg-[var(--muted)]/20 rounded-sm w-48 mb-3" />
         {Array.from({ length: 3 }).map((_, i) => (
    
@@ -103,7 +102,6 @@ export function PluginProgressGrid({
         role="status"
         aria-label="No plugin progress data"
       >
-  // eslint-disable-next-line security/detect-object-injection
         <p className="text-[var(--muted)] text-[length:var(--text-sm)] font-mono">
           Plugin progress tracking is enabled. Progress will appear here once the analysis stage begins.
         </p>
@@ -124,15 +122,11 @@ export function PluginProgressGrid({
       aria-label="Plugin progress grid"
       aria-live="polite"
     >
-  // eslint-disable-next-line security/detect-object-injection
       <div className="flex items-center justify-between border-b border-[var(--line)] pb-2 mb-3">
-  // eslint-disable-next-line security/detect-object-injection
         <h3 className="font-mono text-[length:var(--text-lg)] font-bold text-[var(--accent)] uppercase tracking-wider">
           Plugin Progress
         </h3>
-  // eslint-disable-next-line security/detect-object-injection
         <div className="flex items-center gap-4 text-[length:var(--text-xs)] font-mono">
-  // eslint-disable-next-line security/detect-object-injection
           <span className="text-[var(--muted)]">
             {completedCount}/{plugins.length} complete
           </span>
@@ -144,7 +138,6 @@ export function PluginProgressGrid({
    
             <span className="text-[var(--warn)]">● {errorCount} errors</span>
           )}
-  // eslint-disable-next-line security/detect-object-injection
           <span className="text-[var(--text)]">
             {overallProgress}% overall
           </span>
@@ -152,7 +145,6 @@ export function PluginProgressGrid({
       </div>
 
       <div className="mb-3">
-  // eslint-disable-next-line security/detect-object-injection
         <div className="h-2 bg-[var(--muted)]/10 rounded-sm overflow-hidden">
           <div
             className={cn(
@@ -171,7 +163,6 @@ export function PluginProgressGrid({
       </div>
 
       <div className="space-y-3" role="list" aria-label="Plugin groups">
-  // eslint-disable-next-line security/detect-object-injection
         {grouped.map(([group, entries]) => {
           const isCollapsed = collapsed.has(group);
           const groupProcessed = entries.reduce((s, e) => s + e.processed, 0);
@@ -195,11 +186,9 @@ export function PluginProgressGrid({
                 aria-controls={`plugin-group-${group}`}
               >
                 <div className="flex items-center gap-2">
-  // eslint-disable-next-line security/detect-object-injection
                   <span className="text-[var(--muted)]">
                     {isCollapsed ? '▶' : '▼'}
                   </span>
-  // eslint-disable-next-line security/detect-object-injection
                   <span className="text-[var(--text)] font-bold">{group}</span>
                   {runningEntry && (
    
@@ -215,18 +204,15 @@ export function PluginProgressGrid({
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-  // eslint-disable-next-line security/detect-object-injection
                   <span className="text-[var(--muted)] text-[length:var(--text-xs)]">
                     {groupProcessed}/{groupTotal}
                   </span>
-  // eslint-disable-next-line security/detect-object-injection
                   <span className="text-[var(--text)] text-[length:var(--text-xs)] font-bold">
                     {groupPercent}%
                   </span>
                 </div>
               </button>
 
-  // eslint-disable-next-line security/detect-object-injection
               <div className="h-1.5 bg-[var(--muted)]/10 rounded-sm overflow-hidden mt-1">
                 <div
    
@@ -299,12 +285,10 @@ function PluginProgressItem({ entry }: { entry: PluginProgressEntry }) {
         >
           {entry.label}
         </span>
-  // eslint-disable-next-line security/detect-object-injection
         <span className="font-mono text-[length:var(--text-xs)] text-[var(--muted)]">
           {entry.percent}%
         </span>
       </div>
-  // eslint-disable-next-line security/detect-object-injection
       <div className="h-1 bg-[var(--muted)]/20 rounded-sm overflow-hidden">
         <div
           className={cn('h-full rounded-sm transition-all duration-300', progressColor)}

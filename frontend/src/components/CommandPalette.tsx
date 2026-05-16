@@ -236,7 +236,6 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
               role="listbox" 
               id="command-palette-listbox"
             >
-  // eslint-disable-next-line security/detect-object-injection
               {Array.from(grouped.entries()).map(([type, groupItems]) => (
                 <li key={type} className="command-palette-group" role="presentation">
                   <div className="command-palette-group-header">
