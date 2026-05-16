@@ -14,7 +14,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_kid_traversal(token: str, url: str, session) -> dict:
+def test_kid_traversal(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test kid header path traversal.
 
     Sets the kid claim to path traversal sequences like /dev/null or

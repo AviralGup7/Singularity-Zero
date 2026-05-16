@@ -107,7 +107,7 @@ async def _query_dns(
 def _resolve_a(domain: str) -> list[str]:
     """Resolve A records."""
     try:
-        return [addr[4][0] for addr in socket.getaddrinfo(domain, None, socket.AF_INET)]
+        return [str(addr[4][0]) for addr in socket.getaddrinfo(domain, None, socket.AF_INET)]
     except socket.gaierror:
         return []
 
@@ -115,7 +115,7 @@ def _resolve_a(domain: str) -> list[str]:
 def _resolve_aaaa(domain: str) -> list[str]:
     """Resolve AAAA records."""
     try:
-        return [addr[4][0] for addr in socket.getaddrinfo(domain, None, socket.AF_INET6)]
+        return [str(addr[4][0]) for addr in socket.getaddrinfo(domain, None, socket.AF_INET6)]
     except socket.gaierror:
         return []
 

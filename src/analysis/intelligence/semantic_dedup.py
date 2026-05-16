@@ -20,7 +20,7 @@ class SemanticDeduplicator:
     Uses Cosine Similarity in a vector space to detect functionally identical findings
     across different URLs or modules, even if descriptions slightly differ.
     """
-    def __init__(self, threshold: float = 0.85):
+    def __init__(self, threshold: float = 0.85) -> None:
         self._threshold = threshold
         self._vocabulary: dict[str, int] = {}
         self._next_id = 0
@@ -47,11 +47,11 @@ class SemanticDeduplicator:
 
     def compute_similarity(self, vec_a: np.ndarray, vec_b: np.ndarray) -> float:
         """Compute cosine similarity between two vectors."""
-        norm_a = np.linalg.norm(vec_a)
-        norm_b = np.linalg.norm(vec_b)
+        norm_a = float(np.linalg.norm(vec_a))
+        norm_b = float(np.linalg.norm(vec_b))
         if norm_a == 0 or norm_b == 0:
             return 0.0
-        return np.dot(vec_a, vec_b) / (norm_a * norm_b)
+        return float(np.dot(vec_a, vec_b)) / (norm_a * norm_b)
 
     def deduplicate(self, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
@@ -61,8 +61,8 @@ class SemanticDeduplicator:
         if not findings:
             return []
 
-        unique_findings = []
-        vectors = []
+        unique_findings: list[dict[str, Any]] = []
+        vectors: list[np.ndarray] = []
 
         for finding in findings:
             text = f"{finding.get('title', '')} {finding.get('description', '')}"

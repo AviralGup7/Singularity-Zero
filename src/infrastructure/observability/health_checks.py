@@ -305,10 +305,11 @@ async def _check_redis_health(config: dict[str, Any]) -> ComponentHealth:
     url = config.get("url", "redis://localhost:6379")
     try:
         import redis.asyncio as aioredis
+        from typing import Any, cast
 
         client = aioredis.from_url(url)
-        await client.ping()
-        info = await client.info("server")
+        await cast(Any, client.ping())
+        info = await cast(Any, client.info("server"))
         await client.aclose()
         rv = info.get("redis_version", "unknown")
         return ComponentHealth(

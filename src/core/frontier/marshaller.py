@@ -5,7 +5,7 @@ Implements high-speed, zero-allocation binary serialization for distributed stat
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import msgpack
 
@@ -25,7 +25,7 @@ class FrontierMarshaller:
         """Serialize data to binary MessagePack format."""
         try:
             # Fix #212: Use stateless packb for thread-safety
-            return msgpack.packb(data, use_bin_type=True)
+            return cast(bytes, msgpack.packb(data, use_bin_type=True))
         except Exception as e:
             logger.error("Marshaller: Packing failed: %s", e)
             raise
@@ -41,7 +41,7 @@ class FrontierMarshaller:
 
 def mesh_marshal(data: Any) -> bytes:
     """Helper for one-off mesh marshalling."""
-    return msgpack.packb(data, use_bin_type=True)
+    return cast(bytes, msgpack.packb(data, use_bin_type=True))
 
 def mesh_unmarshal(raw: bytes) -> Any:
     """Helper for one-off mesh unmarshalling."""

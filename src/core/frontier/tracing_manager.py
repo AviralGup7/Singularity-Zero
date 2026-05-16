@@ -41,7 +41,7 @@ class SQLiteSpanExporter:
     """OpenTelemetry SpanExporter-compatible SQLite writer."""
 
     def __init__(self, db_path: str | Path | None = None) -> None:
-        self.db_path = Path(db_path or os.getenv("OTEL_LOCAL_SPAN_DB", DEFAULT_TRACE_DB))
+        self.db_path = Path(db_path or os.getenv("OTEL_LOCAL_SPAN_DB") or DEFAULT_TRACE_DB)
         self._lock = threading.Lock()
         self._init_db()
 
@@ -76,10 +76,12 @@ class SQLiteSpanExporter:
             )
 
     def export(self, spans: Any) -> Any:
+        success_code = 0
         try:
             from opentelemetry.sdk.trace.export import SpanExportResult
+            success_code = SpanExportResult.SUCCESS
         except Exception:
-            SpanExportResult = None
+            pass
 
         rows = []
         for span in spans:
@@ -134,9 +136,7 @@ class SQLiteSpanExporter:
                     rows,
                 )
 
-        if SpanExportResult is not None:
-            return SpanExportResult.SUCCESS
-        return None
+        return success_code
 
     def shutdown(self) -> None:
         return None
@@ -153,6 +153,7 @@ class TracingManager:
     ) -> None:
         self.endpoint = endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", DEFAULT_OTLP_ENDPOINT)
         self.service_name = service_name
+        self._status_cache: str = ""
         self.local_exporter = SQLiteSpanExporter(db_path)
         self.otel_available = False
         self.initialization_error = ""

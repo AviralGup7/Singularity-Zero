@@ -9,7 +9,7 @@ import asyncio
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from starlette.websockets import WebSocket, WebSocketState
 
@@ -64,7 +64,7 @@ class ConnectionInfo:
             Monotonically increasing sequence number.
         """
         with self._sequence_lock:
-            return next(self.sequence_generator)
+            return cast(int, next(self.sequence_generator))
 
     def touch(self) -> None:
         """Update the last activity timestamp."""
@@ -191,7 +191,7 @@ class ConnectionManager:
             connection_id: The connection to remove.
         """
         async with self._lock:
-            info = self.connections.pop(connection_id, None)
+            info = self.connections.pop(connection_id, cast(Any, None))
             if info is None:
                 return
 

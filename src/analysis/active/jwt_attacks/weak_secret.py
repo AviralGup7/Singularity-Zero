@@ -15,7 +15,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_weak_secret(token: str, url: str, session) -> dict:
+def test_weak_secret(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test common weak JWT signing secrets."""
     result: dict[str, Any] = {"attack": "weak_secret", "vulnerable": False, "details": []}
     try:

@@ -9,7 +9,7 @@ import builtins
 import json
 import logging
 import threading
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +139,7 @@ class RedisBackend:
         try:
             keys = self._client.keys(f"{self._key_prefix}*")
             if keys:
-                return self._client.delete(*keys)
+                return int(self._client.delete(*keys))
             return 0
         except Exception as exc:
             logger.debug("Redis clear failed: %s", exc)

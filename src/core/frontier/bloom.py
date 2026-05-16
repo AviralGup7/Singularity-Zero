@@ -8,12 +8,15 @@ import math
 import os
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
+mmh3: Any
+
 try:
-    import mmh3
+    import mmh3 as _mmh3
+    mmh3 = _mmh3
 except ImportError:  # pragma: no cover - exercised only in minimal dev environments.
     class _MurmurFallback:
         @staticmethod
@@ -148,7 +151,7 @@ class NeuralBloomFilter:
         estimated = int(working // per_url_bytes)
         return max(min_chunk_size, min(max_chunk_size, estimated))
 
-    def add(self, item: str):
+    def add(self, item: str) -> None:
         """Add an item to the filter."""
         for offset in self._get_offsets(item):
             byte_idx = offset // 8
@@ -277,7 +280,7 @@ class NeuralBloomFilter:
 
     def load_snapshot_bytes(self, payload: bytes) -> np.ndarray:
         """Decode a Bloom snapshot into an owned NumPy array."""
-        bits = np.frombuffer(payload, dtype=np.uint8).copy()
+        bits = cast(np.ndarray, np.frombuffer(payload, dtype=np.uint8).copy())
         if bits.shape != self.bits.shape:
             raise ValueError("Snapshot bit array does not match this filter")
         self.bits = bits
