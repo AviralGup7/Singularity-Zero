@@ -216,6 +216,7 @@ export interface RiskFactorDefinition {
 }
 
 export interface RiskFactorsResponse {
+   
   weights: Record<RiskFactorDefinition['key'], number>;
   factors: RiskFactorDefinition[];
 }

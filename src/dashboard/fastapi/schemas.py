@@ -1,13 +1,13 @@
 """Pydantic request/response schemas for the FastAPI dashboard."""
 
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """Generic paginated response wrapper."""
 
     items: list[T]
@@ -618,7 +618,7 @@ class TokenResponse(BaseModel):
     """Short-lived dashboard token response."""
 
     access_token: str
-    token_type: str = "bearer"  # nosec: S105
+    token_type: str = "bearer"  # noqa: S105
     expires_in: int
     role: str
 

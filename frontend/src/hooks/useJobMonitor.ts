@@ -29,10 +29,12 @@ const BUFFER_FLUSH_MS = 100; // Overhaul: Batch updates every 100ms
 
 export function useJobMonitor(jobId: string | undefined, options: { onRestarted?: (id: string) => void } = {}) {
   const { onRestarted } = options;
+   
   const [state, dispatch] = useReducer(jobMonitorReducer, initialState);
   const toast = useToast();
 
   // --- Overhaul: Action Buffer Engine ---
+   
   const actionQueueRef = useRef<JobMonitorAction[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -49,6 +51,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
     flushTimerRef.current = setInterval(() => {
       if (actionQueueRef.current.length === 0) return;
 
+   
       const batch = [...actionQueueRef.current];
       actionQueueRef.current = [];
 
@@ -70,6 +73,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   const loadData = useCallback(async (signal?: AbortSignal) => {
     if (!jobId) return;
     try {
+   
       const [jobData, logsData] = await Promise.all([
         getJob(jobId, signal),
         getJobLogs(jobId, signal).catch(() => null),
@@ -114,6 +118,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
       if (signal?.aborted) return;
       bufferDispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err.message : 'Failed to load job details' });
     }
+   
   }, [jobId, bufferDispatch]);
 
   useEffect(() => {
@@ -126,6 +131,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
       controller.abort();
       clearInterval(interval);
     };
+   
   }, [jobId, state.job?.status, loadData]);
 
   // --- Duration Forecast ---
@@ -138,6 +144,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
           const perStage: Record<string, { mean: number; p50: number; p90: number; count: number }> = {};
           let totalMean = 0;
           for (const entry of data) {
+   
             perStage[entry.module] = {
               mean: entry.avg_duration_sec,
               p50: entry.p50_duration_sec,
@@ -152,6 +159,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         }
       })
       .catch(() => bufferDispatch({ type: 'SET_DURATION_FORECAST', payload: null, loading: false }));
+   
   }, [state.job?.id, state.job?.stage, bufferDispatch, state.durationForecast]);
 
   // --- WebSocket (log streaming) ---
@@ -167,6 +175,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         bufferDispatch({ type: 'UPDATE_JOB', payload: msg.job_update as Partial<Job> });
       }
     },
+   
     [bufferDispatch]
   );
 
@@ -180,6 +189,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
+   
   }, [state]);
 
   // --- SSE (progress, stages, findings, errors) ---
@@ -216,6 +226,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         lastErrorToastRef,
       });
     },
+   
     [bufferDispatch, loadData, toast]
   );
 
@@ -226,7 +237,9 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   });
 
   // --- Actions ---
+   
   const [showConfirmStop, setShowConfirmStop] = useState(false);
+   
   const [showConfirmRestart, setShowConfirmRestart] = useState(false);
 
   const executeStop = useCallback(async () => {
@@ -241,6 +254,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
     } finally {
       dispatch({ type: 'SET_ACTION_LOADING', payload: null });
     }
+   
   }, [jobId, loadData, toast]);
 
   const executeRestart = useCallback(async () => {
@@ -261,6 +275,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
     } finally {
       dispatch({ type: 'SET_ACTION_LOADING', payload: null });
     }
+   
   }, [jobId, loadData, onRestarted, toast]);
 
   const mergedStageProgress = normalizeActiveTimeline(

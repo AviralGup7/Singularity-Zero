@@ -67,7 +67,8 @@ def compute_entropy_vectorized(data_list: list[str]) -> np.ndarray:
     Useful for detecting encoded secrets/tokens.
     """
     def shannon(s: str) -> float:
-        if not s: return 0.0
+        if not s:
+            return 0.0
         probabilities = [float(s.count(c)) / len(s) for c in set(s)]
         return float(-sum(p * np.log2(p) for p in probabilities))
 

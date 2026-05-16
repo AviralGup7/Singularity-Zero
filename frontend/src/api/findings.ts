@@ -44,6 +44,7 @@ export async function updateFinding(id: string, data: Partial<Finding>, signal?:
   return result;
 }
 
+   
 export async function bulkUpdateFindings(ids: string[], data: Partial<Finding>, signal?: AbortSignal): Promise<Finding[]> {
   const { data: result } = await apiClient.put<Finding[]>('/api/findings/bulk', { ids, ...data }, { signal });
   apiCache.invalidatePrefix('/api/findings');

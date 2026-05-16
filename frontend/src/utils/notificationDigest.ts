@@ -18,6 +18,7 @@ interface DigestConfig {
 }
 
 class NotificationDigest {
+   
   private buffer: NotificationItem[] = [];
   private throttleMs: number;
   private maxItems: number;
@@ -106,6 +107,7 @@ class NotificationDigest {
 
   private createDigests(): NotificationItem[] {
     if (this.buffer.length === 1) {
+   
       return [this.buffer[0]];
     }
 
@@ -113,9 +115,11 @@ class NotificationDigest {
     // Keep the MOST recent items (not oldest)
     const itemsToDigest = overflowCount > 0
       ? this.buffer.slice(-this.maxItems)
+   
       : [...this.buffer];
 
     const severityCounts = this.countSeverities(itemsToDigest);
+   
     const elapsedSeconds = Math.round((Date.now() - itemsToDigest[0].timestamp) / 1000);
     const totalIncluded = itemsToDigest.length;
 
@@ -138,6 +142,7 @@ class NotificationDigest {
       timestamp: Date.now(),
     };
 
+   
     return [digestItem];
   }
 

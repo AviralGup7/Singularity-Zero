@@ -19,6 +19,7 @@ export function dispatchToast(message: string, type: ToastType) {
     // Fallback to console if ToastProvider is not mounted yet
     // Security: in production, do not expose error details to console
     if (import.meta.env.DEV) {
+   
       console.warn('[Toast] ToastProvider not mounted. Toast:', message);
     }
   }

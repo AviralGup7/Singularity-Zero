@@ -2,30 +2,38 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, TYPE_CHECKING, cast
+import typing
+from typing import Any, cast
 
-if TYPE_CHECKING:
+
+def _identity(func: Any) -> Any:
+    return func
+
+if typing.TYPE_CHECKING:
     from beartype import beartype
 else:
     try:
         from beartype import beartype
-    except ModuleNotFoundError:
-        def beartype(func: Any) -> Any:
-            return func
+    except ImportError:
+        beartype = _identity
 
-from src.core.contracts.capabilities import (
+from src.core.contracts.capabilities import (  # noqa: E402
     EnrichmentProviderProtocol,
     LiveHostProberProtocol,
     UrlCollectorProtocol,
 )
-from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
-from src.core.middleware import ScopeValidator
-from src.core.utils import normalize_scope_entry
-from src.recon.live_hosts import probe_live_hosts
-from src.recon.ranking_support import load_history_feedback, select_deep_analysis_targets
-from src.recon.scoring import infer_target_profile, rank_urls
-from src.recon.subdomains import enumerate_subdomains
-from src.recon.urls import collect_urls, extract_parameters
+from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput  # noqa: E402
+from src.core.middleware import ScopeValidator  # noqa: E402
+from src.core.utils import normalize_scope_entry  # noqa: E402
+from src.recon.live_hosts import probe_live_hosts as probe_live_hosts  # noqa: E402
+from src.recon.ranking_support import (  # noqa: E402
+    load_history_feedback,
+    select_deep_analysis_targets,
+)
+from src.recon.scoring import infer_target_profile, rank_urls  # noqa: E402
+from src.recon.subdomains import enumerate_subdomains  # noqa: E402
+from src.recon.urls import collect_urls as collect_urls  # noqa: E402
+from src.recon.urls import extract_parameters  # noqa: E402
 
 
 @beartype

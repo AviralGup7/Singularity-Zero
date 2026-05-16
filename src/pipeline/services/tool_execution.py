@@ -135,7 +135,7 @@ async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
         merged_env = base_env
 
     try:
-        process = subprocess.run(  # nosec: S603
+        process = subprocess.run(  # noqa: S603
             command,
             input=invocation.stdin,
             text=True,
@@ -328,7 +328,7 @@ class ToolExecutionService:
         last_error: Exception | None = None
         for attempt in range(1, policy.max_attempts + 1):
             try:
-                process = subprocess.run(  # nosec: S603
+                process = subprocess.run(  # noqa: S603
                     resolved_command,
                     input=stdin_text,
                     text=True,
@@ -405,7 +405,7 @@ class ToolExecutionService:
         for attempt in range(1, policy.max_attempts + 1):
             started = time.monotonic()
             try:
-                process = subprocess.run(  # nosec: S603
+                process = subprocess.run(  # noqa: S603
                     resolved_command,
                     input=stdin_text,
                     text=True,
@@ -561,7 +561,7 @@ class ToolExecutionService:
         if not httpx_path:
             return False
         try:
-            output = subprocess.run(  # nosec: S603
+            output = subprocess.run(  # noqa: S603
                 [httpx_path, "-h"],
                 text=True,
                 encoding="utf-8",

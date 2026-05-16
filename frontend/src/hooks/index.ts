@@ -38,6 +38,7 @@ export function useTargets() {
  * Returns reactive { data, loading, error, refetch } state.
  */
 export function useJobDetail(jobId: string | undefined, ttl?: number) {
+   
   const [poll, setPoll] = useState(true);
   const result = useApi<Job>(jobId ? `/api/jobs/${jobId}` : null, {
     enabled: !!jobId,
@@ -56,6 +57,7 @@ export function useJobDetail(jobId: string | undefined, ttl?: number) {
       });
     }
     return () => { isMounted = false; };
+   
   }, [result.data]);
 
   return result;

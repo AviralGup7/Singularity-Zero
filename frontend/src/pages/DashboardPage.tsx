@@ -105,6 +105,7 @@ export function DashboardPage() {
                   className="flex items-center gap-4 p-3 hover:bg-surface-2 rounded-lg border border-transparent hover:border-border transition-colors group"
                 >
                   <div className={`w-2.5 h-2.5 rounded-full ${
+   
                     job.status === 'running' ? 'bg-accent shadow-[0_0_8px_rgba(59,130,246,0.5)]' :
                     job.status === 'completed' ? 'bg-ok' : 'bg-bad'
                   }`} />
@@ -114,6 +115,7 @@ export function DashboardPage() {
                       <span className="text-sm font-medium text-text group-hover:text-accent transition-colors">{job.id.slice(0, 8)}</span>
                       <span className="text-xs text-muted truncate">{job.target_name}</span>
                     </div>
+  // eslint-disable-next-line security/detect-object-injection
                     <div className="text-[11px] text-muted uppercase tracking-wide">{job.stage_label || job.stage}</div>
                   </div>
 

@@ -80,7 +80,7 @@ class SQLiteSpanExporter:
         try:
             from opentelemetry.sdk.trace.export import SpanExportResult
             success_code = SpanExportResult.SUCCESS
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         rows = []
@@ -191,7 +191,7 @@ class TracingManager:
             )
             try:
                 trace.set_tracer_provider(provider)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
             self._trace = trace
@@ -221,7 +221,7 @@ class TracingManager:
         if parent_headers and self._propagate is not None:
             try:
                 context = self._propagate.extract(dict(parent_headers))
-            except Exception:
+            except Exception:  # noqa: S110
                 context = None
 
         with self._tracer.start_as_current_span(
@@ -278,11 +278,11 @@ class TracingManager:
         if ctx is not None:
             try:
                 target_count = len(getattr(ctx, "priority_urls", []) or getattr(ctx, "urls", []) or [])
-            except Exception:
+            except Exception:  # noqa: S110
                 target_count = 0
             try:
                 scope_size = len(getattr(ctx, "scope_entries", []) or [])
-            except Exception:
+            except Exception:  # noqa: S110
                 scope_size = 0
         attributes = {
             "stage_name": stage_name,
@@ -323,7 +323,7 @@ class TracingManager:
         if self.otel_available and self._propagate is not None:
             try:
                 self._propagate.inject(headers)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         return headers
 
@@ -335,7 +335,7 @@ class TracingManager:
         metadata["trace_headers"] = headers
         try:
             return replace(envelope, metadata=metadata, traceparent=headers.get("traceparent", envelope.traceparent))
-        except Exception:
+        except Exception:  # noqa: S110
             return envelope
 
     @staticmethod
@@ -368,7 +368,7 @@ class TracingManager:
                 res = "connected"
         except error.HTTPError:
             res = "connected"
-        except Exception:
+        except Exception:  # noqa: S110
             res = "unreachable"
 
         self._status_cache = res
@@ -395,7 +395,7 @@ class TracingManager:
             where.append("start_time_unix_nano <= ?")
             params.append(int(end_ms) * 1_000_000)
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-        query = f"""  # nosec: S608
+        query = f"""  # noqa: S608
             WITH filtered AS (
                 SELECT trace_id FROM spans {where_sql} GROUP BY trace_id
             ),

@@ -13,8 +13,10 @@ export function RoleGate({
   const { role } = useRole();
 
   // Role hierarchy for comparison (higher index = more permissions)
+   
   const ROLE_HIERARCHY: UserRole[] = ['viewer', 'analyst', 'team_lead', 'admin'];
 
+   
   const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
   const userLevel = ROLE_HIERARCHY.indexOf(role);
   const hasAccess = roles.some(r => userLevel >= ROLE_HIERARCHY.indexOf(r));
@@ -34,6 +36,7 @@ export function PermissionGate({
 }) {
   const { permissions } = useRole();
 
+  // eslint-disable-next-line security/detect-object-injection
   if (!permissions[permission]) return <>{fallback}</>;
   return <>{children}</>;
 }

@@ -21,6 +21,7 @@ const MAX_ERRORS = 500;
 let errorTrackerInstance: ErrorTracker | null = null;
 
 export class ErrorTracker {
+   
   private errors: TrackedError[] = [];
   private sentryDsn: string | null = null;
 
@@ -52,6 +53,7 @@ export class ErrorTracker {
         state: context.state,
         url: context.url || window.location.href,
         timestamp: new Date().toISOString(),
+   
         userAgent: '[REDACTED]',
         metadata: context.metadata,
       },
@@ -79,6 +81,7 @@ export class ErrorTracker {
   }
 
   getErrors(): TrackedError[] {
+   
     return [...this.errors];
   }
 
@@ -86,6 +89,7 @@ export class ErrorTracker {
     return this.errors.filter((e) => e.context.component === component);
   }
 
+   
   getErrorsBySeverity(severity: TrackedError['severity']): TrackedError[] {
     return this.errors.filter((e) => e.severity === severity);
   }
@@ -116,7 +120,9 @@ export class ErrorTracker {
   private determineSeverity(
     error: Error,
     context: Partial<ErrorContext>
+   
   ): TrackedError['severity'] {
+   
     if (context.metadata?.severity) return context.metadata.severity as TrackedError['severity'];
     if (error.name === 'TypeError' || error.name === 'ReferenceError') return 'high';
     if (error.name === 'NetworkError' || error.name === 'AbortError') return 'medium';
@@ -125,6 +131,7 @@ export class ErrorTracker {
 
   private logToConsole(trackedError: TrackedError): void {
     const { component, action, url, timestamp } = trackedError.context;
+   
     console.group(`[ErrorTracker] ${trackedError.severity.toUpperCase()}`);
     console.error('Error:', trackedError.error.message);
     if (trackedError.error.stack) console.error('Stack:', trackedError.error.stack);
@@ -140,6 +147,7 @@ export class ErrorTracker {
     if (!this.sentryDsn) return;
     // Placeholder for actual Sentry client integration
     if (import.meta.env.DEV) {
+   
       console.log('[Sentry Stub] Sending error:', trackedError.id);
     }
   }

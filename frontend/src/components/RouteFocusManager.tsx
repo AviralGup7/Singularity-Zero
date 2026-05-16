@@ -7,6 +7,7 @@ export function RouteFocusManager() {
 
   useEffect(() => {
     if (previousPathRef.current !== location.pathname) {
+   
       const heading = document.querySelector<HTMLElement>('main h1, main h2, [data-page-heading]');
       if (heading) {
         heading.setAttribute('tabindex', '-1');
@@ -20,6 +21,7 @@ export function RouteFocusManager() {
       }
       previousPathRef.current = location.pathname;
     }
+   
   }, [location.pathname]);
 
   return null;

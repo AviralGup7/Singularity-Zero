@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 export interface SseEventData {
+   
   [key: string]: unknown;
   message?: string;
   progress?: number;
@@ -36,7 +37,9 @@ export function useSSEProgress<T = SseEventData>({
   onEvent,
   endpoint = 'progress',
 }: UseSSEProgressOptions<T>) {
+   
   const [connectionState, setConnectionState] = useState<SSEConnectionState>('closed');
+   
   const [isPollingFallback, setIsPollingFallback] = useState(false);
 
   const esRef = useRef<EventSource | null>(null);
@@ -49,6 +52,7 @@ export function useSSEProgress<T = SseEventData>({
   // --- High-Performance Lifecycle Management ---
   useEffect(() => {
     onEventRef.current = onEvent;
+   
   }, [onEvent]);
 
   const connectRef = useRef<() => void>(() => {});
@@ -113,6 +117,7 @@ export function useSSEProgress<T = SseEventData>({
     };
 
     es.onmessage = handleMessage;
+   
     ['log', 'progress_update', 'stage_change', 'finding_batch', 'mesh_health_update', 'completed', 'error'].forEach(type => {
       es.addEventListener(type, handleMessage);
     });
@@ -127,10 +132,12 @@ export function useSSEProgress<T = SseEventData>({
         setTimeout(connectRef.current, delay);
       }
     };
+   
   }, [jobId, enabled, endpoint, resetHeartbeat]);
 
   useEffect(() => {
     connectRef.current = connect;
+   
   }, [connect]);
 
   useEffect(() => {
@@ -142,6 +149,7 @@ export function useSSEProgress<T = SseEventData>({
       if (esRef.current) esRef.current.close();
       if (heartbeatRef.current) clearTimeout(heartbeatRef.current);
     };
+   
   }, [jobId, enabled, connect]);
 
   return {

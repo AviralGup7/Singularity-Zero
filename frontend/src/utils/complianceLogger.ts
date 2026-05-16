@@ -17,6 +17,7 @@ export function logComplianceAction(
   reason: string,
   details: Record<string, unknown> = {},
   user = 'anonymous',
+   
   outcome: ComplianceLogEntry['outcome'] = 'success'
 ): ComplianceLogEntry {
   const entry: ComplianceLogEntry = {
@@ -66,6 +67,7 @@ export function getComplianceLogsByDateRange(start: Date, end: Date): Compliance
 }
 
 function escapeCSVValue(val: string): string {
+   
   if (/[=+\-@]/.test(val.charAt(0))) {
     return "'" + val;
   }
@@ -76,6 +78,7 @@ export function exportComplianceReport(format: 'json' | 'csv' = 'json'): string 
   const logs = getComplianceLogs();
 
   if (format === 'csv') {
+   
     const headers = ['ID', 'Timestamp', 'User', 'Action', 'Resource', 'Reason', 'Outcome'];
     const rows = logs.map((e) => [
       e.id,
@@ -86,6 +89,7 @@ export function exportComplianceReport(format: 'json' | 'csv' = 'json'): string 
       e.reason,
       e.outcome,
     ]);
+   
     return [headers, ...rows].map((r) => r.map((c) => `"${escapeCSVValue(String(c))}"`).join(',')).join('\n');
   }
 
@@ -111,6 +115,7 @@ export function useComplianceLogger(user = 'anonymous') {
       resource: string,
       reason: string,
       details: Record<string, unknown> = {},
+   
       outcome?: ComplianceLogEntry['outcome']
     ) => logComplianceAction(action, resource, reason, details, user, outcome),
     getLogs: getComplianceLogs,

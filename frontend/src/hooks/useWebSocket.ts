@@ -25,6 +25,7 @@ export function useWebSocket({
   onMessage,
   onFallback,
 }: UseWebSocketOptions): UseWebSocketReturn {
+   
   const [connectionState, setConnectionState] = useState<WSConnectionState>('disconnected');
   const wsRef = useRef<WebSocket | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,6 +40,7 @@ export function useWebSocket({
   useEffect(() => {
     onMessageRef.current = onMessage;
     onFallbackRef.current = onFallback;
+   
   }, [onMessage, onFallback]);
 
   const connectRef = useRef<() => void>(() => {});
@@ -69,6 +71,7 @@ export function useWebSocket({
 
     try {
       // Pass token via protocols parameter to avoid URL exposure
+   
       const protocols = token ? ['access_token', token] : [];
       const ws = new WebSocket(wsUrl, protocols);
       wsRef.current = ws;
@@ -145,20 +148,24 @@ export function useWebSocket({
       setConnectionState('disconnected');
       onFallbackRef.current?.();
     }
+   
   }, [jobId, enabled, cleanup]);
 
   useEffect(() => {
     connectRef.current = connect;
+   
   }, [connect]);
 
   const reconnect = useCallback(() => {
     backoffRef.current = MIN_DELAY;
     connect();
+   
   }, [connect]);
 
   const disconnect = useCallback(() => {
     cleanup();
     setConnectionState('disconnected');
+   
   }, [cleanup]);
 
   useEffect(() => {
@@ -178,6 +185,7 @@ export function useWebSocket({
       mountedRef.current = false;
       cleanup();
     };
+   
   }, [jobId, enabled, connect, cleanup]);
 
   return { connectionState, reconnect, disconnect };

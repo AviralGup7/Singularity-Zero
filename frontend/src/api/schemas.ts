@@ -42,12 +42,14 @@ export const FindingSchema = z.object({
   job_id: z.string(),
   target_id: z.string(),
   type: z.string(),
+   
   severity: z.enum(['critical', 'high', 'medium', 'low', 'info']),
   title: z.string(),
   description: z.string(),
   remediation: z.string().optional(),
   proof: z.string().optional(),
   timestamp: z.string(),
+   
   status: z.enum(['active', 'resolved', 'false_positive', 'ignored']).default('active'),
 });
 
@@ -89,6 +91,7 @@ export const AppSettingsSchema = z.object({
       quickActions: true,
       systemStats: false,
     }),
+   
     layout: z.enum(['grid', 'list', 'compact']).default('grid'),
   }).default({
     autoRefresh: false,
@@ -147,6 +150,7 @@ export const AppSettingsSchema = z.object({
     apiKey: '',
   }),
   reports: z.object({
+   
     format: z.enum(['json', 'html', 'pdf', 'csv']).default('json'),
     includeRawResponses: z.boolean().default(false),
     includeProofOfConcept: z.boolean().default(true),
@@ -175,6 +179,7 @@ export const AppSettingsSchema = z.object({
     slackWebhook: '',
   }),
   scanProfiles: z.object({
+   
     defaultProfile: z.enum(['quick', 'standard', 'deep', 'custom']).default('standard'),
     includeNuclei: z.boolean().default(true),
     includePassiveAnalysis: z.boolean().default(true),
@@ -237,6 +242,7 @@ export const AppSettingsSchema = z.object({
     activeProfileId: null,
   }),
   logging: z.object({
+   
     level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     includeTimestamps: z.boolean().default(true),
     maxLogLines: z.number().default(1000),

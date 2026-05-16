@@ -31,6 +31,7 @@ function getRecentSearches(): string[] {
 function saveRecentSearch(query: string) {
   try {
     const recent = getRecentSearches();
+   
     const updated = [query, ...recent.filter(r => r !== query)].slice(0, 10);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   } catch {
@@ -39,8 +40,11 @@ function saveRecentSearch(query: string) {
 }
 
 export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
+   
   const [query, setQuery] = useState('');
+   
   const [selectedIndex, setSelectedIndex] = useState(0);
+   
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -54,6 +58,7 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
       setRecentSearches(getRecentSearches());
     }, 0);
     return () => clearTimeout(tid);
+   
   }, [open]);
 
   const filtered = useMemo(() => query.length > 0
@@ -62,6 +67,7 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
         (item.subtitle && item.subtitle.toLowerCase().includes(query.toLowerCase())) ||
         (item.meta && item.meta.toLowerCase().includes(query.toLowerCase()))
       )
+   
     : [], [items, query]);
 
   const grouped = useMemo(() => {
@@ -71,25 +77,36 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
       if (existing) {
         existing.push(item);
       } else {
+   
         result.set(item.type, [item]);
       }
     }
     return result;
+   
   }, [filtered]);
 
+   
   const flatResults = useMemo(() => Array.from(grouped.values()).flat(), [grouped]);
 
   const typeLabels = new Map<string, string>([
+   
     ['target', 'Targets'],
+   
     ['job', 'Jobs'],
+   
     ['finding', 'Findings'],
+   
     ['page', 'Pages'],
   ]);
 
   const typeIcons = new Map<string, string>([
+   
     ['target', 'target'],
+   
     ['job', 'zap'],
+   
     ['finding', 'shield'],
+   
     ['page', 'file'],
   ]);
 
@@ -100,12 +117,14 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
       }, 50);
       return () => clearTimeout(tid);
     }
+   
   }, [open]);
 
   const handleSelect = useCallback((item: SearchableItem) => {
     if (query.trim()) saveRecentSearch(query.trim());
     if (item.href) navigate(item.href);
     onClose();
+   
   }, [navigate, onClose, query]);
 
   const clampedIndex = Math.min(selectedIndex, Math.max(0, flatResults.length - 1));
@@ -125,13 +144,16 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
       e.preventDefault();
       onClose();
     }
+   
   }, [flatResults, clampedIndex, handleSelect, onClose]);
 
   useEffect(() => {
     if (listRef.current && selectedIndex >= 0) {
+   
       const selected = listRef.current.querySelector('[data-selected="true"]');
       selected?.scrollIntoView({ block: 'nearest' });
     }
+   
   }, [selectedIndex]);
 
   if (!open) return null;
@@ -214,6 +236,7 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
               role="listbox" 
               id="command-palette-listbox"
             >
+  // eslint-disable-next-line security/detect-object-injection
               {Array.from(grouped.entries()).map(([type, groupItems]) => (
                 <li key={type} className="command-palette-group" role="presentation">
                   <div className="command-palette-group-header">

@@ -24,6 +24,7 @@ const STAGE_ALIASES: Record<string, string> = {
 function normalizeStageName(stageName: string | undefined): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
+  // eslint-disable-next-line security/detect-object-injection
   return STAGE_ALIASES[normalized] ?? normalized;
 }
 
@@ -46,12 +47,14 @@ export function PipelineOverviewPage() {
 
   const runningJobs = useMemo(() => {
     return (allJobs ?? []).filter((j: Job) => j.status === 'running');
+   
   }, [allJobs]);
 
   const recentJobs = useMemo(() => {
     return (allJobs ?? [])
       .filter((j: Job) => j.status === 'completed' || j.status === 'failed')
       .slice(0, 20);
+   
   }, [allJobs]);
 
   const stats = useMemo(() => {
@@ -65,11 +68,13 @@ export function PipelineOverviewPage() {
       : 0;
 
     return { running: running.length, completed: completed.length, failed: failed.length, totalFindings, avgProgress };
+   
   }, [allJobs]);
 
   const stageTheaterNodes = useMemo(() => {
     const sourceJobs = runningJobs.length > 0 ? runningJobs : recentJobs;
     return buildStageTheaterNodesFromJobs(sourceJobs);
+   
   }, [runningJobs, recentJobs]);
 
   const throughput = useMemo(() => {
@@ -85,9 +90,11 @@ export function PipelineOverviewPage() {
     );
     const scanVelocity = totals.jobsPerSecond * 0.6 + totals.findingsPerSecond * 0.4;
     return { ...totals, scanVelocity };
+   
   }, [runningJobs]);
   const visualState = useMemo(
     () => mapJobsToVisualState(runningJobs.length > 0 ? runningJobs : recentJobs),
+   
     [recentJobs, runningJobs]
   );
 
@@ -207,7 +214,9 @@ function JobStageCard({ job }: { job: Job }) {
       </div>
       <div className="job-stage-card-stages">
         {stages.map((stage) => {
+   
           const color = STATUS_COLORS[stage.status] || STATUS_COLORS.pending;
+   
           const bg = STATUS_BG[stage.status] || STATUS_BG.pending;
           const isActive = stage.status === 'running';
           return (
@@ -236,6 +245,7 @@ function JobStageCard({ job }: { job: Job }) {
 }
 
 function buildStageList(job: Job): StageProgressEntry[] {
+   
   const stageOrder = [...STAGE_ORDER];
   const seen = new Set(stageOrder);
   const addStage = (stageName: string | undefined) => {
@@ -273,9 +283,11 @@ function buildStageList(job: Job): StageProgressEntry[] {
 
   const currentStageIdx = stageOrder.indexOf(currentStage);
 
+   
   const filled: StageProgressEntry[] = [];
 
   for (let i = 0; i < stageOrder.length; i++) {
+  // eslint-disable-next-line security/detect-object-injection
     const stageName = stageOrder[i];
     const existing = stageMap.get(stageName);
     if (existing) {

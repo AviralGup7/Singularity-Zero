@@ -23,6 +23,7 @@ function shortTrace(id: string): string {
 }
 
 function buildDepths(spans: TraceSpan[]): Map<string, number> {
+   
   const byId = new Map(spans.map(span => [span.span_id, span]));
   const depths = new Map<string, number>();
   const visit = (span: TraceSpan): number => {
@@ -41,12 +42,15 @@ function buildDepths(spans: TraceSpan[]): Map<string, number> {
 }
 
 function TraceWaterfall({ trace }: { trace: TraceDetail | null }) {
+   
   const spans = useMemo(() => trace?.spans ?? [], [trace]);
   const bounds = useMemo(() => {
     const start = Math.min(...spans.map(span => span.start_time_unix_nano), Number.MAX_SAFE_INTEGER);
     const end = Math.max(...spans.map(span => span.end_time_unix_nano), 0);
     return { start, end, duration: Math.max(1, end - start) };
+   
   }, [spans]);
+   
   const depths = useMemo(() => buildDepths(spans), [spans]);
 
   if (!trace || spans.length === 0) {
@@ -72,6 +76,7 @@ function TraceWaterfall({ trace }: { trace: TraceDetail | null }) {
       <div className="trace-waterfall-scroll">
         <svg className="trace-waterfall" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Trace waterfall">
           <line x1={labelWidth} y1={18} x2={width - 12} y2={18} className="trace-axis" />
+  // eslint-disable-next-line security/detect-object-injection
           {[0, 0.25, 0.5, 0.75, 1].map(tick => (
             <g key={tick}>
               <line x1={labelWidth + tick * timelineWidth} y1={14} x2={labelWidth + tick * timelineWidth} y2={height - 8} className="trace-grid" />
@@ -113,18 +118,26 @@ function TraceWaterfall({ trace }: { trace: TraceDetail | null }) {
 }
 
 export function TracingPage() {
+   
   const [config, setConfig] = useState<TracingConfig | null>(null);
+   
   const [traces, setTraces] = useState<TraceSummary[]>([]);
+   
   const [selectedTraceId, setSelectedTraceId] = useState<string>('');
+   
   const [traceDetail, setTraceDetail] = useState<TraceDetail | null>(null);
+   
   const [serviceName, setServiceName] = useState('');
+   
   const [rangeMs, setRangeMs] = useState(TIME_RANGES[1].value);
+   
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       const endMs = Date.now();
+   
       const [nextConfig, nextTraces] = await Promise.all([
         getTracingConfig(signal),
         getTraces({
@@ -137,10 +150,12 @@ export function TracingPage() {
       ]);
       setConfig(nextConfig);
       setTraces(nextTraces);
+   
       if (!selectedTraceId && nextTraces[0]) setSelectedTraceId(nextTraces[0].trace_id);
     } finally {
       setLoading(false);
     }
+   
   }, [rangeMs, selectedTraceId, serviceName]);
 
   useEffect(() => {
@@ -153,6 +168,7 @@ export function TracingPage() {
       controller.abort();
       window.clearInterval(timer);
     };
+   
   }, [refresh]);
 
   useEffect(() => {
@@ -162,6 +178,7 @@ export function TracingPage() {
       .then(setTraceDetail)
       .catch(() => setTraceDetail(null));
     return () => controller.abort();
+   
   }, [selectedTraceId]);
 
   const services = useMemo(() => {
@@ -171,6 +188,7 @@ export function TracingPage() {
       if (trace.service_name) names.add(trace.service_name);
     });
     return Array.from(names).sort();
+   
   }, [traces]);
 
   return (

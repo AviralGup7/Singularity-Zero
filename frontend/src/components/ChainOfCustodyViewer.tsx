@@ -6,6 +6,7 @@ interface ChainOfCustodyViewerProps {
 }
 
 export function ChainOfCustodyViewer({ evidenceId }: ChainOfCustodyViewerProps) {
+   
   const chain = useMemo(() => getCustodyChain(evidenceId), [evidenceId]);
 
   if (chain.length === 0) return null;

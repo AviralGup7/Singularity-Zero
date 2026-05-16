@@ -12,6 +12,7 @@ describe('Button', () => {
   it('applies primary variant class', () => {
     render(<Button variant="primary">Primary</Button>);
     const btn = screen.getByRole('button');
+   
     expect(btn).toHaveClass('bg-[var(--accent)]');
   });
 
@@ -24,6 +25,7 @@ describe('Button', () => {
   it('applies danger variant class', () => {
     render(<Button variant="danger">Danger</Button>);
     const btn = screen.getByRole('button');
+   
     expect(btn).toHaveClass('bg-[var(--bad)]');
   });
 

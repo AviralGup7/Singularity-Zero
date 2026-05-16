@@ -22,6 +22,7 @@ const defaultTheme: ThemeState = {
 };
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+   
   const [theme, setTheme] = useState<ThemeState>(() => {
     const stored = safeStorage.get('cyber-pipeline-theme');
     if (stored) {
@@ -39,15 +40,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute('data-motion-intensity', theme.motionIntensity);
     document.documentElement.setAttribute('data-effect-capability', theme.effectCapability);
     safeStorage.set('cyber-pipeline-theme', JSON.stringify({ theme }));
+   
   }, [theme]);
 
   const updateTheme = useCallback((partial: Partial<ThemeState>) => {
     setTheme(prev => ({ ...prev, ...partial }));
   }, []);
 
+   
   const setThemeMode = useCallback((mode: ThemeMode) => updateTheme({ mode }), [updateTheme]);
+   
   const setAccentColor = useCallback((accentColor: string) => updateTheme({ accentColor }), [updateTheme]);
+   
   const setMotionIntensity = useCallback((motionIntensity: MotionIntensity) => updateTheme({ motionIntensity }), [updateTheme]);
+   
   const setEffectCapability = useCallback((effectCapability: EffectCapability) => updateTheme({ effectCapability }), [updateTheme]);
 
   return (

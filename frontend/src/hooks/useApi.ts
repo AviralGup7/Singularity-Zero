@@ -63,9 +63,13 @@ export function useApi<T>(
     refetchInterval,
   } = options ?? {};
 
+   
   const [data, setData] = useState<T | null>(null);
+   
   const [loading, setLoading] = useState<boolean>(enabled && !!url);
+   
   const [error, setError] = useState<UseApiError | null>(null);
+   
   const [refetchKey, setRefetchKey] = useState<number>(0);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -77,6 +81,7 @@ export function useApi<T>(
   useEffect(() => {
     onSuccessRef.current = onSuccess;
     onErrorRef.current = onError;
+   
   }, [onSuccess, onError]);
 
   const schema = options?.schema;
@@ -143,6 +148,7 @@ export function useApi<T>(
         onErrorRef.current?.(lastError);
       }
     }
+   
   }, [url, enabled, bypassCache, params, refetchKey, schema, ttl]);
 
   useEffect(() => {
@@ -182,6 +188,7 @@ export function useApi<T>(
         clearInterval(interval);
       }
     };
+   
   }, [fetchData, refetchInterval, enabled, url]);
 
   const refetch = useCallback(async (): Promise<void> => {

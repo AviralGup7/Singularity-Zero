@@ -32,6 +32,7 @@ class ApiCache {
     const obj = val as Record<string, unknown>;
     const keys = Object.keys(obj).sort();
     const parts = keys.map(k => {
+   
       const value = obj[k as keyof typeof obj];
       return `"${k}":${this.stableStringify(value)}`;
     });
@@ -41,7 +42,9 @@ class ApiCache {
   generateKey(url: string, params?: Record<string, unknown>): string {
     if (!params) return url;
     const sortedParams = Object.entries(params)
+   
       .sort(([a], [b]) => a.localeCompare(b))
+   
       .map(([key, val]) => {
         return `${key}=${this.stableStringify(val)}`;
       })
@@ -112,11 +115,14 @@ class ApiCache {
 
   invalidateOnMutation(method: string, url: string): void {
     const upperMethod = method.toUpperCase();
+   
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(upperMethod)) {
+   
       const basePath = url.split('?')[0].split('/').slice(0, -1).join('/');
       if (basePath) {
         this.invalidatePrefix(basePath);
       }
+   
       this.invalidatePrefix(url.split('?')[0]);
     }
   }

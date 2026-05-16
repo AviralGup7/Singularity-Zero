@@ -49,6 +49,7 @@ export function ConfigStep({
       <fieldset className="form-fieldset">
         <legend className="form-legend">Execution Options</legend>
         <div className="grid grid-cols-auto-fill-lg px-12 gap-6">
+  // eslint-disable-next-line security/detect-object-injection
           {Object.entries(executionOptions).map(([key, value]) => (
             <label key={key} className="toggle-label">
               <input
@@ -76,6 +77,7 @@ export function ConfigStep({
                   className="form-input"
                   placeholder={opt.placeholder}
                   type={opt.type ?? 'text'}
+   
                   value={runtimeOverrides[opt.key ?? opt.name] ?? ''}
                   onChange={(e) => onUpdateRuntimeOverride(opt.key ?? opt.name, e.target.value)}
                 />

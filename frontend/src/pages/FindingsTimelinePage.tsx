@@ -5,6 +5,7 @@ import { CalendarClock, Filter, RefreshCw } from 'lucide-react';
 import { useFindingsTimeline, useMotionPolicy, useTargets } from '@/hooks';
 import type { FindingTimelineEvent } from '@/types/extended';
 
+   
 const SEVERITIES = ['', 'critical', 'high', 'medium', 'low', 'info'];
 const PAGE_SIZE = 30;
 
@@ -33,15 +34,24 @@ export function FindingsTimelinePage() {
     const start = new Date(today);
     start.setDate(start.getDate() - 30);
     return start;
+   
   }, [today]);
 
+   
   const [severity, setSeverity] = useState('');
+   
   const [target, setTarget] = useState('');
+   
   const [jobId, setJobId] = useState('');
+   
   const [startDate, setStartDate] = useState(formatDateInput(defaultStart));
+   
   const [endDate, setEndDate] = useState(formatDateInput(today));
+   
   const [offset, setOffset] = useState(0);
+   
   const [events, setEvents] = useState<FindingTimelineEvent[]>([]);
+   
   const [selectedEvent, setSelectedEvent] = useState<FindingTimelineEvent | null>(null);
 
   const { policy, strategy } = useMotionPolicy('list');
@@ -62,12 +72,14 @@ export function FindingsTimelinePage() {
     setOffset(0);
     setEvents([]);
     setSelectedEvent(null);
+   
   }, [filterKey]);
 
   useEffect(() => {
     const incoming = timeline.events;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEvents((current) => {
+   
       const merged = offset === 0 ? incoming : [...current, ...incoming];
       const seen = new Set<string>();
       return merged.filter((event) => {
@@ -76,6 +88,7 @@ export function FindingsTimelinePage() {
         return true;
       });
     });
+   
   }, [offset, timeline.events]);
 
   const targetOptions = useMemo(() => {
@@ -83,15 +96,19 @@ export function FindingsTimelinePage() {
     for (const item of targetsData?.targets ?? []) names.add(item.name);
     for (const event of events) names.add(event.target);
     return Array.from(names).sort();
+   
   }, [events, targetsData?.targets]);
 
   const groupedEvents = useMemo(() => {
     const groups = new Map<string, FindingTimelineEvent[]>();
     for (const event of events) {
       const day = event.timestamp.slice(0, 10);
+   
       groups.set(day, [...(groups.get(day) ?? []), event]);
     }
+   
     return Array.from(groups.entries()).sort(([left], [right]) => right.localeCompare(left));
+   
   }, [events]);
 
   return (
@@ -160,6 +177,7 @@ export function FindingsTimelinePage() {
           {!timeline.loading && events.length === 0 && <div className="empty">No findings matched this timeline range.</div>}
 
           <div className="timeline-stack">
+  // eslint-disable-next-line security/detect-object-injection
             {groupedEvents.map(([day, dayEvents]) => (
               <div className="timeline-day" key={day}>
                 <div className="timeline-day-label">

@@ -212,6 +212,7 @@ export interface SkippedStageEntry {
 }
 
 export interface ProgressTelemetry {
+   
   [key: string]: unknown;
   active_task_count?: number;
   requests_per_second?: number;

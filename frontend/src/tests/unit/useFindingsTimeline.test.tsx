@@ -17,6 +17,7 @@ describe('useFindingsTimeline', () => {
 
   it('passes timeline filters as API query parameters', () => {
     mocks.useApi.mockReturnValue({
+   
       data: [{ id: 'one' }, { id: 'two' }],
       loading: false,
       error: null,

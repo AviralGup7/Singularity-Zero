@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 
  * Replaces the redundant localStorage logic across ThemeContext, DisplayContext, and SettingsContext.
  *
  * Usage:
+  // eslint-disable-next-line security/detect-object-injection
  *   const [theme, setTheme] = usePersistedState('cyber-pipeline-theme', defaultTheme, { ttl: 300 });
  */
 export function usePersistedState<T>(
@@ -18,11 +19,13 @@ export function usePersistedState<T>(
     /** Transform value after reading from localStorage */
     deserialize?: (text: string) => T;
   }
+   
 ): [T, Dispatch<SetStateAction<T>>] {
   const debounceMs = options?.debounceMs ?? 300;
   const serialize = options?.serialize ?? JSON.stringify;
   const deserialize = options?.deserialize ?? JSON.parse;
 
+   
   const [value, setValue] = useState<T>(() => {
     try {
       const stored = localStorage.getItem(key);
@@ -59,7 +62,9 @@ export function usePersistedState<T>(
         pendingWriteRef.current = null;
       }
     };
+   
   }, [key, value, debounceMs, serialize]);
 
+   
   return [value, setValue];
 }

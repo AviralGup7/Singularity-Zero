@@ -32,18 +32,31 @@ export interface IconProps {
 }
 
 const iconMap = new Map<string, LucideIcon>([
+   
   ['home', Home], ['target', Target], ['shield', Shield], ['activity', Activity],
+   
   ['chevronRight', ChevronRight], ['chevronDown', ChevronDown], ['menu', Menu], ['x', X],
+   
   ['checkCircle', CheckCircle], ['alertCircle', AlertCircle], ['alertTriangle', AlertTriangle], ['xCircle', XCircle],
+   
   ['play', Play], ['stop', Square], ['refresh', RefreshCw], ['settings', Settings], ['search', Search],
+   
   ['eye', Eye], ['eyeOff', EyeOff], ['trash', Trash2], ['edit', Edit], ['plus', Plus], ['minus', Minus],
+   
   ['arrowLeft', ArrowLeft], ['arrowRight', ArrowRight], ['filter', Filter], ['download', Download],
+   
   ['upload', Upload], ['copy', Copy], ['externalLink', ExternalLink], ['info', Info],
+   
   ['clock', Clock], ['zap', Zap], ['barChart', BarChart3], ['fileText', FileText], ['terminal', Terminal],
+   
   ['globe', Globe], ['lock', Lock], ['unlock', Unlock], ['bug', Bug], ['cpu', Cpu],
+   
   ['network', Network], ['scan', Scan], ['shieldCheck', ShieldCheck], ['alertOctagon', AlertOctagon],
+   
   ['trendingUp', TrendingUp], ['trendingDown', TrendingDown], ['chevronLeft', ChevronLeft],
+   
   ['chevronUp', ChevronUp], ['moreVertical', MoreVertical], ['moreHorizontal', MoreHorizontal],
+   
   ['moon', Moon], ['sun', Sun], ['database', Database], ['messageSquare', MessageSquare],
 ]);
 

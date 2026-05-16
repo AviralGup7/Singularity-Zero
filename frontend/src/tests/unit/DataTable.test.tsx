@@ -86,6 +86,7 @@ describe('DataTable', () => {
     const nameHeader = screen.getByText('Name');
     await userEvent.click(nameHeader);
     const rows = screen.getAllByRole('row');
+   
     expect(rows[1]).toHaveTextContent('Alpha');
   });
 
@@ -147,6 +148,7 @@ describe('DataTable', () => {
     if (firstRow) {
       await userEvent.click(firstRow);
     }
+   
     expect(handleRowClick).toHaveBeenCalledWith(testData[0]);
   });
 

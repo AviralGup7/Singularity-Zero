@@ -46,6 +46,7 @@ export function estimateStagePercent(stage: string | undefined, progressPercent:
 export function normalizeActiveTimeline(
   entries: StageProgressEntry[],
   currentStage: string | undefined,
+   
   status: Job['status'] | undefined
 ): StageProgressEntry[] {
   if (!entries.length) return entries;
@@ -84,6 +85,7 @@ export function compactPipelineError(raw: unknown): string {
   }
   const collapsed = input
     .replace(/\s+/g, ' ')
+   
     .replace(/(?:Rate limited by NVD CVE, retrying after [0-9.]+s ){2,}/gi, 'Rate limited by NVD CVE; backing off retries ')
     .trim();
   return collapsed || 'Unknown pipeline error';
@@ -102,6 +104,7 @@ export function synthesizeCurrentStageEntry(jobLike: Partial<Job>): StageProgres
         ? Math.round((jobLike.stage_processed / jobLike.stage_total) * 100)
         : estimateStagePercent(jobLike.stage, jobLike.progress_percent);
 
+   
   const normalizedStatus: StageProgressEntry['status'] =
     jobLike.status === 'failed' || jobLike.status === 'stopped'
       ? 'error'
@@ -124,6 +127,7 @@ export function synthesizeCurrentStageEntry(jobLike: Partial<Job>): StageProgres
 
 export function normalizeStageEntry(input: Partial<StageProgressEntry> & { stage: string }): StageProgressEntry {
   const rawStatus = String(input.status || 'running').toLowerCase();
+   
   const normalizedStatus: StageProgressEntry['status'] =
     rawStatus === 'error' || rawStatus === 'failed' || rawStatus === 'timeout'
       ? 'error'
@@ -157,6 +161,7 @@ export function mergeTelemetry(
 ): ProgressTelemetry {
   const merged = new Map<string, unknown>(Object.entries(base || {}));
   if (!incoming) return Object.fromEntries(merged) as ProgressTelemetry;
+   
   for (const [key, value] of Object.entries(incoming)) {
     if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {

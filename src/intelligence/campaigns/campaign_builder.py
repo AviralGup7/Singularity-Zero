@@ -181,9 +181,12 @@ def _infer_mitre_tactic(node: dict[str, Any]) -> str | None:
 def _infer_stop_condition(node: dict[str, Any]) -> str:
     """Infer a safety stop condition for evidence-only simulation."""
     category = str(node.get("category", "")).lower()
-    if "ssrf" in category: return "Stop on internal network callback"
-    if "exfiltration" in category or "sensitive_data" in category: return "Stop on confirmed metadata exposure"
-    if "exploit" in category: return "Stop on confirmed service response"
+    if "ssrf" in category:
+        return "Stop on internal network callback"
+    if "exfiltration" in category or "sensitive_data" in category:
+        return "Stop on confirmed metadata exposure"
+    if "exploit" in category:
+        return "Stop on confirmed service response"
     return "Stop on artifact collection"
 
 

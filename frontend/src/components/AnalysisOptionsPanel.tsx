@@ -8,19 +8,27 @@ interface AnalysisOptionsPanelProps {
 }
 
 export default function AnalysisOptionsPanel({ onChange, initialEnabled }: AnalysisOptionsPanelProps) {
+   
   const [loading, setLoading] = useState(true);
+   
   const [error, setError] = useState<string | null>(null);
+   
   const [expanded, setExpanded] = useState(false);
 
+   
   const [checkOptions, setCheckOptions] = useState<AnalysisCheckOption[]>([]);
+   
   const [controlGroups, setControlGroups] = useState<AnalysisControlGroup[]>([]);
+   
   const [focusPresets, setFocusPresets] = useState<AnalysisFocusPreset[]>([]);
 
+   
   const [enabledChecks, setEnabledChecks] = useState<Set<string>>(initialEnabled || new Set());
 
   const onChangeRef = useRef(onChange);
   useEffect(() => {
     onChangeRef.current = onChange;
+   
   }, [onChange]);
 
   useEffect(() => {
@@ -57,6 +65,7 @@ export default function AnalysisOptionsPanel({ onChange, initialEnabled }: Analy
       onChange?.(next);
       return next;
     });
+   
   }, [onChange]);
 
   const enableGroup = useCallback((groupName: string) => {
@@ -68,6 +77,7 @@ export default function AnalysisOptionsPanel({ onChange, initialEnabled }: Analy
       onChange?.(next);
       return next;
     });
+   
   }, [checkOptions, onChange]);
 
   const disableGroup = useCallback((groupName: string) => {
@@ -79,6 +89,7 @@ export default function AnalysisOptionsPanel({ onChange, initialEnabled }: Analy
       onChange?.(next);
       return next;
     });
+   
   }, [checkOptions, onChange]);
 
   const applyFocusPreset = useCallback((preset: AnalysisFocusPreset) => {
@@ -91,6 +102,7 @@ export default function AnalysisOptionsPanel({ onChange, initialEnabled }: Analy
       setEnabledChecks(allChecks);
       onChange?.(allChecks);
     }
+   
   }, [checkOptions, onChange]);
 
   if (loading) {

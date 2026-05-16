@@ -4,11 +4,16 @@ import { Icon } from '@/components/Icon';
 import type { EvidenceItem } from '@/types/api';
 
 const SENSITIVE_PATTERNS = [
+   
   { regex: /(?:Bearer\s+|token[=:\s]+|api[_-]?key[=:\s]+|access[_-]?token[=:\s]+)["']?([A-Za-z0-9\-._~+/]+=*)/gi, label: 'Token' },
+   
   { regex: /(?:password|passwd|pwd|secret|credential)[=:\s]+["']?([^\s"']+)/gi, label: 'Credential' },
+   
   { regex: /\b(?:\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}|\d{16})\b/g, label: 'Card Number' },
+   
   { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, label: 'Email' },
   { regex: /\b(?:\d{3}-\d{2}-\d{4}|\d{9})\b/g, label: 'SSN/ID' },
+   
   { regex: /(?:Authorization|Cookie|X-Api-Key|X-Auth-Token)[=:\s]+["']?([^\s"']+)/gi, label: 'Auth Header' },
 ];
 
@@ -19,6 +24,7 @@ function redactText(text: string): { redacted: string; count: number } {
     const matches = result.match(regex);
     if (matches) {
       count += matches.length;
+   
       result = result.replace(regex, `[REDACTED: ${label}]`);
     }
   }
@@ -53,8 +59,11 @@ export interface EvidenceDisplayProps {
 }
 
 export function EvidenceDisplay({ evidence, className, defaultRedacted = false }: EvidenceDisplayProps) {
+   
   const [expandedId, setExpandedId] = useState<string | null>(null);
+   
   const [redacted, setRedacted] = useState(defaultRedacted);
+   
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const toggleExpand = useCallback((id: string) => {
@@ -76,6 +85,7 @@ export function EvidenceDisplay({ evidence, className, defaultRedacted = false }
     } catch {
       // Clipboard not available
     }
+   
   }, [redacted]);
 
   if (!evidence || evidence.length === 0) {
@@ -89,6 +99,7 @@ export function EvidenceDisplay({ evidence, className, defaultRedacted = false }
     );
   }
 
+   
   const sortedEvidence = [...evidence].sort((a, b) =>
     new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
@@ -174,6 +185,7 @@ export function EvidenceDisplay({ evidence, className, defaultRedacted = false }
                   <div className={cn('evidence-raw-data', redacted && 'redacted')}>
                     <div className="evidence-raw-header">
                       <span>Raw Data</span>
+  // eslint-disable-next-line security/detect-object-injection
                       {redacted && <span className="redacted-label">[REDACTED]</span>}
                     </div>
                     <pre>{displayData}</pre>

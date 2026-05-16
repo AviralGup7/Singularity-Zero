@@ -7,6 +7,7 @@ interface CopyButtonProps {
 }
 
 export function CopyButton({ text, size = 'sm', className = '' }: CopyButtonProps) {
+   
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -26,8 +27,10 @@ export function CopyButton({ text, size = 'sm', className = '' }: CopyButtonProp
     setCopied(true);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setCopied(false), 2000);
+   
   }, [text]);
 
+   
   const sz = size === 'md' ? 'min-h-[32px] px-2.5 text-xs' : '';
 
   return (

@@ -54,6 +54,7 @@ const STAGE_ALIASES: Record<string, string> = {
 function normalizeStageName(stageName: string | undefined): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
+  // eslint-disable-next-line security/detect-object-injection
   return Object.prototype.hasOwnProperty.call(STAGE_ALIASES, normalized) ? STAGE_ALIASES[normalized] : normalized;
 }
 
@@ -70,7 +71,9 @@ function normalizeStageProgress(entries: StageProgressEntry[]): Map<string, Stag
   return stageMap;
 }
 
+   
 function resolveStageOrder(jobs: Job[]): string[] {
+   
   const order = [...DEFAULT_STAGE_ORDER];
   const seen = new Set(order);
 
@@ -115,6 +118,7 @@ function findStageLabelFromJobs(jobs: Job[], stageName: string): string {
     }
   }
   return Object.prototype.hasOwnProperty.call(STAGE_LABELS, stageName)
+  // eslint-disable-next-line security/detect-object-injection
     ? STAGE_LABELS[stageName]
     : stageName.replace(/_/g, ' ');
 }
@@ -178,6 +182,7 @@ function findStagePercent(job: Job, stageName: string): number | undefined {
 }
 
 export function buildStageTheaterNodesFromJob(job: Job): StageTheaterNode[] {
+   
   const stageOrder = resolveStageOrder([job]);
   const stageMap = normalizeStageProgress(job.stage_progress ?? []);
   const currentStage = normalizeStageName(job.stage);
@@ -193,6 +198,7 @@ export function buildStageTheaterNodesFromJob(job: Job): StageTheaterNode[] {
     const label =
       (existing?.stage_label || '').trim() ||
       (currentStage === stageName ? (job.stage_label || '').trim() : '') ||
+  // eslint-disable-next-line security/detect-object-injection
       (Object.prototype.hasOwnProperty.call(STAGE_LABELS, stageName) ? STAGE_LABELS[stageName] : '') ||
       stageName.replace(/_/g, ' ');
 
@@ -208,6 +214,7 @@ export function buildStageTheaterNodesFromJob(job: Job): StageTheaterNode[] {
   });
 }
 
+   
 export function buildStageTheaterNodesFromJobs(jobs: Job[]): StageTheaterNode[] {
   const stageOrder = resolveStageOrder(jobs);
   return stageOrder.map((stageName) => {

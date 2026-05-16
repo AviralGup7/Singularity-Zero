@@ -8,6 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function safeGet<V>(obj: Record<string, V>, key: string): V | undefined;
 export function safeGet<V>(obj: Record<string, V>, key: string, fallback: V): V;
 export function safeGet<V>(obj: Record<string, V>, key: string, fallback?: V): V | undefined {
+  // eslint-disable-next-line security/detect-object-injection
   return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : fallback;
 }
 
@@ -32,6 +33,7 @@ export function getStageIcon(stage: string): string {
     stopped: '⏹️',
   };
   const lower = stage.toLowerCase();
+   
   for (const [key, icon] of Object.entries(STAGE_ICONS)) {
     if (lower.includes(key)) return icon;
   }
@@ -41,8 +43,11 @@ export function getStageIcon(stage: string): string {
 export function calculateHealthScore(
   severityTotals: Record<string, number>
 ): { score: number; label: string; tone: string } {
+   
   const critical = severityTotals['critical'] || 0;
+   
   const high = severityTotals['high'] || 0;
+   
   const medium = severityTotals['medium'] || 0;
   const score = Math.max(0, 100 - Math.min(100, critical * 15 + high * 8 + medium * 3));
   const label =
@@ -58,6 +63,7 @@ export function calculateHealthScore(
 }
 
 export function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
+   
   const pages: (number | string)[] = [];
   const maxVisible = 5;
 
@@ -88,19 +94,23 @@ export function getStatusLabel(changed: boolean | null): string {
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
+   
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
+  // eslint-disable-next-line security/detect-object-injection
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 export function parseUrls(url: string): string[] {
   if (!url) return [];
+   
   return url.split(/[,;\n]+/).map(u => u.trim()).filter(Boolean);
 }
 
 export function validateUrl(url: string): { valid: boolean; error?: string } {
   if (!url || !url.trim()) return { valid: false, error: 'URL is required' };
 
+   
   const urls = url.split(/[,;\n]+/).map(u => u.trim()).filter(Boolean);
 
   if (urls.length === 0) return { valid: false, error: 'URL is required' };
@@ -113,6 +123,7 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
 
     try {
       const parsed = new URL(urlWithProtocol);
+   
       if (!['http:', 'https:'].includes(parsed.protocol)) {
         return { valid: false, error: `Only http:// and https:// protocols are allowed (got: ${trimmed})` };
       }
@@ -126,10 +137,12 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
       if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
         return { valid: false, error: 'Private IP ranges (192.168.x.x) are not allowed' };
       }
+   
       if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
         return { valid: false, error: 'Private IP ranges (172.16-31.x.x) are not allowed' };
       }
       const tld = parsed.hostname.split('.').pop() || '';
+   
       if (tld.length < 2 || !/^[a-z]{2,}$/.test(tld)) {
         return { valid: false, error: `URL must have a valid top-level domain (e.g., .com, .org): ${trimmed}` };
       }

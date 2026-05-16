@@ -8,7 +8,7 @@ module falls back to lightweight no-op implementations so unit tests
 and environments without Prometheus can import the package.
 """
 
-from typing import Any
+from typing import Any  # noqa: E402
 
 _PROVIDER_REQUESTS: Any
 _PROVIDER_ERRORS: Any

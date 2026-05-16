@@ -3,14 +3,23 @@ import type { Note } from '@/types/extended';
 import { getNotes, createNote, updateNote, deleteNote } from '@/api/notes';
 
 export function useFindingComments(targetName: string, findingId: string) {
+   
   const [notes, setNotes] = useState<Note[]>([]);
+   
   const [loading, setLoading] = useState(false);
+   
   const [saving, setSaving] = useState(false);
+   
   const [error, setError] = useState<string | null>(null);
+   
   const [newComment, setNewComment] = useState('');
+   
   const [editingId, setEditingId] = useState<string | null>(null);
+   
   const [editText, setEditText] = useState('');
+   
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+   
   const [replyText, setReplyText] = useState('');
 
   const fetchNotes = useCallback(async () => {
@@ -26,6 +35,7 @@ export function useFindingComments(targetName: string, findingId: string) {
     } finally {
       setLoading(false);
     }
+   
   }, [targetName, findingId]);
 
   const addComment = useCallback(async (author?: string) => {
@@ -38,6 +48,7 @@ export function useFindingComments(targetName: string, findingId: string) {
         tags: [],
         author: author || 'Analyst',
       });
+   
       setNotes(prev => [...prev, note]);
       setNewComment('');
     } catch (e: unknown) {
@@ -45,6 +56,7 @@ export function useFindingComments(targetName: string, findingId: string) {
     } finally {
       setSaving(false);
     }
+   
   }, [newComment, targetName, findingId]);
 
   const editComment = useCallback(async (noteId: string, text: string) => {
@@ -60,6 +72,7 @@ export function useFindingComments(targetName: string, findingId: string) {
     } finally {
       setSaving(false);
     }
+   
   }, [targetName]);
 
   const deleteComment = useCallback(async (noteId: string) => {
@@ -70,6 +83,7 @@ export function useFindingComments(targetName: string, findingId: string) {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
+   
   }, [targetName]);
 
   return {

@@ -6,6 +6,7 @@ interface UseUnsavedChangesOptions {
 }
 
 export function useUnsavedChanges({ enabled = true, message = 'You have unsaved changes. Are you sure you want to leave?' }: UseUnsavedChangesOptions = {}) {
+   
   const [isDirty, setIsDirty] = useState(false);
 
   const markDirty = useCallback(() => setIsDirty(true), []);
@@ -22,6 +23,7 @@ export function useUnsavedChanges({ enabled = true, message = 'You have unsaved 
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+   
   }, [enabled, isDirty, message]);
 
   return { isDirty, markDirty, markClean };

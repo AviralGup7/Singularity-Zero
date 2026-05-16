@@ -46,6 +46,7 @@ class VisibilityManager {
 
   // FIX: Accept single callbacks, store them in arrays internally
   registerCallbacks(callbacks: VisibilityCallbacks): () => void {
+   
     const unsubscribers: (() => void)[] = [];
 
     if (callbacks.onVisible) {

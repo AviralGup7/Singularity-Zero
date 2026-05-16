@@ -21,37 +21,57 @@ const PII_AUDIT_STORAGE_KEY = 'cyber-pipeline-pii-audit';
 const PII_VISIBILITY_KEY = 'cyber-pipeline-pii-visibility';
 
 const REDACTION_MASKS: Record<PIICategory, string> = {
+   
   email: '[EMAIL_REDACTED]',
+   
   phone: '[PHONE_REDACTED]',
+   
   ssn: '[SSN_REDACTED]',
+   
   creditCard: '[CARD_REDACTED]',
+   
   ipAddress: '[IP_REDACTED]',
+   
   name: '[NAME_REDACTED]',
+   
   custom: '[SECRET_REDACTED]',
 };
 
 export function detectPII(text: string): PIIMatch[] {
+   
   const matches: PIIMatch[] = [];
 
+   
   const checks: Array<[PIICategory, RegExp]> = [
+   
     ['email', /[\w.%+-]+@[\w.-]+\.[a-zA-Z]{2,}/g],
+   
     ['phone', /(?:\+?1[ .-])?\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}/g],
+   
     ['ssn', /\b\d{3}-\d{2}-\d{4}\b/g],
+   
     ['creditCard', /\b\d{4}(?:[ -]?\d{4}){3}\b/g],
+   
     ['ipAddress', /\b\d{1,3}(?:\.\d{1,3}){3}\b/g],
+   
     ['name', /(?:Name|User|Author|Owner|Sender|From|Customer|Client|Contact):\s+[A-Z][a-z][\w ]{1,30}/g],
+   
     ['custom', /(?:password|secret|token|api[-_]?key)\s*[:=]\s*[^\s]{3,}/gi],
   ];
 
+   
   for (const [category, pattern] of checks) {
+   
     const mask = REDACTION_MASKS[category as keyof typeof REDACTION_MASKS];
     let match;
     while ((match = pattern.exec(text)) !== null) {
       matches.push({
         category,
+   
         value: match[0],
         redacted: mask,
         start: match.index,
+   
         end: match.index + match[0].length,
       });
     }
@@ -82,6 +102,7 @@ export function redactPII(text: string, categories?: PIICategory[]): string {
 }
 
 export function logPIIAction(
+   
   action: PIIAuditEntry['action'],
   category: PIICategory,
   context: string,
@@ -98,6 +119,7 @@ export function logPIIAction(
 
   try {
     const raw = sessionStorage.getItem(PII_AUDIT_STORAGE_KEY);
+   
     const all: PIIAuditEntry[] = raw ? JSON.parse(raw) : [];
     all.unshift(entry);
     if (all.length > 1000) all.length = 1000;
@@ -140,10 +162,12 @@ export function scanObjectForPII(obj: unknown): Record<string, PIIMatch[]> {
         results.set(path, piiMatches);
       }
     } else if (Array.isArray(value)) {
+   
       value.forEach((item, i) => scan(item, `${path}[${i}]`));
     } else if (value && typeof value === 'object') {
       if (visited.has(value)) return;
       visited.add(value);
+   
       for (const [key, val] of Object.entries(value)) {
         scan(val, path ? `${path}.${key}` : key);
       }
@@ -164,6 +188,7 @@ export function redactObjectPII(obj: Record<string, unknown>): Record<string, un
     }
     if (value && typeof value === 'object') {
       const result = new Map<string, unknown>();
+   
       for (const [key, val] of Object.entries(value)) {
         result.set(key, redact(val));
       }

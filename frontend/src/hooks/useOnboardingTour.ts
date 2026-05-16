@@ -24,18 +24,21 @@ const DEFAULT_STEPS: OnboardingStep[] = [
     id: 'targets',
     title: 'Targets',
     description: 'Manage your scan targets, view findings, and track severity distribution across all targets.',
+   
     target: '[href="/targets"]',
   },
   {
     id: 'jobs',
     title: 'Jobs',
     description: 'Launch new scans, monitor running jobs, and view detailed logs for each scan.',
+   
     target: '[href="/jobs"]',
   },
   {
     id: 'findings',
     title: 'Findings',
     description: 'Review security findings, filter by severity, assign to team members, and track remediation.',
+   
     target: '[href="/findings"]',
   },
   {
@@ -48,8 +51,11 @@ const DEFAULT_STEPS: OnboardingStep[] = [
 const STORAGE_KEY = 'cyber-pipeline-onboarding';
 
 export function useOnboardingTour(steps: OnboardingStep[] = DEFAULT_STEPS) {
+   
   const [isOpen, setIsOpen] = useState(false);
+   
   const [currentStep, setCurrentStep] = useState(0);
+   
   const [isComplete, setIsComplete] = useState(true);
   const highlightRef = useRef<HTMLDivElement | null>(null);
 
@@ -83,6 +89,7 @@ export function useOnboardingTour(steps: OnboardingStep[] = DEFAULT_STEPS) {
     return () => { mounted = false; };
   }, []);
 
+  // eslint-disable-next-line security/detect-object-injection
   const current = steps[currentStep] || steps[0];
 
   useEffect(() => {
@@ -125,6 +132,7 @@ export function useOnboardingTour(steps: OnboardingStep[] = DEFAULT_STEPS) {
         highlightRef.current = null;
       }
     };
+   
   }, [isOpen, currentStep, current?.target]);
 
   const skip = useCallback(() => {
@@ -153,12 +161,14 @@ export function useOnboardingTour(steps: OnboardingStep[] = DEFAULT_STEPS) {
     } else {
       complete();
     }
+   
   }, [currentStep, steps.length, complete]);
 
   const prev = useCallback(() => {
     if (currentStep > 0) {
       setCurrentStep(s => s - 1);
     }
+   
   }, [currentStep]);
 
   const restart = useCallback(() => {

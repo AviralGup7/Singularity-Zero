@@ -23,17 +23,23 @@ import { getJobRemediation, getJobTraceLink } from '../api/jobs';
 import { RemediationSuggestions } from '../components/RemediationSuggestions';
 import type { RemediationSuggestion, TraceLink } from '../types/api';
 
+   
 const RECON_FAILURE_STAGES = new Set(['subdomains', 'live_hosts', 'urls', 'recon_validation']);
 
 export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
+   
   const [tracePanel, setTracePanel] = useState<TraceLink | null>(null);
+   
   const [traceLoading, setTraceLoading] = useState(false);
+   
   const [remediation, setRemediation] = useState<RemediationSuggestion[]>([]);
+   
   const [remediationLoading, setRemediationLoading] = useState(false);
   const navigate = useNavigate();
   const handleRestarted = useCallback((newJobId: string) => {
     navigate(`/jobs/${newJobId}`);
+   
   }, [navigate]);
   const monitor = useJobMonitor(jobId, { onRestarted: handleRestarted });
 
@@ -48,6 +54,7 @@ export function JobDetailPage() {
     restartJob, executeRestart, clearSseError,
   } = monitor;
 
+   
   const stageTheaterNodes = useMemo(() => (job ? buildStageTheaterNodesFromJob(job) : []), [job]);
   const throughput = useMemo(() => {
     const telemetry = job?.progress_telemetry;
@@ -63,9 +70,11 @@ export function JobDetailPage() {
       scanVelocity,
       activeTasks: Number(telemetry?.active_task_count ?? 0),
     };
+   
   }, [job]);
   const visualState = useMemo(
     () => mapToVisualState(job, { sseError }),
+   
     [job, sseError]
   );
   const isFailedJob = job?.status === 'failed' || job?.status === 'stopped';
@@ -87,6 +96,7 @@ export function JobDetailPage() {
       controller.abort();
       clearTimeout(tid);
     };
+   
   }, [jobId, isFailedJob]);
 
   const openTracePanel = useCallback(async () => {
@@ -98,6 +108,7 @@ export function JobDetailPage() {
     } finally {
       setTraceLoading(false);
     }
+   
   }, [jobId]);
 
   if (loading) return <DetailSkeleton />;
@@ -255,6 +266,7 @@ export function JobDetailPage() {
         <div className="card">
           <h3>Execution Options</h3>
           <div className="info-grid">
+  // eslint-disable-next-line security/detect-object-injection
             {Object.entries(job.execution_options).map(([key, value]) => (
               value ? <InfoItem key={key} label={key.replace(/_/g, ' ')} value="Enabled" /> : null
             ))}
@@ -442,6 +454,7 @@ export function JobDetailPage() {
 
       {job.per_module_stats && Object.keys(job.per_module_stats).length > 0 && (
         <ModulePerformanceChart
+   
           data={Object.entries(job.per_module_stats).map(([module, stats]) => ({
             module,
             duration: stats.duration_sec ?? 0,

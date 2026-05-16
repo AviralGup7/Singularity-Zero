@@ -239,7 +239,7 @@ class JobArtifactPackager:
             commit_hash = hash_result.stdout.strip()[:12]
 
             status_result = subprocess.run(
-                ["git", "status", "--porcelain"],  # nosec: S607
+                ["git", "status", "--porcelain"],  # noqa: S607
                 capture_output=True,
                 text=True,
                 timeout=10,

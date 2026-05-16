@@ -7,6 +7,7 @@ import {
 
 function makeStageEntry(
   stage: string,
+   
   status: StageProgressEntry['status'],
   percent: number,
   stageLabel?: string
@@ -72,6 +73,7 @@ describe('StageTheater stage contract', () => {
     const nodes = buildStageTheaterNodesFromJob(job);
     const stageIds = nodes.map((node) => node.id);
 
+   
     expect(stageIds).toEqual(expect.arrayContaining(['ranking', 'active_scan', 'semgrep', 'validation']));
     expect(stageIds).not.toContain('priority');
 
@@ -130,6 +132,7 @@ describe('StageTheater stage contract', () => {
         id: 'job-running-semgrep',
         stage: 'semgrep',
         stage_label: 'Static analysis (Semgrep)',
+   
         stage_progress: [makeStageEntry('semgrep', 'running', 30, 'Static analysis (Semgrep)')],
       }),
       makeJob({
@@ -138,6 +141,7 @@ describe('StageTheater stage contract', () => {
         stage: 'priority',
         stage_label: 'Priority ranking',
         failed_stage: 'priority',
+   
         stage_progress: [makeStageEntry('priority', 'error', 73, 'Priority ranking')],
       }),
     ];

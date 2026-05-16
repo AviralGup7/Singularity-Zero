@@ -78,7 +78,9 @@ describe('JobDetailPage recon failure surfacing', () => {
         error: '',
         warnings: [],
         warning_count: 0,
+   
         enabled_modules: ['subfinder'],
+   
         scope_entries: ['example.com'],
         status_message: 'Recon failed during URL collection',
         execution_options: {},
@@ -111,6 +113,7 @@ describe('JobDetailPage recon failure surfacing', () => {
     });
 
     render(
+   
       <MemoryRouter initialEntries={['/jobs/job-1']}>
         <Routes>
           <Route path="/jobs/:jobId" element={<JobDetailPage />} />
@@ -151,7 +154,9 @@ describe('JobDetailPage recon failure surfacing', () => {
         error: '',
         warnings: [],
         warning_count: 0,
+   
         enabled_modules: ['subfinder'],
+   
         scope_entries: ['example.com'],
         status_message: 'Recon validation failed',
         execution_options: {},
@@ -185,6 +190,7 @@ describe('JobDetailPage recon failure surfacing', () => {
 
     await act(async () => {
       render(
+   
         <MemoryRouter initialEntries={['/jobs/job-2']}>
           <Routes>
             <Route path="/jobs/:jobId" element={<JobDetailPage />} />
@@ -224,13 +230,16 @@ describe('JobDetailPage recon failure surfacing', () => {
         warnings: [],
         warning_count: 13,
         fatal_signal_count: 2,
+   
         degraded_providers: ['gau', 'waybackurls'],
         timeout_events: [
           "Provider 'gau' timed out after 12 seconds",
           "Provider 'waybackurls' timed out after 12 seconds",
         ],
         effective_timeout_seconds: 12,
+   
         enabled_modules: ['subfinder'],
+   
         scope_entries: ['example.com'],
         status_message: 'Access control stage interrupted',
         execution_options: {},
@@ -263,6 +272,7 @@ describe('JobDetailPage recon failure surfacing', () => {
     });
 
     render(
+   
       <MemoryRouter initialEntries={['/jobs/job-3']}>
         <Routes>
           <Route path="/jobs/:jobId" element={<JobDetailPage />} />

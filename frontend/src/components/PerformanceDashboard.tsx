@@ -9,6 +9,7 @@ interface MetricRecord {
 function getNavMetrics(): MetricRecord[] {
   const navEntries = performance.getEntriesByType('navigation');
   if (navEntries.length === 0) return [];
+   
   const nav = navEntries[0] as PerformanceNavigationTiming;
   return [
     { name: 'TTFB', value: nav.responseStart, timestamp: new Date().toISOString() },
@@ -18,11 +19,13 @@ function getNavMetrics(): MetricRecord[] {
 }
 
 export function PerformanceDashboard() {
+   
   const [metrics, setMetrics] = useState<MetricRecord[]>(getNavMetrics);
   const onReportRef = useRef<((m: MetricRecord) => void) | null>(null);
 
   useEffect(() => {
     onReportRef.current = (m: MetricRecord) => {
+   
       setMetrics(prev => [...prev, m]);
     };
   }, []);

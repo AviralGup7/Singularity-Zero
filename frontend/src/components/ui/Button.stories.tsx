@@ -7,14 +7,17 @@ const meta = {
   parameters: {
     layout: 'centered',
   },
+   
   tags: ['autodocs'],
   argTypes: {
     variant: {
       control: 'select',
+   
       options: ['primary', 'secondary', 'danger', 'ghost'],
     },
     size: {
       control: 'select',
+   
       options: ['sm', 'md', 'lg'],
     },
     loading: {

@@ -4,9 +4,13 @@ import { Icon } from '@/components/Icon';
 import type { RequestResponsePair } from '@/types/api';
 
 const SENSITIVE_PATTERNS = [
+   
   { regex: /(?:Bearer\s+|token[=:\s]+|api[_-]?key[=:\s]+|access[_-]?token[=:\s]+)["']?([A-Za-z0-9\-._~+/]+=*)/gi, label: 'Token' },
+   
   { regex: /(?:password|passwd|pwd|secret|credential)[=:\s]+["']?([^\s"']+)/gi, label: 'Credential' },
+   
   { regex: /(?:Authorization|Cookie|X-Api-Key|X-Auth-Token)[=:\s]+["']?([^\s"']+)/gi, label: 'Auth Header' },
+   
   { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, label: 'Email' },
 ];
 
@@ -20,6 +24,7 @@ function decodePayload(data: string, encoding?: string): string {
       return decodeURIComponent(data);
     }
     if (encoding === 'hex') {
+   
       return data.replace(/([0-9a-fA-F]{2})/g, (match) =>
         String.fromCharCode(parseInt(match, 16))
       );
@@ -32,6 +37,7 @@ function decodePayload(data: string, encoding?: string): string {
 
 function detectContentType(body: string, headers?: Record<string, string>): string {
   if (headers) {
+   
     const ct = headers['Content-Type'] || headers['content-type'] || '';
     if (ct.includes('json')) return 'json';
     if (ct.includes('xml')) return 'xml';
@@ -59,6 +65,7 @@ function formatPayload(body: string, contentType: string): string {
 function redactText(text: string): string {
   let result = text;
   for (const { regex, label } of SENSITIVE_PATTERNS) {
+   
     result = result.replace(regex, `[REDACTED: ${label}]`);
   }
   return result;
@@ -69,6 +76,7 @@ function buildCurlCommand(pair: RequestResponsePair): string {
   let cmd = `curl -X ${request.method} '${request.url}'`;
 
   if (request.headers) {
+   
     for (const [key, value] of Object.entries(request.headers)) {
       cmd += ` \\\n  -H '${key}: ${value}'`;
     }
@@ -95,18 +103,25 @@ export interface RequestResponseViewerProps {
 }
 
 export function RequestResponseViewer({ pairs, className, defaultRedacted = false }: RequestResponseViewerProps) {
+   
   const [activeIndex, setActiveIndex] = useState(0);
+   
   const [viewMode, setViewMode] = useState<ViewMode>('request');
+   
   const [redacted, setRedacted] = useState(defaultRedacted);
+   
   const [decoded, setDecoded] = useState(true);
+   
   const [copied, setCopied] = useState(false);
 
+  // eslint-disable-next-line security/detect-object-injection
   const currentPair = pairs[activeIndex] ?? null;
 
   const processedRequest = useMemo(() => {
     if (!currentPair) return { headers: '', body: '' };
     const req = currentPair.request;
     const headers = Object.entries(req.headers || {})
+   
       .map(([k, v]) => `${k}: ${v}`)
       .join('\n');
     let body = req.body || '';
@@ -115,12 +130,14 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
     body = formatPayload(body, contentType);
     if (redacted) body = redactText(body);
     return { headers, body, method: req.method, url: req.url };
+   
   }, [currentPair, decoded, redacted]);
 
   const processedResponse = useMemo(() => {
     if (!currentPair) return { headers: '', body: '' };
     const res = currentPair.response;
     const headers = Object.entries(res.headers || {})
+   
       .map(([k, v]) => `${k}: ${v}`)
       .join('\n');
     let body = res.body || '';
@@ -129,6 +146,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
     body = formatPayload(body, contentType);
     if (redacted) body = redactText(body);
     return { headers, body, status: res.status };
+   
   }, [currentPair, decoded, redacted]);
 
   const handleCopyCurl = useCallback(async () => {
@@ -141,6 +159,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
     } catch {
       // Clipboard not available
     }
+   
   }, [currentPair]);
 
   const handleCopyBody = useCallback(async (body: string) => {

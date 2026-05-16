@@ -7,12 +7,15 @@ import { User, LogOut, Download, Upload } from 'lucide-react';
 export function UserProfileSection() {
   const { user, logout } = useAuth();
   const { updater } = useSettings();
+   
   const [importError, setImportError] = useState<string | null>(null);
+   
   const [saveConfirmation, setSaveConfirmation] = useState<string | null>(null);
 
   const handleExport = useCallback(() => {
     try {
       const json = updater.exportSettings();
+   
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -26,9 +29,11 @@ export function UserProfileSection() {
       setSaveConfirmation('Failed to export settings');
       setTimeout(() => setSaveConfirmation(null), 3000);
     }
+   
   }, [updater]);
 
   const handleImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+   
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -40,6 +45,7 @@ export function UserProfileSection() {
         if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
           throw new Error('Invalid format');
         }
+   
         const knownKeys = ['dashboard', 'notifications', 'security', 'pipeline', 'api', 'reports', 'integrations', 'scanProfiles', 'experimental', 'performance', 'shortcuts', 'profiles', 'logging', 'rateLimiting'];
         const hasKnownKey = knownKeys.some(k => k in parsed);
         if (!hasKnownKey) {
@@ -55,6 +61,7 @@ export function UserProfileSection() {
     };
     reader.readAsText(file);
     e.target.value = '';
+   
   }, [updater]);
 
   return (

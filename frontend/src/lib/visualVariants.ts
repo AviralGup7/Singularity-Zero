@@ -18,6 +18,7 @@ export const stageVariants: Record<string, unknown> = {
     return {
       scale: 1 + vs.intensity * 0.12,
       opacity: 0.88,
+   
       x: [0, -jitter, jitter, -1, 0],
       filter: `blur(${(vs.instability * 1.2).toFixed(2)}px)`,
     };
@@ -25,6 +26,7 @@ export const stageVariants: Record<string, unknown> = {
   critical: (vs: VisualState) => ({
     scale: 1.08 + vs.urgency * 0.16,
     opacity: 1,
+   
     x: [0, -2, 2, -1, 0],
     filter: 'drop-shadow(0 0 10px rgba(255, 59, 59, 0.6))',
   }),

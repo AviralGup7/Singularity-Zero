@@ -15,7 +15,8 @@ if os.environ.get("FEATURE_WASM_PLUGINS", "false").lower() == "true":
     import wasmtime
 else:
     class _MockWasmtime:
-        class Engine: pass
+        class Engine:
+            pass
         class Linker:
             def __init__(self, engine: Any) -> None: pass
             def define_wasi(self) -> None: pass

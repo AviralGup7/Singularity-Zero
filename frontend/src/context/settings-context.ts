@@ -5,6 +5,7 @@ import { z } from 'zod';
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
 export interface SettingsUpdater {
+   
   updateSection: <T extends keyof AppSettings>(section: T, partial: Partial<AppSettings[T]>) => void;
   resetToDefaults: () => void;
   exportSettings: () => string;

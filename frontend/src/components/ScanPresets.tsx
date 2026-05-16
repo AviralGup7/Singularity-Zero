@@ -21,6 +21,7 @@ interface ScanPresetsProps {
     executionOptions: Record<string, boolean>;
     runtimeOverrides: Record<string, string>;
   };
+   
   onLoadPreset: (config: ScanPreset['config']) => void;
 }
 
@@ -44,10 +45,15 @@ function savePresets(presets: ScanPreset[]) {
 }
 
 export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresetsProps) {
+   
   const [presets, setPresets] = useState<ScanPreset[]>([]);
+   
   const [showSaveForm, setShowSaveForm] = useState(false);
+   
   const [presetName, setPresetName] = useState('');
+   
   const [presetDescription, setPresetDescription] = useState('');
+   
   const [saveError, setSaveError] = useState<string | null>(null);
   const toast = useToast();
 
@@ -81,6 +87,7 @@ export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresets
         runtimeOverrides: { ...currentConfig.runtimeOverrides },
       },
     };
+   
     const updated = [...presets, newPreset];
     savePresets(updated);
     setPresets(updated);
@@ -89,11 +96,13 @@ export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresets
     setShowSaveForm(false);
     setSaveError(null);
     toast.success(`Preset "${newPreset.name}" saved.`);
+   
   }, [presetName, presetDescription, presets, currentConfig, toast]);
 
   const handleLoad = useCallback((preset: ScanPreset) => {
     onLoadPreset(preset.config);
     toast.success(`Loaded preset "${preset.name}".`);
+   
   }, [onLoadPreset, toast]);
 
   const handleDelete = useCallback((id: string) => {
@@ -102,6 +111,7 @@ export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresets
     savePresets(updated);
     setPresets(updated);
     if (preset) toast.info(`Deleted preset "${preset.name}".`);
+   
   }, [presets, toast]);
 
   return (

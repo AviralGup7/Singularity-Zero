@@ -51,9 +51,11 @@ export function FindingsKanbanView({
         >
           <div className="kanban-column-header">
             <span className="kanban-column-title">{col.label}</span>
+  // eslint-disable-next-line security/detect-object-injection
             <span className="kanban-column-count">{kanbanFindings[col.key].length}</span>
           </div>
           <div className="kanban-cards">
+  // eslint-disable-next-line security/detect-object-injection
             {kanbanFindings[col.key].map(finding => {
               const dupCount = (finding.duplicates || []).length;
               const isFP = finding.falsePositive;

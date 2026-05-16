@@ -11,6 +11,7 @@ export function RouteFocus({ children }: RouteFocusProps) {
 
   // FIX: Add location.pathname to deps so focus re-manages on route changes
   useEffect(() => {
+   
     const heading = mainRef.current?.querySelector('h1, h2, [data-focus-heading]');
     if (heading && heading instanceof HTMLElement) {
       if (!heading.hasAttribute('tabindex')) {
@@ -20,6 +21,7 @@ export function RouteFocus({ children }: RouteFocusProps) {
     } else {
       mainRef.current?.focus({ preventScroll: false });
     }
+   
   }, [location.pathname]);
 
   return (

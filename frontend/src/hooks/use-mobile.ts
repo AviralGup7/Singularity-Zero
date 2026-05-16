@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 export function useIsMobile(mobileBreakpoint = 768) {
+   
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < mobileBreakpoint);
 
   useEffect(() => {
@@ -12,6 +13,7 @@ export function useIsMobile(mobileBreakpoint = 768) {
 
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
+   
   }, [mobileBreakpoint]);
 
   return isMobile;

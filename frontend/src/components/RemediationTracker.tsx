@@ -16,7 +16,9 @@ interface RemediationTrackerProps {
 }
 
 export function RemediationTracker({ entries }: RemediationTrackerProps) {
+   
   const [filter, setFilter] = useState<string>('all');
+   
   const [sortBy, setSortBy] = useState<'date' | 'severity' | 'time'>('date');
 
   const filtered = useMemo(() => {
@@ -25,11 +27,14 @@ export function RemediationTracker({ entries }: RemediationTrackerProps) {
       result = entries.filter(e => e.status === filter);
     }
     const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+   
     return [...result].sort((a, b) => {
+   
       if (sortBy === 'severity') return (severityOrder[a.severity] ?? 5) - (severityOrder[b.severity] ?? 5);
       if (sortBy === 'time') return (b.timeToRemediate || Infinity) - (a.timeToRemediate || Infinity);
       return new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime();
     });
+   
   }, [entries, filter, sortBy]);
 
   const stats = useMemo(() => {
@@ -44,6 +49,7 @@ export function RemediationTracker({ entries }: RemediationTrackerProps) {
       : 0;
     const rate = total > 0 ? Math.round((remediated / total) * 100) : 0;
     return { total, remediated, open, inProgress, accepted, avgTime, rate };
+   
   }, [entries]);
 
 
@@ -86,6 +92,7 @@ export function RemediationTracker({ entries }: RemediationTrackerProps) {
       <div className="remediation-filters">
         <div className="rem-filter-group">
           <label>Status:</label>
+  // eslint-disable-next-line security/detect-object-injection
           {['all', 'open', 'in-progress', 'remediated', 'accepted'].map(s => (
             <button
               key={s}

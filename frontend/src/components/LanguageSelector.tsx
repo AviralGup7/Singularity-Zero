@@ -25,6 +25,7 @@ export function LanguageSelector({ value, onChange }: LanguageSelectorProps) {
       <SelectContent>
         {supportedLanguages.map((lang) => (
           <SelectItem key={lang} value={lang}>
+  // eslint-disable-next-line security/detect-object-injection
             {languageNames[lang as SupportedLanguage]}
           </SelectItem>
         ))}

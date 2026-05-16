@@ -53,6 +53,7 @@ function BarChart({ data, width, height, maxVal }: { data: number[]; width: numb
 function StackedBarChart({ data, width, height, maxVal }: { data: Array<{ critical: number; high: number; medium: number; low: number; info: number }>; width: number; height: number; maxVal: number }) {
   if (data.length === 0) return null;
   const barWidth = Math.max(4, (width - data.length * 2) / data.length);
+   
   const elements: React.ReactElement[] = [];
   const colors = {
     critical: 'var(--severity-critical)',
@@ -61,6 +62,7 @@ function StackedBarChart({ data, width, height, maxVal }: { data: Array<{ critic
     low: 'var(--severity-low)',
     info: 'var(--severity-info)',
   };
+   
   const keys: Array<keyof typeof colors> = ['critical', 'high', 'medium', 'low', 'info'];
 
   data.forEach((point, i) => {
@@ -71,6 +73,7 @@ function StackedBarChart({ data, width, height, maxVal }: { data: Array<{ critic
       const x = i * (barWidth + 2);
       const y = height - cumulativeHeight - barH - 15;
       elements.push(
+  // eslint-disable-next-line security/detect-object-injection
         <rect key={`${i}-${key}`} x={x} y={y} width={barWidth} height={barH} fill={colors[key]} rx={1} />
       );
       cumulativeHeight += barH;
@@ -115,10 +118,14 @@ export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
   const chartWidth = 400;
   const chartHeight = 120;
 
+   
   const maxFindings = useMemo(() => Math.max(1, ...data.map(d => d?.findings ?? 0)), [data]);
+   
   const maxScans = useMemo(() => Math.max(1, ...data.map(d => d?.scans ?? 0)), [data]);
 
+   
   const findingData = useMemo(() => data.map(d => d?.findings ?? 0), [data]);
+   
   const scanData = useMemo(() => data.map(d => d?.scans ?? 0), [data]);
   const severityData = useMemo(() => data.map(d => ({
     critical: d?.critical ?? 0,
@@ -126,6 +133,7 @@ export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
     medium: d?.medium ?? 0,
     low: d?.low ?? 0,
     info: d?.info ?? 0,
+   
   })), [data]);
 
   if (data.length === 0) {

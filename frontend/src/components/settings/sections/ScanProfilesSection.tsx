@@ -2,6 +2,7 @@ import { type AppSettings } from '../../../context/SettingsContext';
 import { SettingsSectionCard, SettingSelect, SettingToggle } from '../SettingsComponents';
 
 interface ScanProfilesSectionProps {
+   
   defaultScanProfile: AppSettings['scanProfiles']['defaultProfile'];
   includeNuclei: boolean;
   includePassiveAnalysis: boolean;
@@ -21,6 +22,7 @@ export function ScanProfilesSection({ defaultScanProfile, includeNuclei, include
         label="Default Profile"
         value={defaultScanProfile}
         onChange={onDefaultScanProfileChange}
+   
         options={[{ label: 'Full Scan', value: 'full' }, { label: 'Quick Scan', value: 'quick' }, { label: 'Passive Only', value: 'passive' }, { label: 'Custom', value: 'custom' }]}
         description="Default scan profile for new jobs"
       />

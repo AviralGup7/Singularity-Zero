@@ -12,6 +12,7 @@ interface SessionState {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useSessionTimeout(onTimeout?: () => void) {
+   
   const [state, setState] = useState<SessionState>(() => ({
     isLocked: false,
     showWarning: false,
@@ -26,6 +27,7 @@ export function useSessionTimeout(onTimeout?: () => void) {
   
   useEffect(() => {
     isLockedRef.current = state.isLocked;
+   
   }, [state.isLocked]);
 
   const resetTimer = useCallback(() => {
@@ -48,9 +50,11 @@ export function useSessionTimeout(onTimeout?: () => void) {
       setState(prev => ({ ...prev, isLocked: true, showWarning: false }));
       onTimeout?.();
     }, TIMEOUT_MS);
+   
   }, [onTimeout]);
 
   useEffect(() => {
+   
     const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'keypress'];
 
     const handler = () => {
@@ -86,10 +90,12 @@ export function useSessionTimeout(onTimeout?: () => void) {
       if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
+   
   }, [resetTimer]);
 
   const unlock = useCallback(() => {
     resetTimer();
+   
   }, [resetTimer]);
 
   return {
@@ -103,7 +109,9 @@ export function useSessionTimeout(onTimeout?: () => void) {
 }
 
 export function SessionLockScreen({ onUnlock }: { onUnlock: () => void }) {
+   
   const [pin, setPin] = useState('');
+   
   const [error, setError] = useState('');
 
   const handleSubmit = () => {

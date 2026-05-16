@@ -14,10 +14,15 @@ export function LoginPage() {
   const { user, login, loginWithApiKey } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+   
   const [name, setName] = useState('');
+   
   const [role, setRole] = useState<UserRole>('analyst');
+   
   const [apiKey, setApiKey] = useState('');
+   
   const [authError, setAuthError] = useState<string | null>(null);
+   
   const [authLoading, setAuthLoading] = useState(false);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';

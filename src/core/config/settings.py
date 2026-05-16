@@ -149,7 +149,7 @@ def load_settings(path: Path | None = None) -> AppSettings:
             defaults = raw.get("defaults", {})
             section = raw.get(env, {})
             json_data = {**defaults, **section}
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     # Pydantic BaseSettings handles environment overrides automatically

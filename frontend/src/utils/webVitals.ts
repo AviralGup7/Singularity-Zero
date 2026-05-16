@@ -45,6 +45,7 @@ function storeMetric(metric: Metric): void {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const data: Record<string, unknown> = raw ? JSON.parse(raw) : {};
+   
     data[metric.name] = {
       value: metric.value,
       rating: getRating(metric.name, metric.value),
@@ -75,6 +76,7 @@ export function getStoredWebVitals(): WebVitalsState {
 
 export function initWebVitals(): void {
   const reportMetric = (metric: Metric) => {
+   
     console.info(`[WebVitals] ${metric.name}:`, {
       value: metric.value,
       rating: getRating(metric.name, metric.value),

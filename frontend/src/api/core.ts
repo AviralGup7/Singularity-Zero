@@ -47,6 +47,7 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+   
     config.headers['X-Request-ID'] = generateRequestId();
     config.metadata = { startTime: Date.now() };
     return config;
@@ -63,6 +64,7 @@ apiClient.interceptors.response.use(
     if (schema) {
       const result = schema.safeParse(response.data);
       if (!result.success) {
+   
         console.error(`[API CONTRACT VIOLATION] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
           errors: result.error.format(),
           received: response.data
@@ -74,6 +76,7 @@ apiClient.interceptors.response.use(
     }
 
     if (import.meta.env.DEV) {
+   
       console.debug(`[API] ${response.config.method?.toUpperCase()} ${response.config.url} - ${responseTime}ms`);
     }
     
@@ -83,6 +86,7 @@ apiClient.interceptors.response.use(
     
     if (response.config.method === 'get') {
       const key = apiCache.generateKey(response.config.url ?? '', response.config.params);
+   
       const ttlHeader = response.headers?.['x-cache-ttl'];
       // Use TTL from metadata (passed from cachedGet) or from header
       const ttl = response.config.metadata?.ttl ?? (ttlHeader ? Number(ttlHeader) : undefined);
@@ -100,6 +104,7 @@ apiClient.interceptors.response.use(
       : null;
       
     if (import.meta.env.DEV && responseTime !== null) {
+   
       console.debug(`[API] ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${responseTime}ms (error)`);
     }
 

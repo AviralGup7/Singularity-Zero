@@ -51,8 +51,11 @@ function stageName(stageLabel?: string, stage?: string): string {
 }
 
 const JobCard = memo(function JobCard({ job, onRefresh }: { job: Job; onRefresh: () => void }) {
+   
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+   
   const [showConfirmStop, setShowConfirmStop] = useState(false);
+   
   const [showConfirmRestart, setShowConfirmRestart] = useState(false);
   const toast = useToast();
   const { policy, strategy } = useMotionPolicy('card');
@@ -68,6 +71,7 @@ const JobCard = memo(function JobCard({ job, onRefresh }: { job: Job; onRefresh:
     } finally {
       setActionLoading(null);
     }
+   
   }, [job.id, toast, onRefresh]);
 
   const executeRestart = useCallback(async () => {
@@ -81,10 +85,12 @@ const JobCard = memo(function JobCard({ job, onRefresh }: { job: Job; onRefresh:
     } finally {
       setActionLoading(null);
     }
+   
   }, [job.id, toast, onRefresh]);
 
   const statusClass = (job.status ?? '').toLowerCase();
   const telemetry = job.progress_telemetry;
+   
   const failedSummary = [job.failed_stage, job.failure_reason_code, job.failure_reason]
     .filter(Boolean)
     .join(' · ');
@@ -200,11 +206,16 @@ const JobCard = memo(function JobCard({ job, onRefresh }: { job: Job; onRefresh:
 }, (prev, next) => prev.job?.id === next.job?.id && prev.onRefresh === next.onRefresh);
 
 export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { jobs?: Job[]; onRefresh?: () => void }) {
+   
   const [jobs, setJobs] = useState<Job[]>(propJobs || []);
+   
   const [loading, setLoading] = useState(!propJobs);
+   
   const [error, setError] = useState<string | null>(null);
+   
   const [filter, setFilter] = useState<'all' | 'running' | 'completed' | 'failed'>('all');
   const toast = useToast();
+   
   const [gridRef] = useAutoAnimate({ duration: 220, easing: 'ease-out' });
 
   const fetchJobs = useCallback(async (signal?: AbortSignal) => {
@@ -220,6 +231,7 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
+   
   }, [toast]);
 
   const onRefresh = propOnRefresh || fetchJobs;
@@ -238,6 +250,7 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
       controller.abort();
       clearInterval(interval);
     };
+   
   }, [propJobs, fetchJobs]);
 
   if (loading) {
@@ -269,11 +282,13 @@ export default function JobList({ jobs: propJobs, onRefresh: propOnRefresh }: { 
         </div>
         
         <div className="flex items-center gap-3">
+  // eslint-disable-next-line security/detect-object-injection
           <label htmlFor="job-status-filter" className="text-[10px] font-black text-muted uppercase tracking-widest">Filter</label>
           <select 
             id="job-status-filter"
             value={filter}
             onChange={(e) => setFilter(e.target.value as 'all' | 'running' | 'completed' | 'failed')}
+   
             className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-text focus:border-accent/50 outline-none appearance-none cursor-pointer min-w-[120px]"
           >
             <option value="all">All Jobs</option>

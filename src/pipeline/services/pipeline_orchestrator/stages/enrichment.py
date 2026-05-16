@@ -4,11 +4,11 @@ import asyncio
 import time
 from typing import Any
 
-from src.analysis.intelligence.cvss_scoring import enrich_findings_with_cvss
 from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
     filter_reportable_findings,
 )
+from src.analysis.intelligence.cvss_scoring import enrich_findings_with_cvss
 from src.core.contracts.finding_lifecycle import apply_lifecycle
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger

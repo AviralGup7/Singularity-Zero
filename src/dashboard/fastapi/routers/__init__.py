@@ -1,6 +1,7 @@
 """Router aggregation for the FastAPI dashboard."""
 
-from typing import cast
+from typing import Any, cast
+
 from fastapi import APIRouter
 
 from .bloom import router as bloom_router
@@ -20,12 +21,13 @@ from .security import router as security_router
 from .targets import router as targets_router
 from .tracing import router as tracing_router
 
+imports_router: Any = None
 try:
-    from .imports import router as imports_router
+    from .imports import router as _imports_router
+    imports_router = _imports_router
 except RuntimeError as exc:
     if "python-multipart" not in str(exc):
         raise
-    imports_router = cast(APIRouter, None)
 
 api_router = APIRouter()
 

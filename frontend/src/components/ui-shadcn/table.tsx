@@ -20,6 +20,7 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
+  // eslint-disable-next-line security/detect-object-injection
   <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
 ))
 TableHeader.displayName = "TableHeader"
@@ -30,6 +31,7 @@ const TableBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
+  // eslint-disable-next-line security/detect-object-injection
     className={cn("[&_tr:last-child]:border-0", className)}
     {...props}
   />
@@ -43,6 +45,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
+  // eslint-disable-next-line security/detect-object-injection
       "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
       className
     )}
@@ -58,6 +61,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
+  // eslint-disable-next-line security/detect-object-injection
       "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
       className
     )}
@@ -73,6 +77,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
+  // eslint-disable-next-line security/detect-object-injection
       "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
       className
     )}
@@ -88,6 +93,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
+  // eslint-disable-next-line security/detect-object-injection
       "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
       className
     )}

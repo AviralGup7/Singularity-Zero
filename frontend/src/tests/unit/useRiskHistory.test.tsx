@@ -48,16 +48,19 @@ describe('useRiskHistory', () => {
 
     const { result } = renderHook(() => useRiskHistory({
       days: 30,
+   
       targetIds: ['portal.example.com'],
       startDate: '2026-05-02',
       endDate: '2026-05-03',
     }));
 
     expect(result.current.history).toHaveLength(1);
+   
     expect(result.current.history[0].target_id).toBe('portal.example.com');
   });
 
   it('builds sorted date columns from history entries', () => {
+   
     expect(buildRiskDateColumns(entries)).toEqual(['2026-05-01', '2026-05-02']);
   });
 });

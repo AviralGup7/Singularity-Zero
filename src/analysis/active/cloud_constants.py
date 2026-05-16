@@ -109,7 +109,7 @@ INFRASTRUCTURE_SERVICE_PATHS: dict[str, list[str]] = {
     ],
 }
 
-IMDSV2_TOKEN_HEADER = "X-aws-ec2-metadata-token"  # nosec: S105
+IMDSV2_TOKEN_HEADER = "X-aws-ec2-metadata-token"  # noqa: S105
 GCP_METADATA_HEADER = "Metadata-Flavor"
 AZURE_METADATA_HEADER = "Metadata"
 

@@ -381,9 +381,11 @@ async def update_finding(
     findings_file_path = None
 
     for target_entry in output_root.iterdir():
-        if not target_entry.is_dir(): continue
+        if not target_entry.is_dir():
+            continue
         for run_entry in target_entry.iterdir():
-            if not run_entry.is_dir(): continue
+            if not run_entry.is_dir():
+                continue
             findings_path = run_entry / "findings.json"
             if findings_path.exists():
                 try:
@@ -402,8 +404,10 @@ async def update_finding(
                             break
                 except Exception:  # noqa: S112
                     continue
-            if found: break
-        if found: break
+            if found:
+                break
+        if found:
+                break
 
     if not found:
         raise HTTPException(status_code=404, detail="Finding not found")
@@ -445,9 +449,11 @@ async def delete_finding(
     target_finding_idx = -1
 
     for target_entry in output_root.iterdir():
-        if not target_entry.is_dir(): continue
+        if not target_entry.is_dir():
+            continue
         for run_entry in target_entry.iterdir():
-            if not run_entry.is_dir(): continue
+            if not run_entry.is_dir():
+                continue
             findings_path = run_entry / "findings.json"
             if findings_path.exists():
                 try:
@@ -462,8 +468,10 @@ async def delete_finding(
                             break
                 except Exception:  # noqa: S112
                     continue
-            if found: break
-        if found: break
+            if found:
+                break
+        if found:
+                break
 
     if not found:
         raise HTTPException(status_code=404, detail="Finding not found")

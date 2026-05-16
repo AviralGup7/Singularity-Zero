@@ -14,7 +14,9 @@ interface UseKeyboardShortcutsOptions {
   shortcuts: ShortcutDef[];
 }
 
+   
 let globalShortcuts: ShortcutDef[] = [];
+   
 let listeners: ((shortcuts: ShortcutDef[]) => void)[] = [];
 
 export function registerGlobalShortcuts(shortcuts: ShortcutDef[]) {
@@ -37,6 +39,7 @@ export function useKeyboardShortcuts({ enabled = true, shortcuts }: UseKeyboardS
   useEffect(() => {
     shortcutsRef.current = shortcuts;
     enabledRef.current = enabled;
+   
   }, [shortcuts, enabled]);
 
   useEffect(() => {
@@ -70,6 +73,7 @@ export function useKeyboardShortcuts({ enabled = true, shortcuts }: UseKeyboardS
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+   
   }, [enabled]);
 }
 
@@ -84,5 +88,6 @@ export function useEscapeToClose(onClose: () => void, enabled = true) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+   
   }, [onClose, enabled]);
 }

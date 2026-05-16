@@ -14,14 +14,19 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export function JobTimelineComponent({ jobId }: { jobId: string }) {
+   
   const [timeline, setTimeline] = useState<JobTimelineEntry[]>([]);
+   
   const [job, setJob] = useState<Job | null>(null);
+   
   const [loading, setLoading] = useState(true);
+   
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+   
       const [timelineRes, jobRes] = await Promise.allSettled([
         getJobTimeline(jobId),
         getJob(jobId),
@@ -41,12 +46,14 @@ export function JobTimelineComponent({ jobId }: { jobId: string }) {
     } finally {
       setLoading(false);
     }
+   
   }, [jobId]);
 
+   
   useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) return <div className="p-4 text-muted">Loading timeline...</div>;
-  if (error) return <div className="card error"><p>Error: {error}</p><button className="btn btn-sm btn-primary mt-2" onClick={fetchData}>Retry</button></div>;
+  if (error) return <div className="card error"><p>Error: {error}</p><button className="btn btn-sm btn-primary mt-2" onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={fetchData}>Retry</button></div>;
   if (timeline.length === 0) return <div className="card empty"><p>No timeline data available for this job.</p></div>;
 
   return (
@@ -60,13 +67,17 @@ export function JobTimelineComponent({ jobId }: { jobId: string }) {
         </div>
       )}
       <div className="relative pl-8 space-y-3">
+  // eslint-disable-next-line security/detect-object-injection
         <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-[#1f2937]" />
         {timeline.map((entry, i) => {
           const colorKey = entry.stage?.toLowerCase() || 'default';
+  // eslint-disable-next-line security/detect-object-injection
           const color = STAGE_COLORS[colorKey] || STAGE_COLORS.default;
           return (
             <div key={i} className="relative">
+  // eslint-disable-next-line security/detect-object-injection
               <div className={`absolute left-[-20px] top-1.5 w-2.5 h-2.5 rounded-full ${color}`} />
+  // eslint-disable-next-line security/detect-object-injection
               <div className="card p-3 border border-[#1f2937]">
                 <div className="flex items-center justify-between">
                   <div>

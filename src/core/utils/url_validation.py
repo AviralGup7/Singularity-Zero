@@ -29,7 +29,7 @@ def is_safe_url(url: str) -> bool:
     if not hostname:
         return False
     # Block obvious private hostnames
-    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"): # nosec: S104
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"): # noqa: S104
         return False
     # Block cloud metadata IPs
     if hostname == "169.254.169.254":

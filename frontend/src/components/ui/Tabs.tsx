@@ -24,6 +24,7 @@ interface TabsProps {
 }
 
 export function Tabs({ children, defaultTab = '', className }: TabsProps) {
+   
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   return (

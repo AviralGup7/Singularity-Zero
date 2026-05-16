@@ -21,6 +21,7 @@ export async function clearLegacyServiceWorkers(): Promise<void> {
 
 export function registerServiceWorker(): void {
   void clearLegacyServiceWorkers().catch(error => {
+   
     console.warn('[SW] Legacy cleanup failed:', error);
   });
 }
@@ -29,6 +30,7 @@ export function initWebVitals(): void {
   import('web-vitals').then(({ onCLS, onLCP, onFCP, onTTFB }) => {
     const report = (metric: { name: string; value: number; delta: number }) => {
       if (import.meta.env.DEV) {
+   
         console.info(`[WebVitals] ${metric.name}:`, metric.value);
       }
     };
@@ -47,6 +49,7 @@ export function setupGlobalErrorTracking(): void {
   errorTrackingSetup = true;
 
   window.addEventListener('error', (event) => {
+   
     console.error('[GlobalError]', event.error || event.message);
 
     // Resource loading errors (images, scripts, stylesheets) - capture phase logic moved here
@@ -78,6 +81,7 @@ export function setupGlobalErrorTracking(): void {
       return;
     }
 
+   
     console.error('[UnhandledRejection]', event.reason);
     dispatchToast(`Async Failure: ${message}`, 'error');
     showErrorOverlay('Async Error', message, reason?.stack);

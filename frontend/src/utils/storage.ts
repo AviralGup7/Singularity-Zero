@@ -13,6 +13,7 @@ export const safeStorage = {
     try {
       return localStorage.getItem(key);
     } catch (e) {
+   
       console.warn(`[SafeStorage] Failed to read ${key} from localStorage, using memory fallback:`, e);
       return memoryStorage.get(key) || null;
     }
@@ -22,6 +23,7 @@ export const safeStorage = {
       localStorage.setItem(key, value);
       return true;
     } catch (e) {
+   
       console.warn(`[SafeStorage] Failed to write ${key} to localStorage, using memory fallback:`, e);
       memoryStorage.set(key, value);
       return false; // Still return false to indicate persistence failed, but state is kept in memory
@@ -31,6 +33,7 @@ export const safeStorage = {
     try {
       localStorage.removeItem(key);
     } catch (e) {
+   
       console.warn(`[SafeStorage] Failed to remove ${key} from localStorage, removing from memory fallback:`, e);
     } finally {
       memoryStorage.delete(key);
@@ -40,6 +43,7 @@ export const safeStorage = {
     try {
       localStorage.clear();
     } catch (e) {
+   
       console.warn('[SafeStorage] Failed to clear localStorage, clearing memory fallback:', e);
     } finally {
       memoryStorage.clear();
@@ -52,6 +56,7 @@ export const safeSession = {
     try {
       return sessionStorage.getItem(key);
     } catch (e) {
+   
       console.warn(`[SafeSession] Failed to read ${key} from sessionStorage, using memory fallback:`, e);
       return memorySession.get(key) || null;
     }
@@ -61,6 +66,7 @@ export const safeSession = {
       sessionStorage.setItem(key, value);
       return true;
     } catch (e) {
+   
       console.warn(`[SafeSession] Failed to write ${key} to sessionStorage, using memory fallback:`, e);
       memorySession.set(key, value);
       return false;
@@ -70,6 +76,7 @@ export const safeSession = {
     try {
       sessionStorage.removeItem(key);
     } catch (e) {
+   
       console.warn(`[SafeSession] Failed to remove ${key} from sessionStorage, removing from memory fallback:`, e);
     } finally {
       memorySession.delete(key);
@@ -79,6 +86,7 @@ export const safeSession = {
     try {
       sessionStorage.clear();
     } catch (e) {
+   
       console.warn('[SafeSession] Failed to clear sessionStorage, clearing memory fallback:', e);
     } finally {
       memorySession.clear();

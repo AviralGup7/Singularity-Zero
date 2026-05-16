@@ -8,6 +8,7 @@ interface MicroPulseValueProps {
 }
 
 export function MicroPulseValue({ value, className }: MicroPulseValueProps) {
+   
   const [scope, animate] = useAnimate();
   const { policy } = useMotionPolicy('status');
 
@@ -18,7 +19,9 @@ export function MicroPulseValue({ value, className }: MicroPulseValueProps) {
     void animate(
       scope.current,
       {
+   
         transform: ['scale(1)', 'scale(1.045)', 'scale(1)'],
+   
         opacity: [1, 0.88, 1],
       },
       {
@@ -26,6 +29,7 @@ export function MicroPulseValue({ value, className }: MicroPulseValueProps) {
         ease: 'easeOut',
       }
     );
+   
   }, [animate, policy.allowFramer, policy.tier, scope, value]);
 
   return (

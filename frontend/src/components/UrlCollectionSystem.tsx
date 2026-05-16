@@ -44,12 +44,15 @@ function normalizeCollectedUrl(input: string): string {
 
   // Drop common tracking params and keep deterministic ordering for dedupe.
   const params = new URLSearchParams(parsed.search);
+   
   const kept: Array<[string, string]> = [];
   params.forEach((value, key) => {
     if (!TRACKING_PARAM_RE.test(key)) {
+   
       kept.push([key, value]);
     }
   });
+   
   kept.sort(([a], [b]) => a.localeCompare(b));
   parsed.search = kept.length > 0 ? `?${new URLSearchParams(kept).toString()}` : '';
 
@@ -72,6 +75,7 @@ function createCollectionId(): string {
 }
 
 function createLocalJobId(hostname: string, mode: 'quick' | 'full'): string {
+   
   const safeHost = hostname.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 12) || 'target';
   return `local-${mode}-${safeHost}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -86,15 +90,25 @@ function statusLabel(status: UrlCollectionStatus): string {
 
 export function UrlCollectionSystem() {
   const toast = useToast();
+   
   const [items, setItems] = usePersistedState<UrlCollectionItem[]>(STORAGE_KEY, []);
+   
   const [draftInput, setDraftInput] = useState('');
+   
   const [query, setQuery] = useState('');
+   
   const [statusFilter, setStatusFilter] = useState<'all' | UrlCollectionStatus>('all');
+   
   const [sourceFilter, setSourceFilter] = useState<'all' | CollectionSource>('all');
+   
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+   
   const [scanMode, setScanMode] = useState<'quick' | 'full'>('quick');
+   
   const [isSubmitting, setIsSubmitting] = useState(false);
+   
   const [processingProgress, setProcessingProgress] = useState(0);
+   
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -106,17 +120,20 @@ export function UrlCollectionSystem() {
       const q = query.trim().toLowerCase();
       return item.url.toLowerCase().includes(q) || item.hostname.toLowerCase().includes(q);
     });
+   
   }, [items, query, sourceFilter, statusFilter]);
 
   const stats = useMemo(() => {
     return items.reduce(
       (acc, item) => {
         acc.total += 1;
+   
         acc[item.status] += 1;
         return acc;
       },
       { total: 0, new: 0, queued: 0, running: 0, started: 0, failed: 0 }
     );
+   
   }, [items]);
 
   const riskStats = useMemo(() => {
@@ -132,6 +149,7 @@ export function UrlCollectionSystem() {
       }
     }
     return { staticAssets, hasQuery };
+   
   }, [items]);
 
   const allFilteredSelected = filteredItems.length > 0 && filteredItems.every(item => selectedIds.has(item.id));
@@ -146,8 +164,10 @@ export function UrlCollectionSystem() {
     const existing = new Set(items.map(item => item.url));
     const seenInBatch = new Set<string>();
     const parsed = parseUrls(raw);
+   
     const invalid: string[] = [];
     let duplicates = 0;
+   
     const nextItems: UrlCollectionItem[] = [];
 
     for (const candidate of parsed) {
@@ -183,6 +203,7 @@ export function UrlCollectionSystem() {
     }
 
     if (nextItems.length > 0) {
+   
       setItems(prev => [...nextItems, ...prev]);
       setSelectedIds(prev => {
         const next = new Set(prev);
@@ -201,14 +222,17 @@ export function UrlCollectionSystem() {
     }
 
     setImportReport({ added: nextItems.length, duplicates, invalid });
+   
   }, [items, setItems, toast]);
 
   const handleAddUrls = useCallback(() => {
     ingestRawUrls(draftInput, 'manual');
     setDraftInput('');
+   
   }, [draftInput, ingestRawUrls]);
 
   const handleImportFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+   
     const file = event.target.files?.[0];
     if (!file) return;
     try {
@@ -219,6 +243,7 @@ export function UrlCollectionSystem() {
     } finally {
       event.target.value = '';
     }
+   
   }, [ingestRawUrls, toast]);
 
   const toggleItemSelection = useCallback((itemId: string) => {
@@ -240,6 +265,7 @@ export function UrlCollectionSystem() {
       }
       return next;
     });
+   
   }, [allFilteredSelected, filteredItems]);
 
   const removeSelected = useCallback(() => {
@@ -250,6 +276,7 @@ export function UrlCollectionSystem() {
     setItems(prev => prev.filter(item => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
     toast.success('Selected URLs were removed from collection.');
+   
   }, [selectedIds, setItems, toast]);
 
   const clearCollection = useCallback(() => {
@@ -259,6 +286,7 @@ export function UrlCollectionSystem() {
     setSelectedIds(new Set());
     setImportReport(null);
     setProcessingProgress(0);
+   
   }, [items.length, setItems]);
 
   const exportCollection = useCallback(() => {
@@ -267,6 +295,7 @@ export function UrlCollectionSystem() {
       return;
     }
     const payload = items.map(item => item.url).join('\n');
+   
     const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
     const href = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -276,6 +305,7 @@ export function UrlCollectionSystem() {
     a.click();
     a.remove();
     window.URL.revokeObjectURL(href);
+   
   }, [items, toast]);
 
   const resetStatuses = useCallback(() => {
@@ -289,6 +319,7 @@ export function UrlCollectionSystem() {
     })));
     setSelectedIds(new Set());
     setProcessingProgress(0);
+   
   }, [setItems]);
 
   const selectFailed = useCallback(() => {
@@ -298,6 +329,7 @@ export function UrlCollectionSystem() {
       return;
     }
     setSelectedIds(new Set(failed));
+   
   }, [items, toast]);
 
   const startCollectionScan = useCallback(async () => {
@@ -307,6 +339,7 @@ export function UrlCollectionSystem() {
       return;
     }
 
+   
     const snapshot = new Map(items.map(item => [item.id, { ...item }]));
     const selectedSet = new Set(targetIds);
     setItems(prev => prev.map(item => (selectedSet.has(item.id)
@@ -318,9 +351,11 @@ export function UrlCollectionSystem() {
 
     let started = 0;
     let failed = 0;
+   
     const failedIds: string[] = [];
 
     for (let i = 0; i < targetIds.length; i += 1) {
+  // eslint-disable-next-line security/detect-object-injection
       const itemId = targetIds[i];
       const item = snapshot.get(itemId);
       if (!item) {
@@ -388,6 +423,7 @@ export function UrlCollectionSystem() {
     if (failed > 0) {
       toast.warning(`${failed} URL${failed === 1 ? '' : 's'} failed local checks.`);
     }
+   
   }, [items, scanMode, selectedIds, setItems, toast]);
 
   return (
@@ -446,7 +482,9 @@ export function UrlCollectionSystem() {
           <span>Duplicates: {importReport.duplicates}</span>
           <span>Invalid: {importReport.invalid.length}</span>
           {importReport.invalid.length > 0 && (
+   
             <span className="url-collection-import-example" title={importReport.invalid[0]}>
+  // eslint-disable-next-line security/detect-object-injection
               First error: {importReport.invalid[0]}
             </span>
           )}

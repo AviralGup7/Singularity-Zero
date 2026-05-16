@@ -69,6 +69,7 @@ export async function lookupCVE(cveId: string): Promise<CVEInfo | null> {
     if (response.ok) {
       const json = await response.json();
       if (json.vulnerabilities?.length > 0) {
+   
         const vuln = json.vulnerabilities[0].cve;
         const cveInfo: CVEInfo = {
           id: cveId,
@@ -135,6 +136,7 @@ export async function lookupEPSS(cveId: string): Promise<EPSSInfo | null> {
     if (response.ok) {
       const json = await response.json();
       if (json.data?.length > 0) {
+   
         const epssData = json.data[0];
         const epssInfo: EPSSInfo = {
           cve: cveId,
@@ -164,6 +166,7 @@ export async function getThreatIntel(cveId?: string, cweId?: string): Promise<Th
   const result: ThreatIntelData = {};
 
   if (cveId) {
+   
     const [cve, epss] = await Promise.all([
       lookupCVE(cveId),
       lookupEPSS(cveId),

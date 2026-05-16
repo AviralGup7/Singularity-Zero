@@ -2,6 +2,7 @@ import { type AppSettings } from '../../../context/SettingsContext';
 import { SettingsSectionCard, SettingSelect, SettingToggle, SettingInput } from '../SettingsComponents';
 
 interface ReportsSectionProps {
+   
   reportFormat: AppSettings['reports']['format'];
   includeRawResponses: boolean;
   includeProofOfConcept: boolean;
@@ -21,6 +22,7 @@ export function ReportsSection({ reportFormat, includeRawResponses, includeProof
         label="Format"
         value={reportFormat}
         onChange={onReportFormatChange}
+   
         options={[{ label: 'Markdown', value: 'markdown' }, { label: 'HTML', value: 'html' }, { label: 'JSON', value: 'json' }, { label: 'PDF', value: 'pdf' }]}
         description="Default report format"
       />

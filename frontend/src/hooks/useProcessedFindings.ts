@@ -17,7 +17,9 @@ export function useProcessedFindings(
   filters: FilterOptions,
   sort: SortOptions
 ) {
+   
   const [processed, setProcessed] = useState<Finding[]>([]);
+   
   const [isProcessing, setIsProcessing] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
@@ -51,6 +53,7 @@ export function useProcessedFindings(
       filters,
       sort
     });
+   
   }, [rawFindings, filters, sort]);
 
   return { processed, isProcessing };
