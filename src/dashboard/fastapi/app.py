@@ -138,8 +138,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # 2. Start Authenticated Gossip Engine
     mesh_secret = os.getenv("MESH_SECRET", "frontier-default-secret")
     gossip_engine = GossipEngine(local_node, secret=mesh_secret)
-    await gossip_engine.start()
-    app.state.gossip = gossip_engine
+    try:
+        await gossip_engine.start()
+    except OSError as exc:
+        logger.warning("Gossip mesh disabled because UDP bind failed: %s", exc)
+        app.state.gossip = None
+    else:
+        app.state.gossip = gossip_engine
 
     # 3. Initialize Consistent Hashing Shard Manager
     shard_manager = MeshShardManager()
@@ -206,7 +211,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if ws_services:
         await ws_services.shutdown()
 
-    if hasattr(app.state, "gossip"):
+    if getattr(app.state, "gossip", None) is not None:
         await app.state.gossip.stop()
 
     if hasattr(app.state, "cache_analytics_task"):

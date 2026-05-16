@@ -19,9 +19,13 @@ class FrontierWAL:
     Append-only durability ledger for pipeline state transitions.
     Every 'merge_stage_output' is recorded here before mutation.
     """
-    def __init__(self, redis_url: str, run_id: str) -> None:
+    def __init__(self, redis_url: str | None, run_id: str) -> None:
         self._run_id = run_id
         self._stream_key = f"cyber:wal:{run_id}"
+        if redis_url is None:
+            logger.warning("Frontier WAL inactive: Redis URL is not configured")
+            self._active = False
+            return
         try:
             self._client = redis.from_url(redis_url, decode_responses=False)
             self._client.ping()

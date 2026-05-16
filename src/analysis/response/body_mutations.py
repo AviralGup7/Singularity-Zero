@@ -89,7 +89,7 @@ def infer_body_fields(body_text: str) -> list[tuple[str, str]]:
     seen: set[str] = set()
     try:
         extract_fields_recursive(json.loads(body_text), fields, seen, depth=0, max_depth=3)
-    except json.JSONDecodeError, TypeError, KeyError:
+    except (json.JSONDecodeError, TypeError, KeyError):
         pass
     return fields
 

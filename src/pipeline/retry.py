@@ -78,7 +78,6 @@ _TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
     ConnectionAbortedError,
     OSError,
     TransientError,
-    KeyError,  # Fix #218: Added KeyError to transient exceptions
 )
 
 _PERMANENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
@@ -86,6 +85,7 @@ _PERMANENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
     ValueError,
     TypeError,
     AttributeError,
+    KeyError,
 )
 
 _HTTP_TRANSIENT_CODES = {408, 429, 500, 502, 503, 504}
@@ -195,7 +195,7 @@ class RetryPolicy:
             ),
         )
 
-    def delay_for_attempt(self, attempt_number: int) -> float:
+    def delay_for_attempt(self, attempt_number: int, jitter: float | None = None) -> float:
         """Calculate backoff with exponential growth and jitter to prevent thundering herd."""
         if attempt_number <= 1:
             return 0.0
@@ -204,8 +204,8 @@ class RetryPolicy:
         if self.max_backoff_seconds > 0:
             base_delay = min(base_delay, self.max_backoff_seconds)
 
-        # Fix Audit #142: Use self.jitter_factor instead of param shadow
-        jitter_range = base_delay * self.jitter_factor
+        jitter_factor = self.jitter_factor if jitter is None else max(0.0, float(jitter))
+        jitter_range = base_delay * jitter_factor
         jittered = base_delay + (_SYSTEM_RANDOM.random() * 2 - 1) * jitter_range
         return max(0.0, jittered)
 

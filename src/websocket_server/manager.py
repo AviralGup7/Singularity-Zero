@@ -146,20 +146,23 @@ class ConnectionManager:
             ConnectionInfo if accepted, None if rejected due to limits.
         """
         async with self._lock:
-            if len(self.user_connections[user_id]) >= self.max_connections_per_user:
+            user_connections = self.user_connections.setdefault(user_id, set())
+            ip_connections = self.ip_connections.setdefault(client_ip, set())
+
+            if len(user_connections) >= self.max_connections_per_user:
                 logger.warning(
                     "Connection limit reached for user %s (%d/%d)",
                     user_id,
-                    len(self.user_connections[user_id]),
+                    len(user_connections),
                     self.max_connections_per_user,
                 )
                 return None
 
-            if len(self.ip_connections[client_ip]) >= self.max_connections_per_ip:
+            if len(ip_connections) >= self.max_connections_per_ip:
                 logger.warning(
                     "Connection limit reached for IP %s (%d/%d)",
                     client_ip,
-                    len(self.ip_connections[client_ip]),
+                    len(ip_connections),
                     self.max_connections_per_ip,
                 )
                 return None
@@ -172,8 +175,8 @@ class ConnectionManager:
             )
 
             self.connections[connection_id] = info
-            self.user_connections.setdefault(user_id, set()).add(connection_id)
-            self.ip_connections.setdefault(client_ip, set()).add(connection_id)
+            user_connections.add(connection_id)
+            ip_connections.add(connection_id)
 
             logger.info(
                 "Connection registered: id=%s user=%s ip=%s (total=%d)",
@@ -233,7 +236,7 @@ class ConnectionManager:
                 return False
 
             info.groups.add(group)
-            self.group_connections[group].add(connection_id)
+            self.group_connections.setdefault(group, set()).add(connection_id)
             return True
 
     async def remove_from_group(self, connection_id: str, group: str) -> bool:

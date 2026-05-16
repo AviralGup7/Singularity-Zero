@@ -97,6 +97,10 @@ async def authenticate_websocket(
     if api_key_header and api_keys:
         return _authenticate_api_key(api_key_header, api_keys, required_roles)
 
+    api_key_query = websocket.query_params.get("api_key")
+    if api_key_query and api_keys:
+        return _authenticate_api_key(api_key_query, api_keys, required_roles)
+
     # Keep WebSocket behavior consistent with HTTP endpoints in development:
     # when no auth backend is configured, allow anonymous access.
     if jwt_secret is None and not api_keys:

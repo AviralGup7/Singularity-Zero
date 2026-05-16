@@ -13,7 +13,12 @@ from src.core.plugins import resolve_plugin
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.screenshots import capture_screenshots
 from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
-from src.reporting import build_artifact_diff
+from src.reporting.pipeline import (
+    build_artifact_diff,
+    build_dashboard_index,
+    build_summary,
+    generate_run_report,
+)
 
 logger = get_pipeline_logger(__name__)
 
@@ -132,8 +137,7 @@ async def run_reporting(
         vrt_coverage_builder = resolve_plugin(ENRICHMENT_PROVIDER, "p1_vrt_coverage")
         vrt_coverage = vrt_coverage_builder(config)
 
-        summary_builder = resolve_plugin(EXPORTER, "summary")
-        summary = summary_builder(
+        summary = build_summary(
             config.target_name,
             ctx.scope_entries,
             ctx.subdomains,
@@ -179,9 +183,8 @@ async def run_reporting(
             ctx.merged_findings,
         )
 
-        generate_report = resolve_plugin(EXPORTER, "run_report")
         await asyncio.to_thread(
-            generate_report,
+            generate_run_report,
             ctx.output_store.run_dir,
             summary,
             diff_summary,
@@ -191,8 +194,7 @@ async def run_reporting(
             ctx.analysis_results,
         )
 
-        build_index = resolve_plugin(EXPORTER, "dashboard_index")
-        await asyncio.to_thread(build_index, ctx.output_store.target_root)
+        await asyncio.to_thread(build_dashboard_index, ctx.output_store.target_root)
         emit_progress("completed", "Run complete", 100)
 
         emit_summary(summary)

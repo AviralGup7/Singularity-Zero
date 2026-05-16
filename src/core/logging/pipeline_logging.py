@@ -83,10 +83,12 @@ def emit_retry_warning(
     )
 
 
-def emit_error(message: str) -> None:
+def emit_error(message: str, *parts: object) -> None:
     """Emit an error message to stderr.
 
     Args:
         message: Error text to display.
     """
+    if parts:
+        message = " ".join([str(message), *(str(part) for part in parts)])
     print(f"{LOGGING_FORMAT['error_prefix']}{message}", file=sys.stderr, flush=True)

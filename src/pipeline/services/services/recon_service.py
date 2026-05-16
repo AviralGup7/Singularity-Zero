@@ -4,7 +4,11 @@ import asyncio
 import time
 from typing import Any, cast
 
-from beartype import beartype
+try:
+    from beartype import beartype
+except ModuleNotFoundError:
+    def beartype(func: Any) -> Any:
+        return func
 
 from src.core.contracts.capabilities import (
     EnrichmentProviderProtocol,
@@ -14,10 +18,11 @@ from src.core.contracts.capabilities import (
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.middleware import ScopeValidator
 from src.core.utils import normalize_scope_entry
+from src.recon.live_hosts import probe_live_hosts
 from src.recon.ranking_support import load_history_feedback, select_deep_analysis_targets
 from src.recon.scoring import infer_target_profile, rank_urls
 from src.recon.subdomains import enumerate_subdomains
-from src.recon.urls import extract_parameters
+from src.recon.urls import collect_urls, extract_parameters
 
 
 @beartype

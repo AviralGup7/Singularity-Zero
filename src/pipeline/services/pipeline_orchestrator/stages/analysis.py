@@ -21,6 +21,7 @@ from src.core.contracts.schema_validator import (
 )
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
+from src.execution.validators import execute_validation_runtime
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.services.pipeline_helpers import (
     build_stage_input_from_context,
@@ -189,6 +190,27 @@ async def run_passive_scanning(
                 state_delta["merged_findings"]
             )
             validate_decision_payload({"findings": state_delta["reportable_findings"]})
+
+            try:
+                state_delta["validation_summary"] = await asyncio.to_thread(
+                    execute_validation_runtime,
+                    state_delta["analysis_results"],
+                    ctx.ranked_priority_urls,
+                    config.extensions,
+                    config.mode,
+                    state_delta["validation_runtime_inputs"],
+                )
+                state_delta["validation_ok"] = True
+            except Exception as exc:
+                logger.warning("Inline validation runtime failed in passive scan: %s", exc)
+                state_delta["validation_summary"] = {
+                    "results": {},
+                    "errors": [str(exc)],
+                    "settings": {},
+                    "metric": {},
+                    "metrics": {},
+                }
+                state_delta["validation_ok"] = False
 
             round_keys = {finding_identity(item) for item in state_delta["reportable_findings"]}
             new_keys = round_keys - seen_finding_keys

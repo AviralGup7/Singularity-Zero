@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -37,6 +37,12 @@ vi.mock('../../components/JobTimelineComponent', () => ({
 }));
 vi.mock('../../components/StageProgressBars', () => ({
   StageProgressBars: () => null,
+}));
+vi.mock('../../components/ops/StageTheater', () => ({
+  StageTheater: () => null,
+}));
+vi.mock('../../components/ops/ThroughputStrip', () => ({
+  ThroughputStrip: () => null,
 }));
 
 const useJobMonitorMock = vi.fn();

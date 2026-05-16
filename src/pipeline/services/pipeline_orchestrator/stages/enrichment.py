@@ -4,6 +4,7 @@ import asyncio
 import time
 from typing import Any
 
+from src.analysis.intelligence.cvss_scoring import enrich_findings_with_cvss
 from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
     filter_reportable_findings,
@@ -220,13 +221,17 @@ async def run_post_analysis_enrichments(
         reportable = list(current_reportable) + filter_reportable_findings(enriched_findings)
         return merged, reportable
 
-    # Resolve CVSS scoring from registry
+    # Resolve CVSS scoring from registry, preserving the legacy patch seam.
     try:
         enrich_cvss = resolve_plugin(ENRICHMENT_PROVIDER, "cvss_scoring")
+    except KeyError:
+        enrich_cvss = enrich_findings_with_cvss
+
+    try:
         state_delta["reportable_findings"] = enrich_cvss(state_delta["reportable_findings"])
         state_delta["merged_findings"] = enrich_cvss(state_delta["merged_findings"])
-    except KeyError:
-        logger.warning("CVSS scoring provider not found in registry")
+    except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+        logger.warning("CVSS enrichment failed: %s", exc)
 
     analysis_settings = getattr(config, "analysis", {}) or {}
     if not isinstance(analysis_settings, dict):
