@@ -12,7 +12,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_token_replay(token: str, url: str, session) -> dict:
+def test_token_replay(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test JWT token replay vulnerability.
 
     Tests if a token can be replayed after logout or session termination.

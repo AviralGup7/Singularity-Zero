@@ -321,6 +321,19 @@ class Broadcaster:
             async with self._lock:
                 self._broadcast_count += 1
         return sent
+    async def _enqueue(self, info: Any, message: BaseMessage) -> bool:
+        """Add a message to a connection's outbound queue."""
+        json_data = message.to_json()
+        try:
+            info.message_queue.put_nowait(json_data)
+            return True
+        except asyncio.QueueFull:
+            # Fix #366: handle backpressure by dropping messages if configured
+            await self._handle_backpressure(info, json_data)
+            return True  # 'sent' in the sense it was handled by backpressure
+        except Exception as exc:
+            logger.error("Failed to enqueue message for %s: %s", info.connection_id, exc)
+            return False
 
     async def broadcast_to_connection(
         self,

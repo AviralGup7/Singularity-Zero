@@ -6,28 +6,30 @@ Links findings and assets into attack chains using the Kuzu graph database.
 from __future__ import annotations
 
 import os
+from typing import Any, cast, Optional
 
 try:
     import kuzu
+    KUZU_AVAILABLE = True
 except ImportError:
-    kuzu = None
-from typing import Any
+    kuzu = Any  # type: ignore
+    KUZU_AVAILABLE = False
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
-
+...
 class LateralGraph:
     """
     Frontier Knowledge Graph.
     Models the relationship between subdomains, URLs, vulnerabilities, and potential pivot points.
     Enables automatic identification of multi-stage attack paths.
     """
-    def __init__(self, db_path: str = "output/graph.db"):
-        if not kuzu:
+    def __init__(self, db_path: str = "output/graph.db") -> None:
+        if not KUZU_AVAILABLE:
             logger.warning("Kuzu graph database not installed. Lateral movement analysis disabled.")
-            self._db = None
-            self._conn = None
+            self._db: Any = None
+            self._conn: Any = None
             return
 
         os.makedirs(db_path, exist_ok=True)
@@ -40,7 +42,7 @@ class LateralGraph:
             self._db = None
             self._conn = None
 
-    def _init_schema(self):
+    def _init_schema(self) -> None:
         """Create the frontier graph schema."""
         if not self._conn:
             return
@@ -57,7 +59,7 @@ class LateralGraph:
             # Schema already exists
             pass
 
-    def ingest_finding(self, asset_id: str, finding: dict[str, Any]):
+    def ingest_finding(self, asset_id: str, finding: dict[str, Any]) -> None:
         """Ingest an asset and its finding into the graph."""
         if not self._conn:
             return
@@ -80,11 +82,11 @@ class LateralGraph:
         """
         if not self._conn:
             return []
-        results = self._conn.execute(
+        results = cast(Any, self._conn.execute(
             "MATCH (a1:Asset)-[:HAS_VULN]->(f1:Finding)-[:PIVOTS_TO]->(a2:Asset)-[:HAS_VULN]->(f2:Finding) "
             "RETURN a1.id, f1.id, a2.id, f2.id"
-        )
-        chains = []
+        ))
+        chains: list[list[str]] = []
         while results.has_next():
-            chains.append(results.get_next())
+            chains.append(cast(list[str], results.get_next()))
         return chains

@@ -18,7 +18,7 @@ class NeuralScorer:
     Frontier Risk Engine.
     Calculates the Composite Severity Index (CSI) using multi-factor weighting.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         # Weights for the CSI calculation
         self.weights = {
             "cvss_base": 0.40,
@@ -53,7 +53,7 @@ class NeuralScorer:
                            self.weights["business_impact"], self.weights["exploitability"]])
 
         csi = np.dot(factors, weights)
-        return round(csi, 2)
+        return round(float(csi), 2)
 
     def rank_findings(self, findings: list[dict[str, Any]], target_map: dict[str, float]) -> list[dict[str, Any]]:
         """

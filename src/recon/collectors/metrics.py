@@ -7,29 +7,35 @@ and observe durations. If `prometheus_client` is not installed, this
 module falls back to lightweight no-op implementations so unit tests
 and environments without Prometheus can import the package.
 """
+from typing import Any
+
+_PROVIDER_REQUESTS: Any
+_PROVIDER_ERRORS: Any
+_PROVIDER_URLS: Any
+_PROVIDER_DURATION: Any
+
 try:
-    from typing import Any
     from prometheus_client import Counter, Histogram  # type: ignore
 
-    _PROVIDER_REQUESTS: Any = Counter(
+    _PROVIDER_REQUESTS = Counter(
         "recon_provider_requests_total",
         "Total requests made to a provider",
         ["provider"],
     )
 
-    _PROVIDER_ERRORS: Any = Counter(
+    _PROVIDER_ERRORS = Counter(
         "recon_provider_errors_total",
         "Total errors encountered by a provider",
         ["provider"],
     )
 
-    _PROVIDER_URLS: Any = Counter(
+    _PROVIDER_URLS = Counter(
         "recon_provider_urls_total",
         "Number of URLs emitted by a provider",
         ["provider"],
     )
 
-    _PROVIDER_DURATION: Any = Histogram(
+    _PROVIDER_DURATION = Histogram(
         "recon_provider_duration_seconds",
         "Duration in seconds of provider collection calls",
         ["provider"],
@@ -53,27 +59,27 @@ except Exception:  # pragma: no cover - fallback in environments without prometh
         def labels(self, **_: Any) -> _NoopMetric:
             return self
 
-        def inc(self, n: int = 1) -> None:  # type: ignore[override]
+        def inc(self, n: int = 1) -> None:
             return None
 
-        def observe(self, v: float = 0.0) -> None:  # type: ignore[override]
+        def observe(self, v: float = 0.0) -> None:
             return None
 
-    _PROVIDER_REQUESTS: Any = _NoopMetric()
-    _PROVIDER_ERRORS: Any = _NoopMetric()
-    _PROVIDER_URLS: Any = _NoopMetric()
-    _PROVIDER_DURATION: Any = _NoopMetric()
+    _PROVIDER_REQUESTS = _NoopMetric()
+    _PROVIDER_ERRORS = _NoopMetric()
+    _PROVIDER_URLS = _NoopMetric()
+    _PROVIDER_DURATION = _NoopMetric()
 
-    def increment_requests(provider: str, n: int = 1) -> None:  # type: ignore[override]
+    def increment_requests(provider: str, n: int = 1) -> None:
         return None
 
-    def increment_errors(provider: str, n: int = 1) -> None:  # type: ignore[override]
+    def increment_errors(provider: str, n: int = 1) -> None:
         return None
 
-    def increment_urls(provider: str, n: int = 1) -> None:  # type: ignore[override]
+    def increment_urls(provider: str, n: int = 1) -> None:
         return None
 
-    def observe_duration(provider: str, seconds: float) -> None:  # type: ignore[override]
+    def observe_duration(provider: str, seconds: float) -> None:
         return None
 
 

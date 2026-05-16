@@ -243,8 +243,6 @@ def sleep_before_retry(policy: RetryPolicy, attempt: int) -> float:
 
 logger = get_pipeline_logger(__name__)
 
-T = TypeVar('T')
-
 def execute_with_retry[T](
     func: Callable[..., T],
     policy: RetryPolicy,

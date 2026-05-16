@@ -14,7 +14,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_jku_injection(token: str, url: str, session) -> dict:
+def test_jku_injection(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test jku (JWK Set URL) header injection.
 
     Injects a jku header pointing to an attacker-controlled URL to test

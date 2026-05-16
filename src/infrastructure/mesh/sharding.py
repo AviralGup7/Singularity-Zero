@@ -24,7 +24,7 @@ class MeshShardManager:
         self._ring: list[int] = []
         self._node_map: dict[int, str] = {}
 
-    def add_node(self, node_id: str):
+    def add_node(self, node_id: str) -> None:
         """Add a worker to the consistent hashing ring."""
         self._nodes.add(node_id)
         # Create virtual nodes for better distribution
@@ -34,7 +34,7 @@ class MeshShardManager:
             self._node_map[h] = node_id
         self._ring.sort()
 
-    def remove_node(self, node_id: str):
+    def remove_node(self, node_id: str) -> None:
         """Remove a worker from the ring."""
         self._nodes.discard(node_id)
         for i in range(self.replication_factor):
@@ -53,7 +53,7 @@ class MeshShardManager:
 
         h = self._hash(target_name)
         # Binary search for the first virtual node clockwise from 'h'
-        idx = np.searchsorted(self._ring, h)
+        idx = int(np.searchsorted(self._ring, h))
         if idx == len(self._ring):
             idx = 0
 
@@ -63,7 +63,7 @@ class MeshShardManager:
         """Filter a list of targets to only those owned by the local node."""
         return [t for t in targets if self.get_shard_leader(t) == local_node_id]
 
-    def rebalance(self, active_nodes: list[str]):
+    def rebalance(self, active_nodes: list[str]) -> None:
         """Complete mesh re-balancing on node join/leave."""
         logger.info("Neural-Mesh Sharding: Rebalancing for %d nodes", len(active_nodes))
         self._nodes = set()

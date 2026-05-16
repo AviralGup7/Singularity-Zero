@@ -44,7 +44,7 @@ class FrontierWAL:
             }
             # Append to Redis Stream
             # Maxlen ensures we don't grow infinitely - increased to 10,000 per Audit #71
-            self._client.xadd(self._stream_key, payload, maxlen=10000)
+            self._client.xadd(self._stream_key, cast(Any, payload), maxlen=10000)
             logger.debug("WAL recorded delta for '%s'", stage_name)
         except Exception as exc:
             logger.error("WAL append failed for stage '%s': %s", stage_name, exc)

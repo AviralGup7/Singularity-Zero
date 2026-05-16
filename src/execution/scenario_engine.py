@@ -242,9 +242,9 @@ class ScenarioExecutionEngine:
                     variables.update(result.extracted_values)
                 if result.session_key:
                     current_session_key = result.session_key
-                source_step = steps_by_name.get(result.name)
-                if source_step and source_step.publish_barrier:
-                    barrier_times[source_step.publish_barrier] = result.completed_at
+                resolved_step = steps_by_name.get(result.name)
+                if resolved_step and resolved_step.publish_barrier:
+                    barrier_times[resolved_step.publish_barrier] = result.completed_at
 
             if stop_on_failure and any(not item.passed for item in wave_results):
                 break

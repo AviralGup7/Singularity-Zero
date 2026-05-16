@@ -9,6 +9,7 @@ import logging
 import re
 
 import numpy as np
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,9 @@ def vectorized_regex_search(data_list: list[str], pattern: str) -> np.ndarray:
     """
     regex = re.compile(pattern)
     # Fast path: Vectorized search via numpy.frompyfunc
-    vec_match = np.frompyfunc(lambda x: bool(regex.search(x)), 1, 1)
+    vec_match = np.frompyfunc(lambda x: bool(regex.search(str(x))), 1, 1)
     arr = np.array(data_list, dtype=object)
-    return vec_match(arr).astype(bool)
+    return cast(np.ndarray, vec_match(arr).astype(bool))
 
 def vectorized_url_filter(urls: list[str], forbidden_exts: set[str]) -> list[str]:
     """
@@ -51,7 +52,7 @@ def vectorized_url_filter(urls: list[str], forbidden_exts: set[str]) -> list[str
     # Vectorized 'in' check
     mask = np.array([e not in forbidden_exts for e in exts])
 
-    return arr[mask].tolist()
+    return cast(list[str], arr[mask].tolist())
 
 def fast_secret_scanner(content_bytes: bytes) -> list[bytes]:
     """
@@ -68,7 +69,7 @@ def compute_entropy_vectorized(data_list: list[str]) -> np.ndarray:
     def shannon(s: str) -> float:
         if not s: return 0.0
         probabilities = [float(s.count(c)) / len(s) for c in set(s)]
-        return -sum(p * np.log2(p) for p in probabilities)
+        return float(-sum(p * np.log2(p) for p in probabilities))
 
     vec_shannon = np.frompyfunc(shannon, 1, 1)
-    return vec_shannon(np.array(data_list, dtype=object)).astype(float)
+    return cast(np.ndarray, vec_shannon(np.array(data_list, dtype=object)).astype(float))

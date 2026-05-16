@@ -152,6 +152,7 @@ class TracingConfig:
         otlp_headers: Additional headers for OTLP exporter.
         propagate_context: Whether to propagate trace context across services.
         include_code_attributes: Whether to include code file/line attributes.
+        max_traces_in_memory: Maximum number of traces to retain in memory exporter.
     """
 
     enabled: bool = True
@@ -168,6 +169,7 @@ class TracingConfig:
     otlp_headers: dict[str, str] = field(default_factory=dict)
     propagate_context: bool = True
     include_code_attributes: bool = False
+    max_traces_in_memory: int = 1000
 
 
 @dataclass

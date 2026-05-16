@@ -10,15 +10,20 @@ import os
 import sys
 
 
-def _load_module(name: str, path: str):
+from typing import Any
+
+
+def _load_module(name: str, path: str) -> Any:
     spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Failed to load module {name} from {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
 
-def _run():
+def _run() -> None:
     root = os.path.dirname(os.path.dirname(__file__))
     src_root = os.path.join(root, "src")
 
@@ -38,7 +43,7 @@ def _run():
     )
 
     class _MockResp:
-        def __init__(self, text: str, status_code: int = 200, headers=None):
+        def __init__(self, text: str, status_code: int = 200, headers: dict[str, str] | None = None) -> None:
             self.text = text
             self.status_code = status_code
             self.headers = headers or {"content-type": "text/html"}
@@ -57,7 +62,7 @@ def _run():
 
     js = "const endpoint = '/api/v1/users?id=1';"
 
-    def fake_get(url, params=None, timeout=None, headers=None):
+    def fake_get(url: str, params: Any = None, timeout: Any = None, headers: Any = None, **kwargs: Any) -> Any:
         if url.endswith("app.js") or "app.js" in url:
             return _MockResp(js, headers={"content-type": "application/javascript"})
         return _MockResp(html)
