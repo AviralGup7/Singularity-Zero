@@ -12,7 +12,6 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted opacity-30 gap-4">
         <Shield size={48} strokeWidth={1} />
-  // eslint-disable-next-line security/detect-object-injection
         <p className="text-xs uppercase tracking-[0.2em]">No Kill-Chains Identified</p>
       </div>
     );
@@ -34,7 +33,6 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
 
           <div className="flex items-center justify-between mb-6 relative z-10">
             <div>
-  // eslint-disable-next-line security/detect-object-injection
               <span className="text-[10px] font-black text-bad uppercase tracking-widest px-2 py-0.5 bg-bad/10 rounded mb-2 inline-block">
                 Critical Attack Path
               </span>
@@ -42,7 +40,6 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
             </div>
             <div className="text-right">
                <div className="text-2xl font-black text-white">{Math.round(chain.confidence * 100)}%</div>
-  // eslint-disable-next-line security/detect-object-injection
                <div className="text-[9px] text-muted uppercase font-bold tracking-widest">Confidence</div>
             </div>
           </div>
@@ -56,14 +53,12 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
                    }`}>
                       <Zap size={20} />
                    </div>
-  // eslint-disable-next-line security/detect-object-injection
                    <div className="text-[9px] font-mono text-muted truncate max-w-[80px]">{step.asset_id}</div>
                 </div>
                 
                 {sIdx < chain.steps.length - 1 && (
                   <div className="flex flex-col items-center gap-1">
                     <ArrowRight size={16} className="text-muted" />
-  // eslint-disable-next-line security/detect-object-injection
                     <span className="text-[8px] font-black text-accent uppercase tracking-tighter">Pivot</span>
                   </div>
                 )}
@@ -73,9 +68,7 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
 
           <div className="mt-4 p-3 bg-black/40 rounded-lg border border-white/5 flex items-center gap-3">
              <AlertTriangle size={14} className="text-warn" />
-  // eslint-disable-next-line security/detect-object-injection
              <p className="text-[10px] text-muted font-mono leading-relaxed">
-  // eslint-disable-next-line security/detect-object-injection
                Tactical Warning: This path utilizes an authenticated logical breach on {chain.steps[0].asset_id} to gain deeper access.
              </p>
           </div>

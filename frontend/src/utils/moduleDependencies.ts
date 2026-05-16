@@ -133,7 +133,6 @@ export function autoResolveDependencies(
   while (changed) {
     changed = false;
     for (const mod of resolved) {
-  // eslint-disable-next-line security/detect-object-injection
       const dep = MODULE_DEPENDENCIES[mod];
       if (dep?.requires) {
         for (const req of dep.requires) {

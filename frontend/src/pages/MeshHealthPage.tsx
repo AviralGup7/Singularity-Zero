@@ -335,7 +335,6 @@ export function MeshHealthPage() {
         </div>
       </section>
 
-  // eslint-disable-next-line security/detect-object-injection
       <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4 items-start">
         {health ? (
           <MeshTopologyGraph health={health} selectedId={selectedNode?.id ?? ''} onSelect={setSelectedNodeId} />
@@ -356,7 +355,6 @@ export function MeshHealthPage() {
               <div className="grid gap-2 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted inline-flex items-center gap-2"><Server size={14} /> Node</span>
-  // eslint-disable-next-line security/detect-object-injection
                   <strong className="truncate max-w-[190px]">{selectedNode.id}</strong>
                 </div>
                 <div className="flex items-center justify-between gap-3">

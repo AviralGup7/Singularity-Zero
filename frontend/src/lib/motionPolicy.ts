@@ -100,7 +100,6 @@ export function resolveComponentMotionStrategy(
   component: MotionComponentClass,
   policy: MotionPolicy
 ): ComponentMotionStrategy {
-  // eslint-disable-next-line security/detect-object-injection
   const configured = COMPONENT_RULES[component];
   if (!configured) {
     return { ...DEFAULT_STRATEGY, component };

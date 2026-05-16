@@ -110,7 +110,6 @@ export function ConfirmDialog({
 
   if (!isOpen) return null;
 
-  // eslint-disable-next-line security/detect-object-injection
   const config = variantConfig[variant];
 
   return (
@@ -136,12 +135,10 @@ export function ConfirmDialog({
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-description"
       >
-  // eslint-disable-next-line security/detect-object-injection
         <h3 id="confirm-dialog-title" className="font-mono text-[length:var(--text-lg)] font-bold text-[var(--text)] mb-2">
           <span className="mr-2" aria-hidden="true">{config.icon}</span>
           {title}
         </h3>
-  // eslint-disable-next-line security/detect-object-injection
         <p id="confirm-dialog-description" className="text-[var(--muted)] text-[length:var(--text-sm)] mb-4">
           {message}
         </p>

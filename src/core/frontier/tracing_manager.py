@@ -362,9 +362,9 @@ class TracingManager:
         if hasattr(self, "_status_cache") and (now - getattr(self, "_status_cache_ts", 0)) < 60.0:
             return self._status_cache
 
-        req = request.Request(str(self.endpoint), method="GET")
+        req = request.Request(str(self.endpoint), method="GET")  # noqa: S310
         try:
-            with request.urlopen(req, timeout=1.5):
+            with request.urlopen(req, timeout=1.5):  # noqa: S310
                 res = "connected"
         except error.HTTPError:
             res = "connected"
@@ -395,7 +395,7 @@ class TracingManager:
             where.append("start_time_unix_nano <= ?")
             params.append(int(end_ms) * 1_000_000)
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-        query = f"""  # noqa: S608
+        query = """
             WITH filtered AS (
                 SELECT trace_id FROM spans {where_sql} GROUP BY trace_id
             ),
@@ -422,7 +422,7 @@ class TracingManager:
             JOIN roots r ON r.trace_id = b.trace_id
             ORDER BY b.start_ns DESC
             LIMIT ?
-        """
+        """.format(where_sql=where_sql)  # noqa: S608, UP032
         params.append(max(1, min(int(limit), 500)))
         with sqlite3.connect(self.local_exporter.db_path) as conn:
             conn.row_factory = sqlite3.Row

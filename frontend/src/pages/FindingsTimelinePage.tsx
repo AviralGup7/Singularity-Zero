@@ -177,7 +177,6 @@ export function FindingsTimelinePage() {
           {!timeline.loading && events.length === 0 && <div className="empty">No findings matched this timeline range.</div>}
 
           <div className="timeline-stack">
-  // eslint-disable-next-line security/detect-object-injection
             {groupedEvents.map(([day, dayEvents]) => (
               <div className="timeline-day" key={day}>
                 <div className="timeline-day-label">

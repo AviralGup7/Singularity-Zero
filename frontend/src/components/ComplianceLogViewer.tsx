@@ -27,7 +27,6 @@ export function ComplianceLogViewer() {
   return (
     <div className="compliance-log-viewer">
       <div className="flex items-center justify-between mb-3">
-  // eslint-disable-next-line security/detect-object-injection
         <h3 className="font-mono text-[var(--accent)] text-sm font-bold uppercase tracking-wider">
           Compliance Log ({filteredLogs.length})
         </h3>
@@ -42,7 +41,6 @@ export function ComplianceLogViewer() {
       </div>
 
       <div className="flex gap-2 mb-3">
-  // eslint-disable-next-line security/detect-object-injection
         {(['all', 'success', 'failure', 'denied'] as const).map((f) => (
           <button
             key={f}
@@ -67,7 +65,6 @@ export function ComplianceLogViewer() {
           filteredLogs.map((entry) => (
             <div key={entry.id} className="p-3 bg-white/5 border border-white/10 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-2">
               <div className="flex items-start gap-3">
-  // eslint-disable-next-line security/detect-object-injection
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
                   entry.outcome === 'success' ? 'bg-green-500/20 text-green-400' :
                   entry.outcome === 'denied' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'
@@ -80,13 +77,11 @@ export function ComplianceLogViewer() {
                     {' '}on{' '}
                     <span className="text-accent">{entry.resource}</span>
                   </div>
-  // eslint-disable-next-line security/detect-object-injection
                   <div className="text-muted text-[10px] mt-1">
                     {entry.reason} — by <span className="text-text/60 font-mono">{entry.user}</span>
                   </div>
                 </div>
               </div>
-  // eslint-disable-next-line security/detect-object-injection
               <span className="text-muted text-[9px] font-mono whitespace-nowrap">
                 {new Date(entry.timestamp).toLocaleString()}
               </span>

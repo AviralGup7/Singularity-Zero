@@ -85,9 +85,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={cn(
           'inline-flex items-center justify-center gap-2 font-mono font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed',
-  // eslint-disable-next-line security/detect-object-injection
           toneClasses[tone],
-  // eslint-disable-next-line security/detect-object-injection
           intensityClasses[intensity],
           !interactive && 'pointer-events-none',
           status === 'running' && 'animate-pulse',
@@ -95,9 +93,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           status === 'failed' && 'ring-2 ring-[var(--bad)]/60',
    
           status === 'completed' && 'ring-2 ring-[var(--ok)]/60',
-  // eslint-disable-next-line security/detect-object-injection
           variantClasses[variant],
-  // eslint-disable-next-line security/detect-object-injection
           sizeClasses[size],
           className
         )}

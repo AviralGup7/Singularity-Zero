@@ -242,7 +242,6 @@ export function SettingsPage() {
   }, []);
 
   const scrollToSection = useCallback((sectionId: SettingsSection) => {
-  // eslint-disable-next-line security/detect-object-injection
     const element = sectionRefs.current[sectionId];
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -442,11 +441,9 @@ export function SettingsPage() {
             .map(sectionId => (
               <div
                 key={sectionId}
-  // eslint-disable-next-line security/detect-object-injection
                 ref={el => { sectionRefs.current[sectionId] = el; }}
                 className="settings-section"
               >
-  // eslint-disable-next-line security/detect-object-injection
                 {sectionRenderers[sectionId]}
               </div>
             ))}

@@ -305,7 +305,7 @@ def detect_graphql_endpoints(urls: list[str], session: Any) -> list[dict[str, An
                     detected.append(detection)
                     seen_hosts.add(host_key)
                     break
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
 
         if host_key not in seen_hosts:

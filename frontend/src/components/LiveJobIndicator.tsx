@@ -47,7 +47,6 @@ export function LiveJobIndicator() {
       <span className="pulse-dot" aria-hidden="true" />
       <span className="running-count">{runningJobs.length}</span>
       
-  // eslint-disable-next-line security/detect-object-injection
       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 border border-white/10 rounded text-[9px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
         {runningJobs.length} ACTIVE {runningJobs.length === 1 ? 'SCAN' : 'SCANS'}
       </div>

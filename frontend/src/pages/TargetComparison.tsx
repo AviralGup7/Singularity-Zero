@@ -38,7 +38,6 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
     const calc = (t: Target): string => {
       const counts = t.severity_counts ?? {};
       for (const sev of order) {
-  // eslint-disable-next-line security/detect-object-injection
         if ((counts[sev] || 0) > 0) return sev;
       }
       return 'info';
@@ -130,7 +129,6 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
             </div>
             <div className="tc-severity-breakdown">
               <h4 className="tc-subtitle">Severity Breakdown</h4>
-  // eslint-disable-next-line security/detect-object-injection
               {Object.entries(selectedA.severity_counts ?? {}).map(([sev, count]) => (
                 <div key={sev} className="tc-sev-row">
                   <span className={`tc-sev-dot severity-dot severity-${sev}`}>{sev}</span>
@@ -178,7 +176,6 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
             </div>
             <div className="tc-severity-breakdown">
               <h4 className="tc-subtitle">Severity Breakdown</h4>
-  // eslint-disable-next-line security/detect-object-injection
               {Object.entries(selectedB.severity_counts ?? {}).map(([sev, count]) => (
                 <div key={sev} className="tc-sev-row">
                   <span className={`tc-sev-dot severity-dot severity-${sev}`}>{sev}</span>

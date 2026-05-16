@@ -31,7 +31,7 @@ def _replay_token_on_endpoint(
     headers = {}
     if token_location in ("header", "authorization"):
         headers["Authorization"] = f"Bearer {token_value}"
-    elif token_location == "cookie":
+    elif token_location == "cookie":  # noqa: S105
         headers["Cookie"] = f"session={token_value}"
 
     try:
@@ -140,11 +140,11 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
 
         # Calculate confidence based on token type and replay results
         base_confidence = 0.50
-        if token_type == "jwt":
+        if token_type == "jwt":  # noqa: S105
             base_confidence += 0.15  # JWTs are more likely to be replayable
-        elif token_type == "api_key":  # nosec: S105
+        elif token_type == "api_key":  # noqa: S105
             base_confidence += 0.10  # API keys often have broad scope
-        elif token_type == "session_id":
+        elif token_type == "session_id":  # noqa: S105
             base_confidence += 0.05  # Session IDs should be single-use
 
         # Adjust confidence based on replay results
@@ -222,7 +222,7 @@ def _build_token_replay_notes(
     """
     notes = []
 
-    if token_type != "unknown":
+    if token_type != "unknown":  # noqa: S105
         notes.append(f"Token type: {token_type}")
 
     if replay_result.get("token_accepted"):

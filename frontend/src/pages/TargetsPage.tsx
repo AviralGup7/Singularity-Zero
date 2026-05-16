@@ -56,7 +56,6 @@ function hasActiveFilters(f: TargetFilters): boolean {
 function targetHasSeverity(t: Target, severities: Set<string>): boolean {
   if (severities.size === 0) return true;
   for (const sev of severities) {
-  // eslint-disable-next-line security/detect-object-injection
     if (((t.severity_counts?.[sev]) || 0) > 0) return true;
   }
   return false;
@@ -352,7 +351,6 @@ export function TargetsPage() {
             <div className="filter-group">
               <span className="filter-group-label">Status</span>
               <div className="filter-radio-group">
-  // eslint-disable-next-line security/detect-object-injection
                 {(['all', 'active', 'inactive'] as const).map(status => (
                   <label key={status} className="filter-radio-label">
                     <input
@@ -503,7 +501,6 @@ export function TargetsPage() {
    
                           .map(([sev, count]) => (
                             <span key={sev} className={`severity-dot severity-${sev}`} aria-label={`${sev}: ${count}`}>
-  // eslint-disable-next-line security/detect-object-injection
                               {sev[0].toUpperCase()}: {count}
                             </span>
                           ))}

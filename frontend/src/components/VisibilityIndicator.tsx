@@ -30,7 +30,6 @@ export function VisibilityIndicator() {
       role="status"
       aria-live="polite"
     >
-  // eslint-disable-next-line security/detect-object-injection
       <span className="font-mono text-[var(--warn)] text-xs uppercase tracking-wider">
         ⏸ Polling paused — tab is hidden
       </span>

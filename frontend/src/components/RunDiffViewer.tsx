@@ -61,7 +61,6 @@ export function RunDiffViewer({ runA, runB }: RunDiffViewerProps) {
   const severityBreakdown = useMemo(() => {
     const breakdown: Record<string, { new: number; removed: number; changed: number }> = {};
     for (const sev of SEVERITY_ORDER) {
-  // eslint-disable-next-line security/detect-object-injection
       breakdown[sev] = { new: 0, removed: 0, changed: 0 };
     }
     for (const f of diff.newFindings) {
@@ -127,11 +126,8 @@ export function RunDiffViewer({ runA, runB }: RunDiffViewerProps) {
           {SEVERITY_ORDER.map(sev => (
             <div key={sev} className={`severity-diff-row severity-diff-${sev}`}>
               <span className="severity-diff-name">{sev}</span>
-  // eslint-disable-next-line security/detect-object-injection
               <span className="severity-diff-new">+{severityBreakdown[sev].new}</span>
-  // eslint-disable-next-line security/detect-object-injection
               <span className="severity-diff-removed">-{severityBreakdown[sev].removed}</span>
-  // eslint-disable-next-line security/detect-object-injection
               <span className="severity-diff-changed">~{severityBreakdown[sev].changed}</span>
             </div>
           ))}
@@ -139,7 +135,6 @@ export function RunDiffViewer({ runA, runB }: RunDiffViewerProps) {
       </div>
 
       <div className="run-diff-filters">
-  // eslint-disable-next-line security/detect-object-injection
         {(['all', 'new', 'removed', 'changed'] as const).map(f => (
           <button
             key={f}

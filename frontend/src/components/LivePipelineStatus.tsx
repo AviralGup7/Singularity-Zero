@@ -94,7 +94,6 @@ export function LivePipelineStatus() {
         <>
           <div className="live-status-section">
             <span className="live-status-stages">
-  // eslint-disable-next-line security/detect-object-injection
               {stageSummary.map(([stage, info], index) => (
                 <span key={stage} className="live-stage-chip" title={`${info.count} job(s) in ${stage}`}>
                   {index > 0 ? ', ' : ''}

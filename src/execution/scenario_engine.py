@@ -463,7 +463,7 @@ class ScenarioExecutionEngine:
 
         started = time.monotonic()
         try:
-            raw_request = UrlRequest(url, data=data, headers=request.headers, method=method)
+            raw_request = UrlRequest(url, data=data, headers=request.headers, method=method)  # noqa: S310
             with opener.open(  # noqa: S310
                 raw_request, timeout=request.timeout_seconds or self.default_timeout_seconds
             ) as raw_response:

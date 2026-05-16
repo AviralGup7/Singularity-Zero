@@ -81,7 +81,6 @@ export function FindingsPage() {
   if (loading && !findingsData) return (
     <div className="p-10 space-y-4">
       <Skeleton className="h-12 w-1/4" />
-  // eslint-disable-next-line security/detect-object-injection
       <Skeleton className="h-[600px] w-full" />
     </div>
   );
@@ -96,7 +95,6 @@ export function FindingsPage() {
           </div>
           <div>
             <h2 className="text-xl font-black text-text uppercase tracking-tighter">Aggregated Findings</h2>
-  // eslint-disable-next-line security/detect-object-injection
             <div className="flex items-center gap-2 text-[10px] text-muted font-mono">
               <div className={`w-1.5 h-1.5 rounded-full ${isProcessing ? 'bg-warn animate-pulse' : 'bg-accent'}`} />
               {isProcessing ? 'Processing Engine Active...' : `${findings.length} Signals Synchronized`}
@@ -133,7 +131,6 @@ export function FindingsPage() {
         <div className="flex items-center gap-2">
            <Filter size={14} className="text-muted" />
            <div className="flex gap-2">
-  // eslint-disable-next-line security/detect-object-injection
              {['critical', 'high', 'medium', 'low', 'info'].map(sev => (
                <button 
                 key={sev}

@@ -93,7 +93,6 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
           role="img"
           aria-label="Findings distribution radar chart"
         >
-  // eslint-disable-next-line security/detect-object-injection
           {[0.25, 0.5, 0.75, 1].map((ratio) => (
             <circle
               key={ratio}
