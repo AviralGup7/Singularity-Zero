@@ -1,13 +1,13 @@
 """Pydantic request/response schemas for the FastAPI dashboard."""
 
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
 
 
-class PaginatedResponse[T](BaseModel):
+class PaginatedResponse(BaseModel, Generic[T]):
     """Generic paginated response wrapper."""
 
     items: list[T]

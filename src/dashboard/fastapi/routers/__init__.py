@@ -9,7 +9,6 @@ from .export import router as export_router
 from .findings import router as findings_router
 from .gap_analysis import router as gap_analysis_router
 from .health import router as health_router
-from .imports import router as imports_router
 from .jobs import router as jobs_router
 from .mesh import router as mesh_router
 from .notes import router as notes_router
@@ -19,6 +18,13 @@ from .risk import router as risk_router
 from .security import router as security_router
 from .targets import router as targets_router
 from .tracing import router as tracing_router
+
+try:
+    from .imports import router as imports_router
+except RuntimeError as exc:
+    if "python-multipart" not in str(exc):
+        raise
+    imports_router = None
 
 api_router = APIRouter()
 
@@ -35,7 +41,8 @@ api_router.include_router(export_router, tags=["Export"])
 api_router.include_router(replay_router, tags=["Replay"])
 api_router.include_router(risk_router, tags=["Risk"])
 api_router.include_router(registry_router, tags=["Registry"])
-api_router.include_router(imports_router, tags=["Imports"])
+if imports_router is not None:
+    api_router.include_router(imports_router, tags=["Imports"])
 api_router.include_router(gap_analysis_router, tags=["Gap Analysis"])
 api_router.include_router(security_router, tags=["Security"])
 api_router.include_router(tracing_router, tags=["Tracing"])

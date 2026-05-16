@@ -66,7 +66,7 @@ class StageResult:
     # Neural-Mesh Resilience Core
     # ------------------------------------------------------------------
 
-    #: Internal CRDT state container for perfect synchronization
+    #: Internal CRDT state container for synchronization across stage deltas.
     _neural_state: NeuralState = field(default_factory=NeuralState, repr=False)
 
     # ------------------------------------------------------------------
@@ -84,24 +84,12 @@ class StageResult:
     stage_status: dict[str, str] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
-    # Neural-Mesh View Proxies (Properties)
+    # Pipeline State
     # ------------------------------------------------------------------
 
-    @property
-    def subdomains(self) -> set[str]:
-        return self._neural_state.subdomains.to_set()
-
-    @property
-    def urls(self) -> set[str]:
-        return self._neural_state.urls.to_set()
-
-    @property
-    def reportable_findings(self) -> list[dict[str, Any]]:
-        return list(self._neural_state.findings.to_set())
-
-    # ------------------------------------------------------------------
-    # Legacy Support / Additional State
-    # ------------------------------------------------------------------
+    subdomains: set[str] = field(default_factory=set)
+    urls: set[str] = field(default_factory=set)
+    reportable_findings: list[dict[str, Any]] = field(default_factory=list)
 
     live_records: list[dict[str, Any]] = field(default_factory=list)
     live_hosts: set[str] = field(default_factory=set)
@@ -133,15 +121,19 @@ class StageResult:
 
         # 2. Update auxiliary fields (Legacy/Non-resilient)
         for key, value in delta.items():
-            if key in {"subdomains", "urls", "findings"}:
-                 continue # Handled by CRDT
+            if key == "findings":
+                key = "reportable_findings"
 
             if hasattr(self, key):
                 current = getattr(self, key)
                 if isinstance(current, dict) and isinstance(value, dict):
                     current.update(value)
+                elif isinstance(current, set) and isinstance(value, (list, tuple, set, frozenset)):
+                    current.update(value)
                 elif isinstance(current, list) and isinstance(value, list):
-                    setattr(self, key, value) # Replacement rule as per architecture.md
+                    setattr(self, key, value)  # Replacement rule as per architecture.md
+                elif isinstance(current, list) and isinstance(value, (tuple, set, frozenset)):
+                    setattr(self, key, list(value))
                 else:
                     setattr(self, key, value)
 
@@ -171,13 +163,7 @@ class StageResult:
         data: dict[str, Any] = {}
         for f in self.__dataclass_fields__.values():
             value = getattr(self, f.name)
-            if isinstance(value, set):
-                value = sorted(value)
-            elif isinstance(value, Path):
-                value = str(value)
-            elif isinstance(value, Enum):
-                value = value.value
-            data[f.name] = value
+            data[f.name] = self._serialize_value(value)
         return data
 
     @classmethod
@@ -195,6 +181,10 @@ class StageResult:
         }
         kwargs: dict[str, Any] = {}
         for f in cls.__dataclass_fields__.values():
+            if f.name == "_neural_state":
+                kwargs[f.name] = cls._restore_neural_state(data.get(f.name), data)
+                continue
+
             value = data.get(f.name)
             if value is None:
                 if f.default is not MISSING:
@@ -211,6 +201,39 @@ class StageResult:
 
             kwargs[f.name] = value
         return cls(**kwargs)
+
+    @staticmethod
+    def _serialize_value(value: Any) -> Any:
+        if isinstance(value, NeuralState):
+            return value.get_snapshot()
+        if isinstance(value, set):
+            return sorted(value)
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, dict):
+            return {k: StageResult._serialize_value(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [StageResult._serialize_value(v) for v in value]
+        return value
+
+    @staticmethod
+    def _restore_neural_state(value: Any, data: dict[str, Any]) -> NeuralState:
+        state = NeuralState()
+        snapshot = value if isinstance(value, dict) else data
+        state.apply_delta(
+            {
+                "subdomains": list(snapshot.get("subdomains", []) or []),
+                "urls": list(snapshot.get("urls", []) or []),
+                "findings": list(
+                    snapshot.get("findings")
+                    or snapshot.get("reportable_findings")
+                    or []
+                ),
+            }
+        )
+        return state
 
     def to_json(self) -> str:
         """Serialize the instance to a JSON string."""
@@ -445,81 +468,161 @@ class PipelineContext:
     def subdomains(self) -> set[str]:
         return self.result.subdomains
 
+    @subdomains.setter
+    def subdomains(self, value: set[str]) -> None:
+        self.result.subdomains = value
+
     @property
     def live_records(self) -> list[dict[str, Any]]:
         return self.result.live_records
+
+    @live_records.setter
+    def live_records(self, value: list[dict[str, Any]]) -> None:
+        self.result.live_records = value
 
     @property
     def live_hosts(self) -> set[str]:
         return self.result.live_hosts
 
+    @live_hosts.setter
+    def live_hosts(self, value: set[str]) -> None:
+        self.result.live_hosts = value
+
     @property
     def service_results(self) -> dict[str, Any]:
         return self.result.service_results
+
+    @service_results.setter
+    def service_results(self, value: dict[str, Any]) -> None:
+        self.result.service_results = value
 
     @property
     def urls(self) -> set[str]:
         return self.result.urls
 
+    @urls.setter
+    def urls(self, value: set[str]) -> None:
+        self.result.urls = value
+
     @property
     def url_stage_meta(self) -> dict[str, Any]:
         return self.result.url_stage_meta
+
+    @url_stage_meta.setter
+    def url_stage_meta(self, value: dict[str, Any]) -> None:
+        self.result.url_stage_meta = value
 
     @property
     def parameters(self) -> set[str]:
         return self.result.parameters
 
+    @parameters.setter
+    def parameters(self, value: set[str]) -> None:
+        self.result.parameters = value
+
     @property
     def target_profile(self) -> dict[str, Any]:
         return self.result.target_profile
+
+    @target_profile.setter
+    def target_profile(self, value: dict[str, Any]) -> None:
+        self.result.target_profile = value
 
     @property
     def history_feedback(self) -> dict[str, Any]:
         return self.result.history_feedback
 
+    @history_feedback.setter
+    def history_feedback(self, value: dict[str, Any]) -> None:
+        self.result.history_feedback = value
+
     @property
     def ranked_priority_urls(self) -> list[dict[str, Any]]:
         return self.result.ranked_priority_urls
+
+    @ranked_priority_urls.setter
+    def ranked_priority_urls(self, value: list[dict[str, Any]]) -> None:
+        self.result.ranked_priority_urls = value
 
     @property
     def priority_urls(self) -> list[str]:
         return self.result.priority_urls
 
+    @priority_urls.setter
+    def priority_urls(self, value: list[str]) -> None:
+        self.result.priority_urls = value
+
     @property
     def selected_priority_items(self) -> list[dict[str, Any]]:
         return self.result.selected_priority_items
+
+    @selected_priority_items.setter
+    def selected_priority_items(self, value: list[dict[str, Any]]) -> None:
+        self.result.selected_priority_items = value
 
     @property
     def selection_meta(self) -> dict[str, Any]:
         return self.result.selection_meta
 
+    @selection_meta.setter
+    def selection_meta(self, value: dict[str, Any]) -> None:
+        self.result.selection_meta = value
+
     @property
     def deep_analysis_urls(self) -> list[str]:
         return self.result.deep_analysis_urls
+
+    @deep_analysis_urls.setter
+    def deep_analysis_urls(self, value: list[str]) -> None:
+        self.result.deep_analysis_urls = value
 
     @property
     def analysis_results(self) -> dict[str, list[dict[str, Any]]]:
         return self.result.analysis_results
 
+    @analysis_results.setter
+    def analysis_results(self, value: dict[str, list[dict[str, Any]]]) -> None:
+        self.result.analysis_results = value
+
     @property
     def validation_runtime_inputs(self) -> dict[str, Any]:
         return self.result.validation_runtime_inputs
+
+    @validation_runtime_inputs.setter
+    def validation_runtime_inputs(self, value: dict[str, Any]) -> None:
+        self.result.validation_runtime_inputs = value
 
     @property
     def validation_summary(self) -> dict[str, Any]:
         return self.result.validation_summary
 
+    @validation_summary.setter
+    def validation_summary(self, value: dict[str, Any]) -> None:
+        self.result.validation_summary = value
+
     @property
     def campaign_summary(self) -> dict[str, Any]:
         return self.result.campaign_summary
+
+    @campaign_summary.setter
+    def campaign_summary(self, value: dict[str, Any]) -> None:
+        self.result.campaign_summary = value
 
     @property
     def merged_findings(self) -> list[dict[str, Any]]:
         return self.result.merged_findings
 
+    @merged_findings.setter
+    def merged_findings(self, value: list[dict[str, Any]]) -> None:
+        self.result.merged_findings = value
+
     @property
     def reportable_findings(self) -> list[dict[str, Any]]:
         return self.result.reportable_findings
+
+    @reportable_findings.setter
+    def reportable_findings(self, value: list[dict[str, Any]]) -> None:
+        self.result.reportable_findings = value
 
     @property
     def iterative_stop_reason(self) -> str:
@@ -557,13 +660,25 @@ class PipelineContext:
     def screenshots(self) -> list[dict[str, Any]]:
         return self.result.screenshots
 
+    @screenshots.setter
+    def screenshots(self, value: list[dict[str, Any]]) -> None:
+        self.result.screenshots = value
+
     @property
     def diff_summary(self) -> dict[str, Any]:
         return self.result.diff_summary
 
+    @diff_summary.setter
+    def diff_summary(self, value: dict[str, Any]) -> None:
+        self.result.diff_summary = value
+
     @property
     def nuclei_findings(self) -> list[dict[str, Any]]:
         return self.result.nuclei_findings
+
+    @nuclei_findings.setter
+    def nuclei_findings(self, value: list[dict[str, Any]]) -> None:
+        self.result.nuclei_findings = value
 
     @property
     def stage_status(self) -> dict[str, str]:
