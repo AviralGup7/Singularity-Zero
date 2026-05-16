@@ -366,7 +366,7 @@ async def run_priority_ranking(
             stage_input = build_stage_input_from_context("ranking", config, ctx)
         stage_output = await run_priority_ranking_stage(stage_input)
         if stage_output.outcome != StageOutcome.COMPLETED:
-            return stage_output
+            return cast(StageOutput, stage_output)
         priority_url_count = int(stage_output.artifacts.get("priority_url_count", 0) or 0)
         deep_analysis_count = int(stage_output.artifacts.get("deep_analysis_url_count", 0) or 0)
         selected_items = list(stage_output.state_delta.get("selected_priority_items", []) or [])
@@ -399,10 +399,10 @@ async def run_priority_ranking(
             targets_scanning=0,
             event_trigger="recon_priority_ranked",
         )
-        return stage_output
+        return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'priority' failed: %s", exc)
-        return StageOutput(
+        return cast(StageOutput, StageOutput(
             stage_name="ranking",
             outcome=StageOutcome.FAILED,
             duration_seconds=0.0,
@@ -415,4 +415,4 @@ async def run_priority_ranking(
                 "selection_meta": {},
                 "deep_analysis_urls": [],
             },
-        )
+        ))

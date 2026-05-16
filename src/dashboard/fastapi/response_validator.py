@@ -121,11 +121,10 @@ class ResponseValidationMiddleware(BaseHTTPMiddleware):
             if hasattr(response, "body"):
                 body_bytes = response.body
             elif hasattr(response, "content"):
-                body_bytes = (
-                    response.content
-                    if isinstance(response.content, bytes)
-                    else str(response.content).encode("utf-8")
-                )
+                if isinstance(response.content, (bytes, bytearray, memoryview)):
+                    body_bytes = bytes(response.content)
+                else:
+                    body_bytes = str(response.content).encode("utf-8")
 
             if not body_bytes:
                 # Some response types don't expose a materialized body at this stage.
