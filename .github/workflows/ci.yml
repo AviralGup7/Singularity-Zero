@@ -156,7 +156,7 @@ jobs:
       - name: Run safety check
         run: safety check
       - name: Run Semgrep
-        uses: semgrep/scanning-action@v4
+        uses: semgrep/semgrep-action@v1
         with:
           config: auto
           auditOn: push
