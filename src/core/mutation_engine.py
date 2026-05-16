@@ -20,7 +20,7 @@ from src.core.utils.param_types import (
 
 _PARAM_TYPE_URL = "url"
 _PARAM_TYPE_REDIRECT = "redirect"
-_PARAM_TYPE_TOKEN = "token"
+_PARAM_TYPE_TOKEN = "token"  # nosec: S105
 _PARAM_TYPE_ID = "id"
 _PARAM_TYPE_NUMERIC = "numeric"
 _PARAM_TYPE_JSON = "json"

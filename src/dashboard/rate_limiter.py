@@ -10,7 +10,7 @@ import os
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any, cast, Optional
+from typing import Any, cast
 
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint

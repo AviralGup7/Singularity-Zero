@@ -107,7 +107,7 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         return {
             "status": status,
@@ -123,9 +123,8 @@ def _safe_request(
         "body": "",
         "body_length": 0,
         "success": False,
-        "error": str(e),
+        "error": "unknown error",
     }
-
 
 def _extract_jwt(url: str, session: Any) -> str | None:
     for header_name in JWT_AUTH_HEADERS:

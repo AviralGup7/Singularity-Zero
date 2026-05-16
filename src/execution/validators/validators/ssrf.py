@@ -111,7 +111,7 @@ def _is_internal_url(value: str) -> bool:
         "168.63.129.16",
         "localhost",
         "127.0.0.1",
-        "0.0.0.0", # nosec: S104 # nosec: S104
+        "0.0.0.0",  # nosec: S104
         "[::1]",
     )
     if any(meta in lowered for meta in cloud_metadata):

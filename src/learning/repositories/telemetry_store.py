@@ -95,7 +95,7 @@ class TelemetryStore:
         """Best-effort connection cleanup when store is garbage collected."""
         try:
             self.close()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def record_scan_run(self, row: dict[str, Any]) -> None:
@@ -359,7 +359,7 @@ class TelemetryStore:
         for table in tables:
             if table not in self._KNOWN_TABLES:
                 raise ValueError(f"Invalid table name: {table}")
-            cur.execute('SELECT COUNT(*) FROM ' + table)
+            cur.execute('SELECT COUNT(*) FROM ' + table)  # nosec: S608
             sizes[table] = int(cur.fetchone()[0])
         return sizes
 

@@ -138,7 +138,7 @@ def stream_http_response(
         if resp is not None:
             try:
                 resp.release_conn()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass  # Connection release best-effort
 
     return result

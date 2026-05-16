@@ -7,6 +7,7 @@ and observe durations. If `prometheus_client` is not installed, this
 module falls back to lightweight no-op implementations so unit tests
 and environments without Prometheus can import the package.
 """
+
 from typing import Any
 
 _PROVIDER_REQUESTS: Any

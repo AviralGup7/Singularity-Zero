@@ -19,7 +19,7 @@ class TraceContextFilter(logging.Filter):
             if getattr(ctx, "is_valid", False):
                 trace_id = f"{ctx.trace_id:032x}"
                 span_id = f"{ctx.span_id:016x}"
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         record.trace_id = trace_id

@@ -9,7 +9,7 @@ import builtins
 import json
 import logging
 import threading
-from typing import Any, cast
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
