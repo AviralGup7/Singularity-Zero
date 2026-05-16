@@ -92,7 +92,7 @@ async def run_subdomain_enumeration(
                 duration_seconds=stage_output.duration_seconds,
                 fatal=True,
             )
-            return stage_output
+            return cast(StageOutput, stage_output)
 
         # Success side effects
         subdomains = set(stage_output.state_delta.get("subdomains", []))
@@ -112,7 +112,7 @@ async def run_subdomain_enumeration(
         # Write to output store (side effect allowed in wrapper)
         ctx.output_store.write_subdomains(subdomains)
 
-        return stage_output
+        return cast(StageOutput, stage_output)
 
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'subdomains' failed: %s", exc)
@@ -193,7 +193,7 @@ async def run_live_hosts(
                 duration_seconds=stage_output.duration_seconds,
                 fatal=True,
             )
-            return stage_output
+            return cast(StageOutput, stage_output)
 
         live_hosts = set(stage_output.state_delta.get("live_hosts", []))
         emit_progress(
@@ -206,7 +206,7 @@ async def run_live_hosts(
             event_trigger="recon_live_hosts_discovered",
         )
 
-        return stage_output
+        return cast(StageOutput, stage_output)
 
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'live_hosts' failed: %s", exc)
@@ -268,7 +268,7 @@ async def run_url_collection(
                 duration_seconds=stage_output.duration_seconds,
                 fatal=True,
             )
-            return stage_output
+            return cast(StageOutput, stage_output)
 
         urls = set(stage_output.state_delta.get("urls", []))
         emit_progress(
@@ -281,7 +281,7 @@ async def run_url_collection(
             event_trigger="recon_urls_collected",
         )
 
-        return stage_output
+        return cast(StageOutput, stage_output)
 
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'urls' failed: %s", exc)
@@ -317,7 +317,7 @@ async def run_parameter_extraction(
             stage_input = build_stage_input_from_context("parameters", config, ctx)
         stage_output = await run_parameter_extraction_stage(stage_input)
         if stage_output.outcome != StageOutcome.COMPLETED:
-            return stage_output
+            return cast(StageOutput, stage_output)
         parameter_count = int(stage_output.artifacts.get("parameter_count", 0) or 0)
         url_count = int(stage_output.metrics.get("url_count", 0) or 0)
         emit_progress(
@@ -335,7 +335,7 @@ async def run_parameter_extraction(
             targets_scanning=0,
             event_trigger="recon_parameters_extracted",
         )
-        return stage_output
+        return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'parameters' failed: %s", exc)
         return StageOutput(

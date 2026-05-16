@@ -121,7 +121,9 @@ class ResponseValidationMiddleware(BaseHTTPMiddleware):
             if hasattr(response, "body"):
                 body_bytes = response.body
             elif hasattr(response, "content"):
-                if isinstance(response.content, (bytes, bytearray, memoryview)):
+                if isinstance(response.content, bytes):
+                    body_bytes = response.content
+                elif isinstance(response.content, (bytearray, memoryview)):
                     body_bytes = bytes(response.content)
                 else:
                     body_bytes = str(response.content).encode("utf-8")
