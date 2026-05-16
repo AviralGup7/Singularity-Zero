@@ -163,7 +163,7 @@ def enumerate_subdomains(scope_entries: list[str], config: Mapping[str, Any], sk
                     res = reg.provider(root)
                     subdomains.update(res)
             except Exception as e:
-                emit_warning(f"Error during subdomain enumeration with {reg.key}: {e}", module="recon.subdomains")
+                emit_warning(f"Error during subdomain enumeration with {reg.key}: {e}")
 
     if command_jobs:
         for output in run_commands_parallel(command_jobs):

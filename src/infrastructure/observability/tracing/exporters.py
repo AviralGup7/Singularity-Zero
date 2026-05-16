@@ -79,10 +79,10 @@ class OTLPExporter:
     def _try_init(self) -> None:
         try:
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
-                OTLPSpanExporter,
+                OTLPSpanExporter as GRPCOTLPExporter,
             )
 
-            self._exporter = OTLPSpanExporter(
+            self._exporter = GRPCOTLPExporter(
                 endpoint=self.endpoint,
                 insecure=self.insecure,
                 headers=self.headers,
@@ -91,10 +91,10 @@ class OTLPExporter:
         except ImportError:
             try:
                 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-                    OTLPSpanExporter,
+                    OTLPSpanExporter as HTTPOTLPExporter,
                 )
 
-                self._exporter = OTLPSpanExporter(
+                self._exporter = HTTPOTLPExporter(
                     endpoint=self.endpoint,
                     headers=self.headers,
                 )
@@ -118,6 +118,7 @@ class OTLPExporter:
         try:
             from opentelemetry.sdk.trace import ReadableSpan
             from opentelemetry.trace import SpanContext, Status, StatusCode, TraceFlags
+            from typing import cast
         except ImportError:
             return []
 
@@ -127,7 +128,7 @@ class OTLPExporter:
             span_id = int(span.span_id, 16)
             parent_id = int(span.parent_span_id, 16) if span.parent_span_id else None
 
-            trace_flags = TraceFlags.SAMPLED
+            trace_flags = cast(TraceFlags, TraceFlags.SAMPLED)
             span_context = SpanContext(
                 trace_id=trace_id,
                 span_id=span_id,

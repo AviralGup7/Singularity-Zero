@@ -1,5 +1,7 @@
 """JWT Attack Suite - comprehensive JWT vulnerability testing."""
 
+from typing import Any
+
 from .alg_none_attack import test_alg_none
 from .claim_manipulation import test_claim_manipulation
 from .expiration_bypass import test_expiration_bypass
@@ -22,7 +24,7 @@ __all__ = [
 ]
 
 
-def run_jwt_attack_suite(token: str, url: str, session, config=None) -> dict:
+def run_jwt_attack_suite(token: str, url: str, session: Any, config: Any = None) -> dict[str, Any]:
     """Run the full JWT attack suite against a target URL."""
     import logging
 

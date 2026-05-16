@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any
+from typing import Any, cast
 
 from beartype import beartype
 
@@ -331,7 +331,7 @@ async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
             scoring,
             mode,
             target_profile,
-            history_feedback,
+            cast(Any, history_feedback),
         )
         priority_urls = [item.get("url", "") for item in ranked_priority_urls if item.get("url")]
         selected_priority_items, selection_meta = await asyncio.to_thread(

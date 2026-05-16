@@ -23,7 +23,7 @@ class MeshConsensus:
         self.leader_id: str | None = None
         self._election_in_progress = False
 
-    async def run_maintenance(self):
+    async def run_maintenance(self) -> None:
         """Periodic check to ensure a leader exists."""
         while True:
             await asyncio.sleep(10.0)
@@ -33,7 +33,7 @@ class MeshConsensus:
                  if self.leader_id != self.gossip.local_node.id:
                      await self.start_election()
 
-    async def start_election(self):
+    async def start_election(self) -> None:
         """Initiate leader election using the RAFT-lite approach."""
         if self._election_in_progress:
             return
@@ -58,7 +58,7 @@ class MeshConsensus:
         else:
             logger.info("Mesh Leader elected: %s", self.leader_id)
 
-    async def _promote_to_leader(self):
+    async def _promote_to_leader(self) -> None:
         """Transition local node to orchestrator role."""
         # In a real system, this would trigger the Orchestrator.run() loop
         # for any pending jobs in the Redis queue.

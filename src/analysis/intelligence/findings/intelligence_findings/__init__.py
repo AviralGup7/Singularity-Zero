@@ -8,7 +8,7 @@ This package modularizes the findings logic into separate files
 for better maintainability and AI-agent editability.
 """
 
-from typing import Any
+from typing import Any, cast
 
 # Re-export for backward compatibility
 from src.analysis.intelligence.findings_dedup import finding_key as _finding_key_internal
@@ -87,7 +87,7 @@ def enrich_with_cvss(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:  #
     try:
         from src.analysis.cvss_scoring import enrich_findings_with_cvss
 
-        return enrich_findings_with_cvss(findings)
+        return cast(list[dict[str, Any]], enrich_findings_with_cvss(findings))
     except Exception:
         return findings
 

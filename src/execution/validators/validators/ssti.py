@@ -120,12 +120,10 @@ def _detect_math_evaluation(response_body: str, payload: str) -> list[str]:
     evaluations = []
 
     for pattern, description in MATH_EVALUATION_PATTERNS:
-        if re.search(pattern, response_body):
+        match = re.search(pattern, response_body)
+        if match:
             payload_not_literal = payload not in response_body
-            if (
-                payload_not_literal
-                or f"={re.search(pattern, response_body).group()}" in response_body.lower()
-            ):
+            if payload_not_literal or f"={match.group()}" in response_body.lower():
                 evaluations.append(description)
 
     return evaluations

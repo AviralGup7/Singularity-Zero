@@ -26,7 +26,7 @@ if config.config_file_name is not None:
 target_metadata = None
 
 
-def get_url():
+def get_url() -> str:
     """Get database URL from config or environment variable."""
     url = os.getenv("DATABASE_URL")
     if url:
@@ -59,7 +59,10 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection):
+from typing import Any
+
+
+def do_run_migrations(connection: Any) -> None:
     """Run migrations with the given connection."""
     context.configure(connection=connection, target_metadata=target_metadata)
 

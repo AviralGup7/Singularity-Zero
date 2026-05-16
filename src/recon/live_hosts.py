@@ -265,7 +265,7 @@ def probe_live_hosts(
     force_recheck: bool = False,
     **kwargs: Any,
 ) -> tuple[list[dict[str, Any]], set[str]]:
-    effective_timeout = timeout_seconds or getattr(config, "http_timeout_seconds", 30)
+    effective_timeout = int(timeout_seconds or getattr(config, "http_timeout_seconds", None) or 30)
     if str(config.mode).lower() == "safe":
         return probe_live_hosts_fallback(
             subdomains,

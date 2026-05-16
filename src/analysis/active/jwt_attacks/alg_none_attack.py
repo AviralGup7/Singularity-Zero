@@ -15,7 +15,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_alg_none(token: str, url: str, session) -> dict:
+def test_alg_none(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test alg=none bypass vulnerability.
 
     Creates a token with alg=none and checks if the server accepts it

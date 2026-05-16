@@ -14,7 +14,7 @@ from ._helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_algorithm_confusion(token: str, url: str, session) -> dict:
+def test_algorithm_confusion(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test RS256->HS256 algorithm confusion.
 
     If the original token uses RS256, re-sign it with HS256 using the

@@ -17,11 +17,11 @@ class NeuralMeshBalancer:
     Frontier Load Balancer.
     Uses multi-objective optimization to assign tasks to the most suitable worker node.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         # Node ID -> {success_count, failure_count, last_task_duration}
         self._reputation: dict[str, dict[str, Any]] = {}
 
-    def update_reputation(self, node_id: str, success: bool, duration: float = 0.0):
+    def update_reputation(self, node_id: str, success: bool, duration: float = 0.0) -> None:
         """Record node performance for future balancing decisions."""
         stats = self._reputation.setdefault(node_id, {"s": 0, "f": 0, "d": 0.0})
         if success:

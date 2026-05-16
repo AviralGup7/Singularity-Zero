@@ -334,7 +334,7 @@ class SQLiteBackend:
             conn = self._get_conn()
             try:
                 cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
-                count = cursor.fetchone()[0]
+                count = cast(int, cursor.fetchone()[0])
                 conn.execute("DELETE FROM cache_entries")
                 conn.commit()
                 return count

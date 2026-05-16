@@ -140,7 +140,7 @@ class BloomMeshSynchronizer:
         if node_id == self.node_id:
             return False
 
-        remote_clock = VectorClock(dict(data.get("vclock", {})))
+        remote_clock = VectorClock(MappingProxyType(dict(data.get("vclock", {}))))
         existing_clock = self.remote_clocks.get(node_id, VectorClock())
         if not remote_clock.is_later_than(existing_clock):
             return False

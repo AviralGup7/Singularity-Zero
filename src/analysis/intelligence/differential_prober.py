@@ -19,7 +19,7 @@ class DifferentialLogicProber:
     Compares API responses across different user contexts to detect
     Authorization Bypass and Insecure Direct Object Reference (IDOR).
     """
-    def __init__(self):
+    def __init__(self) -> None:
         self._dmp = diff_match_patch()
 
     def analyze_responses(self, base_response: str, compare_response: str) -> dict[str, Any]:

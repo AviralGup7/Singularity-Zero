@@ -543,7 +543,7 @@ class TimedLogContext:
     def __enter__(self) -> TimedLogContext:
         """Enter the timed context. Logs operation start."""
         self._start_time = time.monotonic()
-        self._logger.info("Starting %s", self._operation, **self._context)
+        self._logger.info(f"Starting {self._operation}", **self._context)
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

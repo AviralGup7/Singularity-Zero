@@ -210,7 +210,8 @@ class AdaptiveScanCoordinator:
                 return await scan_one(url)
 
         tasks = [bounded_scan(url) for url in urls]
-        return await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        return [r for r in results if isinstance(r, ScanResult)]
 
 
 # Import the priority queue (defined next)

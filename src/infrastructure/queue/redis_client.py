@@ -75,6 +75,10 @@ class RedisClient:
 
     def _initialize(self) -> None:
         """Initialize the Redis connection pool and client."""
+        if not self.url:
+            self._use_fallback = True
+            return
+
         try:
             import redis
         except ImportError:
@@ -581,7 +585,7 @@ class RedisClient:
             worker_key = _as_str(keys[2])
             worker_id = _as_str(args[0])
             lease_seconds = float(args[1])
-            now = float(args[2])
+            now_f = float(args[2])
 
             if self.execute_command("EXISTS", job_key) == 0:
                 return [0, b"not_found"]
@@ -591,7 +595,7 @@ class RedisClient:
             if state not in ("pending", "retrying"):
                 return [0, b"invalid_state", state.encode("utf-8")]
 
-            lease_expires = now + lease_seconds
+            lease_expires = now_f + lease_seconds
             self.execute_command(
                 "HSET",
                 job_key,
@@ -611,7 +615,7 @@ class RedisClient:
             worker_key = _as_str(keys[1])
             metrics_key = _as_str(keys[2])
             result_json = _as_str(args[0])
-            now = _as_str(args[1])
+            now_s = _as_str(args[1])
 
             if self.execute_command("EXISTS", job_key) == 0:
                 return [0]
@@ -622,7 +626,7 @@ class RedisClient:
                 "state",
                 "completed",
                 "completed_at",
-                now,
+                now_s,
                 "result",
                 result_json,
                 "lease_expires_at",
@@ -644,7 +648,7 @@ class RedisClient:
             error_msg = _as_str(args[0])
             retries = int(float(args[1]))
             max_retries = int(float(args[2]))
-            now = float(args[3])
+            now_ff = float(args[3])
             initial = float(args[4])
             multiplier = float(args[5])
             max_delay = float(args[6])
@@ -657,7 +661,7 @@ class RedisClient:
 
             if retries < max_retries:
                 backoff = min(initial * (multiplier**retries), max_delay)
-                retry_at = now + backoff
+                retry_at = now_ff + backoff
                 self.execute_command(
                     "HSET",
                     job_key,
@@ -678,13 +682,13 @@ class RedisClient:
                 "state",
                 "dead_letter",
                 "completed_at",
-                str(now),
+                str(now_ff),
                 "worker_id",
                 "",
                 "lease_expires_at",
                 "",
             )
-            self.execute_command("ZADD", dlq_key, now, job_key)
+            self.execute_command("ZADD", dlq_key, now_ff, job_key)
             self.execute_command("HINCRBY", metrics_key, "dead_lettered", 1)
             return [2, b"dead_letter"]
 
