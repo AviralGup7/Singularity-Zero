@@ -18,7 +18,7 @@ from src.core.models.stage_result import PipelineContext
 from src.decision.adaptive_scan import AdaptiveScanCoordinator
 from src.pipeline.runner_support import emit_progress
 
-from .active_scan import (
+from .active_scan import (  # type: ignore[attr-defined]
     _build_response_cache,
     _load_active_probe_functions,
     _normalize_scan_targets,

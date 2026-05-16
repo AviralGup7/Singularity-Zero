@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import threading
 import time
-from typing import Any
+from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
@@ -499,11 +499,12 @@ class RedisClient:
             script_obj = self._client.register_script(script)
             script_hash = script_obj.sha
             self._scripts[name] = {"hash": script_hash, "source": script, "object": script_obj}
-            return script_hash
+            return cast(str, script_hash)
         except Exception as exc:
             logger.warning("Failed to register script '%s': %s", name, exc)
-            self._scripts[name] = {"hash": f"fallback-{name}", "source": script}
-            return self._scripts[name]["hash"]
+            fallback_hash = f"fallback-{name}"
+            self._scripts[name] = {"hash": fallback_hash, "source": script}
+            return fallback_hash
 
     def execute_script(
         self, name: str, keys: list[Any] | None = None, args: list[Any] | None = None

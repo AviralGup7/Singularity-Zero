@@ -328,7 +328,7 @@ class ConnectionManager:
 
             # Fix #311: Inline disconnect logic under the same lock
             for conn_id in stale_ids:
-                info = self.connections.pop(conn_id, None)
+                info = self.connections.pop(conn_id, cast(Any, None))
                 if info is None:
                     continue
 

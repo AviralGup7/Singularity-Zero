@@ -53,7 +53,7 @@ class AlertRuleChecker:
     notification channels.
     """
 
-    def __init__(self, manager=None) -> None:
+    def __init__(self, manager: Any = None) -> None:
         """Initialize the rule checker.
 
         Args:
@@ -263,7 +263,7 @@ def get_alert_rule_checker() -> AlertRuleChecker:
     return _pipeline_alert_checker
 
 
-def register_default_alerts(manager=None) -> None:
+def register_default_alerts(manager: Any = None) -> None:
     """Register pre-configured alerts for pipeline monitoring.
 
     Creates the following default alert rules:

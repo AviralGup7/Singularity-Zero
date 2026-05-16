@@ -10,7 +10,7 @@ import os
 import sys
 
 
-from typing import Any
+from typing import Any, cast
 
 
 def _load_module(name: str, path: str) -> Any:
@@ -70,7 +70,7 @@ def _run() -> None:
     import requests
 
     orig = requests.get
-    requests.get = fake_get
+    requests.get = cast(Any, fake_get)
     try:
         urls, meta = crawler.crawl_hosts(
             ["https://app.example.com"],

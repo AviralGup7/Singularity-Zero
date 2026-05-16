@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.infrastructure.notifications.base import (
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from src.infrastructure.notifications.webhook import WebhookConfig, WebhookNotifier
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name == "BaseNotifier":
         from src.infrastructure.notifications.base import BaseNotifier
 

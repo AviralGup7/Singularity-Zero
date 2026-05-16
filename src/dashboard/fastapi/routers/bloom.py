@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Request
 
@@ -18,7 +18,7 @@ async def bloom_health(request: Request) -> dict[str, Any]:
     """Return Bloom filter mesh health for dashboard tiles."""
     bloom_mesh = getattr(request.app.state, "bloom_mesh", None)
     if bloom_mesh is not None:
-        return bloom_mesh.health_snapshot()
+        return cast(dict[str, Any], bloom_mesh.health_snapshot())
 
     fallback = NeuralBloomFilter()
     stats = fallback.get_stats()
@@ -50,4 +50,4 @@ async def reconcile_bloom_mesh(request: Request) -> dict[str, Any]:
     bloom_mesh = getattr(request.app.state, "bloom_mesh", None)
     if bloom_mesh is None:
         return {"status": "unavailable", "redis_enabled": False}
-    return await bloom_mesh.force_reconcile()
+    return cast(dict[str, Any], await bloom_mesh.force_reconcile())

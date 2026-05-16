@@ -98,7 +98,7 @@ async def run_access_control_testing(
         )
 
         # Import access control analyzers from src.analysis
-        analyze_access_control_async = None
+        analyze_access_control_async: Any = None
         try:
             from src.analysis.checks.active.access_control_analyzer import (
                 analyze_access_control_async,

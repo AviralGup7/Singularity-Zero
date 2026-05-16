@@ -34,7 +34,7 @@ import time
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -342,7 +342,7 @@ class AuditLogger:
                 last_line = f.readline().strip()
                 if last_line:
                     entry = json.loads(last_line.decode("utf-8"))
-                    return entry.get("entry_hash", "genesis")
+                    return cast(str, entry.get("entry_hash", "genesis"))
         except Exception:
             pass
         return "genesis"

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["Tracing"])
 @router.get("/tracing/config")
 async def tracing_config() -> dict[str, Any]:
     """Return OTLP exporter configuration and reachability."""
-    return get_tracing_manager().config()
+    return cast(dict[str, Any], get_tracing_manager().get_config())
 
 
 @router.get("/traces")

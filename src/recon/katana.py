@@ -6,7 +6,7 @@ Runs `katana` in batches and returns discovered URLs plus metadata.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, cast
 
 from src.core.models import Config
 from src.pipeline.tools import build_retry_policy
@@ -86,7 +86,7 @@ def run_katana(
             for host in batch
         ]
         before = len(urls)
-        for outcome in run_commands_parallel_outcomes(batch_jobs):
+        for outcome in run_commands_parallel_outcomes(cast(Any, batch_jobs)):
             urls.update(apply_url_filters(parse_plain_lines(outcome.stdout), config.filters))
             if outcome.timed_out:
                 timeout_count += 1

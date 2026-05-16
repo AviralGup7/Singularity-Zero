@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib import error, request
 
 DEFAULT_OTLP_ENDPOINT = "http://localhost:4318/v1/traces"
@@ -76,7 +76,7 @@ class SQLiteSpanExporter:
             )
 
     def export(self, spans: Any) -> Any:
-        success_code = 0
+        success_code: Any = 0
         try:
             from opentelemetry.sdk.trace.export import SpanExportResult
             success_code = SpanExportResult.SUCCESS
@@ -181,7 +181,7 @@ class TracingManager:
             provider = TracerProvider(
                 resource=Resource.create({"service.name": self.service_name})
             )
-            provider.add_span_processor(SimpleSpanProcessor(self.local_exporter))
+            provider.add_span_processor(SimpleSpanProcessor(cast(Any, self.local_exporter)))
             provider.add_span_processor(
                 BatchSpanProcessor(
                     OTLPSpanExporter(endpoint=self.endpoint, timeout=5),
@@ -225,7 +225,7 @@ class TracingManager:
                 context = None
 
         with self._tracer.start_as_current_span(
-            name,
+            str(name),
             context=context,
             attributes=dict(attributes or {}),
         ) as span:
@@ -244,7 +244,7 @@ class TracingManager:
 
                 @functools.wraps(func)
                 async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                    with self.start_stage_span(name, *args, **kwargs) as span:
+                    with self.start_stage_span(str(name), *args, **kwargs) as span:
                         try:
                             result = await func(*args, **kwargs)
                             self.record_stage_result(span, result)
@@ -257,7 +257,7 @@ class TracingManager:
 
             @functools.wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                with self.start_stage_span(name, *args, **kwargs) as span:
+                with self.start_stage_span(str(name), *args, **kwargs) as span:
                     try:
                         result = func(*args, **kwargs)
                         self.record_stage_result(span, result)
@@ -362,7 +362,7 @@ class TracingManager:
         if hasattr(self, "_status_cache") and (now - getattr(self, "_status_cache_ts", 0)) < 60.0:
             return self._status_cache
 
-        req = request.Request(self.endpoint, method="GET")
+        req = request.Request(str(self.endpoint), method="GET")
         try:
             with request.urlopen(req, timeout=1.5):
                 res = "connected"

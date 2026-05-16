@@ -14,7 +14,7 @@ from .http_utils import (
 logger = logging.getLogger(__name__)
 
 
-def test_tenant_isolation(url: str, tenant_params: dict, session=None) -> dict:
+def test_tenant_isolation(url: str, tenant_params: dict[str, Any], session: Any = None) -> dict[str, Any]:
     """Swap tenant IDs between requests and check for data leakage."""
     logger.info("Testing tenant isolation for %s with param %s", url, tenant_params)
 
@@ -173,7 +173,7 @@ def test_tenant_isolation(url: str, tenant_params: dict, session=None) -> dict:
     return result
 
 
-def test_vertical_escalation(url: str, tenant_params: dict, session=None) -> dict:
+def test_vertical_escalation(url: str, tenant_params: dict[str, Any], session: Any = None) -> dict[str, Any]:
     """Test privilege escalation from user to admin tenant context."""
     logger.info("Testing vertical escalation for %s", url)
 
@@ -311,7 +311,7 @@ def test_vertical_escalation(url: str, tenant_params: dict, session=None) -> dic
     return result
 
 
-def test_cross_tenant_data_access(url: str, tenant_params: dict, session=None) -> dict:
+def test_cross_tenant_data_access(url: str, tenant_params: dict[str, Any], session: Any = None) -> dict[str, Any]:
     """Test accessing another tenant's data by swapping tenant identifiers."""
     logger.info("Testing cross-tenant data access for %s", url)
 

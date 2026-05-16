@@ -3,7 +3,7 @@
 import hmac
 import os
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast, Optional
 
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
@@ -147,11 +147,11 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
 
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
-        return authenticate_jwt_token(auth_header[7:])
+        return cast(Optional[Principal], authenticate_jwt_token(auth_header[7:]))
 
     header_key = api_key or request.headers.get("X-API-Key")
     if header_key:
-        return store.authenticate_key(header_key)
+        return cast(Optional[Principal], store.authenticate_key(header_key))
     return None
 
 

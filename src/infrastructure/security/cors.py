@@ -21,6 +21,7 @@ Usage:
 
 import re
 
+from typing import Any, cast
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
@@ -80,7 +81,7 @@ class CORSMiddleware(BaseHTTPMiddleware):
             expose_headers: Override for exposed headers.
             max_age: Override for preflight cache duration.
         """
-        super().__init__(None)
+        super().__init__(cast(Any, None))
         self.config = config
         cors_config = config.cors
 

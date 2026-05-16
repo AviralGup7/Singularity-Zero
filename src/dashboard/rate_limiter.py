@@ -10,7 +10,7 @@ import os
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast, Optional
 
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -308,7 +308,7 @@ class RedisRateLimiter:
     def __init__(self, config: RateLimitConfig) -> None:
         self._config = config
         import redis
-        self._redis = redis.from_url(config.redis_url, decode_responses=True)
+        self._redis = redis.from_url(cast(str, config.redis_url), decode_responses=True)
 
     async def check(
         self,
@@ -334,7 +334,7 @@ class RedisRateLimiter:
             count = results[1]
             if count >= limit:
                 # Get the oldest timestamp to compute retry_after
-                oldest = self._redis.zrange(key, 0, 0, withscores=True)
+                oldest = cast(list[tuple[Any, float]], self._redis.zrange(key, 0, 0, withscores=True))
                 retry_after = 1
                 if oldest:
                     retry_after = max(1, int(window - (now - oldest[0][1])) + 1)
@@ -353,6 +353,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._config = config
         self._adaptive = AdaptiveLimitController(config)
+        self._limiter: Any
         if config.redis_url:
             self._limiter = RedisRateLimiter(config)
         else:

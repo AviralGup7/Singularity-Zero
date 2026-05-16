@@ -337,7 +337,7 @@ def setup_websocket_routes(
         await handler.handle_dashboard(websocket)
 
     @asynccontextmanager
-    async def lifespan(app):
+    async def lifespan(app: Any) -> Any:
         await services.start_cleanup_loop(interval=cleanup_interval)
         logger.info("WebSocket services initialized")
         yield

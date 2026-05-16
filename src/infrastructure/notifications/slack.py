@@ -133,7 +133,7 @@ class SlackNotifier(BaseNotifier):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"_{payload.source} | {payload.timestamp.iso()}_",
+                    "text": f"_{payload.source} | {payload.timestamp.isoformat()}_",
                 },
             },
         )
