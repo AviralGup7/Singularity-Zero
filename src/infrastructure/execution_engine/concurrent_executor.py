@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from src.infrastructure.execution_engine._task_runner import _TaskRunner as TaskRunner
-
 from src.infrastructure.execution_engine.load_balancer import LoadBalancer
 from src.infrastructure.execution_engine.models import (
     ExecutionConfig,
@@ -30,7 +29,6 @@ from src.infrastructure.execution_engine.models import (
 from src.infrastructure.execution_engine.resource_pool import ResourcePool, ResourcePoolManager
 
 from ._scheduler import _DAGScheduler
-from ._task_runner import _TaskRunner
 
 ProgressCallback = Callable[[str, int, dict[str, Any]], None]
 

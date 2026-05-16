@@ -304,8 +304,9 @@ async def _check_redis_health(config: dict[str, Any]) -> ComponentHealth:
     name = config.get("name", "redis")
     url = config.get("url", "redis://localhost:6379")
     try:
-        import redis.asyncio as aioredis
         from typing import Any, cast
+
+        import redis.asyncio as aioredis
 
         client = aioredis.from_url(url)
         await cast(Any, client.ping())

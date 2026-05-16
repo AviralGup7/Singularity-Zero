@@ -168,7 +168,7 @@ def check_url_oauth_issues(url: str) -> list[dict[str, Any]]:
                     issues.append("open_redirect_http")
                     evidence_parts.append(f"redirect to external HTTP URL: {redirect_uri[:80]}")
                     severity_score += 3
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     if not issues:

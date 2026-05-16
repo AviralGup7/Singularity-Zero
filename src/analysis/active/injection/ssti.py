@@ -45,7 +45,7 @@ def ssti_active_probe(
         ("handlebars", "{{#equals 7 7}}49{{/equals}}"),
     ]
 
-    TEMPLATE_RELEVANT_PARAMS = {
+    template_relevant_params = {
         "template",
         "view",
         "render",
@@ -93,7 +93,7 @@ def ssti_active_probe(
         template_params = [
             (i, pn, pv)
             for i, (pn, pv) in enumerate(query_pairs)
-            if pn.lower() in TEMPLATE_RELEVANT_PARAMS
+            if pn.lower() in template_relevant_params
         ]
         for idx, param_name, _param_value in template_params:
             if len(url_probes) >= 2:

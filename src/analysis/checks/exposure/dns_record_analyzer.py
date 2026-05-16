@@ -290,7 +290,7 @@ def dns_record_analyzer(
             host = _up(url).netloc.lower()
             if host:
                 target_domains.add(host.lstrip("www."))
-        except Exception:
+        except Exception:  # noqa: S112
             continue
 
     primary_target = min(target_domains, key=len) if target_domains else ""
@@ -439,7 +439,7 @@ def dns_record_analyzer(
             from urllib.parse import urlparse as _up
 
             host = _up(url).netloc.lower()
-        except Exception:
+        except Exception:  # noqa: S112
             continue
         if not host:
             continue

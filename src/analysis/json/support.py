@@ -16,8 +16,6 @@ from src.analysis.helpers import (
     json_type_name,
     meaningful_query_pairs,
 )
-from src.analysis.passive.patterns import UUID_RE
-from src.analysis.text_utils import extract_key_fields
 from src.analysis.json.mutations import (
     alternate_version_url,
     mutate_dependency_urls,
@@ -27,6 +25,8 @@ from src.analysis.json.mutations import (
     mutate_role_url,
     mutate_state_url,
 )
+from src.analysis.passive.patterns import UUID_RE
+from src.analysis.text_utils import extract_key_fields
 
 from ._constants import (
     AUTH_REQUIRED_FIELD_HINTS,

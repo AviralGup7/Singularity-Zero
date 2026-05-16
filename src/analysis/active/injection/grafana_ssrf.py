@@ -157,7 +157,7 @@ async def test_datasource_ssrf(
                 await client.delete(
                     f"{base_url}{GRAFANA_DATASOURCE_API}/{datasource_id}",
                 )
-            except Exception:
+            except Exception:  # noqa: S110
                 logger.warning("Failed to cleanup datasource %s", datasource_id)
 
     return findings
@@ -216,14 +216,14 @@ async def test_alert_notification_ssrf(
                         "details": "Alert notification webhook created — may trigger SSRF on alert",
                     }
                 )
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
             try:
                 await client.delete(
                     f"{base_url}{GRAFANA_ALERT_NOTIFICATIONS}/{notification_id}",
                 )
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
     return findings

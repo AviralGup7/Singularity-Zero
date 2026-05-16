@@ -474,7 +474,7 @@ class UrlCollectionOrchestrator:
                 cached_meta = self.load_cached_json(
                     self.ctx.output_store.cache_root / "urls_meta.json"
                 )
-            except Exception:
+            except Exception:  # noqa: S110
                 cached_meta = {}
             if cached_meta:
                 stage_meta.clear()
@@ -486,7 +486,7 @@ class UrlCollectionOrchestrator:
                     self.ctx.output_store.cache_root / "urls_meta.json",
                     stage_meta,
                 )
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
     async def _run_refresh_phase(
@@ -574,7 +574,7 @@ class UrlCollectionOrchestrator:
             try:
                 meta_path = self.ctx.output_store.cache_root / "urls_meta.json"
                 await asyncio.to_thread(self.save_cached_json, meta_path, self._url_meta)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
             self.ctx.output_store.write_urls(self._urls)
             self.validate_recon_payload(

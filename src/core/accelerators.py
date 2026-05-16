@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import cast
 
 import numpy as np
-from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 

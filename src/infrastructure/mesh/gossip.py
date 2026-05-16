@@ -14,7 +14,6 @@ import json
 import logging
 import os
 import random
-import secrets
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -147,7 +146,7 @@ class GossipEngine:
 
     def _retry_interval_seconds(self, attempt: int) -> float:
         base = min(self.retry_max_ms, self.retry_base_ms * (2**attempt))
-        jittered = base * random.uniform(0.75, 1.25)
+        jittered = base * random.uniform(0.75, 1.25)  # nosec: S311
         return max(0.001, float(jittered / 1000.0))
 
     def _make_envelope(self, message_type: str, payload: dict[str, Any], msg_id: str | None = None) -> bytes:

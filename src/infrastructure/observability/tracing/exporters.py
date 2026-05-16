@@ -116,9 +116,10 @@ class OTLPExporter:
 
     def _convert_to_otel(self, spans: list[Span]) -> list[Any]:
         try:
+            from typing import cast
+
             from opentelemetry.sdk.trace import ReadableSpan
             from opentelemetry.trace import SpanContext, Status, StatusCode, TraceFlags
-            from typing import cast
         except ImportError:
             return []
 
@@ -173,7 +174,7 @@ class OTLPExporter:
         if self._exporter is not None:
             try:
                 self._exporter.shutdown()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
     @property

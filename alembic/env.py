@@ -59,9 +59,6 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-from typing import Any
-
-
 def do_run_migrations(connection: Any) -> None:
     """Run migrations with the given connection."""
     context.configure(connection=connection, target_metadata=target_metadata)

@@ -29,7 +29,7 @@ def _find_finding_by_id(output_root: Any, finding_id: str) -> dict[str, Any] | N
                 continue
             try:
                 findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
             if not isinstance(findings, list):
                 continue
@@ -249,7 +249,7 @@ async def get_findings_summary(
 
                             total_findings += 1
                             target_finding_count += 1
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
 
         if target_finding_count > 0:
@@ -400,7 +400,7 @@ async def update_finding(
                             findings_list = findings
                             findings_file_path = findings_path
                             break
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
             if found: break
         if found: break
@@ -460,7 +460,7 @@ async def delete_finding(
                             findings_list = findings
                             findings_file_path = findings_path
                             break
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
             if found: break
         if found: break

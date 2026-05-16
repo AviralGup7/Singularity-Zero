@@ -56,7 +56,7 @@ AUTH_ENDPOINT_PATTERNS = [
 ]
 
 INVALID_USERNAME = "this_user_does_not_exist_xyz123"
-INVALID_PASSWORD = "wrong_password_attempt_123"
+INVALID_PASSWORD = "wrong_password_attempt_123"  # nosec: S105
 COMMON_USERNAMES = ["admin", "user", "test", "administrator", "root"]
 COMMON_PASSWORDS = ["password", "123456", "password123", "admin123", "letmein"]
 

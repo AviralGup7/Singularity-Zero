@@ -71,45 +71,45 @@ class FeatureFlags:
     """
 
     @classmethod
-    def ENABLE_SSE_PROGRESS(cls) -> bool:
+    def enable_sse_progress(cls) -> bool:
         return os.getenv("ENABLE_SSE_PROGRESS", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_BAYESIAN_ETA(cls) -> bool:
+    def enable_bayesian_eta(cls) -> bool:
         return os.getenv("ENABLE_BAYESIAN_ETA", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_PLUGIN_PROGRESS(cls) -> bool:
+    def enable_plugin_progress(cls) -> bool:
         return os.getenv("ENABLE_PLUGIN_PROGRESS", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_DURATION_FORECAST(cls) -> bool:
+    def enable_duration_forecast(cls) -> bool:
         return os.getenv("ENABLE_DURATION_FORECAST", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_FINDINGS_STREAM(cls) -> bool:
+    def enable_findings_stream(cls) -> bool:
         return os.getenv("ENABLE_FINDINGS_STREAM", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_DAG_EXECUTION(cls) -> bool:
+    def enable_dag_execution(cls) -> bool:
         return os.getenv("ENABLE_DAG_EXECUTION", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_API_SECURITY(cls) -> bool:
+    def enable_api_security(cls) -> bool:
         return os.getenv("ENABLE_API_SECURITY", "false").lower() == "true"
 
     @classmethod
-    def SSE_HEARTBEAT_INTERVAL_SECONDS(cls) -> int:
+    def sse_heartbeat_interval_seconds(cls) -> int:
         return max(15, min(30, int(os.getenv("SSE_HEARTBEAT_INTERVAL_SECONDS", "25"))))
 
     @classmethod
-    def ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS(cls) -> int:
+    def eta_engine_background_interval_seconds(cls) -> int:
         return max(1, int(os.getenv("ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS", "5")))
 
     @classmethod
-    def ETA_HISTORICAL_DATA_PATH(cls) -> str:
+    def eta_historical_data_path(cls) -> str:
         return os.getenv("ETA_HISTORICAL_DATA_PATH", "output/eta_history.json")
 
     @classmethod
-    def SSE_MAX_FINDINGS_PER_BATCH(cls) -> int:
+    def sse_max_findings_per_batch(cls) -> int:
         return max(1, int(os.getenv("SSE_MAX_FINDINGS_PER_BATCH", "50")))

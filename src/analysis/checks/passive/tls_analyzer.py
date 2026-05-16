@@ -178,7 +178,7 @@ class TLSAnalyzer:
                                 details=f"Disable {name} and use TLS 1.2 or higher",
                             )
                         )
-            except Exception:
+            except Exception:  # noqa: S110
                 pass  # Protocol not supported - good
 
         return findings
