@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.core.models.config import Config
-from src.recon.collectors import crawler
+from src.recon.collectors.providers import crawler
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.providers import commoncrawl, otx, urlscan, wayback

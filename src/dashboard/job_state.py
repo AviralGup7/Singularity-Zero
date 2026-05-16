@@ -857,7 +857,7 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
             "reporting",
             "completed",
         ]
-        stage_progress_list: list[dict[str, Any]] = []
+        stage_progress_list = []
         for skey in stage_order_list:
             if skey in raw_stage_progress:
                 sp = raw_stage_progress[skey]
@@ -970,3 +970,4 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
         ),
         "state_version": int(job.get("state_version", 0) or 0),
     }
+

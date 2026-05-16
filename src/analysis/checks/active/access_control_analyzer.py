@@ -33,8 +33,9 @@ _CONFIDENCE_MAP = {
 
 
 def _coerce_limit(limit: object) -> int:
+    from typing import cast, Any
     try:
-        parsed = int(limit)  # type: ignore[arg-type]
+        parsed = int(cast(Any, limit))
     except (TypeError, ValueError) as exc:
         logger.debug("Ignoring %s: %s", type(exc).__name__, exc)
         return 20

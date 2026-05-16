@@ -13,7 +13,7 @@ import json
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from src.core.checkpoint_recovery import (
     generate_run_id_impl,
@@ -80,7 +80,7 @@ class CheckpointState:
     def to_dict(self) -> dict[str, Any]:
         """Convert state to a JSON-serializable dictionary."""
         raw = asdict(self)
-        return _serialize_sets(raw)
+        return cast(dict[str, Any], _serialize_sets(raw))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CheckpointState:

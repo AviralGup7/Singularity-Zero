@@ -90,7 +90,7 @@ def _build_request_with_tenant_header(
 def _compare_responses(
     original_body: str, swapped_body: str, original_data: Any, swapped_data: Any
 ) -> list[str]:
-    signals = []
+    signals: list[str] = []
     if original_body == swapped_body:
         return signals
 

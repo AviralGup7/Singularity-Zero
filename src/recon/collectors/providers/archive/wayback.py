@@ -93,6 +93,9 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
             else:
                 return set()
 
+    if resp is None:
+        return set()
+
     originals = _parse_cdx_json(resp.text or "")
     normalized = {normalize_url(u) for u in originals if normalize_url(u)}
     return normalized

@@ -16,7 +16,9 @@ import time
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
+
+from src.infrastructure.execution_engine._task_runner import _TaskRunner as TaskRunner
 
 from src.infrastructure.execution_engine.load_balancer import LoadBalancer
 from src.infrastructure.execution_engine.models import (
@@ -254,11 +256,11 @@ class ConcurrentExecutor:
 
             for layer_idx, layer in enumerate(layers):
                 if self._cancelled:
-                    self._skip_remaining(layer, total_tasks, completed_count)
+                    self._skip_remaining(layers[layer_idx:], total_tasks, completed_count)
                     break
 
                 if self._config.cancel_on_first_error and self._first_error_event.is_set():
-                    self._skip_remaining(layer, total_tasks, completed_count)
+                    self._skip_remaining(layers[layer_idx:], total_tasks, completed_count)
                     break
 
                 await self._run_layer(layer, layer_idx, len(layers), total_tasks, completed_count)
@@ -304,7 +306,7 @@ class ConcurrentExecutor:
             return
 
         async def _run_with_semaphore(task: Task) -> TaskResult:
-            async with self._semaphore:
+            async with cast(Any, self._semaphore):
                 if self._cancelled:
                     return TaskResult(
                         task_id=task.id,
@@ -313,16 +315,16 @@ class ConcurrentExecutor:
                         error="Execution cancelled",
                     )
 
-                if self._config.cancel_on_first_error and self._first_error_event.is_set():
+                if self._config.cancel_on_first_error and cast(Any, self._first_error_event).is_set():
                     return TaskResult(
                         task_id=task.id,
                         task_name=task.name,
                         status=TaskStatus.SKIPPED,
-                        error="Skipped due to earlier failure",
+                        error="Skipped due to previous error",
                     )
 
-                runner = _TaskRunner(
-                    task=task,
+                runner = TaskRunner(
+                    task,
                     config=self._config,
                     pool_manager=self._pool_manager,
                     load_balancer=self._load_balancer,
@@ -332,9 +334,9 @@ class ConcurrentExecutor:
                 result = await runner.run()
 
                 self._results[task.id] = result
-
-                if result.status == TaskStatus.FAILED and self._config.cancel_on_first_error:
-                    self._first_error_event.set()
+                if result.status == TaskStatus.FAILED:
+                    if self._config.cancel_on_first_error:
+                        cast(Any, self._first_error_event).set()
 
                 if self._config.enable_progress_callbacks and self._progress_callback:
                     current = completed_before + 1
@@ -351,7 +353,7 @@ class ConcurrentExecutor:
                         },
                     )
 
-                return result
+                return cast(TaskResult, result)
 
         tasks = [_run_with_semaphore(task) for task in layer_tasks]
         await asyncio.gather(*tasks, return_exceptions=True)

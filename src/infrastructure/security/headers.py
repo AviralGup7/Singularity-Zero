@@ -14,6 +14,7 @@ Usage:
     app.add_middleware(SecurityHeadersMiddleware, config=config)
 """
 
+from typing import Any, cast
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -61,7 +62,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             config: Security configuration.
             headers: Override for security headers.
         """
-        super().__init__(None)
+        super().__init__(cast(Any, None))
         self.config = config
         hc = config.headers
 

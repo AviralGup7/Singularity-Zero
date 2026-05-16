@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 import jwt
 
@@ -71,7 +72,7 @@ def decode_jwt(token: str, config: SecurityConfig) -> TokenPayload | None:
         if config.jwt.audience:
             decode_kwargs["audience"] = config.jwt.audience
 
-        payload_data = jwt.decode(token, config.jwt.secret, **decode_kwargs)
+        payload_data = jwt.decode(token, config.jwt.secret, **cast(Any, decode_kwargs))
         return TokenPayload(**payload_data)
     except jwt.InvalidTokenError:
         return None

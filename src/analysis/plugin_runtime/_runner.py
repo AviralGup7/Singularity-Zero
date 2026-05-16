@@ -98,7 +98,7 @@ def _sanitize_response_map(
 
 def _coerce_positive_int(value: object) -> int | None:
     try:
-        parsed = int(value)  # type: ignore[arg-type]
+        parsed = int(cast(Any, value))
     except (TypeError, ValueError) as exc:
         logger.debug("Ignoring %s: %s", type(exc).__name__, exc)
         return None

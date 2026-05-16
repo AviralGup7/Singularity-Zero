@@ -14,7 +14,9 @@ from .tests import test_cross_tenant_data_access, test_tenant_isolation, test_ve
 logger = logging.getLogger(__name__)
 
 
-def run_tenant_isolation_probes(urls: list, responses: list, session=None, config=None) -> dict:
+def run_tenant_isolation_probes(
+    urls: list[str], responses: list[dict[str, Any]], session: Any = None, config: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Run tenant isolation, vertical escalation, and cross-tenant access tests."""
     logger.info(
         "Running tenant isolation probes on %d URLs and %d responses", len(urls), len(responses)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
+from typing import Any, cast
 
 from src.pipeline.tools import execute_command
 from src.recon.collectors.observability import emit_collection_progress
@@ -114,7 +114,7 @@ def run_archive_jobs(
                     command,
                     min(max(1, int(timeout)), remaining_budget_seconds),
                     batched_input,
-                    retry_policy,
+                    cast(Any, retry_policy),
                 ): (
                     label,
                     time.monotonic(),

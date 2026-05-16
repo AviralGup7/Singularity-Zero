@@ -29,7 +29,7 @@ import base64
 import hashlib
 import hmac as hmac_module
 import os
-from typing import Any
+from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.security.config import SecurityConfig
@@ -243,7 +243,7 @@ class DataEncryptor:
         import json
 
         decrypted = self.decrypt(encrypted)
-        return json.loads(decrypted)
+        return cast(dict[str, Any], json.loads(decrypted))
 
 
 class SecretManager:

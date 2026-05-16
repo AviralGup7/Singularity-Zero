@@ -115,7 +115,7 @@ def collect_for_hosts(
     discovered: set[str] = set()
     errors = 0
     max_response_bytes = 120000
-    scope_roots = set()
+    scope_roots: set[str] = set()
 
     emit_collection_progress(progress_callback, f"Crawler: scanning {len(hosts_list)} hosts", 10)
 

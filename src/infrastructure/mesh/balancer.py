@@ -71,4 +71,4 @@ class NeuralMeshBalancer:
         winner_id = rankings[0][0]
         logger.info("Neural-Mesh Balancer: Selected worker '%s' (Score: %.4f)",
                     winner_id, rankings[0][1])
-        return winner_id
+        return winner_id  # type: ignore[no-any-return]

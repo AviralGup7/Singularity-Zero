@@ -2,6 +2,7 @@
 
 import logging
 import time
+from pathlib import Path
 from collections.abc import Awaitable
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -106,7 +107,7 @@ async def check_services(workspace_root: Any, output_root: Any) -> DependencyHea
         services = DashboardServices(
             workspace_root=workspace_root,
             output_root=output_root,
-            config_template={},
+            config_template=Path("/tmp/dummy_config.json"),
         )
         start = time.monotonic()
         targets = services.list_targets()

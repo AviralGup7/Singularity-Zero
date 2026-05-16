@@ -9,7 +9,7 @@ preserving the same behavior and API.
 import asyncio
 import inspect
 import logging
-import secrets as random
+import random
 import time
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any

@@ -11,7 +11,9 @@ dispatches outbound messages from the connection's message queue.
 """
 
 import asyncio
+import logging
 import uuid
+from typing import Any, cast
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -284,9 +286,9 @@ class WebSocketHandler:
                 continue
 
             if message.type == MessageType.SUBSCRIBE:
-                await self._handle_subscribe(info, message)
+                await self._handle_subscribe(info, cast(SubscribeMessage, message))
             elif message.type == MessageType.UNSUBSCRIBE:
-                await self._handle_unsubscribe(info, message)
+                await self._handle_unsubscribe(info, cast(UnsubscribeMessage, message))
             elif message.type == MessageType.HEARTBEAT:
                 logger.debug("Received heartbeat from %s", info.connection_id)
             elif message.type == MessageType.ACK:

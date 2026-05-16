@@ -32,7 +32,7 @@ import hmac
 import os
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     import redis
@@ -188,7 +188,7 @@ class RedisSlidingWindowCounter:
 
     def __init__(
         self,
-        redis_client: redis.Redis[Any] | redis.Redis[bytes],
+        redis_client: redis.Redis,
         window_seconds: int = 60,
         key_prefix: str = "ratelimit",
     ) -> None:
@@ -293,7 +293,7 @@ class RateLimiter:
             import redis
 
             client = redis.Redis.from_url(
-                self.config.rate_limit.redis_url,
+                cast(str, self.config.rate_limit.redis_url),
                 decode_responses=True,
             )
             self._redis_counter = RedisSlidingWindowCounter(

@@ -1,7 +1,7 @@
 """Reconnaissance stages for the pipeline."""
 
 from functools import partial
-from typing import Any
+from typing import Any, cast
 
 from src.analysis.behavior.service import run_service_enrichment
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
@@ -179,7 +179,7 @@ async def run_live_hosts(
         stage_output = await run_live_hosts_service(
             stage_input,
             prober=prober,
-            enricher=enricher_wrapper,
+            enricher=cast(Any, enricher_wrapper),
             force_recheck=bool(getattr(args, "force_recheck", False)),
         )
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
@@ -56,7 +56,7 @@ async def create_dashboard_token(request: Request, body: TokenRequest) -> TokenR
 async def rate_limit_status(_auth: Any = Depends(require_auth)) -> RateLimitStatusResponse:
     return RateLimitStatusResponse(
         enabled=api_security_enabled(),
-        buckets=get_rate_limit_status(),
+        buckets=cast(Any, get_rate_limit_status()),
     )
 
 
