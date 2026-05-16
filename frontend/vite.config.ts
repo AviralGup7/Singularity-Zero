@@ -43,6 +43,7 @@ export default defineConfig({
     minify: 'esbuild',
     cssMinify: true,
     rollupOptions: {
+      external: ['hls.js'],
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
