@@ -372,7 +372,7 @@ class PipelineOrchestrator:
         # Distributed Write-Ahead Log (Overhaul #9)
         # ──────────────────────────────────────────────────────────
         from src.core.frontier.wal import FrontierWAL
-        self._wal = FrontierWAL(config.redis_url, run_id)
+        self._wal = FrontierWAL(getattr(config, "redis_url", None), run_id)
         logger.info("Frontier WAL initialized: stream=cyber:wal:%s", run_id)
 
         force_fresh = getattr(args, "force_fresh_run", False)
