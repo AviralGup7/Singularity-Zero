@@ -91,8 +91,9 @@ export function PipelineStageTimeline({ jobs }: PipelineStageTimelineProps) {
     void import('gsap')
       .then((mod) => {
         if (!rootRef.current || cancelled) return;
-        const gsapMod = mod as { gsap?: { timeline: (opts?: Record<string, unknown>) => { fromTo: (...a: unknown[]) => void; kill: () => void } }; default?: { timeline: (opts?: Record<string, unknown>) => { fromTo: (...a: unknown[]) => void; kill: () => void } } };
-        const gsap = gsapMod.gsap ?? gsapMod.default;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const gsap = (mod as any).gsap ?? (mod as any).default;
+        if (!gsap) return;
         const nodes = rootRef.current.querySelectorAll('.pipeline-timeline-node');
         const bars = rootRef.current.querySelectorAll('.pipeline-timeline-fill');
         const tl = gsap.timeline({ defaults: { ease: 'power2.out' } });
