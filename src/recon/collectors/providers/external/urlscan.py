@@ -40,15 +40,18 @@ def _parse_urlscan_json(text: str) -> list[str]:
             # url may appear in several locations
             for key in ("page", "task", "result", "url"):
                 v = item.get(key) if isinstance(item, dict) else None
-                if isinstance(v, dict) and isinstance(v.get("url"), str):
-                    urls.append(v.get("url"))
-                    break
+                if isinstance(v, dict):
+                    url_val = v.get("url")
+                    if isinstance(url_val, str):
+                        urls.append(url_val)
+                        break
                 if isinstance(v, str):
                     urls.append(v)
                     break
             # direct url field
-            if isinstance(item.get("url"), str):
-                urls.append(item.get("url"))
+            item_url = item.get("url") if isinstance(item, dict) else None
+            if isinstance(item_url, str):
+                urls.append(item_url)
     elif isinstance(data, list):
         for entry in data:
             if isinstance(entry, str):
@@ -56,8 +59,10 @@ def _parse_urlscan_json(text: str) -> list[str]:
             elif isinstance(entry, dict):
                 for k in ("page", "task", "url"):
                     v = entry.get(k)
-                    if isinstance(v, dict) and isinstance(v.get("url"), str):
-                        urls.append(v.get("url"))
+                    if isinstance(v, dict):
+                        entry_url = v.get("url")
+                        if isinstance(entry_url, str):
+                            urls.append(entry_url)
                         break
                     if isinstance(v, str):
                         urls.append(v)

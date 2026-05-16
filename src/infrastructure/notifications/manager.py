@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -80,7 +80,7 @@ class NotificationManager:
         try:
             config_cls = self._get_config_class(notifier_cls)
             config = config_cls(**entry.config)
-            return notifier_cls(config)
+            return notifier_cls(config, entry.name)
         except Exception as exc:
             self._logger.error("Failed to initialize notifier %s: %s", entry.name, exc)
             return None
@@ -91,7 +91,7 @@ class NotificationManager:
         sig = inspect.signature(notifier_cls.__init__)
         for param in sig.parameters.values():
             if param.name == "config" and param.annotation != inspect.Parameter.empty:
-                return param.annotation
+                return cast(type, param.annotation)
 
         from src.infrastructure.notifications.base import NotificationConfig
 
@@ -153,18 +153,18 @@ class NotificationManager:
         )
 
         if self._config.fail_fast:
-            results = []
+            fast_results: list[NotificationResult] = []
             for task in tasks:
                 result = await task
-                results.append(result)
+                fast_results.append(result)
                 if not result.success:
                     break
-            return results
+            return fast_results
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        gather_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         processed: list[NotificationResult] = []
-        for item in results:
+        for item in cast(list[Any], gather_results):
             if isinstance(item, Exception):
                 processed.append(
                     NotificationResult(

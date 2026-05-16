@@ -4,7 +4,7 @@ import logging
 import time
 from dataclasses import asdict
 from datetime import UTC
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Request
 
@@ -79,7 +79,7 @@ async def mesh_health(request: Request) -> dict[str, Any]:
             "nodes": [],
             "edges": [],
         }
-    return gossip.mesh_health()
+    return cast(dict[str, Any], gossip.mesh_health())
 
 
 @router.get(

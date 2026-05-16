@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any
+from typing import Any, cast
 
 from src.infrastructure.observability.alerts.channels import send_alert
 from src.infrastructure.observability.alerts.models import (
@@ -165,7 +165,7 @@ class AlertManager:
                 if isinstance(data, (int, float)):
                     return float(data)
                 if isinstance(data, dict):
-                    return float(data.get("sum", data.get("mean", data.get("count", 0))))
+                    return float(cast(Any, data.get("sum", data.get("mean", data.get("count", 0)))))
         return None
 
     def _create_alert(self, rule: AlertRule, value: float) -> Alert:

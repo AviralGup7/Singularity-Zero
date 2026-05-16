@@ -7,7 +7,7 @@ handling browser tasks, RPi handling light probing).
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from src.infrastructure.queue.models import (
     Job,
@@ -259,7 +259,7 @@ class ResourceAwareScheduler:
             List of dicts with worker load information.
         """
         return [
-            self.get_worker_load(worker_id)
+            cast(dict[str, Any], self.get_worker_load(worker_id))
             for worker_id in self.workers
             if self.get_worker_load(worker_id) is not None
         ]

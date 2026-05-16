@@ -26,7 +26,7 @@ COOKIE_INJECTION_NAMES = [
 ]
 
 
-def _parse_cookies(headers: dict[str, Any]) -> list[dict[str, str]]:
+def _parse_cookies(headers: dict[str, Any]) -> list[dict[str, Any]]:
     cookies = []
     set_cookie_values = []
     for key, val in headers.items():

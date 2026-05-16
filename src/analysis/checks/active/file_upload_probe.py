@@ -325,7 +325,6 @@ def file_upload_active_probe(
         url_evidence: list[dict[str, Any]] = []
 
         field_name = "file"
-        issues_for_hit: list[str]
         parsed = urlparse(url)
         query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
         for k, _ in query_pairs:
@@ -352,7 +351,7 @@ def file_upload_active_probe(
             status = response.get("status", 0)
             resp_body = str(response.get("body") or "")
 
-            issues_for_hit: list[str] = []
+            issues_for_hit = []
 
             if UPLOAD_SUCCESS_RE.search(resp_body):
                 issues_for_hit.append(f"dangerous_extension_uploaded:{ext}")
@@ -395,7 +394,7 @@ def file_upload_active_probe(
             status = response.get("status", 0)
             resp_body = str(response.get("body") or "")
 
-            issues_for_hit: list[str] = []
+            issues_for_hit = []
 
             if UPLOAD_SUCCESS_RE.search(resp_body):
                 issues_for_hit.append(f"double_extension_uploaded:{double_ext}")
@@ -433,7 +432,7 @@ def file_upload_active_probe(
             status = response.get("status", 0)
             resp_body = str(response.get("body") or "")
 
-            issues_for_hit: list[str] = []
+            issues_for_hit = []
 
             if UPLOAD_SUCCESS_RE.search(resp_body):
                 issues_for_hit.append(f"case_variation_uploaded:{case_ext}")
@@ -474,7 +473,7 @@ def file_upload_active_probe(
             status = response.get("status", 0)
             resp_body = str(response.get("body") or "")
 
-            issues_for_hit: list[str] = []
+            issues_for_hit = []
 
             if UPLOAD_SUCCESS_RE.search(resp_body):
                 issues_for_hit.append(f"mime_type_bypass:{fake_mime}->{ext}")
@@ -515,7 +514,7 @@ def file_upload_active_probe(
             status = response.get("status", 0)
             resp_body = str(response.get("body") or "")
 
-            issues_for_hit: list[str] = []
+            issues_for_hit = []
 
             if UPLOAD_SUCCESS_RE.search(resp_body):
                 issues_for_hit.append(f"magic_byte_bypass:{magic_name}->{dangerous_ext}")

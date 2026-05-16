@@ -7,28 +7,29 @@ doesn't run across the entire repository while we iterate locally.
 
 import json
 import sys
+from typing import Any, cast
 
 from src.recon.collectors.providers import commoncrawl, wayback
 
 
 class _MockResp:
-    def __init__(self, text: str, status_code: int = 200):
+    def __init__(self, text: str, status_code: int = 200) -> None:
         self.text = text
         self.status_code = status_code
         self.headers = {"content-type": "application/json"}
 
 
-def _test_parse_cdx_json_array_shape():
+def _test_parse_cdx_json_array_shape() -> None:
     payload = json.dumps([["original"], ["http://example.com/"], ["http://example.com/page"]])
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url: str, params: Any = None, timeout: Any = None) -> Any:
         return _MockResp(payload)
 
     # Monkeypatch requests.get in the requests module used by wayback
     import requests
 
     orig = requests.get
-    requests.get = fake_get
+    requests.get = cast(Any, fake_get)
     try:
         urls, meta = wayback.collect_for_hosts(
             ["example.com"], timeout_seconds=5, per_host_limit=10, max_workers=2
@@ -40,16 +41,16 @@ def _test_parse_cdx_json_array_shape():
         requests.get = orig
 
 
-def _test_parse_cdx_plain_lines():
+def _test_parse_cdx_plain_lines() -> None:
     payload = "http://example.com/\nhttp://example.com/foo\n"
 
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url: str, params: Any = None, timeout: Any = None) -> Any:
         return _MockResp(payload)
 
     import requests
 
     orig = requests.get
-    requests.get = fake_get
+    requests.get = cast(Any, fake_get)
     try:
         urls, meta = wayback.collect_for_hosts(
             ["example.com"], timeout_seconds=5, per_host_limit=10, max_workers=1
@@ -61,25 +62,25 @@ def _test_parse_cdx_plain_lines():
         requests.get = orig
 
 
-def main():
+def main() -> None:
     _test_parse_cdx_json_array_shape()
     _test_parse_cdx_plain_lines()
 
     # CommonCrawl tests
-    def _test_cc_ndjson_shape():
+    def _test_cc_ndjson_shape() -> None:
         lines = [
             json.dumps({"url": "http://example.com/"}),
             json.dumps({"url": "http://example.com/page"}),
         ]
         payload = "\n".join(lines) + "\n"
 
-        def fake_get(url, params=None, timeout=None):
+        def fake_get(url: str, params: Any = None, timeout: Any = None) -> Any:
             return _MockResp(payload)
 
         import requests
 
         orig = requests.get
-        requests.get = fake_get
+        requests.get = cast(Any, fake_get)
         try:
             urls, meta = commoncrawl.collect_for_hosts(
                 ["example.com"], timeout_seconds=5, per_host_limit=10, max_workers=2
@@ -90,16 +91,16 @@ def main():
         finally:
             requests.get = orig
 
-    def _test_cc_plain_lines():
+    def _test_cc_plain_lines() -> None:
         payload = "http://example.com/\nhttp://example.com/foo\n"
 
-        def fake_get(url, params=None, timeout=None):
+        def fake_get(url: str, params: Any = None, timeout: Any = None) -> Any:
             return _MockResp(payload)
 
         import requests
 
         orig = requests.get
-        requests.get = fake_get
+        requests.get = cast(Any, fake_get)
         try:
             urls, meta = commoncrawl.collect_for_hosts(
                 ["example.com"], timeout_seconds=5, per_host_limit=10, max_workers=1

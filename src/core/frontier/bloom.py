@@ -12,11 +12,11 @@ from typing import Any, cast
 
 import numpy as np
 
-mmh3: Any
+mmh3_impl: Any
 
 try:
-    import mmh3 as _mmh3
-    mmh3 = _mmh3
+    import mmh3
+    mmh3_impl = mmh3
 except ImportError:  # pragma: no cover - exercised only in minimal dev environments.
     class _MurmurFallback:
         @staticmethod
@@ -27,7 +27,7 @@ except ImportError:  # pragma: no cover - exercised only in minimal dev environm
                 int.from_bytes(digest[8:], "little", signed=True),
             )
 
-    mmh3 = _MurmurFallback()
+    mmh3_impl = _MurmurFallback()
 
 try:
     import psutil
@@ -73,7 +73,7 @@ class NeuralBloomFilter:
         """Compute bit offsets for the given item."""
         offsets = []
         # Use MurmurHash3 for speed
-        h1, h2 = mmh3.hash64(item)
+        h1, h2 = mmh3_impl.hash64(item)
         h1_u = np.uint64(h1 & ((1 << 64) - 1))
         h2_u = np.uint64(h2 & ((1 << 64) - 1))
         for i in range(self.hash_count):
@@ -88,7 +88,7 @@ class NeuralBloomFilter:
             return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
 
         # Batch with numpy vectorized operations to reduce interpreter overhead
-        vec_hash = np.frompyfunc(mmh3.hash64, 1, 2)
+        vec_hash = np.frompyfunc(mmh3_impl.hash64, 1, 2)
         h1, h2 = vec_hash(items.astype(np.str_))
         return h1.astype(np.int64), h2.astype(np.int64)
 
@@ -174,7 +174,7 @@ class NeuralBloomFilter:
             return np.array([], dtype=np.bool_)
         byte_idx, masks = self._byte_and_mask_arrays(arr)
         hits = np.bitwise_and(self.bits[byte_idx], masks) == masks
-        return np.all(hits, axis=1)
+        return cast(np.ndarray, np.all(hits, axis=1))
 
     def add_many(self, items: Sequence[str] | np.ndarray, *, normalize: bool = True) -> int:
         """Add a batch of URLs with vectorized byte and bit writes."""

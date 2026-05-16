@@ -13,7 +13,7 @@ import re
 import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -97,20 +97,20 @@ def _extract_links_from_html(html: str, base_url: str, scope_roots: set[str]) ->
         return urls
 
     for tag in soup.find_all("a", href=True):
-        href = tag.get("href") or ""
-        absolute = _candidate_to_absolute_url(href, base_url)
+        href = cast(Any, tag.get("href")) or ""
+        absolute = _candidate_to_absolute_url(str(href), base_url)
         if absolute and _is_in_scope_url(absolute, scope_roots):
             urls.add(absolute)
 
     for tag in soup.find_all("link", href=True):
-        href = tag.get("href") or ""
-        absolute = _candidate_to_absolute_url(href, base_url)
+        href = cast(Any, tag.get("href")) or ""
+        absolute = _candidate_to_absolute_url(str(href), base_url)
         if absolute and _is_in_scope_url(absolute, scope_roots):
             urls.add(absolute)
 
     # script src attributes
     for tag in soup.find_all("script", src=True):
-        src = tag.get("src") or ""
+        src = cast(Any, tag.get("src")) or ""
         absolute = _candidate_to_absolute_url(src, base_url)
         if absolute and _is_in_scope_url(absolute, scope_roots):
             urls.add(absolute)
@@ -211,8 +211,8 @@ def _crawl_single_host(
         try:
             soup = BeautifulSoup(text or "", "html.parser")
             for tag in soup.find_all("script", src=True):
-                src = tag.get("src") or ""
-                abs_src = _candidate_to_absolute_url(src, url)
+                src = cast(Any, tag.get("src")) or ""
+                abs_src = _candidate_to_absolute_url(str(src), url)
                 if abs_src and _is_in_scope_url(abs_src, scope_roots):
                     script_urls.add(abs_src)
         except Exception as e:

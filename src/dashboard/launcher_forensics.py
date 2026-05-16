@@ -6,7 +6,7 @@ import sqlite3
 import time
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.core.utils.stderr_classification import classify_stderr_lines
 from src.dashboard.registry import PROGRESS_PREFIX, STAGE_LABELS
@@ -71,14 +71,14 @@ def default_output_root(workspace_root: Path | None = None) -> Path:
 
 def _coerce_int(value: object, default: int = 0) -> int:
     try:
-        return int(value or 0)  # type: ignore[arg-type]
+        return int(cast(Any, value) or 0)
     except (TypeError, ValueError):
         return default
 
 
 def _coerce_float(value: object, default: float = 0.0) -> float:
     try:
-        return float(value or 0.0)  # type: ignore[arg-type]
+        return float(cast(Any, value) or 0.0)
     except (TypeError, ValueError):
         return default
 

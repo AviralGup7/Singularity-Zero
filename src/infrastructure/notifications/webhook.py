@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from pydantic import Field, HttpUrl
@@ -104,9 +104,9 @@ class WebhookNotifier(BaseNotifier):
         import json as _json
 
         try:
-            result = _json.loads(template)
+            result = _json.loads(str(template))
         except _json.JSONDecodeError:
-            result = {"message": template}
+            result = {"message": str(template)}
 
         def _replace_placeholders(obj: Any) -> Any:
             if isinstance(obj, str):
@@ -121,7 +121,7 @@ class WebhookNotifier(BaseNotifier):
                 return [_replace_placeholders(item) for item in obj]
             return obj
 
-        return _replace_placeholders(result)
+        return cast(dict[str, Any], _replace_placeholders(result))
 
     def _safe_response_body(self, response: httpx.Response) -> str:
         try:

@@ -28,7 +28,7 @@ Usage:
 import ipaddress
 import re
 import string
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import BaseModel, Field
@@ -324,7 +324,7 @@ class URLValidator:
         if parsed.port:
             netloc = f"{netloc}:{parsed.port}"
 
-        return urlunparse(
+        return cast(str, urlunparse(
             (
                 parsed.scheme,
                 netloc,
@@ -333,7 +333,7 @@ class URLValidator:
                 parsed.query,
                 "",
             )
-        )
+        ))
 
 
 class TargetNameValidator:

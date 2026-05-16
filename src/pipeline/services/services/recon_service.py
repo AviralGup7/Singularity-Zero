@@ -97,7 +97,7 @@ async def run_live_hosts_service(
         )
 
         # 2. Enrichment
-        enrichment_delta = {}
+        enrichment_delta: dict[str, Any] = {}
         if enricher and live_records:
             enrichment_result = await enricher(live_records, stage_input.state_snapshot)
             if isinstance(enrichment_result, tuple):

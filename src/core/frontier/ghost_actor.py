@@ -91,6 +91,7 @@ class GhostMeshRegistry:
 
     async def find_actor(self, actor_id: str) -> str | None:
         """Find the node_id currently hosting the actor."""
-        return cast(Any, await self._redis.hget(self._registry_key, actor_id))
+        from typing import Optional
+        return cast(Optional[str], await self._redis.hget(self._registry_key, actor_id))
     async def unregister_actor(self, actor_id: str) -> None:
         await self._redis.hdel(self._registry_key, actor_id)

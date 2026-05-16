@@ -798,11 +798,11 @@ class JobQueue:
                 if job.state not in (JobState.CLAIMED, JobState.RUNNING):
                     continue
 
-            if job.is_lease_expired():
-                logger.warning(
-                    "Releasing stale lease for job %s (worker=%s)", job_id, job.worker_id
-                )
-                await self.release_lease(job_id, job.worker_id or "unknown")
-                released += 1
+                if job.is_lease_expired():
+                    logger.warning(
+                        "Releasing stale lease for job %s (worker=%s)", job_id, job.worker_id
+                    )
+                    await self.release_lease(job_id, job.worker_id or "unknown")
+                    released += 1
 
         return released

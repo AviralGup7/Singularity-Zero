@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from src.core.plugins import list_plugins, register_plugin, resolve_plugin
 
@@ -74,7 +74,7 @@ def resolve_stage_runner(stage_name: str) -> Callable[..., Any]:
     normalized = stage_name.strip().lower()
     for kind in (RECON_PROVIDER, SCANNER, VALIDATOR, ENRICHMENT_PROVIDER, EXPORTER):
         try:
-            return resolve_plugin(kind, normalized)
+            return cast(Callable[..., Any], resolve_plugin(kind, normalized))
         except KeyError:
             continue
     raise KeyError(f"No stage runner plugin registered for '{stage_name}'")

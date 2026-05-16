@@ -440,7 +440,7 @@ async def stream_job_logs(
         )
     else:
 
-        async def event_stream():
+        async def event_stream() -> Any:
             nonlocal last_count
             while True:
                 if await request.is_disconnected():

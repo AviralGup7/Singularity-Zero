@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import requests
@@ -155,21 +155,21 @@ def _is_sensitive_endpoint(url: str) -> bool:
     lowered = url.lower()
     return any(hint in lowered for hint in SENSITIVE_PATH_HINTS)
 
-
-def _extract_json_data(body: str) -> dict | list | None:
+def _extract_json_data(body: str) -> dict[str, Any] | list[Any] | None:
     stripped = body.strip()
     if stripped.startswith(("{", "[")):
         try:
-            return json.loads(stripped[:50000])
+            return cast(dict[str, Any] | list[Any] | None, json.loads(stripped[:50000]))
         except (json.JSONDecodeError, ValueError):
-            return None
+            pass
+    return None
     return None
 
 
 def _check_data_exposure(
     original_body: str, mutated_body: str, original_data: Any, mutated_data: Any
 ) -> list[str]:
-    signals = []
+    signals: list[str] = []
     if original_body == mutated_body:
         return signals
 
@@ -501,3 +501,4 @@ def idor_active_probe(
         )
     )
     return findings[:limit]
+

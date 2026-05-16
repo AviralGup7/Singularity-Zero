@@ -6,7 +6,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Optional, TypedDict, cast
 
 from src.core.checkpoint import (
     StageCheckpointGuard,
@@ -181,7 +181,7 @@ class PipelineOrchestrator:
         ctx: PipelineContext,
         config: Any | None = None,
     ) -> dict[str, Any]:
-        return build_stage_input_contract(self, stage_name, ctx, config)
+        return cast(dict[str, Any], build_stage_input_contract(self, stage_name, ctx, config))
 
     def _build_stage_output_contract(
         self,
@@ -189,7 +189,7 @@ class PipelineOrchestrator:
         duration_seconds: float,
         ctx: PipelineContext,
     ) -> dict[str, Any]:
-        return ctx.build_stage_output(stage_name, duration_seconds).to_dict()
+        return cast(dict[str, Any], ctx.build_stage_output(stage_name, duration_seconds).to_dict())
 
     def _merge_stage_output(
         self,
@@ -298,7 +298,7 @@ class PipelineOrchestrator:
         logger.info("Acquiring distributed lock for target: %s", target_name)
         lock_token = cache_mgr.acquire_recon_lock(target_name, ttl=3600, wait_timeout=5.0)
 
-        if not lock_token and config.redis_url:
+        if not lock_token and getattr(config, "redis_url", None):
             logger.error("Failed to acquire distributed lock: Target '%s' is already being scanned by another worker.", target_name)
             emit_progress("startup", f"Collision: {target_name} is already under active scan", 0, status="failed")
             self._emit_pipeline_error("distributed_lock_collision", {"target": target_name})
@@ -609,4 +609,4 @@ def find_previous_run(target_root: Path) -> Path | None:
     """Find the previous run directory for trend analysis."""
     from src.reporting import find_previous_run as _find_previous_run
 
-    return _find_previous_run(target_root)
+    return cast(Optional[Path], _find_previous_run(target_root))

@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -84,7 +85,7 @@ def pipeline_flow_manifest() -> list[dict[str, object]]:
     ]
 
 
-def run_pipeline(config: dict, scope_entries: list[str], output_dir: str, args) -> None:
+def run_pipeline(config: dict[str, Any], scope_entries: list[str], output_dir: str, args: Any) -> None:
     """Execute the security pipeline with the given configuration.
 
     Args:

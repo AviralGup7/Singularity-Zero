@@ -477,20 +477,19 @@ def reconcile_stale_terminal_job(
             telemetry["next_best_action"] = (
                 "Run is still active but dashboard updates stalled; inspect live stdout/stderr before recovery."
             )
-            telemetry["stalled_since_epoch"] = updated_at
             persist_callback(job)
             return
 
-        recovered_status = None
-        recovered_job: dict[str, Any] | None = None
+        recovered_status_val: str | None = None
+        recovered_job_data: dict[str, Any] | None = None
         if job_id:
-            recovered_job = recover_job_from_launcher(job_id)
-            recovered_status = (
-                str(recovered_job.get("status", "")).strip().lower()
-                if isinstance(recovered_job, dict)
+            recovered_job_data = recover_job_from_launcher(job_id)
+            recovered_status_val = (
+                str(recovered_job_data.get("status", "")).strip().lower()
+                if isinstance(recovered_job_data, dict)
                 else ""
             )
-        if recovered_status not in {"completed", "failed", "stopped"}:
+        if recovered_status_val not in {"completed", "failed", "stopped"}:
             failed_stage = (
                 str(job.get("failed_stage", "")).strip()
                 or str(job.get("stage", "")).strip()

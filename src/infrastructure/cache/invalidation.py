@@ -360,7 +360,7 @@ class DependencyInvalidation(InvalidationStrategy):
             logger.debug(
                 "Dependency invalidation removed %d entries (roots: %d)",
                 len(all_to_remove),
-                len(keys),
+                len(keys) if keys is not None else 0,
             )
         return sorted(all_to_remove)
 

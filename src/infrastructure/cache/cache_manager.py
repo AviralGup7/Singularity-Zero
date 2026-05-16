@@ -14,7 +14,7 @@ import time
 from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from src.infrastructure.cache.backends import (
@@ -741,7 +741,8 @@ class CacheManager:
         if self._l3 is not None:
             l3_stats = self._l3.get_stats()
             if isinstance(l3_stats, dict):
-                stats.l3_entries = l3_stats.get("index_entries", l3_stats.get("total_entries", 0))
+                l3_count = l3_stats.get("index_entries", l3_stats.get("total_entries", 0))
+                stats.l3_entries = int(cast(Any, l3_count) or 0)
                 stats.total_entries += stats.l3_entries
             else:
                 stats.l3_entries = l3_stats.active_entries
