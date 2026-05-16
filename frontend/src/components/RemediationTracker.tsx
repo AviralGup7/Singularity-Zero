@@ -92,7 +92,6 @@ export function RemediationTracker({ entries }: RemediationTrackerProps) {
       <div className="remediation-filters">
         <div className="rem-filter-group">
           <label>Status:</label>
-  // eslint-disable-next-line security/detect-object-injection
           {['all', 'open', 'in-progress', 'remediated', 'accepted'].map(s => (
             <button
               key={s}

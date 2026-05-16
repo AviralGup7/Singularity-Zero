@@ -150,12 +150,10 @@ export function SecurityPage() {
       {generatedKey && (
    
         <section className="card p-4 border border-[var(--ok)]/40">
-  // eslint-disable-next-line security/detect-object-injection
           <div className="flex items-center gap-2 text-[var(--ok)] font-bold">
             <KeyRound size={16} aria-hidden="true" />
             New API key
           </div>
-  // eslint-disable-next-line security/detect-object-injection
           <code className="mt-3 block overflow-x-auto border border-[var(--line)] bg-[var(--bg)] p-3 text-xs">
             {generatedKey}
           </code>
@@ -194,7 +192,6 @@ export function SecurityPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm font-mono">
             <thead>
-  // eslint-disable-next-line security/detect-object-injection
               <tr className="border-b border-[var(--line)] text-muted">
                 <th className="py-2 text-left">Endpoint</th>
                 <th className="py-2 text-right">Requests/sec</th>
@@ -224,7 +221,6 @@ export function SecurityPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-semibold">API Keys</h2>
           <div className="flex items-center gap-2">
-  // eslint-disable-next-line security/detect-object-injection
             <select className="form-input" value={newRole} onChange={event => setNewRole(event.target.value as ApiKeyRecord['role'])}>
               <option value="read_only">read_only</option>
               <option value="worker">worker</option>
@@ -239,7 +235,6 @@ export function SecurityPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm font-mono">
             <thead>
-  // eslint-disable-next-line security/detect-object-injection
               <tr className="border-b border-[var(--line)] text-muted">
                 <th className="py-2 text-left">Key</th>
                 <th className="py-2 text-left">Role</th>
@@ -273,7 +268,6 @@ export function SecurityPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm font-mono">
             <thead>
-  // eslint-disable-next-line security/detect-object-injection
               <tr className="border-b border-[var(--line)] text-muted">
                 <th className="py-2 text-left">Time</th>
                 <th className="py-2 text-left">Type</th>
@@ -292,7 +286,6 @@ export function SecurityPage() {
                     <Badge variant={statusTone(event.status_code)}>{event.status_code ?? 'n/a'}</Badge>
                   </td>
                   <td className="py-2">{event.method ?? ''} {event.path ?? ''}</td>
-  // eslint-disable-next-line security/detect-object-injection
                   <td className="py-2 max-w-[32rem] truncate" title={event.detail}>{event.detail}</td>
                 </tr>
               ))}

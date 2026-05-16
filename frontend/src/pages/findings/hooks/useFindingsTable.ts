@@ -124,7 +124,6 @@ export function useFindingsTable({ findings }: UseFindingsTableInput) {
     const cols: Record<KanbanColumn, Finding[]> = { 'new': [], 'in-progress': [], 'resolved': [] };
     for (const f of filtered) {
       const col = f.kanbanStatus || 'new';
-  // eslint-disable-next-line security/detect-object-injection
       if (cols[col]) cols[col].push(f);
     }
     return cols;

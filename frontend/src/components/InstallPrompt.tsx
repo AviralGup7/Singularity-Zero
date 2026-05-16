@@ -14,11 +14,9 @@ export function InstallPrompt() {
     <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:max-w-sm z-[8000] bg-[var(--panel)] border border-[var(--accent)] p-4 shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div>
-  // eslint-disable-next-line security/detect-object-injection
           <h3 className="font-mono text-[var(--accent)] text-sm font-bold uppercase tracking-wider">
             Install App
           </h3>
-  // eslint-disable-next-line security/detect-object-injection
           <p className="text-[var(--muted)] text-xs mt-1">
             Install CyberPipeline for quick access and offline support.
           </p>

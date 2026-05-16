@@ -205,7 +205,7 @@ async def get_target_findings(
                         if isinstance(f, dict):
                             f.setdefault("timestamp", run_dir.name)
                             all_findings.append(f)
-            except Exception:  # noqa: S112  # noqa: S110, S112
+            except Exception:  # noqa: S110, S112  # noqa: S110, S112
                 pass  # Loading findings from single target failed, skip
 
     return TargetFindingsResponse(
@@ -258,13 +258,13 @@ async def get_risk_score(
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
             if not isinstance(findings, list):
                 findings = []
-        except Exception:  # noqa: S112
+        except Exception:  # noqa: S110, S112
             pass
 
     if summary_path.exists():
         try:
             run_summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: S112
+        except Exception:  # noqa: S110, S112
             pass
 
     risk_data = compute_aggregate_risk_score(findings, run_summary)
@@ -338,7 +338,7 @@ async def get_historical_scores(
         findings_path = run_dir / "findings.json"
         try:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: S112
+        except Exception:  # noqa: S110, S112
             continue
 
         if not isinstance(findings, list):
@@ -350,7 +350,7 @@ async def get_historical_scores(
             try:
                 summary = json.loads(summary_path.read_text(encoding="utf-8"))
                 run_timestamp = summary.get("generated_at_utc", run_dir.name)
-            except Exception:  # noqa: S112  # noqa: S110, S112
+            except Exception:  # noqa: S110, S112  # noqa: S110, S112
                 pass  # Loading findings from single target failed, skip
 
         for finding in findings:
@@ -424,7 +424,7 @@ async def list_all_findings(
                     parsed_summary = json.loads(summary_path.read_text(encoding="utf-8"))
                     if isinstance(parsed_summary, dict):
                         summary_data = parsed_summary
-                except Exception:  # noqa: S112  # noqa: S110, S112
+                except Exception:  # noqa: S110, S112  # noqa: S110, S112
                     summary_data = {}
 
             run_generated_at = str(
@@ -439,7 +439,7 @@ async def list_all_findings(
                     data = json.loads(findings_path.read_text(encoding="utf-8"))
                     if isinstance(data, list):
                         run_findings = [item for item in data if isinstance(item, dict)]
-            except Exception:  # noqa: S112  # noqa: S110, S112
+            except Exception:  # noqa: S110, S112  # noqa: S110, S112
                 run_findings = []
 
             if not run_findings:

@@ -83,7 +83,6 @@ export function BloomMeshHealthPanel() {
           <h3 className="text-xs font-black text-muted uppercase tracking-widest flex items-center gap-2">
             <Database size={14} className="text-accent" /> Bloom Mesh Health
           </h3>
-  // eslint-disable-next-line security/detect-object-injection
           <p className="mt-1 text-[10px] text-muted/70 uppercase tracking-widest">
             {health?.redis_enabled ? 'Redis sync online' : 'Local filter mode'}
           </p>
@@ -117,7 +116,6 @@ export function BloomMeshHealthPanel() {
               <stop offset="95%" stopColor="var(--accent)" stopOpacity={0.02} />
             </linearGradient>
           </defs>
-  // eslint-disable-next-line security/detect-object-injection
           {[24, 56, 88].map((y) => (
             <line key={y} x1="0" x2="320" y1={y} y2={y} stroke="rgba(255,255,255,0.06)" />
           ))}
@@ -157,7 +155,6 @@ function Metric({ label, value, tone = 'text' }: { label: string; value: string;
   const toneClass = tone === 'ok' ? 'text-ok' : tone === 'bad' ? 'text-bad' : 'text-white';
   return (
     <div className="p-3 bg-white/5 rounded-xl border border-white/5 min-w-0">
-  // eslint-disable-next-line security/detect-object-injection
       <div className="text-[9px] text-muted font-bold uppercase mb-1">{label}</div>
       <div className={`text-lg font-black truncate ${toneClass}`}>{value}</div>
     </div>
@@ -170,10 +167,8 @@ function NodeRow({ node }: { node: BloomNodeHealth }) {
     <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
       <div className="flex items-center gap-2 min-w-0">
         {node.stale ? <RadioTower size={13} className="text-bad" /> : <Activity size={13} className="text-ok" />}
-  // eslint-disable-next-line security/detect-object-injection
         <span className="text-[10px] font-black text-text font-mono truncate">{node.node_id}</span>
       </div>
-  // eslint-disable-next-line security/detect-object-injection
       <div className="text-[10px] text-muted font-mono shrink-0">
         {(node.fill_ratio * 100).toFixed(1)}% / {timeAgo(node.last_sync_time)}
       </div>

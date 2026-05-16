@@ -373,7 +373,6 @@ export function CVSSDetail({ finding, className }: CVSSDetailProps) {
         {activeTab === 'v3' && v3Metrics && (
           <div className="cvss-v3-panel">
             <div className="cvss-metrics-grid">
-  // eslint-disable-next-line security/detect-object-injection
               {Array.from(CVSS_V3_LABELS.entries()).map(([key, label]) => {
                 const value = v3Metrics.get(key) ?? 'N';
                 const metricsValues = CVSS_V3_VALUES.get(key);
@@ -413,7 +412,6 @@ export function CVSSDetail({ finding, className }: CVSSDetailProps) {
               <code>{finding.cvss_v4_vector}</code>
             </div>
             <div className="cvss-metrics-grid">
-  // eslint-disable-next-line security/detect-object-injection
               {Array.from(CVSS_V4_LABELS.entries()).map(([key, label]) => {
                 const value = v4Metrics.get(key) ?? 'N';
                 const metricsValues = CVSS_V4_VALUES.get(key);
@@ -439,7 +437,6 @@ export function CVSSDetail({ finding, className }: CVSSDetailProps) {
               <p className="cvss-env-desc">
                 Adjust security requirements based on your environment to recalculate the score.
               </p>
-  // eslint-disable-next-line security/detect-object-injection
               {Array.from(ENV_LABELS.entries()).map(([key, label]) => (
                 <div key={key} className="cvss-env-control">
                   <label>{label}</label>

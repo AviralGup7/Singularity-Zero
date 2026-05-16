@@ -15,12 +15,10 @@ export function EvidenceCustodyViewer({ evidenceId }: { evidenceId: string }) {
     <div className="evidence-custody-viewer">
       <h5>Chain of Custody</h5>
       <div className="custody-chain">
-  // eslint-disable-next-line security/detect-object-injection
         {chain.length === 0 && <p className="text-[var(--muted)]">No custody records</p>}
         {chain.map(entry => (
           <div key={entry.id} className="custody-entry">
             <span className="custody-action-icon">
-  // eslint-disable-next-line security/detect-object-injection
               {actionIcons[entry.action] || '📋'}
             </span>
             <div className="custody-details">

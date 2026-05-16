@@ -36,7 +36,6 @@ export function PermissionGate({
 }) {
   const { permissions } = useRole();
 
-  // eslint-disable-next-line security/detect-object-injection
   if (!permissions[permission]) return <>{fallback}</>;
   return <>{children}</>;
 }

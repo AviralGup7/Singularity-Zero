@@ -355,7 +355,6 @@ export function UrlCollectionSystem() {
     const failedIds: string[] = [];
 
     for (let i = 0; i < targetIds.length; i += 1) {
-  // eslint-disable-next-line security/detect-object-injection
       const itemId = targetIds[i];
       const item = snapshot.get(itemId);
       if (!item) {
@@ -484,7 +483,6 @@ export function UrlCollectionSystem() {
           {importReport.invalid.length > 0 && (
    
             <span className="url-collection-import-example" title={importReport.invalid[0]}>
-  // eslint-disable-next-line security/detect-object-injection
               First error: {importReport.invalid[0]}
             </span>
           )}

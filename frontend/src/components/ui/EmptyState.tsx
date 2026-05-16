@@ -34,9 +34,7 @@ export function EmptyState({
           {icon}
         </div>
       )}
-  // eslint-disable-next-line security/detect-object-injection
       <h3 className="font-mono text-[length:var(--text-lg)] font-bold text-[var(--text)]">{title}</h3>
-  // eslint-disable-next-line security/detect-object-injection
       <p className="text-[var(--muted)] text-[length:var(--text-sm)] max-w-sm">{description}</p>
       {ctaLabel && ctaHref && (
    

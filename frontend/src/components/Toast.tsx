@@ -50,7 +50,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={contextValue}>
       {children}
-  // eslint-disable-next-line security/detect-object-injection
       <div className="fixed top-6 right-6 z-[10000] flex flex-col gap-3 pointer-events-none w-full max-w-sm">
         <AnimatePresence>
           {toasts.map(toast => (
@@ -75,7 +74,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   {toast.type === 'info' && <Info size={18} className="text-blue-400" />}
                 </div>
                 <div className="flex-1">
-  // eslint-disable-next-line security/detect-object-injection
                   <p className="text-[10px] font-black text-white/90 uppercase tracking-[0.2em] mb-1">
                     {toast.type === 'success' ? 'Operation Success' :
                      toast.type === 'error' ? 'System Error' :

@@ -10,7 +10,6 @@ interface LogRowData {
 
 function LogRowRenderer(props: RowComponentProps<LogRowData>) {
   const { index, style, lines } = props;
-  // eslint-disable-next-line security/detect-object-injection
   return <LogLine line={lines[index]} index={index} style={style} />;
 }
 

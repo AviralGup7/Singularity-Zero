@@ -119,7 +119,6 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
    
       const nextProgress = [...state.pluginProgress];
       if (idx >= 0) {
-  // eslint-disable-next-line security/detect-object-injection
         nextProgress[idx] = entry;
       } else {
         nextProgress.push(entry);
@@ -136,7 +135,6 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
    
       const nextStages = [...state.stageProgress];
       if (idx >= 0) {
-  // eslint-disable-next-line security/detect-object-injection
         nextStages[idx] = { ...nextStages[idx], ...entry };
       } else {
         nextStages.push(entry);

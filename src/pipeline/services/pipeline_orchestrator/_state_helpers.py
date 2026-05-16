@@ -10,7 +10,7 @@ except ModuleNotFoundError:
     class Draft7Validator:  # type: ignore[no-redef]
         """No-op validator fallback for environments without jsonschema."""
 
-        class TYPE_CHECKER:
+        class TypeChecker:
             @staticmethod
             def redefine(_key: str, message: str) -> Any:
                 return type("ValidationError", (), {"path": (), "message": message})()
@@ -94,7 +94,7 @@ def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) 
             validator = _finding_schema_validator()
             for i, item in enumerate(items):
                 if not isinstance(item, dict):
-                    errors.append(Draft7Validator.TYPE_CHECKER.redefine(key, f"Item {i} in '{key}' must be a dict"))
+                    errors.append(Draft7Validator.TypeChecker.redefine(key, f"Item {i} in '{key}' must be a dict"))
                     continue
                 for error in validator.iter_errors(item):
                     # Wrap the error with path context

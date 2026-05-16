@@ -39,10 +39,8 @@ export function SidebarProvider({
   onOpenChange?: (open: boolean) => void
 }) {
   const isMobile = useIsMobile()
-  // eslint-disable-next-line security/detect-object-injection
   const [openMobile, setOpenMobile] = React.useState(false)
 
-  // eslint-disable-next-line security/detect-object-injection
   const [_open, _setOpen] = React.useState(defaultOpen)
   const open = openProp ?? _open
   const setOpen = React.useCallback(
@@ -55,13 +53,11 @@ export function SidebarProvider({
       }
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
     },
-  // eslint-disable-next-line security/detect-object-injection
     [setOpenProp, open]
   )
 
   const toggleSidebar = React.useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
-  // eslint-disable-next-line security/detect-object-injection
   }, [isMobile, setOpen, setOpenMobile])
 
   React.useEffect(() => {
@@ -76,7 +72,6 @@ export function SidebarProvider({
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  // eslint-disable-next-line security/detect-object-injection
   }, [toggleSidebar])
 
   const state = open ? "expanded" : "collapsed"
@@ -91,7 +86,6 @@ export function SidebarProvider({
       setOpenMobile,
       toggleSidebar,
     }),
-  // eslint-disable-next-line security/detect-object-injection
     [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
   )
 

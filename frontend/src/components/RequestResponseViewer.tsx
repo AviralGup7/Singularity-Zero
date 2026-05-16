@@ -114,7 +114,6 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
    
   const [copied, setCopied] = useState(false);
 
-  // eslint-disable-next-line security/detect-object-injection
   const currentPair = pairs[activeIndex] ?? null;
 
   const processedRequest = useMemo(() => {

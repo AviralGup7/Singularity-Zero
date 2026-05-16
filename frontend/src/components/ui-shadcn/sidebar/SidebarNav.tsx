@@ -12,20 +12,17 @@ import { useSidebar } from "./useSidebar"
 import * as React from "react"
 
 const sidebarMenuButtonVariants = cva(
-  // eslint-disable-next-line security/detect-object-injection
   "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:w-8! group-data-[collapsible=icon]:h-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         outline:
-  // eslint-disable-next-line security/detect-object-injection
           "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
       },
       size: {
         default: "h-8 text-sm",
         sm: "h-7 text-xs",
-  // eslint-disable-next-line security/detect-object-injection
         lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },
     },
@@ -124,19 +121,13 @@ function SidebarMenuAction({
       data-slot="sidebar-menu-action"
       data-sidebar="menu-action"
       className={cn(
-  // eslint-disable-next-line security/detect-object-injection
         "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground peer-hover/menu-button:text-sidebar-accent-foreground absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "after:absolute after:-inset-2 md:after:hidden",
-  // eslint-disable-next-line security/detect-object-injection
         "peer-data-[size=sm]/menu-button:top-1",
-  // eslint-disable-next-line security/detect-object-injection
         "peer-data-[size=default]/menu-button:top-1.5",
-  // eslint-disable-next-line security/detect-object-injection
         "peer-data-[size=lg]/menu-button:top-2.5",
-  // eslint-disable-next-line security/detect-object-injection
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-  // eslint-disable-next-line security/detect-object-injection
           "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 md:opacity-0",
         className
       )}
@@ -155,15 +146,10 @@ function SidebarMenuBadge({
       data-sidebar="menu-badge"
       className={cn(
         "text-sidebar-foreground pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-xs font-medium tabular-nums select-none",
-  // eslint-disable-next-line security/detect-object-injection
         "peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[active=true]/menu-button:text-sidebar-accent-foreground",
-  // eslint-disable-next-line security/detect-object-injection
         "peer-data-[size=sm]/menu-button:top-1",
-  // eslint-disable-next-line security/detect-object-injection
         "peer-data-[size=default]/menu-button:top-1.5",
-  // eslint-disable-next-line security/detect-object-injection
         "peer-data-[size=lg]/menu-button:top-2.5",
-  // eslint-disable-next-line security/detect-object-injection
         "group-data-[collapsible=icon]:hidden",
         className
       )}
@@ -197,7 +183,6 @@ function SidebarMenuSkeleton({
         />
       )}
       <Skeleton
-  // eslint-disable-next-line security/detect-object-injection
         className="h-4 max-w-[var(--skeleton-width)] flex-1"
         data-sidebar="menu-skeleton-text"
         style={{ "--skeleton-width": width } as React.CSSProperties}
@@ -213,7 +198,6 @@ function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
       data-sidebar="menu-sub"
       className={cn(
         "border-sidebar-border mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l px-2.5 py-0.5",
-  // eslint-disable-next-line security/detect-object-injection
         "group-data-[collapsible=icon]:hidden",
         className
       )}
@@ -256,13 +240,10 @@ function SidebarMenuSubButton({
       data-size={size}
       data-active={isActive}
       className={cn(
-  // eslint-disable-next-line security/detect-object-injection
         "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground [&>svg]:text-sidebar-accent-foreground flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 outline outline-2 outline-transparent outline-offset-2 focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
-  // eslint-disable-next-line security/detect-object-injection
         "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
         size === "sm" && "text-xs",
         size === "md" && "text-sm",
-  // eslint-disable-next-line security/detect-object-injection
         "group-data-[collapsible=icon]:hidden",
         className
       )}

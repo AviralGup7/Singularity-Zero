@@ -78,7 +78,7 @@ class AuditEvent(StrEnum):
     # Authentication
     AUTH_SUCCESS = "auth.success"
     AUTH_FAILURE = "auth.failure"
-    TOKEN_REFRESH = "auth.token_refresh"
+    TOKEN_REFRESH = "auth.token_refresh"  # noqa: S105
     SESSION_CREATE = "auth.session_create"
     SESSION_INVALIDATE = "auth.session_invalidate"
 

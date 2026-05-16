@@ -76,7 +76,6 @@ function TraceWaterfall({ trace }: { trace: TraceDetail | null }) {
       <div className="trace-waterfall-scroll">
         <svg className="trace-waterfall" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Trace waterfall">
           <line x1={labelWidth} y1={18} x2={width - 12} y2={18} className="trace-axis" />
-  // eslint-disable-next-line security/detect-object-injection
           {[0, 0.25, 0.5, 0.75, 1].map(tick => (
             <g key={tick}>
               <line x1={labelWidth + tick * timelineWidth} y1={14} x2={labelWidth + tick * timelineWidth} y2={height - 8} className="trace-grid" />

@@ -39,7 +39,6 @@ const severityBadgeClasses: Record<Exclude<BadgeVariant, 'status'>, string> = {
 export function Badge({ variant = 'info', status, children, className }: BadgeProps) {
   const isStatus = variant === 'status' && status;
   const classes = isStatus
-  // eslint-disable-next-line security/detect-object-injection
     ? statusClasses[status]
    
     : severityBadgeClasses[variant as Exclude<BadgeVariant, 'status'>];

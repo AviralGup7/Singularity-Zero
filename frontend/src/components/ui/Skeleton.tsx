@@ -38,7 +38,6 @@ export function Skeleton({ variant = 'text', width, height, lines = 1, className
       <div className={cn('space-y-2', className)}>
         {Array.from({ length: lines }).map((_, i) => (
           <div key={i} className="flex gap-2">
-  // eslint-disable-next-line security/detect-object-injection
             <div className={cn(shimmerAnimation, 'h-4 flex-[2] rounded-sm')} />
             <div className={cn(shimmerAnimation, 'h-4 flex-1 rounded-sm')} />
             <div className={cn(shimmerAnimation, 'h-4 flex-1 rounded-sm')} />
@@ -138,9 +137,7 @@ export function TableSkeleton({ rows = 5, className }: { rows?: number; classNam
   return (
     <div className={cn('table-skeleton', className)} aria-label="Loading table data" role="status">
       <div className="skeleton-page-header">
-  // eslint-disable-next-line security/detect-object-injection
         <div className={cn(shimmerAnimation, 'h-4 w-[30%] mb-4 rounded-sm')} />
-  // eslint-disable-next-line security/detect-object-injection
         <div className={cn(shimmerAnimation, 'h-9 w-[200px] rounded-sm')} />
       </div>
       <div className="skeleton-table-wrapper">
@@ -162,9 +159,7 @@ export function DetailSkeleton({ className }: { className?: string }) {
       <div className="skeleton-page-header">
         <div className={cn(shimmerAnimation, 'h-4 w-1/4 mb-4 rounded-sm')} />
         <div className="flex gap-4">
-  // eslint-disable-next-line security/detect-object-injection
           <div className={cn(shimmerAnimation, 'h-9 w-[80px] rounded-sm')} />
-  // eslint-disable-next-line security/detect-object-injection
           <div className={cn(shimmerAnimation, 'h-9 w-[80px] rounded-sm')} />
         </div>
       </div>
@@ -173,9 +168,7 @@ export function DetailSkeleton({ className }: { className?: string }) {
         <div className="skeleton-info-grid">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="skeleton-info-item">
-  // eslint-disable-next-line security/detect-object-injection
               <div className={cn(shimmerAnimation, 'h-3 w-[80px] mb-1 rounded-sm')} />
-  // eslint-disable-next-line security/detect-object-injection
               <div className={cn(shimmerAnimation, 'h-3 w-[150px] rounded-sm')} />
             </div>
           ))}
