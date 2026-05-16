@@ -87,7 +87,7 @@ describe('useJobMonitor recon failure terminal handling', () => {
 
   it('keeps sseError after completed event with failed status', async () => {
     const { result } = renderHook(() => useJobMonitor('job-1'), {
-      wrapper: ({ children }: any) => <ToastProvider>{children}</ToastProvider>,
+      wrapper: ({ children }: { children: React.ReactNode }) => <ToastProvider>{children}</ToastProvider>,
     });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -120,7 +120,7 @@ describe('useJobMonitor recon failure terminal handling', () => {
 
   it('does not clear sseError after completed event with stopped status', async () => {
     const { result } = renderHook(() => useJobMonitor('job-1'), {
-      wrapper: ({ children }: any) => <ToastProvider>{children}</ToastProvider>,
+      wrapper: ({ children }: { children: React.ReactNode }) => <ToastProvider>{children}</ToastProvider>,
     });
 
     await waitFor(() => expect(result.current.loading).toBe(false));

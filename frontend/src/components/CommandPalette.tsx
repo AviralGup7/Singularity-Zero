@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { safeGet } from '@/lib/utils';
 import { Icon } from './Icon';
 
 export interface SearchableItem {
@@ -66,33 +65,42 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
     : [], [items, query]);
 
   const grouped = useMemo(() => {
-    const result: Record<string, SearchableItem[]> = {};
+    const result = new Map<string, SearchableItem[]>();
     for (const item of filtered) {
-      const existing = safeGet(result, item.type);
+      const existing = result.get(item.type);
       if (existing) {
         existing.push(item);
       } else {
-        Object.assign(result, { [item.type]: [item] });
+        result.set(item.type, [item]);
       }
     }
     return result;
   }, [filtered]);
 
-  const flatResults = useMemo(() => Object.values(grouped).flat(), [grouped]);
+  const flatResults = useMemo(() => Array.from(grouped.values()).flat(), [grouped]);
 
-  const typeLabels: Record<string, string> = {
-    target: 'Targets',
-    job: 'Jobs',
-    finding: 'Findings',
-    page: 'Pages',
-  };
+  const typeLabels = new Map<string, string>([
+    ['target', 'Targets'],
+    ['job', 'Jobs'],
+    ['finding', 'Findings'],
+    ['page', 'Pages'],
+  ]);
 
-  const typeIcons: Record<string, string> = {
-    target: 'target',
-    job: 'zap',
-    finding: 'shield',
-    page: 'file',
-  };
+  const typeIcons = new Map<string, string>([
+    ['target', 'target'],
+    ['job', 'zap'],
+    ['finding', 'shield'],
+    ['page', 'file'],
+  ]);
+
+  useEffect(() => {
+    if (open) {
+      const tid = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(tid);
+    }
+  }, [open]);
 
   const handleSelect = useCallback((item: SearchableItem) => {
     if (query.trim()) saveRecentSearch(query.trim());
@@ -111,7 +119,7 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
       setSelectedIndex(prev => Math.max(prev - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const item = flatResults[clampedIndex];
+      const item = flatResults.at(clampedIndex);
       if (item) handleSelect(item);
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -134,8 +142,15 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
     <div 
       className="command-palette-overlay" 
       onClick={onClose}
-      onKeyDown={e => e.key === 'Escape' && onClose()}
-      role="presentation"
+      onKeyDown={e => {
+        if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label="Close command palette"
     >
       <div 
         className="command-palette" 
@@ -144,6 +159,8 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
         aria-haspopup="listbox" 
         aria-controls="command-palette-listbox"
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+        tabIndex={0}
       >
         <div className="command-palette-input">
           <Icon name="search" size={18} className="command-palette-icon" />
@@ -154,11 +171,10 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             onKeyDown={handleKeyDown}
-            autoFocus
             aria-label="Search"
             aria-autocomplete="list"
             aria-controls="command-palette-listbox"
-            aria-activedescendant={flatResults[clampedIndex] ? `item-${flatResults[clampedIndex].id}` : undefined}
+            aria-activedescendant={flatResults.at(clampedIndex) ? `item-${flatResults.at(clampedIndex)?.id}` : undefined}
           />
           <kbd className="command-palette-kbd">ESC</kbd>
         </div>
@@ -198,11 +214,11 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
               role="listbox" 
               id="command-palette-listbox"
             >
-              {Object.entries(grouped).map(([type, groupItems]) => (
+              {Array.from(grouped.entries()).map(([type, groupItems]) => (
                 <li key={type} className="command-palette-group" role="presentation">
                   <div className="command-palette-group-header">
-                    <Icon name={safeGet(typeIcons, type) ?? 'file'} size={14} />
-                    {safeGet(typeLabels, type) ?? type}
+                    <Icon name={typeIcons.get(type) ?? 'file'} size={14} />
+                    {typeLabels.get(type) ?? type}
                   </div>
                   <ul role="presentation">
                     {groupItems.map(item => {

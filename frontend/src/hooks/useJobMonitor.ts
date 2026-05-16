@@ -152,7 +152,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         }
       })
       .catch(() => bufferDispatch({ type: 'SET_DURATION_FORECAST', payload: null, loading: false }));
-  }, [state.job?.id, state.job?.stage, bufferDispatch]);
+  }, [state.job?.id, state.job?.stage, bufferDispatch, state.durationForecast]);
 
   // --- WebSocket (log streaming) ---
   const handleWsMessage = useCallback(

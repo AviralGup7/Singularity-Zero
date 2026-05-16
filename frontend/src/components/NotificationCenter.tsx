@@ -53,8 +53,8 @@ function NotificationItem({ notification, onMarkRead, onDismiss }: {
   onMarkRead: (id: string) => void;
   onDismiss: (id: string) => void;
 }) {
-  const severityColor = SEVERITY_COLORS[notification.severity] || SEVERITY_COLORS.info;
-  const icon = TYPE_ICONS[notification.type] || 'info';
+  const severityColor = Reflect.get(SEVERITY_COLORS, notification.severity) || SEVERITY_COLORS.info;
+  const icon = Reflect.get(TYPE_ICONS, notification.type) || 'info';
 
   return (
     <div
@@ -191,7 +191,7 @@ export function NotificationCenter({
                 className={`notification-filter-btn ${filter === type ? 'active' : ''}`}
                 onClick={() => setFilter(type)}
               >
-                {type === 'all' ? 'All' : groupLabels[type]}
+                {type === 'all' ? 'All' : Reflect.get(groupLabels, type)}
               </button>
             ))}
           </div>
@@ -206,7 +206,7 @@ export function NotificationCenter({
               Object.entries(grouped).map(([type, items]) => (
                 <div key={type} className="notification-group">
                   <div className="notification-group-header">
-                    <span>{groupLabels[type] || type}</span>
+                    <span>{Reflect.get(groupLabels, type) || type}</span>
                     <span className="notification-group-count">{items.length}</span>
                   </div>
                   {items.map(n => (

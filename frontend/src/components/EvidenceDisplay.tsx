@@ -122,7 +122,20 @@ export function EvidenceDisplay({ evidence, className, defaultRedacted = false }
               key={item.id || idx}
               className={cn('evidence-item', isExpanded && 'expanded', hasSensitive && 'has-sensitive')}
             >
-              <div className="evidence-item-header" onClick={() => toggleExpand(item.id)}>
+              <div
+                className="evidence-item-header"
+                onClick={() => toggleExpand(item.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleExpand(item.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
+                aria-controls={`evidence-content-${item.id}`}
+              >
                 <div className="evidence-timeline-dot" />
                 <div className="evidence-item-meta">
                   <span className="evidence-timestamp">{formatTimestamp(item.timestamp)}</span>
@@ -137,7 +150,9 @@ export function EvidenceDisplay({ evidence, className, defaultRedacted = false }
                   <button
                     className="evidence-copy-btn"
                     onClick={(e) => { e.stopPropagation(); handleCopy(item); }}
+                    onKeyDown={(e) => e.stopPropagation()}
                     title="Copy evidence to clipboard"
+                    type="button"
                   >
                     {copiedId === item.id ? 'Copied!' : 'Copy'}
                   </button>
@@ -155,7 +170,7 @@ export function EvidenceDisplay({ evidence, className, defaultRedacted = false }
               </div>
 
               {isExpanded && (
-                <div className="evidence-item-details">
+                <div id={`evidence-content-${item.id}`} className="evidence-item-details">
                   <div className={cn('evidence-raw-data', redacted && 'redacted')}>
                     <div className="evidence-raw-header">
                       <span>Raw Data</span>

@@ -1,0 +1,5 @@
+[allowlist]
+paths = [
+  "tests/.*",
+  "deploy/kubernetes/secrets.yaml",
+]

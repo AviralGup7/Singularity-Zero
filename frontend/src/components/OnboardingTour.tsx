@@ -90,7 +90,7 @@ function useOnboardingTour() {
 
   return {
     active,
-    step: TOUR_STEPS[currentStep],
+    step: Reflect.get(TOUR_STEPS, currentStep),
     currentStep,
     totalSteps: TOUR_STEPS.length,
     next,
@@ -102,11 +102,25 @@ function useOnboardingTour() {
 export function OnboardingTour() {
   const { active, step, currentStep, totalSteps, next, prev, skip } = useOnboardingTour();
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      skip();
+    }
+  };
+
   if (!active || !step) return null;
 
   return (
-    <div className="onboarding-overlay" onClick={skip}>
-      <div className="onboarding-card" onClick={e => e.stopPropagation()}>
+    <div
+      className="onboarding-overlay"
+      onClick={skip}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label="Close tour overlay"
+    >
+      <div className="onboarding-card" onClick={e => e.stopPropagation()} role="document" tabIndex={-1}>
         <div className="onboarding-header">
           <h3 className="onboarding-title">{step.title}</h3>
           <button className="onboarding-skip" onClick={skip}>Skip</button>
