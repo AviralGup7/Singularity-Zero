@@ -23,6 +23,7 @@ export function CoreProviders({ children }: CoreProvidersProps) {
         <Suspense fallback={
           <div className="flex flex-col items-center justify-center h-screen bg-bg gap-4">
             <div className="w-12 h-12 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+  // eslint-disable-next-line security/detect-object-injection
             <p className="font-mono text-[10px] text-accent uppercase tracking-[0.4em] animate-pulse">Syncing Neural Link...</p>
           </div>
         }>

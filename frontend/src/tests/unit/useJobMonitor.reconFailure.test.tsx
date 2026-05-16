@@ -66,7 +66,9 @@ const baseJob = {
   latest_logs: [],
   error: '',
   warnings: [],
+   
   enabled_modules: ['subfinder'],
+   
   scope_entries: ['example.com'],
   status_message: 'Collecting URLs',
   execution_options: {},

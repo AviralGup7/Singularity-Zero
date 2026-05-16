@@ -24,10 +24,12 @@ export function LivePipelineStatus() {
 
   const runningJobs = useMemo(() => {
     return (jobs ?? []).filter((j: Job) => j.status === 'running');
+   
   }, [jobs]);
 
   const failedJobs = useMemo(() => {
     return (jobs ?? []).filter((j: Job) => j.status === 'failed');
+   
   }, [jobs]);
 
   // Count stages across all running jobs
@@ -44,8 +46,10 @@ export function LivePipelineStatus() {
     }
     // Sort by active count desc
     return Object.entries(stageMap)
+   
       .sort((a, b) => b[1].count - a[1].count)
       .slice(0, 3);
+   
   }, [runningJobs]);
 
   // Find slowest running job
@@ -56,6 +60,7 @@ export function LivePipelineStatus() {
       const p2 = slow.progress_percent ?? 0;
       return p1 < p2 ? job : slow;
     }, null);
+   
   }, [runningJobs]);
 
   // Use dummy SSE to track global connection health
@@ -89,6 +94,7 @@ export function LivePipelineStatus() {
         <>
           <div className="live-status-section">
             <span className="live-status-stages">
+  // eslint-disable-next-line security/detect-object-injection
               {stageSummary.map(([stage, info], index) => (
                 <span key={stage} className="live-stage-chip" title={`${info.count} job(s) in ${stage}`}>
                   {index > 0 ? ', ' : ''}

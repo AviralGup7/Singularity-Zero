@@ -359,7 +359,7 @@ class TelemetryStore:
         for table in tables:
             if table not in self._KNOWN_TABLES:
                 raise ValueError(f"Invalid table name: {table}")
-            cur.execute('SELECT COUNT(*) FROM ' + table)  # nosec: S608
+            cur.execute('SELECT COUNT(*) FROM ' + table)  # noqa: S608
             sizes[table] = int(cur.fetchone()[0])
         return sizes
 

@@ -7,8 +7,11 @@ interface AuditLogViewerProps {
 
 export function AuditLogViewer({ className }: AuditLogViewerProps) {
   // FIX: Use lazy initializer to avoid ambiguity
+   
   const [entries, setEntries] = useState<AuditEntry[]>(() => getAuditLog());
+   
   const [filter, setFilter] = useState('');
+   
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const filtered = entries.filter((e) => {

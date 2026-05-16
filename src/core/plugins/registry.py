@@ -4,13 +4,13 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
 
 @dataclass(frozen=True, slots=True)
-class PluginRegistration(Generic[T]):
+class PluginRegistration[T]:
     kind: str
     key: str
     provider: T

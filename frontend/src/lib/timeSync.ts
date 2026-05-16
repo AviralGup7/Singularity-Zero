@@ -11,6 +11,7 @@ export const syncServerTime = (serverNowIso: string) => {
   serverOffset = serverMs - clientMs;
   
   if (Math.abs(serverOffset) > 1000) {
+   
     console.info(`[TIME-SYNC] Normalized server drift: ${serverOffset}ms`);
   }
 };

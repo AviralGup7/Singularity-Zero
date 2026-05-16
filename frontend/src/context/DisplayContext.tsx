@@ -37,6 +37,7 @@ function detectConstrainedDevice(): boolean {
 }
 
 export function DisplayProvider({ children }: { children: ReactNode }) {
+   
   const [display, setDisplay] = useState<DisplayState>(() => {
     const stored = safeStorage.get('cyber-pipeline-display');
     if (stored) {
@@ -70,6 +71,7 @@ export function DisplayProvider({ children }: { children: ReactNode }) {
       display.reduceMotion ? 'reduce-motion' :
       display.focusIndicators ? 'focus-indicators' : 'default'
     );
+   
   }, [display]);
 
   useEffect(() => {
@@ -98,13 +100,21 @@ export function DisplayProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+   
   const setDensity = useCallback((density: DisplayState['density']) => updateDisplay({ density }), [updateDisplay]);
+   
   const setFontSize = useCallback((fontSize: DisplayState['fontSize']) => updateDisplay({ fontSize }), [updateDisplay]);
+   
   const setAnimations = useCallback((animations: boolean) => updateDisplay({ animations }), [updateDisplay]);
+   
   const setGridBackground = useCallback((gridBackground: boolean) => updateDisplay({ gridBackground }), [updateDisplay]);
+   
   const setReduceMotion = useCallback((reduceMotion: boolean) => updateDisplay({ reduceMotion }), [updateDisplay]);
+   
   const setHighContrast = useCallback((highContrast: boolean) => updateDisplay({ highContrast }), [updateDisplay]);
+   
   const setFocusIndicators = useCallback((focusIndicators: boolean) => updateDisplay({ focusIndicators }), [updateDisplay]);
+   
   const setScreenReaderOptimizations = useCallback((screenReaderOptimizations: boolean) => updateDisplay({ screenReaderOptimizations }), [updateDisplay]);
 
   return (

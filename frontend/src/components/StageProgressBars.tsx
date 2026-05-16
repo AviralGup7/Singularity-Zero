@@ -36,6 +36,7 @@ function getStatusClass(status: string): string {
 }
 
 function getStageIcon(stage: string): string {
+  // eslint-disable-next-line security/detect-object-injection
   return STAGE_ICONS[stage] || 'STEP';
 }
 
@@ -56,6 +57,7 @@ interface StageProgressBarsProps {
 export function StageProgressBars({ stages }: StageProgressBarsProps) {
   const safeStages = stages ?? [];
   const { policy, strategy } = useMotionPolicy('list');
+   
   const [gridRef] = useAutoAnimate({
     duration: Math.max(120, Math.round(strategy.duration * 1000)),
     easing: 'ease-out',

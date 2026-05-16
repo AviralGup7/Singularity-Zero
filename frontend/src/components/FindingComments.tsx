@@ -35,6 +35,7 @@ function findMentionRanges(text: string, members: string[]): Array<{ start: numb
 }
 
 function extractMentions(text: string): string[] {
+   
   const mentions: string[] = [];
   const ranges = findMentionRanges(text, TEAM_MEMBERS);
   for (const range of ranges) {
@@ -53,13 +54,21 @@ interface FindingCommentsProps {
 }
 
 function useFindingComments(findingId: string, targetName?: string) {
+   
   const [comments, setComments] = useState<FindingComment[]>([]);
+   
   const [apiNotes, setApiNotes] = useState<Note[]>([]);
+   
   const [loading, setLoading] = useState(false);
+   
   const [saving, setSaving] = useState(false);
+   
   const [error, setError] = useState<string | null>(null);
+   
   const [newComment, setNewComment] = useState('');
+   
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+   
   const [replyText, setReplyText] = useState('');
 
   useEffect(() => {
@@ -83,6 +92,7 @@ function useFindingComments(findingId: string, targetName?: string) {
         .catch(e => setError(e.message))
         .finally(() => setLoading(false))
     );
+   
   }, [findingId, targetName]);
 
   const addComment = useCallback(async () => {
@@ -105,6 +115,7 @@ function useFindingComments(findingId: string, targetName?: string) {
           mentions: note.tags || [],
           timestamp: note.created_at,
         }]);
+   
         setApiNotes(prev => [...prev, note]);
         setNewComment('');
       } catch (e: unknown) {
@@ -121,9 +132,11 @@ function useFindingComments(findingId: string, targetName?: string) {
         mentions,
         timestamp: new Date().toISOString(),
       };
+   
       setComments(prev => [...prev, comment]);
       setNewComment('');
     }
+   
   }, [newComment, findingId, targetName]);
 
   const deleteComment = useCallback(async (commentId: string) => {
@@ -138,6 +151,7 @@ function useFindingComments(findingId: string, targetName?: string) {
     } else {
       setComments(prev => prev.filter(c => c.id !== commentId));
     }
+   
   }, [targetName, apiNotes]);
 
   const rootComments = comments.filter(c => !c.parentId);
@@ -182,6 +196,7 @@ export function FindingComments({ findingId, targetName }: FindingCommentsProps)
   const renderMentions = (text: string) => {
     const ranges = findMentionRanges(text, teamMembers);
     if (ranges.length === 0) return <span>{text}</span>;
+   
     const nodes: React.ReactNode[] = [];
     let cursor = 0;
     ranges.forEach((range, idx) => {
@@ -189,6 +204,7 @@ export function FindingComments({ findingId, targetName }: FindingCommentsProps)
         nodes.push(<span key={`text-${idx}`}>{text.slice(cursor, range.start)}</span>);
       }
       nodes.push(
+   
         <span key={`mention-${idx}`} className="text-[var(--accent)] font-bold">
           {text.slice(range.start, range.end)}
         </span>
@@ -215,6 +231,7 @@ export function FindingComments({ findingId, targetName }: FindingCommentsProps)
 
       <div className="comments-list">
         {comments.length === 0 && (
+   
           <p className="text-[var(--muted)] text-sm">No comments yet. Start the discussion.</p>
         )}
 

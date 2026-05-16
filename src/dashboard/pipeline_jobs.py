@@ -161,7 +161,7 @@ def consume_stream(
         job["_persist_last_epoch"] = now
         try:
             persist_callback(job)
-        except Exception:
+        except Exception:  # noqa: S110
             # Persistence is best-effort and must not break pipeline execution.
             pass
 
@@ -200,7 +200,7 @@ def consume_stream(
         stream.close()
         try:
             sink.close()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
 
@@ -224,7 +224,7 @@ def run_pipeline_job(
         job["_persist_last_epoch"] = now
         try:
             persist_callback(job)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def _capture_forensics() -> None:
@@ -242,7 +242,7 @@ def run_pipeline_job(
                 job_id,
                 persisted_job=job,
             )
-        except Exception:
+        except Exception:  # noqa: S110
             # Forensic capture is best-effort and must not change job outcome.
             pass
 
@@ -319,7 +319,7 @@ def run_pipeline_job(
         append_log(job, f"Launching: {' '.join(command)}")
         _persist(force=True)
     try:
-        process = subprocess.Popen(  # nosec: S603
+        process = subprocess.Popen(  # noqa: S603
             command,
             cwd=str(workspace_root),
             stdout=subprocess.PIPE,
@@ -338,7 +338,7 @@ def run_pipeline_job(
             try:
                 process.kill()
                 process.wait(timeout=5)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass  # Process may already be dead
         safe_msg = safe_error_message(exc)
         with lock:
@@ -396,7 +396,7 @@ def run_pipeline_job(
         stderr_classification = classify_stderr_text(stderr_content)
         if stderr_classification.best_fatal_line:
             error_detail = safe_error_message(Exception(stderr_classification.best_fatal_line))
-    except Exception:
+    except Exception:  # noqa: S110
         pass
 
     # If stderr is empty, also check stdout for error messages
@@ -404,12 +404,12 @@ def run_pipeline_job(
         try:
             stdout_content = stdout_path.read_text(encoding="utf-8").strip()
             error_detail = _extract_stdout_error_detail(stdout_content)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
     else:
         try:
             stdout_content = stdout_path.read_text(encoding="utf-8").strip()
-        except Exception:
+        except Exception:  # noqa: S110
             stdout_content = ""
 
     no_pipeline_output = not stdout_content and not stderr_content

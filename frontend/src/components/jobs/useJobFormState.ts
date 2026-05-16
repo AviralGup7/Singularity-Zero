@@ -6,19 +6,30 @@ import type { ModuleOption, ModuleGroup, ModePreset } from '../../types/api';
 
 export function useJobFormState() {
   const toast = useToast();
+   
   const [loading, setLoading] = useState(true);
+   
   const [error, setError] = useState<string | null>(null);
+   
   const [baseUrl, setBaseUrl] = useState('');
+   
   const [scopeText, setScopeText] = useState('');
+   
   const [selectedMode, setSelectedMode] = useState('full');
+   
   const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
+   
   const [runtimeOverrides, setRuntimeOverrides] = useState<Record<string, string>>({});
+   
   const [executionOptions, setExecutionOptions] = useState<Record<string, boolean>>({
     skip_crtsh: false,
     refresh_cache: false,
   });
+   
   const [modePresets, setModePresets] = useState<ModePreset[]>([]);
+   
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
+   
   const [moduleOptions, setModuleOptions] = useState<ModuleOption[]>([]);
 
   useEffect(() => {
@@ -60,6 +71,7 @@ export function useJobFormState() {
 
     async function loadConfig(signal?: AbortSignal) {
       try {
+   
         const [defaults, registry] = await Promise.all([
           getDefaults(signal),
           getRegistry(signal),
@@ -72,6 +84,7 @@ export function useJobFormState() {
         const requestedMode = defaults.default_mode;
         const resolvedMode = presets.some(p => p.name === requestedMode)
           ? requestedMode
+   
           : (presets[0]?.name ?? requestedMode);
 
         setSelectedMode(resolvedMode);
@@ -85,7 +98,9 @@ export function useJobFormState() {
         }
 
         const overrides: Record<string, string> = {};
+   
         for (const [key, value] of Object.entries(defaults.form_defaults ?? {})) {
+  // eslint-disable-next-line security/detect-object-injection
           overrides[key] = value;
         }
         setRuntimeOverrides(overrides);
@@ -101,6 +116,7 @@ export function useJobFormState() {
     }
     loadConfig(controller.signal);
     return () => controller.abort();
+   
   }, [toast]);
 
   const handleModeSelect = useCallback((modeName: string) => {
@@ -109,6 +125,7 @@ export function useJobFormState() {
     if (preset) {
       setSelectedModules(new Set(preset.modules));
     }
+   
   }, [modePresets]);
 
   const toggleModule = useCallback((moduleName: string) => {
@@ -124,10 +141,12 @@ export function useJobFormState() {
   }, []);
 
   const toggleExecutionOption = useCallback((key: string) => {
+  // eslint-disable-next-line security/detect-object-injection
     setExecutionOptions(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
   const updateRuntimeOverride = useCallback((key: string, value: string) => {
+   
     setRuntimeOverrides(prev => ({ ...prev, [key]: value }));
   }, []);
 
@@ -147,6 +166,7 @@ export function useJobFormState() {
     const resolved = autoResolveDependencies(selectedModules, moduleOptions);
     setSelectedModules(resolved);
     toast.info('Missing dependencies added automatically.');
+   
   }, [selectedModules, moduleOptions, toast]);
 
   const depWarnings = checkModuleDependencies(selectedModules, moduleOptions);

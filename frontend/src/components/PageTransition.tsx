@@ -7,8 +7,10 @@ interface PageTransitionProps {
 }
 
 export function PageTransition({ children, locationKey }: PageTransitionProps) {
+   
   const [isVisible, setIsVisible] = useState(false);
   // FIX: Use state with matchMedia listener instead of ref (ref never updates)
+   
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
@@ -33,6 +35,7 @@ export function PageTransition({ children, locationKey }: PageTransitionProps) {
     });
 
     return () => cancelAnimationFrame(timer);
+   
   }, [locationKey, prefersReducedMotion]);
 
   if (prefersReducedMotion) {

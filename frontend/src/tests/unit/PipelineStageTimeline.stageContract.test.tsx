@@ -12,6 +12,7 @@ vi.mock('@/hooks/useMotionPolicy', () => ({
 
 function stageEntry(
   stage: string,
+   
   status: StageProgressEntry['status'],
   percent: number,
   label?: string
@@ -60,12 +61,14 @@ describe('PipelineStageTimeline stage contract', () => {
         id: 'job-semgrep',
         stage: 'semgrep',
         stage_label: 'Static analysis',
+   
         stage_progress: [stageEntry('semgrep', 'running', 22, 'Static analysis')],
       }),
       makeJob({
         id: 'job-priority',
         stage: 'priority',
         stage_label: 'Priority ranking',
+   
         stage_progress: [stageEntry('priority', 'running', 67, 'Priority ranking')],
       }),
     ];

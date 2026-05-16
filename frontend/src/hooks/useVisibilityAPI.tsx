@@ -2,8 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useVisibilityAPI() {
+   
   const [isVisible, setIsVisible] = useState(!document.hidden);
+   
   const [lastHiddenAt, setLastHiddenAt] = useState<Date | null>(null);
+   
   const [totalHiddenTime, setTotalHiddenTime] = useState(0);
 
   useEffect(() => {
@@ -37,6 +40,7 @@ export function useVisibilityAPI() {
       duration += Date.now() - lastHiddenAt.getTime();
     }
     return duration;
+   
   }, [totalHiddenTime, lastHiddenAt, isVisible]);
 
   return {

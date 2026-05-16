@@ -23,11 +23,13 @@ function classifyLogLine(line: string): Omit<LiveTerminalLine, 'id'> {
   const lower = trimmed.toLowerCase();
 
   let module = 'CORE';
+   
   let level: LiveTerminalLine['level'] = 'info';
   let message = trimmed;
   let source: string | undefined;
 
   // Nuclei deep-parsing
+   
   const nucleiMatch = trimmed.match(/^\[(?<id>[a-z0-9-]+)\]\s+\[(?<sev>\w+)\]\s+(?<msg>.*)/i);
   if (nucleiMatch && nucleiMatch.groups) {
     module = 'NUCLEI';
@@ -42,16 +44,19 @@ function classifyLogLine(line: string): Omit<LiveTerminalLine, 'id'> {
   } else {
     // Dynamic Tool detection
     const toolMatch = trimmed.match(TOOL_REGEX);
+   
     if (toolMatch) module = toolMatch[1].toUpperCase();
 
     if (lower.includes('!!!') || lower.includes('critical') || lower.includes('vulnerability found')) level = 'critical';
     else if (lower.includes('error') || lower.includes('failed') || lower.includes('exception')) level = 'error';
     else if (lower.includes('warn') || lower.includes('deprecated')) level = 'warn';
+   
     else if (lower.includes('[+]') || lower.includes('success') || lower.includes('completed')) level = 'success';
     else if (lower.includes('debug') || lower.includes('trace')) level = 'debug';
   }
 
   // Cleanup aesthetic markers
+   
   message = message.replace(/^\[[+*-]\]\s*/, '');
 
   return { timestamp: ts, level, module, message, source };
@@ -65,16 +70,24 @@ export function useLiveTerminal(options: {
 } = {}) {
   const { pollInterval = 3000, maxLines = 10000, autoConnect = true } = options;
 
+   
   const [lines, setLines] = useState<LiveTerminalLine[]>([]);
+   
   const [activeJobs, setActiveJobs] = useState<Job[]>([]);
+   
   const [isRunning, setIsRunning] = useState(autoConnect);
+   
   const [isLoading, setIsLoading] = useState(false);
+   
   const [error, setError] = useState<string | null>(null);
+   
   const [connectionMode, setConnectionMode] = useState<'sse' | 'polling' | 'none'>('none');
+   
   const [currentJobId, setCurrentJobId] = useState<string | undefined>(options.jobId);
 
   const lineIdRef = useRef(0);
   const seenLogKeysRef = useRef<Set<string>>(new Set());
+   
   const logBufferRef = useRef<string[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const esRef = useRef<EventSource | null>(null);
@@ -83,9 +96,11 @@ export function useLiveTerminal(options: {
   const flushBuffer = useCallback(() => {
     if (logBufferRef.current.length === 0) return;
     
+   
     const rawBatch = [...logBufferRef.current];
     logBufferRef.current = [];
 
+   
     const newEntries: LiveTerminalLine[] = [];
     for (const raw of rawBatch) {
       const key = `${currentJobId || 'global'}:${raw}`;
@@ -106,10 +121,12 @@ export function useLiveTerminal(options: {
 
     if (newEntries.length > 0) {
       setLines(prev => {
+   
         const next = [...prev, ...newEntries];
         return next.length > maxLines ? next.slice(-maxLines) : next;
       });
     }
+   
   }, [currentJobId, maxLines]);
 
   const addLinesToBuffer = useCallback((raw: string[]) => {
@@ -119,6 +136,7 @@ export function useLiveTerminal(options: {
   useEffect(() => {
     flushTimerRef.current = setInterval(flushBuffer, 150);
     return () => { if (flushTimerRef.current) clearInterval(flushTimerRef.current); };
+   
   }, [flushBuffer]);
 
   // --- Data Fetching ---
@@ -127,11 +145,13 @@ export function useLiveTerminal(options: {
       const jobs = await getJobs();
       const running = jobs.filter(j => j.status === 'running');
       setActiveJobs(running);
+   
       if (!currentJobId && running.length > 0) setCurrentJobId(running[0].id);
       setIsLoading(false);
     } catch (_e) {
       setError('Failed to sync mesh workers');
     }
+   
   }, [currentJobId]);
 
   const connectSSE = useCallback((id: string) => {
@@ -145,6 +165,7 @@ export function useLiveTerminal(options: {
     es.addEventListener('log', (e: MessageEvent) => {
       try {
         const parsed = JSON.parse(e.data);
+   
         if (parsed.data?.line) addLinesToBuffer([parsed.data.line]);
         setConnectionMode('sse');
       } catch (_e) {
@@ -161,6 +182,7 @@ export function useLiveTerminal(options: {
         }
       }
     };
+   
   }, [addLinesToBuffer]);
 
   useEffect(() => {
@@ -178,6 +200,7 @@ export function useLiveTerminal(options: {
         clearInterval(interval);
       };
     }
+   
   }, [isRunning, currentJobId, connectSSE, pollInterval, addLinesToBuffer]);
 
   useEffect(() => {
@@ -187,6 +210,7 @@ export function useLiveTerminal(options: {
       const interval = setInterval(fetchActiveJobs, 10000);
       return () => clearInterval(interval);
     }
+   
   }, [isRunning, fetchActiveJobs]);
 
   return {

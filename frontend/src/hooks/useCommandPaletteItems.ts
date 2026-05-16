@@ -30,6 +30,7 @@ export function useCommandPaletteItems(items: SearchableItem[]) {
         itemRegistry.delete(item.id);
       }
     };
+   
   }, [items]);
 
   const allItems = useCallback(() => {
@@ -46,5 +47,6 @@ export function useRegisterItem(item: SearchableItem | null) {
     return () => {
       itemRegistry.delete(item.id);
     };
+   
   }, [item]);
 }

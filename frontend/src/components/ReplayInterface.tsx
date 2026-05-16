@@ -9,16 +9,27 @@ interface ReplayInterfaceProps {
 }
 
 export default function ReplayInterface({ targetName, runName, replayId }: ReplayInterfaceProps) {
+   
   const [target, setTarget] = useState(targetName || '');
+   
   const [run, setRun] = useState(runName || '');
+   
   const [replay, setReplay] = useState(replayId || '');
+   
   const [authMode, setAuthMode] = useState('inherit');
+   
   const [authorization, setAuthorization] = useState('');
+   
   const [loading, setLoading] = useState(false);
+   
   const [error, setError] = useState<string | null>(null);
+   
   const [result, setResult] = useState<ReplayResult | null>(null);
+   
   const [targetError, setTargetError] = useState<string | null>(null);
+   
   const [runError, setRunError] = useState<string | null>(null);
+   
   const [replayError, setReplayError] = useState<string | null>(null);
 
   const handleReplay = async (e: React.FormEvent) => {

@@ -288,7 +288,7 @@ class SQLiteBackend:
                 for i in range(0, len(key_list), chunk_size):
                     chunk = key_list[i : i + chunk_size]
                     placeholders = ",".join("?" * len(chunk))
-                    query = f"DELETE FROM cache_entries WHERE key IN ({placeholders})"  # nosec: S608
+                    query = f"DELETE FROM cache_entries WHERE key IN ({placeholders})"  # noqa: S608
                     cursor = conn.execute(query, chunk)
                     deleted += max(cursor.rowcount, 0)
 
@@ -397,7 +397,7 @@ class SQLiteBackend:
                 keys = [row[0] for row in cursor.fetchall()]
                 if keys:
                     placeholders = ",".join("?" * len(keys))
-                    query = f"DELETE FROM cache_entries WHERE key IN ({placeholders})"  # nosec: S608
+                    query = f"DELETE FROM cache_entries WHERE key IN ({placeholders})"  # noqa: S608
                     conn.execute(query, keys)
                     conn.commit()
                 return len(keys)

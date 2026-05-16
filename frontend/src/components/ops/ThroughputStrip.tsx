@@ -22,21 +22,25 @@ export function ThroughputStrip({
   const safeJobs = sanitizeMetric(jobsPerSecond);
   const safeFindings = sanitizeMetric(findingsPerSecond);
   const safeVelocity = sanitizeMetric(scanVelocity);
+   
   const [history, setHistory] = useState<number[]>(() => Array.from({ length: 32 }, () => 0));
 
   useEffect(() => {
     let mounted = true;
     Promise.resolve().then(() => {
       if (mounted) {
+   
         setHistory((previous) => [...previous.slice(-31), safeVelocity]);
       }
     });
     return () => { mounted = false; };
+   
   }, [safeVelocity]);
 
   const maxHistory = useMemo(() => {
     const maxValue = Math.max(1, ...history, safeJobs, safeFindings, safeVelocity);
     return maxValue;
+   
   }, [history, safeJobs, safeFindings, safeVelocity]);
 
   return (
@@ -61,6 +65,7 @@ export function ThroughputStrip({
               key={`throughput-${index}`}
               className="throughput-strip-wave-bar"
               style={{ height: `${Math.max(6, normalized * 100 * amplitudeBoost)}%` }}
+   
               animate={{ opacity: [0.3, 0.9 + visualState.urgency * 0.1, 0.35] }}
               transition={{
                 duration: Math.max(0.45, 1.15 + (index % 6) * 0.08 - visualState.flow * 0.35),
@@ -89,6 +94,7 @@ function Metric({ label, value, accent }: { label: string; value: number; accent
         className="throughput-strip-metric-value"
         key={`${label}-${value}`}
         initial={{ scale: 0.94, opacity: 0.55 }}
+   
         animate={{ scale: [0.95, 1.08, 1], opacity: [0.55, 1, 1] }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >

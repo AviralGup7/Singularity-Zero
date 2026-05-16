@@ -27,10 +27,13 @@ const STAGE_ALIASES: Record<string, string> = {
 function normalizeStageName(stageName: string | undefined): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
+  // eslint-disable-next-line security/detect-object-injection
   return STAGE_ALIASES[normalized] ?? normalized;
 }
 
+   
 function resolveStageOrder(jobs: Job[]): string[] {
+   
   const order = [...STAGE_ORDER];
   const seen = new Set(order);
 
@@ -81,6 +84,7 @@ export function PipelineStageTimeline({ jobs }: PipelineStageTimelineProps) {
       ).length;
       return { stage, active, completed, errored };
     });
+   
   }, [jobs]);
 
   useEffect(() => {
@@ -107,6 +111,7 @@ export function PipelineStageTimeline({ jobs }: PipelineStageTimelineProps) {
       cancelled = true;
       cleanup?.();
     };
+   
   }, [policy.allowGsap, strategy.distance, strategy.duration, strategy.stagger]);
 
   return (

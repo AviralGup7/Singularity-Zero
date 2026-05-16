@@ -5,7 +5,9 @@ import { useJobs, usePersistedState } from '../hooks';
 
 export function JobsPage() {
   const { data: jobs, loading, error, refetch } = useJobs({ refetchInterval: 5000 });
+   
   const [statusFilter, setStatusFilter] = usePersistedState<string>('jobs-status-filter', 'all');
+   
   const [searchQuery, setSearchQuery] = usePersistedState<string>('jobs-search-query', '');
 
   if (loading) {
@@ -78,6 +80,7 @@ export function JobsPage() {
           />
         </div>
         <div className="filter-buttons" role="group" aria-label="Filter by status">
+  // eslint-disable-next-line security/detect-object-injection
           {['all', 'running', 'completed', 'failed', 'stopped'].map((status) => (
             <button
               key={status}

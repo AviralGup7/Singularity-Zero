@@ -10,6 +10,7 @@ interface VisualProviderProps {
 }
 
 export function VisualProvider({ children, initialValue }: VisualProviderProps) {
+   
   const [state, setState] = useState<VisualState>(initialValue ?? DEFAULT_VISUAL_STATE);
 
   return (

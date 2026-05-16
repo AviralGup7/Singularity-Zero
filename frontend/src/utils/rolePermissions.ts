@@ -70,6 +70,7 @@ export function getCurrentRole(): UserRole {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     const integrity = sessionStorage.getItem(STORAGE_INTEGRITY_KEY);
+   
     if (raw && (['admin', 'team_lead', 'analyst', 'viewer'] as string[]).includes(raw)) {
       if (integrity !== computeIntegrityHash(raw)) {
         console.warn('Role integrity check failed - potential tampering detected');
@@ -94,11 +95,13 @@ export function setCurrentRole(role: UserRole): void {
  * For shared state across components, use a context wrapper.
  */
 export function useRole(): { role: UserRole; permissions: Permission; updateRole: (newRole: UserRole) => void } {
+   
   const [role, setRole] = useState<UserRole>(getCurrentRole);
 
   // Sync with changes from other tabs
   useEffect(() => {
     const handler = (e: StorageEvent) => {
+   
       if (e.key === STORAGE_KEY && e.newValue && (['admin', 'team_lead', 'analyst', 'viewer'] as string[]).includes(e.newValue)) {
         setRole(e.newValue as UserRole);
       }
@@ -107,6 +110,7 @@ export function useRole(): { role: UserRole; permissions: Permission; updateRole
     return () => window.removeEventListener('storage', handler);
   }, []);
 
+   
   const permissions = useMemo(() => Reflect.get(ROLE_PERMISSIONS, role) as Permission, [role]);
 
   const updateRole = useCallback((newRole: UserRole) => {

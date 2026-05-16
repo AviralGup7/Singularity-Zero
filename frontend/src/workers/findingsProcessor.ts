@@ -24,6 +24,7 @@ self.onmessage = (event: MessageEvent<ProcessRequest>) => {
     const { type, findings, filters, sort } = event.data;
 
     if (type === 'PROCESS_FINDINGS') {
+   
       let result = [...findings];
 
       // 1. Filtering
@@ -58,12 +59,16 @@ self.onmessage = (event: MessageEvent<ProcessRequest>) => {
       
       result.sort((a, b) => {
         if (sort.key === 'severity') {
+   
           const wA = severityWeights[a.severity] ?? 0;
+   
           const wB = severityWeights[b.severity] ?? 0;
           if (wA !== wB) return sort.direction === 'asc' ? wA - wB : wB - wA;
         }
         
+   
         const valA = a[sort.key] ?? '';
+   
         const valB = b[sort.key] ?? '';
         
         if (valA < valB) return sort.direction === 'asc' ? -1 : 1;

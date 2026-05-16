@@ -6,6 +6,7 @@ export interface CockpitNode {
   label: string;
   severity: string;
   metadata?: Record<string, unknown>;
+   
   position?: [number, number, number];
 }
 

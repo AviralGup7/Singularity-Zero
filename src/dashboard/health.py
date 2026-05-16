@@ -107,7 +107,7 @@ async def check_services(workspace_root: Any, output_root: Any) -> DependencyHea
         services = DashboardServices(
             workspace_root=workspace_root,
             output_root=output_root,
-            config_template=Path("/tmp/dummy_config.json"),  # nosec: S108
+            config_template=Path("/tmp/dummy_config.json"),  # noqa: S108
         )
         start = time.monotonic()
         targets = services.list_targets()
