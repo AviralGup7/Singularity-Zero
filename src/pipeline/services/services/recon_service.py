@@ -7,7 +7,7 @@ from typing import Any, cast
 try:
     from beartype import beartype
 except ModuleNotFoundError:
-    def beartype(func: Any) -> Any:
+    def beartype(func: Any) -> Any:  # type: ignore[no-redef]
         return func
 
 from src.core.contracts.capabilities import (
