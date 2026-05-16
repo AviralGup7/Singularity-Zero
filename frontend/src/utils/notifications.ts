@@ -85,6 +85,7 @@ export function sendSLABreachNotification(slaId: string, metric: string): void {
 function storeInAppNotification(notification: AppNotification): void {
   try {
     const raw = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
+   
     const all: AppNotification[] = raw ? JSON.parse(raw) : [];
     all.unshift(notification);
     if (all.length > 100) all.length = 100;
@@ -119,6 +120,7 @@ export function useNotificationListener(callback: (notification: AppNotification
 
   useEffect(() => {
     callbackRef.current = callback;
+   
   }, [callback]);
 
   useEffect(() => {

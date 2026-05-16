@@ -19,7 +19,9 @@ import {
 
 interface JobMonitorSseContext {
   jobStage?: string;
+   
   jobStatus?: Job['status'];
+   
   setStageProgress: (updater: StageProgressEntry[] | ((prev: StageProgressEntry[]) => StageProgressEntry[])) => void;
   setSseTelemetry: (updater: ProgressTelemetry | ((prev: ProgressTelemetry) => ProgressTelemetry)) => void;
   setJob: (updater: Job | null | ((prev: Job | null) => Job | null)) => void;
@@ -27,6 +29,7 @@ interface JobMonitorSseContext {
   resetPluginProgress: () => void;
   addLogLine: (line: string) => void;
   handleStageProgress: (data: Record<string, unknown>) => void;
+   
   setStreamingFindings: (updater: Finding[] | ((prev: Finding[]) => Finding[])) => void;
   setSseError: (updater: string | null | ((prev: string | null) => string | null)) => void;
   loadData: () => void;
@@ -45,6 +48,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
         normalizeActiveTimeline(
           mergeStageProgressLists(incomingStages, prev),
           typeof data.stage === 'string' ? data.stage : ctx.jobStage,
+   
           typeof data.status === 'string' ? (data.status as Job['status']) : ctx.jobStatus
         )
       );
@@ -61,6 +65,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
       if (typeof data.message === 'string') updated.status_message = data.message;
       if (typeof data.stage === 'string' && data.stage) updated.stage = data.stage;
       if (typeof data.stage_label === 'string' && data.stage_label) updated.stage_label = data.stage_label;
+   
       if (typeof data.status === 'string' && data.status) updated.status = data.status as Job['status'];
       if (typeof data.stage_processed === 'number') updated.stage_processed = data.stage_processed;
       if (typeof data.stage_total === 'number') updated.stage_total = data.stage_total;
@@ -87,6 +92,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
         total: typeof data.total === 'number' ? data.total : 0,
         percent: typeof data.percent === 'number' ? data.percent : 0,
         current_plugin: typeof data.current_plugin === 'string' ? data.current_plugin : undefined,
+   
         status: (data.status as PluginProgressEntry['status']) || 'running',
         error_message:
           typeof data.error_message === 'string' ? data.error_message : undefined,
@@ -131,6 +137,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
   if (event.event_type === 'finding_batch') {
     const data = event.data as Record<string, unknown>;
     if (Array.isArray(data.findings)) {
+   
       ctx.setStreamingFindings((prev) => [...prev, ...(data.findings as Finding[])]);
     }
   }
@@ -145,6 +152,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
         normalizeActiveTimeline(
           mergeStageProgressLists(incomingStages, prev),
           typeof data.stage === 'string' ? data.stage : ctx.jobStage,
+   
           typeof data.status === 'string' ? (data.status as Job['status']) : 'failed'
         )
       );
@@ -205,6 +213,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
         normalizeActiveTimeline(
           mergeStageProgressLists(incomingStages, prev),
           typeof data.stage === 'string' ? data.stage : ctx.jobStage,
+   
           typeof data.status === 'string' ? (data.status as Job['status']) : ctx.jobStatus
         )
       );
@@ -226,6 +235,7 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
         if (!prev) return prev;
         return {
           ...prev,
+   
           status: terminalStatus as Job['status'],
           failed_stage:
             typeof data?.failed_stage === 'string' ? data.failed_stage : prev.failed_stage,

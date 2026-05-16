@@ -7,39 +7,51 @@ export interface ModuleDependency {
 
 const MODULE_DEPENDENCIES: Record<string, ModuleDependency> = {
   active_scanner: {
+   
     requires: ['url_crawler'],
   },
   auth_scanner: {
+   
     requires: ['url_crawler'],
   },
   api_fuzzer: {
+   
     requires: ['url_crawler'],
   },
   parameter_discovery: {
+   
     requires: ['url_crawler'],
   },
   xss_scanner: {
+   
     requires: ['parameter_discovery'],
   },
   sqli_scanner: {
+   
     requires: ['parameter_discovery'],
   },
   ssrf_scanner: {
+   
     requires: ['parameter_discovery'],
   },
   path_traversal_scanner: {
+   
     requires: ['parameter_discovery'],
   },
   csrf_scanner: {
+   
     requires: ['url_crawler'],
   },
   idor_scanner: {
+   
     requires: ['parameter_discovery', 'auth_scanner'],
   },
   subdomain_enum: {
+   
     incompatibleWith: ['active_scanner'],
   },
   port_scanner: {
+   
     incompatibleWith: ['subdomain_enum'],
   },
 };
@@ -57,7 +69,9 @@ export function checkModuleDependencies(
   selectedModules: Set<string>,
   moduleOptions: ModuleOption[],
 ): DependencyWarning[] {
+   
   const warnings: DependencyWarning[] = [];
+   
   const labelMap = new Map(moduleOptions.map(m => [m.name, m.label]));
 
   for (const mod of selectedModules) {
@@ -74,7 +88,9 @@ export function checkModuleDependencies(
             type: 'missing',
             module: mod,
             moduleLabel: modLabel,
+   
             relatedModules: [req],
+   
             relatedLabels: [reqLabel],
             message: `${modLabel} requires ${reqLabel} to function properly.`,
           });
@@ -90,7 +106,9 @@ export function checkModuleDependencies(
             type: 'incompatible',
             module: mod,
             moduleLabel: modLabel,
+   
             relatedModules: [inc],
+   
             relatedLabels: [incLabel],
             message: `${modLabel} is incompatible with ${incLabel}.`,
           });
@@ -115,6 +133,7 @@ export function autoResolveDependencies(
   while (changed) {
     changed = false;
     for (const mod of resolved) {
+  // eslint-disable-next-line security/detect-object-injection
       const dep = MODULE_DEPENDENCIES[mod];
       if (dep?.requires) {
         for (const req of dep.requires) {

@@ -3,7 +3,9 @@ import { getHealth } from '../api/client';
 import type { HealthStatus } from '@/types/api';
 
 export default function HealthIndicator() {
+   
   const [health, setHealth] = useState<HealthStatus | null>(null);
+   
   const [error, setError] = useState(false);
 
   useEffect(() => {

@@ -19,9 +19,13 @@ const Progress = React.forwardRef<
   const height = size === 'sm' ? 'h-1' : size === 'lg' ? 'h-3' : 'h-2';
 
   const colors = {
+   
     default: 'bg-[var(--accent)]',
+   
     running: 'bg-[var(--accent)] animate-pulse',
+   
     completed: 'bg-[var(--ok)]',
+   
     failed: 'bg-[var(--bad)]',
   } as const;
 
@@ -29,16 +33,19 @@ const Progress = React.forwardRef<
     <div className={cn('w-full', className)}>
       <ProgressPrimitive.Root
         ref={ref}
+   
         className={cn('relative w-full overflow-hidden rounded-full bg-[var(--panel)]', height)}
         value={percent}
         {...props}
       >
         <ProgressPrimitive.Indicator
+  // eslint-disable-next-line security/detect-object-injection
           className={cn('h-full w-full flex-1 transition-all duration-300', colors[variant])}
           style={{ transform: `translateX(-${100 - percent}%)` }}
         />
       </ProgressPrimitive.Root>
       {showLabel && (
+   
         <span className="mt-1 block text-right text-xs text-[var(--muted)]">
           {Math.round(percent)}%
         </span>

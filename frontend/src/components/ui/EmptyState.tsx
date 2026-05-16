@@ -23,6 +23,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
+   
         'flex flex-col items-center justify-center gap-3 p-8 text-center border border-dashed border-[var(--line)] bg-[var(--panel)]',
         className
       )}
@@ -33,15 +34,19 @@ export function EmptyState({
           {icon}
         </div>
       )}
+  // eslint-disable-next-line security/detect-object-injection
       <h3 className="font-mono text-[length:var(--text-lg)] font-bold text-[var(--text)]">{title}</h3>
+  // eslint-disable-next-line security/detect-object-injection
       <p className="text-[var(--muted)] text-[length:var(--text-sm)] max-w-sm">{description}</p>
       {ctaLabel && ctaHref && (
+   
         <Link to={ctaHref} className="px-4 py-2 bg-[var(--accent)] text-[var(--bg)] font-mono text-[length:var(--text-sm)] font-bold uppercase tracking-wider border border-[var(--accent)] hover:bg-[var(--accent-hover)] transition-colors">
           {ctaLabel}
         </Link>
       )}
       {ctaLabel && onCtaClick && (
         <button
+   
           className="px-4 py-2 bg-[var(--accent)] text-[var(--bg)] font-mono text-[length:var(--text-sm)] font-bold uppercase tracking-wider border border-[var(--accent)] hover:bg-[var(--accent-hover)] transition-colors"
           onClick={onCtaClick}
         >

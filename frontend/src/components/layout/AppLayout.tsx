@@ -54,6 +54,7 @@ function useNavSections(): NavSection[] {
         { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
       ],
     },
+   
   ], [t]);
 }
 
@@ -80,6 +81,7 @@ function saveNotifications(notifs: Notification[]) {
   }
 }
 
+   
 function buildDefaultNavItems(sections: NavSection[]): SearchableItem[] {
   return sections.flatMap(section =>
     section.items.map(item => ({
@@ -120,13 +122,20 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { theme, updater: themeUpdater } = useTheme();
   const { user } = useAuth();
   const navSections = useNavSections();
+   
   const [showShortcuts, setShowShortcuts] = useState(false);
+   
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+   
   const [notifications, setNotifications] = useState<Notification[]>(loadNotifications);
+   
   const [sidebarOpen, setSidebarOpen] = useState(false);
+   
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+   
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const sidebarRef = useRef<HTMLElement>(null);
+   
   const defaultNavItems = useMemo(() => buildDefaultNavItems(navSections), [navSections]);
   const { policy, strategy } = useMotionPolicy('layout');
 
@@ -135,6 +144,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const addNotification = useCallback((notif: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
     const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const newNotif: Notification = { ...notif, id, timestamp: Date.now(), read: false };
+   
     setNotifications(prev => [newNotif, ...prev].slice(0, 100));
     emitNotification({ message: notif.message, type: notif.type });
   }, []);
@@ -180,6 +190,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     const handleSearchUpdate = (e: Event) => {
       const detail = (e as CustomEvent<{ items: SearchableItem[] }>).detail;
       const existing = getAllItems();
+   
       const merged = [...defaultNavItems, ...detail.items, ...existing.filter(i => i.type !== 'page')];
       const seen = new Set<string>();
       const deduped = merged.filter(i => {
@@ -191,6 +202,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
     window.addEventListener('search:items-update', handleSearchUpdate);
     return () => window.removeEventListener('search:items-update', handleSearchUpdate);
+   
   }, [defaultNavItems]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -231,11 +243,13 @@ export function AppLayout({ children }: AppLayoutProps) {
       setCommandPaletteOpen(false);
       if (sidebarOpen) setSidebarOpen(false);
     }
+   
   }, [navigate, sidebarOpen, theme.mode, themeUpdater]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+   
   }, [handleKeyDown]);
 
   useEffect(() => {
@@ -244,6 +258,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       if (mounted) setSidebarOpen(false);
     });
     return () => { mounted = false; };
+   
   }, [location.pathname]);
 
   useEffect(() => {
@@ -265,6 +280,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const mobilePrimary = navSections
     .flatMap(section => section.items)
+   
     .filter(item => ['/', '/targets', '/jobs', '/findings', '/settings'].includes(item.path));
 
   const motionDuration = strategy.duration || 0.2;
@@ -274,7 +290,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (location.pathname.startsWith('/jobs/')) {
       return { title: 'Job Detail', subtitle: 'Pipeline run telemetry and artifacts' };
     }
+   
     return PAGE_META[location.pathname] ?? PAGE_META['/'];
+   
   }, [location.pathname]);
 
   if (isLogin) {
@@ -285,7 +303,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="app-shell app-shell--hud">
       <a href="#main" className="skip-link">Skip to content</a>
 
-      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} role="presentation" />}
+      {sidebarOpen && <div className="sidebar-overlay" onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={() => setSidebarOpen(false)} role="presentation" />}
 
       <motion.aside
         ref={sidebarRef}
@@ -404,6 +422,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <div className="header-right-actions">
             <div className="header-live-pill">
+  // eslint-disable-next-line security/detect-object-injection
               {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) : 'A'}
             </div>
           </div>

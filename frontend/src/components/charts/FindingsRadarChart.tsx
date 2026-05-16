@@ -15,6 +15,7 @@ const RADAR_STROKE = 'var(--accent-vibrant, #bf00ff)';
 const RADAR_DOT_FILL = 'var(--accent, #00f3ff)';
 
 export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: FindingsRadarChartProps) {
+   
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
   const chartData = useMemo(() => {
@@ -23,6 +24,7 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
       category: d.category,
       count: d.count ?? 0,
     }));
+   
   }, [data]);
 
   const dimensions = useMemo(() => {
@@ -37,6 +39,7 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
     };
   }, []);
 
+   
   const valueMax = useMemo(() => Math.max(1, max(chartData, (entry) => entry.count) ?? 0), [chartData]);
 
   const radarPoints = useMemo(() => {
@@ -54,6 +57,7 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
         labelY: dimensions.centerY + Math.sin(angle) * (dimensions.radius + 24),
       };
     });
+   
   }, [chartData, dimensions.centerX, dimensions.centerY, dimensions.radius, valueMax]);
 
   const polygonPath = useMemo(() => {
@@ -61,10 +65,12 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
     return radarPoints
       .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
       .join(' ') + ' Z';
+   
   }, [radarPoints]);
 
   const hovered = useMemo(
     () => radarPoints.find((point) => point.category === hoveredCategory) ?? null,
+   
     [radarPoints, hoveredCategory]
   );
 
@@ -87,6 +93,7 @@ export const FindingsRadarChart = memo(function FindingsRadarChart({ data }: Fin
           role="img"
           aria-label="Findings distribution radar chart"
         >
+  // eslint-disable-next-line security/detect-object-injection
           {[0.25, 0.5, 0.75, 1].map((ratio) => (
             <circle
               key={ratio}

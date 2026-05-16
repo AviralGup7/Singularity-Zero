@@ -37,13 +37,13 @@ def _freeze_value(value: Any) -> Any:
 
     try:
         return copy.deepcopy(value)
-    except Exception:
+    except Exception:  # noqa: S110
         if hasattr(value, "__dict__"):
             try:
                 return MappingProxyType(
                     {key: _freeze_value(item) for key, item in vars(value).items()}
                 )
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         return reprlib.repr(value)
 

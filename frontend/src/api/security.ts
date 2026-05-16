@@ -65,6 +65,7 @@ export async function getApiKeys(): Promise<ApiKeyRecord[]> {
   return cachedGet<ApiKeyRecord[]>('/api/security/api-keys', { bypassCache: true });
 }
 
+   
 export async function generateApiKey(role: ApiKeyRecord['role']): Promise<GeneratedApiKey> {
   const response = await apiClient.post<GeneratedApiKey>('/api/security/api-keys', { role });
   return response.data;

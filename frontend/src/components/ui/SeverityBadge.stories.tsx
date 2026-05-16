@@ -7,10 +7,12 @@ const meta = {
   parameters: {
     layout: 'centered',
   },
+   
   tags: ['autodocs'],
   argTypes: {
     severity: {
       control: 'select',
+   
       options: ['critical', 'high', 'medium', 'low', 'info'],
     },
     count: {

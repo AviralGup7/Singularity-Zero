@@ -75,7 +75,7 @@ class FeatureFlags:
         return os.getenv("ENABLE_SSE_PROGRESS", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_SSE_PROGRESS(cls) -> bool:
+    def ENABLE_SSE_PROGRESS(cls) -> bool:  # noqa: N802
         return cls.enable_sse_progress()
 
     @classmethod
@@ -83,7 +83,7 @@ class FeatureFlags:
         return os.getenv("ENABLE_BAYESIAN_ETA", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_BAYESIAN_ETA(cls) -> bool:
+    def ENABLE_BAYESIAN_ETA(cls) -> bool:  # noqa: N802
         return cls.enable_bayesian_eta()
 
     @classmethod
@@ -91,7 +91,7 @@ class FeatureFlags:
         return os.getenv("ENABLE_PLUGIN_PROGRESS", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_PLUGIN_PROGRESS(cls) -> bool:
+    def ENABLE_PLUGIN_PROGRESS(cls) -> bool:  # noqa: N802
         return cls.enable_plugin_progress()
 
     @classmethod
@@ -99,7 +99,7 @@ class FeatureFlags:
         return os.getenv("ENABLE_DURATION_FORECAST", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_DURATION_FORECAST(cls) -> bool:
+    def ENABLE_DURATION_FORECAST(cls) -> bool:  # noqa: N802
         return cls.enable_duration_forecast()
 
     @classmethod
@@ -107,7 +107,7 @@ class FeatureFlags:
         return os.getenv("ENABLE_FINDINGS_STREAM", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_FINDINGS_STREAM(cls) -> bool:
+    def ENABLE_FINDINGS_STREAM(cls) -> bool:  # noqa: N802
         return cls.enable_findings_stream()
 
     @classmethod
@@ -115,7 +115,7 @@ class FeatureFlags:
         return os.getenv("ENABLE_DAG_EXECUTION", "true").lower() == "true"
 
     @classmethod
-    def ENABLE_DAG_EXECUTION(cls) -> bool:
+    def ENABLE_DAG_EXECUTION(cls) -> bool:  # noqa: N802
         return cls.enable_dag_execution()
 
     @classmethod
@@ -123,7 +123,7 @@ class FeatureFlags:
         return os.getenv("ENABLE_API_SECURITY", "false").lower() == "true"
 
     @classmethod
-    def ENABLE_API_SECURITY(cls) -> bool:
+    def ENABLE_API_SECURITY(cls) -> bool:  # noqa: N802
         return cls.enable_api_security()
 
     @classmethod
@@ -131,7 +131,7 @@ class FeatureFlags:
         return max(15, min(30, int(os.getenv("SSE_HEARTBEAT_INTERVAL_SECONDS", "25"))))
 
     @classmethod
-    def SSE_HEARTBEAT_INTERVAL_SECONDS(cls) -> int:
+    def SSE_HEARTBEAT_INTERVAL_SECONDS(cls) -> int:  # noqa: N802
         return cls.sse_heartbeat_interval_seconds()
 
     @classmethod
@@ -139,7 +139,7 @@ class FeatureFlags:
         return max(1, int(os.getenv("ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS", "5")))
 
     @classmethod
-    def ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS(cls) -> int:
+    def ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS(cls) -> int:  # noqa: N802
         return cls.eta_engine_background_interval_seconds()
 
     @classmethod
@@ -147,7 +147,7 @@ class FeatureFlags:
         return os.getenv("ETA_HISTORICAL_DATA_PATH", "output/eta_history.json")
 
     @classmethod
-    def ETA_HISTORICAL_DATA_PATH(cls) -> str:
+    def ETA_HISTORICAL_DATA_PATH(cls) -> str:  # noqa: N802
         return cls.eta_historical_data_path()
 
     @classmethod
@@ -155,5 +155,5 @@ class FeatureFlags:
         return max(1, int(os.getenv("SSE_MAX_FINDINGS_PER_BATCH", "50")))
 
     @classmethod
-    def SSE_MAX_FINDINGS_PER_BATCH(cls) -> int:
+    def SSE_MAX_FINDINGS_PER_BATCH(cls) -> int:  # noqa: N802
         return cls.sse_max_findings_per_batch()

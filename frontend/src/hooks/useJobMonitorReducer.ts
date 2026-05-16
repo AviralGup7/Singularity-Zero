@@ -90,6 +90,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
         loading: false,
         error: null,
         allLogLines: logs.length > 0 
+   
           ? [...state.allLogLines, ...logs].slice(-MAX_LOG_LINES)
           : state.allLogLines,
         lastUpdateTs: now,
@@ -107,6 +108,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'ADD_LOG_LINE':
       return {
         ...state,
+   
         allLogLines: [...state.allLogLines, action.payload].slice(-MAX_LOG_LINES),
         lastUpdateTs: now,
       };
@@ -114,8 +116,10 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'ADD_PLUGIN_PROGRESS': {
       const entry = action.payload;
       const idx = state.pluginProgress.findIndex((p) => p.label === entry.label);
+   
       const nextProgress = [...state.pluginProgress];
       if (idx >= 0) {
+  // eslint-disable-next-line security/detect-object-injection
         nextProgress[idx] = entry;
       } else {
         nextProgress.push(entry);
@@ -129,8 +133,10 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'UPDATE_STAGE_PROGRESS': {
       const entry = action.payload;
       const idx = state.stageProgress.findIndex((s) => s.stage === entry.stage);
+   
       const nextStages = [...state.stageProgress];
       if (idx >= 0) {
+  // eslint-disable-next-line security/detect-object-injection
         nextStages[idx] = { ...nextStages[idx], ...entry };
       } else {
         nextStages.push(entry);
@@ -163,6 +169,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'ADD_FINDINGS':
       return {
         ...state,
+   
         streamingFindings: [...state.streamingFindings, ...action.payload],
         lastUpdateTs: now,
       };

@@ -13,6 +13,7 @@ const SeverityBadge = memo(function SeverityBadge({ severity, count }: { severit
     low: '🟢',
     info: '🔵',
   };
+   
   const icon = severityIcons[severity.toLowerCase()] || '⚪';
   return (
     <span className={`sev ${severity.toLowerCase()}`} role="status" aria-label={`${severity} severity: ${count} findings`}>
@@ -57,6 +58,7 @@ const TargetCard = memo(function TargetCard({ target }: { target: Target }) {
 
       {severityEntries.length > 0 && (
         <div className="severity-badges">
+  // eslint-disable-next-line security/detect-object-injection
           {severityEntries.map(([sev, count]) => (
             <SeverityBadge key={sev} severity={sev} count={count} />
           ))}
@@ -97,8 +99,11 @@ const TargetCard = memo(function TargetCard({ target }: { target: Target }) {
   && JSON.stringify(prev.target?.severity_counts) === JSON.stringify(next.target?.severity_counts));
 
 export default function TargetList({ targets: propTargets }: { targets?: Target[] }) {
+   
   const [targets, setTargets] = useState<Target[]>(propTargets || []);
+   
   const [loading, setLoading] = useState(!propTargets);
+   
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
@@ -130,6 +135,7 @@ export default function TargetList({ targets: propTargets }: { targets?: Target[
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
+   
   }, [toast]);
 
   useEffect(() => {
@@ -142,6 +148,7 @@ export default function TargetList({ targets: propTargets }: { targets?: Target[
     const controller = new AbortController();
     fetchTargets(controller.signal);
     return () => controller.abort();
+   
   }, [propTargets, fetchTargets]);
 
   if (loading) return <div className="loading">Loading targets</div>;

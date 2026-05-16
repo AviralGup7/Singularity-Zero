@@ -25,11 +25,15 @@ export function WebVitalsDashboard() {
     const rating = value !== null ? getRating(name, value) : null;
     const color =
       rating === 'good'
+   
         ? 'text-[var(--ok)]'
         : rating === 'needs-improvement'
+   
           ? 'text-[var(--warn)]'
           : rating === 'poor'
+   
             ? 'text-[var(--bad)]'
+   
             : 'text-[var(--muted)]';
 
     return (

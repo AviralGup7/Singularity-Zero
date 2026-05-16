@@ -23,18 +23,24 @@ export function sanitizeContent(html: string): string {
  */
 export function sanitizeRichContent(html: string): string {
   const sanitized = DOMPurify.sanitize(html, {
+   
     ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'code', 'pre', 'br', 'p', 'ul', 'ol', 'li', 'a', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'],
+   
     ALLOWED_ATTR: ['href', 'rel', 'title', 'class'],
     ALLOW_DATA_ATTR: false,
+   
     ADD_ATTR: ['target'],
+   
     ADD_TAGS: ['kbd'],
   });
 
   // FIX: Post-process to enforce rel="noopener noreferrer" on _blank links
   // This is done after sanitization since DOMPurify's hook API isn't typed
   return sanitized.replace(
+   
     /<a\s+([^>]*?)target="_blank"([^>]*?)>/gi,
     (match, before, after) => {
+   
       if (!/rel=["'][^"']*noopener[^"']*["']/i.test(match) && !/rel=["'][^"']*noreferrer[^"']*["']/i.test(match)) {
         return `<a ${before}rel="noopener noreferrer" target="_blank"${after}>`;
       }
@@ -49,12 +55,17 @@ export function sanitizeRichContent(html: string): string {
  */
 export function isPotentiallyMalicious(content: string): boolean {
   const xssPatterns = [
+   
     /<script[\s>]/i,
     /javascript\s*:/i,
     /on\w+\s*=/i,
+   
     /<iframe[\s>]/i,
+   
     /<object[\s>]/i,
+   
     /<embed[\s>]/i,
+   
     /<svg[\s>].*on/i,
     /eval\s*\(/i,
     /document\s*\.\s*cookie/i,

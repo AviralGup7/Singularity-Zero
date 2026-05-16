@@ -123,6 +123,7 @@ describe('calculateHealthScore', () => {
 
 describe('getPageNumbers', () => {
   it('returns all pages when total is small', () => {
+   
     expect(getPageNumbers(1, 5)).toEqual([1, 2, 3, 4, 5]);
   });
 
@@ -138,19 +139,24 @@ describe('getPageNumbers', () => {
 
   it('handles first page', () => {
     const result = getPageNumbers(1, 10);
+   
     expect(result[0]).toBe(1);
     expect(result).toContain('...');
+   
     expect(result[result.length - 1]).toBe(10);
   });
 
   it('handles last page', () => {
     const result = getPageNumbers(10, 10);
+   
     expect(result[0]).toBe(1);
     expect(result).toContain('...');
+   
     expect(result[result.length - 1]).toBe(10);
   });
 
   it('returns single page', () => {
+   
     expect(getPageNumbers(1, 1)).toEqual([1]);
   });
 });

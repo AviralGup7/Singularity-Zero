@@ -56,6 +56,7 @@ export function useAuditLogger(user = 'anonymous') {
   const userRef = useRef(user);
   useEffect(() => {
     userRef.current = user;
+   
   }, [user]);
 
   const log = useCallback(

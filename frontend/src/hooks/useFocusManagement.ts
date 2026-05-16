@@ -19,6 +19,7 @@ export function useFocusManagement() {
   }, []);
 
   const focusHeading = useCallback(() => {
+   
     const heading = document.querySelector<HTMLElement>('[data-focus-heading]')
       || document.querySelector<HTMLElement>('h1, h2');
     if (heading) {
@@ -29,11 +30,13 @@ export function useFocusManagement() {
     } else {
       focusMainContent();
     }
+   
   }, [focusMainContent]);
 
   return { focusMainContent, focusHeading, mainContentRef };
 }
 
+   
 export function useFocusOnRouteChange(selector = '[data-focus-heading], h1, h2') {
   const location = useLocation();
   const hasFocusRef = useRef(false);
@@ -55,6 +58,7 @@ export function useFocusOnRouteChange(selector = '[data-focus-heading], h1, h2')
     };
 
     runFocus();
+   
   }, [location.pathname, selector]);
 
   return hasFocusRef;
@@ -72,9 +76,12 @@ export function useFocusTrap(active: boolean, containerRef: React.RefObject<HTML
     if (!container) return;
 
     const focusable = container.querySelectorAll<HTMLElement>(
+   
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
+   
     const first = focusable[0];
+   
     const last = focusable[focusable.length - 1];
 
     const handleTab = (e: KeyboardEvent) => {
@@ -96,6 +103,7 @@ export function useFocusTrap(active: boolean, containerRef: React.RefObject<HTML
     container.addEventListener('keydown', handleTab);
 
     if (focusable.length > 0) {
+   
       setTimeout(() => focusable[0].focus(), 0);
     }
 
@@ -105,6 +113,7 @@ export function useFocusTrap(active: boolean, containerRef: React.RefObject<HTML
         previousFocusRef.current.focus();
       }
     };
+   
   }, [active, containerRef]);
 
   return previousFocusRef;

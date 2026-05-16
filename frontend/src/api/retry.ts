@@ -36,6 +36,7 @@ export function getRetryAfterMs(error: unknown): number | null {
   const response =
     (error as { response?: { headers?: Record<string, string> } })?.response ??
     (error as { original?: { response?: { headers?: Record<string, string> } } })?.original?.response;
+   
   const retryAfter = response?.headers?.['retry-after'] ?? response?.headers?.['Retry-After'];
   if (retryAfter) {
     const seconds = parseInt(retryAfter, 10);

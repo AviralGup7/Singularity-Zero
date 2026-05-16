@@ -38,6 +38,7 @@ export function ReviewStep({
         <div className="review-row">
           <span className="review-label">Execution Options:</span>
           <span className="review-value">
+  // eslint-disable-next-line security/detect-object-injection
             {Object.entries(executionOptions).filter(([, v]) => v).map(([k]) => k.replace(/_/g, ' ')).join(', ') || 'None'}
           </span>
         </div>

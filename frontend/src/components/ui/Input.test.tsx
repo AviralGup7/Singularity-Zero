@@ -24,6 +24,7 @@ describe('Input', () => {
 
   it('shows required indicator when required', () => {
     render(<Input id="test" label="Required" required />);
+   
     expect(screen.getByText('*', { selector: 'span' })).toHaveClass('text-[var(--bad)]');
   });
 
@@ -35,6 +36,7 @@ describe('Input', () => {
 
   it('applies error styling', () => {
     render(<Input id="test" error="Error" />);
+   
     expect(screen.getByRole('textbox')).toHaveClass('border-[var(--bad)]');
   });
 

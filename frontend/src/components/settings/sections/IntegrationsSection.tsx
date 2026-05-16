@@ -17,7 +17,9 @@ interface IntegrationsSectionProps {
 }
 
 export function IntegrationsSection({ webhookUrl, webhookOnJobComplete, webhookOnCriticalFinding, emailNotifications, emailRecipient, slackWebhook, onWebhookUrlChange, onWebhookOnJobCompleteChange, onWebhookOnCriticalFindingChange, onEmailNotificationsChange, onEmailRecipientChange, onSlackWebhookChange }: IntegrationsSectionProps) {
+   
   const [showWebhookUrl, setShowWebhookUrl] = useState(false);
+   
   const [showSlackWebhook, setShowSlackWebhook] = useState(false);
 
   return (

@@ -7,6 +7,7 @@ interface RouteGuardProps {
   children: ReactNode;
   requiredRole?: UserRole;
   /** Require a specific permission (e.g., 'manageSettings', 'exportData') */
+   
   requiredPermission?: keyof ReturnType<typeof useAuth>['permissions'];
 }
 

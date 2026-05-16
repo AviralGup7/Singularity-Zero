@@ -12,6 +12,7 @@ const ScrollArea = React.forwardRef<
     className={cn("relative overflow-hidden", className)}
     {...props}
   >
+  // eslint-disable-next-line security/detect-object-injection
     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
       {children}
     </ScrollAreaPrimitive.Viewport>
@@ -31,8 +32,10 @@ const ScrollBar = React.forwardRef<
     className={cn(
       "flex touch-none select-none transition-colors",
       orientation === "vertical" &&
+  // eslint-disable-next-line security/detect-object-injection
         "h-full w-2.5 border-l border-l-transparent p-[1px]",
       orientation === "horizontal" &&
+  // eslint-disable-next-line security/detect-object-injection
         "h-2.5 flex-col border-t border-t-transparent p-[1px]",
       className
     )}

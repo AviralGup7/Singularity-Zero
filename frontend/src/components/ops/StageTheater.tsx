@@ -12,42 +12,77 @@ interface StageTheaterProps {
   className?: string;
 }
 
+   
 const TREE_LEVELS: string[][] = [
+   
   ['startup'],
+   
   ['subdomains'],
+   
   ['live_hosts'],
+   
   ['urls'],
+   
   ['recon_validation'],
+   
   ['parameters'],
+   
   ['ranking'],
+   
   ['passive_scan'],
+   
   ['active_scan', 'semgrep', 'nuclei', 'access_control'],
+   
   ['validation'],
+   
   ['intelligence'],
+   
   ['reporting'],
 ];
 
+   
 const TREE_EDGES: Array<[string, string]> = [
+   
   ['startup', 'subdomains'],
+   
   ['subdomains', 'live_hosts'],
+   
   ['live_hosts', 'urls'],
+   
   ['urls', 'recon_validation'],
+   
   ['recon_validation', 'parameters'],
+   
   ['parameters', 'ranking'],
+   
   ['ranking', 'passive_scan'],
+   
   ['passive_scan', 'active_scan'],
+   
   ['passive_scan', 'semgrep'],
+   
   ['passive_scan', 'nuclei'],
+   
   ['passive_scan', 'access_control'],
+   
   ['active_scan', 'validation'],
+   
   ['passive_scan', 'validation'],
+   
   ['active_scan', 'intelligence'],
+   
   ['nuclei', 'intelligence'],
+   
   ['validation', 'intelligence'],
+   
   ['passive_scan', 'intelligence'],
+   
   ['validation', 'reporting'],
+   
   ['access_control', 'reporting'],
+   
   ['nuclei', 'reporting'],
+   
   ['intelligence', 'reporting'],
 ];
 
@@ -70,11 +105,17 @@ const STAGE_ACTIVITY_LABELS: Record<string, string> = {
 };
 
 const AMBIENT_LOG_LINES = [
+   
   '[INFO] scanning host batch...',
+   
   '[PASSIVE] collecting endpoints...',
+   
   '[FLOW] stage graph synchronized',
+   
   '[QUEUE] retry monitor online',
+   
   '[TRACE] telemetry stream active',
+   
   '[STATE] processing node transitions',
 ];
 
@@ -101,10 +142,13 @@ export function StageTheater({ nodes, className }: StageTheaterProps) {
   const stageTheaterStyle = useMemo(() => ({
     '--stage-theater-height': `${dimensions.height}px`,
     '--stage-theater-min-width': `${dimensions.width}px`,
+   
   } as CSSProperties), [dimensions.height, dimensions.width]);
 
   const positionedNodes = useMemo(() => {
+   
     const ordered = [...nodes];
+   
     const nodeById = new Map(ordered.map((node) => [node.id, node]));
     const levelCount = Math.max(TREE_LEVELS.length, 1);
     const laneHeight = levelCount > 1
@@ -145,19 +189,26 @@ export function StageTheater({ nodes, className }: StageTheaterProps) {
     }
 
     return layoutNodes.sort((a, b) => a.level - b.level || a.order - b.order);
+   
   }, [nodes, dimensions.height, dimensions.paddingX, dimensions.paddingY, dimensions.width]);
 
   const links = useMemo(() => {
+   
     const connector = linkVertical<{ source: [number, number]; target: [number, number] }, [number, number]>()
+   
       .x((point) => point[0])
+   
       .y((point) => point[1]);
+   
     const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
 
     return TREE_EDGES
+   
       .map(([sourceId, targetId]) => {
         const source = nodeById.get(sourceId);
         const target = nodeById.get(targetId);
         if (!source || !target) return null;
+   
         const d = connector({ source: [source.x, source.y], target: [target.x, target.y] }) ?? '';
         return {
           id: `${sourceId}-${targetId}`,
@@ -167,15 +218,18 @@ export function StageTheater({ nodes, className }: StageTheaterProps) {
         };
       })
       .filter((edge): edge is { id: string; d: string; isFlowing: boolean; hasFailure: boolean } => edge !== null);
+   
   }, [positionedNodes]);
 
   const focusNodeId = useMemo(() => {
     const running = positionedNodes.filter((node) => node.status === 'running');
     if (running.length > 0) {
+   
       return [...running].sort((a, b) => b.percent - a.percent)[0].id;
     }
     const errored = positionedNodes.find((node) => node.status === 'error');
     return errored?.id ?? null;
+   
   }, [positionedNodes]);
 
   return (
@@ -229,6 +283,7 @@ export function StageTheater({ nodes, className }: StageTheaterProps) {
                   className="stage-theater-edge stage-theater-edge--active"
                   stroke={link.hasFailure ? 'var(--bad, #ff5568)' : 'var(--accent, #37f6ff)'}
                   initial={{ pathLength: 0, opacity: 0.4 }}
+   
                   animate={{ pathLength: 1, opacity: [0.5, 1, 0.5], strokeDashoffset: [0, -36] }}
                   transition={{
                     duration: Math.max(0.55, 1.35 - visualState.flow * 0.65),
@@ -267,6 +322,7 @@ export function StageTheater({ nodes, className }: StageTheaterProps) {
         ))}
 
         {positionedNodes.map((node) => {
+   
           const color = NODE_COLORS[node.status];
           const isRunning = node.status === 'running';
           const isFocused = focusNodeId === node.id;
@@ -295,8 +351,10 @@ export function StageTheater({ nodes, className }: StageTheaterProps) {
                 strokeWidth={isFocused ? 3.4 : isRunning ? 2.8 : 1.8}
                 animate={
                   isRunning
+   
                     ? { scale: [1, 1.12, 1], opacity: [0.6, 1, 0.6] }
                     : node.status === 'error'
+   
                       ? { opacity: [0.85, 1, 0.85] }
                       : undefined
                 }
@@ -339,6 +397,7 @@ export function StageTheater({ nodes, className }: StageTheaterProps) {
                   fill="transparent"
                   stroke={color}
                   strokeWidth={1.2}
+   
                   animate={{ scale: [0.9, 1.25], opacity: [0.8, 0] }}
                   transition={{
                     duration: Math.max(0.5, 1.2 - visualState.flow * 0.5),
@@ -356,6 +415,7 @@ export function StageTheater({ nodes, className }: StageTheaterProps) {
                   fill="transparent"
                   stroke={color}
                   strokeWidth={1.3}
+   
                   animate={{ scale: [0.9, 1.34], opacity: [0.52, 0] }}
                   transition={{
                     duration: Math.max(0.62, 1.15 - visualState.intensity * 0.35),
@@ -442,7 +502,7 @@ function resolveNodeVisualAnimation(
 function resolveNodeTransition(
   mode: 'idle' | 'active' | 'unstable' | 'critical',
   visualState: VisualState
-): any {
+): unknown {
   if (mode === 'critical') {
     return {
       duration: Math.max(0.18, 0.34 - visualState.urgency * 0.12),
@@ -468,6 +528,7 @@ function resolveNodeTransition(
 
 function formatStageStatus(node: StageTheaterNode): string {
   const activity = Object.prototype.hasOwnProperty.call(STAGE_ACTIVITY_LABELS, node.id)
+   
     ? STAGE_ACTIVITY_LABELS[node.id]
     : 'PROCESSING';
   if (node.status === 'running') {

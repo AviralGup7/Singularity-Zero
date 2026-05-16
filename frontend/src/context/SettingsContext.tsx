@@ -13,14 +13,18 @@ const defaultSettings: AppSettings = AppSettingsSchema.parse({});
 function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
   const result: Record<string, unknown> = { ...target };
   for (const key of Object.keys(source)) {
+   
     const sourceVal = source[key as keyof T];
+   
     const targetVal = target[key as keyof T];
 
     if (sourceVal !== undefined) {
       if (sourceVal !== null && typeof sourceVal === 'object' && !Array.isArray(sourceVal) &&
           targetVal !== null && typeof targetVal === 'object' && !Array.isArray(targetVal)) {
+   
         Object.assign(result, { [key]: deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>) });
       } else {
+   
         Object.assign(result, { [key]: sourceVal });
       }
     }
@@ -32,6 +36,7 @@ const STORAGE_KEY = 'cyber-pipeline-settings';
 const DEBOUNCE_MS = 300;
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+   
   const [settings, setSettings] = useState<AppSettings>(() => {
     const stored = safeStorage.get(STORAGE_KEY);
     if (stored) {
@@ -49,21 +54,27 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useDebouncedPersist(settings, persistSettings, DEBOUNCE_MS);
 
+   
   const updateSection = useCallback(<T extends keyof AppSettings>(section: T, partial: Partial<AppSettings[T]>) => {
     setSettings(prev => {
       const entries = Object.entries(prev as Record<string, unknown>);
+   
       const found = entries.find(([k]) => k === (section as string));
+   
       const existingSection = found ? found[1] : undefined;
       if (existingSection !== null && existingSection !== undefined && typeof existingSection === 'object' && !Array.isArray(existingSection)) {
         const merged = deepMerge(existingSection as Record<string, unknown>, partial as Record<string, unknown>);
+   
         return { ...prev, [section]: merged };
       }
+   
       return { ...prev, [section]: partial as AppSettings[T] };
     });
   }, []);
 
   const resetToDefaults = useCallback(() => setSettings(defaultSettings), []);
 
+   
   const exportSettings = useCallback((): string => JSON.stringify(settings, null, 2), [settings]);
 
   const importSettings = useCallback((newSettings: Partial<AppSettings>) => {
@@ -81,13 +92,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const profile = { id, name, settings: { ...settings }, createdAt: new Date().toISOString() };
     setSettings(prev => ({
       ...prev,
+   
       profiles: { ...prev.profiles, savedProfiles: [...prev.profiles.savedProfiles, profile], activeProfileId: id },
     }));
+   
   }, [settings]);
 
   const loadProfile = useCallback((id: string) => {
     const profile = settings.profiles.savedProfiles.find(p => p.id === id);
     if (profile) setSettings(prev => ({ ...prev, ...profile.settings, profiles: { ...prev.profiles, activeProfileId: id } }));
+   
   }, [settings.profiles.savedProfiles]);
 
   const deleteProfile = useCallback((id: string) => {
@@ -104,8 +118,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const updater = useMemo(() => ({
     updateSection, resetToDefaults, exportSettings, importSettings,
     saveProfile, loadProfile, deleteProfile, setActiveProfile
+   
   }), [updateSection, resetToDefaults, exportSettings, importSettings, saveProfile, loadProfile, deleteProfile, setActiveProfile]);
 
+   
   const contextValue = useMemo(() => ({ settings, updater }), [settings, updater]);
 
   return (

@@ -28,6 +28,7 @@ export function useRiskHistory(filters: RiskHistoryFilters) {
       if (filters.endDate && day > filters.endDate) return false;
       return true;
     });
+   
   }, [history.data, filters.endDate, filters.startDate, filters.targetIds]);
 
   return {
@@ -39,6 +40,7 @@ export function useRiskHistory(filters: RiskHistoryFilters) {
   };
 }
 
+   
 export function buildRiskDateColumns(history: RiskHistoryEntry[]): string[] {
   return Array.from(new Set(history.map((entry) => toDay(entry.timestamp)))).sort();
 }

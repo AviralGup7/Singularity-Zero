@@ -6,8 +6,11 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function usePWA() {
+   
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+   
   const [isInstallable, setIsInstallable] = useState(false);
+   
   const [isInstalled, setIsInstalled] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.matchMedia('(display-mode: standalone)').matches;
@@ -59,6 +62,7 @@ export function usePWA() {
     }
     setDeferredPrompt(null);
     return outcome === 'accepted';
+   
   }, [deferredPrompt]);
 
   return { isInstallable, isInstalled, install };

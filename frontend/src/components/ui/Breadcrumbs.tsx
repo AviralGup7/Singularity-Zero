@@ -28,6 +28,7 @@ export interface BreadcrumbsProps {
 export function Breadcrumbs({ items, className, homeHref = '/', showHome = true }: BreadcrumbsProps) {
   if (items.length === 0 && !showHome) return null;
 
+   
   const allItems: BreadcrumbItem[] = [];
   if (showHome) allItems.push({ label: 'Home', href: homeHref });
   allItems.push(...items);
@@ -36,6 +37,7 @@ export function Breadcrumbs({ items, className, homeHref = '/', showHome = true 
   const lastIndex = allItems.length - 1;
 
   return (
+   
     <Breadcrumb className={cn('font-mono text-[length:var(--text-sm)]', className)}>
       <BreadcrumbList>
         {allItems.map((item, i) => (

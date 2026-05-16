@@ -21,9 +21,12 @@ export function FocusTrap({ active, children, onDeactivate }: FocusTrapProps) {
       if (e.key !== 'Tab' || !containerRef.current) return;
 
       const focusable = containerRef.current.querySelectorAll<HTMLElement>(
+   
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
+   
       const first = focusable[0];
+   
       const last = focusable[focusable.length - 1];
 
       if (!first || !last) return;
@@ -40,6 +43,7 @@ export function FocusTrap({ active, children, onDeactivate }: FocusTrapProps) {
         }
       }
     },
+   
     [onDeactivate]
   );
 
@@ -51,9 +55,11 @@ export function FocusTrap({ active, children, onDeactivate }: FocusTrapProps) {
     const container = containerRef.current;
     if (container) {
       const focusable = container.querySelectorAll<HTMLElement>(
+   
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
       if (focusable.length > 0) {
+   
         setTimeout(() => focusable[0].focus(), 0);
       }
     }
@@ -65,6 +71,7 @@ export function FocusTrap({ active, children, onDeactivate }: FocusTrapProps) {
         previousFocusRef.current.focus();
       }
     };
+   
   }, [active, handleKeyDown]);
 
   if (!active) return null;

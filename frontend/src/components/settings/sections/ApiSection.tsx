@@ -19,6 +19,7 @@ interface ApiSectionProps {
 }
 
 export function ApiSection({ apiBaseUrl, apiTimeout, apiKey, onApiBaseUrlChange, onApiTimeoutChange, onApiKeyChange }: ApiSectionProps) {
+   
   const [showApiKey, setShowApiKey] = useState(false);
 
   return (

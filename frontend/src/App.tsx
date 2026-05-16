@@ -34,6 +34,7 @@ function RouteWatcher() {
   const location = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
+   
   }, [location.pathname]);
   return null;
 }
@@ -52,6 +53,7 @@ export default function App() {
         if (res.timestamp) syncServerTime(res.timestamp);
       })
       .catch(() => {
+   
         console.warn('[SYSTEM] Initial telemetry sync failed. Backend may be offline.');
       });
   }, []);

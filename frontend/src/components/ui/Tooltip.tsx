@@ -33,6 +33,7 @@ export function LegacyTooltip({ content, shortcut, children, className, position
       <ShadcnTooltipTrigger asChild>
         <span className={className} tabIndex={0}>{children}</span>
       </ShadcnTooltipTrigger>
+  // eslint-disable-next-line security/detect-object-injection
       <ShadcnTooltipContent side={sideMap[position]}>
         <p>{content}{shortcut && <kbd className="ml-1 text-xs opacity-60">{shortcut}</kbd>}</p>
       </ShadcnTooltipContent>

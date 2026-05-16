@@ -24,6 +24,7 @@ export function CinematicIntro({ className, children }: CinematicIntroProps) {
         const gsap = (mod as any).gsap ?? (mod as any).default;
         const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
         tl.fromTo(
+   
           containerRef.current.querySelectorAll('[data-cinematic]'),
           { opacity: 0, y: strategy.distance, filter: 'blur(10px)' },
           {
@@ -42,6 +43,7 @@ export function CinematicIntro({ className, children }: CinematicIntroProps) {
       cancelled = true;
       cleanup?.();
     };
+   
   }, [policy.allowGsap, strategy.distance, strategy.duration, strategy.stagger]);
 
   return (

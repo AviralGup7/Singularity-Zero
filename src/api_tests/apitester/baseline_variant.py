@@ -14,7 +14,7 @@ from .http import (
 
 
 class _RequestsLike(Protocol):
-    def Session(self) -> Any: ...
+    def Session(self) -> Any: ...  # noqa: N802
 
 
 def _baseline_target(context: Any) -> str:

@@ -6,8 +6,11 @@ interface LiveAnnouncerProps {
 }
 
 export function LiveAnnouncer({ children }: LiveAnnouncerProps) {
+   
   const [assertiveMessage, setAssertiveMessage] = useState('');
+   
   const [politeMessage, setPoliteMessage] = useState('');
+   
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const announceAssertive = useCallback((message: string) => {

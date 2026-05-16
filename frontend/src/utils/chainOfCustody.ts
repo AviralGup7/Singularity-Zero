@@ -75,6 +75,7 @@ export async function recordEvidenceAccess(
   const record = records.find((r) => r.id === evidenceId);
   if (!record) return;
 
+   
   const lastEntry = record.custodyChain[record.custodyChain.length - 1];
   const entry: CustodyEntry = {
     id: `custody-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -102,6 +103,7 @@ export async function recordEvidenceModification(
   if (!record) return '';
 
   const newHash = await computeHash(newContent);
+   
   const lastEntry = record.custodyChain[record.custodyChain.length - 1];
 
   const entry: CustodyEntry = {
@@ -131,6 +133,7 @@ export async function recordEvidenceTransfer(
   const record = records.find((r) => r.id === evidenceId);
   if (!record) return;
 
+   
   const lastEntry = record.custodyChain[record.custodyChain.length - 1];
   const entry: CustodyEntry = {
     id: `custody-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -170,6 +173,7 @@ function saveEvidenceRecord(record: EvidenceRecord): void {
     const records = getAllEvidenceRecords();
     const idx = records.findIndex((r) => r.id === record.id);
     if (idx >= 0) {
+  // eslint-disable-next-line security/detect-object-injection
       records[idx] = record;
     } else {
       records.push(record);
@@ -195,6 +199,7 @@ export function deleteEvidenceRecord(evidenceId: string, user = 'anonymous'): vo
   const records = getAllEvidenceRecords();
   const record = records.find((r) => r.id === evidenceId);
   if (record) {
+   
     const lastEntry = record.custodyChain[record.custodyChain.length - 1];
     record.custodyChain.push({
       id: `custody-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

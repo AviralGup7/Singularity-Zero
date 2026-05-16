@@ -16,29 +16,34 @@ const TOUR_STEPS: TourStep[] = [
   {
     title: 'Dashboard',
     description: 'Get an overview of your security posture, active jobs, and findings at a glance.',
+   
     target: '[data-tour="dashboard"]',
   },
   {
     title: 'Targets',
     description: 'Manage your scan targets and view findings organized by target.',
+   
     target: '[data-tour="targets"]',
     path: '/targets',
   },
   {
     title: 'Jobs',
     description: 'Monitor running scans, view job details, and manage pipeline execution.',
+   
     target: '[data-tour="jobs"]',
     path: '/jobs',
   },
   {
     title: 'Findings',
     description: 'Review, filter, and manage security findings across all targets.',
+   
     target: '[data-tour="findings"]',
     path: '/findings',
   },
   {
     title: 'Settings',
     description: 'Customize themes, display options, notifications, and more.',
+   
     target: '[data-tour="settings"]',
     path: '/settings',
   },
@@ -48,7 +53,9 @@ const STORAGE_KEY = 'cyber-pipeline-onboarding-complete';
 
 function useOnboardingTour() {
   const { display } = useDisplay();
+   
   const [active, setActive] = useState(false);
+   
   const [currentStep, setCurrentStep] = useState(0);
   const initialized = useRef(false);
 
@@ -62,10 +69,12 @@ function useOnboardingTour() {
         setActive(true);
       });
     }
+   
   }, [display.reduceMotion]);
 
   const next = useCallback(() => {
     if (currentStep < TOUR_STEPS.length - 1) {
+   
       const step = TOUR_STEPS[currentStep + 1];
       setCurrentStep(s => s + 1);
       if (step.path && window.location.pathname !== step.path) {
@@ -75,6 +84,7 @@ function useOnboardingTour() {
       setActive(false);
       localStorage.setItem(STORAGE_KEY, 'true');
     }
+   
   }, [currentStep]);
 
   const skip = useCallback(() => {
@@ -86,6 +96,7 @@ function useOnboardingTour() {
     if (currentStep > 0) {
       setCurrentStep(s => s - 1);
     }
+   
   }, [currentStep]);
 
   return {
@@ -120,7 +131,7 @@ export function OnboardingTour() {
       tabIndex={0}
       aria-label="Close tour overlay"
     >
-      <div className="onboarding-card" onClick={e => e.stopPropagation()} role="document" tabIndex={-1}>
+      <div className="onboarding-card" onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={e => e.stopPropagation()} role="document" tabIndex={-1}>
         <div className="onboarding-header">
           <h3 className="onboarding-title">{step.title}</h3>
           <button className="onboarding-skip" onClick={skip}>Skip</button>
