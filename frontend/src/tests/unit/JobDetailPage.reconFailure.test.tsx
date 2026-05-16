@@ -47,7 +47,7 @@ vi.mock('../../hooks/useJobMonitor', () => ({
 import { JobDetailPage } from '../../pages/JobDetailPage';
 
 describe('JobDetailPage recon failure surfacing', () => {
-  it('renders persistent recon failure card with stage and reason code', () => {
+  it('renders persistent recon failure card with stage and reason code', async () => {
     useJobMonitorMock.mockReturnValue({
       job: {
         id: 'job-1',
@@ -121,7 +121,7 @@ describe('JobDetailPage recon failure surfacing', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders recon failure card for recon_validation failed stage', () => {
+  it('renders recon failure card for recon_validation failed stage', async () => {
     useJobMonitorMock.mockReturnValue({
       job: {
         id: 'job-2',
@@ -177,13 +177,15 @@ describe('JobDetailPage recon failure surfacing', () => {
       clearSseError: vi.fn(),
     });
 
-    render(
-      <MemoryRouter initialEntries={['/jobs/job-2']}>
-        <Routes>
-          <Route path="/jobs/:jobId" element={<JobDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    );
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/jobs/job-2']}>
+          <Routes>
+            <Route path="/jobs/:jobId" element={<JobDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+    });
 
     expect(screen.getByRole('heading', { name: /Recon Failure/i })).toBeInTheDocument();
     expect(screen.getByText('recon_validation')).toBeInTheDocument();
