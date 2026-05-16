@@ -119,7 +119,8 @@ class ResponseValidationMiddleware(BaseHTTPMiddleware):
         try:
             body_bytes = b""
             if hasattr(response, "body"):
-                body_bytes = response.body
+                body_val = response.body
+                body_bytes = body_val if isinstance(body_val, bytes) else bytes(body_val)
             elif hasattr(response, "content"):
                 if isinstance(response.content, bytes):
                     body_bytes = response.content
