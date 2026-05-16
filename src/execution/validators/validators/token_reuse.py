@@ -142,7 +142,7 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
         base_confidence = 0.50
         if token_type == "jwt":
             base_confidence += 0.15  # JWTs are more likely to be replayable
-        elif token_type == "api_key":
+        elif token_type == "api_key":  # nosec: S105
             base_confidence += 0.10  # API keys often have broad scope
         elif token_type == "session_id":
             base_confidence += 0.05  # Session IDs should be single-use

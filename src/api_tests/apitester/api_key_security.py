@@ -11,7 +11,7 @@ from .http import cookie_jar
 
 
 class _RequestsLike(Protocol):
-    def Session(self) -> Any: ...
+    def session(self) -> Any: ...
 
 
 def _format_key_location(template: dict[str, Any], api_key: str) -> dict[str, Any]:

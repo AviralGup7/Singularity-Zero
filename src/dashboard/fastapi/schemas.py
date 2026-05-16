@@ -618,7 +618,7 @@ class TokenResponse(BaseModel):
     """Short-lived dashboard token response."""
 
     access_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # nosec: S105
     expires_in: int
     role: str
 

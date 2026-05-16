@@ -4,7 +4,6 @@ This avoids invoking pytest (which in this workspace enforces coverage
 settings) and provides a quick, local verification of the helper.
 """
 
-from typing import Any
 from src.recon.collectors.aggregator import metrics_summary
 
 

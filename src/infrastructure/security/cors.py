@@ -20,8 +20,8 @@ Usage:
 """
 
 import re
-
 from typing import Any, cast
+
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response

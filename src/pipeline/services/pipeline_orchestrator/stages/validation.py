@@ -58,7 +58,6 @@ async def run_validation(
 
     emit_progress("validation", "Running validation checks", 92)
 
-    from typing import Any
     validation_summary: dict[str, Any] = {
         "results": {},
         "errors": [],

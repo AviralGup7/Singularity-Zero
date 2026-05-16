@@ -101,8 +101,8 @@ class TestTaskEnvelopeExclusivity:
             "All distributed queue.put/enqueue calls must use TaskEnvelope.\n"
             + "\n".join(violations)
             + f"\n\nFound {len(queue_call_locations)} total queue call sites "
-            + f"({len([l for l in queue_call_locations if any(i in l[1] for i in INTERNAL_QUEUE_FILES)])} internal, "
-            + f"{len([l for l in queue_call_locations if not any(i in l[1] for i in INTERNAL_QUEUE_FILES)]) - 1} distributed)."
+            + f"({len([loc for loc in queue_call_locations if any(i in loc[1] for i in INTERNAL_QUEUE_FILES)])} internal, "
+            + f"{len([loc for loc in queue_call_locations if not any(i in loc[1] for i in INTERNAL_QUEUE_FILES)]) - 1} distributed)."
         )
 
     def test_task_envelope_has_required_fields(self) -> None:

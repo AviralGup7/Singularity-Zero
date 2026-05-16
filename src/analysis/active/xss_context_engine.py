@@ -442,8 +442,6 @@ def _generate_waf_evasion_payloads(vectors: dict[int, set[str]]) -> None:
     ]
     for payload in evasion:
         vectors[5].add(payload)
-from typing import Any, Literal, TypedDict, cast
-import re
 
 class WafSignature(TypedDict):
     name: str

@@ -25,10 +25,13 @@ else:
             def from_file(engine: Any, path: str) -> Any: pass
         class Store:
             def __init__(self, engine: Any) -> None: pass
-            def set_wasi(self, config: Any) -> None: pass
-        class WasiConfig: pass
+            def set_wasi(self, config: Any) -> None:
+                pass
+        class WasiConfig:
+            pass
         class Memory:
-            def write(self, store: Any, ptr: int, data: bytes) -> None: pass
+            def write(self, store: Any, ptr: int, data: bytes) -> None:
+                pass
             def read(self, store: Any, start: int, end: int) -> bytes: return b""
         class Func:
             def __call__(self, *args: Any) -> Any: pass

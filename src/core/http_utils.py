@@ -174,7 +174,7 @@ def _error_response(error: str, url: str = "", exc: Exception | None = None) -> 
         try:
             status = getattr(exc.response, "status_code", 0)
             headers = dict(getattr(exc.response, "headers", {}))
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     return {

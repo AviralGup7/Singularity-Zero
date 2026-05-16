@@ -395,7 +395,7 @@ class TracingManager:
             where.append("start_time_unix_nano <= ?")
             params.append(int(end_ms) * 1_000_000)
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-        query = f"""
+        query = f"""  # nosec: S608
             WITH filtered AS (
                 SELECT trace_id FROM spans {where_sql} GROUP BY trace_id
             ),

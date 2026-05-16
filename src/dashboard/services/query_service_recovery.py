@@ -457,7 +457,7 @@ def reconcile_stale_terminal_job(
                 else:
                     process_returncode = int(polled)
                     job["returncode"] = process_returncode
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     if not is_terminal_reporting_state_fn(job):
@@ -571,7 +571,7 @@ def reconcile_stale_terminal_job(
                 terminate = getattr(existing_process, "terminate", None)
                 if callable(terminate):
                     terminate()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         job["process"] = None
         job["updated_at"] = now
@@ -588,7 +588,7 @@ def reconcile_stale_terminal_job(
                 terminate = getattr(process, "terminate", None)
                 if callable(terminate):
                     terminate()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     job["process"] = None

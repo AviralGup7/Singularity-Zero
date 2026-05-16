@@ -136,7 +136,7 @@ def token_scope_analyzer(responses: list[dict[str, Any]], limit: int = 60) -> li
                     decoded = base64.urlsafe_b64decode(header)
                     header_obj = json.loads(decoded)
                     jwt_alg_hint = str(header_obj.get("alg", ""))
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: S110, BLE001
                     pass
 
         admin_scope_hint = any("admin" in field for field in granted) or privilege_score >= 3

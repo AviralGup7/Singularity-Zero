@@ -455,7 +455,7 @@ class TestStorageValidation:
                 assert result["writable"] is False
                 assert len(result["errors"]) > 0
         finally:
-            os.chmod(str(output_dir), 0o755)
+            os.chmod(str(output_dir), 0o755)  # nosec: S103
 
     def test_preflight_storage_check_fails_on_readonly(self, tmp_path: Path) -> None:
         output_dir = tmp_path / "readonly"
@@ -465,7 +465,7 @@ class TestStorageValidation:
             if os.name != "nt":
                 assert preflight_storage_check(output_dir) is False
         finally:
-            os.chmod(str(output_dir), 0o755)
+            os.chmod(str(output_dir), 0o755)  # nosec: S103
 
     def test_validate_storage_warns_on_low_space(self, tmp_path: Path) -> None:
         huge = 10**18

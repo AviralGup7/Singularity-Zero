@@ -688,7 +688,7 @@ class JobQueue:
                         try:
                             w_info = WorkerInfo.from_redis_hash(w_data)
                             self.scheduler.update_worker(w_id, w_info)
-                        except Exception:
+                        except Exception:  # noqa: S112
                             continue
         except Exception as exc:
             logger.warning("Failed to load global worker context for scheduling: %s", exc)

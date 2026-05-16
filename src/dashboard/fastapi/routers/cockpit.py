@@ -133,7 +133,8 @@ async def get_cockpit_graph(
             urls = urls_path.read_text(encoding="utf-8").splitlines()
             for url in urls[:200]:  # Limit for MVP performance
                 url = url.strip()
-                if not url: continue
+                if not url:
+                    continue
                 node_id = f"url:{url}"
                 if node_id not in seen_nodes:
                     nodes.append({
@@ -395,4 +396,6 @@ async def trigger_cockpit_probe(
         "exchange_id": str(result.get("exchange_id", "")),
         "status_code": int(result.get("status_code", 0)),
         "url": str(result.get("url", ""))
+    })
+et("url", ""))
     })

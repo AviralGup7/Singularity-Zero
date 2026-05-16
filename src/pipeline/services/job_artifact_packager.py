@@ -239,7 +239,7 @@ class JobArtifactPackager:
             commit_hash = hash_result.stdout.strip()[:12]
 
             status_result = subprocess.run(
-                ["git", "status", "--porcelain"],
+                ["git", "status", "--porcelain"],  # nosec: S607
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -313,7 +313,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    scope = [l.strip() for l in scope_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    scope = [line.strip() for line in scope_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
     archive_path = packager.package_snapshot(
         packager.capture_snapshot(

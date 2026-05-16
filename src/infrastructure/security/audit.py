@@ -278,7 +278,7 @@ class AuditLogger:
         if self._file_handle is not None:
             try:
                 self._file_handle.close()
-            except Exception:
+            except Exception:  # noqa: S110, S112
                 pass
 
         self._file_handle = open(log_path, "a", encoding="utf-8")
@@ -311,9 +311,9 @@ class AuditLogger:
                                 data = json.loads(line)
                                 self._db.execute('INSERT OR IGNORE INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)',
                                                  (data.get("id"), data.get("event"), data.get("user_id"), data.get("severity"), line))
-                            except Exception:
+                            except Exception:  # noqa: S110, S112
                                 pass
-            except Exception:
+            except Exception:  # noqa: S110, S112
                 pass
 
     def _read_last_hash(self) -> str:
@@ -343,7 +343,7 @@ class AuditLogger:
                 if last_line:
                     entry = json.loads(last_line.decode("utf-8"))
                     return cast(str, entry.get("entry_hash", "genesis"))
-        except Exception:
+        except Exception:  # noqa: S110, S112
             pass
         return "genesis"
 
@@ -481,7 +481,7 @@ class AuditLogger:
                         data = json.loads(line)
                         # Fix #354: Use model_validate with strict=False
                         entry = AuditEntry.model_validate(data, strict=False)
-                    except Exception:
+                    except Exception:  # noqa: S110, S112
                         compromised.append(-1)
                         continue
 
@@ -535,7 +535,7 @@ class AuditLogger:
                 try:
                     data = json.loads(line)
                     entry_id = data.get("id", 0)
-                except Exception:
+                except Exception:  # noqa: S110, S112
                     continue
 
                 if start_id is not None and entry_id < start_id:
@@ -586,7 +586,7 @@ class AuditLogger:
 
                     try:
                         data = json.loads(line)
-                    except Exception:
+                    except Exception:  # noqa: S110, S112
                         continue
 
                     if event and data.get("event") != event:

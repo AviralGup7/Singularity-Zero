@@ -161,7 +161,7 @@ def _sqlite_overview(
             conn.close()
 
         hit_ratio: float | None = None
-        from typing import cast, Any
+        from typing import Any, cast
         metrics: dict[str, Any] = cast(dict[str, Any], getattr(cache_manager, "get_metrics_snapshot", lambda: {})())
         hits = int(metrics.get("hits", 0) or 0)
         misses = int(metrics.get("misses", 0) or 0)

@@ -187,7 +187,7 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         return {
             "status": status,
@@ -358,7 +358,7 @@ def email_header_injection_probe(
                         url,
                         headers={"Cache-Control": "no-cache", "X-Email-Probe": "baseline"},
                     )
-                except Exception:
+                except Exception:  # noqa: S110
                     baseline_resp = None
             if baseline_resp is None:
                 baseline_resp = _safe_request(url)
@@ -382,7 +382,7 @@ def email_header_injection_probe(
                             test_url,
                             headers={"Cache-Control": "no-cache", "X-Email-Probe": payload_name},
                         )
-                    except Exception:
+                    except Exception:  # noqa: S110
                         probe_resp = None
                 if probe_resp is None:
                     probe_resp = _safe_request(test_url)
@@ -465,7 +465,7 @@ def email_header_injection_probe(
                                 "X-Email-Probe": "reflection-test",
                             },
                         )
-                    except Exception:
+                    except Exception:  # noqa: S110
                         probe_resp = None
                 if probe_resp is None:
                     probe_resp = _safe_request(test_url)

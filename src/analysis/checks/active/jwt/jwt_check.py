@@ -94,7 +94,7 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         return {
             "status": status,
@@ -294,7 +294,7 @@ def jwt_security_analyzer(
         if response_cache is not None:
             try:
                 resp = response_cache.get(url)
-            except Exception:
+            except Exception:  # noqa: S110
                 logger.warning("Cache lookup failed for %s", url)
                 pass
 

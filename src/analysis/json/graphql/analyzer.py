@@ -7,14 +7,15 @@ batch/alias testing, mutation exposure checks, and vulnerability analysis.
 import logging
 from typing import Any
 
-from .schema_parser import (
-    detect_graphql_endpoints,
-)
 from src.analysis.json.graphql_introspection import (
     test_batch_aliasing,
     test_introspection,
     test_mutation_exposure,
     test_query_depth,
+)
+
+from .schema_parser import (
+    detect_graphql_endpoints,
 )
 from .vulnerability_checker import (
     build_summary,

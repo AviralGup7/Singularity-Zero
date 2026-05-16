@@ -175,7 +175,7 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         return {
             "status": status,
@@ -283,7 +283,7 @@ def mass_assignment_detector(
         if response_cache is not None:
             try:
                 resp = response_cache.get(url)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         if not _is_json_endpoint(url, resp):
             continue

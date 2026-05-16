@@ -54,7 +54,7 @@ def load_plugin_artifact(run_dir: Path, plugin_key: str) -> list[dict[str, Any]]
             continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: S112, BLE001
             continue
         if isinstance(payload, list):
             return payload

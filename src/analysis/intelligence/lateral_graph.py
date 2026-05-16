@@ -6,7 +6,7 @@ Links findings and assets into attack chains using the Kuzu graph database.
 from __future__ import annotations
 
 import os
-from typing import Any, cast, Optional
+from typing import Any, cast
 
 try:
     import kuzu
@@ -55,7 +55,7 @@ class LateralGraph:
             self._conn.execute("CREATE REL TABLE BELONGS_TO(FROM Asset TO Asset)")
             self._conn.execute("CREATE REL TABLE HAS_VULN(FROM Asset TO Finding)")
             self._conn.execute("CREATE REL TABLE PIVOTS_TO(FROM Finding TO Asset)")
-        except Exception:
+        except Exception:  # noqa: S110
             # Schema already exists
             pass
 

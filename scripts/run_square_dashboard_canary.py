@@ -7,10 +7,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
 from src.dashboard.configuration import default_mode_name, default_module_names, load_template
 from src.dashboard.launcher_forensics import (
     SQUARE_REFERENCE_JOB_ID,
@@ -19,6 +15,10 @@ from src.dashboard.launcher_forensics import (
     compare_launcher_replay_manifests,
 )
 from src.dashboard.services import DashboardServices
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 
 def _default_output_root(workspace_root: Path) -> Path:

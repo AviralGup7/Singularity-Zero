@@ -6,7 +6,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any, Optional, TypedDict, cast
+from typing import Any, TypedDict, cast
 
 from src.core.checkpoint import (
     StageCheckpointGuard,
@@ -609,4 +609,4 @@ def find_previous_run(target_root: Path) -> Path | None:
     """Find the previous run directory for trend analysis."""
     from src.reporting import find_previous_run as _find_previous_run
 
-    return cast(Optional[Path], _find_previous_run(target_root))
+    return cast(Path | None, _find_previous_run(target_root))

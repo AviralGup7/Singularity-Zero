@@ -270,7 +270,7 @@ def fetch_banner(host: str, port: int, timeout: int) -> str:
             sock.settimeout(timeout)
             try:
                 sock.sendall(b"\r\n")
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: S110, BLE001
                 pass
             return sock.recv(256).decode("utf-8", errors="replace").strip()
     except Exception:  # noqa: BLE001

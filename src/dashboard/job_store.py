@@ -88,7 +88,7 @@ class JobStore:
         if hasattr(self._local, "_conn") and self._local._conn is not None:
             try:
                 self._local._conn.close()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
             self._local._conn = None
 
@@ -114,7 +114,7 @@ class JobStore:
                     ),
                 )
                 conn.commit()
-            except Exception:
+            except Exception:  # noqa: S110
                 logger.exception("Failed to save job %s", job.get("id"))
                 conn.rollback()
 
@@ -132,7 +132,7 @@ class JobStore:
                     except (json.JSONDecodeError, KeyError):
                         continue
                 return result
-            except Exception:
+            except Exception:  # noqa: S110
                 logger.exception("Failed to load jobs")
                 return {}
 
@@ -153,7 +153,7 @@ class JobStore:
                     except (json.JSONDecodeError, KeyError):
                         continue
                 return result
-            except Exception:
+            except Exception:  # noqa: S110
                 logger.exception("Failed to load active jobs")
                 return {}
 
@@ -192,7 +192,7 @@ class JobStore:
                     except (json.JSONDecodeError, KeyError):
                         continue
                 conn.commit()
-            except Exception:
+            except Exception:  # noqa: S110
                 logger.exception("Failed to mark stale jobs")
                 conn.rollback()
         return len(stale_ids)
@@ -209,7 +209,7 @@ class JobStore:
                 )
                 conn.commit()
                 return cursor.rowcount
-            except Exception:
+            except Exception:  # noqa: S110
                 logger.exception("Failed to clean up old jobs")
                 conn.rollback()
                 return 0

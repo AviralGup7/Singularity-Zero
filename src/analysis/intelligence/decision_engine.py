@@ -399,8 +399,8 @@ def classify_finding(
     original_status = int(diff.get("original_status", 0) or 0)
 
     # Status codes that indicate blocking (WAF, rate limit)
-    BLOCK_STATUS_CODES = {403, 406, 418, 429}
-    original_was_blocked = original_status in BLOCK_STATUS_CODES
+    block_status_codes = {403, 406, 418, 429}
+    original_was_blocked = original_status in block_status_codes
 
     if mutated_status:
         is_fp, fp_category = _is_likely_false_positive(

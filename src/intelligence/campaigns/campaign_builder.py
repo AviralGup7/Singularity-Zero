@@ -156,15 +156,24 @@ def _infer_mitre_tactic(node: dict[str, Any]) -> str | None:
     category = str(node.get("category", "")).lower()
     role = node.get("role", "")
 
-    if "recon" in category: return "Reconnaissance"
-    if "subdomain" in category: return "Reconnaissance"
-    if "exploit" in category: return "Initial Access"
-    if "entry" in role: return "Initial Access"
-    if "ssrf" in category: return "Initial Access"
-    if "lateral" in category: return "Lateral Movement"
-    if "credential" in category or "key" in category: return "Credential Access"
-    if "sensitive_data" in category: return "Exfiltration"
-    if "impact" in role: return "Impact"
+    if "recon" in category:
+        return "Reconnaissance"
+    if "subdomain" in category:
+        return "Reconnaissance"
+    if "exploit" in category:
+        return "Initial Access"
+    if "entry" in role:
+        return "Initial Access"
+    if "ssrf" in category:
+        return "Initial Access"
+    if "lateral" in category:
+        return "Lateral Movement"
+    if "credential" in category or "key" in category:
+        return "Credential Access"
+    if "sensitive_data" in category:
+        return "Exfiltration"
+    if "impact" in role:
+        return "Impact"
 
     return None
 

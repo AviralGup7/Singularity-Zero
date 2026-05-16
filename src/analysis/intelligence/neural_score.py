@@ -65,10 +65,14 @@ class NeuralScorer:
             finding["csi_score"] = self.calculate_csi(finding, criticality)
 
             # Map back to human severity based on CSI
-            if finding["csi_score"] >= 9.0: finding["severity"] = "critical"
-            elif finding["csi_score"] >= 7.0: finding["severity"] = "high"
-            elif finding["csi_score"] >= 4.0: finding["severity"] = "medium"
-            else: finding["severity"] = "low"
+            if finding["csi_score"] >= 9.0:
+                finding["severity"] = "critical"
+            elif finding["csi_score"] >= 7.0:
+                finding["severity"] = "high"
+            elif finding["csi_score"] >= 4.0:
+                finding["severity"] = "medium"
+            else:
+                finding["severity"] = "low"
 
         return sorted(findings, key=lambda x: x["csi_score"], reverse=True)
 

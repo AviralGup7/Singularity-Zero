@@ -68,7 +68,7 @@ class _TaskRunner:
             if attempt < max_attempts:
                 delay = base_delay * (2 ** (attempt - 1))
                 jitter = delay * 0.1
-                delay_with_jitter = delay + random.uniform(-jitter, jitter)
+                delay_with_jitter = delay + random.uniform(-jitter, jitter)  # nosec: S311
                 logger.info(
                     "Task '%s' (attempt %d/%d) failed: %s. Retrying in %.1fs...",
                     self._task.name,

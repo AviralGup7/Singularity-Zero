@@ -47,7 +47,7 @@ class DashboardQueryService:
             return
         try:
             self.persist_callback(job)
-        except Exception:
+        except Exception:  # noqa: S110, S112
             # Reconciliation should never fail request handling.
             pass
 
@@ -309,7 +309,7 @@ class DashboardQueryService:
                 continue
             try:
                 summary = json.loads(summary_path.read_text(encoding="utf-8"))
-            except Exception:
+            except Exception:  # noqa: S110, S112
                 continue
 
             module_metrics = summary.get("module_metrics", {})
@@ -400,7 +400,7 @@ class DashboardQueryService:
                 try:
                     summary = json.loads(summary_path.read_text(encoding="utf-8"))
                     run_timestamp = summary.get("generated_at_utc", run_dir.name)
-                except Exception:
+                except Exception:  # noqa: S110, S112
                     run_timestamp = run_dir.name
 
             if not isinstance(findings, list):

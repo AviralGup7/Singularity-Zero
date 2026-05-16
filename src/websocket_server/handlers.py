@@ -11,9 +11,8 @@ dispatches outbound messages from the connection's message queue.
 """
 
 import asyncio
-import logging
 import uuid
-from typing import Any, cast
+from typing import cast
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 

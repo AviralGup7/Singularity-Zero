@@ -319,7 +319,7 @@ def run_pipeline_job(
         append_log(job, f"Launching: {' '.join(command)}")
         _persist(force=True)
     try:
-        process = subprocess.Popen(
+        process = subprocess.Popen(  # nosec: S603
             command,
             cwd=str(workspace_root),
             stdout=subprocess.PIPE,

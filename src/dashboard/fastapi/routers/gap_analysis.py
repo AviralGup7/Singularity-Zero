@@ -53,7 +53,8 @@ async def get_gap_analysis(
         # Mocking coverage for demonstration; in production, this queries the DB
         # for whether a module matching this category has been executed.
         covered = total if cat_id in ["xss", "ssrf", "misconfiguration"] else total - 1
-        if cat_id in ["ai_surface", "race_condition"]: covered = 0
+        if cat_id in ["ai_surface", "race_condition"]:
+            covered = 0
 
         percent = int((covered / total) * 100)
         status = "complete" if percent == 100 else "partial" if percent > 0 else "missing"

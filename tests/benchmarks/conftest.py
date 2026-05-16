@@ -103,7 +103,7 @@ async def job_queue(redis_client):
         try:
             for key in redis_client.client.scan_iter("queue:benchmark_test:*"):
                 redis_client.client.delete(key)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
 
