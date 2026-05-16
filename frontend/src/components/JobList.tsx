@@ -39,13 +39,14 @@ const STAGE_ALIASES: Record<string, string> = {
 function normalizeStageName(stageName?: string): string | undefined {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return undefined;
-  return STAGE_ALIASES[normalized] ?? normalized;
+  return (Reflect.get(STAGE_ALIASES, normalized) as string | undefined) ?? normalized;
 }
 
 function stageName(stageLabel?: string, stage?: string): string {
   const normalizedStage = normalizeStageName(stage);
   if (stageLabel) return stageLabel;
-  if (normalizedStage && STAGE_LABELS[normalizedStage]) return STAGE_LABELS[normalizedStage];
+  const stageLabelValue = normalizedStage ? (Reflect.get(STAGE_LABELS, normalizedStage) as string | undefined) : undefined;
+  if (normalizedStage && stageLabelValue) return stageLabelValue;
   return normalizedStage || 'Unknown stage';
 }
 

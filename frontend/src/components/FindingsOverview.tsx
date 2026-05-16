@@ -52,6 +52,13 @@ export default function FindingsOverview() {
     navigate(`/findings?severity=${sev}`);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      action();
+    }
+  };
+
   if (loading) return <div className="h-48 flex items-center justify-center text-xs uppercase tracking-widest text-muted animate-pulse">Initializing Data Stream...</div>;
   if (error) return <div className="p-4 bg-bad/10 border border-bad/20 rounded-lg text-bad text-xs font-mono">{error}</div>;
   if (!summary || !metrics) return null;
@@ -63,6 +70,9 @@ export default function FindingsOverview() {
         <div 
           className="glass-panel p-6 rounded-2xl relative overflow-hidden group cursor-pointer hover:border-accent/30 transition-all"
           onClick={() => navigate('/findings')}
+          onKeyDown={(e) => handleKeyDown(e, () => navigate('/findings'))}
+          role="button"
+          tabIndex={0}
         >
           <Shield className="absolute -right-4 -bottom-4 w-24 h-24 text-white/5 group-hover:text-white/10 transition-all" />
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
@@ -76,6 +86,9 @@ export default function FindingsOverview() {
         <div 
           className="glass-panel p-6 rounded-2xl relative overflow-hidden group cursor-pointer hover:border-accent/30 transition-all"
           onClick={() => navigate('/targets')}
+          onKeyDown={(e) => handleKeyDown(e, () => navigate('/targets'))}
+          role="button"
+          tabIndex={0}
         >
           <Target className="absolute -right-4 -bottom-4 w-24 h-24 text-white/5 group-hover:text-white/10 transition-all" />
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
@@ -89,6 +102,9 @@ export default function FindingsOverview() {
         <div 
           className={`glass-panel p-6 rounded-2xl border-l-4 border-l-accent ${metrics.glow} transition-all cursor-pointer hover:scale-[1.02]`}
           onClick={() => navigate('/risk-score')}
+          onKeyDown={(e) => handleKeyDown(e, () => navigate('/risk-score'))}
+          role="button"
+          tabIndex={0}
         >
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
             <Shield size={12} className="text-accent" /> Security Score
@@ -115,7 +131,7 @@ export default function FindingsOverview() {
         <h4 className="text-[10px] font-black text-muted uppercase tracking-[0.3em] mb-8">Severity Distribution Matrix</h4>
         <div className="flex items-end h-32 gap-4">
           {['critical', 'high', 'medium', 'low', 'info'].map(sev => {
-            const count = (summary.severity_totals?.[sev]) || 0;
+            const count = (summary.severity_totals ? (Reflect.get(summary.severity_totals, sev) as number) : 0) || 0;
             const maxCount = Math.max(...Object.values(summary.severity_totals || {}), 1);
             const height = (count / maxCount) * 100;
             const colors = {
@@ -130,9 +146,12 @@ export default function FindingsOverview() {
                 key={sev} 
                 className="flex-1 flex flex-col items-center gap-3 group cursor-pointer"
                 onClick={() => handleSeverityClick(sev)}
+                onKeyDown={(e) => handleKeyDown(e, () => handleSeverityClick(sev))}
+                role="button"
+                tabIndex={0}
               >
                 <div className="relative w-full flex flex-col justify-end h-full">
-                  <div className={`w-full rounded-t-lg transition-all duration-700 group-hover:scale-x-110 ${colors[sev as keyof typeof colors]}`} 
+                  <div className={`w-full rounded-t-lg transition-all duration-700 group-hover:scale-x-110 ${Reflect.get(colors, sev)}`} 
                        style={{ height: `${Math.max(5, height)}%` }}>
                     <div className="opacity-0 group-hover:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-white transition-opacity">
                       {count}

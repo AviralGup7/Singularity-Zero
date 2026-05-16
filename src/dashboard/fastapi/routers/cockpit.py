@@ -397,5 +397,3 @@ async def trigger_cockpit_probe(
         "status_code": int(result.get("status_code", 0)),
         "url": str(result.get("url", ""))
     })
-et("url", ""))
-    })

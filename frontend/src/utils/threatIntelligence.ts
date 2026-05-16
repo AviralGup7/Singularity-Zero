@@ -116,7 +116,7 @@ export async function lookupCWE(cweId: string): Promise<CWEInfo | null> {
 
   const cweInfo: CWEInfo = {
     id: cweId,
-    name: cweNames[cweId] || `Weakness ${cweId}`,
+    name: (Reflect.get(cweNames, cweId) as string) || `Weakness ${cweId}`,
     description: `See CWE database for full details on ${cweId}`,
     url: `https://cwe.mitre.org/data/definitions/${cweId.replace('CWE-', '')}.html`,
   };

@@ -3,68 +3,68 @@ import { cn } from '@/lib/utils';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import type { Finding } from '@/types/api';
 
-const CVSS_V3_LABELS: Record<string, string> = {
-  AV: 'Attack Vector',
-  AC: 'Attack Complexity',
-  PR: 'Privileges Required',
-  UI: 'User Interaction',
-  S: 'Scope',
-  C: 'Confidentiality',
-  I: 'Integrity',
-  A: 'Availability',
-};
+const CVSS_V3_LABELS = new Map<string, string>([
+  ['AV', 'Attack Vector'],
+  ['AC', 'Attack Complexity'],
+  ['PR', 'Privileges Required'],
+  ['UI', 'User Interaction'],
+  ['S', 'Scope'],
+  ['C', 'Confidentiality'],
+  ['I', 'Integrity'],
+  ['A', 'Availability'],
+]);
 
-const CVSS_V3_VALUES: Record<string, Record<string, string>> = {
-  AV: { N: 'Network', A: 'Adjacent', L: 'Local', P: 'Physical' },
-  AC: { L: 'Low', H: 'High' },
-  PR: { N: 'None', L: 'Low', H: 'High' },
-  UI: { N: 'None', R: 'Required' },
-  S: { U: 'Unchanged', C: 'Changed' },
-  C: { N: 'None', L: 'Low', H: 'High' },
-  I: { N: 'None', L: 'Low', H: 'High' },
-  A: { N: 'None', L: 'Low', H: 'High' },
-};
+const CVSS_V3_VALUES = new Map<string, Map<string, string>>([
+  ['AV', new Map([['N', 'Network'], ['A', 'Adjacent'], ['L', 'Local'], ['P', 'Physical']])],
+  ['AC', new Map([['L', 'Low'], ['H', 'High']])],
+  ['PR', new Map([['N', 'None'], ['L', 'Low'], ['H', 'High']])],
+  ['UI', new Map([['N', 'None'], ['R', 'Required']])],
+  ['S', new Map([['U', 'Unchanged'], ['C', 'Changed']])],
+  ['C', new Map([['N', 'None'], ['L', 'Low'], ['H', 'High']])],
+  ['I', new Map([['N', 'None'], ['L', 'Low'], ['H', 'High']])],
+  ['A', new Map([['N', 'None'], ['L', 'Low'], ['H', 'High']])],
+]);
 
-const CVSS_V4_LABELS: Record<string, string> = {
-  AV: 'Attack Vector',
-  AC: 'Attack Complexity',
-  AT: 'Attack Requirements',
-  PR: 'Privileges Required',
-  UI: 'User Interaction',
-  VC: 'Vuln Confidentiality',
-  VI: 'Vuln Integrity',
-  VA: 'Vuln Availability',
-  SC: 'Sub Confidentiality',
-  SI: 'Sub Integrity',
-  SA: 'Sub Availability',
-};
+const CVSS_V4_LABELS = new Map<string, string>([
+  ['AV', 'Attack Vector'],
+  ['AC', 'Attack Complexity'],
+  ['AT', 'Attack Requirements'],
+  ['PR', 'Privileges Required'],
+  ['UI', 'User Interaction'],
+  ['VC', 'Vuln Confidentiality'],
+  ['VI', 'Vuln Integrity'],
+  ['VA', 'Vuln Availability'],
+  ['SC', 'Sub Confidentiality'],
+  ['SI', 'Sub Integrity'],
+  ['SA', 'Sub Availability'],
+]);
 
-const CVSS_V4_VALUES: Record<string, Record<string, string>> = {
-  AV: { N: 'Network', A: 'Adjacent', L: 'Local', P: 'Physical' },
-  AC: { L: 'Low', H: 'High' },
-  AT: { N: 'None', P: 'Present' },
-  PR: { N: 'None', L: 'Low', H: 'High' },
-  UI: { N: 'None', P: 'Passive', A: 'Active' },
-  VC: { H: 'High', L: 'Low', N: 'None' },
-  VI: { H: 'High', L: 'Low', N: 'None' },
-  VA: { H: 'High', L: 'Low', N: 'None' },
-  SC: { H: 'High', L: 'Low', N: 'None' },
-  SI: { H: 'High', L: 'Low', N: 'None' },
-  SA: { H: 'High', L: 'Low', N: 'None' },
-};
+const CVSS_V4_VALUES = new Map<string, Map<string, string>>([
+  ['AV', new Map([['N', 'Network'], ['A', 'Adjacent'], ['L', 'Local'], ['P', 'Physical']])],
+  ['AC', new Map([['L', 'Low'], ['H', 'High']])],
+  ['AT', new Map([['N', 'None'], ['P', 'Present']])],
+  ['PR', new Map([['N', 'None'], ['L', 'Low'], ['H', 'High']])],
+  ['UI', new Map([['N', 'None'], ['P', 'Passive'], ['A', 'Active']])],
+  ['VC', new Map([['H', 'High'], ['L', 'Low'], ['N', 'None']])],
+  ['VI', new Map([['H', 'High'], ['L', 'Low'], ['N', 'None']])],
+  ['VA', new Map([['H', 'High'], ['L', 'Low'], ['N', 'None']])],
+  ['SC', new Map([['H', 'High'], ['L', 'Low'], ['N', 'None']])],
+  ['SI', new Map([['H', 'High'], ['L', 'Low'], ['N', 'None']])],
+  ['SA', new Map([['H', 'High'], ['L', 'Low'], ['N', 'None']])],
+]);
 
 const ENV_VALUES = ['N', 'L', 'M', 'H'] as const;
-const ENV_LABELS: Record<string, string> = {
-  CR: 'Confidentiality Requirement',
-  IR: 'Integrity Requirement',
-  AR: 'Availability Requirement',
-};
-const ENV_VALUE_LABELS: Record<string, string> = {
-  N: 'Low',
-  L: 'Low',
-  M: 'Medium',
-  H: 'High',
-};
+const ENV_LABELS = new Map<string, string>([
+  ['CR', 'Confidentiality Requirement'],
+  ['IR', 'Integrity Requirement'],
+  ['AR', 'Availability Requirement'],
+]);
+const ENV_VALUE_LABELS = new Map<string, string>([
+  ['N', 'Low'],
+  ['L', 'Low'],
+  ['M', 'Medium'],
+  ['H', 'High'],
+]);
 
 function getSeverityColor(score: number): string {
   if (score >= 9.0) return 'critical';
@@ -82,44 +82,52 @@ function getSeverityLabel(score: number): string {
   return 'None';
 }
 
-function parseVectorV3(vector: string): Record<string, string> {
+function parseVectorV3(vector: string): Map<string, string> {
   const parts = vector.replace(/^CVSS:3\.1\//, '').split('/');
-  const result: Record<string, string> = {};
+  const result = new Map<string, string>();
   for (const part of parts) {
     const [key, value] = part.split(':');
-    if (key && value && /^[A-Z]+$/.test(key)) result[key] = value;
+    if (key && value && /^[A-Z]+$/.test(key)) {
+      result.set(key, value);
+    }
   }
   return result;
 }
 
-function parseVectorV4(vector: string): Record<string, string> {
+function parseVectorV4(vector: string): Map<string, string> {
   const parts = vector.replace(/^CVSS:4\.0\//, '').split('/');
-  const result: Record<string, string> = {};
+  const result = new Map<string, string>();
   for (const part of parts) {
     const [key, value] = part.split(':');
-    if (key && value && /^[A-Z]+$/.test(key)) result[key] = value;
+    if (key && value && /^[A-Z]+$/.test(key)) {
+      result.set(key, value);
+    }
   }
   return result;
 }
 
 function calculateEnvironmentalScore(
   baseScore: number,
-  metrics: Record<string, string>,
-  envSettings: Record<string, string>
+  metrics: Map<string, string>,
+  envSettings: Map<string, string>
 ): number {
-  const cr = envSettings.CR || 'H';
-  const ir = envSettings.IR || 'H';
-  const ar = envSettings.AR || 'H';
-  const c = metrics.C || 'N';
-  const i = metrics.I || 'N';
-  const a = metrics.A || 'N';
-  const s = metrics.S || 'U';
+  const cr = envSettings.get('CR') ?? 'H';
+  const ir = envSettings.get('IR') ?? 'H';
+  const ar = envSettings.get('AR') ?? 'H';
+  const c = metrics.get('C') ?? 'N';
+  const i = metrics.get('I') ?? 'N';
+  const a = metrics.get('A') ?? 'N';
+  const s = metrics.get('S') ?? 'U';
 
-  const envWeight: Record<string, number> = { N: 0, L: 0.1, M: 0.5, H: 1 };
-  const impactWeight: Record<string, number> = { N: 0, L: 0.22, H: 0.56 };
+  const envWeight = new Map<string, number>([
+    ['N', 0], ['L', 0.1], ['M', 0.5], ['H', 1],
+  ]);
+  const impactWeight = new Map<string, number>([
+    ['N', 0], ['L', 0.22], ['H', 0.56],
+  ]);
 
-  const getWeight = (weightMap: Record<string, number>, key: string, fallback: number): number => {
-    return Object.prototype.hasOwnProperty.call(weightMap, key) ? weightMap[key] : fallback;
+  const getWeight = (weightMap: Map<string, number>, key: string, fallback: number): number => {
+    return weightMap.get(key) ?? fallback;
   };
 
   const eImpact =
@@ -147,8 +155,11 @@ interface MetricBarProps {
 }
 
 const MetricBar = memo(function MetricBar({ label, value, valueLabel, metricKey }: MetricBarProps) {
-  const levelMap: Record<string, number> = { N: 0, L: 1, M: 2, H: 3, None: 0, Low: 1, Medium: 2, High: 3 };
-  const level = Object.prototype.hasOwnProperty.call(levelMap, value) ? levelMap[value] : 0;
+  const levelMap = new Map<string, number>([
+    ['N', 0], ['L', 1], ['M', 2], ['H', 3],
+    ['None', 0], ['Low', 1], ['Medium', 2], ['High', 3],
+  ]);
+  const level = levelMap.get(value) ?? 0;
   const barWidth = `${((level + 1) / 4) * 100}%`;
   const barColor =
     level >= 3 ? 'var(--severity-critical)' :
@@ -208,11 +219,9 @@ export interface CVSSDetailProps {
 
 export function CVSSDetail({ finding, className }: CVSSDetailProps) {
   const [activeTab, setActiveTab] = useState<'v3' | 'v4' | 'environmental'>('v3');
-  const [envSettings, setEnvSettings] = useState<Record<string, string>>({
-    CR: 'H',
-    IR: 'H',
-    AR: 'H',
-  });
+  const [envSettings, setEnvSettings] = useState<Map<string, string>>(
+    () => new Map([['CR', 'H'], ['IR', 'H'], ['AR', 'H']])
+  );
 
   const v3Metrics = useMemo(() => {
     if (!finding.cvss_vector) return null;
@@ -230,7 +239,11 @@ export function CVSSDetail({ finding, className }: CVSSDetailProps) {
   }, [finding.cvss_score, v3Metrics, envSettings]);
 
   const handleEnvChange = useCallback((key: string, value: string) => {
-    setEnvSettings(prev => ({ ...prev, [key]: value }));
+    setEnvSettings(prev => {
+      const next = new Map(prev);
+      next.set(key, value);
+      return next;
+    });
   }, []);
 
   const hasV3 = finding.cvss_score !== undefined && finding.cvss_vector !== undefined;
@@ -300,9 +313,10 @@ export function CVSSDetail({ finding, className }: CVSSDetailProps) {
         {activeTab === 'v3' && v3Metrics && (
           <div className="cvss-v3-panel">
             <div className="cvss-metrics-grid">
-              {Object.entries(CVSS_V3_LABELS).map(([key, label]) => {
-                const value = v3Metrics[key] || 'N';
-                const valueLabel = CVSS_V3_VALUES[key]?.[value] || value;
+              {Array.from(CVSS_V3_LABELS.entries()).map(([key, label]) => {
+                const value = v3Metrics.get(key) ?? 'N';
+                const metricsValues = CVSS_V3_VALUES.get(key);
+                const valueLabel = metricsValues?.get(value) ?? value;
                 return (
                   <MetricBar
                     key={key}
@@ -336,9 +350,10 @@ export function CVSSDetail({ finding, className }: CVSSDetailProps) {
               <code>{finding.cvss_v4_vector}</code>
             </div>
             <div className="cvss-metrics-grid">
-              {Object.entries(CVSS_V4_LABELS).map(([key, label]) => {
-                const value = v4Metrics[key] || 'N';
-                const valueLabel = CVSS_V4_VALUES[key]?.[value] || value;
+              {Array.from(CVSS_V4_LABELS.entries()).map(([key, label]) => {
+                const value = v4Metrics.get(key) ?? 'N';
+                const metricsValues = CVSS_V4_VALUES.get(key);
+                const valueLabel = metricsValues?.get(value) ?? value;
                 return (
                   <MetricBar
                     key={key}
@@ -360,17 +375,17 @@ export function CVSSDetail({ finding, className }: CVSSDetailProps) {
               <p className="cvss-env-desc">
                 Adjust security requirements based on your environment to recalculate the score.
               </p>
-              {ENV_LABELS && Object.entries({ CR: 'Confidentiality Requirement', IR: 'Integrity Requirement', AR: 'Availability Requirement' }).map(([key, label]) => (
+              {Array.from(ENV_LABELS.entries()).map(([key, label]) => (
                 <div key={key} className="cvss-env-control">
                   <label>{label}</label>
                   <div className="cvss-env-options">
                     {ENV_VALUES.map(val => (
                       <button
                         key={val}
-                        className={cn('cvss-env-btn', envSettings[key] === val && 'active')}
+                        className={cn('cvss-env-btn', envSettings.get(key) === val && 'active')}
                         onClick={() => handleEnvChange(key, val)}
                       >
-                        {ENV_VALUE_LABELS[val]}
+                        {ENV_VALUE_LABELS.get(val) ?? val}
                       </button>
                     ))}
                   </div>

@@ -152,7 +152,7 @@ class NotificationDigest {
 
     for (const item of items) {
       if (item.severity && Object.prototype.hasOwnProperty.call(counts, item.severity)) {
-        counts[item.severity]++;
+        Reflect.set(counts, item.severity, (Reflect.get(counts, item.severity) as number) + 1);
       }
     }
 
@@ -169,7 +169,7 @@ class NotificationDigest {
     ];
 
     for (const level of priority) {
-      if (counts[level] > 0) {
+      if ((Reflect.get(counts, level) as number) > 0) {
         return level;
       }
     }
