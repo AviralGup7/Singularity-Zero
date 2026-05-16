@@ -42,6 +42,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from typing import TypedDict
 
 from .xss_constants import (
     _EVENT_HANDLERS,

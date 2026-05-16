@@ -9,7 +9,9 @@ import json
 import time
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Generic, TypeVar
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -49,7 +51,7 @@ class LWWElement:
     timestamp: float = field(default_factory=time.time)
     deleted: bool = False
 
-class LWWset[T]:
+class LWWset(Generic[T]):
     """
     A Last-Write-Wins Element Set CRDT.
     Ensures that multiple workers adding/removing items eventually converge.

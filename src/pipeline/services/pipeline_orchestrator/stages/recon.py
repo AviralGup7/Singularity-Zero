@@ -15,6 +15,7 @@ from src.pipeline.runner_support import (
 from src.pipeline.services.pipeline_helpers import (
     build_stage_input_from_context,
 )
+from src.pipeline.services.services import recon_service
 from src.pipeline.services.services.recon_service import (
     run_live_hosts_service,
     run_parameter_extraction_stage,
@@ -28,6 +29,8 @@ from src.recon.urls import collect_urls
 
 # Test seams
 enumerate_subdomains = enumerate_subdomains
+_DEFAULT_PROBE_LIVE_HOSTS = probe_live_hosts
+_DEFAULT_COLLECT_URLS = collect_urls
 
 
 def _record_recon_failure(
@@ -159,7 +162,12 @@ async def run_live_hosts(
         if stage_input is None:
             stage_input = build_stage_input_from_context("live_hosts", config, ctx)
 
-        prober = partial(probe_live_hosts, config=config)
+        prober_func = (
+            recon_service.probe_live_hosts
+            if probe_live_hosts is _DEFAULT_PROBE_LIVE_HOSTS
+            else probe_live_hosts
+        )
+        prober = partial(prober_func, config=config)
 
         async def enricher_wrapper(
             records: list[dict[str, Any]], context: Any
@@ -248,9 +256,12 @@ async def run_url_collection(
         if stage_input is None:
             stage_input = build_stage_input_from_context("urls", config, ctx)
 
-        collector = partial(
-            collect_urls, scope_entries=list(ctx.scope_entries), config=config
+        collector_func = (
+            recon_service.collect_urls
+            if collect_urls is _DEFAULT_COLLECT_URLS
+            else collect_urls
         )
+        collector = partial(collector_func, scope_entries=list(ctx.scope_entries), config=config)
 
         stage_output = await run_url_collection_service(
             stage_input,

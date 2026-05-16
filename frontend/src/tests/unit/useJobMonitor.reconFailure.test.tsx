@@ -1,6 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ToastProvider } from '../../components/Toast';
 
 let sseEventHandler: ((event: Record<string, unknown>) => void) | undefined;
 
@@ -38,10 +37,11 @@ vi.mock('../../hooks/useSSEProgress', () => ({
   },
 }));
 
-vi.mock('../../components/Toast', () => ({
+vi.mock('../../hooks/useToast', () => ({
   useToast: () => ({
     success: vi.fn(),
     error: vi.fn(),
+    warn: vi.fn(),
     warning: vi.fn(),
     info: vi.fn(),
   }),
@@ -86,9 +86,7 @@ describe('useJobMonitor recon failure terminal handling', () => {
   });
 
   it('keeps sseError after completed event with failed status', async () => {
-    const { result } = renderHook(() => useJobMonitor('job-1'), {
-      wrapper: ({ children }: { children: React.ReactNode }) => <ToastProvider>{children}</ToastProvider>,
-    });
+    const { result } = renderHook(() => useJobMonitor('job-1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(sseEventHandler).toBeTypeOf('function');
@@ -119,9 +117,7 @@ describe('useJobMonitor recon failure terminal handling', () => {
   });
 
   it('does not clear sseError after completed event with stopped status', async () => {
-    const { result } = renderHook(() => useJobMonitor('job-1'), {
-      wrapper: ({ children }: { children: React.ReactNode }) => <ToastProvider>{children}</ToastProvider>,
-    });
+    const { result } = renderHook(() => useJobMonitor('job-1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(sseEventHandler).toBeTypeOf('function');
