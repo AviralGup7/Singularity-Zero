@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, cast
+from typing import Any, TYPE_CHECKING, cast
 
-try:
+if TYPE_CHECKING:
     from beartype import beartype
-except ModuleNotFoundError:
-    def beartype(func: Any) -> Any:  # type: ignore[no-redef]
-        return func
+else:
+    try:
+        from beartype import beartype
+    except ModuleNotFoundError:
+        def beartype(func: Any) -> Any:
+            return func
 
 from src.core.contracts.capabilities import (
     EnrichmentProviderProtocol,
@@ -146,8 +149,6 @@ async def run_live_hosts_service(
         )
 
 @beartype
-@beartype
-@beartype
 async def run_subdomain_enumeration_service(
     stage_input: StageInput,
     *,
@@ -257,8 +258,6 @@ async def run_subdomain_enumeration_service(
         )
 
 @beartype
-@beartype
-@beartype
 async def run_parameter_extraction_stage(stage_input: StageInput) -> StageOutput:
     """Service entry point for parameter extraction with strict type guards."""
     started = time.monotonic()
@@ -310,8 +309,6 @@ async def run_parameter_extraction_stage(stage_input: StageInput) -> StageOutput
             },
         )
 
-@beartype
-@beartype
 @beartype
 async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
     """Service entry point for priority ranking with strict type guards."""
