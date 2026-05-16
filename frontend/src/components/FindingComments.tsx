@@ -20,13 +20,26 @@ const TEAM_MEMBERS = [
   'Admin',
 ];
 
+function findMentionRanges(text: string, members: string[]): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  const lower = text.toLowerCase();
+  for (const member of members) {
+    const needle = `@${member.toLowerCase()}`;
+    let idx = lower.indexOf(needle);
+    while (idx >= 0) {
+      ranges.push({ start: idx, end: idx + needle.length });
+      idx = lower.indexOf(needle, idx + needle.length);
+    }
+  }
+  return ranges.sort((a, b) => a.start - b.start);
+}
+
 function extractMentions(text: string): string[] {
-  const mentionRegex = /@([a-zA-Z0-9]+(?:\s[a-zA-Z0-9]+){0,2})/g;
   const mentions: string[] = [];
-  let match;
-  while ((match = mentionRegex.exec(text)) !== null) {
-    const name = match[1];
-    const found = TEAM_MEMBERS.find(m => m.toLowerCase().includes(name.toLowerCase()));
+  const ranges = findMentionRanges(text, TEAM_MEMBERS);
+  for (const range of ranges) {
+    const raw = text.slice(range.start + 1, range.end);
+    const found = TEAM_MEMBERS.find(m => m.toLowerCase() === raw.toLowerCase());
     if (found && !mentions.includes(found)) {
       mentions.push(found);
     }
@@ -167,21 +180,25 @@ export function FindingComments({ findingId, targetName }: FindingCommentsProps)
   } = useFindingComments(findingId, targetName);
 
   const renderMentions = (text: string) => {
-    const parts = text.split(/(@\w+(?:\s+\w+)*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('@')) {
-        const name = part.slice(1);
-        const matched = teamMembers.find(m => m.toLowerCase().includes(name.toLowerCase()));
-        if (matched) {
-          return (
-            <span key={i} className="text-[var(--accent)] font-bold">
-              {part}
-            </span>
-          );
-        }
+    const ranges = findMentionRanges(text, teamMembers);
+    if (ranges.length === 0) return <span>{text}</span>;
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+    ranges.forEach((range, idx) => {
+      if (range.start > cursor) {
+        nodes.push(<span key={`text-${idx}`}>{text.slice(cursor, range.start)}</span>);
       }
-      return <span key={i}>{part}</span>;
+      nodes.push(
+        <span key={`mention-${idx}`} className="text-[var(--accent)] font-bold">
+          {text.slice(range.start, range.end)}
+        </span>
+      );
+      cursor = range.end;
     });
+    if (cursor < text.length) {
+      nodes.push(<span key="text-tail">{text.slice(cursor)}</span>);
+    }
+    return nodes;
   };
 
   const formatTime = (ts: string) => {

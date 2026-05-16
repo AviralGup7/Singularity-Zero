@@ -84,7 +84,7 @@ export function compactPipelineError(raw: unknown): string {
   }
   const collapsed = input
     .replace(/\s+/g, ' ')
-    .replace(/(?:Rate limited by NVD CVE, retrying after [0-9.]+s\s*){2,}/gi, 'Rate limited by NVD CVE; backing off retries ')
+    .replace(/(?:Rate limited by NVD CVE, retrying after [0-9.]+s ){2,}/gi, 'Rate limited by NVD CVE; backing off retries ')
     .trim();
   return collapsed || 'Unknown pipeline error';
 }
@@ -155,26 +155,26 @@ export function mergeTelemetry(
   base: ProgressTelemetry | undefined,
   incoming: Record<string, unknown> | ProgressTelemetry | undefined
 ): ProgressTelemetry {
-  const merged: ProgressTelemetry = { ...(base || {}) };
-  if (!incoming) return merged;
+  const merged = new Map<string, unknown>(Object.entries(base || {}));
+  if (!incoming) return Object.fromEntries(merged) as ProgressTelemetry;
   for (const [key, value] of Object.entries(incoming)) {
     if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {
-      merged[key as keyof ProgressTelemetry] = value.slice() as never;
+      merged.set(key, value.slice());
       continue;
     }
     if (typeof value === 'object') {
-      const previous = merged[key as keyof ProgressTelemetry];
+      const previous = merged.get(key);
       if (previous && typeof previous === 'object' && !Array.isArray(previous)) {
-        merged[key as keyof ProgressTelemetry] = { ...(previous as object), ...(value as object) } as never;
+        merged.set(key, { ...(previous as object), ...(value as object) });
       } else {
-        merged[key as keyof ProgressTelemetry] = { ...(value as object) } as never;
+        merged.set(key, { ...(value as object) });
       }
       continue;
     }
-    merged[key as keyof ProgressTelemetry] = value as never;
+    merged.set(key, value);
   }
-  return merged;
+  return Object.fromEntries(merged) as ProgressTelemetry;
 }
 
 export function mergeStageProgressLists(

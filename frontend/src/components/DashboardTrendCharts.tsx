@@ -66,7 +66,7 @@ function StackedBarChart({ data, width, height, maxVal }: { data: Array<{ critic
   data.forEach((point, i) => {
     let cumulativeHeight = 0;
     keys.forEach(key => {
-      const val = point[key];
+      const val = Reflect.get(point, key) as number;
       const barH = maxVal > 0 ? (val / maxVal) * (height - 20) : 0;
       const x = i * (barWidth + 2);
       const y = height - cumulativeHeight - barH - 15;

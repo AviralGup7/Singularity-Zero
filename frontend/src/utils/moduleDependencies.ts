@@ -61,7 +61,7 @@ export function checkModuleDependencies(
   const labelMap = new Map(moduleOptions.map(m => [m.name, m.label]));
 
   for (const mod of selectedModules) {
-    const dep = MODULE_DEPENDENCIES[mod];
+    const dep = Reflect.get(MODULE_DEPENDENCIES, mod) as ModuleDependency | undefined;
     if (!dep) continue;
 
     const modLabel = labelMap.get(mod) || mod;

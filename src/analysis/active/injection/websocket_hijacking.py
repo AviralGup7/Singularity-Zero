@@ -1,5 +1,6 @@
 """WebSocket hijacking active probe."""
 
+import base64
 import re
 from typing import Any
 from urllib.parse import urlparse
@@ -61,6 +62,14 @@ WS_AUTH_ERROR_RE = re.compile(
     r"invalid.*token|missing.*token|access.*denied|forbidden|"
     r"auth.*required|login.*required)"
 )
+
+
+def _build_ws_key() -> str:
+    raw = b"test-websocket-key"
+    return base64.b64encode(raw).decode("ascii")
+
+
+WS_TEST_KEY = _build_ws_key()
 
 
 def _is_ws_endpoint(url: str, response: dict[str, Any] | None = None) -> bool:
@@ -153,7 +162,7 @@ def websocket_hijacking_probe(
                 "Upgrade": "websocket",
                 "Connection": "Upgrade",
                 "Sec-WebSocket-Version": "13",
-                "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+                "Sec-WebSocket-Key": WS_TEST_KEY,
             }
             if auth_header:
                 test_headers[auth_header] = original_headers.get(auth_header, "")
@@ -199,7 +208,7 @@ def websocket_hijacking_probe(
             "Upgrade": "websocket",
             "Connection": "Upgrade",
             "Sec-WebSocket-Version": "13",
-            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "Sec-WebSocket-Key": WS_TEST_KEY,
         }
         response = _safe_request(http_url, headers=no_origin_headers, timeout=10)
         if response:
@@ -220,7 +229,7 @@ def websocket_hijacking_probe(
             "Upgrade": "websocket",
             "Connection": "Upgrade",
             "Sec-WebSocket-Version": "13",
-            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "Sec-WebSocket-Key": WS_TEST_KEY,
         }
         response = _safe_request(http_url, headers=no_auth_headers, timeout=10)
         if response:

@@ -107,7 +107,7 @@ export function useRole(): { role: UserRole; permissions: Permission; updateRole
     return () => window.removeEventListener('storage', handler);
   }, []);
 
-  const permissions = useMemo(() => ROLE_PERMISSIONS[role], [role]);
+  const permissions = useMemo(() => Reflect.get(ROLE_PERMISSIONS, role) as Permission, [role]);
 
   const updateRole = useCallback((newRole: UserRole) => {
     setRole(newRole);

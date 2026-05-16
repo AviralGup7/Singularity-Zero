@@ -92,7 +92,14 @@ export function LiveTerminalFeed({
   // ── Minimized State ──────────────────────────────────────────────────
   if (isMinimized) {
     return (
-      <div className={`fixed bottom-4 right-4 z-50 w-80 bg-black/90 border border-accent/30 shadow-2xl rounded-lg overflow-hidden cursor-pointer hover:border-accent/60 transition-all ${className}`} onClick={() => setIsMinimized(false)}>
+      <div 
+        className={`fixed bottom-4 right-4 z-50 w-80 bg-black/90 border border-accent/30 shadow-2xl rounded-lg overflow-hidden cursor-pointer hover:border-accent/60 transition-all ${className}`} 
+        onClick={() => setIsMinimized(false)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsMinimized(false); } }}
+        role="button"
+        tabIndex={0}
+        aria-label="Restore Terminal Feed"
+      >
         <div className="flex items-center gap-3 px-4 py-2 bg-accent/10">
           <Terminal size={14} className="text-accent" />
           <span className="text-xs font-bold text-accent uppercase tracking-widest flex-1">Terminal</span>

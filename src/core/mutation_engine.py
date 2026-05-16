@@ -4,6 +4,7 @@ This module analyzes parameter types (URL, redirect, token, ID, numeric, JSON, g
 and generates appropriate mutation payloads for security testing.
 """
 
+import base64
 import json
 import re
 from collections.abc import Iterable
@@ -214,10 +215,18 @@ def _token_payloads(param: str) -> list[dict[str, str]]:
         {"parameter": param, "variant": "none", "reason": "jwt_none_algorithm"},
         {
             "parameter": param,
-            "variant": "eyJhbGciOiJub25lIn0.eyJzdWIiOiJhZG1pbiJ9.",
+            "variant": _jwt_none_token(),
             "reason": "jwt_none_algorithm_explicit",
         },
     ]
+
+
+def _jwt_none_token() -> str:
+    header = {"alg": "none", "typ": "JWT"}
+    payload = {"sub": "admin"}
+    header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode("utf-8")).decode("ascii")
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+    return f"{header_b64.rstrip('=')}.{payload_b64.rstrip('=')}."
 
 
 def _json_payloads(param: str, value: str) -> list[dict[str, str]]:

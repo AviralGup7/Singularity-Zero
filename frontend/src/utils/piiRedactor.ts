@@ -35,16 +35,16 @@ export function detectPII(text: string): PIIMatch[] {
 
   const checks: Array<[PIICategory, RegExp]> = [
     ['email', /[\w.%+-]+@[\w.-]+\.[a-zA-Z]{2,}/g],
-    ['phone', /(?:\+?1[-. ]?)?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}/g],
+    ['phone', /(?:\+?1[ .-])?\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}/g],
     ['ssn', /\b\d{3}-\d{2}-\d{4}\b/g],
-    ['creditCard', /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g],
+    ['creditCard', /\b\d{4}(?:[ -]?\d{4}){3}\b/g],
     ['ipAddress', /\b\d{1,3}(?:\.\d{1,3}){3}\b/g],
     ['name', /(?:Name|User|Author|Owner|Sender|From|Customer|Client|Contact):\s+[A-Z][a-z][\w ]{1,30}/g],
-    ['custom', /(?:password|secret|token|api[-_]?key)\s*[:=]\s*\S+/gi],
+    ['custom', /(?:password|secret|token|api[-_]?key)\s*[:=]\s*[^\s]{3,}/gi],
   ];
 
   for (const [category, pattern] of checks) {
-    const mask = REDACTION_MASKS[category];
+    const mask = REDACTION_MASKS[category as keyof typeof REDACTION_MASKS];
     let match;
     while ((match = pattern.exec(text)) !== null) {
       matches.push({
@@ -130,14 +130,14 @@ export function setPIIVisible(visible: boolean, user = 'anonymous'): void {
 }
 
 export function scanObjectForPII(obj: unknown): Record<string, PIIMatch[]> {
-  const results: Record<string, PIIMatch[]> = {};
+  const results = new Map<string, PIIMatch[]>();
   const visited = new WeakSet<object>();
 
   function scan(value: unknown, path: string): void {
     if (typeof value === 'string') {
       const piiMatches = detectPII(value);
       if (piiMatches.length > 0) {
-        Object.assign(results, { [path]: piiMatches });
+        results.set(path, piiMatches);
       }
     } else if (Array.isArray(value)) {
       value.forEach((item, i) => scan(item, `${path}[${i}]`));
@@ -151,7 +151,7 @@ export function scanObjectForPII(obj: unknown): Record<string, PIIMatch[]> {
   }
 
   scan(obj, '');
-  return results;
+  return Object.fromEntries(results) as Record<string, PIIMatch[]>;
 }
 
 export function redactObjectPII(obj: Record<string, unknown>): Record<string, unknown> {
@@ -163,11 +163,11 @@ export function redactObjectPII(obj: Record<string, unknown>): Record<string, un
       return value.map(redact);
     }
     if (value && typeof value === 'object') {
-      const result: Record<string, unknown> = {};
+      const result = new Map<string, unknown>();
       for (const [key, val] of Object.entries(value)) {
-        Object.assign(result, { [key]: redact(val) });
+        result.set(key, redact(val));
       }
-      return result;
+      return Object.fromEntries(result);
     }
     return value;
   }

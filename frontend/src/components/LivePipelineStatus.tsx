@@ -35,9 +35,12 @@ export function LivePipelineStatus() {
     const stageMap: Record<string, { count: number; maxPercent: number }> = {};
     for (const job of runningJobs) {
       const stage = job.stage || 'unknown';
-      if (!stageMap[stage]) stageMap[stage] = { count: 0, maxPercent: 0 };
-      stageMap[stage].count += 1;
-      stageMap[stage].maxPercent = Math.max(stageMap[stage].maxPercent, job.progress_percent ?? 0);
+      if (!Reflect.get(stageMap, stage)) {
+        Reflect.set(stageMap, stage, { count: 0, maxPercent: 0 });
+      }
+      const stageInfo = Reflect.get(stageMap, stage);
+      stageInfo.count += 1;
+      stageInfo.maxPercent = Math.max(stageInfo.maxPercent, job.progress_percent ?? 0);
     }
     // Sort by active count desc
     return Object.entries(stageMap)
@@ -66,8 +69,8 @@ export function LivePipelineStatus() {
     return null;
   }
 
-  const connLabel = CONNECTION_LABELS[sseState] || 'Unknown';
-  const connColor = CONNECTION_COLORS[sseState] || CONNECTION_COLORS.closed;
+  const connLabel = (Reflect.get(CONNECTION_LABELS, sseState) as string) || 'Unknown';
+  const connColor = (Reflect.get(CONNECTION_COLORS, sseState) as string) || CONNECTION_COLORS.closed;
 
   const totalFindings = runningJobs.reduce((sum, j) => sum + (j.findings_count ?? 0), 0);
 

@@ -79,7 +79,6 @@ export function useApi<T>(
     onErrorRef.current = onError;
   }, [onSuccess, onError]);
 
-  const paramsStr = JSON.stringify(params);
   const schema = options?.schema;
 
   const fetchData = useCallback(async (forceRefetch = false): Promise<void> => {
@@ -144,7 +143,7 @@ export function useApi<T>(
         onErrorRef.current?.(lastError);
       }
     }
-  }, [url, enabled, bypassCache, paramsStr, params, refetchKey, schema, ttl]);
+  }, [url, enabled, bypassCache, params, refetchKey, schema, ttl]);
 
   useEffect(() => {
     mountedRef.current = true;
