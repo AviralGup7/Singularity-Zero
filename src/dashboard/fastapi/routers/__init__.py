@@ -1,5 +1,6 @@
 """Router aggregation for the FastAPI dashboard."""
 
+from typing import cast
 from fastapi import APIRouter
 
 from .bloom import router as bloom_router
@@ -24,7 +25,7 @@ try:
 except RuntimeError as exc:
     if "python-multipart" not in str(exc):
         raise
-    imports_router = None
+    imports_router = cast(APIRouter, None)
 
 api_router = APIRouter()
 
