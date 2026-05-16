@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import {
   Activity,
   Database,
