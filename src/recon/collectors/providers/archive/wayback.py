@@ -78,7 +78,7 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
     for attempt in range(1, attempts + 1):
         collector_metrics.increment_requests("wayback")
         try:
-            resp = requests.get(CDX_ENDPOINT, params=params, timeout=max(2, timeout_seconds))
+            resp = requests.get(CDX_ENDPOINT, params=params, timeout=max(2, timeout_seconds))  # nosec B113
             break
         except requests.RequestException as exc:  # pragma: no cover - network
             logger.debug(
