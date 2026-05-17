@@ -82,11 +82,16 @@ def e2e_config_file(e2e_workspace: Path, e2e_pipeline_config: dict[str, Any]) ->
 
 
 @pytest.fixture
-def pipeline_runner(e2e_config_file: Path, e2e_scope_file: Path):
+def pipeline_runner(e2e_config_file: Path, e2e_scope_file: Path, e2e_workspace: Path):
     from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
 
     def _run(dry_run: bool = False) -> int:
         import argparse
+        import shutil
+
+        output_dir = e2e_workspace / "output"
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
 
         args = argparse.Namespace(
             config=str(e2e_config_file),
@@ -176,3 +181,11 @@ def e2e_output_store(e2e_workspace: Path):
         write_artifact_manifest=True,
     )
     return store
+
+@pytest.fixture(autouse=True)
+def mock_slow_stages():
+    from unittest.mock import AsyncMock, patch
+    with patch("src.pipeline.services.pipeline_orchestrator.stages.active_scan.run_active_scanning", AsyncMock(return_value={"status": "ok"})), \
+         patch("src.pipeline.services.pipeline_orchestrator.stages.nuclei.run_nuclei_stage", AsyncMock(return_value={"status": "ok"})), \
+         patch("src.pipeline.services.pipeline_orchestrator.stages.enrichment.run_post_analysis_enrichments", AsyncMock(return_value={"status": "ok"})):
+        yield

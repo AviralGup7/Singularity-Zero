@@ -320,6 +320,8 @@ def merge_stage_output(
     # Use the new CRDT-aware merge logic in ctx.result
     ctx.result.apply_state_delta(state_delta)
 
+    if hasattr(ctx.result.stage_status, "copy"):
+        ctx.result.stage_status = dict(ctx.result.stage_status)
     if stage_output.outcome.value == "failed":
         ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
     elif stage_output.outcome.value == "skipped":
@@ -334,6 +336,8 @@ def merge_stage_output(
         stage_metrics.setdefault("reason", stage_output.reason)
     if stage_output.error:
         stage_metrics.setdefault("error", stage_output.error)
+    if hasattr(ctx.result.module_metrics, "copy"):
+        ctx.result.module_metrics = dict(ctx.result.module_metrics)
     ctx.result.module_metrics[stage_name] = stage_metrics
 
     if stage_name == "parameters":
