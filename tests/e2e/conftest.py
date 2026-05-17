@@ -182,10 +182,23 @@ def e2e_output_store(e2e_workspace: Path):
     )
     return store
 
+
 @pytest.fixture(autouse=True)
 def mock_slow_stages():
     from unittest.mock import AsyncMock, patch
-    with patch("src.pipeline.services.pipeline_orchestrator.stages.active_scan.run_active_scanning", AsyncMock(return_value={"status": "ok"})), \
-         patch("src.pipeline.services.pipeline_orchestrator.stages.nuclei.run_nuclei_stage", AsyncMock(return_value={"status": "ok"})), \
-         patch("src.pipeline.services.pipeline_orchestrator.stages.enrichment.run_post_analysis_enrichments", AsyncMock(return_value={"status": "ok"})):
+
+    with (
+        patch(
+            "src.pipeline.services.pipeline_orchestrator.stages.active_scan.run_active_scanning",
+            AsyncMock(return_value={"status": "ok"}),
+        ),
+        patch(
+            "src.pipeline.services.pipeline_orchestrator.stages.nuclei.run_nuclei_stage",
+            AsyncMock(return_value={"status": "ok"}),
+        ),
+        patch(
+            "src.pipeline.services.pipeline_orchestrator.stages.enrichment.run_post_analysis_enrichments",
+            AsyncMock(return_value={"status": "ok"}),
+        ),
+    ):
         yield
