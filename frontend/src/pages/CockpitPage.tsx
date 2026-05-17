@@ -100,7 +100,7 @@ function InstancedNodes({
   });
 
   return (
-    // @ts-expect-error - custom jsx elements
+    // @ts-expect-error - r3f elements
     <instancedMesh 
       ref={meshRef} 
    
@@ -116,7 +116,7 @@ function InstancedNodes({
         metalness={0.9}
         roughness={0.1}
       />
-      {/* @ts-expect-error - custom jsx elements */}
+    {/* @ts-expect-error - r3f elements */}
     </instancedMesh>
   );
 }
@@ -140,7 +140,7 @@ function OptimizedEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockpit
   if (linePoints.length === 0) return null;
 
   return (
-    // @ts-expect-error - custom jsx elements
+    // @ts-expect-error - r3f elements
     <lineSegments>
       <bufferGeometry>
         <bufferAttribute
@@ -153,7 +153,7 @@ function OptimizedEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockpit
         />
       </bufferGeometry>
       <lineBasicMaterial color="#1e293b" transparent opacity={0.3} />
-    {/* @ts-expect-error - custom jsx elements */}
+    {/* @ts-expect-error - r3f elements */}
     </lineSegments>
   );
 }
@@ -162,9 +162,9 @@ function OptimizedEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockpit
 function Scene({ nodes, edges, selectedNode, onSelect, onHover }: { nodes: CockpitNode[]; edges: CockpitEdge[]; selectedNode: string | null; onSelect: (id: string) => void; onHover: (id: string | null) => void }) {
   return (
     <>
-      {/* @ts-expect-error - custom jsx elements */}
+      {/* @ts-expect-error - r3f elements */}
       <color attach="background" args={['#020204']} />
-      {/* @ts-expect-error - custom jsx elements */}
+      {/* @ts-expect-error - r3f elements */}
       <fog attach="fog" args={['#020204', 10, 80]} />
       
       <ambientLight intensity={0.2} />
