@@ -15,25 +15,30 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 @dataclass
 class NeuralEvent:
     """Cyber Pipeline Event Envelope."""
+
     type: str
     source: str
     data: dict[str, Any]
     priority: int = 0
+
 
 class FrontierRingBus:
     """
     Bounded-buffer event bus.
     Optimized for massive event emission rates with zero heap fragmentation.
     """
+
     def __init__(self, capacity: int = 10000) -> None:
         self._buffer: deque[NeuralEvent] = deque(maxlen=capacity)
         self._subscribers: dict[str, list[Callable[[NeuralEvent], Any]]] = {}
         self._running = False
         self._downsample_threshold = capacity // 2
         import threading
+
         self._lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._wakeup_event = asyncio.Event()
@@ -51,15 +56,15 @@ class FrontierRingBus:
         with self._lock:
             # 1. Adaptive Downsampling Guard
             if len(self._buffer) > self._downsample_threshold and priority < 5:
-                 # Skip low-priority events during mesh congestion
-                 self._dropped_events += 1
-                 logger.debug(
-                     "Dropped low-priority event %s from %s (dropped=%d)",
-                     event_type,
-                     source,
-                     self._dropped_events,
-                 )
-                 return
+                # Skip low-priority events during mesh congestion
+                self._dropped_events += 1
+                logger.debug(
+                    "Dropped low-priority event %s from %s (dropped=%d)",
+                    event_type,
+                    source,
+                    self._dropped_events,
+                )
+                return
 
             event = NeuralEvent(event_type, source, data, priority)
             self._buffer.append(event)
@@ -89,7 +94,6 @@ class FrontierRingBus:
                 continue
 
             for event in events:
-
                 # Fix Audit #125: Create a new combined list to avoid mutation during iteration
                 specific = self._subscribers.get(event.type, [])
                 wildcard = self._subscribers.get("*", [])

@@ -16,19 +16,23 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 @dataclass
 class ToolProcess:
     """A managed sub-process for a specific CLI tool."""
+
     name: str
     process: asyncio.subprocess.Process
     id: int
     busy: bool = False
+
 
 class FrontierProcessPool:
     """
     Managed Execution Pool.
     Maintains pre-warmed instances of security tools to eliminate process startup latency.
     """
+
     def __init__(self, pool_size: int | None = None) -> None:
         # Fix Audit #198: Adapt pool size to CPU cores
         if pool_size is None:
@@ -54,13 +58,11 @@ class FrontierProcessPool:
             # On Windows, we can use creationflags to achieve similar process group isolation
             # Fix #210: creationflags needs to be the actual subprocess constant
             import subprocess
+
             spawn_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
 
         for i in range(self.pool_size):
-            proc = await asyncio.create_subprocess_exec(
-                tool_name, *base_args,
-                **spawn_kwargs
-            )
+            proc = await asyncio.create_subprocess_exec(tool_name, *base_args, **spawn_kwargs)
             self._processes.append(ToolProcess(tool_name, proc, i))
         logger.info("Warmed Frontier Pool for '%s' (Size: %d)", tool_name, self.pool_size)
 
@@ -88,20 +90,24 @@ class FrontierProcessPool:
         """
         p = await self.acquire_process()
         if not p:
-             # Fallback to one-off process if pool is full
-             # Fix Audit #83: Capture stderr and capture diagnostics
-             proc = await asyncio.create_subprocess_exec(
-                 tool_name, task_data,
-                 stdout=asyncio.subprocess.PIPE,
-                 stderr=asyncio.subprocess.PIPE
-             )
-             stdout, stderr = await proc.communicate()
-             if proc.returncode != 0:
-                 logger.error("One-off process '%s' failed (exit %d): %s",
-                            tool_name, proc.returncode, stderr.decode())
-                 # Fix #211: Raise exception instead of returning partial output
-                 raise RuntimeError(f"ToolExecutionError: One-off process {tool_name} failed (exit {proc.returncode})")
-             return stdout.decode()
+            # Fallback to one-off process if pool is full
+            # Fix Audit #83: Capture stderr and capture diagnostics
+            proc = await asyncio.create_subprocess_exec(
+                tool_name, task_data, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                logger.error(
+                    "One-off process '%s' failed (exit %d): %s",
+                    tool_name,
+                    proc.returncode,
+                    stderr.decode(),
+                )
+                # Fix #211: Raise exception instead of returning partial output
+                raise RuntimeError(
+                    f"ToolExecutionError: One-off process {tool_name} failed (exit {proc.returncode})"
+                )
+            return stdout.decode()
 
         try:
             # Fix #209: Check if process is dead using returncode instead of stdin.is_closing()

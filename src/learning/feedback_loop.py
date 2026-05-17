@@ -115,7 +115,9 @@ class FeedbackLoopEngine:
 
         return adaptations
 
-    def _compute_target_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
+    def _compute_target_adaptations(
+        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+    ) -> None:
         """Compute target endpoint boosts and suppressions."""
         # Aggregate feedback by endpoint
         endpoint_stats: dict[str, dict[str, Any]] = {}
@@ -158,7 +160,9 @@ class FeedbackLoopEngine:
                 suppression = min(-5.0, -stats["total_weight"] * fp_rate)
                 adaptations.target_suppressions[ep] = round(suppression, 2)
 
-    def _compute_plugin_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
+    def _compute_plugin_adaptations(
+        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+    ) -> None:
         """Compute plugin enable/disable and intensity overrides."""
         plugin_stats: dict[str, dict[str, int]] = {}
 
@@ -193,7 +197,9 @@ class FeedbackLoopEngine:
                 # Very noisy plugin — consider disabling
                 adaptations.plugin_intensity_overrides[name] = "light"
 
-    def _compute_payload_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
+    def _compute_payload_adaptations(
+        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+    ) -> None:
         """Compute payload strategy updates based on historical success."""
         category_stats: dict[str, dict[str, int]] = {}
 
@@ -225,7 +231,9 @@ class FeedbackLoopEngine:
 
             adaptations.payload_strategy_updates[cat][param_type] = round(success_rate, 4)
 
-    def _compute_threshold_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
+    def _compute_threshold_adaptations(
+        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+    ) -> None:
         """Compute threshold adjustments per category."""
         category_stats: dict[str, dict[str, int]] = {}
 
@@ -253,7 +261,9 @@ class FeedbackLoopEngine:
                 # Low FP rate — can afford to lower thresholds
                 adaptations.threshold_adjustments[cat] = round(-0.02, 4)
 
-    def _compute_nuclei_adaptations(self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]) -> None:
+    def _compute_nuclei_adaptations(
+        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+    ) -> None:
         """Compute nuclei template tag boosts."""
         category_boosts: dict[str, float] = {}
 

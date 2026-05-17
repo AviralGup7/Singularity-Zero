@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 # Pre-compiled high-speed tool detection regex
 SENSITIVE_REGEX = re.compile(
     rb"(?i)(password|secret|key|token|bearer|apikey|access_key|auth_token|ssh-rsa|PRIVATE KEY)",
-    re.MULTILINE
+    re.MULTILINE,
 )
+
 
 def vectorized_regex_search(data_list: list[str], pattern: str) -> np.ndarray:
     """
@@ -29,6 +30,7 @@ def vectorized_regex_search(data_list: list[str], pattern: str) -> np.ndarray:
     vec_match = np.frompyfunc(lambda x: bool(regex.search(str(x))), 1, 1)
     arr = np.array(data_list, dtype=object)
     return cast(np.ndarray, vec_match(arr).astype(bool))
+
 
 def vectorized_url_filter(urls: list[str], forbidden_exts: set[str]) -> list[str]:
     """
@@ -42,8 +44,8 @@ def vectorized_url_filter(urls: list[str], forbidden_exts: set[str]) -> list[str
     # Fast vectorized extension extraction
     # Heuristic: split by dot and take last part
     def get_ext(u: str) -> str:
-        path = u.split('?')[0]
-        parts = path.rsplit('.', 1)
+        path = u.split("?")[0]
+        parts = path.rsplit(".", 1)
         return parts[1].lower() if len(parts) > 1 else ""
 
     vec_get_ext = np.frompyfunc(get_ext, 1, 1)
@@ -54,6 +56,7 @@ def vectorized_url_filter(urls: list[str], forbidden_exts: set[str]) -> list[str
 
     return cast(list[str], arr[mask].tolist())
 
+
 def fast_secret_scanner(content_bytes: bytes) -> list[bytes]:
     """
     SIMD-accelerated secret scanning across a large binary blob.
@@ -61,11 +64,13 @@ def fast_secret_scanner(content_bytes: bytes) -> list[bytes]:
     """
     return SENSITIVE_REGEX.findall(content_bytes)
 
+
 def compute_entropy_vectorized(data_list: list[str]) -> np.ndarray:
     """
     Compute Shannon Entropy for a large set of strings in parallel.
     Useful for detecting encoded secrets/tokens.
     """
+
     def shannon(s: str) -> float:
         if not s:
             return 0.0

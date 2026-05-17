@@ -14,6 +14,7 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 class GhostVFS:
     """
     Volatile Encrypted Storage.
@@ -21,6 +22,7 @@ class GhostVFS:
     Data is encrypted with a session-only key.
     Replaces physical disk output for high-security environments.
     """
+
     def __init__(self) -> None:
         self._files: dict[str, bytes] = {}
         self._key = AESGCM.generate_key(bit_length=256)

@@ -2,6 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -71,9 +72,11 @@ class _RecoveryCheckpointManager:
 def _make_config(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(
         target_name="example.com",
-        output_dir=str(tmp_path / "output"),
+        output_dir=tmp_path / "output",
         output={},
         tools={"subfinder": True},
+        filters={},
+        analysis={},
         screenshots={},
         cache={},
         storage={},
@@ -185,7 +188,9 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
 
     managers: dict[str, _RecoveryCheckpointManager] = {}
 
-    def _create_checkpoint_manager(_output: Path, _target: str, run_id: str | None = None, **kwargs: object):
+    def _create_checkpoint_manager(
+        _output: Path, _target: str, run_id: str | None = None, **kwargs: object
+    ):
         key = str(run_id or "run-test")
         if key not in managers:
             managers[key] = _RecoveryCheckpointManager(
@@ -212,16 +217,25 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
     subdomains_runner = AsyncMock(return_value=None)
     live_hosts_runner = AsyncMock(return_value=None)
 
-    async def _urls_ok(_args: argparse.Namespace, _config: object, ctx: object) -> None:
+    async def _urls_ok(*args: Any, **kwargs: Any) -> None:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.urls = {"https://a.example.com/path"}
         ctx.result.module_metrics["urls"] = {"status": "ok"}
         ctx.result.stage_status["urls"] = "COMPLETED"
 
     urls_runner = AsyncMock(side_effect=_urls_ok)
 
-    monkeypatch.setattr(orch_mod, "run_subdomain_enumeration", subdomains_runner, raising=False)
-    monkeypatch.setattr(orch_mod, "run_live_hosts", live_hosts_runner, raising=False)
-    monkeypatch.setattr(orch_mod, "run_url_collection", urls_runner, raising=False)
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER, resolve_stage_runner
+
+    try:
+        resolve_stage_runner("subdomains")
+    except Exception:  # noqa: S110
+        pass
+
+    register_plugin(RECON_PROVIDER, "subdomains")(subdomains_runner)
+    register_plugin(RECON_PROVIDER, "live_hosts")(live_hosts_runner)
+    register_plugin(RECON_PROVIDER, "urls")(urls_runner)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
@@ -253,11 +267,8 @@ async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
     )
     monkeypatch.setattr(orch_mod, "attempt_recovery", lambda *_args, **_kwargs: (False, None))
 
-    async def _failed_stage(
-        _args: argparse.Namespace,
-        _config: object,
-        ctx: object,
-    ) -> None:
+    async def _failed_stage(*args: Any, **kwargs: Any) -> None:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.module_metrics["subdomains"] = {
             "status": "failed",
             "failure_reason": "mock failure",
@@ -266,7 +277,15 @@ async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
         ctx.result.stage_status["subdomains"] = "FAILED"
         ctx.result.urls = {"https://example.com"}
 
-    monkeypatch.setattr(orch_mod, "run_subdomain_enumeration", _failed_stage, raising=False)
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER, resolve_stage_runner
+
+    try:
+        resolve_stage_runner("subdomains")
+    except Exception:  # noqa: S110
+        pass
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_failed_stage)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))

@@ -41,7 +41,9 @@ def _run() -> None:
     )
 
     class _MockResp:
-        def __init__(self, text: str, status_code: int = 200, headers: dict[str, str] | None = None) -> None:
+        def __init__(
+            self, text: str, status_code: int = 200, headers: dict[str, str] | None = None
+        ) -> None:
             self.text = text
             self.status_code = status_code
             self.headers = headers or {"content-type": "text/html"}
@@ -60,7 +62,9 @@ def _run() -> None:
 
     js = "const endpoint = '/api/v1/users?id=1';"
 
-    def fake_get(url: str, params: Any = None, timeout: Any = None, headers: Any = None, **kwargs: Any) -> Any:
+    def fake_get(
+        url: str, params: Any = None, timeout: Any = None, headers: Any = None, **kwargs: Any
+    ) -> Any:
         if url.endswith("app.js") or "app.js" in url:
             return _MockResp(js, headers={"content-type": "application/javascript"})
         return _MockResp(html)

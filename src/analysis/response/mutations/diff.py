@@ -72,7 +72,7 @@ def _variant_diff_summary(baseline: dict[str, Any], mutated: dict[str, Any]) -> 
     try:
         baseline_data = json.loads(baseline_body)
         mutated_data = json.loads(mutated_body)
-    except (json.JSONDecodeError, ValueError, TypeError):
+    except json.JSONDecodeError, ValueError, TypeError:
         result["structured_diff_available"] = False
         return result
     baseline_flat = _flatten_json(baseline_data)

@@ -1,4 +1,3 @@
-
 from typing import Any
 
 from src.core.plugins import list_plugins, register_plugin

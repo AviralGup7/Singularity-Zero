@@ -105,7 +105,9 @@ register_state_schema("flow_manifest", dict, "Pipeline flow manifest")
 register_state_schema("started_at", (int, float), "Pipeline start timestamp")
 register_state_schema("discovery_enabled", bool, "Whether discovery tools are enabled")
 register_state_schema("subdomains", (set, frozenset, list, tuple), "Discovered subdomain set")
-register_state_schema("live_hosts", (set, frozenset, list, tuple), "Discovered live HTTP service URLs")
+register_state_schema(
+    "live_hosts", (set, frozenset, list, tuple), "Discovered live HTTP service URLs"
+)
 register_state_schema(
     "live_records", (list, tuple), "Detailed HTTP response records for live hosts"
 )

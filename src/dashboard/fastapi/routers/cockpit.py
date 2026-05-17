@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cockpit", tags=["Cockpit"])
 
+
 @router.get(
     "/attack-chains",
     response_model=list[AttackChainSchema],
@@ -51,17 +52,19 @@ async def get_attack_chains(
             "id": f"chain-{hash(str(chain))}",
             "steps": [
                 {"asset_id": str(chain[0]), "finding_id": str(chain[1]), "severity": "high"},
-                {"asset_id": str(chain[2]), "finding_id": str(chain[3]), "severity": "critical"}
+                {"asset_id": str(chain[2]), "finding_id": str(chain[3]), "severity": "critical"},
             ],
             "confidence": 0.9,
-            "description": f"Potential lateral movement from {chain[0]} to {chain[2]} via {chain[1]}"
+            "description": f"Potential lateral movement from {chain[0]} to {chain[2]} via {chain[1]}",
         }
         formatted.append(entry)
 
-    return formatted # type: ignore
+    return formatted  # type: ignore
 
 
-def _get_run_dir(output_root: Path, target: str, run: str | None, job_id: str | None) -> Path | None:
+def _get_run_dir(
+    output_root: Path, target: str, run: str | None, job_id: str | None
+) -> Path | None:
     target_dir = output_root / target
     if not target_dir.exists():
         return None
@@ -92,7 +95,11 @@ def _get_run_dir(output_root: Path, target: str, run: str | None, job_id: str | 
     ]
     if not runs:
         # Fallback to any run if summary is missing (e.g. partial run)
-        runs = [child for child in target_dir.iterdir() if child.is_dir() and child.name != "checkpoints"]
+        runs = [
+            child
+            for child in target_dir.iterdir()
+            if child.is_dir() and child.name != "checkpoints"
+        ]
 
     if not runs:
         return None
@@ -137,13 +144,15 @@ async def get_cockpit_graph(
                     continue
                 node_id = f"url:{url}"
                 if node_id not in seen_nodes:
-                    nodes.append({
-                        "id": node_id,
-                        "type": "endpoint",
-                        "label": url.split("://")[-1],
-                        "severity": "info",
-                        "metadata": {"url": url}
-                    })
+                    nodes.append(
+                        {
+                            "id": node_id,
+                            "type": "endpoint",
+                            "label": url.split("://")[-1],
+                            "severity": "info",
+                            "metadata": {"url": url},
+                        }
+                    )
                     seen_nodes.add(node_id)
         except Exception as e:
             logger.warning("Failed to read urls.txt for cockpit: %s", e)
@@ -157,13 +166,15 @@ async def get_cockpit_graph(
                 finding_id = finding.get("id") or finding.get("finding_id") or f"f-{id(finding)}"
                 node_id = f"finding:{finding_id}"
                 if node_id not in seen_nodes:
-                    nodes.append({
-                        "id": node_id,
-                        "type": "finding",
-                        "label": finding.get("title", "Untitled Finding"),
-                        "severity": finding.get("severity", "info").lower(),
-                        "metadata": finding
-                    })
+                    nodes.append(
+                        {
+                            "id": node_id,
+                            "type": "finding",
+                            "label": finding.get("title", "Untitled Finding"),
+                            "severity": finding.get("severity", "info").lower(),
+                            "metadata": finding,
+                        }
+                    )
                     seen_nodes.add(node_id)
 
                 # Link finding to its URL
@@ -171,22 +182,14 @@ async def get_cockpit_graph(
                 if target_url:
                     url_node_id = f"url:{target_url}"
                     if url_node_id in seen_nodes:
-                        edges.append({
-                            "source": url_node_id,
-                            "target": node_id,
-                            "label": "affects"
-                        })
+                        edges.append({"source": url_node_id, "target": node_id, "label": "affects"})
         except Exception as e:
             logger.warning("Failed to read findings.json for cockpit: %s", e)
 
     return {
         "nodes": nodes,
         "edges": edges,
-        "metadata": {
-            "target": target,
-            "run": run_dir.name,
-            "job_id": job_id
-        }
+        "metadata": {"target": target, "run": run_dir.name, "job_id": job_id},
     }
 
 
@@ -212,37 +215,39 @@ async def get_cockpit_events(
 
     # 2. Get analyst notes
     from src.pipeline.analyst_notes import get_all_notes
+
     notes = get_all_notes(target, output_dir=services.query.output_root)
 
     events = []
     for f in timeline:
-        events.append({
-            "id": f.get("finding_id"),
-            "type": "finding",
-            "timestamp": f.get("timestamp"),
-            "severity": f.get("severity"),
-            "title": f.get("title"),
-            "url": f.get("url")
-        })
+        events.append(
+            {
+                "id": f.get("finding_id"),
+                "type": "finding",
+                "timestamp": f.get("timestamp"),
+                "severity": f.get("severity"),
+                "title": f.get("title"),
+                "url": f.get("url"),
+            }
+        )
 
     for n in notes:
-        events.append({
-            "id": n.note_id,
-            "type": "note",
-            "timestamp": n.created_at,
-            "author": n.author,
-            "note": n.note,
-            "finding_id": n.finding_id
-        })
+        events.append(
+            {
+                "id": n.note_id,
+                "type": "note",
+                "timestamp": n.created_at,
+                "author": n.author,
+                "note": n.note,
+                "finding_id": n.finding_id,
+            }
+        )
 
     # Sort by timestamp descending
     events.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
     # Basic cursor-based pagination if needed, for now just return all
-    return {
-        "events": events[:100],
-        "next_cursor": None
-    }
+    return {"events": events[:100], "next_cursor": None}
 
 
 @router.get(
@@ -272,13 +277,15 @@ async def list_forensic_exchanges(
         for f in root_forensics.glob("exchange_*.json"):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
-                exchanges.append({
-                    "exchange_id": data.get("exchange_id"),
-                    "timestamp": data.get("timestamp"),
-                    "url": data.get("url"),
-                    "method": data.get("method"),
-                    "response_status": data.get("response", {}).get("status")
-                })
+                exchanges.append(
+                    {
+                        "exchange_id": data.get("exchange_id"),
+                        "timestamp": data.get("timestamp"),
+                        "url": data.get("url"),
+                        "method": data.get("method"),
+                        "response_status": data.get("response", {}).get("status"),
+                    }
+                )
             except Exception:  # noqa: S112
                 continue
 
@@ -290,13 +297,15 @@ async def list_forensic_exchanges(
                 for f in run_forensics.glob("exchange_*.json"):
                     try:
                         data = json.loads(f.read_text(encoding="utf-8"))
-                        exchanges.append({
-                            "exchange_id": data.get("exchange_id"),
-                            "timestamp": data.get("timestamp"),
-                            "url": data.get("url"),
-                            "method": data.get("method"),
-                            "response_status": data.get("response", {}).get("status")
-                        })
+                        exchanges.append(
+                            {
+                                "exchange_id": data.get("exchange_id"),
+                                "timestamp": data.get("timestamp"),
+                                "url": data.get("url"),
+                                "method": data.get("method"),
+                                "response_status": data.get("response", {}).get("status"),
+                            }
+                        )
                     except Exception:  # noqa: S112
                         continue
 
@@ -308,7 +317,11 @@ async def list_forensic_exchanges(
 
 @router.get(
     "/forensics/{exchange_id}",
-    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+    },
     summary="Get forensic exchange details",
 )
 async def get_forensic_exchange(
@@ -382,7 +395,7 @@ async def trigger_cockpit_probe(
             method=method.upper(),
             capture_forensics=True,
             output_dir=output_root,
-            target_name=target
+            target_name=target,
         )
     except Exception as e:
         logger.error("Manual probe failed: %s", e)
@@ -391,9 +404,12 @@ async def trigger_cockpit_probe(
     if not result:
         raise HTTPException(status_code=502, detail="Probe did not return a response")
 
-    return cast(dict[str, Any], {
-        "status": "success",
-        "exchange_id": str(result.get("exchange_id", "")),
-        "status_code": int(result.get("status_code", 0)),
-        "url": str(result.get("url", ""))
-    })
+    return cast(
+        dict[str, Any],
+        {
+            "status": "success",
+            "exchange_id": str(result.get("exchange_id", "")),
+            "status_code": int(result.get("status_code", 0)),
+            "url": str(result.get("url", "")),
+        },
+    )

@@ -19,6 +19,7 @@ from src.pipeline.services.pipeline_helpers import build_stage_input_from_contex
 
 logger = get_pipeline_logger(__name__)
 
+
 async def run_semgrep_stage(
     args: Any,
     config: Any,

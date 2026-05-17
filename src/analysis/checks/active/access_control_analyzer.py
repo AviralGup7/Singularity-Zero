@@ -34,6 +34,7 @@ _CONFIDENCE_MAP = {
 
 def _coerce_limit(limit: object) -> int:
     from typing import Any, cast
+
     try:
         parsed = int(cast(Any, limit))
     except (TypeError, ValueError) as exc:

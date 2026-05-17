@@ -16,20 +16,26 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 @dataclass
 class ActorState:
     """Serializable state for actor migration."""
+
     actor_id: str
     stage: str
     data: dict[str, Any]
     checkpoint_ts: float
+
 
 class ScanActor(pykka.ThreadingActor):
     """
     Frontier Task Actor.
     Encapsulates logic and state, capable of migrating across the mesh.
     """
-    def __init__(self, actor_id: str, logic_fn: Callable[[dict[str, Any], dict[str, Any]], Any]) -> None:
+
+    def __init__(
+        self, actor_id: str, logic_fn: Callable[[dict[str, Any], dict[str, Any]], Any]
+    ) -> None:
         super().__init__()
         self.actor_id = actor_id
         self.logic_fn = logic_fn
@@ -51,7 +57,7 @@ class ScanActor(pykka.ThreadingActor):
                 actor_id=self.actor_id,
                 stage=self.state.get("current_stage", "init"),
                 data=self.state,
-                checkpoint_ts=time.time()
+                checkpoint_ts=time.time(),
             )
 
         elif command == "migrate":
@@ -74,11 +80,13 @@ class ScanActor(pykka.ThreadingActor):
             logger.error("Ghost-Actor [%s] failure: %s", self.actor_id, e)
             return {"status": "error", "error": str(e)}
 
+
 class GhostMeshRegistry:
     """
     Global Registry for Location-Transparent Actors.
     Ensures that the orchestrator can find actors regardless of which node they reside on.
     """
+
     def __init__(self, redis_client: Any, run_id: str = "default") -> None:
         self._redis = redis_client
         self._registry_key = f"cyber:ghost:registry:{run_id}"
@@ -92,5 +100,6 @@ class GhostMeshRegistry:
     async def find_actor(self, actor_id: str) -> str | None:
         """Find the node_id currently hosting the actor."""
         return cast(str | None, await self._redis.hget(self._registry_key, actor_id))
+
     async def unregister_actor(self, actor_id: str) -> None:
         await self._redis.hdel(self._registry_key, actor_id)

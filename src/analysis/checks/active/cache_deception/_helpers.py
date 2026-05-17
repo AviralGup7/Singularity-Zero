@@ -67,7 +67,7 @@ def is_sensitive_endpoint(url: str, response: dict[str, Any] | None = None) -> b
                         keys = {k.lower() for k in data[0].keys()}
                         if keys & sensitive_tokens:
                             return True
-                except (json.JSONDecodeError, ValueError):
+                except json.JSONDecodeError, ValueError:
                     pass
     return False
 
@@ -283,7 +283,7 @@ def response_contains_sensitive_data(body: str) -> tuple[bool, list[str]]:
                                 f"json_array_sensitive_keys:{','.join(sorted(json_sensitive)[:5])}"
                             )
                             break
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             pass
     has_sensitive = len(found_categories) >= 1 or any("json_sensitive" in s for s in signals)
     return has_sensitive, signals

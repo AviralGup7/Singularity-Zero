@@ -75,7 +75,7 @@ async def run_stage_with_retry(
                 "mode": str(getattr(config, "mode", "default") or "default"),
                 "filters": dict(getattr(config, "filters", {}) or {}),
             },
-            previous_deltas=previous_deltas
+            previous_deltas=previous_deltas,
         )
 
         tracer = get_tracing_manager()

@@ -12,6 +12,7 @@ from .dag_engine import build_neural_mesh_dag
 
 logger = get_pipeline_logger(__name__)
 
+
 def _is_truthy_fatal(val: Any) -> bool:
     if isinstance(val, bool):
         return val
@@ -19,14 +20,23 @@ def _is_truthy_fatal(val: Any) -> bool:
         return val.lower() in ("true", "1", "yes", "fatal")
     return bool(val)
 
+
 def _metrics_indicate_fatal_failure(metrics: Any) -> bool:
     if not isinstance(metrics, dict):
         return False
+
+    # If status is ok/completed, it's not a failure
+    status = str(metrics.get("status", "")).lower()
+    if status in ("ok", "success", "completed"):
+        return False
+
     fatal_marker = metrics.get("fatal")
     if fatal_marker is None:
-        # Backward compatibility: treat unspecified fatality as fatal.
-        return True
+        # If it's a failure (not ok) but fatal is missing, treat as fatal for recon safety
+        return status in ("failed", "error", "timeout")
+
     return _is_truthy_fatal(fatal_marker)
+
 
 async def execute_remaining_stages(
     orchestrator: Any,
@@ -83,7 +93,7 @@ async def execute_remaining_stages(
                     checkpoint_mgr,
                     stage_checkpoint_guard,
                     progress_emitter,
-                    error_emitter
+                    error_emitter,
                 )
             )
 
@@ -96,13 +106,14 @@ async def execute_remaining_stages(
                 logger.error("Stage '%s' failed with fatal error: %s", stage_name, res)
                 error_emitter(stage_name, f"Neural-Mesh Tier Exception: {res}")
                 if stage_name in {"subdomains", "live_hosts", "urls"}:
-                    return 1 # Fatal recon failure stops the mesh
+                    return 1  # Fatal recon failure stops the mesh
             elif res == 1 and stage_name in {"subdomains", "live_hosts", "urls"}:
                 return 1
 
         completed_stages.update(active_tier)
 
     return None
+
 
 async def _execute_single_stage(
     orchestrator: Any,
@@ -164,7 +175,9 @@ async def _execute_single_stage(
             elapsed = time.time() - stage_started
 
             # Post-run recording
-            await orchestrator._record_stage_post_run(stage_name, ctx, checkpoint_mgr, config.target_name)
+            await orchestrator._record_stage_post_run(
+                stage_name, ctx, checkpoint_mgr, config.target_name
+            )
 
             # 2. Emit completion progress
             progress_emitter(
@@ -175,19 +188,34 @@ async def _execute_single_stage(
                 stage_status="completed",
                 details={"duration_seconds": round(elapsed, 2)},
                 event_trigger="stage_complete",
-                stage_percent=100
+                stage_percent=100,
             )
 
             orchestrator._emit_event(
                 EventType.STAGE_COMPLETED,
                 source=f"stage.{stage_name}",
-                data={"contract": orchestrator._build_stage_output_contract(stage_name, elapsed, ctx)},
+                data={
+                    "contract": orchestrator._build_stage_output_contract(stage_name, elapsed, ctx)
+                },
             )
 
             # Fail fast check for recon
             if stage_name in {"subdomains", "live_hosts", "urls"}:
                 stage_metrics = ctx.result.module_metrics.get(stage_name, {})
-                if _metrics_indicate_fatal_failure(stage_metrics):
+                indicate_fatal = _metrics_indicate_fatal_failure(stage_metrics)
+                print(
+                    f"DEBUG: stage={stage_name}, metrics={stage_metrics}, indicate_fatal={indicate_fatal}"
+                )
+                if indicate_fatal:
+                    progress_emitter(
+                        stage_name,
+                        f"Stage failed: {PIPELINE_STAGES.get(stage_name, stage_name)}",
+                        orchestrator._stage_baseline(stage_name),
+                        status="failed",
+                        stage_status="failed",
+                        event_trigger="stage_failed",
+                        error=stage_metrics.get("error", "Fatal recon failure"),
+                    )
                     return 1
 
             return None
@@ -195,6 +223,7 @@ async def _execute_single_stage(
         except Exception:
             logger.exception("Fatal failure in Neural-Mesh stage '%s'", stage_name)
             return 1
+
 
 def resolve_pipeline_exit_code(
     orchestrator: Any,
@@ -208,10 +237,12 @@ def resolve_pipeline_exit_code(
     duration = time.time() - started_at
     findings_count = len(ctx.result.reportable_findings)
 
-    # If any recon stage failed, it's a critical failure (exit 1)
+    # If any recon stage failed fatally, it's a critical failure (exit 1)
     for recon_stage in ["subdomains", "live_hosts", "urls"]:
         if ctx.result.stage_status.get(recon_stage) == StageStatus.FAILED.value:
-            return 1
+            metrics = ctx.result.module_metrics.get(recon_stage, {})
+            if metrics.get("fatal", True):
+                return 1
 
     # Check for cancellation
     if getattr(ctx.result, "cancel_requested", False):

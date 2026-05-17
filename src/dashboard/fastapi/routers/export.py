@@ -144,9 +144,7 @@ async def export_findings(
     return Response(
         content=content.encode("utf-8"),
         media_type="application/json; charset=utf-8",
-        headers={
-            "Content-Disposition": f'attachment; filename="{target_dir.name}_findings.json"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="{target_dir.name}_findings.json"'},
     )
 
 

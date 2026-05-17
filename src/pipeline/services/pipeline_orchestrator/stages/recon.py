@@ -143,8 +143,6 @@ async def run_subdomain_enumeration(
         )
 
 
-
-
 async def run_live_hosts(
     args: Any,
     config: Any,
@@ -257,9 +255,7 @@ async def run_url_collection(
             stage_input = build_stage_input_from_context("urls", config, ctx)
 
         collector_func = (
-            recon_service.collect_urls
-            if collect_urls is _DEFAULT_COLLECT_URLS
-            else collect_urls
+            recon_service.collect_urls if collect_urls is _DEFAULT_COLLECT_URLS else collect_urls
         )
         collector = partial(collector_func, scope_entries=list(ctx.scope_entries), config=config)
 
@@ -413,17 +409,20 @@ async def run_priority_ranking(
         return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'priority' failed: %s", exc)
-        return cast(StageOutput, StageOutput(
-            stage_name="ranking",
-            outcome=StageOutcome.FAILED,
-            duration_seconds=0.0,
-            error=str(exc),
-            reason="priority_stage_wrapper_exception",
-            state_delta={
-                "ranked_priority_urls": [],
-                "priority_urls": [],
-                "selected_priority_items": [],
-                "selection_meta": {},
-                "deep_analysis_urls": [],
-            },
-        ))
+        return cast(
+            StageOutput,
+            StageOutput(
+                stage_name="ranking",
+                outcome=StageOutcome.FAILED,
+                duration_seconds=0.0,
+                error=str(exc),
+                reason="priority_stage_wrapper_exception",
+                state_delta={
+                    "ranked_priority_urls": [],
+                    "priority_urls": [],
+                    "selected_priority_items": [],
+                    "selection_meta": {},
+                    "deep_analysis_urls": [],
+                },
+            ),
+        )

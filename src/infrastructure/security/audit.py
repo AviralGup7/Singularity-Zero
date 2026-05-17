@@ -181,8 +181,8 @@ class AuditEntry(BaseModel):
     severity: str = Field(..., min_length=1)
     user_id: str | None = Field(default=None)
     source_ip: str | None = Field(default=None)
-    resource_id: str | None = Field(default=None) # Fix #296: Add missing field
-    correlation_id: str | None = Field(default=None) # Fix #296: Add missing field
+    resource_id: str | None = Field(default=None)  # Fix #296: Add missing field
+    correlation_id: str | None = Field(default=None)  # Fix #296: Add missing field
     details: dict[str, Any] = Field(default_factory=dict)
     previous_hash: str = Field(default="")
     entry_hash: str = Field(default="")
@@ -203,8 +203,8 @@ class AuditEntry(BaseModel):
             "severity": self.severity,
             "user_id": self.user_id,
             "source_ip": self.source_ip,
-            "resource_id": self.resource_id, # Fix #296
-            "correlation_id": self.correlation_id, # Fix #296
+            "resource_id": self.resource_id,  # Fix #296
+            "correlation_id": self.correlation_id,  # Fix #296
             "details": self.details,
             "previous_hash": self.previous_hash,
         }
@@ -291,8 +291,9 @@ class AuditLogger:
         # Fix #300: Add SQLite backing store for queries
         if getattr(self, "_db", None) is None:
             import sqlite3
+
             self._db = sqlite3.connect(":memory:", check_same_thread=False)
-            self._db.execute('''
+            self._db.execute("""
                 CREATE TABLE IF NOT EXISTS audit_log (
                     id INTEGER PRIMARY KEY,
                     event TEXT,
@@ -300,7 +301,7 @@ class AuditLogger:
                     severity TEXT,
                     data TEXT
                 )
-            ''')
+            """)
             # Populate DB
             try:
                 with open(log_path, encoding="utf-8") as f:
@@ -309,8 +310,16 @@ class AuditLogger:
                         if line:
                             try:
                                 data = json.loads(line)
-                                self._db.execute('INSERT OR IGNORE INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)',
-                                                 (data.get("id"), data.get("event"), data.get("user_id"), data.get("severity"), line))
+                                self._db.execute(
+                                    "INSERT OR IGNORE INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)",
+                                    (
+                                        data.get("id"),
+                                        data.get("event"),
+                                        data.get("user_id"),
+                                        data.get("severity"),
+                                        line,
+                                    ),
+                                )
                             except Exception:  # noqa: S110, S112
                                 pass
             except Exception:  # noqa: S110, S112
@@ -334,7 +343,7 @@ class AuditLogger:
                 pos = size - 1
                 while pos >= 0:
                     f.seek(pos)
-                    if f.read(1) == b'\n' and pos != size - 1:
+                    if f.read(1) == b"\n" and pos != size - 1:
                         break
                     pos -= 1
 
@@ -443,6 +452,7 @@ class AuditLogger:
 
         try:
             import shutil
+
             # Fix #298: shutil.move is safer on Windows than log_path.rename
             shutil.move(str(log_path), str(archive_path))
             logger.info("Audit log rotated to %s", archive_path)

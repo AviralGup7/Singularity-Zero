@@ -19,13 +19,15 @@ from rich.table import Table
 from rich.theme import Theme
 
 # Global UI Theme - 'Cyber' Matrix Green
-CYBER_THEME = Theme({
-    "info": "cyan",
-    "warning": "yellow",
-    "error": "bold red",
-    "success": "bold green",
-    "accent": "bold #00ff41",
-})
+CYBER_THEME = Theme(
+    {
+        "info": "cyan",
+        "warning": "yellow",
+        "error": "bold red",
+        "success": "bold green",
+        "accent": "bold #00ff41",
+    }
+)
 
 console = Console(theme=CYBER_THEME)
 
@@ -56,7 +58,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cyber",
         description="Unified Cyber Security Test Pipeline Command Engine.",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="area", required=True)
 
@@ -79,7 +81,9 @@ def _build_parser() -> argparse.ArgumentParser:
     worker.add_argument("--queue", default="security-pipeline", help="Target queue name")
     worker.add_argument("--concurrency", type=int, default=2, help="Parallel job slots")
     worker.add_argument("--worker-id", help="Explicit worker identifier (default: UUID)")
-    worker.add_argument("--replication", action="store_true", help="Enable Redis checkpoint replication")
+    worker.add_argument(
+        "--replication", action="store_true", help="Enable Redis checkpoint replication"
+    )
 
     # ──────────────────────────────────────────────────────────
     # SCAN AREA (Workflow)
@@ -110,13 +114,19 @@ def handle_dashboard(args: argparse.Namespace) -> None:
     """Orchestrate the FastAPI dashboard startup."""
     from src.dashboard.fastapi.main import main as run_server
 
-    console.print(f"[info]Starting Cyber Dashboard on {args.host}:{args.port} with {args.workers} workers...[/info]")
+    console.print(
+        f"[info]Starting Cyber Dashboard on {args.host}:{args.port} with {args.workers} workers...[/info]"
+    )
 
     argv = [
-        "--host", args.host,
-        "--port", str(args.port),
-        "--workers", str(args.workers),
-        "--log-level", args.log_level.lower()
+        "--host",
+        args.host,
+        "--port",
+        str(args.port),
+        "--workers",
+        str(args.workers),
+        "--log-level",
+        args.log_level.lower(),
     ]
     if args.reload:
         argv.append("--reload")
@@ -128,12 +138,11 @@ def handle_worker(args: argparse.Namespace) -> None:
     """Orchestrate the distributed worker startup."""
     from src.infrastructure.queue.worker import main as run_worker
 
-    console.print(f"[info]Initializing Distributed Worker on queue: [accent]{args.queue}[/accent][/info]")
+    console.print(
+        f"[info]Initializing Distributed Worker on queue: [accent]{args.queue}[/accent][/info]"
+    )
 
-    argv = [
-        "--queue", args.queue,
-        "--concurrency", str(args.concurrency)
-    ]
+    argv = ["--queue", args.queue, "--concurrency", str(args.concurrency)]
     if args.worker_id:
         argv.extend(["--worker-id", args.worker_id])
     if args.replication:
@@ -148,10 +157,7 @@ def handle_scan(args: argparse.Namespace) -> int:
 
     console.print(f"[info]Launching Pipeline Run: [accent]{args.config}[/accent][/info]")
 
-    argv = [
-        "--config", args.config,
-        "--scope", args.scope
-    ]
+    argv = ["--config", args.config, "--scope", args.scope]
     if args.fresh:
         argv.append("--force-fresh-run")
     if args.dry_run:
@@ -170,9 +176,14 @@ def handle_status() -> None:
     # 1. Redis Check
     try:
         import redis
+
         r = redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
         r.ping()
-        table.add_row("Redis Backplane", "[success]ONLINE[/success]", f"Connected to {r.connection_pool.connection_kwargs['host']}")
+        table.add_row(
+            "Redis Backplane",
+            "[success]ONLINE[/success]",
+            f"Connected to {r.connection_pool.connection_kwargs['host']}",
+        )
     except Exception as e:
         table.add_row("Redis Backplane", "[error]OFFLINE[/error]", str(e))
 
@@ -180,7 +191,11 @@ def handle_status() -> None:
     root = Path.cwd()
     output = root / "output"
     table.add_row("Workspace Root", "[success]OK[/success]", str(root))
-    table.add_row("Output Store", "[success]OK[/success]" if output.is_dir() else "[warning]MISSING[/warning]", str(output))
+    table.add_row(
+        "Output Store",
+        "[success]OK[/success]" if output.is_dir() else "[warning]MISSING[/warning]",
+        str(output),
+    )
 
     # 3. Environment Check
     table.add_row("Python Engine", "[success]OK[/success]", f"v{sys.version.split()[0]}")
@@ -215,14 +230,18 @@ def main() -> int:
                 handle_status()
                 return 0
             elif args.cmd == "cleanup":
-                console.print("[warning]Cleanup logic not yet fully migrated to unified CLI.[/warning]")
+                console.print(
+                    "[warning]Cleanup logic not yet fully migrated to unified CLI.[/warning]"
+                )
                 return 0
 
     except KeyboardInterrupt:
         console.print("\n[warning]Operation aborted by user.[/warning]")
         return 130
     except Exception as e:
-        console.print(Panel(f"[error]{type(e).__name__}[/error]: {str(e)}", title="Fatal System Error"))
+        console.print(
+            Panel(f"[error]{type(e).__name__}[/error]: {str(e)}", title="Fatal System Error")
+        )
         return 1
 
     return 0

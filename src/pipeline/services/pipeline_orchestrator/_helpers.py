@@ -56,7 +56,6 @@ def all_deps_met(stage: str, completed: set[str], graph: dict[str, list[str]]) -
 """Helper functions for pipeline orchestration."""
 
 
-
 __all__ = [
     "finding_identity",
     "extract_feedback_urls",

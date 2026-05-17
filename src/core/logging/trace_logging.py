@@ -43,4 +43,3 @@ def install_trace_log_filter(root: logging.Logger | None = None) -> None:
     target = root or logging.getLogger()
     if not any(isinstance(existing, TraceContextFilter) for existing in target.filters):
         target.addFilter(_FILTER)
-

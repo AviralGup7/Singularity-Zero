@@ -122,9 +122,7 @@ class ResourceAwareScheduler:
         """
         # Check worker status
         if worker.status not in ("idle", "busy"):
-            logger.debug(
-                "Worker %s cannot handle task: status=%s", worker.id, worker.status
-            )
+            logger.debug("Worker %s cannot handle task: status=%s", worker.id, worker.status)
             return False
 
         # Check resource profile exists
@@ -154,16 +152,12 @@ class ResourceAwareScheduler:
 
         # Check browser capability
         if req.requires_browser and "browser" not in worker.capabilities:
-            logger.debug(
-                "Worker %s missing browser capability for task", worker.id
-            )
+            logger.debug("Worker %s missing browser capability for task", worker.id)
             return False
 
         # Check GPU capability
         if req.requires_gpu and "gpu" not in worker.capabilities:
-            logger.debug(
-                "Worker %s missing GPU capability for task", worker.id
-            )
+            logger.debug("Worker %s missing GPU capability for task", worker.id)
             return False
 
         return True

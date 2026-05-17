@@ -281,7 +281,9 @@ class SecretManager:
         self._cache: dict[str, tuple[str, float]] = {}  # {name: (value, expires_at)}
         self._cache_max_size = cache_max_size
         self._cache_ttl = cache_ttl_seconds
-        self._cache_order: collections.OrderedDict[str, None] = collections.OrderedDict()  # LRU tracking
+        self._cache_order: collections.OrderedDict[str, None] = (
+            collections.OrderedDict()
+        )  # LRU tracking
 
         if config.encryption.fernet_key:
             try:

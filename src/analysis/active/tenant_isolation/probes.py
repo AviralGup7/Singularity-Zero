@@ -15,7 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 def run_tenant_isolation_probes(
-    urls: list[str], responses: list[dict[str, Any]], session: Any = None, config: dict[str, Any] | None = None
+    urls: list[str],
+    responses: list[dict[str, Any]],
+    session: Any = None,
+    config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run tenant isolation, vertical escalation, and cross-tenant access tests."""
     logger.info(

@@ -212,7 +212,9 @@ class FeatureFlagManager:
         logger.warning("Unknown condition operator: %s", operator)
         return False
 
-    def _check_rollout(self, name: str, percentage: float, context: dict[str, Any] | None = None) -> bool:
+    def _check_rollout(
+        self, name: str, percentage: float, context: dict[str, Any] | None = None
+    ) -> bool:
         if percentage <= 0.0:
             return False
         if percentage >= 100.0:

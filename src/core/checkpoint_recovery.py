@@ -104,7 +104,7 @@ def load_context_snapshot_for_stage_impl(manager: Any, stage_name: str) -> dict[
             continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             continue
         if isinstance(payload, dict):
             if "context" in payload and isinstance(payload["context"], dict):
@@ -136,9 +136,10 @@ def load_latest_context_snapshot_impl(
     for path in context_files:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             continue
         if isinstance(payload, dict) and isinstance(payload.get("context"), dict):
             from typing import cast
+
             return cast(dict[str, Any], payload["context"])
     return None

@@ -73,7 +73,7 @@ def resolve_priority_limit(
             value = value.get("default")
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
 
     configured = filters.get("priority_limit", 100)
@@ -378,7 +378,9 @@ def rank_urls(
     custom_priority_keywords = [str(item).lower() for item in filters.get("priority_keywords", [])]
     custom_keyword_bonus = int(scoring.get("custom_keyword_bonus", 2))
     flow_graph = build_flow_graph(url_list)
-    flow_map: dict[str, dict[str, Any]] = cast(dict[str, dict[str, Any]], flow_graph.get("per_url", {}))
+    flow_map: dict[str, dict[str, Any]] = cast(
+        dict[str, dict[str, Any]], flow_graph.get("per_url", {})
+    )
     ranked = []
     seen_canonical: set[str] = set()
     for url in url_list:

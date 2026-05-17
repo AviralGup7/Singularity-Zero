@@ -10,6 +10,7 @@ def test_chameleon_mutate_headers():
     assert any(k.lower() == "accept" for k in mutated.keys())
     assert len(mutated) >= 2
 
+
 def test_wrap_polymorphic_request():
     base_headers = {"Host": "example.com"}
     req = wrap_polymorphic_request(base_headers)

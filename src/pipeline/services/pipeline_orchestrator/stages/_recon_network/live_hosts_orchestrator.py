@@ -69,7 +69,7 @@ class LiveHostsOrchestrator:
         for port in service_scan_ports:
             try:
                 parsed_service_scan_ports.append(int(port))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
         return (
             service_scan_max_hosts,
@@ -114,26 +114,26 @@ class LiveHostsOrchestrator:
                 if raw_live_hosts_stage_timeout is not None
                 else None
             )
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             live_hosts_stage_timeout_hint = None
         return live_hosts_stage_timeout_hint
 
     def _emit_live_hosts_progress(self, message: Any, percent: Any, **meta: Any) -> None:
         try:
             pct = int(percent)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             pct = 36
         try:
             processed = int(meta.get("processed", 0) or 0)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             processed = 0
         try:
             total = int(meta.get("total", 0) or 0)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             total = 0
         try:
             active = int(meta.get("concurrency", 0) or 0)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             active = 0
         if active <= 0:
             active = 1

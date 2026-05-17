@@ -99,7 +99,7 @@ def _heartbeat_interval_seconds() -> float:
     interval = raw_value() if callable(raw_value) else raw_value
     try:
         parsed = float(interval)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         parsed = 25.0
     return max(5.0, parsed)
 

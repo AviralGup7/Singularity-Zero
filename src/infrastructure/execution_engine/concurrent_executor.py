@@ -313,7 +313,10 @@ class ConcurrentExecutor:
                         error="Execution cancelled",
                     )
 
-                if self._config.cancel_on_first_error and cast(Any, self._first_error_event).is_set():
+                if (
+                    self._config.cancel_on_first_error
+                    and cast(Any, self._first_error_event).is_set()
+                ):
                     return TaskResult(
                         task_id=task.id,
                         task_name=task.name,

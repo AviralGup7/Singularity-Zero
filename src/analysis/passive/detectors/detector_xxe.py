@@ -358,9 +358,7 @@ def xxe_surface_detector(
             resp_title_parts.append("XML Parser Fingerprinted")
 
         title = (
-            "; ".join(resp_title_parts)
-            if resp_title_parts
-            else "XXE Surface Detected in Response"
+            "; ".join(resp_title_parts) if resp_title_parts else "XXE Surface Detected in Response"
         )
 
         findings.append(

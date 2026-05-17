@@ -26,7 +26,6 @@ from src.dashboard.fastapi.middleware import (
 from src.dashboard.fastapi.response_validator import ResponseValidationMiddleware
 from src.dashboard.fastapi.schemas import (
     DashboardStatsResponse,
-    FindingsSummaryResponse,
 )
 from src.dashboard.fastapi.security import SecurityStore, api_security_enabled, app_secret_key
 from src.dashboard.rate_limiter import RateLimitMiddleware
@@ -47,7 +46,6 @@ try:
     import psutil
 except ImportError:
     psutil = None
-
 
 
 logger = logging.getLogger(__name__)
@@ -100,7 +98,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         ws_required_roles = {"read_only", "worker", "admin"} if api_security_enabled() else None
         ws_services = setup_websocket_routes(
             app,
-            jwt_secret=app_secret_key() if api_security_enabled() else (config.api_key if config.api_key else None),
+            jwt_secret=app_secret_key()
+            if api_security_enabled()
+            else (config.api_key if config.api_key else None),
             api_keys=ws_api_keys or None,
             required_roles=ws_required_roles,
             heartbeat_interval=20.0,  # More aggressive heartbeat for faster failure detection
@@ -132,7 +132,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         cpu_usage=psutil.cpu_percent() if psutil else 0.0,
         ram_available_mb=psutil.virtual_memory().available / 1024 / 1024 if psutil else 0.0,
         active_jobs=0,
-        last_seen=time.time()
+        last_seen=time.time(),
     )
 
     # 2. Start Authenticated Gossip Engine
@@ -176,7 +176,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     node.cpu_usage = psutil.cpu_percent()
                     node.ram_available_mb = psutil.virtual_memory().available / 1024 / 1024
                 # Filter running jobs
-                running = [j for j in app_ref.state.services.jobs.values() if j.get("status") == "running"]
+                running = [
+                    j for j in app_ref.state.services.jobs.values() if j.get("status") == "running"
+                ]
                 node.active_jobs = len(running)
                 node.last_seen = time.time()
                 # Gossip will propagate this on next cycle
@@ -189,6 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
         from src.dashboard.eta_engine import get_eta_engine
+
         eta_engine = get_eta_engine()
         await eta_engine.start()
 
@@ -229,6 +232,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
         from src.dashboard.eta_engine import get_eta_engine
+
         await get_eta_engine().stop()
 
     if hasattr(app.state.services, "close_persistence"):
@@ -267,10 +271,13 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     )
 
     from src.dashboard.rate_limiter import RateLimitConfig
+
     security_enabled = api_security_enabled()
     rate_limit_config = RateLimitConfig(
         window_seconds=1.0 if security_enabled else 60.0,
-        default_limit=int(os.getenv("RATE_LIMIT_GLOBAL_RPS", "30")) if security_enabled else config.rate_limit_default,
+        default_limit=int(os.getenv("RATE_LIMIT_GLOBAL_RPS", "30"))
+        if security_enabled
+        else config.rate_limit_default,
         jobs_limit=2 if security_enabled else config.rate_limit_jobs,
         replay_limit=config.rate_limit_replay,
         redis_url=config.redis_url,
@@ -287,6 +294,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     # API Router Integration
     # ──────────────────────────────────────────────────────────
     from src.dashboard.fastapi.routers import api_router
+
     app.include_router(api_router)
 
     def _error_payload(error: str, detail: Any = None, code: str | None = None) -> dict[str, Any]:
@@ -326,7 +334,9 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
         detail = [
             {
                 "loc": e.get("loc", []),
@@ -366,15 +376,15 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                     "Cache-Control": "no-cache, no-store, must-revalidate",
                     "Pragma": "no-cache",
                     "Expires": "0",
-                    "X-Frontend-Version": "2.0.0-modern"
-                }
+                    "X-Frontend-Version": "2.0.0-modern",
+                },
             )
 
         return HTMLResponse(
             status_code=404,
             content=f"<!DOCTYPE html><html><body style='background:#0a0a0a;color:#f85149;padding:2rem;font-family:monospace;'>"
-                    f"<h1>FATAL: Frontend Build Missing</h1><p>Artifacts not found at: <code>{config.frontend_dist}</code></p>"
-                    f"<p>Run: <code>cd frontend && npm install && npm run build</code></p></body></html>"
+            f"<h1>FATAL: Frontend Build Missing</h1><p>Artifacts not found at: <code>{config.frontend_dist}</code></p>"
+            f"<p>Run: <code>cd frontend && npm install && npm run build</code></p></body></html>",
         )
 
     # Specific static files handlers
@@ -415,7 +425,11 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
         # Backward compatibility for /react path
-        app.mount("/react", StaticFiles(directory=str(config.frontend_dist), html=True), name="legacy-compat")
+        app.mount(
+            "/react",
+            StaticFiles(directory=str(config.frontend_dist), html=True),
+            name="legacy-compat",
+        )
 
     # Serve generated artifacts (Reports & Launcher logs)
     @app.get("/_launcher/{job_id}/{filename}", include_in_schema=False)
@@ -467,7 +481,9 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
 
         completed_jobs = sum(1 for j in jobs if j.get("status") == "completed")
         failed_jobs = sum(1 for j in jobs if j.get("status") == "failed")
-        health_label = "Healthy" if health_score >= 80 else ("Warning" if health_score >= 50 else "Critical")
+        health_label = (
+            "Healthy" if health_score >= 80 else ("Warning" if health_score >= 50 else "Critical")
+        )
 
         return {
             "total_targets": len(targets),
@@ -479,24 +495,33 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "active_jobs": len(active_jobs),
             "completed_jobs": completed_jobs,
             "failed_jobs": failed_jobs,
-            "avg_progress": int(sum(j.get("progress_percent", 0) for j in active_jobs) / max(1, len(active_jobs))),
+            "avg_progress": int(
+                sum(j.get("progress_percent", 0) for j in active_jobs) / max(1, len(active_jobs))
+            ),
             "stage_counts": {
-                "recon": sum(1 for j in active_jobs if "recon" in j.get("stage", "").lower()),
-                "scanning": sum(1 for j in active_jobs if "scan" in j.get("stage", "").lower()),
+                "discovery": sum(
+                    1
+                    for j in active_jobs
+                    if "subdomain" in j.get("stage", "").lower()
+                    or "recon" in j.get("stage", "").lower()
+                ),
+                "collection": sum(
+                    1
+                    for j in active_jobs
+                    if "urls" in j.get("stage", "").lower() or "scan" in j.get("stage", "").lower()
+                ),
+                "analysis": sum(1 for j in active_jobs if "analysis" in j.get("stage", "").lower()),
                 "validation": sum(1 for j in active_jobs if "val" in j.get("stage", "").lower()),
-            }
-        }
-
-    @app.get("/api/findings", response_model=FindingsSummaryResponse, tags=["Analytics"])
-    async def get_findings_summary(target: str | None = None) -> dict[str, Any]:
-        services = app.state.services
-        findings = services.query.get_all_findings(target_name=target, limit=50)
-        summaries = services.query.get_target_summaries()
-        return {
-            "findings": findings,
-            "total_findings": sum(t["finding_count"] for t in summaries),
-            "targets": summaries,
-            "targets_with_findings": [t["name"] for t in summaries if t["finding_count"] > 0]
+                "reporting": sum(1 for j in active_jobs if "report" in j.get("stage", "").lower()),
+                "other": sum(
+                    1
+                    for j in active_jobs
+                    if not any(
+                        k in j.get("stage", "").lower()
+                        for k in ["subdomain", "recon", "url", "scan", "analysis", "val", "report"]
+                    )
+                ),
+            },
         }
 
     # SPA Fallback logic
@@ -507,7 +532,10 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_catch_all(full_path: str) -> Response:
         normalized = full_path.strip("/")
-        if normalized.startswith(("api/", "ws/", "reports/", "_launcher/")) or "." in normalized.split("/")[-1]:
+        if (
+            normalized.startswith(("api/", "ws/", "reports/", "_launcher/"))
+            or "." in normalized.split("/")[-1]
+        ):
             return Response(status_code=404)
         return _get_spa_index()
 

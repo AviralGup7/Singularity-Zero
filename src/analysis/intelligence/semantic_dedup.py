@@ -14,12 +14,14 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 class SemanticDeduplicator:
     """
     Frontier Deduplication Engine.
     Uses Cosine Similarity in a vector space to detect functionally identical findings
     across different URLs or modules, even if descriptions slightly differ.
     """
+
     def __init__(self, threshold: float = 0.85) -> None:
         self._threshold = threshold
         self._vocabulary: dict[str, int] = {}
@@ -83,9 +85,13 @@ class SemanticDeduplicator:
                 unique_findings.append(finding)
                 vectors.append(vec)
 
-        logger.info("Semantic Dedup: Reduced %d findings to %d unique signals",
-                    len(findings), len(unique_findings))
+        logger.info(
+            "Semantic Dedup: Reduced %d findings to %d unique signals",
+            len(findings),
+            len(unique_findings),
+        )
         return unique_findings
+
 
 def apply_frontier_deduplication(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Helper to apply the highest-tier deduplication logic."""

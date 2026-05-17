@@ -119,7 +119,10 @@ def normalized_confidence(
 ) -> float:
     signal_values = [signal_weight(signal) for signal in (signals or [])]
     confidence = (
-        base + min(score, 10) * _CONFIDENCE_SCORE_WEIGHT + min(sum(signal_values), 10) * _CONFIDENCE_SIGNAL_WEIGHT + sum(bonuses or [])
+        base
+        + min(score, 10) * _CONFIDENCE_SCORE_WEIGHT
+        + min(sum(signal_values), 10) * _CONFIDENCE_SIGNAL_WEIGHT
+        + sum(bonuses or [])
     )
     return round(min(confidence, cap), 2)
 
