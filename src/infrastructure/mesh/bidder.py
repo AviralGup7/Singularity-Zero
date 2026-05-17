@@ -15,12 +15,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class MeshBidder:
     """
     Self-Aware Task Bidding System.
     Calculates a 'Work Score' based on local hardware telemetry.
     The mesh uses these bids to assign tasks to the most optimal node.
     """
+
     def __init__(self, node_id: str):
         self.node_id = node_id
 
@@ -32,7 +34,9 @@ class MeshBidder:
         if psutil:
             try:
                 cpu_free = 100.0 - psutil.cpu_percent(interval=0.1)
-                ram_free_pct = (psutil.virtual_memory().available / psutil.virtual_memory().total * 100)
+                ram_free_pct = (
+                    psutil.virtual_memory().available / psutil.virtual_memory().total * 100
+                )
             except Exception:
                 cpu_free = 50.0
                 ram_free_pct = 50.0
@@ -45,7 +49,7 @@ class MeshBidder:
         # 2. Task Affinity (30% weight)
         # Check if we have the required capabilities (e.g. browser, gpu)
         capabilities = task_metadata.get("required_capabilities", [])
-        local_caps = ["browser", "nuclei", "semgrep"] # Inferred local caps
+        local_caps = ["browser", "nuclei", "semgrep"]  # Inferred local caps
 
         matches = sum(1 for c in capabilities if c in local_caps)
         affinity_score = matches / max(len(capabilities), 1)
@@ -68,7 +72,9 @@ class MeshBidder:
             pressure_penalty = 0.5
 
         # Final Frontier Bid
-        final_bid: float = (hardware_score * 0.5) + (affinity_score * 0.3) - (pressure_penalty * 0.2)
+        final_bid: float = (
+            (hardware_score * 0.5) + (affinity_score * 0.3) - (pressure_penalty * 0.2)
+        )
 
         return float(round(max(0.01, final_bid), 4))
 
@@ -84,6 +90,7 @@ class MeshBidder:
         except Exception as e:
             logger.error("Bid submission failed: %s", e)
 
+
 def find_winning_bid(bids: dict[str, str]) -> str | None:
     """Find the worker ID with the highest bid."""
     if not bids:
@@ -95,5 +102,5 @@ def find_winning_bid(bids: dict[str, str]) -> str | None:
         winner_id, winner_val = sorted_bids[0]
         logger.info("Bid Winner: %s (Score: %s)", winner_id, winner_val)
         return winner_id
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None

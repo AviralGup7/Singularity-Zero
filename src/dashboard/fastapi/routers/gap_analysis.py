@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/gap-analysis", tags=["Gap Analysis"])
 
+
 @router.get(
     "",
     response_model=DetectionGapResponse,
@@ -29,13 +30,29 @@ async def get_gap_analysis(
     # 1. Map categories to their "ideal" check counts
     # In a real system, this would be more dynamic.
     ideal_counts = {
-        "idor": 5, "ssrf": 4, "xss": 8, "open_redirect": 3,
-        "token_leak": 2, "access_control": 6, "authentication_bypass": 4,
-        "broken_authentication": 3, "business_logic": 7, "payment": 4,
-        "sensitive_data": 3, "misconfiguration": 10, "cors": 3,
-        "session": 4, "anomaly": 2, "behavioral_deviation": 3,
-        "redirect": 4, "server_side_injection": 5, "race_condition": 2,
-        "csrf": 3, "ssti": 2, "ai_surface": 2, "exposure": 5,
+        "idor": 5,
+        "ssrf": 4,
+        "xss": 8,
+        "open_redirect": 3,
+        "token_leak": 2,
+        "access_control": 6,
+        "authentication_bypass": 4,
+        "broken_authentication": 3,
+        "business_logic": 7,
+        "payment": 4,
+        "sensitive_data": 3,
+        "misconfiguration": 10,
+        "cors": 3,
+        "session": 4,
+        "anomaly": 2,
+        "behavioral_deviation": 3,
+        "redirect": 4,
+        "server_side_injection": 5,
+        "race_condition": 2,
+        "csrf": 3,
+        "ssti": 2,
+        "ai_surface": 2,
+        "exposure": 5,
     }
 
     # 2. Get actual findings/tests run for the target
@@ -62,24 +79,29 @@ async def get_gap_analysis(
         if status != "complete":
             modules_with_gaps += 1
 
-        results.append(GapAnalysisEntry(
-            module=info["name"],
-            category=cat_id,
-            total_checks=total,
-            covered_checks=covered,
-            missing_checks=total - covered,
-            coverage_percent=percent,
-            status=status
-        ))
+        results.append(
+            GapAnalysisEntry(
+                module=info["name"],
+                category=cat_id,
+                total_checks=total,
+                covered_checks=covered,
+                missing_checks=total - covered,
+                coverage_percent=percent,
+                status=status,
+            )
+        )
         total_coverage += percent
 
     return DetectionGapResponse(
         target=target,
         results=results,
-        overall_coverage=int(total_coverage / len(ALL_DETECTION_CATEGORIES)) if ALL_DETECTION_CATEGORIES else 0,
+        overall_coverage=int(total_coverage / len(ALL_DETECTION_CATEGORIES))
+        if ALL_DETECTION_CATEGORIES
+        else 0,
         total_modules=len(ALL_DETECTION_CATEGORIES),
-        modules_with_gaps=modules_with_gaps
+        modules_with_gaps=modules_with_gaps,
     )
+
 
 @router.post(
     "/refresh",

@@ -66,6 +66,7 @@ class PipelineDAG:
         for i, tier in enumerate(tiers):
             logger.info("DAG Tier %d [Parallel]: %s", i, ", ".join(tier))
 
+
 def build_neural_mesh_dag(stage_methods: dict[str, Any]) -> PipelineDAG:
     """Constructs the frontier 'Neural-Mesh' dependency graph."""
     dag = PipelineDAG()
@@ -91,7 +92,9 @@ def build_neural_mesh_dag(stage_methods: dict[str, Any]) -> PipelineDAG:
 
     # Tier 5: Intelligent Decision & Validation
     dag.add_stage("active_scan", stage_methods.get("active_scan"), ["passive_scan"])
-    dag.add_stage("intelligence", stage_methods.get("intelligence"), ["passive_scan", "nuclei", "semgrep"])
+    dag.add_stage(
+        "intelligence", stage_methods.get("intelligence"), ["passive_scan", "nuclei", "semgrep"]
+    )
 
     # Tier 6: Final Reporting
     dag.add_stage("reporting", stage_methods.get("reporting"), ["intelligence", "active_scan"])

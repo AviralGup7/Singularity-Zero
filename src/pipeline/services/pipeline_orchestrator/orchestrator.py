@@ -127,7 +127,7 @@ class PipelineOrchestrator:
     def _coerce_positive_int(value: Any) -> int | None:
         try:
             parsed = int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         return parsed if parsed > 0 else None
 
@@ -199,6 +199,17 @@ class PipelineOrchestrator:
     ) -> None:
         merge_stage_output(ctx, stage_name, stage_output, wal=getattr(self, "_wal", None))
 
+        # Emit finding creation events
+        if stage_output.state_delta:
+            findings = stage_output.state_delta.get("reportable_findings", [])
+            if isinstance(findings, (list, tuple)):
+                for finding in findings:
+                    self._emit_event(
+                        EventType.FINDING_CREATED,
+                        source=f"stage.{stage_name}",
+                        data={"finding": finding},
+                    )
+
     @staticmethod
     def _safe_checkpoint_stage_outcome(
         checkpoint_mgr: Any,
@@ -213,6 +224,11 @@ class PipelineOrchestrator:
         return asyncio.run(self.run(args))
 
     async def _finalize_run(self, exit_code: int) -> int:
+        self._emit_event(
+            EventType.PIPELINE_COMPLETE,
+            source="orchestrator",
+            data={"exit_code": exit_code},
+        )
         return await finalize_run(event_bus=self._event_bus, exit_code=exit_code, logger_obj=logger)
 
     def _build_stage_methods(self) -> dict[str, Any]:
@@ -272,7 +288,11 @@ class PipelineOrchestrator:
         emit_progress("startup", "Loading configuration", 3)
 
         preloaded_config = getattr(args, "_loaded_config", None)
-        config = preloaded_config if preloaded_config is not None else load_config(Path(args.config).resolve())
+        config = (
+            preloaded_config
+            if preloaded_config is not None
+            else load_config(Path(args.config).resolve())
+        )
 
         # ──────────────────────────────────────────────────────────
         # Distributed Concurrency Guard (Overhaul #4)
@@ -281,7 +301,9 @@ class PipelineOrchestrator:
         from src.infrastructure.cache.config import CacheConfig
 
         # Use common settings for cache paths if not in config
-        cache_db_path = getattr(config, "cache_db_path", str(config.output_dir / "cache" / "cache_layer.db"))
+        cache_db_path = getattr(
+            config, "cache_db_path", str(config.output_dir / "cache" / "cache_layer.db")
+        )
         cache_dir = getattr(config, "cache_dir", str(config.output_dir / "cache" / "files"))
         redis_url = getattr(config, "redis_url", os.getenv("REDIS_URL"))
 
@@ -299,8 +321,16 @@ class PipelineOrchestrator:
         lock_token = cache_mgr.acquire_recon_lock(target_name, ttl=3600, wait_timeout=5.0)
 
         if not lock_token and getattr(config, "redis_url", None):
-            logger.error("Failed to acquire distributed lock: Target '%s' is already being scanned by another worker.", target_name)
-            emit_progress("startup", f"Collision: {target_name} is already under active scan", 0, status="failed")
+            logger.error(
+                "Failed to acquire distributed lock: Target '%s' is already being scanned by another worker.",
+                target_name,
+            )
+            emit_progress(
+                "startup",
+                f"Collision: {target_name} is already under active scan",
+                0,
+                status="failed",
+            )
             self._emit_pipeline_error("distributed_lock_collision", {"target": target_name})
             return 1
 
@@ -312,7 +342,9 @@ class PipelineOrchestrator:
                 cache_mgr.release_recon_lock(target_name, lock_token)
             cache_mgr.close()
 
-    async def _run_secured(self, args: argparse.Namespace, config: Any, flow_manifest: Any, cache_mgr: Any) -> int:
+    async def _run_secured(
+        self, args: argparse.Namespace, config: Any, flow_manifest: Any, cache_mgr: Any
+    ) -> int:
         """Internal execution loop after lock acquisition."""
         preloaded_scope_entries = getattr(args, "_loaded_scope_entries", None)
         scope_entries = (
@@ -372,6 +404,7 @@ class PipelineOrchestrator:
         # Distributed Write-Ahead Log (Overhaul #9)
         # ──────────────────────────────────────────────────────────
         from src.core.frontier.wal import FrontierWAL
+
         self._wal = FrontierWAL(getattr(config, "redis_url", None), run_id)
         logger.info("Frontier WAL initialized: stream=cyber:wal:%s", run_id)
 

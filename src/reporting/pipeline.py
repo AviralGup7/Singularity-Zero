@@ -113,7 +113,6 @@ def build_artifact_diff(
     return diff_summary
 
 
-
 EXPORTER = "exporter"
 
 

@@ -29,7 +29,7 @@ def is_safe_url(url: str) -> bool:
     if not hostname:
         return False
     # Block obvious private hostnames
-    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"): # noqa: S104
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # noqa: S104
         return False
     # Block cloud metadata IPs
     if hostname == "169.254.169.254":
@@ -52,7 +52,7 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
                     return False
             except ValueError:
                 continue
-    except (TimeoutError, socket.gaierror, OSError):
+    except TimeoutError, socket.gaierror, OSError:
         return False
     return True
 
@@ -98,7 +98,7 @@ def detect_dns_rebinding(hostname: str, *, rounds: int = 8, timeout: float = 2.0
                 ips_this_round.append(ip_str)
                 all_ips.add(ip_str)
             ip_history.append(ips_this_round if ips_this_round else [])
-        except (socket.gaierror, TimeoutError, OSError):
+        except socket.gaierror, TimeoutError, OSError:
             ip_history.append([])
         time.sleep(0.1)
 

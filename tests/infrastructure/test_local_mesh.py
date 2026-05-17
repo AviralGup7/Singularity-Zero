@@ -20,9 +20,10 @@ class TestResourceProfile:
         """Test that detect() returns a ResourceProfile instance."""
         with patch("psutil.cpu_count", return_value=4):
             with patch("psutil.cpu_freq", return_value=MagicMock(max=2400.0)):
-                with patch("psutil.virtual_memory", return_value=MagicMock(
-                    total=16 * 1024**3, available=8 * 1024**3
-                )):
+                with patch(
+                    "psutil.virtual_memory",
+                    return_value=MagicMock(total=16 * 1024**3, available=8 * 1024**3),
+                ):
                     with patch("psutil.disk_usage", return_value=MagicMock(free=100 * 1024**3)):
                         profile = ResourceProfile.detect()
                         assert profile.cpu_count == 4

@@ -63,9 +63,7 @@ class DistributedCheckpointStore:
 
             # Track which workers have checkpoints
             worker_key = f"{WORKER_CHECKPOINTS_KEY}:{worker_id}"
-            self.redis.execute_command(
-                "SADD", worker_key, state.pipeline_run_id
-            )
+            self.redis.execute_command("SADD", worker_key, state.pipeline_run_id)
             self.redis.execute_command("EXPIRE", worker_key, 86400)
 
             logger.info(
@@ -122,9 +120,7 @@ class DistributedCheckpointStore:
             logger.error("Failed to get checkpoint owner: %s", exc)
             return None
 
-    async def take_ownership(
-        self, run_id: str, new_worker_id: str, timeout: float = 300.0
-    ) -> bool:
+    async def take_ownership(self, run_id: str, new_worker_id: str, timeout: float = 300.0) -> bool:
         """Take ownership of a checkpoint (for failover).
 
         Uses atomic compare-and-swap to prevent race conditions
@@ -155,12 +151,8 @@ class DistributedCheckpointStore:
                 current_owner = self.redis.execute_command("HGET", key, "owner")
                 if current_owner:
                     self.redis.execute_command("HSET", key, "owner", new_worker_id)
-                    self.redis.execute_command(
-                        "HSET", key, "updated_at", str(time.time())
-                    )
-                    logger.info(
-                        "Took ownership of checkpoint %s (fallback mode)", run_id
-                    )
+                    self.redis.execute_command("HSET", key, "updated_at", str(time.time()))
+                    logger.info("Took ownership of checkpoint %s (fallback mode)", run_id)
                     return True
                 return False
 
@@ -172,9 +164,7 @@ class DistributedCheckpointStore:
                 )
                 return True
             elif result == -1:
-                logger.warning(
-                    "Checkpoint %s lease is held by another worker", run_id
-                )
+                logger.warning("Checkpoint %s lease is held by another worker", run_id)
                 return False
             else:
                 logger.warning("Checkpoint %s not found", run_id)
@@ -244,9 +234,7 @@ class DistributedCheckpointStore:
             logger.error("Failed to list worker checkpoints: %s", exc)
             return []
 
-    async def list_dead_worker_checkpoints(
-        self, alive_workers: list[str]
-    ) -> list[tuple[str, str]]:
+    async def list_dead_worker_checkpoints(self, alive_workers: list[str]) -> list[tuple[str, str]]:
         """Find checkpoints owned by workers that are no longer alive.
 
         Args:

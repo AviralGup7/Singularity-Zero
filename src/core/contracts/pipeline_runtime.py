@@ -17,6 +17,7 @@ def _freeze_value(value: Any) -> Any:
     # --- Frontier Fix: Handle accelerated types ---
     try:
         import numpy as np
+
         if isinstance(value, np.ndarray):
             return tuple(_freeze_value(x) for x in value.tolist())
         if isinstance(value, (np.integer, np.floating)):
@@ -106,7 +107,9 @@ class StageInput:
     def __post_init__(self) -> None:
         object.__setattr__(self, "state_snapshot", _freeze_value(dict(self.state_snapshot or {})))
         object.__setattr__(self, "runtime", _freeze_value(dict(self.runtime or {})))
-        object.__setattr__(self, "previous_deltas", tuple(_freeze_value(d) for d in (self.previous_deltas or ())))
+        object.__setattr__(
+            self, "previous_deltas", tuple(_freeze_value(d) for d in (self.previous_deltas or ()))
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {

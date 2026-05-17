@@ -122,9 +122,7 @@ class HeartbeatMonitor:
             try:
                 # Fix #361: wait with timeout; stop_event.set() wakes immediately
                 try:
-                    await asyncio.wait_for(
-                        stop_event.wait(), timeout=self.interval_seconds
-                    )
+                    await asyncio.wait_for(stop_event.wait(), timeout=self.interval_seconds)
                     # stop_event was set — exit cleanly
                     break
                 except TimeoutError:

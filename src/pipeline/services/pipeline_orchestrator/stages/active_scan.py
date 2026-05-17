@@ -148,6 +148,342 @@ def _load_active_probe_functions() -> dict[str, Any]:
     }
 
 
+def _run_json_probe_suite(
+    priority_urls: list[str],
+    shared_response_cache: Any,
+    limit: int = 24,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    if not priority_urls:
+        return []
+
+    findings: list[dict[str, Any]] = []
+    probe_runs = [
+        (
+            "json_state_transition",
+            probes["state_transition_analyzer"](
+                priority_urls,
+                shared_response_cache,
+                max(6, limit // 2),
+            ),
+        ),
+        (
+            "json_parameter_dependency",
+            probes["parameter_dependency_tracker"](
+                priority_urls,
+                shared_response_cache,
+                max(6, limit // 2),
+            ),
+        ),
+        (
+            "json_pagination",
+            probes["pagination_walker"](
+                priority_urls,
+                shared_response_cache,
+                max(6, limit // 2),
+            ),
+        ),
+        (
+            "json_filter_fuzz",
+            probes["filter_parameter_fuzzer"](
+                priority_urls,
+                shared_response_cache,
+                max(6, limit // 2),
+            ),
+        ),
+    ]
+
+    for probe_name, probe_findings in probe_runs:
+        if not isinstance(probe_findings, list):
+            continue
+        for finding in probe_findings:
+            if len(findings) >= limit:
+                return findings
+            item = dict(finding) if isinstance(finding, dict) else {"value": finding}
+            item.setdefault("probe", probe_name)
+            findings.append(item)
+    return findings[:limit]
+
+
+def _run_http_smuggling_suite(
+    priority_items: list[dict[str, Any]],
+    shared_response_cache: Any,
+    limit: int = 10,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    smuggling_findings = probes["http_smuggling_probe"](
+        priority_items,
+        shared_response_cache,
+        limit=limit,
+    )
+    http2_findings = probes["http2_probe"](
+        priority_items,
+        shared_response_cache,
+        limit=max(1, limit // 2),
+    )
+    combined = [
+        *(
+            smuggling_findings
+            if isinstance(smuggling_findings, list)
+            else ([smuggling_findings] if smuggling_findings else [])
+        ),
+        *(
+            http2_findings
+            if isinstance(http2_findings, list)
+            else ([http2_findings] if http2_findings else [])
+        ),
+    ]
+    combined.sort(
+        key=lambda item: (
+            -float(item.get("confidence", 0.0)) if isinstance(item, dict) else 0.0,
+            str(item.get("url", "")) if isinstance(item, dict) else "",
+        )
+    )
+    return [item for item in combined if isinstance(item, dict)][:limit]
+
+
+def _run_auth_bypass_suite(
+    priority_items: list[dict[str, Any]],
+    shared_response_cache: Any,
+    limit: int = 12,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    suite_results = probes["run_auth_bypass_probes"](
+        priority_items,
+        shared_response_cache,
+        config={
+            "jwt_stripping_limit": max(4, limit // 2),
+            "cookie_manipulation_limit": max(4, limit // 2),
+            "auth_bypass_limit": max(4, limit // 2),
+            "credential_stuffing_limit": max(2, limit // 4),
+            "mfa_bypass_limit": max(2, limit // 4),
+            "password_reset_abuse_limit": max(2, limit // 4),
+        },
+    )
+    if not isinstance(suite_results, dict):
+        return []
+
+    flattened: list[dict[str, Any]] = []
+    fallback_url = str(priority_items[0].get("url", "")).strip() if priority_items else ""
+    for suite_name, suite_findings in suite_results.items():
+        if not isinstance(suite_findings, list):
+            continue
+        for finding in suite_findings:
+            if len(flattened) >= limit:
+                return flattened
+            item = dict(finding) if isinstance(finding, dict) else {"value": finding}
+            item.setdefault("probe_type", suite_name)
+            issues = item.get("issues")
+            if not isinstance(issues, list) or not issues:
+                item["issues"] = [f"{suite_name}_signal"]
+            item.setdefault("confidence", 0.55)
+            item.setdefault("severity", "medium")
+            if not str(item.get("url", "")).strip() and fallback_url:
+                item["url"] = fallback_url
+            flattened.append(item)
+    return flattened[:limit]
+
+
+def _extract_jwt_candidates(url: str, cached_response: Any, *, probes: dict[str, Any]) -> list[str]:
+    token_re = probes["jwt_token_regex"]
+    if token_re is None:
+        return []
+
+    tokens: set[str] = set()
+    for _, value in parse_qsl(urlparse(url).query, keep_blank_values=True):
+        tokens.update(token_re.findall(str(value)))
+
+    if isinstance(cached_response, dict):
+        headers = cached_response.get("headers")
+        if isinstance(headers, dict):
+            for header_value in headers.values():
+                tokens.update(token_re.findall(str(header_value)))
+        body_text = str(cached_response.get("body_text") or cached_response.get("body") or "")
+        if body_text:
+            tokens.update(token_re.findall(body_text[:12000]))
+
+    return sorted(tokens)
+
+
+def _run_jwt_attack_suite(
+    priority_items: list[dict[str, Any]],
+    shared_response_cache: Any,
+    max_targets: int = 2,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    try:
+        import requests
+    except ImportError, TypeError, ValueError, AttributeError:
+        return []
+
+    findings: list[dict[str, Any]] = []
+    tested = 0
+    for item in priority_items:
+        if tested >= max_targets:
+            break
+
+        url = str(item.get("url", "")).strip()
+        if not url:
+            continue
+
+        cached_response = (
+            shared_response_cache.get(url) if hasattr(shared_response_cache, "get") else None
+        )
+        tokens = _extract_jwt_candidates(url, cached_response, probes=probes)
+        if not tokens:
+            continue
+
+        token = tokens[0]
+        session = requests.Session()
+        tested += 1
+        result = probes["run_jwt_attack_suite"](token, url, session, config=None)
+        if not isinstance(result, dict):
+            continue
+
+        vulnerable_attacks = int(result.get("vulnerable_attacks", 0) or 0)
+        if vulnerable_attacks <= 0:
+            continue
+
+        vulnerable_list = result.get("vulnerable_list", [])
+        issues = [f"jwt_attack_{name}" for name in vulnerable_list if str(name).strip()]
+        if not issues:
+            issues = ["jwt_attack_suite_vulnerable"]
+
+        findings.append(
+            {
+                "url": url,
+                "endpoint_key": url,
+                "endpoint_base_key": url.split("?", 1)[0],
+                "endpoint_type": "API",
+                "issues": issues,
+                "probe_type": "jwt_attack_suite",
+                "severity": str(result.get("severity", "high") or "high"),
+                "confidence": round(min(0.95, 0.6 + vulnerable_attacks * 0.05), 2),
+                "evidence": {
+                    "vulnerable_attacks": vulnerable_attacks,
+                    "vulnerable_list": vulnerable_list,
+                    "token_preview": str(result.get("token_preview", "")),
+                },
+            }
+        )
+
+    return findings
+
+
+def _run_fuzzing_suggestion_probe(
+    priority_urls: list[str],
+    limit: int = 12,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    parameter_suggestions = probes["generate_payload_suggestions"](
+        priority_urls,
+        limit=limit,
+    )
+    header_suggestions = probes["generate_header_payloads"](
+        priority_urls,
+        limit=limit,
+    )
+    body_suggestions = probes["generate_body_payloads"](
+        priority_urls,
+        limit=limit,
+    )
+
+    per_url: dict[str, dict[str, Any]] = {}
+
+    def _entry_for(url: str) -> dict[str, Any]:
+        base = per_url.get(url)
+        if isinstance(base, dict):
+            return base
+        record = {
+            "url": url,
+            "endpoint_key": url,
+            "endpoint_base_key": url.split("?", 1)[0],
+            "endpoint_type": "API",
+            "issues": ["fuzzing_payload_candidates_generated"],
+            "probe_type": "fuzzing_suggestions",
+            "parameter_suggestion_count": 0,
+            "header_suggestion_count": 0,
+            "body_suggestion_count": 0,
+            "sample_payloads": {},
+        }
+        per_url[url] = record
+        return record
+
+    if isinstance(parameter_suggestions, list):
+        for item in parameter_suggestions:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url", "")).strip()
+            if not url:
+                continue
+            entry = _entry_for(url)
+            suggestions = item.get("suggestions")
+            if isinstance(suggestions, list):
+                entry["parameter_suggestion_count"] += len(suggestions)
+                if suggestions and "parameter" not in entry["sample_payloads"]:
+                    entry["sample_payloads"]["parameter"] = suggestions[:3]
+
+    if isinstance(header_suggestions, list):
+        for item in header_suggestions:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url", "")).strip()
+            if not url:
+                continue
+            entry = _entry_for(url)
+            suggestions = item.get("header_suggestions")
+            if isinstance(suggestions, list):
+                entry["header_suggestion_count"] += len(suggestions)
+                if suggestions and "header" not in entry["sample_payloads"]:
+                    entry["sample_payloads"]["header"] = suggestions[:3]
+
+    if isinstance(body_suggestions, list):
+        for item in body_suggestions:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url", "")).strip()
+            if not url:
+                continue
+            entry = _entry_for(url)
+            suggestions = item.get("body_suggestions")
+            if isinstance(suggestions, list):
+                entry["body_suggestion_count"] += len(suggestions)
+                if suggestions and "body" not in entry["sample_payloads"]:
+                    entry["sample_payloads"]["body"] = suggestions[:3]
+
+    findings: list[dict[str, Any]] = []
+    for item in per_url.values():
+        total = (
+            int(item.get("parameter_suggestion_count", 0) or 0)
+            + int(item.get("header_suggestion_count", 0) or 0)
+            + int(item.get("body_suggestion_count", 0) or 0)
+        )
+        if total <= 0:
+            continue
+        item["confidence"] = 0.35
+        item["severity"] = "info"
+        item["evidence"] = {
+            "total_suggestions": total,
+            "parameter_suggestions": int(item.get("parameter_suggestion_count", 0) or 0),
+            "header_suggestions": int(item.get("header_suggestion_count", 0) or 0),
+            "body_suggestions": int(item.get("body_suggestion_count", 0) or 0),
+        }
+        findings.append(item)
+
+    findings.sort(
+        key=lambda finding: (
+            -int((finding.get("evidence", {}) or {}).get("total_suggestions", 0)),
+            str(finding.get("url", "")),
+        )
+    )
+    return findings[:limit]
+
+
 async def _try_probe(
     name: str,
     probe_fn: Any,
@@ -171,7 +507,10 @@ async def _try_probe(
             result = await asyncio.wait_for(_execute_probe(), timeout=timeout_seconds)
         else:
             result = await _execute_probe()
-        findings = cast(list[dict[str, Any]], result if isinstance(result, list) else ([result] if result else []))
+        findings = cast(
+            list[dict[str, Any]],
+            result if isinstance(result, list) else ([result] if result else []),
+        )
         return name, findings, True
     except TimeoutError:
         logger.warning("Probe '%s' timed out after %.1fs", name, float(timeout_seconds or 0.0))
@@ -205,6 +544,7 @@ async def run_active_scanning(
     if adaptive_enabled:
         logger.info("Adaptive scan mode enabled (default)")
         from ._active_scan_adaptive import run_active_scanning_adaptive
+
         return await run_active_scanning_adaptive(args, config, ctx)
 
     stage_started = time.monotonic()
@@ -256,7 +596,7 @@ async def run_active_scanning(
         analysis_settings = {}
     try:
         probe_timeout_seconds = float(analysis_settings.get("active_probe_timeout_seconds", 180))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         probe_timeout_seconds = 180.0
     probe_timeout_seconds = max(30.0, probe_timeout_seconds)
 
@@ -309,333 +649,14 @@ async def run_active_scanning(
             state_delta={},
         )
 
-    def _run_probe(name: str, probe_fn: Any, *probe_args: Any) -> Any:
+    def _run_probe(name: str, probe_fn: Any, *probe_args: Any, **kwargs: Any) -> Any:
         return _try_probe(
             name,
             probe_fn,
             *probe_args,
             timeout_seconds=probe_timeout_seconds,
+            **kwargs,
         )
-
-    def _run_json_probe_suite(
-        priority_urls: list[str],
-        shared_response_cache: Any,
-        limit: int = 24,
-    ) -> list[dict[str, Any]]:
-        if not priority_urls:
-            return []
-
-        findings: list[dict[str, Any]] = []
-        probe_runs = [
-            (
-                "json_state_transition",
-                probes["state_transition_analyzer"](
-                    priority_urls,
-                    shared_response_cache,
-                    max(6, limit // 2),
-                ),
-            ),
-            (
-                "json_parameter_dependency",
-                probes["parameter_dependency_tracker"](
-                    priority_urls,
-                    shared_response_cache,
-                    max(6, limit // 2),
-                ),
-            ),
-            (
-                "json_pagination",
-                probes["pagination_walker"](
-                    priority_urls,
-                    shared_response_cache,
-                    max(6, limit // 2),
-                ),
-            ),
-            (
-                "json_filter_fuzz",
-                probes["filter_parameter_fuzzer"](
-                    priority_urls,
-                    shared_response_cache,
-                    max(6, limit // 2),
-                ),
-            ),
-        ]
-
-        for probe_name, probe_findings in probe_runs:
-            if not isinstance(probe_findings, list):
-                continue
-            for finding in probe_findings:
-                if len(findings) >= limit:
-                    return findings
-                item = dict(finding) if isinstance(finding, dict) else {"value": finding}
-                item.setdefault("probe", probe_name)
-                findings.append(item)
-        return findings[:limit]
-
-    def _run_http_smuggling_suite(
-        priority_items: list[dict[str, Any]],
-        shared_response_cache: Any,
-        limit: int = 10,
-    ) -> list[dict[str, Any]]:
-        smuggling_findings = probes["http_smuggling_probe"](
-            priority_items,
-            shared_response_cache,
-            limit=limit,
-        )
-        http2_findings = probes["http2_probe"](
-            priority_items,
-            shared_response_cache,
-            limit=max(1, limit // 2),
-        )
-        combined = [
-            *(
-                smuggling_findings
-                if isinstance(smuggling_findings, list)
-                else ([smuggling_findings] if smuggling_findings else [])
-            ),
-            *(
-                http2_findings
-                if isinstance(http2_findings, list)
-                else ([http2_findings] if http2_findings else [])
-            ),
-        ]
-        combined.sort(
-            key=lambda item: (
-                -float(item.get("confidence", 0.0)) if isinstance(item, dict) else 0.0,
-                str(item.get("url", "")) if isinstance(item, dict) else "",
-            )
-        )
-        return [item for item in combined if isinstance(item, dict)][:limit]
-
-    def _run_auth_bypass_suite(
-        priority_items: list[dict[str, Any]],
-        shared_response_cache: Any,
-        limit: int = 12,
-    ) -> list[dict[str, Any]]:
-        suite_results = probes["run_auth_bypass_probes"](
-            priority_items,
-            shared_response_cache,
-            config={
-                "jwt_stripping_limit": max(4, limit // 2),
-                "cookie_manipulation_limit": max(4, limit // 2),
-                "auth_bypass_limit": max(4, limit // 2),
-                "credential_stuffing_limit": max(2, limit // 4),
-                "mfa_bypass_limit": max(2, limit // 4),
-                "password_reset_abuse_limit": max(2, limit // 4),
-            },
-        )
-        if not isinstance(suite_results, dict):
-            return []
-
-        flattened: list[dict[str, Any]] = []
-        fallback_url = str(priority_items[0].get("url", "")).strip() if priority_items else ""
-        for suite_name, suite_findings in suite_results.items():
-            if not isinstance(suite_findings, list):
-                continue
-            for finding in suite_findings:
-                if len(flattened) >= limit:
-                    return flattened
-                item = dict(finding) if isinstance(finding, dict) else {"value": finding}
-                item.setdefault("probe_type", suite_name)
-                issues = item.get("issues")
-                if not isinstance(issues, list) or not issues:
-                    item["issues"] = [f"{suite_name}_signal"]
-                item.setdefault("confidence", 0.55)
-                item.setdefault("severity", "medium")
-                if not str(item.get("url", "")).strip() and fallback_url:
-                    item["url"] = fallback_url
-                flattened.append(item)
-        return flattened[:limit]
-
-    def _extract_jwt_candidates(url: str, cached_response: Any) -> list[str]:
-        token_re = probes["jwt_token_regex"]
-        if token_re is None:
-            return []
-
-        tokens: set[str] = set()
-        for _, value in parse_qsl(urlparse(url).query, keep_blank_values=True):
-            tokens.update(token_re.findall(str(value)))
-
-        if isinstance(cached_response, dict):
-            headers = cached_response.get("headers")
-            if isinstance(headers, dict):
-                for header_value in headers.values():
-                    tokens.update(token_re.findall(str(header_value)))
-            body_text = str(cached_response.get("body_text") or cached_response.get("body") or "")
-            if body_text:
-                tokens.update(token_re.findall(body_text[:12000]))
-
-        return sorted(tokens)
-
-    def _run_jwt_attack_suite(
-        priority_items: list[dict[str, Any]],
-        shared_response_cache: Any,
-        max_targets: int = 2,
-    ) -> list[dict[str, Any]]:
-        try:
-            import requests
-        except (ImportError, TypeError, ValueError, AttributeError):
-            return []
-
-        findings: list[dict[str, Any]] = []
-        tested = 0
-        for item in priority_items:
-            if tested >= max_targets:
-                break
-
-            url = str(item.get("url", "")).strip()
-            if not url:
-                continue
-
-            cached_response = (
-                shared_response_cache.get(url) if hasattr(shared_response_cache, "get") else None
-            )
-            tokens = _extract_jwt_candidates(url, cached_response)
-            if not tokens:
-                continue
-
-            token = tokens[0]
-            session = requests.Session()
-            tested += 1
-            result = probes["run_jwt_attack_suite"](token, url, session, config=None)
-            if not isinstance(result, dict):
-                continue
-
-            vulnerable_attacks = int(result.get("vulnerable_attacks", 0) or 0)
-            if vulnerable_attacks <= 0:
-                continue
-
-            vulnerable_list = result.get("vulnerable_list", [])
-            issues = [f"jwt_attack_{name}" for name in vulnerable_list if str(name).strip()]
-            if not issues:
-                issues = ["jwt_attack_suite_vulnerable"]
-
-            findings.append(
-                {
-                    "url": url,
-                    "endpoint_key": url,
-                    "endpoint_base_key": url.split("?", 1)[0],
-                    "endpoint_type": "API",
-                    "issues": issues,
-                    "probe_type": "jwt_attack_suite",
-                    "severity": str(result.get("severity", "high") or "high"),
-                    "confidence": round(min(0.95, 0.6 + vulnerable_attacks * 0.05), 2),
-                    "evidence": {
-                        "vulnerable_attacks": vulnerable_attacks,
-                        "vulnerable_list": vulnerable_list,
-                        "token_preview": str(result.get("token_preview", "")),
-                    },
-                }
-            )
-
-        return findings
-
-    def _run_fuzzing_suggestion_probe(
-        priority_urls: list[str],
-        limit: int = 12,
-    ) -> list[dict[str, Any]]:
-        parameter_suggestions = probes["generate_payload_suggestions"](
-            priority_urls,
-            limit=limit,
-        )
-        header_suggestions = probes["generate_header_payloads"](
-            priority_urls,
-            limit=limit,
-        )
-        body_suggestions = probes["generate_body_payloads"](
-            priority_urls,
-            limit=limit,
-        )
-
-        per_url: dict[str, dict[str, Any]] = {}
-
-        def _entry_for(url: str) -> dict[str, Any]:
-            base = per_url.get(url)
-            if isinstance(base, dict):
-                return base
-            record = {
-                "url": url,
-                "endpoint_key": url,
-                "endpoint_base_key": url.split("?", 1)[0],
-                "endpoint_type": "API",
-                "issues": ["fuzzing_payload_candidates_generated"],
-                "probe_type": "fuzzing_suggestions",
-                "parameter_suggestion_count": 0,
-                "header_suggestion_count": 0,
-                "body_suggestion_count": 0,
-                "sample_payloads": {},
-            }
-            per_url[url] = record
-            return record
-
-        if isinstance(parameter_suggestions, list):
-            for item in parameter_suggestions:
-                if not isinstance(item, dict):
-                    continue
-                url = str(item.get("url", "")).strip()
-                if not url:
-                    continue
-                entry = _entry_for(url)
-                suggestions = item.get("suggestions")
-                if isinstance(suggestions, list):
-                    entry["parameter_suggestion_count"] += len(suggestions)
-                    if suggestions and "parameter" not in entry["sample_payloads"]:
-                        entry["sample_payloads"]["parameter"] = suggestions[:3]
-
-        if isinstance(header_suggestions, list):
-            for item in header_suggestions:
-                if not isinstance(item, dict):
-                    continue
-                url = str(item.get("url", "")).strip()
-                if not url:
-                    continue
-                entry = _entry_for(url)
-                suggestions = item.get("header_suggestions")
-                if isinstance(suggestions, list):
-                    entry["header_suggestion_count"] += len(suggestions)
-                    if suggestions and "header" not in entry["sample_payloads"]:
-                        entry["sample_payloads"]["header"] = suggestions[:3]
-
-        if isinstance(body_suggestions, list):
-            for item in body_suggestions:
-                if not isinstance(item, dict):
-                    continue
-                url = str(item.get("url", "")).strip()
-                if not url:
-                    continue
-                entry = _entry_for(url)
-                suggestions = item.get("body_suggestions")
-                if isinstance(suggestions, list):
-                    entry["body_suggestion_count"] += len(suggestions)
-                    if suggestions and "body" not in entry["sample_payloads"]:
-                        entry["sample_payloads"]["body"] = suggestions[:3]
-
-        findings: list[dict[str, Any]] = []
-        for item in per_url.values():
-            total = (
-                int(item.get("parameter_suggestion_count", 0) or 0)
-                + int(item.get("header_suggestion_count", 0) or 0)
-                + int(item.get("body_suggestion_count", 0) or 0)
-            )
-            if total <= 0:
-                continue
-            item["confidence"] = 0.35
-            item["severity"] = "info"
-            item["evidence"] = {
-                "total_suggestions": total,
-                "parameter_suggestions": int(item.get("parameter_suggestion_count", 0) or 0),
-                "header_suggestions": int(item.get("header_suggestion_count", 0) or 0),
-                "body_suggestions": int(item.get("body_suggestion_count", 0) or 0),
-            }
-            findings.append(item)
-
-        findings.sort(
-            key=lambda finding: (
-                -int((finding.get("evidence", {}) or {}).get("total_suggestions", 0)),
-                str(finding.get("url", "")),
-            )
-        )
-        return findings[:limit]
 
     # Group 1: URL-focused probes (can run in parallel)
     group1 = [
@@ -707,8 +728,22 @@ async def run_active_scanning(
         _run_probe("ssti", probes["ssti_active_probe"], url_priority_items, response_cache, 6),
         _run_probe("xxe", probes["xxe_active_probe"], url_priority_items, response_cache, 5),
         _run_probe("nosql", probes["nosql_injection_probe"], url_priority_items, response_cache, 5),
-        _run_probe("auth_bypass", _run_auth_bypass_suite, url_priority_items, response_cache, 12),
-        _run_probe("jwt_attacks", _run_jwt_attack_suite, url_priority_items, response_cache, 2),
+        _run_probe(
+            "auth_bypass",
+            _run_auth_bypass_suite,
+            url_priority_items,
+            response_cache,
+            12,
+            probes=probes,
+        ),
+        _run_probe(
+            "jwt_attacks",
+            _run_jwt_attack_suite,
+            url_priority_items,
+            response_cache,
+            2,
+            probes=probes,
+        ),
         _run_probe(
             "ldap",
             probes["ldap_injection_active_probe"],
@@ -733,8 +768,8 @@ async def run_active_scanning(
         ),
         _run_probe("crlf", probes["crlf_injection_probe"], url_priority_items, response_cache, 5),
         _run_probe("mutation", probes["run_mutation_tests"], urls_l, ranked_items),
-        _run_probe("fuzzing_suggestions", _run_fuzzing_suggestion_probe, urls_l, 12),
-        _run_probe("json", _run_json_probe_suite, urls_l, response_cache),
+        _run_probe("fuzzing_suggestions", _run_fuzzing_suggestion_probe, urls_l, 12, probes=probes),
+        _run_probe("json", _run_json_probe_suite, urls_l, response_cache, probes=probes),
         _run_probe("response_diff", probes["response_diff_engine"], urls_l, response_cache),
     ]
 
@@ -769,7 +804,11 @@ async def run_active_scanning(
         _run_probe("options", probes["options_method_probe"], host_priority_items, response_cache),
         _run_probe("cloud_metadata", probes["cloud_metadata_active_probe"], host_probe_targets),
         _run_probe(
-            "http_smuggling", _run_http_smuggling_suite, host_priority_items, response_cache
+            "http_smuggling",
+            _run_http_smuggling_suite,
+            host_priority_items,
+            response_cache,
+            probes=probes,
         ),
     ]
 

@@ -42,7 +42,7 @@ def is_terminal_reporting_state(
         if isinstance(reporting_entry, dict):
             try:
                 reporting_percent = int(reporting_entry.get("percent", 0) or 0)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 reporting_percent = 0
     elif isinstance(stage_progress, list):
         for entry in stage_progress:
@@ -55,7 +55,7 @@ def is_terminal_reporting_state(
                 reporting_status = stage_entry_status(entry)
                 try:
                     reporting_percent = int(entry.get("percent", 0) or 0)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     reporting_percent = 0
 
     latest_logs = [
@@ -153,7 +153,7 @@ def recover_job_from_launcher(
         parsed = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
         if isinstance(parsed, dict):
             config = parsed
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError, OSError:
         config = {}
 
     scope_entries: list[str] = []
@@ -194,7 +194,7 @@ def recover_job_from_launcher(
     )
     try:
         progress_percent = int(last_progress.get("percent", 0) or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         progress_percent = 0
     progress_percent = max(0, min(100, progress_percent))
 
@@ -501,7 +501,7 @@ def reconcile_stale_terminal_job(
             job["failed_stage"] = failed_stage
             try:
                 current_percent = int(job.get("progress_percent", 0) or 0)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 current_percent = 0
             if current_percent >= 100:
                 job["progress_percent"] = 99
@@ -562,10 +562,10 @@ def reconcile_stale_terminal_job(
             persist_callback(job)
             return
 
-        assert recovered_job is not None
+        assert recovered_job_data is not None
         existing_process = job.get("process")
         job.clear()
-        job.update(recovered_job)
+        job.update(recovered_job_data)
         if existing_process is not None:
             try:
                 terminate = getattr(existing_process, "terminate", None)

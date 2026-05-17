@@ -34,7 +34,9 @@ logger = get_pipeline_logger(__name__)
 
 def _is_deterministic_contract_error(exc: Exception) -> bool:
     err_str = str(exc).lower()
-    return 'schema' in err_str or 'contract' in err_str or 'type' in err_str or 'validation' in err_str
+    return (
+        "schema" in err_str or "contract" in err_str or "type" in err_str or "validation" in err_str
+    )
 
 
 async def run_passive_scanning(
@@ -65,7 +67,9 @@ async def run_passive_scanning(
     iteration_details: list[dict[str, Any]] = []
 
     if stage_input.previous_deltas:
-        logger.info("Recovering iterative analysis state from %d deltas", len(stage_input.previous_deltas))
+        logger.info(
+            "Recovering iterative analysis state from %d deltas", len(stage_input.previous_deltas)
+        )
         for delta_payload in stage_input.previous_deltas:
             # Reconstruct iteration details and seen keys to skip ahead
             meta = delta_payload.get("metadata", {})
@@ -171,7 +175,6 @@ async def run_passive_scanning(
                             "responses": [],
                         }
                         break
-
 
             state_delta["merged_findings"] = annotate_finding_decisions(
                 annotate_finding_history(

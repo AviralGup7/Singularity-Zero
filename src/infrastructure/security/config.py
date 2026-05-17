@@ -40,7 +40,7 @@ def _env_int(name: str, default: int) -> int:
         return default
     try:
         return int(val)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return default
 
 
@@ -51,7 +51,7 @@ def _env_float(name: str, default: float) -> float:
         return default
     try:
         return float(val)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return default
 
 

@@ -48,7 +48,8 @@ def normalize_url(url: str) -> str:
         # 2. Path Canonicalization (Collapse slashes and resolve traversals)
         path = raw_parsed.path if netloc else ""
         import os
-        cleaned_path = os.path.normpath(path).replace("\\", "/") # cross-platform safety
+
+        cleaned_path = os.path.normpath(path).replace("\\", "/")  # cross-platform safety
         if cleaned_path == ".":
             cleaned_path = ""
         elif path.endswith("/") and not cleaned_path.endswith("/"):

@@ -58,7 +58,7 @@ async def health_check(
         version=result.service.version,
         uptime_seconds=result.service.uptime_seconds,
         dependencies=result.raw_checks,
-        mesh=mesh_nodes
+        mesh=mesh_nodes,
     )
 
 

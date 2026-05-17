@@ -27,13 +27,23 @@ logger = get_pipeline_logger(__name__)
 class ResourceProfile(BaseModel):
     """System resource information for a worker."""
 
-    cpu_count: int = Field(default_factory=lambda: (psutil.cpu_count(logical=True) if psutil else 1) or 1)
-    cpu_freq_mhz: float = Field(default_factory=lambda: (psutil.cpu_freq().max if psutil and psutil.cpu_freq() else 0.0))
-    total_ram_mb: int = Field(default_factory=lambda: (psutil.virtual_memory().total // 1024 // 1024 if psutil else 0))
-    available_ram_mb: int = Field(default_factory=lambda: (psutil.virtual_memory().available // 1024 // 1024 if psutil else 0))
-    disk_gb_free: float = Field(default_factory=lambda: (psutil.disk_usage('/').free / (1024**3) if psutil else 0.0))
-    platform: str = Field(default_factory=lambda: __import__('platform').system())
-    python_version: str = Field(default_factory=lambda: __import__('platform').python_version())
+    cpu_count: int = Field(
+        default_factory=lambda: (psutil.cpu_count(logical=True) if psutil else 1) or 1
+    )
+    cpu_freq_mhz: float = Field(
+        default_factory=lambda: psutil.cpu_freq().max if psutil and psutil.cpu_freq() else 0.0
+    )
+    total_ram_mb: int = Field(
+        default_factory=lambda: psutil.virtual_memory().total // 1024 // 1024 if psutil else 0
+    )
+    available_ram_mb: int = Field(
+        default_factory=lambda: psutil.virtual_memory().available // 1024 // 1024 if psutil else 0
+    )
+    disk_gb_free: float = Field(
+        default_factory=lambda: psutil.disk_usage("/").free / (1024**3) if psutil else 0.0
+    )
+    platform: str = Field(default_factory=lambda: __import__("platform").system())
+    python_version: str = Field(default_factory=lambda: __import__("platform").python_version())
 
     @classmethod
     def detect(cls) -> ResourceProfile:
@@ -44,7 +54,7 @@ class ResourceProfile(BaseModel):
             try:
                 cpu_freq = psutil.cpu_freq()
                 mem = psutil.virtual_memory()
-                disk = psutil.disk_usage('/')
+                disk = psutil.disk_usage("/")
 
                 return cls(
                     cpu_count=psutil.cpu_count(logical=True) or 1,
@@ -436,7 +446,9 @@ class WorkerInfo(BaseModel):
             "total_processed": str(self.total_processed),
             "total_failed": str(self.total_failed),
             "metadata": json.dumps(self.metadata),
-            "resources": json.dumps(self.resources.to_dict() if hasattr(self.resources, 'to_dict') else {}),
+            "resources": json.dumps(
+                self.resources.to_dict() if hasattr(self.resources, "to_dict") else {}
+            ),
             "capabilities": json.dumps(self.capabilities),
         }
 

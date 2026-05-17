@@ -142,7 +142,7 @@ class Worker:
         try:
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)
-        except (ValueError, OSError):
+        except ValueError, OSError:
             logger.debug("Cannot set signal handlers (not in main thread)")
 
     async def _register(self) -> None:
@@ -324,7 +324,7 @@ class Worker:
                     continue
 
                 # Use resource-aware job selection if available
-                if hasattr(self.queue, 'get_next_job_for_worker'):
+                if hasattr(self.queue, "get_next_job_for_worker"):
                     job = await self.queue.get_next_job_for_worker(self.worker_id)
                 else:
                     job = await self.queue.claim_job(self.worker_id)
@@ -411,9 +411,7 @@ class Worker:
                     dead_worker_id,
                 )
                 # Try to take over the checkpoint
-                success = await self.distributed_store.take_ownership(
-                    run_id, self.worker_id
-                )
+                success = await self.distributed_store.take_ownership(run_id, self.worker_id)
                 if success:
                     logger.info(
                         "Took ownership of checkpoint %s from dead worker %s",
@@ -423,9 +421,7 @@ class Worker:
                     # Here you would resume the pipeline from the checkpoint
                     # await self._resume_pipeline(run_id)
                 else:
-                    logger.warning(
-                        "Failed to take ownership of checkpoint %s", run_id
-                    )
+                    logger.warning("Failed to take ownership of checkpoint %s", run_id)
         except Exception as exc:
             logger.error("Error handling stale checkpoints: %s", exc)
 
@@ -522,24 +518,17 @@ def main(argv: list[str] | None = None) -> None:
         "--capabilities",
         nargs="*",
         default=[],
-        help="Worker capabilities (e.g., browser, heavy_compute)"
+        help="Worker capabilities (e.g., browser, heavy_compute)",
     )
     parser.add_argument(
         "--enable-checkpoint-replication",
         action="store_true",
-        help="Enable checkpoint replication via Redis"
+        help="Enable checkpoint replication via Redis",
     )
     parser.add_argument(
-        "--enable-discovery",
-        action="store_true",
-        help="Enable automatic peer discovery via mDNS"
+        "--enable-discovery", action="store_true", help="Enable automatic peer discovery via mDNS"
     )
-    parser.add_argument(
-        "--discovery-port",
-        type=int,
-        default=8008,
-        help="Port for mDNS discovery"
-    )
+    parser.add_argument("--discovery-port", type=int, default=8008, help="Port for mDNS discovery")
     args = parser.parse_args(argv)
 
     queue = JobQueue(RedisClient(), args.queue)
@@ -549,19 +538,21 @@ def main(argv: list[str] | None = None) -> None:
     distributed_store = None
     if args.enable_checkpoint_replication:
         from src.infrastructure.checkpoint import DistributedCheckpointStore
+
         distributed_store = DistributedCheckpointStore(RedisClient(), worker_id)
 
     # Create discovery service if enabled
     discovery = None
     if args.enable_discovery:
         from src.infrastructure.discovery import WorkerDiscovery
+
         discovery = WorkerDiscovery(
             worker_id=worker_id,
             port=args.discovery_port,
             metadata={
                 "hostname": socket.gethostname(),
                 "capabilities": ",".join(args.capabilities),
-            }
+            },
         )
 
     worker = Worker(

@@ -164,7 +164,9 @@ def detect_contexts(html: str, probe_marker: str) -> list[ReflectionContext]:
     marker_re = re.compile(rf"({re.escape(probe_marker)}.*?)$")
     attr_marker_re = re.compile(rf"\<[^>]*?({re.escape(probe_marker)})[^>]*?\>")
     comment_marker_re = re.compile(r"<!--[\s\S]*?(" + re.escape(probe_marker) + r")[\s\S]*?-->")
-    bad_marker_re = re.compile(rf"(?s)(?i)<(style|template|textarea|noembed|noscript|title)>[\s\S]*?({re.escape(probe_marker)})[\s\S]*?</\1>")
+    bad_marker_re = re.compile(
+        rf"(?s)(?i)<(style|template|textarea|noembed|noscript|title)>[\s\S]*?({re.escape(probe_marker)})[\s\S]*?</\1>"
+    )
 
     for script_match in _SCRIPT_TAG_RE.finditer(clean_html):
         script = script_match.group(1)
@@ -443,6 +445,7 @@ def _generate_waf_evasion_payloads(vectors: dict[int, set[str]]) -> None:
     ]
     for payload in evasion:
         vectors[5].add(payload)
+
 
 class WafSignature(TypedDict):
     name: str

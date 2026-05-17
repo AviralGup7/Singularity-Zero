@@ -375,9 +375,7 @@ def oauth_misconfiguration_detector(
         if "token_in_redirect_body" in resp_signals:
             resp_title_parts.append("Token in Redirect Body")
 
-        title = (
-            "; ".join(resp_title_parts) if resp_title_parts else "OAuth Response Issue Detected"
-        )
+        title = "; ".join(resp_title_parts) if resp_title_parts else "OAuth Response Issue Detected"
 
         findings.append(
             {

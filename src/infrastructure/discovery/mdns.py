@@ -106,7 +106,9 @@ class WorkerDiscovery:
         )
         try:
             self.zeroconf.register_service(info)
-            logger.info("Registered worker %s at %s:%d via mDNS", self.worker_id, local_ip, self.port)
+            logger.info(
+                "Registered worker %s at %s:%d via mDNS", self.worker_id, local_ip, self.port
+            )
         except Exception as exc:
             logger.error("Failed to register worker via mDNS: %s", exc)
 

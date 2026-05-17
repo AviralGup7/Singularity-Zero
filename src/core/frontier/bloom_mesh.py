@@ -145,7 +145,10 @@ class BloomMeshSynchronizer:
         if not remote_clock.is_later_than(existing_clock):
             return False
 
-        if int(data["bit_size"]) != self.filter.bit_size or int(data["hash_count"]) != self.filter.hash_count:
+        if (
+            int(data["bit_size"]) != self.filter.bit_size
+            or int(data["hash_count"]) != self.filter.hash_count
+        ):
             logger.warning("Ignoring incompatible Bloom snapshot from %s", node_id)
             return False
 
@@ -214,7 +217,7 @@ class BloomMeshSynchronizer:
                 "bit_size": self.filter.bit_size,
                 "hash_count": self.filter.hash_count,
                 "element_count": self.filter.element_count,
-                "vclock": self.clock.versions,
+                "vclock": dict(self.clock.versions),
                 "stats": stats,
                 "bits": self.filter.snapshot_bytes(),
             }

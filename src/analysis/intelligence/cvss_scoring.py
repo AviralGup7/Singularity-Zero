@@ -665,7 +665,6 @@ def score_finding_cvss(
     )
 
 
-
 ENRICHMENT_PROVIDER = "enrichment_provider"
 
 

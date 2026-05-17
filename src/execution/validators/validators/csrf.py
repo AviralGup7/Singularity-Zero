@@ -34,7 +34,6 @@ CSRF_PROTECTION_HEADERS = {
 }
 
 
-
 VALIDATOR = "validator"
 
 

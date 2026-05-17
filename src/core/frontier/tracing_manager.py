@@ -79,6 +79,7 @@ class SQLiteSpanExporter:
         success_code: Any = 0
         try:
             from opentelemetry.sdk.trace.export import SpanExportResult
+
             success_code = SpanExportResult.SUCCESS
         except Exception:  # noqa: S110
             pass
@@ -178,9 +179,7 @@ class TracingManager:
             return
 
         try:
-            provider = TracerProvider(
-                resource=Resource.create({"service.name": self.service_name})
-            )
+            provider = TracerProvider(resource=Resource.create({"service.name": self.service_name}))
             provider.add_span_processor(SimpleSpanProcessor(cast(Any, self.local_exporter)))
             provider.add_span_processor(
                 BatchSpanProcessor(
@@ -231,13 +230,16 @@ class TracingManager:
         ) as span:
             yield span
 
-    def traced(self, stage_name: str | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def traced(
+        self, stage_name: str | None = None
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator for async or sync stage runner functions."""
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             name = stage_name or getattr(func, "__name__", "stage")
 
             import inspect
+
             is_async = inspect.iscoroutinefunction(func)
 
             if is_async:
@@ -272,12 +274,16 @@ class TracingManager:
 
     @contextmanager
     def start_stage_span(self, stage_name: str, *args: Any, **kwargs: Any) -> Iterator[Any]:
-        ctx = next((arg for arg in args if hasattr(arg, "result") and hasattr(arg, "scope_entries")), None)
+        ctx = next(
+            (arg for arg in args if hasattr(arg, "result") and hasattr(arg, "scope_entries")), None
+        )
         target_count = 0
         scope_size = 0
         if ctx is not None:
             try:
-                target_count = len(getattr(ctx, "priority_urls", []) or getattr(ctx, "urls", []) or [])
+                target_count = len(
+                    getattr(ctx, "priority_urls", []) or getattr(ctx, "urls", []) or []
+                )
             except Exception:  # noqa: S110
                 target_count = 0
             try:
@@ -290,7 +296,9 @@ class TracingManager:
             "scope_size": int(scope_size),
         }
         parent_headers = kwargs.pop("trace_parent_headers", None)
-        with self.start_span(f"pipeline.stage.{stage_name}", attributes=attributes, parent_headers=parent_headers) as span:
+        with self.start_span(
+            f"pipeline.stage.{stage_name}", attributes=attributes, parent_headers=parent_headers
+        ) as span:
             yield span
 
     def record_stage_result(self, span: Any, stage_output: Any) -> None:
@@ -316,6 +324,7 @@ class TracingManager:
         except Exception as e:
             # Fix #338: Log OTel propagation failures instead of silently swallowing
             from src.core.logging.trace_logging import get_pipeline_logger
+
             get_pipeline_logger(__name__).debug("Failed to record exception in OTel span: %s", e)
 
     def inject_headers(self, carrier: dict[str, str] | None = None) -> dict[str, str]:
@@ -334,7 +343,11 @@ class TracingManager:
         metadata = dict(getattr(envelope, "metadata", {}) or {})
         metadata["trace_headers"] = headers
         try:
-            return replace(envelope, metadata=metadata, traceparent=headers.get("traceparent", envelope.traceparent))
+            return replace(
+                envelope,
+                metadata=metadata,
+                traceparent=headers.get("traceparent", envelope.traceparent),
+            )
         except Exception:  # noqa: S110
             return envelope
 

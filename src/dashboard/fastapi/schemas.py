@@ -567,6 +567,7 @@ class FindingsSummaryResponse(BaseModel):
     severity_totals: dict[str, int] = Field(default_factory=dict)
     by_severity: dict[str, int] = Field(default_factory=dict)
     by_module: dict[str, int] = Field(default_factory=dict)
+    findings: list[dict[str, Any]] = Field(default_factory=list)
     targets: list[dict[str, Any]] = Field(default_factory=list)
     targets_with_findings: int = 0
     total_targets: int = 0

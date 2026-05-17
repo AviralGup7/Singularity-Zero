@@ -515,7 +515,9 @@ def _get_var_boundary_re(var_name: str) -> re.Pattern[str]:
 def _get_tainted_sink_re(var_name: str, sink_pattern: str) -> re.Pattern[str]:
     """Match a tainted variable flowing into a sink on the same statement."""
     escaped_var = rf"(?<![A-Za-z0-9_$]){re.escape(var_name)}(?![A-Za-z0-9_$])"
-    return re.compile(rf"(?:{sink_pattern}.*{escaped_var}|{escaped_var}.*{sink_pattern})", re.IGNORECASE)
+    return re.compile(
+        rf"(?:{sink_pattern}.*{escaped_var}|{escaped_var}.*{sink_pattern})", re.IGNORECASE
+    )
 
 
 def _scan_dom_xss_chain(content: str, url: str) -> list[DomXssFinding]:

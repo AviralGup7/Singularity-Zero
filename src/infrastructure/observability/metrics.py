@@ -490,7 +490,7 @@ class MetricsRegistry:
         for h_metric in self._histograms.values():
             lines.append(f"# HELP {h_metric.name} {h_metric.description}")
             lines.append(f"# TYPE {h_metric.name} histogram")
-            data = h_metric.get() # type: ignore
+            data = h_metric.get()  # type: ignore
             label_str = _format_labels(h_metric.labels)
             cumulative = 0
             for i, boundary in enumerate(data["buckets"]):
@@ -505,7 +505,7 @@ class MetricsRegistry:
         for s_metric in self._summaries.values():
             lines.append(f"# HELP {s_metric.name} {s_metric.description}")
             lines.append(f"# TYPE {s_metric.name} summary")
-            data = s_metric.get() # type: ignore
+            data = s_metric.get()  # type: ignore
             label_str = _format_labels(s_metric.labels)
             lines.append(f"{s_metric.name}_count{label_str} {data['count']}")
             lines.append(f"{s_metric.name}_sum{label_str} {data['sum']}")

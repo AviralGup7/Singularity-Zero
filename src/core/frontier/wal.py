@@ -14,11 +14,13 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 class FrontierWAL:
     """
     Append-only durability ledger for pipeline state transitions.
     Every 'merge_stage_output' is recorded here before mutation.
     """
+
     def __init__(self, redis_url: str | None, run_id: str) -> None:
         self._run_id = run_id
         self._stream_key = f"cyber:wal:{run_id}"
@@ -41,10 +43,11 @@ class FrontierWAL:
 
         try:
             import msgpack
+
             payload: dict[bytes, bytes] = {
                 b"ts": str(time.time()).encode(),
                 b"stage": stage_name.encode(),
-                b"delta": cast(bytes, msgpack.packb(delta, use_bin_type=True))
+                b"delta": cast(bytes, msgpack.packb(delta, use_bin_type=True)),
             }
             # Append to Redis Stream
             # Maxlen ensures we don't grow infinitely - increased to 10,000 per Audit #71
@@ -60,18 +63,24 @@ class FrontierWAL:
 
         try:
             import msgpack
+
             deltas = []
             cursor: bytes = b"-"
             while True:
-                raw_items = cast(list[Any], self._client.xrange(self._stream_key, min=cursor, max=b"+", count=1000))
+                raw_items = cast(
+                    list[Any],
+                    self._client.xrange(self._stream_key, min=cursor, max=b"+", count=1000),
+                )
                 if not raw_items:
                     break
                 for item_id, item in raw_items:
-                    deltas.append({
-                        "stage": item[b"stage"].decode(),
-                        "delta": msgpack.unpackb(item[b"delta"], raw=False),
-                        "ts": float(item[b"ts"])
-                    })
+                    deltas.append(
+                        {
+                            "stage": item[b"stage"].decode(),
+                            "delta": msgpack.unpackb(item[b"delta"], raw=False),
+                            "ts": float(item[b"ts"]),
+                        }
+                    )
                 cursor = b"(" + raw_items[-1][0]
             return deltas
         except Exception as exc:

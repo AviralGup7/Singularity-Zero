@@ -112,7 +112,9 @@ GRAPHQL_VERBOSE_ERROR_PATTERNS = [
     r"variable.*not defined",
 ]
 
-_GRAPHQL_VERBOSE_ERROR_COMPILED = [re.compile(p, re.IGNORECASE) for p in GRAPHQL_VERBOSE_ERROR_PATTERNS]
+_GRAPHQL_VERBOSE_ERROR_COMPILED = [
+    re.compile(p, re.IGNORECASE) for p in GRAPHQL_VERBOSE_ERROR_PATTERNS
+]
 
 
 def _parse_graphql_response(body: str) -> dict[str, Any] | None:
@@ -127,7 +129,7 @@ def _parse_graphql_response(body: str) -> dict[str, Any] | None:
     try:
         result: Any = json.loads(body)
         return result if isinstance(result, dict) else None
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return None
 
 

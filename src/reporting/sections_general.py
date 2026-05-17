@@ -123,8 +123,6 @@ def prioritized_endpoints_section(summary: dict[str, Any]) -> str:
     return f"<section><h2>Multi-Signal Prioritized Endpoints</h2><ul>{''.join(rows)}</ul></section>"
 
 
-
-
 def flow_detection_section(analysis_results: dict[str, list[dict[str, Any]]]) -> str:
     items = analysis_results.get("flow_detector", [])
     if not items:

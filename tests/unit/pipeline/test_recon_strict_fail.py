@@ -39,7 +39,9 @@ def _args() -> SimpleNamespace:
 
 
 def _config() -> SimpleNamespace:
-    return SimpleNamespace(filters={}, scoring={}, mode="safe", analysis={}, target_name="example.com")
+    return SimpleNamespace(
+        filters={}, scoring={}, mode="safe", analysis={}, target_name="example.com"
+    )
 
 
 def _ctx(tmp_path: Path, scope_entries: list[str]) -> PipelineContext:
@@ -53,7 +55,10 @@ def _ctx(tmp_path: Path, scope_entries: list[str]) -> PipelineContext:
 
 def test_subdomain_stage_warns_when_only_seeded_scope_roots(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
-    with patch("src.pipeline.services.services.recon_service.enumerate_subdomains", return_value={"example.com"}):
+    with patch(
+        "src.pipeline.services.services.recon_service.enumerate_subdomains",
+        return_value={"example.com"},
+    ):
         output = asyncio.run(recon_stages.run_subdomain_enumeration(_args(), _config(), ctx))
 
     assert output.outcome == StageOutcome.COMPLETED
@@ -89,7 +94,7 @@ def test_live_hosts_stage_warns_when_no_live_hosts(tmp_path: Path) -> None:
     assert len(output.state_delta.get("live_hosts", [])) == 0
 
 
-@pytest.mark.skip('Needs update')
+@pytest.mark.skip("Needs update")
 def test_live_hosts_stage_emits_probe_progress_updates(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.subdomains = {"example.com", "api.example.com"}
@@ -170,7 +175,7 @@ def test_live_hosts_stage_emits_enrichment_start_progress(tmp_path: Path) -> Non
     assert len(live_stage_events) >= 1
 
 
-@pytest.mark.skip('Needs update')
+@pytest.mark.skip("Needs update")
 def test_live_hosts_stage_times_out_enrichment_and_continues(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.subdomains = {"example.com", "api.example.com"}
@@ -190,14 +195,17 @@ def test_live_hosts_stage_times_out_enrichment_and_continues(tmp_path: Path) -> 
 
     with (
         patch.object(recon_stages, "probe_live_hosts", return_value=(records, live_hosts)),
-        patch("src.pipeline.services.services.recon_service.run_service_enrichment", side_effect=_slow_enrichment),
+        patch(
+            "src.pipeline.services.services.recon_service.run_service_enrichment",
+            side_effect=_slow_enrichment,
+        ),
         patch.object(recon_stages, "emit_progress", side_effect=_capture_progress),
     ):
         config = _config()
         config.analysis = {
-                "service_enrichment_progress_interval_seconds": 1,
-                "service_enrichment_max_duration_seconds": 1,
-            }
+            "service_enrichment_progress_interval_seconds": 1,
+            "service_enrichment_max_duration_seconds": 1,
+        }
         config.http_timeout_seconds = 10
 
         output = asyncio.run(recon_stages.run_live_hosts(_args(), config, ctx))
@@ -206,7 +214,7 @@ def test_live_hosts_stage_times_out_enrichment_and_continues(tmp_path: Path) -> 
     assert output.metrics["status"] == "ok"
 
 
-@pytest.mark.skip('Needs update')
+@pytest.mark.skip("Needs update")
 def test_live_hosts_stage_enforces_wall_clock_timeout_for_slow_enrichment(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.subdomains = {"example.com", "api.example.com"}
@@ -226,14 +234,17 @@ def test_live_hosts_stage_enforces_wall_clock_timeout_for_slow_enrichment(tmp_pa
 
     with (
         patch.object(recon_stages, "probe_live_hosts", return_value=(records, live_hosts)),
-        patch("src.pipeline.services.services.recon_service.run_service_enrichment", side_effect=_very_slow_enrichment),
+        patch(
+            "src.pipeline.services.services.recon_service.run_service_enrichment",
+            side_effect=_very_slow_enrichment,
+        ),
         patch.object(recon_stages, "emit_progress", side_effect=_capture_progress),
     ):
         config = _config()
         config.analysis = {
-                "service_enrichment_progress_interval_seconds": 1,
-                "service_enrichment_max_duration_seconds": 0.1,
-            }
+            "service_enrichment_progress_interval_seconds": 1,
+            "service_enrichment_max_duration_seconds": 0.1,
+        }
         config.http_timeout_seconds = 10
 
         output = asyncio.run(recon_stages.run_live_hosts(_args(), config, ctx))
@@ -241,7 +252,7 @@ def test_live_hosts_stage_enforces_wall_clock_timeout_for_slow_enrichment(tmp_pa
     assert output.outcome == StageOutcome.COMPLETED
 
 
-@pytest.mark.skip('Needs update')
+@pytest.mark.skip("Needs update")
 def test_live_hosts_stage_clamps_enrichment_budget_to_stage_timeout_hint(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
     ctx.result.subdomains = {"example.com", "api.example.com"}
@@ -250,15 +261,18 @@ def test_live_hosts_stage_clamps_enrichment_budget_to_stage_timeout_hint(tmp_pat
 
     with (
         patch.object(recon_stages, "probe_live_hosts", return_value=(records, live_hosts)),
-        patch("src.pipeline.services.services.recon_service.run_service_enrichment", return_value=records),
+        patch(
+            "src.pipeline.services.services.recon_service.run_service_enrichment",
+            return_value=records,
+        ),
     ):
         config = _config()
         config.filters = {"stage_timeout_overrides": {"live_hosts": 5}}
         config.analysis = {
-                "service_enrichment_progress_interval_seconds": 1,
-                "service_enrichment_max_duration_seconds": 180,
-                "service_enrichment_stage_timeout_reserve_seconds": 2,
-            }
+            "service_enrichment_progress_interval_seconds": 1,
+            "service_enrichment_max_duration_seconds": 180,
+            "service_enrichment_stage_timeout_reserve_seconds": 2,
+        }
         config.http_timeout_seconds = 10
 
         output = asyncio.run(recon_stages.run_live_hosts(_args(), config, ctx))
@@ -342,9 +356,9 @@ def test_url_stage_budget_limited_collection_uses_fallback_urls(tmp_path: Path) 
     ):
         config = _config()
         config.filters = {
-                "url_collection_progress_interval_seconds": 1,
-                "url_collection_max_duration_seconds": 1,
-            }
+            "url_collection_progress_interval_seconds": 1,
+            "url_collection_max_duration_seconds": 1,
+        }
 
         output = asyncio.run(recon_stages.run_url_collection(_args(), config, ctx))
 
@@ -412,13 +426,15 @@ def test_url_stage_recollection_timeout_keeps_cached_urls(tmp_path: Path) -> Non
     ctx.result.live_hosts = {f"https://h{i}.example.com" for i in range(40)}
 
     with (
-        patch.object(recon_stages, "collect_urls", return_value={"https://h1.example.com/fresh?id=1"}),
+        patch.object(
+            recon_stages, "collect_urls", return_value={"https://h1.example.com/fresh?id=1"}
+        ),
     ):
         config = _config()
         config.filters = {
-                "url_collection_progress_interval_seconds": 1,
-                "url_recollection_max_duration_seconds": 1,
-            }
+            "url_collection_progress_interval_seconds": 1,
+            "url_recollection_max_duration_seconds": 1,
+        }
 
         output = asyncio.run(recon_stages.run_url_collection(_args(), config, ctx))
 
@@ -442,9 +458,9 @@ def test_url_stage_recollection_hard_timeout_keeps_cached_urls(tmp_path: Path) -
     ):
         config = _config()
         config.filters = {
-                "url_collection_progress_interval_seconds": 1,
-                "url_recollection_max_duration_seconds": 0.1,
-            }
+            "url_collection_progress_interval_seconds": 1,
+            "url_recollection_max_duration_seconds": 0.1,
+        }
 
         output = asyncio.run(recon_stages.run_url_collection(_args(), config, ctx))
 
@@ -456,11 +472,7 @@ def test_url_stage_warns_includes_unavailable_source_tools(tmp_path: Path) -> No
     ctx.result.live_hosts = {"https://example.com"}
     with (
         patch.object(recon_stages, "collect_urls", return_value={"https://example.com"}),
-        patch.object(
-            recon_stages,
-            "_tool_diagnostics",
-            return_value=None
-        ),
+        patch.object(recon_stages, "_tool_diagnostics", return_value=None),
     ):
         output = asyncio.run(recon_stages.run_url_collection(_args(), _config(), ctx))
 

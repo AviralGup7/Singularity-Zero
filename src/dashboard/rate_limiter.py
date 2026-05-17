@@ -197,7 +197,9 @@ class AdaptiveLimitController:
             adjusted = int(base_limit * (self._config.adaptive_penalty_factor**entry.penalties))
             return max(self._config.adaptive_min_limit, adjusted), entry.penalties
 
-    async def record_signal(self, client_key: str, endpoint: str, latency_ms: float | None = None) -> int:
+    async def record_signal(
+        self, client_key: str, endpoint: str, latency_ms: float | None = None
+    ) -> int:
         """Record a throttle/WAF signal or latency spike and return the new penalty count."""
         if not self._config.adaptive_enabled:
             return 0
@@ -214,7 +216,11 @@ class AdaptiveLimitController:
             if latency_ms is not None:
                 avg_latency = entry.record_latency(latency_ms)
                 if avg_latency > self._latency_threshold_ms:
-                    logger.warning("Proactive throttle: latency spike detected for %s (avg=%.1fms)", key, avg_latency)
+                    logger.warning(
+                        "Proactive throttle: latency spike detected for %s (avg=%.1fms)",
+                        key,
+                        avg_latency,
+                    )
                     should_penalize = True
             else:
                 # Explicit signal (e.g. 429 status)
@@ -308,6 +314,7 @@ class RedisRateLimiter:
     def __init__(self, config: RateLimitConfig) -> None:
         self._config = config
         import redis
+
         self._redis = redis.from_url(cast(str, config.redis_url), decode_responses=True)
 
     async def check(
@@ -334,7 +341,9 @@ class RedisRateLimiter:
             count = results[1]
             if count >= limit:
                 # Get the oldest timestamp to compute retry_after
-                oldest = cast(list[tuple[Any, float]], self._redis.zrange(key, 0, 0, withscores=True))
+                oldest = cast(
+                    list[tuple[Any, float]], self._redis.zrange(key, 0, 0, withscores=True)
+                )
                 retry_after = 1
                 if oldest:
                     retry_after = max(1, int(window - (now - oldest[0][1])) + 1)
@@ -442,11 +451,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                         "detail": f"Too many requests. Retry after {retry_after} seconds.",
                         "code": "rate_limit_exceeded",
                     },
-                    headers={"Retry-After": str(retry_after), "X-RateLimit-Limit": str(global_limit)},
+                    headers={
+                        "Retry-After": str(retry_after),
+                        "X-RateLimit-Limit": str(global_limit),
+                    },
                 )
 
             if self._is_job_create(path, request.method):
-                api_key = request.headers.get("X-API-Key") or request.headers.get("Authorization", "")
+                api_key = request.headers.get("X-API-Key") or request.headers.get(
+                    "Authorization", ""
+                )
                 key_material = api_key if api_key else client_ip
                 scoped_key = f"jobs:{hashlib.sha256(key_material.encode('utf-8')).hexdigest()}"
                 await _rate_limit_metrics.record("POST /api/jobs", 2)
@@ -477,7 +491,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     )
 
         base_limit = self._config.get_limit_for_endpoint(path)
-        await _rate_limit_metrics.record(path, base_limit if self._config.window_seconds == 1 else None)
+        await _rate_limit_metrics.record(
+            path, base_limit if self._config.window_seconds == 1 else None
+        )
         effective_limit, penalty_count = await self._adaptive.effective_limit(
             client_ip,
             path,
@@ -521,7 +537,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if self._is_adaptive_signal(response):
             penalty_count = await self._adaptive.record_signal(client_ip, path)
         else:
-            penalty_count = await self._adaptive.record_signal(client_ip, path, latency_ms=latency_ms)
+            penalty_count = await self._adaptive.record_signal(
+                client_ip, path, latency_ms=latency_ms
+            )
 
         response.headers["X-RateLimit-Limit"] = str(effective_limit)
         response.headers["X-RateLimit-Adaptive"] = str(penalty_count)
@@ -530,6 +548,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 _rate_limiter_instance: Any = None
+
 
 def get_rate_limiter(config: RateLimitConfig | None = None) -> Any:
     global _rate_limiter_instance

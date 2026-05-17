@@ -314,7 +314,6 @@ P1_VRT_CATALOG = [
 ]
 
 
-
 ENRICHMENT_PROVIDER = "enrichment_provider"
 
 

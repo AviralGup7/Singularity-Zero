@@ -149,7 +149,9 @@ def _sqlite_overview(
             )
             if cursor.fetchone():
                 entry_count = int(conn.execute("SELECT COUNT(*) FROM cache_entries").fetchone()[0])
-                columns = {row[1] for row in conn.execute("PRAGMA table_info(cache_entries)").fetchall()}
+                columns = {
+                    row[1] for row in conn.execute("PRAGMA table_info(cache_entries)").fetchall()
+                }
                 if "access_count" in columns:
                     raw_count = conn.execute(
                         "SELECT COALESCE(SUM(access_count), 0) FROM cache_entries"
@@ -162,7 +164,10 @@ def _sqlite_overview(
 
         hit_ratio: float | None = None
         from typing import Any, cast
-        metrics: dict[str, Any] = cast(dict[str, Any], getattr(cache_manager, "get_metrics_snapshot", lambda: {})())
+
+        metrics: dict[str, Any] = cast(
+            dict[str, Any], getattr(cache_manager, "get_metrics_snapshot", lambda: {})()
+        )
         hits = int(metrics.get("hits", 0) or 0)
         misses = int(metrics.get("misses", 0) or 0)
         if hits + misses > 0:
@@ -377,7 +382,9 @@ async def delete_cache_keys(
                     batch.clear()
             if batch:
                 deleted += int(client.delete(*batch))
-            logger.info("Redis cache pattern '%s' deleted %d/%d keys", body.pattern, deleted, matched)
+            logger.info(
+                "Redis cache pattern '%s' deleted %d/%d keys", body.pattern, deleted, matched
+            )
             return CacheKeyDeleteResponse(
                 pattern=body.pattern,
                 matched=matched,

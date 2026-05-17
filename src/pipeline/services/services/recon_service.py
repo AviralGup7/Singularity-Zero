@@ -9,6 +9,7 @@ from typing import Any, cast
 def _identity(func: Any) -> Any:
     return func
 
+
 if typing.TYPE_CHECKING:
     from beartype import beartype
 else:
@@ -80,6 +81,7 @@ async def run_url_collection_service(
             reason="url_collection_failed",
             state_delta={},
         )
+
 
 @beartype
 async def run_live_hosts_service(
@@ -156,6 +158,7 @@ async def run_live_hosts_service(
             state_delta={"live_hosts": set(), "live_records": []},
         )
 
+
 @beartype
 async def run_subdomain_enumeration_service(
     stage_input: StageInput,
@@ -211,17 +214,11 @@ async def run_subdomain_enumeration_service(
         enumerated_subdomains = await asyncio.to_thread(
             enumerate_subdomains, scope_entries, stage_input.runtime, skip_crtsh
         )
-        scope_hosts = {
-            entry.strip().lower()
-            for entry in scope_entries
-            if str(entry).strip()
-        }
+        scope_hosts = {entry.strip().lower() for entry in scope_entries if str(entry).strip()}
         scope_hosts.update(seed_roots)
         scope_validator = ScopeValidator(scope_hosts)
         scoped_subdomains = {
-            sub
-            for sub in enumerated_subdomains
-            if scope_validator.check_hostname(str(sub)).allowed
+            sub for sub in enumerated_subdomains if scope_validator.check_hostname(str(sub)).allowed
         }
         excluded_subdomains = sorted(set(enumerated_subdomains) - scoped_subdomains)
 
@@ -264,6 +261,7 @@ async def run_subdomain_enumeration_service(
             reason="subdomain_enumeration_failed",
             state_delta={"subdomains": set(seed_roots)},
         )
+
 
 @beartype
 async def run_parameter_extraction_stage(stage_input: StageInput) -> StageOutput:
@@ -316,6 +314,7 @@ async def run_parameter_extraction_stage(stage_input: StageInput) -> StageOutput
                 "history_feedback": {},
             },
         )
+
 
 @beartype
 async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
@@ -395,8 +394,10 @@ async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
             },
         )
 
+
 def _state(stage_input: StageInput) -> dict[str, Any]:
     return dict(stage_input.state_snapshot.get("result", {}) or {})
+
 
 def _runtime(stage_input: StageInput) -> dict[str, Any]:
     return dict(stage_input.runtime or {})

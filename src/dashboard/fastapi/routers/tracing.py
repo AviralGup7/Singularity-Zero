@@ -41,4 +41,3 @@ async def get_trace(trace_id: str) -> dict[str, Any]:
     if trace is None:
         raise HTTPException(status_code=404, detail="Trace not found")
     return trace
-

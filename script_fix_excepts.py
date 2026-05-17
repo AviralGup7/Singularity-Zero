@@ -24,5 +24,6 @@ def fix_except_blocks(directory: str = "src") -> None:
 
     print(f"Fixed {count} files total.")
 
+
 if __name__ == "__main__":
     fix_except_blocks()

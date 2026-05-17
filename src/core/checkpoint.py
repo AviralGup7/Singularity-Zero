@@ -223,8 +223,11 @@ class CheckpointManager:
 
         # Replicate to distributed store if available
         if self._distributed:
+
             def _rollback(exc: Exception | BaseException) -> None:
-                logger.warning("Replication failed, rolling back local checkpoint %s: %s", checkpoint_path, exc)
+                logger.warning(
+                    "Replication failed, rolling back local checkpoint %s: %s", checkpoint_path, exc
+                )
                 try:
                     Path(checkpoint_path).unlink(missing_ok=True)
                 except OSError:
@@ -240,7 +243,7 @@ class CheckpointManager:
                         if t.cancelled():
                             _rollback(asyncio.CancelledError("Task cancelled"))
                         elif t.exception():
-                            _rollback(t.exception()) # type: ignore
+                            _rollback(t.exception())  # type: ignore
 
                     task.add_done_callback(_on_done)
                 except RuntimeError:
@@ -252,7 +255,9 @@ class CheckpointManager:
                         # Let's just create a new loop but close it properly, or dispatch to a background thread.
                         loop = asyncio.new_event_loop()
                         try:
-                            loop.run_until_complete(self._distributed.save_checkpoint(state, self.run_id))
+                            loop.run_until_complete(
+                                self._distributed.save_checkpoint(state, self.run_id)
+                            )
                         finally:
                             loop.close()
                     except Exception as e:

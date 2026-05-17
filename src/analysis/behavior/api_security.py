@@ -64,7 +64,6 @@ SENSITIVE_RESPONSE_FIELDS = {
 }
 
 
-
 ENRICHMENT_PROVIDER = "enrichment_provider"
 
 
@@ -117,7 +116,7 @@ def api_security_analyzer(responses: list[dict[str, Any]]) -> list[dict[str, Any
                             f"excessive_data_exposure:{','.join(sorted(exposed_fields)[:5])}"
                         )
                         severity = "high" if severity != "critical" else severity
-            except (json.JSONDecodeError, TypeError):
+            except json.JSONDecodeError, TypeError:
                 pass
 
         # Check for missing rate limiting headers on API endpoints

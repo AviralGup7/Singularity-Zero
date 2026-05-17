@@ -178,4 +178,3 @@ class S3FindingStore(_S3Base, FindingStore):
             return list(json.loads(data) or [])
         except ClientError:
             return []
-

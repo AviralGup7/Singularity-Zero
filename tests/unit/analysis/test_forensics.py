@@ -7,7 +7,7 @@ def test_forensic_exchange_redaction():
     headers = {
         "Authorization": "Bearer secret-token",
         "Content-Type": "application/json",
-        "Cookie": "session=123"
+        "Cookie": "session=123",
     }
     exchange = ForensicExchange(
         url="https://example.com",
@@ -17,13 +17,14 @@ def test_forensic_exchange_redaction():
         response_status=200,
         response_headers={"X-Server": "prod"},
         response_body=b'{"status": "ok"}',
-        latency_seconds=0.1
+        latency_seconds=0.1,
     )
 
     data = exchange.to_dict()
     assert data["request"]["headers"]["Authorization"] == "[REDACTED]"
     assert data["request"]["headers"]["Cookie"] == "[REDACTED]"
     assert data["request"]["headers"]["Content-Type"] == "application/json"
+
 
 def test_forensic_exchange_truncation():
     exchange = ForensicExchange(
@@ -33,14 +34,15 @@ def test_forensic_exchange_truncation():
         request_body=None,
         response_status=200,
         response_headers={},
-        response_body=b'A' * 1000,
+        response_body=b"A" * 1000,
         latency_seconds=0.1,
-        max_body_bytes=10
+        max_body_bytes=10,
     )
 
     data = exchange.to_dict()
     assert len(data["response"]["body_snippet"]) == 10
     assert data["response"]["truncated"] is True
+
 
 def test_save_forensic_exchange(tmp_path):
     exchange = ForensicExchange(
@@ -51,7 +53,7 @@ def test_save_forensic_exchange(tmp_path):
         response_status=200,
         response_headers={},
         response_body=b"test",
-        latency_seconds=0.1
+        latency_seconds=0.1,
     )
 
     path = save_forensic_exchange(tmp_path, exchange, "test-target")

@@ -10,7 +10,12 @@ from src.recon.subdomains import enumerate_subdomains, fetch_crtsh_subdomains
 class ReconSubdomainTests(unittest.TestCase):
     def test_enumerate_subdomains_seeds_roots_from_wildcard_scope_entries(self) -> None:
         config = {
-            "tools": {"subfinder": False, "assetfinder": False, "amass": False, "timeout_seconds": 1},
+            "tools": {
+                "subfinder": False,
+                "assetfinder": False,
+                "amass": False,
+                "timeout_seconds": 1,
+            },
             "http_timeout_seconds": 1,
         }
 
@@ -24,7 +29,12 @@ class ReconSubdomainTests(unittest.TestCase):
 
     def test_enumerate_subdomains_keeps_seed_roots_when_crtsh_returns_empty(self) -> None:
         config = {
-            "tools": {"subfinder": False, "assetfinder": False, "amass": False, "timeout_seconds": 1},
+            "tools": {
+                "subfinder": False,
+                "assetfinder": False,
+                "amass": False,
+                "timeout_seconds": 1,
+            },
             "http_timeout_seconds": 1,
         }
 

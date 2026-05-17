@@ -142,6 +142,7 @@ class _SessionAdapter:
     def get(self, url: str, timeout: int = 10, verify: bool = True) -> Any:
         return self.request("GET", url, timeout=timeout, verify=verify)
 
+
 def _extract_jwts_from_response(response: dict[str, Any]) -> list[str]:
     """Extract JWT tokens from response body and headers."""
     tokens: list[str] = []

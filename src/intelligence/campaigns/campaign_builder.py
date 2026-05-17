@@ -69,6 +69,7 @@ def build_attack_campaigns(
     critical_paths = threat_graph.get("critical_paths", [])
     if not critical_paths:
         from src.intelligence.graph.threat_graph import find_critical_paths
+
         critical_paths = find_critical_paths(threat_graph)
 
     for path_info in critical_paths:
@@ -98,10 +99,17 @@ def build_attack_campaigns(
 
         for i, node_id in enumerate(path):
             node: dict[str, Any] = next((n for n in nodes if n.get("id") == node_id), {})
-            prev_node_id = path[i-1] if i > 0 else None
+            prev_node_id = path[i - 1] if i > 0 else None
 
             if prev_node_id:
-                edge: dict[str, Any] = next((e for e in edges if e.get("source") == prev_node_id and e.get("target") == node_id), {})
+                edge: dict[str, Any] = next(
+                    (
+                        e
+                        for e in edges
+                        if e.get("source") == prev_node_id and e.get("target") == node_id
+                    ),
+                    {},
+                )
                 path_edges.append(edge)
 
             tactic = node.get("tactic") or _infer_mitre_tactic(node)
@@ -119,7 +127,7 @@ def build_attack_campaigns(
                 "technique": node.get("technique"),
                 "evidence_required": [finding_id] if i == 0 else [f"Reachable from {prev_node_id}"],
                 "stop_condition": _infer_stop_condition(node),
-                "outcome": f"Simulated {node.get('role', 'step')} successful"
+                "outcome": f"Simulated {node.get('role', 'step')} successful",
             }
             simulated_steps.append(step)
 
@@ -135,7 +143,9 @@ def build_attack_campaigns(
             "mitre_sequence": [s.get("technique") for s in simulated_steps if s.get("technique")],
             "kill_chain_phase_coverage": sorted(list(tactics)),
             "simulated_steps": simulated_steps,
-            "business_risk_summary": _infer_business_risk(path_nodes=[next((n for n in nodes if n.get("id") == nid), {}) for nid in path]),
+            "business_risk_summary": _infer_business_risk(
+                path_nodes=[next((n for n in nodes if n.get("id") == nid), {}) for nid in path]
+            ),
         }
         campaigns.append(campaign)
 
@@ -145,7 +155,9 @@ def build_attack_campaigns(
         "summary": {
             "total_campaigns": len(campaigns),
             "max_risk": max((c["risk_score"] for c in campaigns), default=0.0),
-            "tactics_covered": sorted(list({t for c in campaigns for t in c["kill_chain_phase_coverage"] if t})),
+            "tactics_covered": sorted(
+                list({t for c in campaigns for t in c["kill_chain_phase_coverage"] if t})
+            ),
         },
         "settings": settings,
     }
@@ -197,7 +209,9 @@ def _infer_business_risk(path_nodes: list[dict[str, Any]]) -> str:
 
     if "impact" in roles:
         if any(c in categories for c in ("sqli", "idor", "sensitive_data")):
-            return "Critical: Simulated path indicates potential for unauthorized data exfiltration."
+            return (
+                "Critical: Simulated path indicates potential for unauthorized data exfiltration."
+            )
         if "ssrf" in categories:
             return "High: Simulated path indicates potential for internal network reachability and pivot."
         return "Medium: Simulated path leads to an impactful endpoint with validated entry."

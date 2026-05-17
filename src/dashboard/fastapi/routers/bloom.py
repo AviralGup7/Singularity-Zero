@@ -37,7 +37,9 @@ async def bloom_health(request: Request) -> dict[str, Any]:
                 "stale": False,
             }
         ],
-        "saturation_history": [{"time": time.time(), "fill_ratio": 0.0, "false_positive_probability": 0.0}],
+        "saturation_history": [
+            {"time": time.time(), "fill_ratio": 0.0, "false_positive_probability": 0.0}
+        ],
         "sync_interval_seconds": 0.0,
         "redis_enabled": False,
         "channel": "",

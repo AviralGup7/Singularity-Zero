@@ -89,7 +89,7 @@ class FeedbackRepo(BaseRepo):
                 try:
                     event_time = datetime.fromisoformat(ts)
                     delta_days = max(0, (datetime.now(UTC) - event_time).total_seconds() / 86400)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     delta_days = 0
 
                 recency = math.exp(-decay_rate * delta_days)
