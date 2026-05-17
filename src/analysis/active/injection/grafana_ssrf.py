@@ -55,7 +55,7 @@ async def detect_grafana(
                 elif path == "/login" and resp.status_code == 200:
                     if "grafana" in resp.text.lower():
                         return {"is_grafana": True, "version": "unknown"}
-            except (httpx.RequestError, ValueError):
+            except httpx.RequestError, ValueError:
                 continue
     return {"is_grafana": False}
 
@@ -126,7 +126,7 @@ async def test_datasource_ssrf(
                     }
                 )
                 return findings
-        except (httpx.RequestError, ValueError):
+        except httpx.RequestError, ValueError:
             return findings
 
         if not datasource_id:
@@ -149,7 +149,7 @@ async def test_datasource_ssrf(
                         "details": f"Proxy returned {resp.status_code} (not 502/404) — possible SSRF",
                     }
                 )
-        except (httpx.RequestError, ValueError):
+        except httpx.RequestError, ValueError:
             pass
 
         if datasource_id:
@@ -198,7 +198,7 @@ async def test_alert_notification_ssrf(
             if resp.status_code == 200:
                 data = resp.json()
                 notification_id = str(data.get("id", ""))
-        except (httpx.RequestError, ValueError):
+        except httpx.RequestError, ValueError:
             return findings
 
         if notification_id:

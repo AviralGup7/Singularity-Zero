@@ -73,7 +73,7 @@ def _coerce_previous_run_path(previous_run: Any) -> Path | None:
         return Path(normalized)
     try:
         return Path(previous_run)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -182,7 +182,12 @@ def build_flow_graph(urls: list[str]) -> dict[str, object]:
             else "auth_redirect_chain"
         )
         flows.append(
-            {"host": host, "label": label, "chain": chain[:MAX_FLOW_CHAIN_SLICE], "stage_count": len(chain[:MAX_FLOW_CHAIN_SLICE])}
+            {
+                "host": host,
+                "label": label,
+                "chain": chain[:MAX_FLOW_CHAIN_SLICE],
+                "stage_count": len(chain[:MAX_FLOW_CHAIN_SLICE]),
+            }
         )
         for stage, url in ordered:
             per_url[url] = {

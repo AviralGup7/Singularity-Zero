@@ -13,11 +13,13 @@ from src.infrastructure.mesh.gossip import GossipEngine
 
 logger = logging.getLogger(__name__)
 
+
 class MeshConsensus:
     """
     Handles leader election and role assignment within the mesh.
     Uses node IDs for deterministic tie-breaking.
     """
+
     def __init__(self, gossip: GossipEngine):
         self.gossip = gossip
         self.leader_id: str | None = None
@@ -30,8 +32,8 @@ class MeshConsensus:
 
             # If no leader known or leader is dead
             if not self.leader_id or self.leader_id not in self.gossip.peers:
-                 if self.leader_id != self.gossip.local_node.id:
-                     await self.start_election()
+                if self.leader_id != self.gossip.local_node.id:
+                    await self.start_election()
 
     async def start_election(self) -> None:
         """Initiate leader election using the RAFT-lite approach."""

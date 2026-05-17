@@ -85,7 +85,9 @@ def pipeline_flow_manifest() -> list[dict[str, object]]:
     ]
 
 
-def run_pipeline(config: dict[str, Any], scope_entries: list[str], output_dir: str, args: Any) -> None:
+def run_pipeline(
+    config: dict[str, Any], scope_entries: list[str], output_dir: str, args: Any
+) -> None:
     """Execute the security pipeline with the given configuration.
 
     Args:

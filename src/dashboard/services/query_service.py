@@ -361,7 +361,7 @@ class DashboardQueryService:
             if isinstance(result, dict):
                 return result
             return {}
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             return {}
 
     def get_timeline_data(self, target_id: str) -> list[dict[str, Any]]:
@@ -391,7 +391,7 @@ class DashboardQueryService:
 
             try:
                 findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
+            except json.JSONDecodeError, OSError:
                 continue
 
             run_timestamp = ""

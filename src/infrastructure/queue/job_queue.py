@@ -1,4 +1,3 @@
-
 """Main job queue implementation with priority scheduling and state management.
 
 Provides the core JobQueue class with job enqueue/dequeue, priority-based
@@ -182,6 +181,7 @@ class RetryPolicy:
 
         if self.jitter:
             import secrets
+
             # Fix #285: Use randbelow instead of instantiating SystemRandom on every call
             delay = delay * (0.5 + secrets.randbelow(1000) / 2000.0)
 
@@ -297,7 +297,9 @@ class JobQueue:
         hash_args_json = json.dumps(hash_args)
         # Fix #284: Prevent extremely large hash_args from crashing Redis Lua engine
         if len(hash_args_json) > 1024 * 1024:
-            raise ValueError(f"Task envelope too large for queue (size: {len(hash_args_json)} bytes)")
+            raise ValueError(
+                f"Task envelope too large for queue (size: {len(hash_args_json)} bytes)"
+            )
 
         self.redis.execute_script(
             "enqueue",
@@ -567,14 +569,16 @@ class JobQueue:
 
         # Fix #288: Mutating a Pydantic model directly can fail if it's frozen or tracked.
         # Create a new copy instead.
-        new_job = job.model_copy(update={
-            "state": JobState.PENDING,
-            "retries": 0,
-            "error": None,
-            "completed_at": None,
-            "worker_id": None,
-            "lease_expires_at": None,
-        })
+        new_job = job.model_copy(
+            update={
+                "state": JobState.PENDING,
+                "retries": 0,
+                "error": None,
+                "completed_at": None,
+                "worker_id": None,
+                "lease_expires_at": None,
+            }
+        )
 
         job_hash = new_job.to_redis_hash()
         hash_args: list[str] = []
@@ -618,7 +622,9 @@ class JobQueue:
         job_data = job.to_redis_hash()
         pipe = self.redis.client
         # Fix #289: Access using getattr to avoid breaking encapsulation directly
-        is_fallback = getattr(self.redis, "is_fallback", getattr(self.redis, "_use_fallback", False))
+        is_fallback = getattr(
+            self.redis, "is_fallback", getattr(self.redis, "_use_fallback", False)
+        )
         if pipe is not None and not is_fallback:
             try:
                 pipeline = pipe.pipeline()
@@ -648,7 +654,7 @@ class JobQueue:
                 v = value.decode("utf-8") if isinstance(value, bytes) else value
                 try:
                     metrics[k] = int(v)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     metrics[k] = v
 
         queue_length = await self.get_queue_length()
@@ -682,7 +688,11 @@ class JobQueue:
             worker_ids = self.redis.execute_command("SMEMBERS", workers_key)
             if worker_ids:
                 for w_id_bytes in worker_ids:
-                    w_id = w_id_bytes.decode("utf-8") if isinstance(w_id_bytes, bytes) else str(w_id_bytes)
+                    w_id = (
+                        w_id_bytes.decode("utf-8")
+                        if isinstance(w_id_bytes, bytes)
+                        else str(w_id_bytes)
+                    )
                     w_data = self.redis.execute_command("HGETALL", self._key(f"worker:{w_id}"))
                     if w_data:
                         try:
@@ -780,7 +790,9 @@ class JobQueue:
             cursor = 0
             while True:
                 # Use SCAN to find all worker job sets without blocking
-                cursor, keys = self.redis.execute_command("SCAN", cursor, "MATCH", self._key("worker:*:jobs"), "COUNT", 100)
+                cursor, keys = self.redis.execute_command(
+                    "SCAN", cursor, "MATCH", self._key("worker:*:jobs"), "COUNT", 100
+                )
                 worker_keys.extend(keys)
                 if int(cursor) == 0:
                     break

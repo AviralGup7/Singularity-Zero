@@ -22,7 +22,6 @@ from .protocol import _ThreadLocalConnections
 logger = logging.getLogger(__name__)
 
 
-
 class SQLiteBackend:
     """SQLite-based cache backend with enhanced concurrency support.
 

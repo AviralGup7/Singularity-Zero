@@ -144,6 +144,7 @@ class ReportingVrtIntegrationTests(unittest.TestCase):
             vrt_coverage=vrt_coverage,
             verified_exploits=[],
             validation_summary={"results": {}, "callback_context": {}, "token_replay": {}},
+            campaign_summary={},
             review_settings={"top_findings_limit": 5, "verified_exploit_limit": 3},
             validation_settings={},
             started_at=time.time() - 1,

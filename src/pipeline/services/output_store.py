@@ -30,6 +30,7 @@ ARTIFACT_ALIASES = {
 
 logger = get_pipeline_logger(__name__)
 
+
 class PipelineOutputStore:
     """Manages output persistence with Ghost-VFS anti-forensic support."""
 
@@ -71,9 +72,9 @@ class PipelineOutputStore:
 
         ghost_vfs = None
         if storage_config and storage_config.get("anti_forensic_mode"):
-             ghost_vfs = GhostVFS()
+            ghost_vfs = GhostVFS()
         else:
-             local_run_dir.mkdir(parents=True, exist_ok=True)
+            local_run_dir.mkdir(parents=True, exist_ok=True)
 
         artifact_store = create_artifact_store(storage_config, output_root)
 
@@ -84,7 +85,7 @@ class PipelineOutputStore:
             run_id,
             dedupe_aliases=bool(settings.get("dedupe_aliases", True)),
             write_artifact_manifest=bool(settings.get("write_artifact_manifest", True)),
-            ghost_vfs=ghost_vfs
+            ghost_vfs=ghost_vfs,
         )
 
     @property

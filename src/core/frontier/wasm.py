@@ -14,39 +14,64 @@ from typing import Any, cast
 if os.environ.get("FEATURE_WASM_PLUGINS", "false").lower() == "true":
     import wasmtime
 else:
+
     class _MockWasmtime:
         class Engine:
             pass
+
         class Linker:
-            def __init__(self, engine: Any) -> None: pass
-            def define_wasi(self) -> None: pass
-            def instantiate(self, store: Any, module: Any) -> Any: pass
+            def __init__(self, engine: Any) -> None:
+                pass
+
+            def define_wasi(self) -> None:
+                pass
+
+            def instantiate(self, store: Any, module: Any) -> Any:
+                class _MockInstance:
+                    def exports(self, _store: Any) -> dict[str, Any]:
+                        return {}
+
+                return _MockInstance()
+
         class Module:
             @staticmethod
-            def from_file(engine: Any, path: str) -> Any: pass
+            def from_file(engine: Any, path: str) -> Any:
+                pass
+
         class Store:
-            def __init__(self, engine: Any) -> None: pass
+            def __init__(self, engine: Any) -> None:
+                pass
+
             def set_wasi(self, config: Any) -> None:
                 pass
+
         class WasiConfig:
             pass
+
         class Memory:
             def write(self, store: Any, ptr: int, data: bytes) -> None:
                 pass
-            def read(self, store: Any, start: int, end: int) -> bytes: return b""
+
+            def read(self, store: Any, start: int, end: int) -> bytes:
+                return b""
+
         class Func:
-            def __call__(self, *args: Any) -> Any: pass
+            def __call__(self, *args: Any) -> Any:
+                pass
+
     wasmtime = _MockWasmtime()  # type: ignore
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 class WASMPluginHost:
     """
     Host environment for WASM-based security plugins.
     Enforces memory limits and CPU timeouts for execution.
     """
+
     def __init__(self, wasm_path: str) -> None:
         self._engine = wasmtime.Engine()
         self._linker = wasmtime.Linker(self._engine)
@@ -71,8 +96,14 @@ class WASMPluginHost:
         deallocate = exports.get("deallocate")
 
         # Fix #214: check that allocate is actually a wasmtime.Func
-        if not (isinstance(memory, wasmtime.Memory) and isinstance(allocate, wasmtime.Func) and isinstance(run, wasmtime.Func)):
-             raise RuntimeError("WASM module missing required exports (memory, allocate, run_detector)")
+        if not (
+            isinstance(memory, wasmtime.Memory)
+            and isinstance(allocate, wasmtime.Func)
+            and isinstance(run, wasmtime.Func)
+        ):
+            raise RuntimeError(
+                "WASM module missing required exports (memory, allocate, run_detector)"
+            )
 
         # 1. Prepare Input
         input_json = json.dumps(stage_input).encode()
@@ -92,7 +123,9 @@ class WASMPluginHost:
         # (Assuming the first 4 bytes at output_ptr contain the length)
         output_len_bytes = cast(Any, memory).read(self._store, output_ptr, output_ptr + 4)
         output_len = int.from_bytes(output_len_bytes, "little")
-        output_json_bytes = cast(Any, memory).read(self._store, output_ptr + 4, output_ptr + 4 + output_len)
+        output_json_bytes = cast(Any, memory).read(
+            self._store, output_ptr + 4, output_ptr + 4 + output_len
+        )
         output_json = output_json_bytes.decode()
 
         result = cast(dict[str, Any], json.loads(output_json))
@@ -104,6 +137,7 @@ class WASMPluginHost:
             cast(Any, deallocate)(self._store, output_ptr)
 
         return result
+
 
 def execute_sandboxed_plugin(wasm_path: str, stage_input: dict[str, Any]) -> dict[str, Any]:
     """Helper to run a sandboxed plugin in a one-off host."""

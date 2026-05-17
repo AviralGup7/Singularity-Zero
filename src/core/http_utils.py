@@ -136,7 +136,9 @@ async def async_safe_request(
 
     final_verify = chameleon_config.get("verify", True) if verify_ssl is None else verify_ssl
     final_timeout = chameleon_config.get("timeout", DEFAULT_TIMEOUT) if timeout is None else timeout
-    final_follow = follow_redirects # Chameleon might provide this too but we prefer the explicit param
+    final_follow = (
+        follow_redirects  # Chameleon might provide this too but we prefer the explicit param
+    )
 
     try:
         start_time = time.monotonic()

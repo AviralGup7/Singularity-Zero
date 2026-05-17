@@ -1,4 +1,3 @@
-
 """High-throughput Bloom filter for URL frontier deduplication."""
 
 from __future__ import annotations
@@ -16,8 +15,10 @@ mmh3_impl: Any
 
 try:
     import mmh3
+
     mmh3_impl = mmh3
 except ImportError:  # pragma: no cover - exercised only in minimal dev environments.
+
     class _MurmurFallback:
         @staticmethod
         def hash64(item: str) -> tuple[int, int]:
@@ -51,17 +52,19 @@ class BloomProcessResult:
     duplicates: np.ndarray
     new_urls: np.ndarray
 
+
 class NeuralBloomFilter:
     """
     Frontier Probabilistic Filter.
     Optimized for high-throughput membership testing with minimal RAM footprint.
     """
+
     def __init__(self, capacity: int = 1000000, error_rate: float = 0.01) -> None:
         self.capacity = capacity
         self.error_rate = error_rate
 
         # Calculate bit array size and number of hash functions
-        self.bit_size = -int((capacity * math.log(error_rate)) / (math.log(2)**2))
+        self.bit_size = -int((capacity * math.log(error_rate)) / (math.log(2) ** 2))
         self.hash_count = max(1, int((self.bit_size / capacity) * math.log(2)))
 
         # Fix #326: Use math.ceil instead of floor+1 to avoid wasting a byte when
@@ -99,8 +102,7 @@ class NeuralBloomFilter:
             return np.empty((0, self.hash_count), dtype=np.int64)
         rounds = np.arange(self.hash_count, dtype=np.uint64)
         offsets = (
-            h1.astype(np.uint64)[:, None]
-            + (rounds[None, :] * h2.astype(np.uint64)[:, None])
+            h1.astype(np.uint64)[:, None] + (rounds[None, :] * h2.astype(np.uint64)[:, None])
         ) % np.uint64(self.bit_size)
         return offsets.astype(np.int64, copy=False)
 
@@ -126,7 +128,10 @@ class NeuralBloomFilter:
         dropped = arr.size - np.count_nonzero(valid_mask)
         if dropped > 0:
             from src.core.logging.trace_logging import get_pipeline_logger
-            get_pipeline_logger(__name__).debug("Dropped %d non-HTTP URLs during normalization", dropped)
+
+            get_pipeline_logger(__name__).debug(
+                "Dropped %d non-HTTP URLs during normalization", dropped
+            )
 
         return lowered[valid_mask]
 
@@ -156,7 +161,7 @@ class NeuralBloomFilter:
         for offset in self._get_offsets(item):
             byte_idx = offset // 8
             bit_idx = offset % 8
-            self.bits[byte_idx] |= (1 << bit_idx)
+            self.bits[byte_idx] |= 1 << bit_idx
 
     def __contains__(self, item: str) -> bool:
         """Check if an item is likely in the filter."""
@@ -167,7 +172,9 @@ class NeuralBloomFilter:
                 return False
         return True
 
-    def contains_many(self, items: Sequence[str] | np.ndarray, *, normalize: bool = True) -> np.ndarray:
+    def contains_many(
+        self, items: Sequence[str] | np.ndarray, *, normalize: bool = True
+    ) -> np.ndarray:
         """Vectorized membership test for a batch of URLs."""
         arr = self.normalize_urls(items) if normalize else np.asarray(items, dtype=np.str_)
         if arr.size == 0:
@@ -209,7 +216,7 @@ class NeuralBloomFilter:
         new_url_chunks: list[np.ndarray] = []
 
         for start in range(0, total, effective_chunk):
-            chunk = self.normalize_urls(urls[start:start + effective_chunk])
+            chunk = self.normalize_urls(urls[start : start + effective_chunk])
             if chunk.size == 0:
                 continue
             duplicates = self.contains_many(chunk, normalize=False)
@@ -241,7 +248,7 @@ class NeuralBloomFilter:
         """Return filter diagnostics."""
         ones = int(np.bitwise_count(self.bits).sum())
         fill_ratio = float(ones / self.bit_size)
-        false_positive_probability = float(fill_ratio ** self.hash_count)
+        false_positive_probability = float(fill_ratio**self.hash_count)
         return {
             "capacity": int(self.capacity),
             "error_rate": float(self.error_rate),

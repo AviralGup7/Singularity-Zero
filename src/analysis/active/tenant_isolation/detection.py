@@ -11,7 +11,7 @@ def _extract_json(body: str) -> dict | list | None:
     if stripped.startswith(("{", "[")):
         try:
             return json.loads(stripped[:50000])  # type: ignore
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             return None
     return None
 

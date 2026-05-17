@@ -129,7 +129,7 @@ class JobStore:
                     try:
                         job = json.loads(row["data"])
                         result[job["id"]] = job
-                    except (json.JSONDecodeError, KeyError):
+                    except json.JSONDecodeError, KeyError:
                         continue
                 return result
             except Exception:  # noqa: S110
@@ -150,7 +150,7 @@ class JobStore:
                     try:
                         job = json.loads(row["data"])
                         result[job["id"]] = job
-                    except (json.JSONDecodeError, KeyError):
+                    except json.JSONDecodeError, KeyError:
                         continue
                 return result
             except Exception:  # noqa: S110
@@ -189,7 +189,7 @@ class JobStore:
                             ),
                         )
                         stale_ids.append(job["id"])
-                    except (json.JSONDecodeError, KeyError):
+                    except json.JSONDecodeError, KeyError:
                         continue
                 conn.commit()
             except Exception:  # noqa: S110

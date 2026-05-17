@@ -71,9 +71,7 @@ class Session:
             merged_cookies = {**self.cookies, **request_cookies}
             # Fix #226: Do not sort cookies alphabetically as it can break some servers.
             # Preserve the insertion order.
-            cookie_value = "; ".join(
-                f"{key}={value}" for key, value in merged_cookies.items()
-            )
+            cookie_value = "; ".join(f"{key}={value}" for key, value in merged_cookies.items())
             if cookie_value:
                 cookie_key = existing_cookie_name or "Cookie"
                 headers[cookie_key] = cookie_value

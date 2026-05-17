@@ -89,7 +89,7 @@ def _coerce_bounded_int(
     """
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         parsed = default
     return max(minimum, min(maximum, parsed))
 
@@ -114,7 +114,7 @@ def _coerce_bounded_float(
     """
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         parsed = default
     return max(minimum, min(maximum, parsed))
 
@@ -131,7 +131,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     """
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -537,8 +537,9 @@ async def run_post_analysis_enrichments(
 
     except FeedError as exc:
         logger.warning("Threat intelligence enrichment skipped: %s", exc)
-    except (TypeError, ValueError, RuntimeError):
+    except TypeError, ValueError, RuntimeError:
         import traceback
+
         traceback.print_exc()
 
     # Threat Graph and Campaigns Generation
@@ -548,7 +549,7 @@ async def run_post_analysis_enrichments(
             state_delta["reportable_findings"],
             endpoints=ctx.analysis_results.get("endpoints"),
             include_cves=True,
-            include_mitre=True
+            include_mitre=True,
         )
 
         # Annotate graph for campaigns based on validated evidence
@@ -566,21 +567,21 @@ async def run_post_analysis_enrichments(
                 threat_graph,
                 ctx.validation_summary,
                 ctx.analysis_results,
-                settings=campaign_settings
+                settings=campaign_settings,
             )
             state_delta["campaign_summary"] = campaign_summary
 
             logger.info(
                 "Attack campaigns built: %d campaigns, max risk %.2f",
                 campaign_summary.get("summary", {}).get("total_campaigns", 0),
-                campaign_summary.get("summary", {}).get("max_risk", 0.0)
+                campaign_summary.get("summary", {}).get("max_risk", 0.0),
             )
 
         logger.info(
             "Threat graph generated: %d nodes, %d edges, risk score %.2f",
             len(threat_graph.get("nodes", [])),
             len(threat_graph.get("edges", [])),
-            state_delta["threat_graph_summary"].get("overall_risk_score", 0.0)
+            state_delta["threat_graph_summary"].get("overall_risk_score", 0.0),
         )
     except Exception as exc:
         logger.error("Failed to generate threat graph or campaigns: %s", exc)
@@ -598,12 +599,18 @@ async def run_post_analysis_enrichments(
             "threat_graph": {
                 "nodes": len(state_delta.get("threat_graph", {}).get("nodes", [])),
                 "edges": len(state_delta.get("threat_graph", {}).get("edges", [])),
-                "risk_score": state_delta.get("threat_graph_summary", {}).get("overall_risk_score", 0.0)
+                "risk_score": state_delta.get("threat_graph_summary", {}).get(
+                    "overall_risk_score", 0.0
+                ),
             },
             "attack_campaigns": {
-                "count": state_delta.get("campaign_summary", {}).get("summary", {}).get("total_campaigns", 0),
-                "max_risk": state_delta.get("campaign_summary", {}).get("summary", {}).get("max_risk", 0.0)
-            }
+                "count": state_delta.get("campaign_summary", {})
+                .get("summary", {})
+                .get("total_campaigns", 0),
+                "max_risk": state_delta.get("campaign_summary", {})
+                .get("summary", {})
+                .get("max_risk", 0.0),
+            },
         },
         state_delta=state_delta,
     )

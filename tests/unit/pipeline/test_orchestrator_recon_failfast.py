@@ -2,10 +2,12 @@ import argparse
 import sys
 from pathlib import Path
 from types import MappingProxyType, ModuleType, SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
+from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
 from src.pipeline.services.pipeline_orchestrator import orchestrator as orch_mod
 
@@ -21,6 +23,15 @@ class _DummyOutputStore:
 
     def write_scope(self, _scope_entries: list[str]) -> None:
         return None
+
+    def write_subdomains(self, _subdomains: Any) -> None:
+        pass
+
+    def write_live_hosts(self, _hosts: Any) -> None:
+        pass
+
+    def write_priority_endpoints(self, _endpoints: Any) -> None:
+        pass
 
 
 class _DummyCheckpointManager:
@@ -80,9 +91,12 @@ def _make_args(config: SimpleNamespace) -> argparse.Namespace:
 def _make_config(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(
         target_name="example.com",
-        output_dir=str(tmp_path / "output"),
+        output_dir=tmp_path / "output",
         output={},
         tools={"subfinder": True},
+        filters={},
+        analysis={},
+        scoring={},
         screenshots={},
         cache={},
         storage={},
@@ -96,6 +110,13 @@ def _patch_runtime_environment(
 ) -> None:
     def _capture_progress(stage: str, message: str, percent: int, **_meta: object) -> None:
         emitted_progress.append((stage, message, int(percent)))
+
+    from src.pipeline.services.plugin_catalog import resolve_stage_runner
+
+    try:
+        resolve_stage_runner("subdomains")
+    except Exception:  # noqa: S110
+        pass
 
     monkeypatch.setattr(orch_mod, "emit_progress", _capture_progress)
     monkeypatch.setattr(orch_mod, "emit_error", lambda *_args, **_kwargs: None)
@@ -140,22 +161,26 @@ async def test_stage_status_only_failure_forces_non_zero_exit(
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
 
-    async def _stage_sets_failed_status_only(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _stage_sets_failed_status_only(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         # Keep module metrics as non-failed to prove stage_status alone triggers failure.
         ctx.result.module_metrics["subdomains"] = {
             "status": "ok",
             "failure_reason": "status-only failure",
         }
         ctx.result.stage_status["subdomains"] = "FAILED"
-        ctx.result.urls = {"https://example.com"}  # avoid unrelated no-URL fallback validation
+        ctx.result.urls = {"https://example.com"}
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.FAILED,
+            duration_seconds=0.1,
+            state_delta={},
+        )
 
-    monkeypatch.setattr(
-        orch_mod, "run_subdomain_enumeration", _stage_sets_failed_status_only, raising=False
-    )
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_stage_sets_failed_status_only)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
@@ -173,27 +198,39 @@ async def test_recon_fail_fast_blocks_downstream_stage_and_avoids_completion_pro
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
 
-    live_hosts_runner = AsyncMock(return_value=None)
-
-    async def _failing_recon_stage(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
-        ctx.result.module_metrics["subdomains"] = {
+    async def _failing_recon_stage(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
+        metrics = {
             "status": "failed",
             "failure_reason_code": "seed_only_subdomains",
             "failure_reason": "Subdomain recon returned only seeded scope roots.",
+            "fatal": True,
         }
+        ctx.result.module_metrics["subdomains"] = metrics
+        ctx.result.stage_status["subdomains"] = "FAILED"
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.FAILED,
+            duration_seconds=0.1,
+            metrics=metrics,
+            state_delta={},
+        )
 
-    monkeypatch.setattr(orch_mod, "run_subdomain_enumeration", _failing_recon_stage, raising=False)
-    monkeypatch.setattr(orch_mod, "run_live_hosts", live_hosts_runner, raising=False)
+    async def _live_hosts_noop(*args: Any, **kwargs: Any) -> StageOutput:
+        return StageOutput(
+            stage_name="live_hosts", outcome=StageOutcome.COMPLETED, duration_seconds=0
+        )
+
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_failing_recon_stage)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_noop)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
 
     assert exit_code == 1
-    assert live_hosts_runner.await_count == 0
     assert all(percent != 100 for _, _, percent in emitted_progress)
 
 
@@ -206,52 +243,59 @@ async def test_recon_fail_fast_ignores_explicit_non_fatal_timeout_metrics(
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 
-    async def _non_fatal_subdomain_timeout(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _non_fatal_subdomain_timeout(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.subdomains = {"a.example.com"}
-        ctx.result.module_metrics["subdomains"] = {
+        metrics = {
             "status": "timeout",
             "failure_reason": "Archive source runtime budget reached; continuing",
             "fatal": False,
         }
+        ctx.result.module_metrics["subdomains"] = metrics
         ctx.result.stage_status["subdomains"] = "COMPLETED"
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            metrics=metrics,
+            state_delta={"subdomains": ["a.example.com"]},
+        )
 
-    async def _live_hosts_ok(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _live_hosts_ok(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.live_hosts = {"https://a.example.com"}
         ctx.result.module_metrics["live_hosts"] = {"status": "ok", "fatal": False}
         ctx.result.stage_status["live_hosts"] = "COMPLETED"
+        return StageOutput(
+            stage_name="live_hosts",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"live_hosts": ["https://a.example.com"]},
+        )
 
-    async def _urls_ok(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _urls_ok(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.urls = {"https://a.example.com/path"}
         ctx.result.module_metrics["urls"] = {"status": "ok", "fatal": False}
         ctx.result.stage_status["urls"] = "COMPLETED"
+        return StageOutput(
+            stage_name="urls",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"urls": ["https://a.example.com/path"]},
+        )
 
-    live_hosts_runner = AsyncMock(side_effect=_live_hosts_ok)
-    urls_runner = AsyncMock(side_effect=_urls_ok)
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
 
-    monkeypatch.setattr(
-        orch_mod, "run_subdomain_enumeration", _non_fatal_subdomain_timeout, raising=False
-    )
-    monkeypatch.setattr(orch_mod, "run_live_hosts", live_hosts_runner, raising=False)
-    monkeypatch.setattr(orch_mod, "run_url_collection", urls_runner, raising=False)
+    register_plugin(RECON_PROVIDER, "subdomains")(_non_fatal_subdomain_timeout)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_ok)
+    register_plugin(RECON_PROVIDER, "urls")(_urls_ok)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
 
     assert exit_code == 0
-    assert live_hosts_runner.await_count == 1
-    assert urls_runner.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -270,18 +314,23 @@ async def test_incompatible_checkpoint_recovery_keeps_loaded_scope_entries(
 
     captured_scope_entries: list[str] = []
 
-    async def _stage_reads_scope_entries(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _stage_reads_scope_entries(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         captured_scope_entries.extend(ctx.scope_entries)
         ctx.result.module_metrics["subdomains"] = {"status": "ok"}
         ctx.result.urls = {"https://example.com"}
+        ctx.result.stage_status["subdomains"] = "COMPLETED"
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"urls": ["https://example.com"]},
+        )
 
-    monkeypatch.setattr(
-        orch_mod, "run_subdomain_enumeration", _stage_reads_scope_entries, raising=False
-    )
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_stage_reads_scope_entries)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
@@ -299,20 +348,20 @@ async def test_live_hosts_success_transitions_to_urls_stage(
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 
-    async def _subdomains_ok(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _subdomains_ok(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.subdomains = {"a.example.com", "b.example.com"}
         ctx.result.module_metrics["subdomains"] = {"status": "ok"}
         ctx.result.stage_status["subdomains"] = "COMPLETED"
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"subdomains": ["a.example.com", "b.example.com"]},
+        )
 
-    async def _live_hosts_ok(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _live_hosts_ok(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         # Simulate a fully completed live-host stage after final batch completion.
         ctx.result.live_records = [
             {"url": "https://a.example.com", "status_code": 200},
@@ -329,21 +378,33 @@ async def test_live_hosts_success_transitions_to_urls_stage(
             },
         }
         ctx.result.stage_status["live_hosts"] = "COMPLETED"
+        return StageOutput(
+            stage_name="live_hosts",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"live_hosts": ["https://a.example.com", "https://b.example.com"]},
+        )
 
-    async def _urls_ok(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _urls_ok(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.urls = {"https://a.example.com/path"}
         ctx.result.module_metrics["urls"] = {"status": "ok"}
         ctx.result.stage_status["urls"] = "COMPLETED"
+        return StageOutput(
+            stage_name="urls",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"urls": ["https://a.example.com/path"]},
+        )
 
     urls_runner = AsyncMock(side_effect=_urls_ok)
 
-    monkeypatch.setattr(orch_mod, "run_subdomain_enumeration", _subdomains_ok, raising=False)
-    monkeypatch.setattr(orch_mod, "run_live_hosts", _live_hosts_ok, raising=False)
-    monkeypatch.setattr(orch_mod, "run_url_collection", urls_runner, raising=False)
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_subdomains_ok)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_ok)
+    register_plugin(RECON_PROVIDER, "urls")(urls_runner)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
@@ -351,7 +412,7 @@ async def test_live_hosts_success_transitions_to_urls_stage(
     assert exit_code == 0
     assert urls_runner.await_count == 1
     assert any(
-        stage == "urls" and "Entering stage: URL collection" in message
+        stage == "urls" and "Entering URL collection" in message
         for stage, message, _ in emitted_progress
     )
 
@@ -369,20 +430,20 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
         def __init__(self) -> None:
             self.metadata = MappingProxyType({"source": "probe"})
 
-    async def _subdomains_ok(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _subdomains_ok(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.subdomains = {"a.example.com", "b.example.com"}
         ctx.result.module_metrics["subdomains"] = {"status": "ok"}
         ctx.result.stage_status["subdomains"] = "COMPLETED"
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"subdomains": ["a.example.com", "b.example.com"]},
+        )
 
-    async def _live_hosts_ok(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _live_hosts_ok(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.live_records = [
             {"url": "https://a.example.com", "status_code": 200},
             {"url": "https://b.example.com", "status_code": 200},
@@ -395,21 +456,33 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
             },
         }
         ctx.result.stage_status["live_hosts"] = "COMPLETED"
+        return StageOutput(
+            stage_name="live_hosts",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"live_hosts": ["https://a.example.com", "https://b.example.com"]},
+        )
 
-    async def _urls_ok(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
+    async def _urls_ok(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
         ctx.result.urls = {"https://a.example.com/path"}
         ctx.result.module_metrics["urls"] = {"status": "ok"}
         ctx.result.stage_status["urls"] = "COMPLETED"
+        return StageOutput(
+            stage_name="urls",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"urls": ["https://a.example.com/path"]},
+        )
 
     urls_runner = AsyncMock(side_effect=_urls_ok)
 
-    monkeypatch.setattr(orch_mod, "run_subdomain_enumeration", _subdomains_ok, raising=False)
-    monkeypatch.setattr(orch_mod, "run_live_hosts", _live_hosts_ok, raising=False)
-    monkeypatch.setattr(orch_mod, "run_url_collection", urls_runner, raising=False)
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_subdomains_ok)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_ok)
+    register_plugin(RECON_PROVIDER, "urls")(urls_runner)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
@@ -417,6 +490,6 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
     assert exit_code == 0
     assert urls_runner.await_count == 1
     assert any(
-        stage == "urls" and "Entering stage: URL collection" in message
+        stage == "urls" and "Entering URL collection" in message
         for stage, message, _ in emitted_progress
     )

@@ -178,11 +178,14 @@ _COMPILED_WAF_SIGNATURES = [
         "name": sig["name"],
         "status_codes": set(sig["status_codes"]),
         "headers": [h.lower() for h in sig["headers"]],
-        "header_values": {k.lower(): [v.lower() for v in vals] for k, vals in sig.get("header_values", {}).items()},
+        "header_values": {
+            k.lower(): [v.lower() for v in vals] for k, vals in sig.get("header_values", {}).items()
+        },
         "body_markers": [m.lower() for m in sig["body_markers"]],
     }
     for sig in WAF_SIGNATURES
 ]
+
 
 def _detect_waf(
     status_code: int,

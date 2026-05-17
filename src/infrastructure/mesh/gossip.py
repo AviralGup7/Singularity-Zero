@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def _env_int(name: str, default: int, minimum: int = 1) -> int:
     try:
         return max(minimum, int(os.getenv(name, str(default))))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         logger.warning("Invalid %s value; using %d", name, default)
         return default
 
@@ -149,7 +149,9 @@ class GossipEngine:
         jittered = base * random.uniform(0.75, 1.25)  # noqa: S311
         return max(0.001, float(jittered / 1000.0))
 
-    def _make_envelope(self, message_type: str, payload: dict[str, Any], msg_id: str | None = None) -> bytes:
+    def _make_envelope(
+        self, message_type: str, payload: dict[str, Any], msg_id: str | None = None
+    ) -> bytes:
         body = {
             "type": message_type,
             "msg_id": msg_id or f"{self.local_node.id}-{uuid.uuid4().hex}",
@@ -209,7 +211,9 @@ class GossipEngine:
         finally:
             self._pending_acks.pop(msg_id, None)
 
-    async def _send_best_effort(self, peer: MeshNode, message_type: str, payload: dict[str, Any]) -> None:
+    async def _send_best_effort(
+        self, peer: MeshNode, message_type: str, payload: dict[str, Any]
+    ) -> None:
         if self._transport is None:
             return
         try:
@@ -223,7 +227,9 @@ class GossipEngine:
         except Exception as exc:
             logger.debug("Best-effort mesh send to %s failed: %s", peer.id, exc)
 
-    def _send_ack(self, addr: tuple[str, int], ack_for: str, payload: dict[str, Any] | None = None) -> None:
+    def _send_ack(
+        self, addr: tuple[str, int], ack_for: str, payload: dict[str, Any] | None = None
+    ) -> None:
         if self._transport is None:
             return
         body_payload = {"ack_for": ack_for}
@@ -262,7 +268,9 @@ class GossipEngine:
             peers = list(self.peers.values())
             if not peers:
                 continue
-            await asyncio.gather(*(self._heartbeat_peer(peer) for peer in peers), return_exceptions=True)
+            await asyncio.gather(
+                *(self._heartbeat_peer(peer) for peer in peers), return_exceptions=True
+            )
 
     async def _heartbeat_peer(self, peer: MeshNode) -> None:
         ok, _ = await self._send_reliable(
@@ -386,7 +394,9 @@ class GossipEngine:
                 self.elect_leader()
             return
 
-        node_data["status"] = "alive" if node_data.get("status") == "dead" else node_data.get("status", "alive")
+        node_data["status"] = (
+            "alive" if node_data.get("status") == "dead" else node_data.get("status", "alive")
+        )
         existing = self.peers.get(node_id)
         if existing is None or float(node_data.get("last_seen", 0.0)) >= existing.last_seen:
             node = MeshNode(**node_data)
@@ -400,7 +410,10 @@ class GossipEngine:
 
     def elect_leader(self) -> str:
         """Elect a deterministic leader from live local membership."""
-        candidates = [self.local_node.id, *[p.id for p in self.peers.values() if p.status == "alive"]]
+        candidates = [
+            self.local_node.id,
+            *[p.id for p in self.peers.values() if p.status == "alive"],
+        ]
         self.leader_id = sorted(candidates)[0] if candidates else self.local_node.id
         return self.leader_id
 

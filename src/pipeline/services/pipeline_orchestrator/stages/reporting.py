@@ -25,6 +25,7 @@ logger = get_pipeline_logger(__name__)
 ENRICHMENT_PROVIDER = "enrichment_provider"
 EXPORTER = "exporter"
 
+
 async def run_reporting(
     args: Any,
     config: Any,

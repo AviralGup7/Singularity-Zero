@@ -2,6 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -68,7 +69,7 @@ def _make_args(config: SimpleNamespace) -> argparse.Namespace:
 def _make_config(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(
         target_name="example.com",
-        output_dir=str(tmp_path / "output"),
+        output_dir=tmp_path / "output",
         output={},
         tools={"subfinder": True},
         screenshots={},
@@ -116,16 +117,30 @@ async def test_orchestrator_emits_domain_events(
     _patch_runtime_environment(monkeypatch, tmp_path)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
 
-    async def _successful_stage(
-        _args: argparse.Namespace,
-        _config: SimpleNamespace,
-        ctx: object,
-    ) -> None:
-        ctx.result.module_metrics["subdomains"] = {"status": "ok"}
-        ctx.result.urls = {"https://example.com"}
-        ctx.result.reportable_findings = [{"title": "Example Finding"}]
+    from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 
-    monkeypatch.setattr(orch_mod, "run_subdomain_enumeration", _successful_stage, raising=False)
+    async def _successful_stage(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
+        finding = {"title": "Example Finding", "severity": "low", "confidence": 0.9}
+        ctx.result.reportable_findings = [finding]
+        ctx.result.stage_status["subdomains"] = "COMPLETED"
+
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=1.0,
+            state_delta={"reportable_findings": [finding]},
+        )
+
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER, resolve_stage_runner
+
+    try:
+        resolve_stage_runner("subdomains")
+    except Exception:  # noqa: S110
+        pass
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_successful_stage)
 
     bus = EventBus()
     observed: list[PipelineEvent] = []

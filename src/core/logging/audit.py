@@ -22,7 +22,6 @@ from typing import Any, TextIO
 logger = logging.getLogger(__name__)
 
 
-
 class AuditEventType(StrEnum):
     AUTH_SUCCESS = "auth_success"
     AUTH_FAILURE = "auth_failure"
@@ -94,7 +93,7 @@ class AuditLogger:
                     entry = json.loads(line)
                     self._prev_hash = entry.get("entry_hash", "")
                     break
-                except (json.JSONDecodeError, KeyError):
+                except json.JSONDecodeError, KeyError:
                     continue
         except OSError:
             self._prev_hash = ""

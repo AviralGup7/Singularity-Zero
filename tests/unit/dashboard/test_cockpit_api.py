@@ -25,26 +25,29 @@ class CockpitApiTests(unittest.TestCase):
             run_dir = output_root / target / run_name
             run_dir.mkdir(parents=True)
 
-            (run_dir / "urls.txt").write_text("https://example.com/api\nhttps://example.com/admin", encoding="utf-8")
-            (run_dir / "findings.json").write_text(
-                json.dumps([
-                    {
-                        "id": "finding-1",
-                        "title": "SQL Injection",
-                        "severity": "high",
-                        "url": "https://example.com/api"
-                    }
-                ]),
-                encoding="utf-8"
+            (run_dir / "urls.txt").write_text(
+                "https://example.com/api\nhttps://example.com/admin", encoding="utf-8"
             )
-            (run_dir / "run_summary.json").write_text(json.dumps({"job_id": "job-123"}), encoding="utf-8")
+            (run_dir / "findings.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "id": "finding-1",
+                            "title": "SQL Injection",
+                            "severity": "high",
+                            "url": "https://example.com/api",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "run_summary.json").write_text(
+                json.dumps({"job_id": "job-123"}), encoding="utf-8"
+            )
 
             result = asyncio.run(
                 get_cockpit_graph(
-                    target=target,
-                    run=run_name,
-                    _auth=None,
-                    services=self._services(output_root)
+                    target=target, run=run_name, _auth=None, services=self._services(output_root)
                 )
             )
 
@@ -62,19 +65,18 @@ class CockpitApiTests(unittest.TestCase):
             query_service = SimpleNamespace(
                 output_root=output_root,
                 get_timeline_data=lambda t: [
-                    {"finding_id": "f1", "timestamp": "2026-04-09T01:00:00Z", "severity": "high", "title": "F1"}
-                ]
+                    {
+                        "finding_id": "f1",
+                        "timestamp": "2026-04-09T01:00:00Z",
+                        "severity": "high",
+                        "title": "F1",
+                    }
+                ],
             )
             services = SimpleNamespace(query=query_service)
 
             # No notes for now
-            result = asyncio.run(
-                get_cockpit_events(
-                    target=target,
-                    _auth=None,
-                    services=services
-                )
-            )
+            result = asyncio.run(get_cockpit_events(target=target, _auth=None, services=services))
 
             self.assertEqual(len(result["events"]), 1)
             self.assertEqual(result["events"][0]["type"], "finding")
@@ -90,10 +92,11 @@ class CockpitApiTests(unittest.TestCase):
                         exchange_id="missing",
                         target="test-target",
                         _auth=None,
-                        services=self._services(output_root)
+                        services=self._services(output_root),
                     )
                 )
             self.assertEqual(cm.exception.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

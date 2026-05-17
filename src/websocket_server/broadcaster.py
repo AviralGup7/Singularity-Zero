@@ -219,7 +219,7 @@ class Broadcaster:
                         # Fix #364: track fire-and-forget task; add error-logging done-callback.
                         task = asyncio.create_task(
                             self._deliver_envelope(envelope),
-                            name=f"ws-deliver-{uuid.uuid4().hex[:8]}"
+                            name=f"ws-deliver-{uuid.uuid4().hex[:8]}",
                         )
                         task.add_done_callback(self._log_task_error)
                         backoff = 1.0  # Reset backoff on successful message
@@ -250,7 +250,9 @@ class Broadcaster:
             scope = str(envelope.get("scope") or "")
             target = str(envelope.get("target") or "")
             exclude_raw = envelope.get("exclude") or []
-            exclude = {str(item) for item in exclude_raw} if isinstance(exclude_raw, list) else set()
+            exclude = (
+                {str(item) for item in exclude_raw} if isinstance(exclude_raw, list) else set()
+            )
 
             return await self._deliver_local(scope, target, message, exclude, skip_redis=True)
         except Exception as exc:
@@ -321,6 +323,7 @@ class Broadcaster:
             async with self._lock:
                 self._broadcast_count += 1
         return sent
+
     async def _enqueue(self, info: Any, message: BaseMessage) -> bool:
         """Add a message to a connection's outbound queue."""
         json_data = message.to_json()
@@ -477,7 +480,9 @@ class Broadcaster:
         )
         self._dispatch_tasks[connection_id] = task
 
-        def _drop_completed_task(completed: asyncio.Task[None], connection_id: str = connection_id) -> None:
+        def _drop_completed_task(
+            completed: asyncio.Task[None], connection_id: str = connection_id
+        ) -> None:
             if self._dispatch_tasks.get(connection_id) is completed:
                 self._dispatch_tasks.pop(connection_id, None)
 

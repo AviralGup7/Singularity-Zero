@@ -285,7 +285,7 @@ class LearningIntegration:
                 if isinstance(end, str):
                     end = datetime.fromisoformat(end)
                 duration = (end - start).total_seconds()
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
         row = {

@@ -53,17 +53,89 @@ class CompositeActiveProbe:
         # to avoid redundant scanning.
 
         tasks = [
-            _try_probe("sqli", self.probes["sqli_safe_probe"], item_l, self.response_cache, timeout_seconds=self.timeout_seconds),
-            _try_probe("csrf", self.probes["csrf_active_probe"], item_l, self.response_cache, timeout_seconds=self.timeout_seconds),
-            _try_probe("jwt", self.probes["jwt_manipulation_probe"], item_l, self.response_cache, timeout_seconds=self.timeout_seconds),
-            _try_probe("xss", self.probes["xss_reflect_probe"], item_l, self.response_cache, 4, timeout_seconds=self.timeout_seconds),
-            _try_probe("ssrf", self.probes["ssrf_active_probe"], item_l, self.response_cache, 4, timeout_seconds=self.timeout_seconds),
-            _try_probe("idor", self.probes["idor_active_probe"], item_l, self.response_cache, timeout_seconds=self.timeout_seconds),
-            _try_probe("hpp", self.probes["hpp_active_probe"], item_l, self.response_cache, timeout_seconds=self.timeout_seconds),
-            _try_probe("graphql", self.probes["graphql_active_probe"], item_l, self.response_cache, timeout_seconds=self.timeout_seconds),
-            _try_probe("auth_bypass", _run_auth_bypass_suite, item_l, self.response_cache, 6, timeout_seconds=self.timeout_seconds),
-            _try_probe("json", _run_json_probe_suite, url_l, self.response_cache, timeout_seconds=self.timeout_seconds),
-            _try_probe("fuzzing_suggestions", _run_fuzzing_suggestion_probe, url_l, 6, timeout_seconds=self.timeout_seconds),
+            _try_probe(
+                "sqli",
+                self.probes["sqli_safe_probe"],
+                item_l,
+                self.response_cache,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            _try_probe(
+                "csrf",
+                self.probes["csrf_active_probe"],
+                item_l,
+                self.response_cache,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            _try_probe(
+                "jwt",
+                self.probes["jwt_manipulation_probe"],
+                item_l,
+                self.response_cache,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            _try_probe(
+                "xss",
+                self.probes["xss_reflect_probe"],
+                item_l,
+                self.response_cache,
+                4,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            _try_probe(
+                "ssrf",
+                self.probes["ssrf_active_probe"],
+                item_l,
+                self.response_cache,
+                4,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            _try_probe(
+                "idor",
+                self.probes["idor_active_probe"],
+                item_l,
+                self.response_cache,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            _try_probe(
+                "hpp",
+                self.probes["hpp_active_probe"],
+                item_l,
+                self.response_cache,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            _try_probe(
+                "graphql",
+                self.probes["graphql_active_probe"],
+                item_l,
+                self.response_cache,
+                timeout_seconds=self.timeout_seconds,
+            ),
+            _try_probe(
+                "auth_bypass",
+                _run_auth_bypass_suite,
+                item_l,
+                self.response_cache,
+                6,
+                timeout_seconds=self.timeout_seconds,
+                probes=self.probes,
+            ),
+            _try_probe(
+                "json",
+                _run_json_probe_suite,
+                url_l,
+                self.response_cache,
+                timeout_seconds=self.timeout_seconds,
+                probes=self.probes,
+            ),
+            _try_probe(
+                "fuzzing_suggestions",
+                _run_fuzzing_suggestion_probe,
+                url_l,
+                6,
+                timeout_seconds=self.timeout_seconds,
+                probes=self.probes,
+            ),
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -184,5 +256,6 @@ async def run_active_scanning_adaptive(
         metrics=metrics,
         state_delta={"active_scan_findings": all_findings},
     )
+
 
 logger = get_pipeline_logger(__name__)

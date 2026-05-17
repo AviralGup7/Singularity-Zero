@@ -18,6 +18,7 @@ class CyberVault:
     Hardware-secured (local) vault for sensitive target secrets.
     Uses PBKDF2 for key derivation and AES-GCM for authenticated encryption.
     """
+
     def __init__(self, master_key: str, salt: bytes | None = None) -> None:
         # Fix #216: Reject empty master_key — empty password produces a weak but valid key.
         if not master_key:
@@ -27,7 +28,7 @@ class CyberVault:
             algorithm=hashes.SHA256(),
             length=32,
             salt=self._salt,
-            iterations=600000, # Increased to 600k per Audit #143 (OWASP 2024 guidance)
+            iterations=600000,  # Increased to 600k per Audit #143 (OWASP 2024 guidance)
         )
         key = kdf.derive(master_key.encode())
         self._aesgcm = AESGCM(key)
@@ -49,15 +50,19 @@ class CyberVault:
 
         # Verify salt matches (if reusing vault instance)
         if salt != self._salt:
-             # Fix Audit #8: Raise ValueError on salt mismatch
-             raise ValueError("Salt mismatch — cannot decrypt with this vault instance. "
-                            "Decryption requires a vault initialized with the original salt.")
+            # Fix Audit #8: Raise ValueError on salt mismatch
+            raise ValueError(
+                "Salt mismatch — cannot decrypt with this vault instance. "
+                "Decryption requires a vault initialized with the original salt."
+            )
 
         decrypted = self._aesgcm.decrypt(nonce, ciphertext, None)
         return decrypted.decode()
 
+
 class TargetSecretStore:
     """Manager for target-specific secrets."""
+
     def __init__(self, vault: CyberVault) -> None:
         self._vault = vault
         self._secrets: dict[str, str] = {}

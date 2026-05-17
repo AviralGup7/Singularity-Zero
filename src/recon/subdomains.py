@@ -112,9 +112,9 @@ register_plugin(
 )(None)
 
 
-
-
-def enumerate_subdomains(scope_entries: list[str], config: Mapping[str, Any], skip_crtsh: bool) -> set[str]:
+def enumerate_subdomains(
+    scope_entries: list[str], config: Mapping[str, Any], skip_crtsh: bool
+) -> set[str]:
     """Enumerate subdomains for a list of scope entries using registered providers."""
     subdomains: set[str] = set()
     command_jobs: list[Any] = []

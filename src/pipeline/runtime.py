@@ -33,7 +33,7 @@ def handle_signal(sig: int, frame: object = None) -> None:
     sig_name = f"Signal({sig})"
     try:
         sig_name = signal.Signals(sig).name
-    except (ValueError, OSError):
+    except ValueError, OSError:
         pass
     emit_warning(f"Received {sig_name}, shutting down gracefully...")
 

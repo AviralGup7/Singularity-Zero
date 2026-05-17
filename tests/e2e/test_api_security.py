@@ -7,7 +7,10 @@ from fastapi.testclient import TestClient
 def _app(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("ENABLE_API_SECURITY", "true")
     monkeypatch.setenv("APP_SECRET_KEY", "test-secret")
-    monkeypatch.setenv("API_KEYS_JSON", '{"keys":[{"key":"admin-key","role":"admin"},{"key":"worker-key","role":"worker"},{"key":"read-key","role":"read_only"}]}')
+    monkeypatch.setenv(
+        "API_KEYS_JSON",
+        '{"keys":[{"key":"admin-key","role":"admin"},{"key":"worker-key","role":"worker"},{"key":"read-key","role":"read_only"}]}',
+    )
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.config import DashboardConfig
 

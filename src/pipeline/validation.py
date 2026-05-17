@@ -53,7 +53,7 @@ def _is_valid_cidr(cidr: str) -> bool:
     try:
         ipaddress.ip_network(cidr, strict=False)
         return True
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False
 
 
@@ -180,14 +180,10 @@ def validate_config(
         while parent != parent.parent and not parent.exists():
             parent = parent.parent
         if os.access(str(parent), os.W_OK):
-            output_details = (
-                f"Output directory will be created (parent writable): {output_path}"
-            )
+            output_details = f"Output directory will be created (parent writable): {output_path}"
         else:
             output_ok = False
-            output_details = (
-                f"Cannot create output directory — parent not writable: {parent}"
-            )
+            output_details = f"Cannot create output directory — parent not writable: {parent}"
 
     report["checks"].append(
         {

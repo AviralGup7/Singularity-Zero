@@ -15,7 +15,7 @@ def load_remediation_logic(path: Path | None = None) -> dict[str, Any]:
     logic_path = path or _repo_root() / ".ai" / "remediation_logic.json"
     try:
         payload = json.loads(logic_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return {"strategies": [], "fix_commands": []}
     if not isinstance(payload, dict):
         return {"strategies": [], "fix_commands": []}

@@ -369,7 +369,7 @@ class OTXClient(BaseFeedConnector):
             if created_str:
                 try:
                     created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
             indicators.append(
@@ -395,7 +395,7 @@ class OTXClient(BaseFeedConnector):
                         created = dt
                     else:
                         modified = dt
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
         return OTXPulse(

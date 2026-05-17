@@ -24,6 +24,7 @@ class TestSettings(unittest.TestCase):
     def setUp(self) -> None:
         # Reset cache before each test
         import src.core.config.settings as settings_mod
+
         settings_mod._settings_cache = None
 
     def test_default_settings(self) -> None:
@@ -38,10 +39,7 @@ class TestSettings(unittest.TestCase):
             "defaults": {
                 "pipeline": {"max_workers": 10},
             },
-            "production": {
-                "pipeline": {"max_workers": 20},
-                "dashboard": {"port": 8080}
-            }
+            "production": {"pipeline": {"max_workers": 20}, "dashboard": {"port": 8080}},
         }
 
         with patch("pathlib.Path.exists", return_value=True):
@@ -61,7 +59,7 @@ class TestSettings(unittest.TestCase):
         env_vars = {
             "CYBER_PIPELINE__HTTPX_THREADS": "100",
             "CYBER_DASHBOARD__PORT": "9090",
-            "CYBER_CACHE__PROBE_CACHE_ENABLED": "false"
+            "CYBER_CACHE__PROBE_CACHE_ENABLED": "false",
         }
         with patch.dict(os.environ, env_vars, clear=True):
             settings = AppSettings()
@@ -73,6 +71,7 @@ class TestSettings(unittest.TestCase):
         with patch.dict(os.environ, {"CYBER_PIPELINE__HTTPX_THREADS": "not_an_int"}, clear=True):
             with self.assertRaises(ValidationError):
                 AppSettings()
+
 
 if __name__ == "__main__":
     unittest.main()

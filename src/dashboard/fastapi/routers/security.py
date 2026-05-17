@@ -71,7 +71,10 @@ async def list_security_events(
     limit: int = Query(100, ge=1, le=500),
     _auth: Any = Depends(require_auth),
 ) -> list[SecurityEventResponse]:
-    return [SecurityEventResponse(**event) for event in request.app.state.security_store.list_events(limit)]
+    return [
+        SecurityEventResponse(**event)
+        for event in request.app.state.security_store.list_events(limit)
+    ]
 
 
 @router.get(
@@ -113,7 +116,11 @@ async def generate_api_key(
 
 @router.delete(
     "/api/security/api-keys/{key_id}",
-    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+    },
     summary="Revoke an API key",
 )
 async def revoke_api_key(
@@ -147,7 +154,10 @@ async def list_csp_reports(
     limit: int = Query(50, ge=1, le=200),
     _auth: Any = Depends(require_auth),
 ) -> list[CSPReportResponse]:
-    return [CSPReportResponse(**report) for report in request.app.state.security_store.list_csp_reports(limit)]
+    return [
+        CSPReportResponse(**report)
+        for report in request.app.state.security_store.list_csp_reports(limit)
+    ]
 
 
 @router.post(
@@ -158,6 +168,8 @@ async def list_csp_reports(
 async def csp_report(request: Request) -> Response:
     payload = await request.json()
     if not isinstance(payload, dict):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid CSP report")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid CSP report"
+        )
     request.app.state.security_store.record_csp_report(request, payload)
     return Response(status_code=204)

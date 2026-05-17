@@ -43,19 +43,23 @@ class VectorClock:
                 at_least_one_greater = True
         return at_least_one_greater
 
+
 @dataclass(frozen=True)
 class LWWElement:
     """An element with causal versioning."""
+
     value: Any
     vclock: VectorClock = field(default_factory=VectorClock)
     timestamp: float = field(default_factory=time.time)
     deleted: bool = False
+
 
 class LWWset[T]:
     """
     A Last-Write-Wins Element Set CRDT.
     Ensures that multiple workers adding/removing items eventually converge.
     """
+
     def __init__(self) -> None:
         self._elements: dict[Any, LWWElement] = {}
 
@@ -135,11 +139,13 @@ class LWWset[T]:
                 return item.get("id") or json.dumps(item, sort_keys=True, default=str)
             return repr(item)
 
+
 class NeuralState:
     """
     Frontier State Container using CRDTs for global consistency.
     Replaces standard dictionaries for critical pipeline keys.
     """
+
     def __init__(self) -> None:
         self.subdomains = LWWset[str]()
         self.urls = LWWset[str]()

@@ -45,8 +45,10 @@ class ConnectionInfo:
     connected_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
     groups: set[str] = field(default_factory=set)
-    _message_queue: asyncio.Queue[str] | None = field(default=None, repr=False) # Fix #309
-    sequence_generator: Any = field(default_factory=lambda: __import__("itertools").count()) # Fix #310
+    _message_queue: asyncio.Queue[str] | None = field(default=None, repr=False)  # Fix #309
+    sequence_generator: Any = field(
+        default_factory=lambda: __import__("itertools").count()
+    )  # Fix #310
     _sequence_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     max_queue_size: int = field(default=256)
     closed: bool = field(default=False)

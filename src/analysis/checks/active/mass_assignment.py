@@ -123,7 +123,7 @@ def _is_json_endpoint(url: str, response: dict[str, Any] | None = None) -> bool:
                 try:
                     json.loads(stripped[:50000])
                     return True
-                except (json.JSONDecodeError, ValueError):
+                except json.JSONDecodeError, ValueError:
                     pass
     path = urlparse(url).path.lower()
     if any(token in path for token in ("/api/", "/v1/", "/v2/", "/v3/", "/graphql", "/rest/")):
@@ -323,7 +323,7 @@ def mass_assignment_detector(
         if stripped.startswith(("{", "[")):
             try:
                 original_json = json.loads(stripped[:50000])
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError, ValueError:
                 pass
 
         request_body = {}
@@ -415,7 +415,7 @@ def mass_assignment_detector(
                                 if injected_key in resp_json:
                                     field_accepted = True
                                     acceptance_signals.append(f"field_reflected:{injected_key}")
-                    except (json.JSONDecodeError, ValueError):
+                    except json.JSONDecodeError, ValueError:
                         pass
 
             if field_accepted:

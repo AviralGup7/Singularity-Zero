@@ -20,7 +20,9 @@ def test_collect_urls_uses_inhouse_aggregator():
     mock_provider = MagicMock(return_value={"https://app.example.com/health"})
     with patch("src.recon.urls.list_plugins") as mock_list_plugins:
         mock_list_plugins.return_value = [
-            PluginRegistration(kind="url_collector", key="inhouse", provider=mock_provider, metadata={})
+            PluginRegistration(
+                kind="url_collector", key="inhouse", provider=mock_provider, metadata={}
+            )
         ]
         urls = collect_urls(
             live_hosts={"https://app.example.com"},

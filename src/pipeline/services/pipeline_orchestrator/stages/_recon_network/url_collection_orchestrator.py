@@ -402,27 +402,35 @@ class UrlCollectionOrchestrator:
     ) -> set[str]:
         if use_cache:
             from typing import cast
-            return cast(set[str], self.resolve_cached_stage(
-                url_cache_path,
-                refresh_cache,
-                lambda: self.collect_urls(
-                    self.ctx.live_hosts,
-                    self.ctx.scope_entries,
-                    self.config,
-                    progress_callback=self.emit_url_progress,
-                    stage_meta=stage_meta,
-                    runtime_budget_seconds=self.url_collection_max_duration_seconds,
+
+            return cast(
+                set[str],
+                self.resolve_cached_stage(
+                    url_cache_path,
+                    refresh_cache,
+                    lambda: self.collect_urls(
+                        self.ctx.live_hosts,
+                        self.ctx.scope_entries,
+                        self.config,
+                        progress_callback=self.emit_url_progress,
+                        stage_meta=stage_meta,
+                        runtime_budget_seconds=self.url_collection_max_duration_seconds,
+                    ),
                 ),
-            ))
+            )
         from typing import cast
-        return cast(set[str], self.collect_urls(
-            self.ctx.live_hosts,
-            self.ctx.scope_entries,
-            self.config,
-            self.emit_url_progress,
-            stage_meta,
-            runtime_budget_seconds=self.url_collection_max_duration_seconds,
-        ))
+
+        return cast(
+            set[str],
+            self.collect_urls(
+                self.ctx.live_hosts,
+                self.ctx.scope_entries,
+                self.config,
+                self.emit_url_progress,
+                stage_meta,
+                runtime_budget_seconds=self.url_collection_max_duration_seconds,
+            ),
+        )
 
     def _handle_collection_timeout(self, fallback_urls: set[str]) -> None:
         self.emit_progress(
@@ -510,6 +518,7 @@ class UrlCollectionOrchestrator:
             )
             self.fresh_stage_meta = fresh_meta  # store for processing
             from typing import cast
+
             return cast(set[str] | None, fresh_urls)
         except TimeoutError:
             self.emit_progress(

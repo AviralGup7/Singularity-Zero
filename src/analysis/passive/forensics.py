@@ -68,13 +68,17 @@ class ForensicExchange:
 
         # Request
         self.request_headers = redact_headers(request_headers)
-        self.request_body_raw, self.request_truncated = self._bound_body(request_body, max_body_bytes)
+        self.request_body_raw, self.request_truncated = self._bound_body(
+            request_body, max_body_bytes
+        )
         self.request_hash = compute_body_hash(request_body)
 
         # Response
         self.response_status = response_status
         self.response_headers = redact_headers(response_headers)
-        self.response_body_raw, self.response_truncated = self._bound_body(response_body, max_body_bytes)
+        self.response_body_raw, self.response_truncated = self._bound_body(
+            response_body, max_body_bytes
+        )
         self.response_hash = compute_body_hash(response_body)
 
         # Unique ID for this exchange

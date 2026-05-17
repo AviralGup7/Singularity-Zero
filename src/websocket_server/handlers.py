@@ -225,7 +225,9 @@ class WebSocketHandler:
             await info.message_queue.put(welcome.to_json())
         except asyncio.QueueFull:
             # Fix Audit #86: Log queue full
-            logger.warning("Failed to send welcome message: connection %s queue full", connection_id)
+            logger.warning(
+                "Failed to send welcome message: connection %s queue full", connection_id
+            )
 
         try:
             await self._message_loop(info, auth.user_id)
@@ -280,7 +282,9 @@ class WebSocketHandler:
                     await info.websocket.send_text(error.to_json())
                 except Exception as e:
                     # Fix Audit #86: Log error sending invalid message notice
-                    logger.debug("Failed to send invalid message notice to %s: %s", info.connection_id, e)
+                    logger.debug(
+                        "Failed to send invalid message notice to %s: %s", info.connection_id, e
+                    )
                     break
                 continue
 
@@ -302,7 +306,9 @@ class WebSocketHandler:
                     await info.websocket.send_text(error.to_json())
                 except Exception as e:
                     # Fix Audit #86: Log error
-                    logger.debug("Failed to send unsupported type error to %s: %s", info.connection_id, e)
+                    logger.debug(
+                        "Failed to send unsupported type error to %s: %s", info.connection_id, e
+                    )
                     break
 
     async def _handle_subscribe(
@@ -338,7 +344,9 @@ class WebSocketHandler:
             await info.message_queue.put(ack.to_json())
         except asyncio.QueueFull:
             # Fix Audit #86: Log queue full
-            logger.warning("Failed to send subscribe ack: connection %s queue full", info.connection_id)
+            logger.warning(
+                "Failed to send subscribe ack: connection %s queue full", info.connection_id
+            )
 
         if message.resume_from is not None:
             token = self.reconnect.get_token_for_user(info.user_id)
@@ -380,7 +388,9 @@ class WebSocketHandler:
             await info.message_queue.put(ack.to_json())
         except asyncio.QueueFull:
             # Fix Audit #86: Log queue full
-            logger.warning("Failed to send unsubscribe ack: connection %s queue full", info.connection_id)
+            logger.warning(
+                "Failed to send unsubscribe ack: connection %s queue full", info.connection_id
+            )
 
         logger.info(
             "Connection %s unsubscribed from channel %s",

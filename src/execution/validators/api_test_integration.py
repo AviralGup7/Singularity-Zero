@@ -21,7 +21,7 @@ def _load_api_tester() -> Any:
     """
     try:
         return importlib.import_module(API_TESTER_MODULE)
-    except (ImportError, ModuleNotFoundError):
+    except ImportError, ModuleNotFoundError:
         return None
 
 

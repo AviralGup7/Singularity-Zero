@@ -1,4 +1,5 @@
 """Backend startup script for Replit."""
+
 from pathlib import Path
 
 from src.dashboard.fastapi.app import create_app

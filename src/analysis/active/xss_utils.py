@@ -196,8 +196,6 @@ def build_js_context_breaker(script: str, probe_marker: str) -> str:
     return result
 
 
-
-
 @lru_cache(maxsize=256)
 def _get_script_ctx_re(rv: str) -> re.Pattern:
     return re.compile(r"<script[^>]*>(.*?)(?:" + re.escape(rv) + r")", re.IGNORECASE | re.DOTALL)
@@ -549,7 +547,7 @@ def detect_reflection_efficiency(
             # Simple character overlap score
             score = _simple_fuzzy_match(reflected, check_lower)
             efficiencies.append(score)
-        except (IndexError, ValueError):
+        except IndexError, ValueError:
             efficiencies.append(0)
 
     return efficiencies

@@ -13,11 +13,13 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 class FrontierMarshaller:
     """
     Hardware-optimized Binary Marshaller.
     Uses MessagePack for efficient serialization of complex security findings and state.
     """
+
     def __init__(self) -> None:
         pass
 
@@ -39,9 +41,11 @@ class FrontierMarshaller:
             logger.error("Marshaller: Unpacking failed: %s", e)
             raise
 
+
 def mesh_marshal(data: Any) -> bytes:
     """Helper for one-off mesh marshalling."""
     return cast(bytes, msgpack.packb(data, use_bin_type=True))
+
 
 def mesh_unmarshal(raw: bytes) -> Any:
     """Helper for one-off mesh unmarshalling."""

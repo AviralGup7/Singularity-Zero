@@ -328,7 +328,7 @@ class ShodanClient(BaseFeedConnector):
             if ts:
                 try:
                     timestamp = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
             service = ShodanService(
@@ -352,7 +352,7 @@ class ShodanClient(BaseFeedConnector):
         if update_str:
             try:
                 last_update = datetime.fromisoformat(str(update_str).replace("Z", "+00:00"))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
         return ShodanHost(
@@ -389,4 +389,3 @@ class ShodanClient(BaseFeedConnector):
             total=data.get("total", 0),
             hosts=hosts,
         )
-

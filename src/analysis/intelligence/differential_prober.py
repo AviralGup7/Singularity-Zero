@@ -13,12 +13,14 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 class DifferentialLogicProber:
     """
     Frontier Logic Analyzer.
     Compares API responses across different user contexts to detect
     Authorization Bypass and Insecure Direct Object Reference (IDOR).
     """
+
     def __init__(self) -> None:
         self._dmp = diff_match_patch()
 
@@ -42,14 +44,14 @@ class DifferentialLogicProber:
             "similarity": round(similarity, 4),
             "levenshtein_distance": levenshtein,
             "is_suspicious": is_suspicious,
-            "diff_summary": self._summarize_diffs(diffs)
+            "diff_summary": self._summarize_diffs(diffs),
         }
 
     def _summarize_diffs(self, diffs: list[tuple[int, str]]) -> str:
         """Extract only the meaningful changes between responses."""
         changes = []
         for op, text in diffs:
-            if op != 0: # 0 is equality
+            if op != 0:  # 0 is equality
                 changes.append(f"{'+' if op == 1 else '-'}{text[:50]}...")
         return " | ".join(changes[:5])
 
@@ -68,18 +70,21 @@ class DifferentialLogicProber:
                 result = self.analyze_responses(ctx_a["body"], ctx_b["body"])
 
                 if result["is_suspicious"]:
-                    findings.append({
-                        "type": "logic_breach:idor",
-                        "title": "Potential IDOR Detected via Differential Analysis",
-                        "confidence": result["similarity"],
-                        "description": f"Responses from context '{ctx_a['id']}' and '{ctx_b['id']}' "
-                                     f"are {result['similarity']*100}% identical despite different auth.",
-                        "metadata": {
-                            "levenshtein": result["levenshtein_distance"],
-                            "diff": result["diff_summary"]
+                    findings.append(
+                        {
+                            "type": "logic_breach:idor",
+                            "title": "Potential IDOR Detected via Differential Analysis",
+                            "confidence": result["similarity"],
+                            "description": f"Responses from context '{ctx_a['id']}' and '{ctx_b['id']}' "
+                            f"are {result['similarity'] * 100}% identical despite different auth.",
+                            "metadata": {
+                                "levenshtein": result["levenshtein_distance"],
+                                "diff": result["diff_summary"],
+                            },
                         }
-                    })
+                    )
         return findings
+
 
 def apply_differential_analysis(endpoint_responses: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Helper to trigger the frontier logic prober."""

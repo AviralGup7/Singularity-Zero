@@ -23,5 +23,6 @@ def find_pass_in_except(directory: str = "src") -> None:
                     if len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
                         print(f"{filepath}:{node.lineno}")
 
+
 if __name__ == "__main__":
     find_pass_in_except()

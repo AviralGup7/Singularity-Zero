@@ -84,7 +84,7 @@ def _seeded_timeline_events(limit: int, offset: int) -> list[dict[str, Any]]:
                 "confidence": round(_stable_float(f"timeline:{index}:confidence", 0.55, 0.96), 2),
             }
         )
-    return events[offset:offset + limit]
+    return events[offset : offset + limit]
 
 
 def _collect_timeline_events(
@@ -127,15 +127,19 @@ def _collect_timeline_events(
                 try:
                     parsed = json.loads(findings_path.read_text(encoding="utf-8"))
                     findings_data = parsed if isinstance(parsed, list) else []
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     findings_data = []
 
             if not findings_data and summary_path.exists():
                 try:
                     summary = json.loads(summary_path.read_text(encoding="utf-8"))
-                    top_findings = summary.get("top_actionable_findings", []) if isinstance(summary, dict) else []
+                    top_findings = (
+                        summary.get("top_actionable_findings", [])
+                        if isinstance(summary, dict)
+                        else []
+                    )
                     findings_data = top_findings if isinstance(top_findings, list) else []
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     findings_data = []
 
             run_generated_at = run_entry.name
@@ -148,7 +152,7 @@ def _collect_timeline_events(
                             or summary.get("generated_at_ist")
                             or run_entry.name
                         )
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     run_generated_at = run_entry.name
 
             for idx, finding in enumerate(findings_data, start=1):
@@ -172,11 +176,17 @@ def _collect_timeline_events(
                     continue
                 if end_dt and timestamp > end_dt:
                     continue
-                finding_id = str(normalized.get("id") or normalized.get("finding_id") or f"{target_entry.name}-{run_entry.name}-{idx}")
+                finding_id = str(
+                    normalized.get("id")
+                    or normalized.get("finding_id")
+                    or f"{target_entry.name}-{run_entry.name}-{idx}"
+                )
                 events.append(
                     {
                         "id": f"{run_entry.name}:{finding_id}",
-                        "title": str(normalized.get("title") or normalized.get("type") or "Finding"),
+                        "title": str(
+                            normalized.get("title") or normalized.get("type") or "Finding"
+                        ),
                         "severity": event_severity,
                         "target": target_entry.name,
                         "timestamp": timestamp.isoformat(),
@@ -184,13 +194,16 @@ def _collect_timeline_events(
                         "job_id": run_entry.name,
                         "url": str(normalized.get("url") or normalized.get("target") or ""),
                         "module": str(normalized.get("module") or normalized.get("type") or ""),
-                        "preview": str(normalized.get("description") or normalized.get("title") or "")[:240],
+                        "preview": str(
+                            normalized.get("description") or normalized.get("title") or ""
+                        )[:240],
                         "confidence": normalized.get("confidence", 0),
                     }
                 )
 
     events.sort(key=lambda item: str(item.get("timestamp", "")), reverse=True)
-    return events[offset:offset + limit]
+    return events[offset : offset + limit]
+
 
 @router.get(
     "",
@@ -199,6 +212,7 @@ def _collect_timeline_events(
     summary="Get summary of all findings",
 )
 async def get_findings_summary(
+    target: str | None = Query(None),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
@@ -210,6 +224,7 @@ async def get_findings_summary(
     target_summaries: list[dict[str, Any]] = []
     targets_with_findings = 0
     total_targets = 0
+    all_findings_list: list[dict[str, Any]] = []
 
     if not output_root.exists():
         return {
@@ -217,13 +232,17 @@ async def get_findings_summary(
             "severity_totals": severity_totals,
             "by_severity": severity_totals,
             "by_module": {},
+            "findings": [],
             "targets": [],
             "targets_with_findings": 0,
-            "total_targets": 0
+            "total_targets": 0,
         }
 
     for entry in sorted(output_root.iterdir()):
         if not entry.is_dir() or entry.name.startswith("_"):
+            continue
+
+        if target and entry.name.lower() != target.lower():
             continue
 
         total_targets += 1
@@ -232,6 +251,10 @@ async def get_findings_summary(
 
         # Look for findings in all run directories
         run_dirs = [d for d in entry.iterdir() if d.is_dir() and (d / "run_summary.json").exists()]
+        if not run_dirs:
+            # Fallback to check all subdirs
+            run_dirs = [d for d in entry.iterdir() if d.is_dir() and d.name != "checkpoints"]
+
         for run_dir in run_dirs:
             findings_path = run_dir / "findings.json"
             if findings_path.exists():
@@ -249,25 +272,31 @@ async def get_findings_summary(
 
                             total_findings += 1
                             target_finding_count += 1
+
+                            if len(all_findings_list) < 50:
+                                all_findings_list.append(f)
                 except Exception:  # noqa: S112
                     continue
 
         if target_finding_count > 0:
             targets_with_findings += 1
-            target_summaries.append({
-                "name": entry.name,
-                "finding_count": target_finding_count,
-                "severity_counts": target_severity_counts
-            })
+            target_summaries.append(
+                {
+                    "name": entry.name,
+                    "finding_count": target_finding_count,
+                    "severity_counts": target_severity_counts,
+                }
+            )
 
     return {
         "total_findings": total_findings,
         "severity_totals": severity_totals,
         "by_severity": severity_totals,
         "by_module": by_module,
+        "findings": all_findings_list,
         "targets": target_summaries,
         "targets_with_findings": targets_with_findings,
-        "total_targets": total_targets
+        "total_targets": total_targets,
     }
 
 
@@ -392,7 +421,11 @@ async def update_finding(
                     findings = json.loads(findings_path.read_text(encoding="utf-8"))
                     for idx, f in enumerate(findings):
                         # Construct ID similar to _normalize_finding_payload to match
-                        fid = f.get("id") or f.get("finding_id") or f"{target_entry.name}-{run_entry.name}-{idx+1}"
+                        fid = (
+                            f.get("id")
+                            or f.get("finding_id")
+                            or f"{target_entry.name}-{run_entry.name}-{idx + 1}"
+                        )
                         if fid == finding_id:
                             found = True
                             target_name = target_entry.name
@@ -407,14 +440,14 @@ async def update_finding(
             if found:
                 break
         if found:
-                break
+            break
 
     if not found:
         raise HTTPException(status_code=404, detail="Finding not found")
 
     # Apply updates
     for key, value in update_data.items():
-        if key not in {"id", "finding_id"}: # Don't allow ID changes
+        if key not in {"id", "finding_id"}:  # Don't allow ID changes
             finding_payload[key] = value
 
     # Save back to disk
@@ -428,7 +461,9 @@ async def update_finding(
         logger.error("Failed to save updated finding: %s", e)
         raise HTTPException(status_code=500, detail="Failed to persist finding update")
 
-    return _normalize_finding_payload(finding_payload, target_name=target_name, run_name=run_name, index=target_finding_idx+1)
+    return _normalize_finding_payload(
+        finding_payload, target_name=target_name, run_name=run_name, index=target_finding_idx + 1
+    )
 
 
 @router.delete(
@@ -459,7 +494,11 @@ async def delete_finding(
                 try:
                     findings = json.loads(findings_path.read_text(encoding="utf-8"))
                     for idx, f in enumerate(findings):
-                        fid = f.get("id") or f.get("finding_id") or f"{target_entry.name}-{run_entry.name}-{idx+1}"
+                        fid = (
+                            f.get("id")
+                            or f.get("finding_id")
+                            or f"{target_entry.name}-{run_entry.name}-{idx + 1}"
+                        )
                         if fid == finding_id:
                             found = True
                             target_finding_idx = idx
@@ -471,7 +510,7 @@ async def delete_finding(
             if found:
                 break
         if found:
-                break
+            break
 
     if not found:
         raise HTTPException(status_code=404, detail="Finding not found")

@@ -10,6 +10,7 @@ from typing import Any, cast
 
 try:
     import kuzu
+
     KUZU_AVAILABLE = True
 except ImportError:
     kuzu = Any  # type: ignore
@@ -19,12 +20,15 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 ...
+
+
 class LateralGraph:
     """
     Frontier Knowledge Graph.
     Models the relationship between subdomains, URLs, vulnerabilities, and potential pivot points.
     Enables automatic identification of multi-stage attack paths.
     """
+
     def __init__(self, db_path: str = "output/graph.db") -> None:
         if not KUZU_AVAILABLE:
             logger.warning("Kuzu graph database not installed. Lateral movement analysis disabled.")
@@ -49,7 +53,9 @@ class LateralGraph:
         try:
             # Nodes
             self._conn.execute("CREATE NODE TABLE Asset(id STRING, type STRING, PRIMARY KEY (id))")
-            self._conn.execute("CREATE NODE TABLE Finding(id STRING, severity STRING, PRIMARY KEY (id))")
+            self._conn.execute(
+                "CREATE NODE TABLE Finding(id STRING, severity STRING, PRIMARY KEY (id))"
+            )
 
             # Edges
             self._conn.execute("CREATE REL TABLE BELONGS_TO(FROM Asset TO Asset)")
@@ -73,7 +79,7 @@ class LateralGraph:
 
         # Heuristic: If finding is an IDOR or SSRF, it's a PIVOT point
         if "idor" in finding["type"] or "ssrf" in finding["type"]:
-             self._conn.execute("MERGE (f)-[:PIVOTS_TO]->(a)")
+            self._conn.execute("MERGE (f)-[:PIVOTS_TO]->(a)")
 
     def find_attack_chains(self) -> list[list[str]]:
         """
@@ -82,10 +88,13 @@ class LateralGraph:
         """
         if not self._conn:
             return []
-        results = cast(Any, self._conn.execute(
-            "MATCH (a1:Asset)-[:HAS_VULN]->(f1:Finding)-[:PIVOTS_TO]->(a2:Asset)-[:HAS_VULN]->(f2:Finding) "
-            "RETURN a1.id, f1.id, a2.id, f2.id"
-        ))
+        results = cast(
+            Any,
+            self._conn.execute(
+                "MATCH (a1:Asset)-[:HAS_VULN]->(f1:Finding)-[:PIVOTS_TO]->(a2:Asset)-[:HAS_VULN]->(f2:Finding) "
+                "RETURN a1.id, f1.id, a2.id, f2.id"
+            ),
+        )
         chains: list[list[str]] = []
         while results.has_next():
             chains.append(cast(list[str], results.get_next()))

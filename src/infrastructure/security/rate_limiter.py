@@ -328,7 +328,9 @@ class RateLimiter:
         Returns:
             RateLimitResult with the check outcome.
         """
-        if bypass_token and any(hmac.compare_digest(bypass_token, token) for token in self._bypass_tokens):
+        if bypass_token and any(
+            hmac.compare_digest(bypass_token, token) for token in self._bypass_tokens
+        ):
             return RateLimitResult(
                 allowed=True,
                 limit=999999,

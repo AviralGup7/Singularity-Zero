@@ -13,18 +13,20 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+
 class NeuralScorer:
     """
     Frontier Risk Engine.
     Calculates the Composite Severity Index (CSI) using multi-factor weighting.
     """
+
     def __init__(self) -> None:
         # Weights for the CSI calculation
         self.weights = {
             "cvss_base": 0.40,
             "confidence": 0.20,
             "business_impact": 0.25,
-            "exploitability": 0.15
+            "exploitability": 0.15,
         }
 
     def calculate_csi(self, finding: dict[str, Any], target_criticality: float = 0.5) -> float:
@@ -49,13 +51,21 @@ class NeuralScorer:
 
         # Vectorized Weighted Calculation
         factors = np.array([cvss, confidence * 10, target_criticality * 10, exploitability * 10])
-        weights = np.array([self.weights["cvss_base"], self.weights["confidence"],
-                           self.weights["business_impact"], self.weights["exploitability"]])
+        weights = np.array(
+            [
+                self.weights["cvss_base"],
+                self.weights["confidence"],
+                self.weights["business_impact"],
+                self.weights["exploitability"],
+            ]
+        )
 
         csi = np.dot(factors, weights)
         return round(float(csi), 2)
 
-    def rank_findings(self, findings: list[dict[str, Any]], target_map: dict[str, float]) -> list[dict[str, Any]]:
+    def rank_findings(
+        self, findings: list[dict[str, Any]], target_map: dict[str, float]
+    ) -> list[dict[str, Any]]:
         """
         Rank all findings across the mesh based on their CSI.
         """
@@ -76,7 +86,10 @@ class NeuralScorer:
 
         return sorted(findings, key=lambda x: x["csi_score"], reverse=True)
 
-def apply_neural_scoring(findings: list[dict[str, Any]], target_map: dict[str, float]) -> list[dict[str, Any]]:
+
+def apply_neural_scoring(
+    findings: list[dict[str, Any]], target_map: dict[str, float]
+) -> list[dict[str, Any]]:
     """Helper to apply the highest-tier risk scoring."""
     scorer = NeuralScorer()
     return scorer.rank_findings(findings, target_map)

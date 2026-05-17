@@ -386,7 +386,7 @@ def check_response_oauth_issues(response: dict[str, Any]) -> list[dict[str, Any]
                                 "risk_score": 4,
                             }
                         )
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             pass
 
     location_header = headers.get("location", "")

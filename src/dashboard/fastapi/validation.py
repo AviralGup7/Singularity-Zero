@@ -85,7 +85,7 @@ def validate_json_payload(data: bytes) -> dict[str, Any] | None:
         return None
     try:
         result = json.loads(data)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    except json.JSONDecodeError, UnicodeDecodeError:
         return None
     if not isinstance(result, dict):
         return None
@@ -124,7 +124,7 @@ def _is_ip_literal(hostname: str) -> bool:
 def _resolve_hostname(hostname: str) -> str | None:
     try:
         return socket.gethostbyname(hostname)
-    except (OSError, socket.gaierror):
+    except OSError, socket.gaierror:
         return None
 
 
@@ -174,7 +174,7 @@ def is_safe_replay_url(url: str) -> bool:
             _log_ssrf_block(url, "DNS rebinding detected: IPs differ on resolution")
             return False
         return True
-    except (ValueError, OSError, socket.gaierror):
+    except ValueError, OSError, socket.gaierror:
         return False
 
 

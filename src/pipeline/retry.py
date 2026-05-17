@@ -107,7 +107,7 @@ def classify_error(exc: BaseException) -> str:
     if status_code is not None:
         try:
             code = int(status_code)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             code = None
 
         if code in _HTTP_TRANSIENT_CODES:
@@ -243,6 +243,7 @@ def sleep_before_retry(policy: RetryPolicy, attempt: int) -> float:
 
 logger = get_pipeline_logger(__name__)
 
+
 def execute_with_retry[T](
     func: Callable[..., T],
     policy: RetryPolicy,
@@ -265,7 +266,7 @@ def execute_with_retry[T](
             result = func(*args, **kwargs)
             m.record_success()
             return result
-        except Exception as exc: # Fix Audit #13: Simplify to broad Exception
+        except Exception as exc:  # Fix Audit #13: Simplify to broad Exception
             last_exc = exc
             classification = classify_error(exc)
 
@@ -321,7 +322,7 @@ def execute_with_retry_with_metrics[T](
 def _positive_int(value: object, default: int) -> int:
     try:
         parsed = int(str(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return max(0, parsed)
 
@@ -329,6 +330,6 @@ def _positive_int(value: object, default: int) -> int:
 def _positive_float(value: object, default: float) -> float:
     try:
         parsed = float(str(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
     return max(0.0, parsed)

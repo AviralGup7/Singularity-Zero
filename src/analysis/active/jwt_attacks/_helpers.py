@@ -126,6 +126,7 @@ def _safe_request(
         "error": "unknown error",
     }
 
+
 def _extract_jwt(url: str, session: Any) -> str | None:
     for header_name in JWT_AUTH_HEADERS:
         if hasattr(session, "headers") and header_name in session.headers:

@@ -305,7 +305,7 @@ class URLValidator:
                 addr = ipaddress.ip_address(resolved_ip_str)
                 if any(addr in network for network in self.INTERNAL_IP_RANGES):
                     return True
-        except (socket.gaierror, OSError):
+        except socket.gaierror, OSError:
             # DNS resolution failed - treat as external (safe)
             pass
 
@@ -324,16 +324,19 @@ class URLValidator:
         if parsed.port:
             netloc = f"{netloc}:{parsed.port}"
 
-        return cast(str, urlunparse(
-            (
-                parsed.scheme,
-                netloc,
-                parsed.path,
-                parsed.params,
-                parsed.query,
-                "",
-            )
-        ))
+        return cast(
+            str,
+            urlunparse(
+                (
+                    parsed.scheme,
+                    netloc,
+                    parsed.path,
+                    parsed.params,
+                    parsed.query,
+                    "",
+                )
+            ),
+        )
 
 
 class TargetNameValidator:

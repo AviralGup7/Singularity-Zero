@@ -7,6 +7,7 @@ from typing import Any
 try:
     from jsonschema import Draft7Validator
 except ModuleNotFoundError:
+
     class Draft7Validator:  # type: ignore[no-redef]
         """No-op validator fallback for environments without jsonschema."""
 
@@ -20,6 +21,7 @@ except ModuleNotFoundError:
 
         def iter_errors(self, _payload: Any) -> list[Any]:
             return []
+
 
 from src.core.contracts.pipeline_runtime import PipelineInput, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -63,7 +65,9 @@ class StageOutputValidationError(ValueError):
 
 @lru_cache(maxsize=1)
 def _stage_output_schema_validator() -> Draft7Validator:
-    schema_path = Path(__file__).resolve().parents[4] / ".ai" / "schemas" / "stage_output.schema.json"
+    schema_path = (
+        Path(__file__).resolve().parents[4] / ".ai" / "schemas" / "stage_output.schema.json"
+    )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     validator = Draft7Validator(schema)
     return validator
@@ -94,7 +98,11 @@ def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) 
             validator = _finding_schema_validator()
             for i, item in enumerate(items):
                 if not isinstance(item, dict):
-                    errors.append(Draft7Validator.TypeChecker.redefine(key, f"Item {i} in '{key}' must be a dict"))
+                    errors.append(
+                        Draft7Validator.TypeChecker.redefine(
+                            key, f"Item {i} in '{key}' must be a dict"
+                        )
+                    )
                     continue
                 for error in validator.iter_errors(item):
                     # Wrap the error with path context
@@ -108,9 +116,7 @@ def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) 
         f"{'.'.join(str(part) for part in error.path) or '<root>'}: {error.message}"
         for error in sorted(errors, key=lambda e: str(e.path))
     )
-    raise StageOutputValidationError(
-        f"Stage '{stage_name}' contract violation: {details}"
-    )
+    raise StageOutputValidationError(f"Stage '{stage_name}' contract violation: {details}")
 
 
 def resolve_stage_timeout(
@@ -158,7 +164,9 @@ def resolve_stage_timeout(
         retry_attempts = max(1, int(tools_cfg.get("retry_attempts", 1) or 1))
 
         if bool(tools_cfg.get("httpx")) and candidate_count > 0:
-            batch_size = max(100, int(httpx_cfg.get("batch_size", DEFAULT_BATCH_SIZE) or DEFAULT_BATCH_SIZE))
+            batch_size = max(
+                100, int(httpx_cfg.get("batch_size", DEFAULT_BATCH_SIZE) or DEFAULT_BATCH_SIZE)
+            )
             batch_concurrency = max(1, int(httpx_cfg.get("batch_concurrency", 1) or 1))
             per_batch_timeout = max(10, int(httpx_cfg.get("timeout_seconds", 120) or 120))
 
@@ -168,7 +176,9 @@ def resolve_stage_timeout(
                 * per_batch_timeout
                 * retry_attempts
             )
-            estimated_total_seconds = int(estimated_probe_seconds * PROBE_TIME_MULTIPLIER) + PROBE_TIME_BUFFER_SECONDS
+            estimated_total_seconds = (
+                int(estimated_probe_seconds * PROBE_TIME_MULTIPLIER) + PROBE_TIME_BUFFER_SECONDS
+            )
             base_timeout = max(base_timeout, min(7200, estimated_total_seconds))
 
         return base_timeout
@@ -274,6 +284,7 @@ def build_stage_input_contract(
         },
     )
     from typing import cast
+
     return cast(dict[str, Any], stage_input.to_dict())
 
 
@@ -299,8 +310,7 @@ def merge_stage_output(
     validation_errors = GLOBAL_STATE_SCHEMA_REGISTRY.validate_delta(state_delta)
     if validation_errors:
         raise StageOutputValidationError(
-            f"Stage '{stage_name}' produced invalid state_delta: "
-            + "; ".join(validation_errors)
+            f"Stage '{stage_name}' produced invalid state_delta: " + "; ".join(validation_errors)
         )
 
     # Phase 2: Frontier Durability - Log to WAL before applying
@@ -392,7 +402,7 @@ async def record_stage_post_run(
 
         mem_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         pass
 
     try:
@@ -411,7 +421,7 @@ async def record_stage_post_run(
         if hasattr(checkpoint_mgr, "save_context_snapshot"):
             checkpoint_mgr.save_context_snapshot(stage_name, ctx.to_dict())
         else:
-            checkpoint_dir = checkpoint_mgr.checkpoint_dir
+            checkpoint_dir = Path(checkpoint_mgr.checkpoint_dir)
             (checkpoint_dir / stage_name).parent.mkdir(parents=True, exist_ok=True)
             (checkpoint_dir / f"{stage_name}.json").write_text(
                 json.dumps(ctx.to_dict(), default=str)

@@ -12,12 +12,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class MeshShardManager:
     """
     Frontier Sharding Engine.
     Uses Consistent Hashing to distribute scan targets across the available mesh nodes.
     This ensures that multiple 'Shard Leaders' can exist, preventing a single leader bottleneck.
     """
+
     def __init__(self, replication_factor: int = 3):
         self.replication_factor = replication_factor
         self._nodes: set[str] = set()

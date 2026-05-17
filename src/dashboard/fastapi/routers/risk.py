@@ -51,7 +51,7 @@ def _load_json(path: Path, default: Any) -> Any:
     try:
         if path.exists():
             return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return default
     return default
 
@@ -98,7 +98,9 @@ def _compute_csi(
         confidence = _stable_float(f"{target_name}:{timestamp.date()}:confidence", 4.5, 8.0)
 
     total = max(1, sum(severity_breakdown.values()))
-    weighted_severity = sum(SEVERITY_WEIGHTS[sev] * count for sev, count in severity_breakdown.items()) / total
+    weighted_severity = (
+        sum(SEVERITY_WEIGHTS[sev] * count for sev, count in severity_breakdown.items()) / total
+    )
     exploitability = max(0.0, min(10.0, weighted_severity))
     mesh_consensus = max(
         0.0,
@@ -154,7 +156,11 @@ def _normalize_top_findings(
 
 def _history_for_run(target_name: str, run_dir: Path) -> dict[str, Any] | None:
     findings_raw = _load_json(run_dir / "findings.json", [])
-    findings = [item for item in findings_raw if isinstance(item, dict)] if isinstance(findings_raw, list) else []
+    findings = (
+        [item for item in findings_raw if isinstance(item, dict)]
+        if isinstance(findings_raw, list)
+        else []
+    )
     summary = _load_json(run_dir / "run_summary.json", {})
     generated_at = summary.get("generated_at_utc") if isinstance(summary, dict) else ""
     timestamp = _parse_timestamp(generated_at, run_dir.name)
@@ -172,11 +178,15 @@ def _history_for_run(target_name: str, run_dir: Path) -> dict[str, Any] | None:
         "timestamp": timestamp.isoformat(),
         "severity_breakdown": breakdown,
         "factors": factors,
-        "top_findings": _normalize_top_findings(findings, target_name=target_name, timestamp=timestamp),
+        "top_findings": _normalize_top_findings(
+            findings, target_name=target_name, timestamp=timestamp
+        ),
     }
 
 
-def _collect_target_history(output_root: Path, target_id: str | None, days: int) -> list[dict[str, Any]]:
+def _collect_target_history(
+    output_root: Path, target_id: str | None, days: int
+) -> list[dict[str, Any]]:
     cutoff = datetime.now(UTC) - timedelta(days=max(days, 1))
     histories: list[dict[str, Any]] = []
     if not output_root.exists():
@@ -199,7 +209,9 @@ def _collect_target_history(output_root: Path, target_id: str | None, days: int)
 
 
 def _seeded_history(target_id: str | None, days: int) -> list[dict[str, Any]]:
-    targets = [target_id] if target_id else ["api.example.com", "portal.example.com", "auth.example.com"]
+    targets = (
+        [target_id] if target_id else ["api.example.com", "portal.example.com", "auth.example.com"]
+    )
     today = datetime.now(UTC).replace(hour=12, minute=0, second=0, microsecond=0)
     records: list[dict[str, Any]] = []
     for target in targets:
@@ -217,9 +229,17 @@ def _seeded_history(target_id: str | None, days: int) -> list[dict[str, Any]]:
                 "info": int(_stable_float(f"{target}:{offset}:info", 0, 8)),
             }
             findings = [
-                {"severity": "critical" if critical else "high", "confidence": 0.78, "score": 8.4, "title": "Seeded high-risk endpoint", "url": f"https://{target}/admin"}
+                {
+                    "severity": "critical" if critical else "high",
+                    "confidence": 0.78,
+                    "score": 8.4,
+                    "title": "Seeded high-risk endpoint",
+                    "url": f"https://{target}/admin",
+                }
             ]
-            csi, factors = _compute_csi(findings, breakdown, target_name=target or "aggregate", timestamp=timestamp)
+            csi, factors = _compute_csi(
+                findings, breakdown, target_name=target or "aggregate", timestamp=timestamp
+            )
             records.append(
                 {
                     "target_id": target,
@@ -228,7 +248,9 @@ def _seeded_history(target_id: str | None, days: int) -> list[dict[str, Any]]:
                     "timestamp": timestamp.isoformat(),
                     "severity_breakdown": breakdown,
                     "factors": factors,
-                    "top_findings": _normalize_top_findings(findings, target_name=target or "aggregate", timestamp=timestamp),
+                    "top_findings": _normalize_top_findings(
+                        findings, target_name=target or "aggregate", timestamp=timestamp
+                    ),
                 }
             )
     return records
@@ -261,7 +283,9 @@ def _aggregate_history(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "timestamp": f"{day}T12:00:00+00:00",
                 "severity_breakdown": breakdown,
                 "factors": factors,
-                "top_findings": [finding for item in items for finding in item.get("top_findings", [])][:5],
+                "top_findings": [
+                    finding for item in items for finding in item.get("top_findings", [])
+                ][:5],
             }
         )
     return aggregated

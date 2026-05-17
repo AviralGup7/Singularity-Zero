@@ -201,7 +201,11 @@ class SecurityStore:
         api_key_id: str | None = None,
         detail: str | dict[str, Any] | None = None,
     ) -> None:
-        detail_text = json.dumps(detail, separators=(",", ":"), default=str) if isinstance(detail, dict) else detail
+        detail_text = (
+            json.dumps(detail, separators=(",", ":"), default=str)
+            if isinstance(detail, dict)
+            else detail
+        )
         with self._lock, sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
@@ -209,7 +213,16 @@ class SecurityStore:
                     (timestamp, event_type, status_code, method, path, client_ip, api_key_id, detail)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (utc_now(), event_type, status_code, method, path, client_ip, api_key_id, detail_text),
+                (
+                    utc_now(),
+                    event_type,
+                    status_code,
+                    method,
+                    path,
+                    client_ip,
+                    api_key_id,
+                    detail_text,
+                ),
             )
 
     def list_events(self, limit: int = 100) -> list[dict[str, Any]]:
@@ -343,7 +356,12 @@ def create_jwt(principal: Principal) -> dict[str, Any]:
         "iat": datetime.now(UTC),
     }
     token = jwt.encode(payload, app_secret_key(), algorithm="HS256")
-    return {"access_token": token, "token_type": "bearer", "expires_in": 900, "role": principal.role}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": 900,
+        "role": principal.role,
+    }
 
 
 def authenticate_jwt_token(token: str) -> Principal | None:

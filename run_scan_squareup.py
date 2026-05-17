@@ -43,6 +43,7 @@ async def main() -> None:
     print("=" * 60)
 
     import argparse
+
     args = argparse.Namespace(
         config=str(config_path) if config_path.exists() else "configs/config.json",
         scope=str(scope_path),

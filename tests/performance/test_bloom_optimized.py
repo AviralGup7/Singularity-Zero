@@ -104,7 +104,9 @@ def test_ghost_vfs_rss_smoke() -> None:
     assert after - before < 256 * 1024 * 1024
 
 
-@pytest.mark.skipif(os.getenv("BLOOM_PERF_FULL") != "1", reason="Set BLOOM_PERF_FULL=1 for 10M benchmark")
+@pytest.mark.skipif(
+    os.getenv("BLOOM_PERF_FULL") != "1", reason="Set BLOOM_PERF_FULL=1 for 10M benchmark"
+)
 @pytest.mark.parametrize("batch_size", [100_000, 1_000_000, 10_000_000])
 def test_full_scale_single_node_throughput(batch_size: int) -> None:
     bloom = NeuralBloomFilter(capacity=10_000_000, error_rate=0.001)
@@ -117,7 +119,9 @@ def test_full_scale_single_node_throughput(batch_size: int) -> None:
     assert batch_size / elapsed > 0
 
 
-@pytest.mark.skipif(os.getenv("BLOOM_PERF_FULL") != "1", reason="Set BLOOM_PERF_FULL=1 for 10M FP benchmark")
+@pytest.mark.skipif(
+    os.getenv("BLOOM_PERF_FULL") != "1", reason="Set BLOOM_PERF_FULL=1 for 10M FP benchmark"
+)
 def test_full_scale_false_positive_rate() -> None:
     bloom = NeuralBloomFilter(capacity=10_000_000, error_rate=0.001)
     bloom.add_many(_random_strings(10_000_000, "in"))

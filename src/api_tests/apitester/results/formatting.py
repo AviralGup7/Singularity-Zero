@@ -19,5 +19,5 @@ def clean_number(value: object, *, digits: int = 3) -> str:
         if digits == 0:
             return str(int(rounded))
         return str(rounded)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return clean_text(value, "n/a")

@@ -54,7 +54,6 @@ class StageMetric(TypedDict, total=False):
     reason: str
 
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -227,9 +226,7 @@ class StageResult:
                 "subdomains": list(snapshot.get("subdomains", []) or []),
                 "urls": list(snapshot.get("urls", []) or []),
                 "findings": list(
-                    snapshot.get("findings")
-                    or snapshot.get("reportable_findings")
-                    or []
+                    snapshot.get("findings") or snapshot.get("reportable_findings") or []
                 ),
             }
         )
@@ -279,12 +276,16 @@ class PipelineContext:
     output_store: Any = None
     _checkpoint_mgr: Any = field(default=None, repr=False)
 
-    def save_checkpoint_delta(self, stage_name: str, delta: dict[str, Any], metadata: dict[str, Any] | None = None) -> None:
+    def save_checkpoint_delta(
+        self, stage_name: str, delta: dict[str, Any], metadata: dict[str, Any] | None = None
+    ) -> None:
         """Persist an incremental stage delta to the checkpoint manager for mid-stage resume."""
         if self._checkpoint_mgr:
             try:
                 self._checkpoint_mgr.save_stage_delta(stage_name, delta, metadata=metadata)
-                logger.debug("Persisted mid-stage delta for '%s': %s", stage_name, list(delta.keys()))
+                logger.debug(
+                    "Persisted mid-stage delta for '%s': %s", stage_name, list(delta.keys())
+                )
             except Exception as exc:
                 logger.warning("Failed to save mid-stage delta for '%s': %s", stage_name, exc)
 

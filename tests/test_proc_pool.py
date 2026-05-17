@@ -8,11 +8,16 @@ from src.core.frontier.proc_pool import FrontierProcessPool
 @pytest.mark.asyncio
 async def test_proc_pool_warm_and_cleanup(monkeypatch):
     pool = FrontierProcessPool(pool_size=1)
+
     async def mock_create_subprocess_exec(*args, **kwargs):
         class MockProcess:
             pid = 1234
-            def terminate(self): pass
+
+            def terminate(self):
+                pass
+
         return MockProcess()
+
     monkeypatch.setattr(asyncio, "create_subprocess_exec", mock_create_subprocess_exec)
 
     await pool.warm_pool("dummy_tool", [])

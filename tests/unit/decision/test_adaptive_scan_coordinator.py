@@ -16,6 +16,7 @@ async def test_coordinator_initialization():
     assert coordinator._batch_size == 50
     assert coordinator._concurrency == 10
 
+
 @pytest.mark.asyncio
 async def test_coordinator_run_empty():
     coordinator = AdaptiveScanCoordinator([], AsyncMock(), early_terminate=False)
@@ -23,9 +24,11 @@ async def test_coordinator_run_empty():
     assert result.scanned == 0
     assert result.findings_count == 0
 
+
 @pytest.mark.asyncio
 async def test_coordinator_scan_batch():
     urls = ["https://a.com", "https://b.com"]
+
     # Mock probe that returns a finding for a.com
     async def mock_probe(url):
         if "a.com" in url:
@@ -38,13 +41,12 @@ async def test_coordinator_scan_batch():
     assert result.scanned == 2
     assert result.findings_count == 1
     assert any("a.com" in f["url"] for f in result.results[0].findings)
+
+
 @pytest.mark.asyncio
 async def test_coordinator_boosting():
     # Use URLs with significant path overlap to trigger boosting
-    urls = [
-        "https://example.com/api/v1/target",
-        "https://example.com/api/v1/vulnerable"
-    ]
+    urls = ["https://example.com/api/v1/target", "https://example.com/api/v1/vulnerable"]
 
     # Mock probe that returns a finding for /vulnerable
     async def mock_probe(url):
@@ -54,11 +56,7 @@ async def test_coordinator_boosting():
         return []
 
     coordinator = AdaptiveScanCoordinator(
-        urls,
-        mock_probe,
-        batch_size=1,
-        boost_on_findings=True,
-        early_terminate=False
+        urls, mock_probe, batch_size=1, boost_on_findings=True, early_terminate=False
     )
 
     # Force /vulnerable to be scanned first by boosting it manually
@@ -73,4 +71,3 @@ async def test_coordinator_boosting():
     # Check if /target was boosted
     target_item = coordinator._queue._url_map["https://example.com/api/v1/target"]
     assert any("path_overlap" in b for b in target_item.boost_factors)
-

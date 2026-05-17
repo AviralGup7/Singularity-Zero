@@ -50,7 +50,7 @@ def apply_url_filters(urls: set[str], filters: dict[str, Any] | None) -> set[str
             continue
         path = urlparse(normalized).path.lower()
         # Extension check
-        ext = path.rsplit('.', 1)[-1] if '.' in path else ""
+        ext = path.rsplit(".", 1)[-1] if "." in path else ""
         if ext in ignored_exts:
             continue
         if "?" in normalized and not has_meaningful_parameters(normalized):

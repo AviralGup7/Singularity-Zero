@@ -97,7 +97,9 @@ class AutoFilterEngine:
 def create_default_security_filters() -> AutoFilterEngine:
     """Create default security filter rules."""
     engine = AutoFilterEngine()
-    engine.set_logic("AND")  # Fix #340: Use AND so it excludes if ALL exclusions match (wait, the issue said "exclude if ANY matches" for OR, but "AND of negated rules means include if ALL match"? Wait, inverse=True rules return False when they match. If logic is AND, `all(...)` requires all rules to be True to keep the item. If ANY rule is inverse=True and matches, it returns False, so `all(...)` returns False, and the item is excluded. So AND is correct for "exclude if ANY exclusion matches".
+    engine.set_logic(
+        "AND"
+    )  # Fix #340: Use AND so it excludes if ALL exclusions match (wait, the issue said "exclude if ANY matches" for OR, but "AND of negated rules means include if ALL match"? Wait, inverse=True rules return False when they match. If logic is AND, `all(...)` requires all rules to be True to keep the item. If ANY rule is inverse=True and matches, it returns False, so `all(...)` returns False, and the item is excluded. So AND is correct for "exclude if ANY exclusion matches".
 
     engine.add_rule(
         FilterRule(

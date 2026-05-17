@@ -25,13 +25,13 @@ def _parse_retry_after_seconds(raw_value: str | None, fallback: float) -> float:
     text = str(raw_value).strip()
     try:
         return max(1.0, float(text))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         pass
     try:
         retry_at = datetime.fromisoformat(text.replace("Z", "+00:00"))
         seconds = (retry_at - datetime.now(UTC)).total_seconds()
         return max(1.0, seconds)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return max(1.0, fallback)
 
 

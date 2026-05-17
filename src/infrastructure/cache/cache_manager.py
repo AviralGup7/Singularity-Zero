@@ -601,7 +601,9 @@ class CacheManager:
             self._metrics.record_error()
             return total
 
-    def invalidate_by_tags(self, tags: builtins.set[str], namespace: str | None = None) -> list[str]:
+    def invalidate_by_tags(
+        self, tags: builtins.set[str], namespace: str | None = None
+    ) -> list[str]:
         """Invalidate all entries with the specified tags.
 
         Args:
@@ -728,12 +730,16 @@ class CacheManager:
         )
         if self._l1 is not None:
             l1_stats = self._l1.get_stats()
-            stats.l1_entries = int(l1_stats.get("active_entries", l1_stats.get("total_entries", 0)) or 0)
+            stats.l1_entries = int(
+                l1_stats.get("active_entries", l1_stats.get("total_entries", 0)) or 0
+            )
             stats.total_entries += stats.l1_entries
         if self._l2 is not None:
             l2_stats = self._l2.get_stats()
             if isinstance(l2_stats, dict):
-                stats.l2_entries = int(l2_stats.get("active_entries", l2_stats.get("total_entries", 0)) or 0)
+                stats.l2_entries = int(
+                    l2_stats.get("active_entries", l2_stats.get("total_entries", 0)) or 0
+                )
                 stats.total_entries += stats.l2_entries
             else:
                 stats.l2_entries = l2_stats.active_entries

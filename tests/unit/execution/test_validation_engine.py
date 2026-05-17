@@ -138,7 +138,6 @@ class ValidationEngineTests(unittest.TestCase):
 
         with (
             patch("src.execution.validators.engine._http_client.fetch_response", return_value=None),
-
         ):
             summary = execute_validation_runtime(
                 analysis_results,

@@ -100,14 +100,14 @@ function InstancedNodes({
   });
 
   return (
-    // @ts-expect-error: Three.js JSX types are incomplete for instancedMesh
+    // @ts-ignore
     <instancedMesh 
       ref={meshRef} 
    
       args={[null!, null!, nodes.length]}
        
    
-      onClick={(e: React.MouseEvent) => e.instanceId !== undefined && onSelect(nodes[e.instanceId].id)}
+      onClick={(e: any) => e.instanceId !== undefined && onSelect(nodes[e.instanceId].id)}
     >
       <sphereGeometry args={[0.5, 16, 16]} />
       <meshStandardMaterial 
@@ -116,7 +116,7 @@ function InstancedNodes({
         metalness={0.9}
         roughness={0.1}
       />
-      {/* @ts-expect-error: Three.js JSX types */}
+      {/* @ts-ignore */}
     </instancedMesh>
   );
 }
@@ -140,7 +140,7 @@ function OptimizedEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockpit
   if (linePoints.length === 0) return null;
 
   return (
-    // @ts-expect-error: Three.js JSX types are incomplete for lineSegments
+    // @ts-ignore
     <lineSegments>
       <bufferGeometry>
         <bufferAttribute
@@ -153,7 +153,7 @@ function OptimizedEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockpit
         />
       </bufferGeometry>
       <lineBasicMaterial color="#1e293b" transparent opacity={0.3} />
-    {/* @ts-expect-error: Three.js JSX types */}
+    {/* @ts-ignore */}
     </lineSegments>
   );
 }
@@ -162,9 +162,9 @@ function OptimizedEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockpit
 function Scene({ nodes, edges, selectedNode, onSelect, onHover }: { nodes: CockpitNode[]; edges: CockpitEdge[]; selectedNode: string | null; onSelect: (id: string) => void; onHover: (id: string | null) => void }) {
   return (
     <>
-      {/* @ts-expect-error: Three.js JSX types */}
+      {/* @ts-ignore */}
       <color attach="background" args={['#020204']} />
-      {/* @ts-expect-error: Three.js JSX types */}
+      {/* @ts-ignore */}
       <fog attach="fog" args={['#020204', 10, 80]} />
       
       <ambientLight intensity={0.2} />

@@ -99,7 +99,6 @@ COOKIE_HTTPONLY_RE = re.compile(r"(?i)(?:^|;\s*)httponly(?:\s|$|;)", re.MULTILIN
 CSRF_TOKEN_VALUE_RE = re.compile(r"[a-f0-9]{20,}", re.IGNORECASE)
 
 
-
 def _is_state_changing_endpoint(url: str) -> bool:
     lowered = url.lower()
     return any(hint in lowered for hint in STATE_CHANGING_PATH_HINTS)

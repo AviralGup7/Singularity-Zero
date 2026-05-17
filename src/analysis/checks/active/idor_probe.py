@@ -155,12 +155,13 @@ def _is_sensitive_endpoint(url: str) -> bool:
     lowered = url.lower()
     return any(hint in lowered for hint in SENSITIVE_PATH_HINTS)
 
+
 def _extract_json_data(body: str) -> dict[str, Any] | list[Any] | None:
     stripped = body.strip()
     if stripped.startswith(("{", "[")):
         try:
             return cast(dict[str, Any] | list[Any] | None, json.loads(stripped[:50000]))
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             pass
     return None
     return None
@@ -501,4 +502,3 @@ def idor_active_probe(
         )
     )
     return findings[:limit]
-

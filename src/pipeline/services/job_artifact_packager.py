@@ -313,7 +313,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    scope = [line.strip() for line in scope_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    scope = [
+        line.strip() for line in scope_path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
     archive_path = packager.package_snapshot(
         packager.capture_snapshot(

@@ -1,8 +1,8 @@
 import json
 import sqlite3
 
-db_path = 'src/dashboard/output/jobs.db'
-job_id = 'a6a109ca'
+db_path = "src/dashboard/output/jobs.db"
+job_id = "a6a109ca"
 
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()

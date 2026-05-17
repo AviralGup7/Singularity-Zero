@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse, Response
 
 logger = logging.getLogger(__name__)
 
+
 class RequestTimingMiddleware(BaseHTTPMiddleware):
     """Middleware for measuring and logging request processing time."""
 
@@ -111,7 +112,7 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
             "status": response.status_code,
             "duration_ms": round(duration * 1000, 2),
             "user": user_id,
-            "ip": request.client.host if request.client else "unknown"
+            "ip": request.client.host if request.client else "unknown",
         }
 
         if response.status_code >= 400:

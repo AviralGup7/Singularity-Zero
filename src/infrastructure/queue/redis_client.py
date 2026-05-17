@@ -304,7 +304,7 @@ class RedisClient:
                     current = current.decode("utf-8")
                 try:
                     current_int = int(current)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     current_int = 0
                 new_value = current_int + amount
                 self._fallback[key][field] = str(new_value)

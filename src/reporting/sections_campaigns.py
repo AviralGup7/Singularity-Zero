@@ -31,20 +31,28 @@ def campaign_summary_section(summary: dict[str, Any]) -> str:
 
     # Summary Stats
     parts.append("<div class='grid'>")
-    parts.append(f"<div class='card'><div class='label'>Campaign Count</div><div class='value'>{summary_stats.get('total_campaigns', 0)}</div></div>")
-    parts.append(f"<div class='card'><div class='label'>Max Risk Score</div><div class='value'>{summary_stats.get('max_risk', 0.0)}</div></div>")
-    parts.append(f"<div class='card'><div class='label'>MITRE Tactics</div><div class='value'>{len(summary_stats.get('tactics_covered', []))}</div></div>")
+    parts.append(
+        f"<div class='card'><div class='label'>Campaign Count</div><div class='value'>{summary_stats.get('total_campaigns', 0)}</div></div>"
+    )
+    parts.append(
+        f"<div class='card'><div class='label'>Max Risk Score</div><div class='value'>{summary_stats.get('max_risk', 0.0)}</div></div>"
+    )
+    parts.append(
+        f"<div class='card'><div class='label'>MITRE Tactics</div><div class='value'>{len(summary_stats.get('tactics_covered', []))}</div></div>"
+    )
     parts.append("</div>")
 
     # Campaigns List
     for i, campaign in enumerate(campaigns[:5]):
         risk_score = campaign.get("risk_score", 0.0)
-        risk_color = "#ef4444" if risk_score >= 0.7 else "#f59e0b" if risk_score >= 0.4 else "#6b7280"
+        risk_color = (
+            "#ef4444" if risk_score >= 0.7 else "#f59e0b" if risk_score >= 0.4 else "#6b7280"
+        )
 
         parts.append(
             f"<div class='campaign-card' style='border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:15px;margin-bottom:20px;'>"
             f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;'>"
-            f"<h3>Campaign {i+1}: {html.escape(campaign.get('campaign_id', '')[:8])}</h3>"
+            f"<h3>Campaign {i + 1}: {html.escape(campaign.get('campaign_id', '')[:8])}</h3>"
             f"<span class='ui-badge' style='background:{risk_color};color:#fff;'>Risk: {risk_score}</span>"
             "</div>"
             f"<p><strong>Business Risk:</strong> {html.escape(campaign.get('business_risk_summary', 'Unknown'))}</p>"

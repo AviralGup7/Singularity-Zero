@@ -72,14 +72,14 @@ def default_output_root(workspace_root: Path | None = None) -> Path:
 def _coerce_int(value: object, default: int = 0) -> int:
     try:
         return int(cast(Any, value) or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
 def _coerce_float(value: object, default: float = 0.0) -> float:
     try:
         return float(cast(Any, value) or 0.0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -136,7 +136,7 @@ def _output_href(output_root: Path, path_value: str) -> str:
 def _read_json_mapping(path: Path) -> dict[str, Any]:
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return {}
     return parsed if isinstance(parsed, dict) else {}
 

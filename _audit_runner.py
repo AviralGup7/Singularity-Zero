@@ -15,7 +15,13 @@ logger = logging.getLogger(__name__)
 print = logger.info
 
 BASE = str(Path(__file__).resolve().parent)
-findings: dict[str, list[dict[str, str]]] = {"critical": [], "high": [], "medium": [], "low": [], "info": []}
+findings: dict[str, list[dict[str, str]]] = {
+    "critical": [],
+    "high": [],
+    "medium": [],
+    "low": [],
+    "info": [],
+}
 
 
 def add(severity: str, area: str, finding: str, recommendation: str, detail: str = "") -> None:
@@ -35,7 +41,10 @@ def read(p: str) -> str:
 
 def search(pat: str, path: str = BASE, limit: int = 30) -> dict[str, Any]:
     try:
-        return cast(dict[str, Any], search_files(pattern=pat, path=path, output_mode="files_only", limit=limit))
+        return cast(
+            dict[str, Any],
+            search_files(pattern=pat, path=path, output_mode="files_only", limit=limit),
+        )
     except Exception as e:
         logger.debug("search_files failed for pattern %s in %s: %s", pat, path, e)
         return {"matches": [], "total_count": 0}
@@ -380,7 +389,12 @@ if os.path.exists(f"{BASE}/.gitignore"):
     if "__pycache__" in gi and "node_modules" in gi:
         print("[OK] .gitignore - standard entries present")
     else:
-        add("low", "Git", ".gitignore may be missing important entries", "Ensure .gitignore contains __pycache__ and node_modules")
+        add(
+            "low",
+            "Git",
+            ".gitignore may be missing important entries",
+            "Ensure .gitignore contains __pycache__ and node_modules",
+        )
 
 # Print summary
 print("\n" + "=" * 70)

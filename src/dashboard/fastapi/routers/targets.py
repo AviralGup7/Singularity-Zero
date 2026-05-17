@@ -95,7 +95,9 @@ def _normalize_finding_payload(
         "timestamp": finding.get("timestamp") or run_name,
         "description": description,
         "csi_score": finding.get("csi_score"),
-        "logic_diff": finding.get("metadata", {}).get("diff") if "logic_breach" in finding_type.lower() else None,
+        "logic_diff": finding.get("metadata", {}).get("diff")
+        if "logic_breach" in finding_type.lower()
+        else None,
     }
     return normalized
 

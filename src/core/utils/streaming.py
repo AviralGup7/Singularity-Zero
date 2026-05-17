@@ -92,7 +92,7 @@ def stream_http_response(
         if content_length_header:
             try:
                 result["content_length"] = int(content_length_header)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
         body_parts: list[bytes] = []

@@ -12,11 +12,13 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class NeuralMeshBalancer:
     """
     Frontier Load Balancer.
     Uses multi-objective optimization to assign tasks to the most suitable worker node.
     """
+
     def __init__(self) -> None:
         # Node ID -> {success_count, failure_count, last_task_duration}
         self._reputation: dict[str, dict[str, Any]] = {}
@@ -37,7 +39,9 @@ class NeuralMeshBalancer:
         Considers Bid, Reputation, and Mesh Fairness.
         """
         node_id = node_data["id"]
-        stats = self._reputation.get(node_id, {"s": 1, "f": 0, "d": 10.0}) # Initial optimistic stats
+        stats = self._reputation.get(
+            node_id, {"s": 1, "f": 0, "d": 10.0}
+        )  # Initial optimistic stats
 
         # 1. Reputation Factor (Reliability)
         total_tasks = stats["s"] + stats["f"]
@@ -69,6 +73,7 @@ class NeuralMeshBalancer:
         # Sort by suitability score descending
         rankings.sort(key=lambda x: x[1], reverse=True)
         winner_id = rankings[0][0]
-        logger.info("Neural-Mesh Balancer: Selected worker '%s' (Score: %.4f)",
-                    winner_id, rankings[0][1])
+        logger.info(
+            "Neural-Mesh Balancer: Selected worker '%s' (Score: %.4f)", winner_id, rankings[0][1]
+        )
         return winner_id  # type: ignore[no-any-return]

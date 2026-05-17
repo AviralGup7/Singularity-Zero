@@ -78,8 +78,6 @@ register_plugin(URL_COLLECTOR, "gau", type="archive_command", args=["gau", "--su
 register_plugin(URL_COLLECTOR, "waybackurls", type="archive_command", args=["waybackurls"])(None)
 
 
-
-
 def collect_urls(
     live_hosts: set[str],
     scope_entries: list[str],
@@ -109,7 +107,9 @@ def collect_urls(
                 completed_phases.add(phase_name)
                 phase_urls = delta_payload.get("delta", {}).get("urls", [])
                 urls.update(phase_urls)
-                logger.info("Resumed phase '%s' with %d URLs from checkpoint", phase_name, len(phase_urls))
+                logger.info(
+                    "Resumed phase '%s' with %d URLs from checkpoint", phase_name, len(phase_urls)
+                )
 
     collection_started = time.monotonic()
 
@@ -118,7 +118,7 @@ def collect_urls(
             ctx.save_checkpoint_delta(
                 "urls",
                 delta={"urls": list(phase_urls)},
-                metadata={"type": "phase_complete", "phase": phase}
+                metadata={"type": "phase_complete", "phase": phase},
             )
 
     # 1. Internal/In-house Collectors
@@ -276,7 +276,11 @@ def collect_urls(
             _mark_collection_budget_exceeded("archive providers", 63)
 
     # 3. Run crawler
-    if "crawler" not in completed_phases and live_hosts and not _mark_collection_budget_exceeded("crawler", 64):
+    if (
+        "crawler" not in completed_phases
+        and live_hosts
+        and not _mark_collection_budget_exceeded("crawler", 64)
+    ):
         crawler_urls = set()
         if prefer_inhouse and "crawler" in collectors:
             emit_collection_progress(
@@ -303,7 +307,9 @@ def collect_urls(
             urls.update(crawler_urls)
             crawl_meta["new_urls"] = len(crawler_urls)
             stage_meta["katana"] = crawl_meta
-            emit_collection_progress(progress_callback, f"Crawler added {len(crawler_urls)} URLs", 66)
+            emit_collection_progress(
+                progress_callback, f"Crawler added {len(crawler_urls)} URLs", 66
+            )
             _save_phase_checkpoint("crawler", crawler_urls)
             _mark_collection_budget_exceeded("in-house crawler", 66)
         elif config.tools.get("katana") and tool_available("katana") and "katana" in collectors:

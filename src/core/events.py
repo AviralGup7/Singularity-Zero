@@ -93,7 +93,7 @@ class EventBus:
                     self._schedule_async(handler, event)
                 else:
                     handler(event)
-            except (AttributeError, TypeError, ValueError, RuntimeError):
+            except AttributeError, TypeError, ValueError, RuntimeError:
                 logger.warning(
                     "Handler error processing event %s from %s",
                     event.event_type.value,
@@ -145,7 +145,7 @@ class EventBus:
                 else:
                     result = handler(event)
                     results.append(result)
-            except (AttributeError, TypeError, ValueError, RuntimeError):
+            except AttributeError, TypeError, ValueError, RuntimeError:
                 logger.warning(
                     "Handler error processing sync event %s from %s",
                     event.event_type.value,
@@ -174,7 +174,7 @@ class EventBus:
                     if inspect.iscoroutinefunction(handler):
                         try:
                             await handler(event)
-                        except (AttributeError, TypeError, ValueError, RuntimeError):
+                        except AttributeError, TypeError, ValueError, RuntimeError:
                             logger.warning(
                                 "Async handler error processing event %s from %s",
                                 event.event_type.value,
@@ -183,7 +183,7 @@ class EventBus:
                 self._async_queue.task_done()
             except TimeoutError:
                 continue
-            except (AttributeError, TypeError, ValueError, RuntimeError):
+            except AttributeError, TypeError, ValueError, RuntimeError:
                 logger.warning("Error in async consumer loop")
 
     async def flush_pending(self, timeout: float = 2.0) -> None:
