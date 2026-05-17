@@ -172,7 +172,7 @@ def is_internal_host_value(value: str) -> bool:
 
     if any(
         token in lowered
-        for token in ("localhost", "localhost.localdomain", "0.0.0.0"  # nosec B104, "[::1]")  # noqa: S104
+        for token in ("localhost", "localhost.localdomain", "0.0.0.0", "[::1]")  # nosec B104 # noqa: S104
     ):
         return True
 

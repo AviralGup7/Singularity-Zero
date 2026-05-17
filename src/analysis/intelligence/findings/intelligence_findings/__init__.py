@@ -19,7 +19,7 @@ from ._merge_orchestrator import merge_findings
 from ._scoring import confidence_for_evidence, confidence_reasoning
 
 
-def _finding_key(item: dict[str, Any]) -> str:  # noqa: unused
+def _finding_key(item: dict[str, Any]) -> str:  # noqa
     return _finding_key_internal(item)
 
 
@@ -82,7 +82,7 @@ def correlate_validation_findings(
     return enriched
 
 
-def enrich_with_cvss(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:  # noqa: unused
+def enrich_with_cvss(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:  # noqa
     """Add CVSS v3.1 scores to findings for standardized severity assessment."""
     try:
         from src.analysis.cvss_scoring import enrich_findings_with_cvss
