@@ -375,9 +375,9 @@ class TracingManager:
         if hasattr(self, "_status_cache") and (now - getattr(self, "_status_cache_ts", 0)) < 60.0:
             return self._status_cache
 
-        req = request.Request(str(self.endpoint), method="GET")  # noqa: S310
+        req = request.Request(str(self.endpoint), method="GET")  # nosec B310
         try:
-            with request.urlopen(req, timeout=1.5):  # noqa: S310
+            with request.urlopen(req, timeout=1.5):  # nosec B310
                 res = "connected"
         except error.HTTPError:
             res = "connected"
@@ -408,9 +408,11 @@ class TracingManager:
             where.append("start_time_unix_nano <= ?")
             params.append(int(end_ms) * 1_000_000)
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-        query = """
+        # Bandit flags f-strings in SQL, but these are sanitized via placeholders
+        inner_query = f"SELECT trace_id FROM spans {where_sql} GROUP BY trace_id"  # nosec B608
+        query = f"""
             WITH filtered AS (
-                SELECT trace_id FROM spans {where_sql} GROUP BY trace_id
+                {inner_query}
             ),
             trace_bounds AS (
                 SELECT s.trace_id,
@@ -435,7 +437,7 @@ class TracingManager:
             JOIN roots r ON r.trace_id = b.trace_id
             ORDER BY b.start_ns DESC
             LIMIT ?
-        """.format(where_sql=where_sql)  # noqa: S608, UP032
+        """  # nosec B608
         params.append(max(1, min(int(limit), 500)))
         with sqlite3.connect(self.local_exporter.db_path) as conn:
             conn.row_factory = sqlite3.Row

@@ -70,7 +70,7 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
         collector_metrics.increment_requests("otx")
         try:
             _acquire_token()
-            resp = requests.get(url, headers=headers, timeout=max(2, timeout_seconds))
+            resp = requests.get(url, headers=headers, timeout=max(2, timeout_seconds))  # nosec B113
             break
         except requests.RequestException as exc:
             collector_metrics.increment_errors("otx")
