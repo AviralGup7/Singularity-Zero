@@ -136,7 +136,7 @@ def _fetch_text(url: str, timeout_seconds: int) -> str:
             url,
             timeout=max(CRAWL_TIMEOUT_SECONDS, timeout_seconds),
             headers={"User-Agent": "target-specific-pipeline/2.0"},
-        )
+        )  # nosec B113
         if resp.status_code >= 400:
             return ""
         content_type = str(resp.headers.get("content-type", "")).lower()

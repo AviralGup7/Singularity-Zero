@@ -12,7 +12,7 @@ def _fetch_text_content(url: str, timeout_seconds: int, max_bytes: int) -> str:
     try:
         response = requests.get(
             url,
-            timeout=max(2, timeout_seconds),
+            timeout=max(2, timeout_seconds),  # nosec B113
             allow_redirects=True,
             headers={"User-Agent": "target-specific-pipeline/2.0"},
         )
