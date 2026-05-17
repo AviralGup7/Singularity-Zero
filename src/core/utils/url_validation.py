@@ -52,7 +52,7 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
                     return False
             except ValueError:
                 continue
-    except TimeoutError, socket.gaierror, OSError:
+    except (TimeoutError, socket.gaierror, OSError):
         return False
     return True
 
