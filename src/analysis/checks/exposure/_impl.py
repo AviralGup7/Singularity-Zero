@@ -643,7 +643,7 @@ def log_file_exposure_checker(
         "/debug",
         "/trace",
         "/var/log",
-        "/tmp/log",  # nosec B108
+        "/tmp/log",  # nosec B108 # noqa: S108
         "/app/log",
         "/access.log",
         "/error.log",

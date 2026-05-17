@@ -327,7 +327,7 @@ class TelemetryStore:
         self._validate_schema(table, column)
         conn = self._get_conn()
         cur = conn.cursor()
-        query = f"DELETE FROM {table} WHERE {column} < ?"  # nosec B608
+        query = f"DELETE FROM {table} WHERE {column} < ?"  # nosec B608 # noqa: S608
         cur.execute(
             query,
             (cutoff,),
@@ -359,7 +359,7 @@ class TelemetryStore:
         for table in tables:
             if table not in self._KNOWN_TABLES:
                 raise ValueError(f"Invalid table name: {table}")
-            cur.execute("SELECT COUNT(*) FROM " + table)  # nosec B608
+            cur.execute("SELECT COUNT(*) FROM " + table)  # nosec B608 # noqa: S608
             sizes[table] = int(cur.fetchone()[0])
         return sizes
 
