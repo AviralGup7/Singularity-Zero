@@ -130,7 +130,7 @@ async def run_passive_scanning(
                         ctx.urls,
                         set(feedback_urls),
                         config,
-                        ctx.output_store.cache_root / "response_cache.json",
+                        ctx.output_store.local_run_dir.parent / ".cache" / "response_cache.json",
                         ctx.selected_priority_items,
                     )
                     state_delta["analysis_results"] = analysis_results
