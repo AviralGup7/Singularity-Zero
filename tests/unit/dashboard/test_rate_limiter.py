@@ -82,9 +82,7 @@ class TestRateLimiterBasic(unittest.TestCase):
         self.limiter = InMemoryRateLimiter(self.config)
 
     def test_first_request_allowed(self) -> None:
-        allowed, remaining, retry_after = asyncio.run(
-            self.limiter.check("client1", "/api/test")
-        )
+        allowed, remaining, retry_after = asyncio.run(self.limiter.check("client1", "/api/test"))
         self.assertTrue(allowed)
         self.assertIsNone(retry_after)
 
@@ -96,9 +94,7 @@ class TestRateLimiterBasic(unittest.TestCase):
     def test_over_limit_blocked(self) -> None:
         for _ in range(5):
             asyncio.run(self.limiter.check("client3", "/api/test"))
-        allowed, remaining, retry_after = asyncio.run(
-            self.limiter.check("client3", "/api/test")
-        )
+        allowed, remaining, retry_after = asyncio.run(self.limiter.check("client3", "/api/test"))
         self.assertFalse(allowed)
         self.assertEqual(remaining, 0)
 
