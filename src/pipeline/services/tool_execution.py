@@ -229,6 +229,17 @@ class ToolExecutionOutcome:
 class ToolExecutionService:
     """Service for resolving and executing external security tools."""
 
+    def __init__(self) -> None:
+        # Instance-level circuit breakers so each service instance has an isolated state.
+        # This prevents cross-test pollution when tests create fresh ToolExecutionService
+        # instances in setUp.
+        self._circuit_breakers: dict[str, CircuitBreaker] = {}
+
+    def _get_circuit_breaker(self, tool_name: str) -> CircuitBreaker:
+        if tool_name not in self._circuit_breakers:
+            self._circuit_breakers[tool_name] = CircuitBreaker()
+        return self._circuit_breakers[tool_name]
+
     def search_dirs(self) -> list[Path]:
         """Return directories to search for external tool binaries.
 
@@ -320,7 +331,7 @@ class ToolExecutionService:
     ) -> str:
         sanitized = self.sanitize_tool_arguments(command)
         tool_name = sanitized[0] if sanitized else "unknown"
-        breaker = get_circuit_breaker(tool_name)
+        breaker = self._get_circuit_breaker(tool_name)
         resolved_command = self.resolve_command(sanitized)
         if not breaker.can_execute():
             raise ToolExecutionError(resolved_command, 1, f"Circuit breaker OPEN for {tool_name}")
@@ -380,7 +391,7 @@ class ToolExecutionService:
     ) -> ToolExecutionOutcome:
         sanitized = self.sanitize_tool_arguments(command)
         tool_name = sanitized[0] if sanitized else "unknown"
-        breaker = get_circuit_breaker(tool_name)
+        breaker = self._get_circuit_breaker(tool_name)
         resolved_command = self.resolve_command(sanitized)
         effective_timeout_seconds = timeout or int(TIMEOUT_DEFAULTS["tool_command_seconds"])
         if not breaker.can_execute():

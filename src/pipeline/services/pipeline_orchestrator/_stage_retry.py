@@ -78,18 +78,28 @@ async def run_stage_with_retry(
             previous_deltas=previous_deltas,
         )
 
+        import inspect
+
         tracer = get_tracing_manager()
         with tracer.start_stage_span(stage_name, args, config, isolated_ctx) as span:
+            try:
+                sig = inspect.signature(method)
+                accepts_stage_input = "stage_input" in sig.parameters
+            except (ValueError, TypeError):
+                accepts_stage_input = True
             if stage_name == "nuclei":
-                result = await asyncio.wait_for(
-                    method(args, config, isolated_ctx, scope_interceptor, stage_input=stage_input),
-                    timeout=timeout,
-                )
+                if accepts_stage_input:
+                    coro = method(
+                        args, config, isolated_ctx, scope_interceptor, stage_input=stage_input
+                    )
+                else:
+                    coro = method(args, config, isolated_ctx, scope_interceptor)
             else:
-                result = await asyncio.wait_for(
-                    method(args, config, isolated_ctx, stage_input=stage_input),
-                    timeout=timeout,
-                )
+                if accepts_stage_input:
+                    coro = method(args, config, isolated_ctx, stage_input=stage_input)
+                else:
+                    coro = method(args, config, isolated_ctx)
+            result = await asyncio.wait_for(coro, timeout=timeout)
         elapsed = time.monotonic() - started
         if isinstance(result, StageOutput):
             tracer.record_stage_result(span, result)

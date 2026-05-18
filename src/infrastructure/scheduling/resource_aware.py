@@ -120,8 +120,8 @@ class ResourceAwareScheduler:
         Returns:
             True if the worker can handle the task.
         """
-        # Check worker status
-        if worker.status not in ("idle", "busy"):
+        # Check worker status — only idle workers can accept new jobs
+        if worker.status != "idle":
             logger.debug("Worker %s cannot handle task: status=%s", worker.id, worker.status)
             return False
 
