@@ -541,7 +541,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 client_ip, path, latency_ms=latency_ms
             )
 
-        response.headers["X-RateLimit-Limit"] = str(effective_limit)
+        # Re-read effective limit after recording signal so header reflects any new penalty
+        updated_limit, _ = await self._adaptive.effective_limit(client_ip, path, base_limit)
+        response.headers["X-RateLimit-Limit"] = str(updated_limit)
         response.headers["X-RateLimit-Adaptive"] = str(penalty_count)
         response.headers["X-Response-Latency-Ms"] = f"{latency_ms:.2f}"
         return response
