@@ -142,7 +142,7 @@ class Worker:
         try:
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)
-        except ValueError, OSError:
+        except (ValueError, OSError):
             logger.debug("Cannot set signal handlers (not in main thread)")
 
     async def _register(self) -> None:

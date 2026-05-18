@@ -73,7 +73,7 @@ def _coerce_previous_run_path(previous_run: Any) -> Path | None:
         return Path(normalized)
     try:
         return Path(previous_run)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
 
 
