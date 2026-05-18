@@ -107,7 +107,7 @@ def classify_error(exc: BaseException) -> str:
     if status_code is not None:
         try:
             code = int(status_code)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             code = None
 
         if code in _HTTP_TRANSIENT_CODES:
@@ -322,7 +322,7 @@ def execute_with_retry_with_metrics[T](
 def _positive_int(value: object, default: int) -> int:
     try:
         parsed = int(str(value))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default
     return max(0, parsed)
 
@@ -330,6 +330,6 @@ def _positive_int(value: object, default: int) -> int:
 def _positive_float(value: object, default: float) -> float:
     try:
         parsed = float(str(value))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default
     return max(0.0, parsed)

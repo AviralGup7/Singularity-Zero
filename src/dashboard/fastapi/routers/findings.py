@@ -127,7 +127,7 @@ def _collect_timeline_events(
                 try:
                     parsed = json.loads(findings_path.read_text(encoding="utf-8"))
                     findings_data = parsed if isinstance(parsed, list) else []
-                except OSError, json.JSONDecodeError:
+                except (OSError, json.JSONDecodeError):
                     findings_data = []
 
             if not findings_data and summary_path.exists():
@@ -139,7 +139,7 @@ def _collect_timeline_events(
                         else []
                     )
                     findings_data = top_findings if isinstance(top_findings, list) else []
-                except OSError, json.JSONDecodeError:
+                except (OSError, json.JSONDecodeError):
                     findings_data = []
 
             run_generated_at = run_entry.name
@@ -152,7 +152,7 @@ def _collect_timeline_events(
                             or summary.get("generated_at_ist")
                             or run_entry.name
                         )
-                except OSError, json.JSONDecodeError:
+                except (OSError, json.JSONDecodeError):
                     run_generated_at = run_entry.name
 
             for idx, finding in enumerate(findings_data, start=1):

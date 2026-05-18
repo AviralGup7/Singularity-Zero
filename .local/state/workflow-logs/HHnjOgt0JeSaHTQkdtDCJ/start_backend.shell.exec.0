@@ -1,1 +1,0 @@
-[31mERROR[0m:    Error loading ASGI app. Attribute "app" not found in module "src.dashboard.fastapi.app".
