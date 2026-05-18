@@ -406,7 +406,7 @@ async def record_stage_post_run(
 
         mem_usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
         ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
-    except ImportError, AttributeError:
+    except (ImportError, AttributeError):
         pass
 
     try:

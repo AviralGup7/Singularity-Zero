@@ -93,7 +93,7 @@ class AuditLogger:
                     entry = json.loads(line)
                     self._prev_hash = entry.get("entry_hash", "")
                     break
-                except json.JSONDecodeError, KeyError:
+                except (json.JSONDecodeError, KeyError):
                     continue
         except OSError:
             self._prev_hash = ""

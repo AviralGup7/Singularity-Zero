@@ -20,14 +20,15 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5000,
+    host: '0.0.0.0',
+    allowedHosts: true,
     watch: {
       ignored: ['**/src/styles/cyberpunk/**'],
     },
     // Security: add security headers in dev server
     headers: {
       'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'DENY',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     },

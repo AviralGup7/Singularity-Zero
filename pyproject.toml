@@ -2,7 +2,7 @@
 name = "cyber-security-test-pipeline"
 version = "2.0.0"
 description = "Automated API security testing pipeline with intelligent analysis"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
     # HTTP clients
@@ -156,7 +156,7 @@ exclude_lines = [
 "src.exploitation" = 90
 
 [tool.ruff]
-target-version = "py314"
+target-version = "py312"
 line-length = 100
 src = ["src"]
 extend-exclude = [
@@ -185,7 +185,7 @@ known-first-party = ["src", "src.analysis", "src.core", "src.pipeline", "src.das
 "tests/**/*.py" = ["S101", "S105", "S106", "S108", "S311", "N806", "N818"]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
