@@ -87,8 +87,8 @@ class DashboardViewer(HttpUser):
     def check_detection_gap(self):
         """Check detection gap analysis."""
         with self.client.get(
-            "/api/detection-gap",
-            name="/api/detection-gap",
+            "/api/gap-analysis",
+            name="/api/gap-analysis",
             catch_response=True,
         ) as response:
             if response.status_code != 200:
@@ -115,8 +115,8 @@ class SecurityAnalyst(HttpUser):
                     target_name = target.get("name", "")
                     if target_name:
                         self.client.get(
-                            f"/api/detection-gap?target={target_name}",
-                            name="/api/detection-gap?target=[name]",
+                            f"/api/gap-analysis?target={target_name}",
+                            name="/api/gap-analysis?target=[name]",
                         )
             else:
                 response.failure(f"Status code: {response.status_code}")
