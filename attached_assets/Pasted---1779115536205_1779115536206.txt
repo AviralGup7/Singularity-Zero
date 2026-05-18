@@ -1,0 +1,15 @@
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Legend:
+  Outliers: 1 Standard Deviation from Mean; 1.5 IQR (InterQuartile Range) from 1st Quartile and 3rd Quartile.
+  OPS: Operations Per Second, computed as 1 / Mean
+=========================== short test summary info ============================
+FAILED tests/architecture/test_architecture_boundaries.py::ArchitectureBoundaryTests::test_react_ui_build_exists - AssertionError: False is not true : React build index.html not found at /home/runner/work/Singularity-Zero/Singularity-Zero/frontend/dist/index.html
+FAILED tests/unit/dashboard/test_launcher_forensics.py::LauncherForensicsTests::test_compare_launcher_replay_manifests_reports_missing_completion_markers - FileNotFoundError: Launcher artifacts not found for job 59d5e72d
+FAILED tests/unit/dashboard/test_launcher_forensics.py::LauncherForensicsTests::test_square_baseline_catalog_round_trips_to_json - FileNotFoundError: Launcher artifacts not found for job a0b71b8e
+FAILED tests/unit/dashboard/test_launcher_forensics.py::LauncherForensicsTests::test_square_baseline_comparisons_use_reference_job_as_reference - FileNotFoundError: Launcher artifacts not found for job a0b71b8e
+FAILED tests/unit/dashboard/test_launcher_forensics.py::LauncherForensicsTests::test_square_baseline_jobs_have_expected_recovered_truth - FileNotFoundError: Launcher artifacts not found for job a0b71b8e
+FAILED tests/unit/dashboard/test_launcher_forensics.py::LauncherForensicsTests::test_square_reference_job_has_completion_markers_and_analyzer - FileNotFoundError: Launcher artifacts not found for job 59d5e72d
+FAILED tests/unit/dashboard/test_launcher_forensics.py::LauncherForensicsTests::test_warning_escalation_jobs_recover_warning_degradation_truth - FileNotFoundError: Launcher artifacts not found for job a0b71b8e
+= 7 failed, 2512 passed, 36 skipped, 311 warnings, 56 subtests passed in 352.80s (0:05:52) =
+Error: Process completed with exit code 1.
+0s

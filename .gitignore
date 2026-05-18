@@ -135,3 +135,12 @@ GEMINI.md
 # IDE/Editor
 *.tmp
 *.temp
+
+# Test fixture data tracked in source (override output/ and dist/ ignores)
+!src/dashboard/output/
+!src/dashboard/output/_launcher/
+!src/dashboard/output/_launcher/**
+!src/dashboard/output/square.com/
+!src/dashboard/output/square.com/**
+!frontend/dist/
+!frontend/dist/**
