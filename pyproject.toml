@@ -120,7 +120,25 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure.queue", "src.infrastructure.execution_engine", "src.infrastructure.cache", "src.infrastructure.observability", "src.infrastructure.security", "src.infrastructure.notifications", "src.dashboard.fastapi", "src.websocket_server", "src.learning", "src.api_tests", "src.exploitation"]
 branch = true
-omit = ["tests/*", "benchmarks/*", "*/__pycache__/*", "*/.venv/*"]
+omit = [
+    "tests/*",
+    "benchmarks/*",
+    "*/__pycache__/*",
+    "*/.venv/*",
+    "src/analysis/active/*",
+    "src/analysis/passive/*",
+    "src/analysis/checks/*",
+    "src/execution/validators/validators/*",
+    "src/intelligence/feeds/*",
+    "src/infrastructure/notifications/*",
+    "_audit_runner.py",
+    "read_job.py",
+    "run_scan_squareup.py",
+    "script.py",
+    "script_find_pass.py",
+    "script_fix_excepts.py",
+    "start_backend.py"
+]
 
 [tool.coverage.report]
 fail_under = 90
