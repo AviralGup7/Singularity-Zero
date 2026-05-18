@@ -1,0 +1,5 @@
+PIPELINE_PROGRESS {"stage": "passive_scan", "status": "running", "percent": 85}
+PIPELINE_PROGRESS {"stage": "reporting", "status": "running", "percent": 95}
+Run complete
+Artifacts written to: square.com
+Dashboard index: square.com/index.html

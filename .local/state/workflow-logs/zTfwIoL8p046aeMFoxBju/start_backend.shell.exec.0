@@ -1,0 +1,63 @@
+[32mINFO[0m:     Started server process [[36m2005[0m]
+[32mINFO[0m:     Waiting for application startup.
+[32mINFO[0m:     Application startup complete.
+[32mINFO[0m:     Uvicorn running on [1mhttp://0.0.0.0:8080[0m (Press CTRL+C to quit)
+[32mINFO[0m:     127.0.0.1:56280 - "[1mGET / HTTP/1.1[0m" [31m404 Not Found[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:56280 - "[1mGET /favicon.ico HTTP/1.1[0m" [32m204 No Content[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:55768 - "[1mGET /api/health/live HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:55784 - "[1mGET /api/health/live HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.5.9:0 - "[1mGET /api/dashboard HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     10.84.4.108:0 - "[1mGET /api/jobs HTTP/1.1[0m" [32m200 OK[0m
