@@ -1,8 +1,8 @@
 """Unit tests for src.dashboard.rate_limiter module."""
 
 import asyncio
-import time
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
