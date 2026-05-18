@@ -1,0 +1,1 @@
+function t(e){window.dispatchEvent(new CustomEvent("notification:add",{detail:e}))}function n(e){window.dispatchEvent(new CustomEvent("search:items-update",{detail:e}))}function i(){window.dispatchEvent(new CustomEvent("app:refresh"))}function s(e){return window.addEventListener("app:refresh",e),()=>window.removeEventListener("app:refresh",e)}export{s as i,i as n,n as r,t};
