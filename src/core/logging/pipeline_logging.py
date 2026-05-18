@@ -7,6 +7,7 @@ JSON formatting for progress events.
 
 import json
 import sys
+import types
 from typing import Any
 
 from src.core.contracts.pipeline import LOGGING_FORMAT
@@ -48,13 +49,20 @@ def emit_info(message: str) -> None:
     print(message, flush=True)
 
 
+def _json_default(obj: Any) -> Any:
+    """Custom JSON encoder for types that are not natively serializable."""
+    if isinstance(obj, types.MappingProxyType):
+        return dict(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 def emit_summary(payload: dict[str, Any]) -> None:
     """Emit a formatted JSON summary to stdout.
 
     Args:
         payload: Dictionary to format as indented JSON.
     """
-    emit_info(json.dumps(payload, indent=2))
+    emit_info(json.dumps(payload, indent=2, default=_json_default))
 
 
 def emit_warning(message: str) -> None:

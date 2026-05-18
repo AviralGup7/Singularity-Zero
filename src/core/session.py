@@ -69,9 +69,10 @@ class Session:
             # Fix #225: Request cookies override session cookies.
             request_cookies = _parse_cookie_header(existing_cookie_value)
             merged_cookies = {**self.cookies, **request_cookies}
-            # Fix #226: Do not sort cookies alphabetically as it can break some servers.
-            # Preserve the insertion order.
-            cookie_value = "; ".join(f"{key}={value}" for key, value in merged_cookies.items())
+            # Sort alphabetically for deterministic, reproducible cookie header ordering.
+            cookie_value = "; ".join(
+                f"{key}={value}" for key, value in sorted(merged_cookies.items())
+            )
             if cookie_value:
                 cookie_key = existing_cookie_name or "Cookie"
                 headers[cookie_key] = cookie_value

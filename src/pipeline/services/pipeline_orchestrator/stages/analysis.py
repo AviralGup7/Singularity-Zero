@@ -15,6 +15,7 @@ from src.analysis.passive.orchestrator import run_passive_scanners
 from src.core.contracts.finding_lifecycle import apply_lifecycle
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.contracts.schema_validator import (
+    SchemaValidationError,
     validate_analysis_payload,
     validate_decision_payload,
     validate_detection_payload,
@@ -33,6 +34,8 @@ logger = get_pipeline_logger(__name__)
 
 
 def _is_deterministic_contract_error(exc: Exception) -> bool:
+    if isinstance(exc, SchemaValidationError):
+        return True
     err_str = str(exc).lower()
     return (
         "schema" in err_str or "contract" in err_str or "type" in err_str or "validation" in err_str
@@ -121,6 +124,15 @@ async def run_passive_scanning(
                 total_passive_attempts += 1
                 iteration_passive_attempts += 1
                 try:
+                    _store = ctx.output_store
+                    _local_run_dir = getattr(_store, "local_run_dir", None) or getattr(
+                        _store, "cache_root", None
+                    )
+                    _cache_path = (
+                        _local_run_dir.parent / ".cache" / "response_cache.json"
+                        if _local_run_dir is not None
+                        else None
+                    )
                     (
                         analysis_results,
                         validation_runtime_inputs,
@@ -130,7 +142,7 @@ async def run_passive_scanning(
                         ctx.urls,
                         set(feedback_urls),
                         config,
-                        ctx.output_store.local_run_dir.parent / ".cache" / "response_cache.json",
+                        _cache_path,
                         ctx.selected_priority_items,
                     )
                     state_delta["analysis_results"] = analysis_results
@@ -145,7 +157,7 @@ async def run_passive_scanning(
                     state_delta["validation_runtime_inputs"] = validation_runtime_inputs
                     state_delta["passive_scan_ok"] = True
                     break
-                except (TypeError, ValueError, RuntimeError) as exc:
+                except (TypeError, ValueError, RuntimeError, SchemaValidationError) as exc:
                     last_passive_error = str(exc)
                     deterministic_error = _is_deterministic_contract_error(exc)
                     if deterministic_error:
