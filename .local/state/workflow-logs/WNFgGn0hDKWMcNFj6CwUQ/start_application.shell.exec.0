@@ -1,0 +1,88 @@
+[1G[0K⠙[1G[0K
+> frontend@0.0.0 dev
+> vite
+
+[1G[0K⠙[1G[0K
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J
+  [32m[1mVITE[22m v8.0.8[39m  [2mready in [0m[1m2346[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5000[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.31.85.226:[1m5000[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m2:06:30 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, <li> cannot be a descendant of <li>.
+This will cause a hydration error.
+
+  ...
+    <motion.main id="main" role="main" tabIndex={-1} className="app-main-c..." initial={{opacity:0,y:14}} ...>
+      <main id="main" role="main" tabIndex={-1} className="app-main-c..." style={{opacity:0, ...}} ref={function}>
+        <Routes>
+          <RenderedRoute match={{params:{}, ...}} routeContext={{outlet:null, ...}}>
+            <RouteGuard>
+              <SettingsPage>
+                <div className="settings-page">
+                  <Breadcrumbs items={[...]}>
+                    <_c className="font-mono ...">
+                      <nav ref={null} aria-label="breadcrumb" className="font-mono ...">
+                        <_c3>
+                          <ol ref={null} className="flex flex-...">
+                            <_c5>
+>                             <li ref={null} className="inline-flex items-center gap-1.5">
+                                <_c7>
+                                <BreadcrumbSeparator>
+>                                 <li role="presentation" aria-hidden="true" className={"[&>svg]:w-3.5 [&>svg]:h-3.5"}>
+                            ...
+                  ...
+
+[2m2:06:30 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m<li> cannot contain a nested <li>.
+See this log for the ancestor stack trace.
+[2m2:22:31 PM[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/jobs[39m
+Error: connect ECONNREFUSED 127.0.0.1:8080
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m3:01:31 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mIn HTML, <li> cannot be a descendant of <li>.
+This will cause a hydration error.
+
+  ...
+    <motion.main id="main" role="main" tabIndex={-1} className="app-main-c..." initial={{opacity:0,y:14}} ...>
+      <main id="main" role="main" tabIndex={-1} className="app-main-c..." style={{opacity:0, ...}} ref={function}>
+        <Routes>
+          <RenderedRoute match={{params:{}, ...}} routeContext={{outlet:null, ...}}>
+            <RouteGuard>
+              <SettingsPage>
+                <div className="settings-page">
+                  <Breadcrumbs items={[...]}>
+                    <_c className="font-mono ...">
+                      <nav ref={null} aria-label="breadcrumb" className="font-mono ...">
+                        <_c3>
+                          <ol ref={null} className="flex flex-...">
+                            <_c5>
+>                             <li ref={null} className="inline-flex items-center gap-1.5">
+                                <_c7>
+                                <BreadcrumbSeparator>
+>                                 <li role="presentation" aria-hidden="true" className={"[&>svg]:w-3.5 [&>svg]:h-3.5"}>
+                            ...
+                  ...
+
+[2m3:01:31 PM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m<li> cannot contain a nested <li>.
+See this log for the ancestor stack trace.
