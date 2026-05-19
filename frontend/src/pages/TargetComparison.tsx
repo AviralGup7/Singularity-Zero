@@ -95,6 +95,12 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
             <h3 className="target-comparison-col-title">{selectedA.name}</h3>
             <div className="target-comparison-stats">
               <div className="tc-stat">
+                <span className="tc-stat-label">Risk Index (CSI)</span>
+                <span className={`tc-stat-value ${selectedA.risk_score !== undefined && selectedB.risk_score !== undefined ? (selectedA.risk_score > selectedB.risk_score ? 'tc-worse' : selectedA.risk_score < selectedB.risk_score ? 'tc-better' : '') : ''}`}>
+                  {selectedA.risk_score?.toFixed(1) ?? '—'}
+                </span>
+              </div>
+              <div className="tc-stat">
                 <span className="tc-stat-label">Findings</span>
                 <span className={`tc-stat-value ${severityTotals.a !== null && severityTotals.b !== null ? (severityTotals.a > severityTotals.b ? 'tc-worse' : severityTotals.a < severityTotals.b ? 'tc-better' : '') : ''}`}>
                   {selectedA.finding_count}
@@ -141,6 +147,12 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
           <div className="target-comparison-column">
             <h3 className="target-comparison-col-title">{selectedB.name}</h3>
             <div className="target-comparison-stats">
+              <div className="tc-stat">
+                <span className="tc-stat-label">Risk Index (CSI)</span>
+                <span className={`tc-stat-value ${selectedA.risk_score !== undefined && selectedB.risk_score !== undefined ? (selectedB.risk_score > selectedA.risk_score ? 'tc-worse' : selectedB.risk_score < selectedA.risk_score ? 'tc-better' : '') : ''}`}>
+                  {selectedB.risk_score?.toFixed(1) ?? '—'}
+                </span>
+              </div>
               <div className="tc-stat">
                 <span className="tc-stat-label">Findings</span>
                 <span className={`tc-stat-value ${severityTotals.a !== null && severityTotals.b !== null ? (severityTotals.b > severityTotals.a ? 'tc-worse' : severityTotals.b < severityTotals.a ? 'tc-better' : '') : ''}`}>

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, type SimulationLinkDatum, type SimulationNodeDatum } from 'd3-force';
-import { Activity, Crown, GitBranch, Radio, RefreshCw, Server, Shield, Zap } from 'lucide-react';
+import { Activity, Crown, GitBranch, Radio, RefreshCw, Server, Shield, Zap, HardDrive } from 'lucide-react';
 
-import { electMeshLeader } from '@/api/health';
+import { electMeshLeader, forceMeshReconcile } from '@/api/health';
 import { BloomMeshHealthPanel } from '@/components/ops/BloomMeshHealthPanel';
 import { useApi } from '@/hooks/useApi';
+import { useToast } from '@/hooks/useToast';
 import { useMotionPolicy } from '@/hooks/useMotionPolicy';
 import { useSSEProgress, type SseEvent } from '@/hooks/useSSEProgress';
 import type { Job, MeshEdge, MeshHealth, MeshNode } from '@/types/api';
@@ -212,6 +213,9 @@ export function MeshHealthPage() {
   const [selectedNodeId, setSelectedNodeId] = useState('');
    
   const [electing, setElecting] = useState(false);
+   
+  const [reconciling, setReconciling] = useState(false);
+  const toast = useToast();
 
   const { data, loading, error, refetch } = useApi<MeshHealth>('/api/health/mesh', {
     bypassCache: true,
@@ -275,6 +279,18 @@ export function MeshHealthPage() {
     }
   };
 
+  const handleReconcile = async () => {
+    setReconciling(true);
+    try {
+      await forceMeshReconcile();
+      toast.success('Distributed state reconciliation triggered');
+    } catch {
+      toast.error('Reconciliation failed');
+    } finally {
+      setReconciling(false);
+    }
+  };
+
   if (loading && !health) {
     return (
       <div className="flex items-center justify-center h-full text-accent/70 font-mono text-xs uppercase">
@@ -303,6 +319,9 @@ export function MeshHealthPage() {
           </button>
           <button className="btn btn-primary inline-flex items-center gap-2 px-3" type="button" disabled={electing} onClick={() => void handleElection()}>
             <Crown size={14} /> {electing ? 'Electing' : 'Elect Leader'}
+          </button>
+          <button className="btn btn-accent inline-flex items-center gap-2 px-3" type="button" disabled={reconciling} onClick={() => void handleReconcile()}>
+            <Zap size={14} /> {reconciling ? 'Syncing' : 'Force Sync'}
           </button>
         </div>
       </header>
@@ -373,6 +392,10 @@ export function MeshHealthPage() {
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted inline-flex items-center gap-2"><Activity size={14} /> CPU</span>
                   <strong>{Math.round(selectedNode.cpu_usage)}%</strong>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted inline-flex items-center gap-2"><HardDrive size={14} /> RAM Available</span>
+                  <strong>{selectedNode.ram_available_mb > 1024 ? `${(selectedNode.ram_available_mb / 1024).toFixed(1)} GB` : `${Math.round(selectedNode.ram_available_mb)} MB`}</strong>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted inline-flex items-center gap-2"><Shield size={14} /> Last Seen</span>
