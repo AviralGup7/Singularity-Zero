@@ -17,3 +17,7 @@ export async function getMeshHealth(signal?: AbortSignal): Promise<MeshHealth> {
 export async function electMeshLeader(signal?: AbortSignal): Promise<{ leader_id: string; mesh: MeshHealth }> {
   return cachedPost<{ leader_id: string; mesh: MeshHealth }>('/api/mesh/elect-leader', undefined, { signal });
 }
+
+export async function forceMeshReconcile(signal?: AbortSignal): Promise<Record<string, unknown>> {
+  return cachedPost<Record<string, unknown>>('/api/bloom/reconcile', undefined, { signal });
+}

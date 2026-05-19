@@ -22,6 +22,11 @@ interface ConfigStepProps {
   }) => void;
   onToggleExecutionOption: (key: string) => void;
   onUpdateRuntimeOverride: (key: string, value: string) => void;
+  analysisChecks: Set<string>;
+  onUpdateAnalysisChecks: (checks: Set<string>) => void;
+  checkOptions: any[];
+  controlGroups: any[];
+  focusPresets: any[];
 }
 
 export function ConfigStep({
@@ -32,6 +37,11 @@ export function ConfigStep({
   onLoadPreset,
   onToggleExecutionOption,
   onUpdateRuntimeOverride,
+  analysisChecks,
+  onUpdateAnalysisChecks,
+  checkOptions,
+  controlGroups,
+  focusPresets,
 }: ConfigStepProps) {
   const overrideModules = moduleOptions.filter(
     m => 'hasRuntimeOverride' in m && (m as Record<string, unknown>).hasRuntimeOverride
@@ -86,7 +96,13 @@ export function ConfigStep({
         </fieldset>
       )}
 
-      <AnalysisOptionsPanel />
+      <AnalysisOptionsPanel 
+        initialEnabled={analysisChecks}
+        onChange={onUpdateAnalysisChecks}
+        checkOptions={checkOptions}
+        controlGroups={controlGroups}
+        focusPresets={focusPresets}
+      />
     </div>
   );
 }

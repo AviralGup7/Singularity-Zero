@@ -100,6 +100,15 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
    
         .filter(([, v]) => v.trim().length > 0)
         .reduce((acc, [k, v]) => { acc[k] = v.trim(); return acc; }, {} as Record<string, string>);
+
+      // Map analysis checks to runtime overrides
+      const analysisOverrides: Record<string, string> = {};
+      form.checkOptions.forEach(opt => {
+          analysisOverrides[opt.name] = form.analysisChecks.has(opt.name) ? '1' : '0';
+      });
+      
+      const combinedOverrides = { ...nonEmptyOverrides, ...analysisOverrides };
+      
       const scope = form.scopeText.trim() || undefined;
 
    
@@ -115,8 +124,8 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
         scope_text: combinedScope,
         mode: form.selectedMode,
         modules: Array.from(form.selectedModules),
-        ...(Object.keys(nonDefaultExec).length > 0 ? { execution_options: nonDefaultExec } : {}),
-        ...(Object.keys(nonEmptyOverrides).length > 0 ? { runtime_overrides: nonEmptyOverrides } : {}),
+        execution_options: nonDefaultExec,
+        runtime_overrides: combinedOverrides,
       });
 
       toast.success(`Scan started: ${job.id}`);
@@ -214,6 +223,11 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
               onLoadPreset={form.handleLoadPreset}
               onToggleExecutionOption={form.toggleExecutionOption}
               onUpdateRuntimeOverride={form.updateRuntimeOverride}
+              analysisChecks={form.analysisChecks}
+              onUpdateAnalysisChecks={form.updateAnalysisChecks}
+              checkOptions={form.checkOptions}
+              controlGroups={form.controlGroups}
+              focusPresets={form.focusPresets}
             />
           )}
 

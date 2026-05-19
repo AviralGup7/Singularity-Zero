@@ -5,22 +5,31 @@ import type { AnalysisCheckOption, AnalysisControlGroup, AnalysisFocusPreset } f
 interface AnalysisOptionsPanelProps {
   onChange?: (enabledChecks: Set<string>) => void;
   initialEnabled?: Set<string>;
+  checkOptions?: AnalysisCheckOption[];
+  controlGroups?: AnalysisControlGroup[];
+  focusPresets?: AnalysisFocusPreset[];
 }
 
-export default function AnalysisOptionsPanel({ onChange, initialEnabled }: AnalysisOptionsPanelProps) {
+export default function AnalysisOptionsPanel({ 
+  onChange, 
+  initialEnabled,
+  checkOptions: propCheckOptions,
+  controlGroups: propControlGroups,
+  focusPresets: propFocusPresets,
+}: AnalysisOptionsPanelProps) {
    
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!propCheckOptions);
    
   const [error, setError] = useState<string | null>(null);
    
   const [expanded, setExpanded] = useState(false);
 
    
-  const [checkOptions, setCheckOptions] = useState<AnalysisCheckOption[]>([]);
+  const [checkOptions, setCheckOptions] = useState<AnalysisCheckOption[]>(propCheckOptions || []);
    
-  const [controlGroups, setControlGroups] = useState<AnalysisControlGroup[]>([]);
+  const [controlGroups, setControlGroups] = useState<AnalysisControlGroup[]>(propControlGroups || []);
    
-  const [focusPresets, setFocusPresets] = useState<AnalysisFocusPreset[]>([]);
+  const [focusPresets, setFocusPresets] = useState<AnalysisFocusPreset[]>(propFocusPresets || []);
 
    
   const [enabledChecks, setEnabledChecks] = useState<Set<string>>(initialEnabled || new Set());
@@ -32,6 +41,14 @@ export default function AnalysisOptionsPanel({ onChange, initialEnabled }: Analy
   }, [onChange]);
 
   useEffect(() => {
+    if (propCheckOptions) {
+        setCheckOptions(propCheckOptions);
+        setControlGroups(propControlGroups || []);
+        setFocusPresets(propFocusPresets || []);
+        setLoading(false);
+        return;
+    }
+
     async function loadRegistry() {
       try {
         const registry = await getRegistry();
@@ -52,7 +69,7 @@ export default function AnalysisOptionsPanel({ onChange, initialEnabled }: Analy
       }
     }
     loadRegistry();
-  }, []);
+  }, [propCheckOptions, propControlGroups, propFocusPresets]);
 
   const toggleCheck = useCallback((checkName: string) => {
     setEnabledChecks(prev => {

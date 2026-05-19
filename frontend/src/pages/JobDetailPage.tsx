@@ -166,15 +166,17 @@ export function JobDetailPage() {
         </div>
       )}
 
-      {isReconFailure && (
+      {isFailedJob && (
         <div className="card error-card" role="alert">
-          <h3>Recon Failure</h3>
+          <h3>Job Failure Details</h3>
           <div className="info-grid">
-            <InfoItem label="Stage" value={job.failed_stage} />
-            <InfoItem label="Reason Code" value={job.failure_reason_code} />
-            <InfoItem label="Failure Step" value={job.failure_step} />
+            {job.failed_stage && <InfoItem label="Stage" value={job.failed_stage} />}
+            {job.failure_reason_code && <InfoItem label="Reason Code" value={job.failure_reason_code} />}
+            {job.failure_step && <InfoItem label="Failure Step" value={job.failure_step} />}
           </div>
-          {reconFailureText && <pre className="error-text">{reconFailureText}</pre>}
+          {(job.failure_reason || job.error || sseError) && (
+            <pre className="error-text mt-4">{job.failure_reason || job.error || sseError}</pre>
+          )}
         </div>
       )}
 
@@ -377,6 +379,9 @@ export function JobDetailPage() {
                 value={`removed ${telemetry.deduplication.removed} · remaining ${telemetry.deduplication.remaining}`}
               />
             )}
+            {typeof telemetry.signal_noise_ratio === 'number' && (
+              <InfoItem label="Signal/Noise Ratio" value={telemetry.signal_noise_ratio.toFixed(2)} />
+            )}
             {telemetry.bottleneck_stage && (
               <InfoItem
                 label="Bottleneck"
@@ -387,6 +392,31 @@ export function JobDetailPage() {
               <InfoItem label="Next Best Action" value={telemetry.next_best_action} />
             )}
           </div>
+
+          {telemetry.learning_feedback && (
+            <div className="mt-4 p-4 bg-accent/5 border border-accent/20 rounded-xl">
+               <h4 className="text-xs font-black uppercase tracking-widest text-accent mb-2">Neural Engine Feedback</h4>
+               <p className="text-xs italic text-muted-foreground leading-relaxed">
+                  {typeof telemetry.learning_feedback === 'string' 
+                    ? telemetry.learning_feedback 
+                    : JSON.stringify(telemetry.learning_feedback)}
+               </p>
+            </div>
+          )}
+
+          {telemetry.skipped_stages && telemetry.skipped_stages.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-xs font-black uppercase tracking-widest text-muted mb-2">Skipped Stages</h4>
+              <div className="flex flex-wrap gap-2">
+                {telemetry.skipped_stages.map((s) => (
+                  <span key={s.stage} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono" title={s.reason}>
+                    {s.stage}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {telemetry.top_active_targets && telemetry.top_active_targets.length > 0 && (
             <div className="modules-list">
               {telemetry.top_active_targets.map((item) => (
