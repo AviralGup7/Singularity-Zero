@@ -12,6 +12,7 @@ Welcome to the Cyber Security Test Pipeline documentation. This index helps you 
 - **[📜 Commands Reference](commands.md)**: Full CLI reference for development and production.
 - **[🧪 Testing & CI](testing.md)**: How to run the unit, integration, and architecture test suites.
 - **[🔍 Comprehensive Gap Analysis](GAP_ANALYSIS.md)**: Technical and architectural gaps roadmap.
+- **[🚀 Evolution Alpha Plan](EVOLUTION_ALPHA_PLAN.md)**: Roadmap for major feature additions and improvements.
 
 ---
 
