@@ -274,7 +274,7 @@ export function RiskScorePage() {
                   <p>{selectedPoint ? `${selectedPoint.target} on ${selectedPoint.timestamp.slice(0, 10)}` : 'Select a heatmap cell'}</p>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={320}>
+              <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
                   <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
@@ -283,8 +283,16 @@ export function RiskScorePage() {
                   <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-              <div className="risk-factor-weights">
-                {factorData.map((factor) => <span key={factor.label}>{factor.label}: {factor.weight}%</span>)}
+              <div className="risk-factor-details space-y-3 px-4 pb-4">
+                {factors?.factors.map((f) => (
+                  <div key={f.key} className="text-xs">
+                    <div className="flex justify-between items-center mb-1">
+                      <strong className="text-accent">{f.label}</strong>
+                      <span className="text-muted font-mono">{Math.round((factors?.weights?.[f.key] ?? 0) * 100)}% Weight</span>
+                    </div>
+                    <p className="text-muted/70 leading-relaxed italic">{f.description}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </section>

@@ -3,6 +3,7 @@ import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, t
 import { Activity, Crown, GitBranch, Radio, RefreshCw, Server, Shield, Zap } from 'lucide-react';
 
 import { electMeshLeader } from '@/api/health';
+import { BloomMeshHealthPanel } from '@/components/ops/BloomMeshHealthPanel';
 import { useApi } from '@/hooks/useApi';
 import { useMotionPolicy } from '@/hooks/useMotionPolicy';
 import { useSSEProgress, type SseEvent } from '@/hooks/useSSEProgress';
@@ -406,6 +407,19 @@ export function MeshHealthPage() {
             <div className="empty">Select a node from the graph.</div>
           )}
         </aside>
+      </section>
+
+      <section className="mt-8 border-t border-white/5 pt-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="h-9 w-9 rounded-lg border border-accent/30 bg-accent/10 grid place-items-center text-accent">
+            <Shield size={18} />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">Neural Bloom Mesh</h2>
+            <p className="text-muted text-xs">Distributed de-duplication health and element saturation across nodes.</p>
+          </div>
+        </div>
+        <BloomMeshHealthPanel />
       </section>
     </div>
   );
