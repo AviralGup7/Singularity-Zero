@@ -28,7 +28,7 @@ export async function getBackendAuditEntries(params: {
 }
 
 export async function verifyAuditIntegrity(signal?: AbortSignal): Promise<{
-  is_valid: bool;
+  is_valid: boolean;
   compromised_ids: number[];
   entry_count: number;
 }> {

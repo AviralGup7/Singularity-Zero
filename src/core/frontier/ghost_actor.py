@@ -146,8 +146,11 @@ class GhostMeshCoordinator:
         Returns True if migration was successful.
         """
         try:
-            health = actor_ref.ask({"command": "health_check"})
-            if not health.get("evacuation_recommended"):
+            # Note: ask() returns a pykka.Future, we must .get() it.
+            health_future = actor_ref.ask({"command": "health_check"})
+            health = health_future.get() if hasattr(health_future, "get") else health_future
+            
+            if not isinstance(health, dict) or not health.get("evacuation_recommended"):
                 return False
 
             actor_id = health["actor_id"]
