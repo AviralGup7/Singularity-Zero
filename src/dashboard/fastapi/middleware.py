@@ -105,7 +105,7 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
         auth = request.headers.get("authorization", "")
         if auth.startswith("Bearer "):
             user_id = "bearer_token"
-        
+
         # Try to get user from request state if authentication already happened
         # However, middleware runs before or during routing, so state might not be set yet.
         # But we can try to access it if the route has finished.

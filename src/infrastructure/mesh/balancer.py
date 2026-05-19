@@ -108,7 +108,7 @@ class NeuralMeshBalancer:
         Considers real-time telemetry from all 'alive' nodes.
         """
         from dataclasses import asdict
-        
+
         nodes = [asdict(n) for n in gossip.mesh_nodes(include_dead=False) if n.status == "alive"]
         if not nodes:
             return None
@@ -117,7 +117,7 @@ class NeuralMeshBalancer:
         # Here we simulate the bidding by calculating it on the fly for each node
         # using the same logic the nodes themselves would use.
         from src.infrastructure.mesh.bidder import MeshBidder
-        
+
         bids: dict[str, float] = {}
         for node in nodes:
             bidder = MeshBidder(node["id"])

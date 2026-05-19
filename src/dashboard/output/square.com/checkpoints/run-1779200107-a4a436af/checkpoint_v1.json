@@ -1,0 +1,26 @@
+{
+  "checkpoint_version": 1,
+  "checksum": "db680fcef0478794e2fe518c3631cccab77da3386881d4fd4dda2c430dc74e21",
+  "completed_stages": [
+    "subdomains"
+  ],
+  "crash_recovery": false,
+  "current_stage": "live_hosts",
+  "iterative_state": {},
+  "last_checkpoint_at": 1779200232.1830556,
+  "module_metrics": {
+    "live_hosts_started_at": 1779200232.1827629,
+    "subdomains_started_at": 1779200108.0907955
+  },
+  "nuclei_state": {},
+  "pipeline_run_id": "run-1779200107-a4a436af",
+  "recovery_from": null,
+  "stage_deltas": {},
+  "stage_results": {
+    "subdomains": {
+      "elapsed_seconds": 124.08740496635437,
+      "status": "completed"
+    }
+  },
+  "started_at": 1779200108.0913808
+}

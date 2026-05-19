@@ -110,15 +110,22 @@ export function ConfirmDialog({
 
   if (!isOpen) return null;
 
-  const config = variantConfig[variant];
+  const config = variantConfig[variant] || variantConfig.danger;
 
   return (
     <div
-   
       className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--modal-overlay)] p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) handleCancel();
       }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            if (e.target === e.currentTarget) handleCancel();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label="Close dialog"
     >
       <div
         ref={dialogRef}

@@ -147,6 +147,10 @@ export function AuditLogViewer({ className }: AuditLogViewerProps) {
                 <div 
                     className="grid grid-cols-[80px_1fr_120px_140px] gap-4 px-4 py-3 items-center cursor-pointer"
                     onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpandedId(expandedId === entry.id ? null : entry.id); }}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={expandedId === entry.id}
                 >
                   <span className="font-mono text-[10px] text-muted">#{entry.id}</span>
                   <div className="min-w-0">
