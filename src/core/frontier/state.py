@@ -32,6 +32,11 @@ class VectorClock:
             next_v[nid] = max(next_v.get(nid, 0), v)
         return VectorClock(MappingProxyType(next_v))
 
+    def prune(self, active_node_ids: set[str]) -> VectorClock:
+        """Remove entries for nodes that are no longer part of the mesh."""
+        next_v = {nid: v for nid, v in self.versions.items() if nid in active_node_ids}
+        return VectorClock(MappingProxyType(next_v))
+
     def is_later_than(self, other: VectorClock) -> bool:
         """True if this clock is strictly greater than or equal to 'other'."""
         at_least_one_greater = False
@@ -98,6 +103,21 @@ class LWWset[T]:
                 # Fix #323: Use VectorClock as tiebreaker when timestamps are exactly equal
                 if element.vclock.is_later_than(existing.vclock):
                     self._elements[item] = element
+
+    def compact(self, max_tombstone_age_seconds: float = 86400.0) -> int:
+        """
+        Purge tombstones (deleted items) older than the threshold.
+        Returns the number of elements purged.
+        """
+        now = time.time()
+        to_remove = [
+            k
+            for k, el in self._elements.items()
+            if el.deleted and (now - el.timestamp) > max_tombstone_age_seconds
+        ]
+        for k in to_remove:
+            del self._elements[k]
+        return len(to_remove)
 
     def to_set(self) -> set[T]:
         """
