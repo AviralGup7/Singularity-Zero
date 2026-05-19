@@ -100,20 +100,40 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         duration = time.time() - start_time
 
-        # Extract user ID from token for audit trail
+        # Extract user ID and role from auth (if available)
         user_id = "anonymous"
         auth = request.headers.get("authorization", "")
         if auth.startswith("Bearer "):
-            user_id = auth[7:15] + "..."
+            user_id = "bearer_token"
+        
+        # Try to get user from request state if authentication already happened
+        # However, middleware runs before or during routing, so state might not be set yet.
+        # But we can try to access it if the route has finished.
+        if hasattr(request.state, "user"):
+            user_id = request.state.user
 
         log_data = {
             "method": request.method,
             "path": request.url.path,
             "status": response.status_code,
             "duration_ms": round(duration * 1000, 2),
-            "user": user_id,
             "ip": request.client.host if request.client else "unknown",
         }
+
+        # Log to the backend AuditLogger if available
+        audit_logger = getattr(request.app.state, "audit_logger", None)
+        if audit_logger:
+            try:
+                audit_logger.log(
+                    event=f"api.{request.method.lower()}",
+                    user_id=user_id,
+                    source_ip=log_data["ip"],
+                    resource_id=request.url.path,
+                    details=log_data,
+                    severity="info" if response.status_code < 400 else "warning"
+                )
+            except Exception as exc:
+                logger.debug("Failed to record backend audit log: %s", exc)
 
         if response.status_code >= 400:
             logger.warning("Audit: Request failed: %s", _audit_json.dumps(log_data))

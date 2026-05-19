@@ -128,6 +128,54 @@ class ScanActor(pykka.ThreadingActor):
             return {"status": "error", "error": str(e)}
 
 
+class GhostMeshCoordinator:
+    """
+    Orchestrates actor placement and migration across the Neural-Mesh.
+    Uses the NeuralMeshBalancer to decide on target nodes.
+    """
+
+    def __init__(self, registry: GhostMeshRegistry, gossip: Any) -> None:
+        self.registry = registry
+        self.gossip = gossip
+        from src.infrastructure.mesh.balancer import NeuralMeshBalancer
+        self.balancer = NeuralMeshBalancer()
+
+    async def migrate_if_needed(self, actor_ref: pykka.ActorRef, task_metadata: dict[str, Any]) -> bool:
+        """
+        Check if an actor should be migrated and execute the move if a better node is found.
+        Returns True if migration was successful.
+        """
+        try:
+            health = actor_ref.ask({"command": "health_check"})
+            if not health.get("evacuation_recommended"):
+                return False
+
+            actor_id = health["actor_id"]
+            logger.info("Ghost-Coordinator: Initiating proactive migration for [%s]", actor_id)
+
+            target_node_id = self.balancer.select_best_node_from_gossip(self.gossip, task_metadata)
+            current_node_id = await self.registry.find_actor(actor_id)
+
+            if target_node_id and target_node_id != current_node_id:
+                logger.info("Ghost-Coordinator: Migrating [%s] from %s -> %s",
+                            actor_id, current_node_id, target_node_id)
+                
+                # 1. Snapshot and Stop the actor
+                snapshot = actor_ref.ask({"command": "migrate"})
+                
+                # 2. Update Registry
+                await self.registry.register_actor(actor_id, target_node_id)
+                
+                # 3. In a real system, we would now signal the remote node to spawn the actor.
+                # For this implementation, we assume the registry update is the 'handoff'.
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error("Ghost-Coordinator: Migration failed: %s", e)
+            return False
+
+
 class GhostMeshRegistry:
     """
     Global Registry for Location-Transparent Actors.

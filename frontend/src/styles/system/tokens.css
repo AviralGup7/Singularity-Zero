@@ -51,6 +51,10 @@
   --warn: var(--orange);
   --bad:  var(--red);
   --info: var(--blue);
+  
+  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --shadow: var(--shadow-lg);
+  --hover-bg: var(--surface-hover);
 
   /* ── Severity Scale (CVSS-aligned) ────────────────────────── */
   --severity-critical: #DC2626;
