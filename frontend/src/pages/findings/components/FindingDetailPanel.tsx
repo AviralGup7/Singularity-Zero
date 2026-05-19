@@ -3,6 +3,7 @@ import { Shield, X, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Finding, RemediationSuggestion, EvidenceItem, AttackChain } from '../../../types/api';
 import { getFindingRemediation } from '../../../api/client';
+import { useToast } from '../../../hooks/useToast';
 import { EvidenceDisplay } from '../../../components/EvidenceDisplay';
 import { AttackChainVisualizer } from '../../../components/AttackChainVisualizer';
 import { FindingComments } from '../../../components/FindingComments';
@@ -29,6 +30,7 @@ export function FindingDetailPanel({
   const [remediation, setRemediation] = useState<RemediationSuggestion[]>([]);
    
   const [loadingRemediation, setLoadingRemediation] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -264,9 +266,13 @@ export function FindingDetailPanel({
               <button 
                 className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
                 onClick={async () => {
+                  if (!detailFinding.url) {
+                    toast.error('Finding has no associated URL for probing');
+                    return;
+                  }
                   try {
                     const { cockpitApi } = await import('@/api/cockpit');
-                    await cockpitApi.triggerProbe(detailFinding.target, detailFinding.url!);
+                    await cockpitApi.triggerProbe(detailFinding.target, detailFinding.url);
                     toast.success('Manual forensic probe launched');
                   } catch {
                     toast.error('Probe sequence failed');
