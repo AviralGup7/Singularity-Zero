@@ -34,18 +34,7 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
    
   const [replayError, setReplayError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // If all params are present in URL and we haven't triggered yet
-    if (target && run && replay && !result && !loading && !error) {
-       // Only auto-trigger if they came from search params (not just default empty strings)
-       if (searchParams.get('target') && searchParams.get('run') && searchParams.get('replay_id')) {
-         handleReplay(new Event('submit') as any);
-       }
-    }
-  }, [target, run, replay, result, loading, error, searchParams]);
-
-  const handleReplay = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performReplay = useCallback(async () => {
     setError(null);
     setResult(null);
     setTargetError(null);
@@ -86,6 +75,21 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
     } finally {
       setLoading(false);
     }
+  }, [target, run, replay, authMode, authorization]);
+
+  useEffect(() => {
+    // If all params are present in URL and we haven't triggered yet
+    if (target && run && replay && !result && !loading && !error) {
+       // Only auto-trigger if they came from search params (not just default empty strings)
+       if (searchParams.get('target') && searchParams.get('run') && searchParams.get('replay_id')) {
+         performReplay();
+       }
+    }
+  }, [target, run, replay, result, loading, error, searchParams, performReplay]);
+
+  const handleReplay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performReplay();
   };
 
   const getStatusColor = (changed: boolean | null) => {

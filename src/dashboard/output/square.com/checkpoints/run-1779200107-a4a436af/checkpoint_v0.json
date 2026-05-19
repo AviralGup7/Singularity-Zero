@@ -1,0 +1,18 @@
+{
+  "checkpoint_version": 0,
+  "checksum": "3fb601aa6b7d82cd6453ccd1d1dd124f2815e7dd846a249ce372692372ef0907",
+  "completed_stages": [],
+  "crash_recovery": false,
+  "current_stage": "subdomains",
+  "iterative_state": {},
+  "last_checkpoint_at": 1779200108.0916734,
+  "module_metrics": {
+    "subdomains_started_at": 1779200108.0907955
+  },
+  "nuclei_state": {},
+  "pipeline_run_id": "run-1779200107-a4a436af",
+  "recovery_from": null,
+  "stage_deltas": {},
+  "stage_results": {},
+  "started_at": 1779200108.0913808
+}

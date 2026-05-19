@@ -159,17 +159,17 @@ class GhostMeshCoordinator:
             if target_node_id and target_node_id != current_node_id:
                 logger.info("Ghost-Coordinator: Migrating [%s] from %s -> %s",
                             actor_id, current_node_id, target_node_id)
-                
+
                 # 1. Snapshot and Stop the actor
-                snapshot = actor_ref.ask({"command": "migrate"})
-                
+                await actor_ref.ask({"command": "migrate"})
+
                 # 2. Update Registry
                 await self.registry.register_actor(actor_id, target_node_id)
-                
+
                 # 3. In a real system, we would now signal the remote node to spawn the actor.
                 # For this implementation, we assume the registry update is the 'handoff'.
                 return True
-            
+
             return False
         except Exception as e:
             logger.error("Ghost-Coordinator: Migration failed: %s", e)
