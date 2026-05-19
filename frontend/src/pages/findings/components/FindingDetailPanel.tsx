@@ -5,6 +5,8 @@ import type { Finding, RemediationSuggestion, EvidenceItem, AttackChain } from '
 import { getFindingRemediation } from '../../../api/client';
 import { EvidenceDisplay } from '../../../components/EvidenceDisplay';
 import { AttackChainVisualizer } from '../../../components/AttackChainVisualizer';
+import { FindingComments } from '../../../components/FindingComments';
+import { RequestResponseViewer } from '../../../components/RequestResponseViewer';
 
 export type DetailTab = 'cvss' | 'csi' | 'evidence' | 'simulation' | 'request' | 'logic' | 'comments';
 
@@ -207,6 +209,16 @@ export function FindingDetailPanel({
               
               {detailTab === 'evidence' && (
                 <EvidenceDisplay evidence={evidenceItems} />
+              )}
+
+              {detailTab === 'request' && (
+                <RequestResponseViewer pairs={detailFinding.request_response || []} />
+              )}
+
+              {detailTab === 'comments' && (
+                <div className="glass-panel p-6 rounded-2xl border border-white/5">
+                  <FindingComments findingId={detailFinding.id} targetName={detailFinding.target} />
+                </div>
               )}
 
               {detailTab === 'simulation' && chainSimulation && (

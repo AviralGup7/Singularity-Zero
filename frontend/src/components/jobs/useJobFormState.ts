@@ -19,6 +19,8 @@ export function useJobFormState() {
    
   const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
    
+  const [analysisChecks, setAnalysisChecks] = useState<Set<string>>(new Set());
+   
   const [runtimeOverrides, setRuntimeOverrides] = useState<Record<string, string>>({});
    
   const [executionOptions, setExecutionOptions] = useState<Record<string, boolean>>({
@@ -31,6 +33,10 @@ export function useJobFormState() {
   const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
    
   const [moduleOptions, setModuleOptions] = useState<ModuleOption[]>([]);
+
+  const [checkOptions, setCheckOptions] = useState<any[]>([]);
+  const [controlGroups, setControlGroups] = useState<any[]>([]);
+  const [focusPresets, setFocusPresets] = useState<any[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -91,6 +97,12 @@ export function useJobFormState() {
         setModePresets(presets);
         setModuleOptions(options);
         setModuleGroups(groups);
+        setCheckOptions(registry.analysis?.check_options || []);
+        setControlGroups(registry.analysis?.control_groups || []);
+        setFocusPresets(registry.analysis?.focus_presets || []);
+
+        const allChecks = new Set((registry.analysis?.check_options || []).map((c: any) => c.name));
+        setAnalysisChecks(allChecks);
 
         const defaultPreset = presets.find(m => m.name === resolvedMode);
         if (defaultPreset) {
@@ -148,6 +160,10 @@ export function useJobFormState() {
     setRuntimeOverrides(prev => ({ ...prev, [key]: value }));
   }, []);
 
+  const updateAnalysisChecks = useCallback((checks: Set<string>) => {
+    setAnalysisChecks(checks);
+  }, []);
+
   const handleLoadPreset = useCallback((config: {
     mode: string;
     modules: string[];
@@ -181,11 +197,16 @@ export function useJobFormState() {
     setSelectedMode,
     selectedModules,
     setSelectedModules,
+    analysisChecks,
+    updateAnalysisChecks,
     runtimeOverrides,
     executionOptions,
     modePresets,
     moduleGroups,
     moduleOptions,
+    checkOptions,
+    controlGroups,
+    focusPresets,
     handleModeSelect,
     toggleModule,
     toggleExecutionOption,
