@@ -36,27 +36,51 @@ class NeuralMeshBalancer:
     def calculate_node_suitability(self, node_data: dict[str, Any], bid: float) -> float:
         """
         Compute suitability index (0.0 - 1.0).
-        Considers Bid, Reputation, and Mesh Fairness.
+        Considers Bid, Resource Headroom, Reputation, and Efficiency.
         """
         node_id = node_data["id"]
         stats = self._reputation.get(
-            node_id, {"s": 1, "f": 0, "d": 10.0}
+            node_id, {"s": 1, "f": 0, "d": 5.0}
         )  # Initial optimistic stats
 
-        # 1. Reputation Factor (Reliability)
+        # 1. Resource Factor (Headroom) - 30% weight
+        # Prefer nodes with lower CPU and higher available RAM
+        cpu_usage = float(node_data.get("cpu_usage", 50.0))
+        ram_mb = float(node_data.get("ram_available_mb", 1024.0))
+
+        # Penalize CPU above 80% heavily
+        cpu_score = max(0.0, (100.0 - cpu_usage) / 100.0)
+        if cpu_usage > 80.0:
+            cpu_score *= 0.5
+
+        # Normalize RAM (assume 2GB is 'comfortable' for a worker)
+        ram_score = min(1.0, ram_mb / 2048.0)
+
+        resource_score = (cpu_score * 0.6) + (ram_score * 0.4)
+
+        # 2. Reputation Factor (Reliability) - 25% weight
         total_tasks = stats["s"] + stats["f"]
         reliability = stats["s"] / max(total_tasks, 1)
 
-        # 2. Performance Factor (Efficiency)
-        # Inversely proportional to avg duration
-        efficiency = 1.0 / max(stats["d"], 0.1)
+        # 3. Performance Factor (Efficiency) - 15% weight
+        # Inversely proportional to avg duration (clamped)
+        efficiency = min(1.0, 5.0 / max(stats["d"], 0.1))
 
-        # 3. Normalization and Weighting
-        # Neural-Mesh weights: 40% Bid, 30% Reliability, 20% Efficiency, 10% Fairness
-        factors = np.array([bid, reliability, min(1.0, efficiency), 0.5])
-        weights = np.array([0.4, 0.3, 0.2, 0.1])
+        # 4. Bid Factor (Intent) - 30% weight
+        # The bid itself already contains local affinity and hardware metrics
+
+        # Neural-Mesh weights: 30% Bid, 30% Resources, 25% Reliability, 15% Efficiency
+        factors = np.array([bid, resource_score, reliability, efficiency])
+        weights = np.array([0.3, 0.3, 0.25, 0.15])
 
         suitability = np.dot(factors, weights)
+
+        # Log deep metrics for observability
+        logger.debug(
+            "Node suitability [%s]: bid=%.2f, res=%.2f, rel=%.2f, eff=%.2f -> total=%.4f",
+            node_id, bid, resource_score, reliability, efficiency, suitability
+        )
+
         return round(float(suitability), 4)
 
     def select_best_worker(self, nodes: list[dict[str, Any]], bids: dict[str, float]) -> str | None:

@@ -17,6 +17,12 @@ from src.core.logging.trace_logging import get_pipeline_logger
 logger = get_pipeline_logger(__name__)
 
 
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
+
 @dataclass
 class ActorState:
     """Serializable state for actor migration."""
@@ -25,6 +31,7 @@ class ActorState:
     stage: str
     data: dict[str, Any]
     checkpoint_ts: float
+    evacuation_recommended: bool = False
 
 
 class ScanActor(pykka.ThreadingActor):
@@ -41,6 +48,8 @@ class ScanActor(pykka.ThreadingActor):
         self.logic_fn = logic_fn
         self.state: dict[str, Any] = {}
         self.is_migrating = False
+        self._last_health_check = 0.0
+        self._evacuation_recommended = False
 
     def on_receive(self, message: dict[str, Any]) -> Any:
         if not isinstance(message, dict) or "command" not in message:
@@ -50,6 +59,8 @@ class ScanActor(pykka.ThreadingActor):
         command = message.get("command")
 
         if command == "execute":
+            # Auto-check health before execution
+            self._check_local_health()
             return self._execute_logic(message.get("input", {}))
 
         elif command == "snapshot":
@@ -58,17 +69,53 @@ class ScanActor(pykka.ThreadingActor):
                 stage=self.state.get("current_stage", "init"),
                 data=self.state,
                 checkpoint_ts=time.time(),
+                evacuation_recommended=self._evacuation_recommended,
             )
 
         elif command == "migrate":
             self.is_migrating = True
             snapshot = self.on_receive({"command": "snapshot"})
+            logger.warning("Ghost-Actor [%s]: Initiating migration (Evac Recommended: %s)",
+                           self.actor_id, self._evacuation_recommended)
             self.stop()
             return snapshot
+
+        elif command == "health_check":
+            self._check_local_health()
+            return {
+                "actor_id": self.actor_id,
+                "evacuation_recommended": self._evacuation_recommended,
+                "node_cpu": psutil.cpu_percent() if psutil else 0.0,
+            }
 
         else:
             logger.error("Ghost-Actor [%s] failure: Unknown command %s", self.actor_id, command)
             return {"status": "error", "error": f"Unknown command: {command}"}
+
+    def _check_local_health(self) -> None:
+        """Monitor local resource pressure to proactively flag migration needs."""
+        now = time.time()
+        if now - self._last_health_check < 10.0:
+            return
+
+        self._last_health_check = now
+        if not psutil:
+            return
+
+        try:
+            cpu = psutil.cpu_percent()
+            ram_pct = psutil.virtual_memory().percent
+
+            # Proactive evacuation if CPU > 90% or RAM > 95%
+            if cpu > 90.0 or ram_pct > 95.0:
+                if not self._evacuation_recommended:
+                    logger.warning("Ghost-Actor [%s]: Node pressure detected (CPU: %.1f%%, RAM: %.1f%%). "
+                                   "Flagging for evacuation.", self.actor_id, cpu, ram_pct)
+                self._evacuation_recommended = True
+            else:
+                self._evacuation_recommended = False
+        except Exception as e:
+            logger.debug("Ghost-Actor [%s]: Health check failed: %s", self.actor_id, e)
 
     def _execute_logic(self, task_input: dict[str, Any]) -> dict[str, Any]:
         """Runs the encapsulated security logic."""
