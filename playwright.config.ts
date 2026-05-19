@@ -28,8 +28,8 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: 'cyber-dashboard-fastapi',
-        url: 'http://localhost:8000/health',
+        command: 'python3 -m src.dashboard.dashboard_cli --port 8000',
+        url: 'http://localhost:8000/api/health',
         reuseExistingServer: !process.env.CI,
         timeout: 120000,
     },
