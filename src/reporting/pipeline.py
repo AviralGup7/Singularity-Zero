@@ -234,7 +234,11 @@ def build_summary(
         "review_settings": review_settings,
         "validation_settings": validation_settings,
         "module_metrics": module_metrics,
-        "detection_coverage": module_metrics.get("analysis", {}).get("detection_coverage", {}),
+        "detection_coverage": (
+            module_metrics.get("analysis", {}).get("detection_coverage")
+            or module_metrics.get("passive_scan", {}).get("analysis", {}).get("detection_coverage")
+            or module_metrics.get("passive_scan", {}).get("detection_coverage", {})
+        ),
         "pipeline_flow": pipeline_flow,
         "tool_availability": tools,
     }

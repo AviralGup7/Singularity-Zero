@@ -317,6 +317,16 @@ class DashboardQueryService:
                 continue
 
             analysis_metrics = module_metrics.get("analysis", {})
+            if not analysis_metrics or "detection_coverage" not in analysis_metrics:
+                # Fallback to passive_scan stage metrics
+                passive_metrics = module_metrics.get("passive_scan", {})
+                if isinstance(passive_metrics, dict):
+                    # If analysis.py nested it under "analysis" key
+                    if "analysis" in passive_metrics:
+                        analysis_metrics = passive_metrics["analysis"]
+                    else:
+                        analysis_metrics = passive_metrics
+
             detection_coverage = analysis_metrics.get("detection_coverage", {})
             if not detection_coverage:
                 continue
