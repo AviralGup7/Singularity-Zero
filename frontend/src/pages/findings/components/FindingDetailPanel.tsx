@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, X } from 'lucide-react';
+import { Shield, X, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
-import type { Finding, RemediationSuggestion, EvidenceItem } from '../../../types/api';
+import type { Finding, RemediationSuggestion, EvidenceItem, AttackChain } from '../../../types/api';
 import { getFindingRemediation } from '../../../api/client';
 import { EvidenceDisplay } from '../../../components/EvidenceDisplay';
+import { AttackChainVisualizer } from '../../../components/AttackChainVisualizer';
 
-export type DetailTab = 'cvss' | 'csi' | 'evidence' | 'request' | 'logic' | 'comments';
+export type DetailTab = 'cvss' | 'csi' | 'evidence' | 'simulation' | 'request' | 'logic' | 'comments';
 
 export function FindingDetailPanel({
   finding: detailFinding,
@@ -58,6 +59,10 @@ export function FindingDetailPanel({
   }, [detailFinding.id]);
 
   const isLogicBreach = detailFinding.type?.startsWith('logic_breach');
+
+  const chainSimulation: AttackChain | null = (detailFinding.metadata?.chain_simulation as AttackChain) || 
+                                              (detailFinding.evidence as any)?.chain_simulation || 
+                                              null;
 
   const evidenceItems: EvidenceItem[] = detailFinding.evidence ? [{
     id: `ev-${detailFinding.id}`,
@@ -132,6 +137,7 @@ export function FindingDetailPanel({
               {[
                 { id: 'csi', label: 'Analysis' },
                 { id: 'evidence', label: 'Evidence' },
+                { id: 'simulation', label: 'Simulation', hide: !chainSimulation },
                 { id: 'request', label: 'Payloads' },
                 { id: 'logic', label: 'Logic Diff', hide: !isLogicBreach },
                 { id: 'comments', label: 'Intelligence' },
@@ -190,6 +196,23 @@ export function FindingDetailPanel({
               
               {detailTab === 'evidence' && (
                 <EvidenceDisplay evidence={evidenceItems} />
+              )}
+
+              {detailTab === 'simulation' && chainSimulation && (
+                <div className="space-y-6">
+                   <div className="p-4 bg-accent/5 border border-accent/20 rounded-2xl flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-accent/10 grid place-items-center text-accent">
+                         <Zap size={20} />
+                      </div>
+                      <div>
+                         <h4 className="text-sm font-black uppercase tracking-widest">Automated Kill-Chain Simulation</h4>
+                         <p className="text-[10px] text-muted leading-relaxed">
+                            Neural-mesh correlation identified a potential multi-stage attack path based on this finding.
+                         </p>
+                      </div>
+                   </div>
+                   <AttackChainVisualizer chains={[chainSimulation]} />
+                </div>
               )}
            </div>
         </div>

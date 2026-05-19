@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ExternalLink, RefreshCw, Zap } from 'lucide-react';
 import { getTrace, getTraces, getTracingConfig, type TraceDetail, type TraceSpan, type TraceSummary, type TracingConfig } from '@/api/tracing';
 
 const TIME_RANGES = [
@@ -192,14 +192,40 @@ export function TracingPage() {
 
   return (
     <div className="tracing-page">
-      {config?.status === 'unreachable' && (
-        <div className="trace-banner" role="alert">
-          <AlertTriangle size={18} aria-hidden="true" />
-          <span>OTLP collector unreachable at {config.endpoint}.</span>
-          <a href="https://opentelemetry.io/docs/collector/quick-start/" target="_blank" rel="noreferrer">
-            Troubleshooting <ExternalLink size={13} aria-hidden="true" />
-          </a>
-        </div>
+      {config && (
+        <section className={`trace-config-panel card mb-4 border-l-4 ${config.status === 'unreachable' ? 'border-bad' : 'border-ok'}`}>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4">
+            <div className="flex items-center gap-3">
+              <div className={`h-10 w-10 rounded-full grid place-items-center ${config.status === 'unreachable' ? 'bg-bad/10 text-bad' : 'bg-ok/10 text-ok'}`}>
+                {config.status === 'unreachable' ? <AlertTriangle size={20} /> : <Zap size={20} />}
+              </div>
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider">OTLP Exporter Status: {config.status}</h3>
+                <p className="text-xs text-muted font-mono">{config.endpoint}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[10px] uppercase font-bold text-muted">
+              <div className="flex flex-col">
+                <span>OTEL Available</span>
+                <span className={config.otel_available ? 'text-ok' : 'text-bad'}>{config.otel_available ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="flex flex-col">
+                <span>Local Span DB</span>
+                <span className="text-text truncate max-w-[120px]" title={config.local_span_db}>{config.local_span_db}</span>
+              </div>
+              <div className="flex flex-col">
+                <span>Init Error</span>
+                <span className="text-text truncate max-w-[120px]" title={config.initialization_error || 'None'}>{config.initialization_error || 'None'}</span>
+              </div>
+              {config.status === 'unreachable' && (
+                <a href="https://opentelemetry.io/docs/collector/quick-start/" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-accent hover:underline">
+                  Debug <ExternalLink size={10} />
+                </a>
+              )}
+            </div>
+          </div>
+        </section>
       )}
 
       <section className="trace-toolbar" aria-label="Trace filters">
