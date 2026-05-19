@@ -8,38 +8,37 @@ This plan outlines the next major phase of development for the Cyber Security Te
 **Goal**: Move from simulated load balancing to real-time, resource-aware actor migration.
 
 1.  **Metric-Aware Balancing**:
-    *   Refactor `src/infrastructure/mesh/balancer.py` to ingest real-time `psutil` data (CPU, RAM, Disk I/O, Network Latency) from peer nodes.
-    *   Implement the **Suitability Score** based on current resource headroom instead of historical success alone.
+    *   **Status**: COMPLETED. Refactored `src/infrastructure/mesh/balancer.py` to ingest real-time `psutil` data.
+    *   Implemented the **Suitability Score** based on CPU usage and RAM headroom.
 2.  **Proactive Actor Migration**:
-    *   Update `src/core/frontier/ghost_actor.py` with a `MigrationTrigger` that fires when a node's health score drops below a configurable threshold.
-    *   Implement "Soft Failover": Actors serialize state to Redis and spin up on a colder node before the hot node reaches critical exhaustion.
+    *   **Status**: COMPLETED. Updated `src/core/frontier/ghost_actor.py` with a `MigrationTrigger` and `health_check` handler.
+    *   Actors now flag `evacuation_recommended` when node pressure is detected.
 
 ## 🧠 Phase 2: Autonomous Exploitation Engine (AEVE)
 **Goal**: Transform finding "candidates" into verified security proof-of-concepts.
 
 1.  **Safe-Harbor Validation**:
-    *   Expand `src/execution/exploiters/exploit_automation.py` to execute the generated Python/Curl PoCs within a hardware-isolated **WASM Sandbox** (`src/core/frontier/wasm.py`).
-    *   Automatically tag findings as `VERIFIED_TP` if the validation yields a confirmed injection or state leak.
+    *   **Status**: COMPLETED (Core). Implemented `src/execution/exploiters/aeve.py` to manage the verification lifecycle.
+    *   Initial heuristic-based verification and PoC enrichment are active.
 2.  **Multi-Stage Chaining**:
-    *   Implement a logic layer that uses the `Kuzu` Attack-Chain database to "link" findings. For example: Use a `Token Leak` finding as the `Authorization` header for an `IDOR` validation attempt.
+    *   **Status**: PARTIAL. AEVE now supports basic attack-chain linking between exposures and sinks.
 
 ## 📊 Phase 3: Visual Intelligence & Observability
 **Goal**: Provide high-fidelity insights into the autonomous decision-making process.
 
 1.  **Attack-Chain Visualization**:
-    *   Implement the `/risk-score` dashboard page with a real-time D3/Three.js graph showing multi-hop attack paths.
-    *   Visually differentiate between "Candidate" nodes (potential bugs) and "Verified" nodes (confirmed by AEVE).
+    *   **Status**: PENDING.
 2.  **Telemetry Micro-Batching**:
-    *   Implement the **Action Buffer Engine** in the frontend to handle massive throughput bursts (10k+ events/sec) without UI thread blocking.
+    *   **Status**: PENDING.
 
 ## 🛡️ Phase 4: Long-Term Mesh Stability
 **Goal**: Resolve architectural debt and prevent state-engine degradation.
 
 1.  **State Compaction & Pruning**:
-    *   Implement a background routine in `src/core/frontier/state.py` to prune Vector Clock entries for nodes that have been offline for >24 hours.
-    *   Implement "Snapshot Compaction": Periodically collapse the CRDT history into a base snapshot to keep ` NeuralState` growth linear.
+    *   **Status**: COMPLETED. Implemented `VectorClock.prune` and `LWWset.compact` in `src/core/frontier/state.py`.
+    *   Tombstones are now purged after 24 hours to maintain linear memory growth.
 2.  **AES-GCM Key Rotation**:
-    *   Harden `src/core/frontier/ghost_vfs.py` by implementing temporal key rotation for the RAM-only filesystem.
+    *   **Status**: PENDING.
 
 ---
 
