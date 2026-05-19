@@ -11,6 +11,7 @@ This document defines the high-resilience, distributed execution model of the Cy
 - **Distributed Consensus & Sharding**: The mesh uses an authenticated SWIM-based Gossip protocol (HMAC-SHA256). A deterministic Bully algorithm elects shard leaders, and targets are distributed using Consistent Hashing.
 - **CRDT State Engine**: All critical pipeline data (subdomains, URLs, findings) are stored in Conflict-free Replicated Data Types using **Vector-Clocked LWW-Sets**. Every state update perfectly preserves causality.
 - **Durable Ledger (WAL)**: All state transitions are committed to a Redis-backed Write-Ahead Log *before* being merged into the context, surviving total cluster power loss.
+- **Tamper-Evident Audit Chain**: Administrative actions and sensitive API calls are recorded in a cryptographic audit ledger. Each entry contains an HMAC-SHA256 hash of the payload plus the previous entry's hash, creating an immutable chain-of-custody that can be verified via the dashboard.
 
 ### 2. Cognitive-Logic Analysis
 - **Differential Logic Prober**: A high-speed State-Machine Fuzzer that compares endpoint responses across different authentication contexts using Levenshtein distance, automatically detecting IDOR and BAC vulnerabilities.
@@ -39,4 +40,6 @@ The dashboard acts as a **Real-Time Mesh Command Center**:
 - **Off-Main-Thread Processing**: Heavy filtering and sorting of findings execute via Web Workers.
 - **Zod Contract Guards**: Strict schema validation at the API boundary ensures silent schema drift is instantly caught.
 - **Instanced 3D Rendering**: The Security Cockpit utilizes `THREE.InstancedMesh` and GPGPU layouts to render 50,000+ nodes in a single draw call.
+- **Interactive Request Replay**: Supports real-time "Replay with Diff" for finding verification. Enables analysts to modify headers, auth-modes, and payloads with side-by-side behavioral change detection.
+- **Finding Intelligence**: Integrated collaborative notes and threaded analyst commentary for each security finding, synced via SSE.
 - **Bloom Mesh Health Tile**: The dashboard polls `/api/bloom/health` for per-node memory, element count, false-positive probability, saturation history, and admin-triggered reconciliation.
