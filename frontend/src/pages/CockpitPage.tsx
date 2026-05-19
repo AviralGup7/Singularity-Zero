@@ -112,12 +112,15 @@ function InstancedNodes({
    
   }, [matrices, colors]);
 
-  useFrame(() => {
+  useFrame((state) => {
     if (!meshRef.current) return;
+    
+    // Aesthetic Rotation
+    meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.05;
+
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObject(meshRef.current);
     if (intersects.length > 0) {
-   
       const instanceId = intersects[0].instanceId;
       if (instanceId !== undefined) onHover(nodes[instanceId].id);
     } else {
@@ -411,6 +414,10 @@ export function CockpitPage() {
   return (
    
     <div className="flex h-full w-full bg-[#020204] overflow-hidden relative">
+      {/* Global Overlay Effects */}
+      <div className="pointer-events-none fixed inset-0 z-[60] opacity-[0.05] mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none" />
+      <div className="pointer-events-none fixed inset-0 z-[60] opacity-[0.02] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] pointer-events-none" />
+
       <div className="flex-1 relative">
         <div className="absolute top-8 left-8 z-10 pointer-events-none">
           <h2 className="text-2xl font-black text-text tracking-tighter uppercase mb-1">Security Cockpit</h2>

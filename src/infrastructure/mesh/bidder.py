@@ -26,12 +26,21 @@ class MeshBidder:
     def __init__(self, node_id: str):
         self.node_id = node_id
 
-    def calculate_bid(self, task_metadata: dict[str, Any]) -> float:
+    def calculate_bid(self, task_metadata: dict[str, Any], metrics: dict[str, Any] | None = None) -> float:
         """
         Calculate a bid score (0.0 - 1.0). Higher is better (more capable).
+        
+        Args:
+            task_metadata: Requirements of the task.
+            metrics: Optional override for hardware metrics (used for remote estimation).
         """
         # 1. Hardware Availability (50% weight)
-        if psutil:
+        if metrics:
+            cpu_free = 100.0 - float(metrics.get("cpu_usage", 50.0))
+            ram_mb = float(metrics.get("ram_available_mb", 1024.0))
+            # Normalize RAM to a percentage (assume 8GB is 100% for bidding purposes)
+            ram_free_pct = min(100.0, (ram_mb / 8192.0) * 100.0)
+        elif psutil:
             try:
                 cpu_free = 100.0 - psutil.cpu_percent(interval=0.1)
                 ram_free_pct = (

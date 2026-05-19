@@ -101,3 +101,27 @@ class NeuralMeshBalancer:
             "Neural-Mesh Balancer: Selected worker '%s' (Score: %.4f)", winner_id, rankings[0][1]
         )
         return winner_id  # type: ignore[no-any-return]
+
+    def select_best_node_from_gossip(self, gossip: Any, task_metadata: dict[str, Any]) -> str | None:
+        """
+        Integrate with GossipEngine to find the best node for a task.
+        Considers real-time telemetry from all 'alive' nodes.
+        """
+        from dataclasses import asdict
+        
+        nodes = [asdict(n) for n in gossip.mesh_nodes(include_dead=False) if n.status == "alive"]
+        if not nodes:
+            return None
+
+        # In a real mesh, we would broadcast a 'bid' request.
+        # Here we simulate the bidding by calculating it on the fly for each node
+        # using the same logic the nodes themselves would use.
+        from src.infrastructure.mesh.bidder import MeshBidder
+        
+        bids: dict[str, float] = {}
+        for node in nodes:
+            bidder = MeshBidder(node["id"])
+            # Use the node's gossiped metrics to estimate what its bid would be.
+            bids[node["id"]] = bidder.calculate_bid(task_metadata, metrics=node)
+
+        return self.select_best_worker(nodes, bids)

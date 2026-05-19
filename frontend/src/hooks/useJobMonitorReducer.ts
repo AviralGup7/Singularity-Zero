@@ -35,14 +35,14 @@ export interface JobMonitorState {
 
 export type JobMonitorAction =
   | { type: 'START_LOADING' }
-  | { type: 'SET_JOB_DATA'; payload: Job; logs?: string[] }
-  | { type: 'UPDATE_JOB'; payload: Partial<Job> }
+  | { type: 'SET_JOB_DATA'; payload: Job; logs?: string[]; source?: 'polling' | 'realtime' }
+  | { type: 'UPDATE_JOB'; payload: Partial<Job>; source?: 'polling' | 'realtime' }
   | { type: 'ADD_LOG_LINE'; payload: string }
   | { type: 'ADD_PLUGIN_PROGRESS'; payload: PluginProgressEntry }
   | { type: 'RESET_PLUGIN_PROGRESS' }
-  | { type: 'UPDATE_STAGE_PROGRESS'; payload: StageProgressEntry }
-  | { type: 'SET_STAGE_PROGRESS_LIST'; payload: StageProgressEntry[] }
-  | { type: 'UPDATE_TELEMETRY'; payload: Record<string, unknown> }
+  | { type: 'UPDATE_STAGE_PROGRESS'; payload: StageProgressEntry; source?: 'polling' | 'realtime' }
+  | { type: 'SET_STAGE_PROGRESS_LIST'; payload: StageProgressEntry[]; source?: 'polling' | 'realtime' }
+  | { type: 'UPDATE_TELEMETRY'; payload: Record<string, unknown>; source?: 'polling' | 'realtime' }
   | { type: 'ADD_FINDINGS'; payload: Finding[] }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_SSE_ERROR'; payload: string | null }
@@ -70,6 +70,21 @@ export const initialState: JobMonitorState = {
 
 const MAX_LOG_LINES = 10000;
 
+/**
+ * Enforces strict precedence: SSE/WS (realtime) > Manual Refetch > Polling.
+ */
+function shouldAcceptUpdate(state: JobMonitorState, actionSource: 'polling' | 'realtime' | undefined): boolean {
+  if (!actionSource || actionSource === 'realtime') return true;
+  
+  // If we just received a realtime update in the last 2 seconds, ignore polling updates
+  // to prevent 'state flicker' where polling returns stale data after a realtime event.
+  const FRESHNESS_THRESHOLD_MS = 2000;
+  if (state.lastUpdateTs > 0 && (Date.now() - state.lastUpdateTs < FRESHNESS_THRESHOLD_MS)) {
+    return false;
+  }
+  return true;
+}
+
 export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorAction): JobMonitorState {
   const now = Date.now();
 
@@ -78,6 +93,8 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
       return { ...state, loading: true };
 
     case 'SET_JOB_DATA': {
+      if (!shouldAcceptUpdate(state, action.source)) return state;
+      
       const job = action.payload;
       const logs = action.logs || [];
       
@@ -90,7 +107,6 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
         loading: false,
         error: null,
         allLogLines: logs.length > 0 
-   
           ? [...state.allLogLines, ...logs].slice(-MAX_LOG_LINES)
           : state.allLogLines,
         lastUpdateTs: now,
@@ -98,7 +114,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     }
 
     case 'UPDATE_JOB':
-      if (!state.job) return state;
+      if (!state.job || !shouldAcceptUpdate(state, action.source)) return state;
       return {
         ...state,
         job: { ...state.job, ...action.payload },
@@ -108,7 +124,6 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'ADD_LOG_LINE':
       return {
         ...state,
-   
         allLogLines: [...state.allLogLines, action.payload].slice(-MAX_LOG_LINES),
         lastUpdateTs: now,
       };
@@ -116,7 +131,6 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'ADD_PLUGIN_PROGRESS': {
       const entry = action.payload;
       const idx = state.pluginProgress.findIndex((p) => p.label === entry.label);
-   
       const nextProgress = [...state.pluginProgress];
       if (idx >= 0) {
         nextProgress[idx] = entry;
@@ -130,9 +144,9 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
       return { ...state, pluginProgress: [], lastUpdateTs: now };
 
     case 'UPDATE_STAGE_PROGRESS': {
+      if (!shouldAcceptUpdate(state, action.source)) return state;
       const entry = action.payload;
       const idx = state.stageProgress.findIndex((s) => s.stage === entry.stage);
-   
       const nextStages = [...state.stageProgress];
       if (idx >= 0) {
         nextStages[idx] = { ...nextStages[idx], ...entry };
@@ -147,6 +161,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     }
 
     case 'SET_STAGE_PROGRESS_LIST':
+      if (!shouldAcceptUpdate(state, action.source)) return state;
       return {
         ...state,
         stageProgress: normalizeActiveTimeline(
@@ -158,6 +173,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
       };
 
     case 'UPDATE_TELEMETRY':
+      if (!shouldAcceptUpdate(state, action.source)) return state;
       return {
         ...state,
         sseTelemetry: mergeTelemetry(state.sseTelemetry, action.payload),

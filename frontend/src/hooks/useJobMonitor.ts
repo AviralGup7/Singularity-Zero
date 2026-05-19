@@ -99,19 +99,19 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
           return true;
         }) || [];
 
-        dispatch({ type: 'SET_JOB_DATA', payload: jobData, logs });
+        dispatch({ type: 'SET_JOB_DATA', payload: jobData, logs, source: 'polling' });
 
         const synthesizedCurrent = synthesizeCurrentStageEntry(jobData);
         if (synthesizedCurrent) {
-          bufferDispatch({ type: 'UPDATE_STAGE_PROGRESS', payload: synthesizedCurrent });
+          bufferDispatch({ type: 'UPDATE_STAGE_PROGRESS', payload: synthesizedCurrent, source: 'polling' });
         }
 
         if (Array.isArray(jobData.stage_progress)) {
-          bufferDispatch({ type: 'SET_STAGE_PROGRESS_LIST', payload: jobData.stage_progress });
+          bufferDispatch({ type: 'SET_STAGE_PROGRESS_LIST', payload: jobData.stage_progress, source: 'polling' });
         }
 
         if (jobData.progress_telemetry) {
-          bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: jobData.progress_telemetry });
+          bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: jobData.progress_telemetry, source: 'polling' });
         }
       }
     } catch (err) {
@@ -172,7 +172,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         bufferDispatch({ type: 'ADD_LOG_LINE', payload: (msg.line || msg.log_line) as string });
       }
       if (msg.job_update) {
-        bufferDispatch({ type: 'UPDATE_JOB', payload: msg.job_update as Partial<Job> });
+        bufferDispatch({ type: 'UPDATE_JOB', payload: msg.job_update as Partial<Job>, source: 'realtime' });
       }
     },
    
@@ -200,15 +200,15 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         jobStatus: stateRef.current.job?.status,
         setStageProgress: (updater) => {
           const next = typeof updater === 'function' ? updater(stateRef.current.stageProgress) : updater;
-          next.forEach(s => bufferDispatch({ type: 'UPDATE_STAGE_PROGRESS', payload: s }));
+          next.forEach(s => bufferDispatch({ type: 'UPDATE_STAGE_PROGRESS', payload: s, source: 'realtime' }));
         },
         setSseTelemetry: (updater) => {
           const next = typeof updater === 'function' ? updater(stateRef.current.sseTelemetry) : updater;
-          bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: next });
+          bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: next, source: 'realtime' });
         },
         setJob: (updater) => {
           const next = typeof updater === 'function' ? updater(stateRef.current.job) : updater;
-          if (next) bufferDispatch({ type: 'UPDATE_JOB', payload: next });
+          if (next) bufferDispatch({ type: 'UPDATE_JOB', payload: next, source: 'realtime' });
         },
         addPluginProgress: (entry) => bufferDispatch({ type: 'ADD_PLUGIN_PROGRESS', payload: entry }),
         resetPluginProgress: () => bufferDispatch({ type: 'RESET_PLUGIN_PROGRESS' }),

@@ -37,6 +37,7 @@ function useNavSections(): NavSection[] {
       label: 'Analysis',
       items: [
         { path: '/pipeline', label: 'Pipeline Overview', icon: 'activity' },
+        { path: '/cockpit', label: 'Security Cockpit', icon: 'target' },
         { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
         { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
         { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
@@ -47,6 +48,7 @@ function useNavSections(): NavSection[] {
       items: [
         { path: '/mesh', label: 'Mesh Command', icon: 'server' },
         { path: '/tracing', label: 'Tracing', icon: 'activity' },
+        { path: '/cache-management', label: 'Cache', icon: 'database' },
         { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
         { path: '/compliance', label: 'Compliance', icon: 'shieldCheck' },
         { path: '/evidence-custody', label: 'Evidence Chain', icon: 'link' },

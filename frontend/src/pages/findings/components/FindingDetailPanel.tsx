@@ -220,8 +220,39 @@ export function FindingDetailPanel({
         {/* Footer Actions */}
         <div className="px-8 py-6 bg-white/5 border-t border-white/5 flex justify-between items-center">
            <div className="flex gap-4">
+              <button 
+                className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
+                onClick={() => {
+                  const runName = detailFinding.metadata?.run_name || detailFinding.metadata?.job_id || '';
+                  const replayId = detailFinding.metadata?.replay_id || (detailFinding.evidence as any)?.replay?.id || '';
+                  window.location.href = `/replay?target=${detailFinding.target}&run=${runName}&replay_id=${replayId}`;
+                }}
+              >
+                Replay with Diff
+              </button>
+              <button 
+                className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
+                onClick={() => {
+                  window.location.href = `/cockpit?target=${detailFinding.target}&focus=${detailFinding.id}`;
+                }}
+              >
+                View in 3D Cockpit
+              </button>
+              <button 
+                className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
+                onClick={async () => {
+                  try {
+                    const { cockpitApi } = await import('@/api/cockpit');
+                    await cockpitApi.triggerProbe(detailFinding.target, detailFinding.url!);
+                    toast.success('Manual forensic probe launched');
+                  } catch {
+                    toast.error('Probe sequence failed');
+                  }
+                }}
+              >
+                Forensic Probe
+              </button>
               <button className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black">Flag False Positive</button>
-              <button className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black">Retest Link</button>
            </div>
            <button className="btn-primary btn-small uppercase tracking-widest text-[9px] font-black" onClick={onClose}>Acknowledge</button>
         </div>

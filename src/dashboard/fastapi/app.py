@@ -65,6 +65,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("Project Root: %s", config.workspace_root)
     logger.info("Frontend Dist: %s", config.frontend_dist)
 
+    from src.infrastructure.security.audit import AuditLogger
+    from src.infrastructure.security.config import SecurityConfig
+
+    app.state.audit_logger = AuditLogger(SecurityConfig())
+
     from src.infrastructure.cache import CacheManager
     from src.infrastructure.cache.config import CacheConfig
 
