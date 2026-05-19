@@ -111,7 +111,10 @@ export function FindingsPage() {
                 <ListIcon size={16} />
              </button>
           </div>
-          <button onClick={() => handleExport('json')} className="btn-secondary btn-small">Export Intel</button>
+          <div className="flex gap-2">
+            <button onClick={() => handleExport('json')} className="btn-secondary btn-small">Export JSON</button>
+            <button onClick={() => handleExport('csv')} className="btn-secondary btn-small">Export CSV</button>
+          </div>
         </div>
       </div>
 

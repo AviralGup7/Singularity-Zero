@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from fastapi import APIRouter
 
+from .audit import router as audit_router
 from .bloom import router as bloom_router
 from .cache import router as cache_router
 from .cockpit import router as cockpit_router
@@ -33,6 +34,7 @@ except RuntimeError as exc:
 api_router = APIRouter()
 
 api_router.include_router(health_router, tags=["Health"])
+api_router.include_router(audit_router, tags=["Audit"])
 api_router.include_router(bloom_router, tags=["Bloom"])
 api_router.include_router(cockpit_router, tags=["Cockpit"])
 api_router.include_router(jobs_router, tags=["Jobs"])

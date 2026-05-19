@@ -1,4 +1,5 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { replayRequest } from '@/api/client';
 import type { ReplayResult } from '@/types/api';
 
@@ -9,12 +10,13 @@ interface ReplayInterfaceProps {
 }
 
 export default function ReplayInterface({ targetName, runName, replayId }: ReplayInterfaceProps) {
+  const [searchParams] = useSearchParams();
    
-  const [target, setTarget] = useState(targetName || '');
+  const [target, setTarget] = useState(targetName || searchParams.get('target') || '');
    
-  const [run, setRun] = useState(runName || '');
+  const [run, setRun] = useState(runName || searchParams.get('run') || '');
    
-  const [replay, setReplay] = useState(replayId || '');
+  const [replay, setReplay] = useState(replayId || searchParams.get('replay_id') || '');
    
   const [authMode, setAuthMode] = useState('inherit');
    
@@ -31,6 +33,16 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
   const [runError, setRunError] = useState<string | null>(null);
    
   const [replayError, setReplayError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If all params are present in URL and we haven't triggered yet
+    if (target && run && replay && !result && !loading && !error) {
+       // Only auto-trigger if they came from search params (not just default empty strings)
+       if (searchParams.get('target') && searchParams.get('run') && searchParams.get('replay_id')) {
+         handleReplay(new Event('submit') as any);
+       }
+    }
+  }, [target, run, replay, result, loading, error, searchParams]);
 
   const handleReplay = async (e: React.FormEvent) => {
     e.preventDefault();

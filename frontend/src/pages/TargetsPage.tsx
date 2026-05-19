@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import type { Target } from '../types/api';
 import { SkeletonTable } from '../components/ui/Skeleton';
 import { Pagination } from '../components/ui/Pagination';
 import { useApi } from '../hooks/useApi';
-import { startJob } from '../api/client';
+import { startJob, apiClient } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { UrlCollectionSystem } from '../components/UrlCollectionSystem';
 
@@ -260,6 +261,27 @@ export function TargetsPage() {
     });
   }
 
+  const handleImportSemgrep = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const targetName = prompt('Enter target name for import:');
+    if (!targetName) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      await apiClient.post(`/api/imports/semgrep?target_name=${encodeURIComponent(targetName)}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast.success(`Successfully imported Semgrep results for ${targetName}`);
+      refetch();
+    } catch (err) {
+      toast.error(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   if (loading) return <SkeletonTable rows={5} />;
 
   if (error) {
@@ -277,6 +299,10 @@ export function TargetsPage() {
       <div className="page-header">
         <h2 data-focus-heading>🎯 Targets</h2>
         <div className="targets-header-actions">
+          <label className="btn btn-sm btn-secondary cursor-pointer">
+            <Icon name="upload" size={14} /> Import Semgrep
+            <input type="file" accept=".json" className="hidden" onChange={handleImportSemgrep} />
+          </label>
           <input
             type="text"
             placeholder="Filter targets..."
@@ -509,6 +535,33 @@ export function TargetsPage() {
                     <td>{(target.attack_chain_count || 0) > 0 ? `${target.attack_chain_count} (${target.max_attack_chain_confidence || '—'})` : '—'}</td>
                     <td>{target.validated_leads ?? '—'}</td>
                     <td className="actions-cell">
+                      {target.name && (
+                        <div className="flex gap-2">
+                          <Link to={`/cockpit?target=${target.name}`} className="btn btn-small btn-accent-outline" title="View 3D Threat Graph">
+                            Cockpit
+                          </Link>
+                          <button 
+                            className="btn btn-small btn-secondary" 
+                            title="Export CSV Findings"
+                            onClick={async () => {
+                              try {
+                                const { exportTargetFindings } = await import('../api/client');
+                                const blob = await exportTargetFindings(target.name!, 'csv');
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `${target.name}-findings.csv`;
+                                link.click();
+                                window.URL.revokeObjectURL(url);
+                              } catch (err) {
+                                toast.error('Export failed');
+                              }
+                            }}
+                          >
+                            Export
+                          </button>
+                        </div>
+                      )}
                       {target.href && (
                         <a href={target.href} className="btn btn-small" target="_blank" rel="noopener noreferrer">
                           Runs
@@ -516,7 +569,7 @@ export function TargetsPage() {
                       )}
                       {target.latest_report_href && (
                         <a href={target.latest_report_href} className="btn btn-small" target="_blank" rel="noopener noreferrer">
-                          Latest Report
+                          Report
                         </a>
                       )}
                     </td>
