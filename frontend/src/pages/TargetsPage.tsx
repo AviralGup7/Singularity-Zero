@@ -553,7 +553,7 @@ export function TargetsPage() {
                                 link.download = `${target.name}-findings.csv`;
                                 link.click();
                                 window.URL.revokeObjectURL(url);
-                              } catch (err) {
+                              } catch (_err) {
                                 toast.error('Export failed');
                               }
                             }}

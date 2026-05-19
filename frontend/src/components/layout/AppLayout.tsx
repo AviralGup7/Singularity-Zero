@@ -451,14 +451,15 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         <footer className="app-footer" role="contentinfo">
           <span>v{APP_VERSION}</span>
-          <span 
-            className={`footer-health cursor-pointer hover:text-accent transition-colors ${isOnline ? 'text-ok' : 'text-bad'}`} 
+          <button 
+            type="button"
+            className={`footer-health hover:text-accent transition-colors ${isOnline ? 'text-ok' : 'text-bad'}`} 
             onClick={() => emitRefresh()}
             title="Force Full System Resync"
           >
             System Status
             <i className={`ml-2 inline-block w-2 h-2 rounded-full ${isOnline ? 'bg-ok' : 'bg-bad'}`} aria-hidden="true" />
-          </span>
+          </button>
         </footer>
       </div>
 
@@ -489,15 +490,18 @@ export function AppLayout({ children }: AppLayoutProps) {
         <FocusTrap active={showShortcuts} onDeactivate={() => setShowShortcuts(false)}>
           <div
             className="modal-overlay-fixed"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="shortcuts-modal-title"
+            role="button"
+            tabIndex={0}
+            aria-label="Close shortcuts modal"
             onClick={() => setShowShortcuts(false)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowShortcuts(false); }}
           >
             <div
               tabIndex={-1}
               className="card modal-card"
               onClick={e => e.stopPropagation()}
+              onKeyDown={e => e.stopPropagation()}
+              role="document"
             >
               <h3 id="shortcuts-modal-title" className="mb-16 text-accent">Keyboard Shortcuts</h3>
               <div className="modal-grid">

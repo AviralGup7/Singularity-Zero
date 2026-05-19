@@ -8,6 +8,12 @@ import { AttackChainVisualizer } from '../../../components/AttackChainVisualizer
 
 export type DetailTab = 'cvss' | 'csi' | 'evidence' | 'simulation' | 'request' | 'logic' | 'comments';
 
+interface ExtendedEvidence {
+  chain_simulation?: AttackChain;
+  replay?: { id: string };
+  [key: string]: unknown;
+}
+
 export function FindingDetailPanel({
   finding: detailFinding,
   onClose,
@@ -60,8 +66,10 @@ export function FindingDetailPanel({
 
   const isLogicBreach = detailFinding.type?.startsWith('logic_breach');
 
+  const evidence = detailFinding.evidence as ExtendedEvidence | undefined;
+
   const chainSimulation: AttackChain | null = (detailFinding.metadata?.chain_simulation as AttackChain) || 
-                                              (detailFinding.evidence as any)?.chain_simulation || 
+                                              evidence?.chain_simulation || 
                                               null;
 
   const evidenceItems: EvidenceItem[] = detailFinding.evidence ? [{
@@ -75,16 +83,19 @@ export function FindingDetailPanel({
 
   return (
     <div 
-   
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md p-4" 
       onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose(); }}
+      tabIndex={0}
+      role="button"
+      aria-label="Close detail panel"
     >
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-   
         className="w-full max-w-4xl max-h-[90vh] bg-bg border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        onKeyDown={(e: React.KeyboardEvent) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="finding-detail-title"
@@ -224,7 +235,7 @@ export function FindingDetailPanel({
                 className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
                 onClick={() => {
                   const runName = detailFinding.metadata?.run_name || detailFinding.metadata?.job_id || '';
-                  const replayId = detailFinding.metadata?.replay_id || (detailFinding.evidence as any)?.replay?.id || '';
+                  const replayId = detailFinding.metadata?.replay_id || evidence?.replay?.id || '';
                   window.location.href = `/replay?target=${detailFinding.target}&run=${runName}&replay_id=${replayId}`;
                 }}
               >

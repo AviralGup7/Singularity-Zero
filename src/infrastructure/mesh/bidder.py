@@ -29,7 +29,7 @@ class MeshBidder:
     def calculate_bid(self, task_metadata: dict[str, Any], metrics: dict[str, Any] | None = None) -> float:
         """
         Calculate a bid score (0.0 - 1.0). Higher is better (more capable).
-        
+
         Args:
             task_metadata: Requirements of the task.
             metrics: Optional override for hardware metrics (used for remote estimation).

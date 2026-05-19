@@ -1,1 +1,0 @@
-import{a as e}from"./rolldown-runtime-WehaI0Q3.js";import{w as o}from"./d3-vendor-Mr3hXoYv.js";var r=e(o(),1),u=(0,r.createContext)(void 0);function i(){const t=(0,r.useContext)(u);if(!t)throw new Error("useAuth must be used within AuthProvider");return t}export{u as n,i as t};
