@@ -72,6 +72,17 @@ class ScanActor(pykka.ThreadingActor):
                 evacuation_recommended=self._evacuation_recommended,
             )
 
+        elif command == "recover":
+            # Replay deltas from WAL
+            wal_deltas = message.get("deltas", [])
+            logger.info("Ghost-Actor [%s]: Replaying %d deltas from WAL", 
+                        self.actor_id, len(wal_deltas))
+            for delta_entry in wal_deltas:
+                delta = delta_entry.get("delta", {})
+                # Apply delta to local state
+                self.state.update(delta)
+            return {"status": "success", "applied_count": len(wal_deltas)}
+
         elif command == "migrate":
             self.is_migrating = True
             snapshot = self.on_receive({"command": "snapshot"})

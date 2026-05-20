@@ -176,6 +176,7 @@ class NeuralState:
         self.urls = LWWset[str]()
         self.findings = LWWset[dict[str, Any]]()
         self.metadata: dict[str, Any] = {}
+        self.last_wal_id: str | None = None
 
     def compact(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
         """
