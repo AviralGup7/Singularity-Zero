@@ -60,10 +60,33 @@ _DEFAULT_FP_PATTERNS: dict[str, dict[str, Any]] = {
 class FPTracker:
     """Tracks and learns false-positive patterns from scan outcomes."""
 
-    def __init__(self, store: TelemetryStore):
+    def __init__(self, store: TelemetryStore, mesh_sync: Any | None = None):
         self.store = store
         self._cache: dict[str, FPPattern] = {}
         self._loaded = False
+        self._mesh_sync = mesh_sync
+
+        if self._mesh_sync:
+            # Note: The caller is responsible for calling start_listening
+            # which will invoke this callback.
+            self._mesh_sync_task = None
+
+    async def _on_mesh_update(self, data: dict[str, Any]) -> None:
+        """Handle incoming FP pattern updates from other nodes."""
+        try:
+            pattern = FPPattern.from_db_row(data)
+            logger.debug("FP tracker received mesh update for pattern %s", pattern.pattern_id)
+
+            self._ensure_loaded()
+            existing = self._cache.get(pattern.pattern_id)
+
+            # Merge logic: use the one with higher occurrence count or more recent update
+            if not existing or pattern.occurrence_count > existing.occurrence_count:
+                self._cache[pattern.pattern_id] = pattern
+                self.store.upsert_fp_pattern(pattern.to_db_row())
+                logger.info("FP tracker synced mesh pattern %s", pattern.pattern_id)
+        except Exception as e:
+            logger.debug("FP tracker failed to process mesh update: %s", e)
 
     def _ensure_loaded(self) -> None:
         """Load FP patterns from the store into cache."""
@@ -115,6 +138,8 @@ class FPTracker:
                 self._cache[matched.pattern_id] = matched
                 self.store.upsert_fp_pattern(matched.to_db_row())
                 updated_count += 1
+                if self._mesh_sync:
+                    await self._mesh_sync.publish(matched.to_db_row())
             elif is_fp:
                 # Create new pattern candidate
                 pattern = FPPattern.create(
@@ -126,6 +151,8 @@ class FPTracker:
                 self._cache[pattern.pattern_id] = pattern
                 self.store.upsert_fp_pattern(pattern.to_db_row())
                 updated_count += 1
+                if self._mesh_sync:
+                    await self._mesh_sync.publish(pattern.to_db_row())
 
         if updated_count > 0:
             logger.info(
