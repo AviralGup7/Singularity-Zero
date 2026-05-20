@@ -315,7 +315,9 @@ def merge_stage_output(
 
     # Phase 2: Frontier Durability - Log to WAL before applying
     if wal:
-        wal.log_delta(stage_name, state_delta)
+        wal_id = wal.log_delta(stage_name, state_delta)
+        if wal_id and hasattr(ctx.result, "_neural_state"):
+            ctx.result._neural_state.last_wal_id = wal_id
 
     # Use the new CRDT-aware merge logic in ctx.result
     ctx.result.apply_state_delta(state_delta)

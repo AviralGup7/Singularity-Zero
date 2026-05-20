@@ -36,10 +36,10 @@ class FrontierWAL:
             logger.warning("Frontier WAL inactive: Redis connection failed: %s", exc)
             self._active = False
 
-    def log_delta(self, stage_name: str, delta: dict[str, Any]) -> None:
-        """Record a state delta into the durable stream."""
+    def log_delta(self, stage_name: str, delta: dict[str, Any]) -> str | None:
+        """Record a state delta into the durable stream. Returns the entry ID."""
         if not self._active:
-            return
+            return None
 
         try:
             import msgpack
@@ -51,13 +51,18 @@ class FrontierWAL:
             }
             # Append to Redis Stream
             # Maxlen ensures we don't grow infinitely - increased to 10,000 per Audit #71
-            self._client.xadd(self._stream_key, cast(Any, payload), maxlen=10000)
-            logger.debug("WAL recorded delta for '%s'", stage_name)
+            entry_id = self._client.xadd(self._stream_key, cast(Any, payload), maxlen=10000)
+            logger.debug("WAL recorded delta for '%s' (ID: %s)", stage_name, entry_id)
+            return entry_id.decode() if isinstance(entry_id, bytes) else str(entry_id)
         except Exception as exc:
             logger.error("WAL append failed for stage '%s': %s", stage_name, exc)
+            return None
 
-    def recover_deltas(self) -> list[dict[str, Any]]:
-        """Replay the WAL to reconstruct state after a crash."""
+    def recover_deltas(self, start_id: str | None = None) -> list[dict[str, Any]]:
+        """
+        Replay the WAL to reconstruct state after a crash.
+        If start_id is provided, only deltas AFTER that ID are returned.
+        """
         if not self._active:
             return []
 
@@ -65,23 +70,30 @@ class FrontierWAL:
             import msgpack
 
             deltas = []
-            cursor: bytes = b"-"
+            # Use provided start_id (exclusive) or the beginning of the stream
+            cursor: str = f"({start_id}" if start_id else "-"
+            
             while True:
                 raw_items = cast(
                     list[Any],
-                    self._client.xrange(self._stream_key, min=cursor, max=b"+", count=1000),
+                    self._client.xrange(self._stream_key, min=cursor, max="+", count=1000),
                 )
                 if not raw_items:
                     break
                 for item_id, item in raw_items:
                     deltas.append(
                         {
+                            "id": item_id.decode() if isinstance(item_id, bytes) else str(item_id),
                             "stage": item[b"stage"].decode(),
                             "delta": msgpack.unpackb(item[b"delta"], raw=False),
                             "ts": float(item[b"ts"]),
                         }
                     )
-                cursor = b"(" + raw_items[-1][0]
+                # Next cursor is exclusive '(' after the last seen ID
+                last_id = raw_items[-1][0]
+                last_id_str = last_id.decode() if isinstance(last_id, bytes) else str(last_id)
+                cursor = f"({last_id_str}"
+                
             return deltas
         except Exception as exc:
             logger.error("WAL recovery failed: %s", exc)
