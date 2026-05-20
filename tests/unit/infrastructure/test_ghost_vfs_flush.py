@@ -42,12 +42,13 @@ def test_ghost_vfs_flush_to_disk():
     finally:
         shutil.rmtree(export_dir)
 
+
 def test_ghost_vfs_flush_handles_multiple_files():
     vfs = GhostVFS()
     files = {
         "a.txt": "content a",
         "dir/b.json": '{"key": "value"}',
-        "nested/deep/c.log": "log data"
+        "nested/deep/c.log": "log data",
     }
     for p, c in files.items():
         vfs.write_file(p, c)

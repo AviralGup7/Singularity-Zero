@@ -676,6 +676,7 @@ async def stream_job_progress(
                 await asyncio.sleep(1.0)
         finally:
             from src.core.events import get_event_bus
+
             try:
                 get_event_bus().unsubscribe(sub_id)
             except Exception as e:
@@ -690,6 +691,8 @@ async def stream_job_progress(
             "X-Accel-Buffering": "no",
         },
     )
+
+
 @router.post(
     "",
     response_model=JobResponse,

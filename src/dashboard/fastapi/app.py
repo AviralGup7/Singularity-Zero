@@ -184,9 +184,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 if psutil:
                     # Fix S1-1: Use to_thread to avoid blocking the event loop
                     # while getting fresh CPU %
-                    node.cpu_usage = await asyncio.to_thread(
-                        psutil.cpu_percent, interval=0.1
-                    )
+                    node.cpu_usage = await asyncio.to_thread(psutil.cpu_percent, interval=0.1)
                     node.ram_available_mb = psutil.virtual_memory().available / 1024 / 1024
                 # Filter running jobs
                 running = [

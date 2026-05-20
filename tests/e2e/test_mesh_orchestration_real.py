@@ -36,8 +36,12 @@ def dummy_logic(task_input, state):
 @pytest.mark.asyncio
 async def test_proactive_migration_on_node_pressure(monkeypatch):
     # 1. Setup Mock Gossip Mesh
-    node_a = MeshNode(id="node-a", host="127.0.0.1", port=9001, cpu_usage=95.0, ram_available_mb=100.0)
-    node_b = MeshNode(id="node-b", host="127.0.0.1", port=9002, cpu_usage=10.0, ram_available_mb=8000.0)
+    node_a = MeshNode(
+        id="node-a", host="127.0.0.1", port=9001, cpu_usage=95.0, ram_available_mb=100.0
+    )
+    node_b = MeshNode(
+        id="node-b", host="127.0.0.1", port=9002, cpu_usage=10.0, ram_available_mb=8000.0
+    )
 
     gossip = MagicMock(spec=GossipEngine)
     gossip.mesh_nodes.return_value = [node_a, node_b]
@@ -77,7 +81,9 @@ async def test_proactive_migration_on_node_pressure(monkeypatch):
         # which is a bug I should fix in the next step.
         # But for now, let's just mock the balancer's output.
 
-        monkeypatch.setattr(coordinator.balancer, "select_best_node_from_gossip", lambda g, m: "node-b")
+        monkeypatch.setattr(
+            coordinator.balancer, "select_best_node_from_gossip", lambda g, m: "node-b"
+        )
 
         success = await coordinator.migrate_if_needed(actor_ref, {"required_capabilities": []})
 
@@ -93,9 +99,11 @@ async def test_proactive_migration_on_node_pressure(monkeypatch):
         if actor_ref.is_alive():
             actor_ref.stop()
 
+
 @pytest.mark.asyncio
 async def test_neural_mesh_balancer_suitability_logic():
     from src.infrastructure.mesh.balancer import NeuralMeshBalancer
+
     balancer = NeuralMeshBalancer()
 
     # Node A: High load, low RAM
@@ -113,10 +121,25 @@ async def test_neural_mesh_balancer_suitability_logic():
 @pytest.mark.asyncio
 async def test_failover_node_exclusion():
     from src.infrastructure.mesh.balancer import NeuralMeshBalancer
+
     balancer = NeuralMeshBalancer()
 
-    node_a = MeshNode(id="node-a", host="127.0.0.1", port=9001, status="dead", cpu_usage=10.0, ram_available_mb=8000.0)
-    node_b = MeshNode(id="node-b", host="127.0.0.1", port=9002, status="alive", cpu_usage=10.0, ram_available_mb=8000.0)
+    node_a = MeshNode(
+        id="node-a",
+        host="127.0.0.1",
+        port=9001,
+        status="dead",
+        cpu_usage=10.0,
+        ram_available_mb=8000.0,
+    )
+    node_b = MeshNode(
+        id="node-b",
+        host="127.0.0.1",
+        port=9002,
+        status="alive",
+        cpu_usage=10.0,
+        ram_available_mb=8000.0,
+    )
 
     gossip = MagicMock(spec=GossipEngine)
     gossip.mesh_nodes.return_value = [node_a, node_b]

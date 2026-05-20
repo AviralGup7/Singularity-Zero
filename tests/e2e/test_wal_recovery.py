@@ -16,7 +16,7 @@ class MockRedis:
         self.stream = []
 
     def xadd(self, key, payload, maxlen=None):
-        entry_id = f"{int(time.time()*1000)}-{len(self.stream)}"
+        entry_id = f"{int(time.time() * 1000)}-{len(self.stream)}"
         self.stream.append((entry_id.encode(), payload))
         return entry_id.encode()
 
@@ -24,7 +24,7 @@ class MockRedis:
         # Very simple mock xrange
         results = []
         for eid, payload in self.stream:
-            if min != "-" and not (eid.decode() > min.lstrip('(')):
+            if min != "-" and not (eid.decode() > min.lstrip("(")):
                 continue
             results.append((eid, payload))
         return results
@@ -32,8 +32,10 @@ class MockRedis:
     def ping(self):
         return True
 
+
 def dummy_logic(task_input, state):
     return {"status": "ok"}
+
 
 @pytest.mark.asyncio
 async def test_actor_wal_recovery(monkeypatch):
@@ -72,6 +74,7 @@ async def test_actor_wal_recovery(monkeypatch):
 
     finally:
         actor.stop()
+
 
 @pytest.mark.asyncio
 async def test_incremental_wal_recovery(monkeypatch):

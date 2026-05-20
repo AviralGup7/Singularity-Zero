@@ -66,9 +66,7 @@ class NeuralBloomFilter:
         self.error_rate = error_rate
 
         # Calculate bit array size and number of hash functions
-        self.bit_size = -int(
-            (capacity * math.log(error_rate)) / (math.log(2) ** 2)
-        )
+        self.bit_size = -int((capacity * math.log(error_rate)) / (math.log(2) ** 2))
         self.hash_count = max(1, int((self.bit_size / capacity) * math.log(2)))
 
         # Fix #326: Use math.ceil instead of floor+1 to avoid wasting a byte when

@@ -82,7 +82,11 @@ class NoneAlgorithmAttack:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
             except requests.RequestException as e:
-                logger.debug("Failed to fetch original baseline status in NoneAlgorithmAttack for %s: %s", url, e)
+                logger.debug(
+                    "Failed to fetch original baseline status in NoneAlgorithmAttack for %s: %s",
+                    url,
+                    e,
+                )
                 original_status = 0
 
             for auth_header in JWT_AUTH_HEADERS:
@@ -167,7 +171,11 @@ class AlgorithmConfusionAttack:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
             except requests.RequestException as e:
-                logger.debug("Failed to fetch original baseline status in AlgorithmConfusionAttack for %s: %s", url, e)
+                logger.debug(
+                    "Failed to fetch original baseline status in AlgorithmConfusionAttack for %s: %s",
+                    url,
+                    e,
+                )
                 original_status = 0
 
             for auth_header in JWT_AUTH_HEADERS:
@@ -234,7 +242,11 @@ class KidPathTraversalAttack:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
             except requests.RequestException as e:
-                logger.debug("Failed to fetch original baseline status in KidPathTraversalAttack for %s: %s", url, e)
+                logger.debug(
+                    "Failed to fetch original baseline status in KidPathTraversalAttack for %s: %s",
+                    url,
+                    e,
+                )
                 original_status = 0
 
             for kid_path in traversal_paths:

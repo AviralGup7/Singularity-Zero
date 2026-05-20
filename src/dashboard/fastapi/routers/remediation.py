@@ -66,7 +66,10 @@ async def get_remediation_plan(
             # Elevate group severity if a critical finding is present
             if finding.get("severity") == "critical":
                 groups[category]["severity"] = "critical"
-            elif finding.get("severity") == "high" and groups[category]["severity"] not in ("critical", "high"):
+            elif finding.get("severity") == "high" and groups[category]["severity"] not in (
+                "critical",
+                "high",
+            ):
                 groups[category]["severity"] = "high"
 
         # 3. Finalize plan output

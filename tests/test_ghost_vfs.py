@@ -33,4 +33,3 @@ def test_ghost_vfs_key_rotation():
     vfs.write_file("trigger.txt", "rotate me")
     assert "trigger.txt" in vfs.list_files()
     assert vfs.read_file("data.bin") == b"\x00\xff\xee"
-

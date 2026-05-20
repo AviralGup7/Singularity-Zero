@@ -17,6 +17,7 @@ from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 
 class MockRedis:
     """In-memory mock for Redis registry."""
+
     def __init__(self):
         self.data = {}
         self._registry_key = "ghost:registry:test-run"
