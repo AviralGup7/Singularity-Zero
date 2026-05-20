@@ -383,6 +383,7 @@ class PipelineOrchestrator:
             config.tools.get(name) for name in ("subfinder", "assetfinder", "amass")
         )
 
+        run_id = generate_run_id()
         ctx = PipelineContext(
             result=StageResult(
                 scope_entries=list(scope_entries),
@@ -395,9 +396,9 @@ class PipelineOrchestrator:
                 discovery_enabled=discovery_enabled,
             ),
             output_store=output_store,
+            run_id=run_id,
         )
 
-        run_id = generate_run_id()
         checkpoint_mgr = create_checkpoint_manager(
             Path(config.output_dir),
             config.target_name,
