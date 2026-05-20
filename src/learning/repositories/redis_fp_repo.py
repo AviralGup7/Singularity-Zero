@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 import redis.asyncio as redis
 
@@ -31,14 +31,14 @@ class RedisFPRepository:
         try:
             row = pattern.to_db_row()
             # Convert any non-serializable fields if necessary (already handled by to_db_row usually)
-            await self._client.hset(self._key, pattern.pattern_id, json.dumps(row))
+            await cast(Any, self._client).hset(self._key, pattern.pattern_id, json.dumps(row))
         except Exception as e:
             logger.error("RedisFPRepo: Failed to upsert pattern %s: %s", pattern.pattern_id, e)
 
     async def get_pattern(self, pattern_id: str) -> FPPattern | None:
         """Fetch a specific pattern by ID."""
         try:
-            data = await self._client.hget(self._key, pattern_id)
+            data = await cast(Any, self._client).hget(self._key, pattern_id)
             if data:
                 return FPPattern.from_db_row(json.loads(data))
         except Exception as e:
@@ -48,7 +48,7 @@ class RedisFPRepository:
     async def list_patterns(self, active_only: bool = True) -> list[FPPattern]:
         """List all patterns stored in Redis."""
         try:
-            all_data = await self._client.hgetall(self._key)
+            all_data = await cast(Any, self._client).hgetall(self._key)
             patterns = []
             for data in all_data.values():
                 p = FPPattern.from_db_row(json.loads(data))
@@ -62,17 +62,17 @@ class RedisFPRepository:
     async def delete_pattern(self, pattern_id: str) -> None:
         """Remove a pattern from Redis."""
         try:
-            await self._client.hdel(self._key, pattern_id)
+            await cast(Any, self._client).hdel(self._key, pattern_id)
         except Exception as e:
             logger.error("RedisFPRepo: Failed to delete pattern %s: %s", pattern_id, e)
 
     async def clear(self) -> None:
         """Clear all patterns from Redis."""
         try:
-            await self._client.delete(self._key)
+            await cast(Any, self._client).delete(self._key)
         except Exception as e:
             logger.error("RedisFPRepo: Failed to clear patterns: %s", e)
 
     async def close(self) -> None:
         """Close the Redis connection."""
-        await self._client.close()
+        await cast(Any, self._client).close()

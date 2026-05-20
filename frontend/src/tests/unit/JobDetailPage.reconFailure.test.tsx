@@ -112,16 +112,17 @@ describe('JobDetailPage recon failure surfacing', () => {
       clearSseError: vi.fn(),
     });
 
-    render(
-   
-      <MemoryRouter initialEntries={['/jobs/job-1']}>
-        <Routes>
-          <Route path="/jobs/:jobId" element={<JobDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    );
+    await act(async () => {
+      render(
+        <MemoryRouter initialEntries={['/jobs/job-1']}>
+          <Routes>
+            <Route path="/jobs/:jobId" element={<JobDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+    });
 
-    expect(screen.getByRole('heading', { name: /Recon Failure/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Job Failure Details/i })).toBeInTheDocument();
     expect(screen.getByText('urls')).toBeInTheDocument();
     expect(screen.getByText('fallback_only_urls')).toBeInTheDocument();
     expect(screen.getByText('src.recon.urls.collect_urls')).toBeInTheDocument();
@@ -199,7 +200,7 @@ describe('JobDetailPage recon failure surfacing', () => {
       );
     });
 
-    expect(screen.getByRole('heading', { name: /Recon Failure/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Job Failure Details/i })).toBeInTheDocument();
     expect(screen.getByText('recon_validation')).toBeInTheDocument();
     expect(screen.getByText('pipeline_stage_failed')).toBeInTheDocument();
     expect(screen.getByText('pipeline.recon.guard')).toBeInTheDocument();
@@ -271,14 +272,16 @@ describe('JobDetailPage recon failure surfacing', () => {
       clearSseError: vi.fn(),
     });
 
-    render(
+    await act(async () => {
+      render(
    
-      <MemoryRouter initialEntries={['/jobs/job-3']}>
-        <Routes>
-          <Route path="/jobs/:jobId" element={<JobDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    );
+        <MemoryRouter initialEntries={['/jobs/job-3']}>
+          <Routes>
+            <Route path="/jobs/:jobId" element={<JobDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+    });
 
     const runtimeSignalsCard = screen
       .getByRole('heading', { name: /Runtime Signals/i })

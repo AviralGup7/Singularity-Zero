@@ -35,6 +35,7 @@ from src.learning.config import LearningConfig
 from src.learning.feedback_loop import FeedbackLoopEngine
 from src.learning.fp_tracker import FPTracker
 from src.learning.metrics import MetricsCollector, PipelineKPIs
+from src.learning.repositories.redis_fp_repo import RedisFPRepository
 from src.learning.telemetry_store import TelemetryStore
 from src.learning.threshold_tuner import ThresholdConfig, ThresholdTuner
 
@@ -65,11 +66,13 @@ class LearningIntegration:
 
         # Mesh Sync for FP patterns
         self._mesh_sync = None
+        self._redis_repo = None
         redis_url = os.environ.get("REDIS_URL")
         if redis_url:
             self._mesh_sync = MeshSync(redis_url, "mesh.learning.fp_patterns")
+            self._redis_repo = RedisFPRepository(redis_url)
 
-        self._fp_tracker = FPTracker(store, mesh_sync=self._mesh_sync)
+        self._fp_tracker = FPTracker(store, mesh_sync=self._mesh_sync, redis_repo=self._redis_repo)
         self._metrics = MetricsCollector(store)
         self._threshold_tuner = ThresholdTuner(
             store,
@@ -132,6 +135,16 @@ class LearningIntegration:
                 pass
 
         return _integration_instance
+
+    async def get_active_fp_patterns(self) -> list[dict[str, Any]]:
+        """Fetch currently active FP patterns from the tracker or repository."""
+        # 🛸 Frontier Fix: Load patterns from Redis if available for mesh-wide consistency
+        if self._redis_repo:
+            patterns = await self._redis_repo.list_patterns(active_only=True)
+            return [p.to_db_row() for p in patterns]
+        
+        # Fallback to local tracker cache
+        return [p.to_db_row() for p in self._fp_tracker._cache.values() if p.is_active]
 
     async def _start_mesh_sync(self) -> None:
         """Start listening for mesh updates."""
@@ -482,4 +495,3 @@ def _cleanup_learning_integration() -> None:
 
 
 atexit.register(_cleanup_learning_integration)
-ning_integration)

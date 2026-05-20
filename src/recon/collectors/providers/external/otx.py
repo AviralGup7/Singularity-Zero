@@ -45,8 +45,6 @@ def _parse_otx_json(text: str) -> list[str]:
                             urls.append(url_val)
                     elif isinstance(item, str):
                         urls.append(item)
-                if urls:
-                    return urls
     elif isinstance(data, list):
         for item in data:
             if isinstance(item, dict):
