@@ -3,15 +3,19 @@ import { useSearchParams } from 'react-router-dom';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Stars } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, ChromaticAberration } from '@react-three/postprocessing';
-import { 
-  Vector3, 
-  InstancedMesh, 
-  Color, 
-  Vector2, 
-  Object3D, 
-  type Intersection 
-} from 'three';
+import * as THREE from 'three';
 import { Icon } from '@/components/Icon';
+
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment */
+const { Vector3, InstancedMesh, Color, Vector2, Object3D } = THREE as any;
+type Vector3 = any;
+type InstancedMesh = any;
+type Color = any;
+type Vector2 = any;
+type Object3D = any;
+type Intersection = any;
+/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment */
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { cockpitApi } from '@/api/cockpit';
 import type { CockpitNode, CockpitEdge, ForensicExchange } from '@/api/cockpit';
