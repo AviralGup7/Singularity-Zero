@@ -24,8 +24,6 @@ import { RemediationSuggestions } from '../components/RemediationSuggestions';
 import type { RemediationSuggestion, TraceLink } from '../types/api';
 
    
-const RECON_FAILURE_STAGES = new Set(['subdomains', 'live_hosts', 'urls', 'recon_validation']);
-
 export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
    
@@ -124,11 +122,6 @@ export function JobDetailPage() {
   }
 
   const displayLines = allLogLines.length > 0 ? allLogLines : (job.latest_logs ?? []);
-  const failedStage = (job.failed_stage || '').trim().toLowerCase();
-  const isReconFailure =
-    (job.status === 'failed' || job.status === 'stopped') &&
-    RECON_FAILURE_STAGES.has(failedStage);
-  const reconFailureText = job.failure_reason || job.error || sseError || '';
   const telemetry = job.progress_telemetry;
   const warningCount = typeof job.warning_count === 'number'
     ? job.warning_count
