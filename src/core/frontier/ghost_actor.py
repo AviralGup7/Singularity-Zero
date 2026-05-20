@@ -82,8 +82,9 @@ class ScanActor(pykka.ThreadingActor):
         elif command == "recover":
             # Replay deltas from WAL
             wal_deltas = message.get("deltas", [])
-            logger.info("Ghost-Actor [%s]: Replaying %d deltas from WAL",
-                        self.actor_id, len(wal_deltas))
+            logger.info(
+                "Ghost-Actor [%s]: Replaying %d deltas from WAL", self.actor_id, len(wal_deltas)
+            )
             for delta_entry in wal_deltas:
                 delta = delta_entry.get("delta", {})
                 # Apply delta to local state
@@ -94,8 +95,11 @@ class ScanActor(pykka.ThreadingActor):
             self.is_migrating = True
             # Fix S1-3: Ensure we capture a stable snapshot before stopping
             snapshot = self.on_receive({"command": "snapshot"})
-            logger.warning("Ghost-Actor [%s]: Initiating migration (Evac Recommended: %s)",
-                           self.actor_id, self._evacuation_recommended)
+            logger.warning(
+                "Ghost-Actor [%s]: Initiating migration (Evac Recommended: %s)",
+                self.actor_id,
+                self._evacuation_recommended,
+            )
             self.stop()
             return snapshot
 
@@ -133,7 +137,9 @@ class ScanActor(pykka.ThreadingActor):
                     logger.warning(
                         "Ghost-Actor [%s]: Node pressure detected (CPU: %.1f%%, RAM: %.1f%%). "
                         "Flagging for evacuation.",
-                        self.actor_id, cpu, ram_pct,
+                        self.actor_id,
+                        cpu,
+                        ram_pct,
                     )
                 self._evacuation_recommended = True
             else:
@@ -188,8 +194,12 @@ class GhostMeshCoordinator:
             current_node_id = await self.registry.find_actor(actor_id)
 
             if target_node_id and target_node_id != current_node_id:
-                logger.info("Ghost-Coordinator: Migrating [%s] from %s -> %s",
-                            actor_id, current_node_id, target_node_id)
+                logger.info(
+                    "Ghost-Coordinator: Migrating [%s] from %s -> %s",
+                    actor_id,
+                    current_node_id,
+                    target_node_id,
+                )
 
                 # 1. Snapshot and Stop the actor
                 actor_ref.ask({"command": "migrate"}, block=True)
@@ -199,6 +209,7 @@ class GhostMeshCoordinator:
 
                 # 3. Emit Migration Event for Observability
                 from src.core.events import EventType, get_event_bus  # pylint: disable=C0415
+
                 get_event_bus().emit(
                     EventType.GHOST_ACTOR_MIGRATED,
                     source=f"ghost-coordinator-{self.gossip.local_node.id}",
@@ -206,8 +217,8 @@ class GhostMeshCoordinator:
                         "actor_id": actor_id,
                         "source_node": current_node_id,
                         "target_node": target_node_id,
-                        "reason": "resource_pressure"
-                    }
+                        "reason": "resource_pressure",
+                    },
                 )
 
                 # 4. In a real system, we would now signal the remote node to spawn the actor.

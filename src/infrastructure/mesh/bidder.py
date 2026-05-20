@@ -26,7 +26,9 @@ class MeshBidder:
     def __init__(self, node_id: str):
         self.node_id = node_id
 
-    def calculate_bid(self, task_metadata: dict[str, Any], metrics: dict[str, Any] | None = None) -> float:
+    def calculate_bid(
+        self, task_metadata: dict[str, Any], metrics: dict[str, Any] | None = None
+    ) -> float:
         """
         Calculate a bid score (0.0 - 1.0). Higher is better (more capable).
 

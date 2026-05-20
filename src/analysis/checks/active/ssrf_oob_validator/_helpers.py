@@ -74,7 +74,10 @@ def safe_request(
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
             except Exception as e:  # noqa: S110
-                logger.debug("Failed to extract details from error response in ssrf_oob_validator safe_request: %s", e)
+                logger.debug(
+                    "Failed to extract details from error response in ssrf_oob_validator safe_request: %s",
+                    e,
+                )
         return {
             "status": status,
             "headers": headers,

@@ -59,9 +59,7 @@ class DockerSandboxRunner:
             raise ValueError(f"Invalid callable name for sandbox execution: {callable_name!r}")
 
         if not self._is_allowed(module_clean, self.config.allowed_modules):
-            raise ValueError(
-                f"Module '{module_clean}' is not allowlisted for sandbox execution"
-            )
+            raise ValueError(f"Module '{module_clean}' is not allowlisted for sandbox execution")
         if not self._is_allowed(callable_clean, self.config.allowed_callables):
             raise ValueError(
                 f"Callable '{callable_clean}' is not allowlisted for sandbox execution"

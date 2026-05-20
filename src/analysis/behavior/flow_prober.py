@@ -52,6 +52,7 @@ class FlowProber:
         """
         # 1. Discover flows using existing infrastructure
         from typing import cast
+
         flow_graph = build_flow_graph(list(urls))
         flows = cast(list[dict[str, Any]], flow_graph.get("flows", []))
 
@@ -77,6 +78,7 @@ class FlowProber:
     def _extract_flow_tokens(self, chain: list[str]) -> dict[str, set[str]]:
         """Identify parameters that appear across the chain."""
         from typing import cast
+
         tokens: dict[str, set[str]] = {}
         for url in chain:
             # Explicitly cast to satisfy Mypy when re-exported through __init__
@@ -86,7 +88,9 @@ class FlowProber:
                     tokens.setdefault(name, set()).add(value)
         return tokens
 
-    def _probe_flow_integrity(self, flow: dict[str, Any], tokens: dict[str, set[str]]) -> list[dict[str, Any]]:
+    def _probe_flow_integrity(
+        self, flow: dict[str, Any], tokens: dict[str, set[str]]
+    ) -> list[dict[str, Any]]:
         """Test the state machine for logical weaknesses."""
         findings = []
         chain = flow.get("chain", [])
@@ -103,26 +107,27 @@ class FlowProber:
 
             if stripped_url != last_step:
                 res = self.cache.request(
-                    stripped_url,
-                    headers={"Referer": early_step, "Cache-Control": "no-cache"}
+                    stripped_url, headers={"Referer": early_step, "Cache-Control": "no-cache"}
                 )
 
                 if res and int(res.get("status_code", 0)) < 400:
-                    findings.append({
-                        "url": last_step,
-                        "endpoint_key": endpoint_signature(last_step),
-                        "category": "business_logic",
-                        "title": "Unenforced State Transition",
-                        "description": f"The terminal step of the '{flow.get('label')}' flow was reachable without required state tokens from earlier steps.",
-                        "severity": "medium",
-                        "evidence": {
-                            "flow": flow.get("label"),
-                            "terminal_step": last_step,
-                            "status_code": res.get("status_code"),
-                            "stripped_url": stripped_url
-                        },
-                        "signals": ["premature_step_access", "logic_bypass_candidate"]
-                    })
+                    findings.append(
+                        {
+                            "url": last_step,
+                            "endpoint_key": endpoint_signature(last_step),
+                            "category": "business_logic",
+                            "title": "Unenforced State Transition",
+                            "description": f"The terminal step of the '{flow.get('label')}' flow was reachable without required state tokens from earlier steps.",
+                            "severity": "medium",
+                            "evidence": {
+                                "flow": flow.get("label"),
+                                "terminal_step": last_step,
+                                "status_code": res.get("status_code"),
+                                "stripped_url": stripped_url,
+                            },
+                            "signals": ["premature_step_access", "logic_bypass_candidate"],
+                        }
+                    )
 
             # Strategy B: Cross-Resource State Mapping (ID Traversal)
             # Find a 'step' or 'id' parameter and try to fuzz its value
@@ -142,21 +147,23 @@ class FlowProber:
                 f_res = self.cache.request(fuzzed_url, headers={"Cache-Control": "no-cache"})
 
                 if f_res and int(f_res.get("status_code", 0)) < 300:
-                    findings.append({
-                        "url": last_step,
-                        "endpoint_key": endpoint_signature(last_step),
-                        "category": "business_logic",
-                        "title": "Loose State-to-Session Binding",
-                        "description": f"The state parameter '{param}' was successfully mutated, suggesting lack of server-side validation against the active session.",
-                        "severity": "high",
-                        "evidence": {
-                            "parameter": param,
-                            "original": val,
-                            "mutated": fuzzed_val,
-                            "status_code": f_res.get("status_code")
-                        },
-                        "signals": ["state_parameter_tampering", "idor_candidate"]
-                    })
+                    findings.append(
+                        {
+                            "url": last_step,
+                            "endpoint_key": endpoint_signature(last_step),
+                            "category": "business_logic",
+                            "title": "Loose State-to-Session Binding",
+                            "description": f"The state parameter '{param}' was successfully mutated, suggesting lack of server-side validation against the active session.",
+                            "severity": "high",
+                            "evidence": {
+                                "parameter": param,
+                                "original": val,
+                                "mutated": fuzzed_val,
+                                "status_code": f_res.get("status_code"),
+                            },
+                            "signals": ["state_parameter_tampering", "idor_candidate"],
+                        }
+                    )
 
         except Exception as e:
             logger.debug("FlowProber: Integrity check failed for %s: %s", flow.get("host"), e)
@@ -166,6 +173,7 @@ class FlowProber:
     def _strip_tokens(self, url: str, tokens: dict[str, set[str]]) -> str:
         """Remove state tokens from URL query parameters."""
         from urllib.parse import parse_qsl, urlencode, urlunparse
+
         parsed = urlparse(url)
         query = parse_qsl(parsed.query, keep_blank_values=True)
         filtered = [(k, v) for k, v in query if k not in tokens]
@@ -176,10 +184,12 @@ class FlowProber:
         if value.isdigit():
             # Try incrementing or decrementing
             return str(int(value) + 1)
-        if len(value) == 36 and "-" in value: # UUID
+        if len(value) == 36 and "-" in value:  # UUID
             import uuid
+
             return str(uuid.uuid4())
         return None
+
 
 def run_cognitive_flow_analysis(
     urls: set[str], response_cache: ResponseCache, limit: int = 12

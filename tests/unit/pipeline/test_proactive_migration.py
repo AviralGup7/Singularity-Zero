@@ -14,16 +14,14 @@ async def test_proactive_migration_handler_evacuates_on_pressure():
     # Mock migrate_if_needed to return True (migration triggered)
     mock_coordinator.migrate_if_needed = AsyncMock(return_value=True)
 
-    handler = ProactiveMigrationHandler(
-        coordinator=mock_coordinator,
-        check_interval_seconds=0.1
-    )
+    handler = ProactiveMigrationHandler(coordinator=mock_coordinator, check_interval_seconds=0.1)
 
     mock_actor_ref = MagicMock()
     handler.register_actor("test-actor-1", mock_actor_ref)
 
     # Track events
     events = []
+
     def on_evac(event):
         events.append(event)
 
@@ -32,7 +30,7 @@ async def test_proactive_migration_handler_evacuates_on_pressure():
     try:
         # Execution
         await handler.start()
-        await asyncio.sleep(0.2) # Allow at least one check
+        await asyncio.sleep(0.2)  # Allow at least one check
         await handler.stop()
 
         # Verification
@@ -44,6 +42,7 @@ async def test_proactive_migration_handler_evacuates_on_pressure():
     finally:
         get_event_bus().unsubscribe(sub_id)
 
+
 @pytest.mark.asyncio
 async def test_proactive_migration_handler_skips_when_no_pressure():
     # Setup
@@ -51,10 +50,7 @@ async def test_proactive_migration_handler_skips_when_no_pressure():
     # Mock migrate_if_needed to return False (no migration needed)
     mock_coordinator.migrate_if_needed = AsyncMock(return_value=False)
 
-    handler = ProactiveMigrationHandler(
-        coordinator=mock_coordinator,
-        check_interval_seconds=0.1
-    )
+    handler = ProactiveMigrationHandler(coordinator=mock_coordinator, check_interval_seconds=0.1)
 
     mock_actor_ref = MagicMock()
     handler.register_actor("test-actor-safe", mock_actor_ref)

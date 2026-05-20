@@ -78,7 +78,12 @@ class NeuralMeshBalancer:
         # Log deep metrics for observability
         logger.debug(
             "Node suitability [%s]: bid=%.2f, res=%.2f, rel=%.2f, eff=%.2f -> total=%.4f",
-            node_id, bid, resource_score, reliability, efficiency, suitability
+            node_id,
+            bid,
+            resource_score,
+            reliability,
+            efficiency,
+            suitability,
         )
 
         return round(float(suitability), 4)
@@ -102,7 +107,9 @@ class NeuralMeshBalancer:
         )
         return winner_id  # type: ignore[no-any-return]
 
-    def select_best_node_from_gossip(self, gossip: Any, task_metadata: dict[str, Any]) -> str | None:
+    def select_best_node_from_gossip(
+        self, gossip: Any, task_metadata: dict[str, Any]
+    ) -> str | None:
         """
         Integrate with GossipEngine to find the best node for a task.
         Considers real-time telemetry from all 'alive' nodes.

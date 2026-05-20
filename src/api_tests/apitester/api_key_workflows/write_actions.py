@@ -98,6 +98,7 @@ def write_flexible_chaining_test(
 
             print("\n2. Testing Key in Headers vs Query Parameters (Flexibility)")
             from typing import cast
+
             for alt_placement in placements:
                 alt_placement_headers = cast(dict[str, Any], alt_placement.get("headers", {}))
                 alt_placement_params = cast(dict[str, Any], alt_placement.get("params", {}))

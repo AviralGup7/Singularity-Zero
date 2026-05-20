@@ -108,7 +108,10 @@ def _safe_request(
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
             except Exception as exc:  # noqa: S110
-                logger.debug("Failed to extract details from error response in jwt_attacks _safe_request: %s", exc)
+                logger.debug(
+                    "Failed to extract details from error response in jwt_attacks _safe_request: %s",
+                    exc,
+                )
         return {
             "status": status,
             "headers": headers,

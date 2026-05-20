@@ -13,12 +13,13 @@ async def test_aeve_verification_lifecycle():
         "category": "idor",
         "signals": ["cross_user_data_leak"],
         "url": "https://api.example.com/user/123",
-        "confidence": 0.7
+        "confidence": 0.7,
     }
 
     verified = await aeve.verify_finding(finding)
     assert verified["verification_status"] == VerificationStatus.VERIFIED_TP.value
     assert verified["confidence"] == 1.0
+
 
 @pytest.mark.asyncio
 async def test_aeve_attack_chain_discovery():
@@ -31,15 +32,15 @@ async def test_aeve_attack_chain_discovery():
             "type": "information_disclosure",
             "category": "exposure",
             "url": "https://example.com/config.php",
-            "verification_status": VerificationStatus.VERIFIED_TP.value
+            "verification_status": VerificationStatus.VERIFIED_TP.value,
         },
         {
             "id": "f2",
             "type": "auth_bypass",
             "category": "auth",
             "url": "https://example.com/admin",
-            "verification_status": VerificationStatus.VERIFIED_TP.value
-        }
+            "verification_status": VerificationStatus.VERIFIED_TP.value,
+        },
     ]
 
     chains = aeve.discover_attack_chains(findings)
@@ -47,6 +48,7 @@ async def test_aeve_attack_chain_discovery():
     assert "Account Takeover" in chains[0]["name"]
     assert chains[0]["steps"] == ["f1", "f2"]
     assert chains[0]["is_verified"] is True
+
 
 @pytest.mark.asyncio
 async def test_aeve_sandbox_simulation():
@@ -57,10 +59,7 @@ async def test_aeve_sandbox_simulation():
         "id": "vuln-2",
         "category": "ssrf",
         "url": "https://example.com/proxy?url=http://169.254.169.254/latest/meta-data/",
-        "request_context": {
-            "parameter": "url",
-            "variant": "http://169.254.169.254/"
-        }
+        "request_context": {"parameter": "url", "variant": "http://169.254.169.254/"},
     }
 
     verified = await aeve.verify_finding(finding)

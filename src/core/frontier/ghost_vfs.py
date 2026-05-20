@@ -32,8 +32,10 @@ class GhostVFS:
         self._aesgcm = AESGCM(self._key)
         self._rotation_interval = rotation_interval_hours * 3600
         self._last_rotation = time.time()
-        logger.info("Ghost-VFS Initialized (Anti-Forensic Mode: ACTIVE, Rotation: %.1fh)",
-                    rotation_interval_hours)
+        logger.info(
+            "Ghost-VFS Initialized (Anti-Forensic Mode: ACTIVE, Rotation: %.1fh)",
+            rotation_interval_hours,
+        )
 
     def write_file(self, path: str, content: str | bytes) -> None:
         """Encrypt and store file content in RAM."""
@@ -98,8 +100,9 @@ class GhostVFS:
         self._secure_wipe_bytes(old_key)
 
         duration = time.monotonic() - start_ts
-        logger.info("Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs",
-                    file_count, duration)
+        logger.info(
+            "Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs", file_count, duration
+        )
 
     def _secure_wipe_bytes(self, b: bytes) -> None:
         """Attempt to clear bytes from memory (best effort in Python)."""
@@ -115,6 +118,7 @@ class GhostVFS:
             del b
         except Exception:  # noqa: S110
             pass
+
     def list_files(self) -> list[str]:
         """List all files in the virtual filesystem."""
         return list(self._files.keys())
@@ -125,6 +129,7 @@ class GhostVFS:
 
         # Derive a 32-byte key from the master_key string
         import hashlib
+
         derived_key = hashlib.sha256(master_key.encode()).digest()
         disk_aesgcm = AESGCM(derived_key)
 

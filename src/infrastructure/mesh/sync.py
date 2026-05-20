@@ -46,8 +46,7 @@ class MeshSync:
         self._running = True
         await self._pubsub.subscribe(self.channel)
         self._task = asyncio.create_task(
-            self._listen_loop(callback),
-            name=f"mesh-sync-listener-{self.channel}"
+            self._listen_loop(callback), name=f"mesh-sync-listener-{self.channel}"
         )
         logger.info("MeshSync: Subscribed to channel '%s'", self.channel)
 
@@ -56,7 +55,9 @@ class MeshSync:
         while self._running:
             try:
                 # get_message with timeout to avoid blocking forever and allow shutdown
-                message = await self._pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                message = await self._pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=1.0
+                )
                 if message and message["type"] == "message":
                     data = json.loads(message["data"])
                     await callback(data)

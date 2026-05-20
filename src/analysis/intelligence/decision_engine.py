@@ -414,6 +414,7 @@ def classify_finding(
 
         if dynamic_fp_patterns:
             import json
+
             body_lower = body_snippet.lower()
             for pattern_row in dynamic_fp_patterns:
                 status_code_raw = pattern_row.get("status_code_pattern", "[]")
@@ -427,9 +428,7 @@ def classify_finding(
                         break
 
         if not is_fp:
-            is_fp, fp_category = _is_likely_false_positive(
-                mutated_status, body_snippet
-            )
+            is_fp, fp_category = _is_likely_false_positive(mutated_status, body_snippet)
 
         # If original was blocked but mutated is not, this is a potential bypass
         if original_was_blocked and not is_fp:

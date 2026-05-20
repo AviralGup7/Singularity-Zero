@@ -130,7 +130,7 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                     source_ip=log_data["ip"],
                     resource_id=request.url.path,
                     details=log_data,
-                    severity="info" if response.status_code < 400 else "warning"
+                    severity="info" if response.status_code < 400 else "warning",
                 )
             except Exception as exc:
                 logger.debug("Failed to record backend audit log: %s", exc)

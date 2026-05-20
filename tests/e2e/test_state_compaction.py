@@ -56,6 +56,7 @@ def test_neural_state_compaction_logic():
     assert len(snapshot["urls"]) == 0
     assert len(snapshot["findings"]) == 0
 
+
 def test_compaction_preserves_new_items():
     """Verify that active items are never pruned by compaction."""
     state = NeuralState()
@@ -65,7 +66,9 @@ def test_compaction_preserves_new_items():
 
     # Manually backdate it (even if old, it's not a tombstone, so it should stay)
     el = state.urls._elements["https://active.com"]
-    state.urls._elements["https://active.com"] = type(el)(el.value, el.vclock, time.time() - 10000, deleted=False)
+    state.urls._elements["https://active.com"] = type(el)(
+        el.value, el.vclock, time.time() - 10000, deleted=False
+    )
 
     state.compact(max_tombstone_age_seconds=10)
 
