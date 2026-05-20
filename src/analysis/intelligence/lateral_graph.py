@@ -61,9 +61,9 @@ class LateralGraph:
             self._conn.execute("CREATE REL TABLE BELONGS_TO(FROM Asset TO Asset)")
             self._conn.execute("CREATE REL TABLE HAS_VULN(FROM Asset TO Finding)")
             self._conn.execute("CREATE REL TABLE PIVOTS_TO(FROM Finding TO Asset)")
-        except Exception:  # noqa: S110
+        except Exception as e:  # noqa: S110
             # Schema already exists
-            pass
+            logger.debug("Schema initialization skipped (likely already exists): %s", e)
 
     def ingest_finding(self, asset_id: str, finding: dict[str, Any]) -> None:
         """Ingest an asset and its finding into the graph."""

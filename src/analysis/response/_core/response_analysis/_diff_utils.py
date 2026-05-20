@@ -185,7 +185,7 @@ def _try_parse_json_payload(record: dict[str, Any]) -> dict[str, Any] | list[Any
         return None
     try:
         payload = json.loads(body)
-    except Exception:
+    except json.JSONDecodeError:
         return None
     if isinstance(payload, (dict, list)):
         return payload

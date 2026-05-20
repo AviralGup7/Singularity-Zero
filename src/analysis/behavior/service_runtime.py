@@ -127,7 +127,8 @@ def probe_open_services(
                 pending.pop(future, None)
                 try:
                     result = future.result()
-                except Exception:
+                except Exception as e:
+                    logger.debug("Failed to get future result in concurrent port scan: %s", e)
                     result = None
                 if result:
                     open_services.append(result)
@@ -192,7 +193,7 @@ def tcp_connect(host: str, port: int, timeout: int) -> bool:
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
-    except Exception:  # noqa: BLE001
+    except OSError:
         return False
 
 
@@ -216,7 +217,7 @@ def fetch_http_details(url: str, timeout: int) -> dict[str, Any]:
         raw = resp.content[:12000]
         try:
             body = raw.decode("utf-8", errors="replace")
-        except Exception:
+        except (UnicodeDecodeError, AttributeError, ValueError, TypeError):
             body = resp.text or ""
         resp_headers = {str(k).lower(): str(v) for k, v in dict(resp.headers).items()}
         return {
@@ -270,10 +271,11 @@ def fetch_banner(host: str, port: int, timeout: int) -> str:
             sock.settimeout(timeout)
             try:
                 sock.sendall(b"\r\n")
-            except Exception:  # noqa: S110, BLE001
-                pass
+            except OSError as e:  # noqa: S110
+                logger.debug("Failed to send banner probe on %s:%d: %s", host, port, e)
             return sock.recv(256).decode("utf-8", errors="replace").strip()
-    except Exception:  # noqa: BLE001
+    except OSError as e:
+        logger.debug("Failed to connect or receive banner from %s:%d: %s", host, port, e)
         return ""
 
 
