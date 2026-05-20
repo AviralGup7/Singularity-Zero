@@ -113,12 +113,14 @@ function useOnboardingTour() {
 export function OnboardingTour() {
   const { active, step, currentStep, totalSteps, next, prev, skip } = useOnboardingTour();
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      skip();
-    }
-  };
+  useEffect(() => {
+    if (!active) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') skip();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [active, skip]);
 
   if (!active || !step) return null;
 
@@ -126,18 +128,26 @@ export function OnboardingTour() {
     <div
       className="onboarding-overlay"
       onClick={skip}
-      onKeyDown={handleKeyDown}
+      onKeyDown={(e) => e.key === 'Enter' && skip()}
       role="button"
-      tabIndex={0}
-      aria-label="Close tour overlay"
+      tabIndex={-1}
+      aria-label="Close tour"
     >
-      <div className="onboarding-card" onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={e => e.stopPropagation()} role="document" tabIndex={-1}>
+      <div 
+        className="onboarding-card" 
+        onClick={e => e.stopPropagation()} 
+        onKeyDown={e => e.stopPropagation()}
+        role="dialog" 
+        aria-modal="true"
+        aria-labelledby="tour-title"
+        aria-describedby="tour-description"
+      >
         <div className="onboarding-header">
-          <h3 className="onboarding-title">{step.title}</h3>
-          <button className="onboarding-skip" onClick={skip}>Skip</button>
+          <h3 id="tour-title" className="onboarding-title">{step.title}</h3>
+          <button className="onboarding-skip" onClick={skip} aria-label="Skip tour">Skip</button>
         </div>
-        <p className="onboarding-description">{step.description}</p>
-        <div className="onboarding-progress">
+        <p id="tour-description" className="onboarding-description">{step.description}</p>
+        <div className="onboarding-progress" role="progressbar" aria-valuenow={currentStep + 1} aria-valuemin={1} aria-valuemax={totalSteps}>
           {Array.from({ length: totalSteps }).map((_, i) => (
             <span
               key={i}
