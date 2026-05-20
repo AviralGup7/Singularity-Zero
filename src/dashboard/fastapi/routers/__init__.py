@@ -16,6 +16,7 @@ from .jobs import router as jobs_router
 from .mesh import router as mesh_router
 from .notes import router as notes_router
 from .registry import router as registry_router
+from .remediation import router as remediation_router
 from .replay import router as replay_router
 from .risk import router as risk_router
 from .security import router as security_router
@@ -46,6 +47,7 @@ api_router.include_router(notes_router, tags=["Notes"])
 api_router.include_router(export_router, tags=["Export"])
 api_router.include_router(replay_router, tags=["Replay"])
 api_router.include_router(risk_router, tags=["Risk"])
+api_router.include_router(remediation_router, tags=["Remediation"])
 api_router.include_router(registry_router, tags=["Registry"])
 if imports_router is not None:
     api_router.include_router(imports_router, tags=["Imports"])
