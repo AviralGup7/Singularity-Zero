@@ -15,7 +15,7 @@ from src.execution.validators.validators.xss import validate as validate_xss
 
 logger = logging.getLogger(__name__)
 
-_RUNNERS: dict[str, Validator] = {
+_BASE_RUNNERS: dict[str, Validator] = {
     "redirect": validate_redirect,
     "ssrf": validate_ssrf,
     "token_reuse": validate_token_reuse,
@@ -50,10 +50,9 @@ def _stub_validator(name: str) -> Validator:
     return validate
 
 
-# Register stubs for unimplemented validators
+_RUNNERS: dict[str, Validator] = dict(_BASE_RUNNERS)
 for _validator_name in VALIDATOR_ORDER:
-    if _validator_name not in _RUNNERS:
-        _RUNNERS[_validator_name] = _stub_validator(_validator_name)
+    _RUNNERS.setdefault(_validator_name, _stub_validator(_validator_name))
 
 VALIDATOR_REGISTRY: dict[str, Validator] = {name: _RUNNERS[name] for name in VALIDATOR_ORDER}
 

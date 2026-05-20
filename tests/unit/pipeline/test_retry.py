@@ -227,8 +227,9 @@ class TestClassifyError(unittest.TestCase):
     def test_key_error_is_permanent(self) -> None:
         self.assertEqual(classify_error(KeyError("missing")), "permanent")
 
-    def test_attribute_error_is_permanent(self) -> None:
-        self.assertEqual(classify_error(AttributeError("no attr")), "permanent")
+    def test_attribute_error_is_not_permanent(self) -> None:
+        # Fix: AttributeError was removed from _PERMANENT_EXCEPTIONS to allow retries on transient races
+        self.assertEqual(classify_error(AttributeError("no attr")), "unknown")
 
     def test_http_500_is_transient(self) -> None:
         exc = Exception("server error")

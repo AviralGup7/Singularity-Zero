@@ -8,7 +8,7 @@ from src.core.events import EventType
 from src.core.frontier.tracing_manager import get_tracing_manager
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
-from src.pipeline.retry import RetryMetrics, classify_error
+from src.pipeline.retry import RetryMetrics, classify_error, is_retryable
 
 logger = get_pipeline_logger(__name__)
 
@@ -183,9 +183,10 @@ async def run_stage_with_retry(
                 metrics.record_permanent()
 
         retryable = (
-            classification != "permanent"
+            last_exc is not None
             and policy.retry_on_error
             and attempt < policy.max_attempts
+            and is_retryable(last_exc, policy)
         )
 
         if not retryable:

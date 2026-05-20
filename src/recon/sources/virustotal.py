@@ -10,7 +10,24 @@ from typing import Any
 
 import httpx
 
+import re
+
 logger = logging.getLogger(__name__)
+
+
+_DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$",
+    re.IGNORECASE,
+)
+
+
+def _normalize_domain(domain: str) -> str:
+    cleaned = str(domain or "").strip().lower().strip(".")
+    if not cleaned or any(ch in cleaned for ch in ("/", "\\", ":", "@", "?", "#", " ", "\t", "\n", "\r")):
+        return ""
+    if not _DOMAIN_RE.fullmatch(cleaned):
+        return ""
+    return cleaned
 
 
 async def query_virustotal_passive(
@@ -33,6 +50,11 @@ async def query_virustotal_passive(
         logger.debug("VT_API_KEY not set, skipping VirusTotal passive DNS")
         return set()
 
+    domain = _normalize_domain(domain)
+    if not domain:
+        logger.debug("VirusTotal passive DNS: invalid domain input")
+        return set()
+
     subdomains: set[str] = set()
     cursor: str | None = None
 
@@ -40,7 +62,7 @@ async def query_virustotal_passive(
         async with httpx.AsyncClient(
             timeout=timeout,
             headers={"User-Agent": "cyber-pipeline/1.0"},
-            follow_redirects=True,
+            follow_redirects=False,
         ) as client:
             for _page in range(10):  # Safety limit: max 10 pages
                 params: dict[str, Any] = {"limit": 40}

@@ -51,8 +51,9 @@ class FlowProber:
         Main entry point for flow-aware analysis.
         """
         # 1. Discover flows using existing infrastructure
+        from typing import cast
         flow_graph = build_flow_graph(list(urls))
-        flows = flow_graph.get("flows", [])
+        flows = cast(list[dict[str, Any]], flow_graph.get("flows", []))
 
         findings: list[dict[str, Any]] = []
 
@@ -75,9 +76,12 @@ class FlowProber:
 
     def _extract_flow_tokens(self, chain: list[str]) -> dict[str, set[str]]:
         """Identify parameters that appear across the chain."""
+        from typing import cast
         tokens: dict[str, set[str]] = {}
         for url in chain:
-            for name, value in meaningful_query_pairs(url):
+            # Explicitly cast to satisfy Mypy when re-exported through __init__
+            pairs = cast(list[tuple[str, str]], meaningful_query_pairs(url))
+            for name, value in pairs:
                 if any(re.search(p, name) for p in STATE_TOKEN_PATTERNS):
                     tokens.setdefault(name, set()).add(value)
         return tokens

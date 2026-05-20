@@ -78,6 +78,7 @@ class TestTaskEnvelopeExclusivity:
             "src/infrastructure/observability/structured_logging.py",
             "src/websocket_server/handlers.py",
             "src/websocket_server/broadcaster.py",
+            "src/dashboard/fastapi/routers/jobs.py",
         }
 
         violations: list[str] = []

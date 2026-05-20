@@ -120,10 +120,35 @@ class GhostVFS:
         return list(self._files.keys())
 
     def flush_to_disk(self, physical_path: str, master_key: str) -> None:
-        """Optional: Persist RAM state to disk using a user-provided master key."""
-        # Implementation would involve re-encrypting with master_key
-        # Placeholder for future implementation
-        logger.debug("Ghost-VFS: flush_to_disk called to %s (not implemented)", physical_path)
+        """Persist RAM state to disk using a user-provided master key."""
+        logger.info("Ghost-VFS: Flushing volatile state to %s", physical_path)
+
+        # Derive a 32-byte key from the master_key string
+        import hashlib
+        derived_key = hashlib.sha256(master_key.encode()).digest()
+        disk_aesgcm = AESGCM(derived_key)
+
+        count = 0
+        for path in self.list_files():
+            try:
+                # 1. Read and decrypt from RAM
+                data = self.read_file(path)
+
+                # 2. Re-encrypt for disk
+                nonce = os.urandom(12)
+                encrypted = disk_aesgcm.encrypt(nonce, data, None)
+
+                # 3. Write to physical disk
+                full_path = os.path.join(physical_path, path)
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+                with open(full_path, "wb") as f:
+                    f.write(nonce + encrypted)
+                count += 1
+            except Exception as e:
+                logger.error("Ghost-VFS: Failed to flush %s to disk: %s", path, e)
+
+        logger.info("Ghost-VFS: Flush complete. %d artifacts persisted to disk.", count)
 
     def self_destruct(self) -> None:
         """Wipe all data and keys from RAM securely."""

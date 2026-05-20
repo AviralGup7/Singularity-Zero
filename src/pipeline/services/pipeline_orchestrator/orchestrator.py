@@ -48,6 +48,7 @@ from ._constants import (
     PIPELINE_STAGES,
     STAGE_ORDER,
 )
+from .migration_handler import ProactiveMigrationHandler
 from ._orchestrator_helpers import build_stage_methods_map, finalize_run, stage_baseline
 from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
 from ._stage_retry import run_stage_with_retry
@@ -110,6 +111,7 @@ class PipelineOrchestrator:
 
         self._pipeline_input: PipelineInput | None = None
         self._pipeline_correlation_id: str = ""
+        self._migration_handler: ProactiveMigrationHandler | None = None
 
     def _get_stage_retry_policy(self, config: Any) -> RetryPolicy:
         if self._stage_retry_policy is None:
@@ -224,6 +226,9 @@ class PipelineOrchestrator:
         return asyncio.run(self.run(args))
 
     async def _finalize_run(self, exit_code: int) -> int:
+        if self._migration_handler:
+            await self._migration_handler.stop()
+
         self._emit_event(
             EventType.PIPELINE_COMPLETE,
             source="orchestrator",
@@ -400,13 +405,28 @@ class PipelineOrchestrator:
             storage_config=config.storage,
         )
 
-        # ──────────────────────────────────────────────────────────
         # Distributed Write-Ahead Log (Overhaul #9)
-        # ──────────────────────────────────────────────────────────
+        # ----------------------------------------------------------
         from src.core.frontier.wal import FrontierWAL
 
         self._wal = FrontierWAL(getattr(config, "redis_url", None), run_id)
         logger.info("Frontier WAL initialized: stream=cyber:wal:%s", run_id)
+
+        # ----------------------------------------------------------
+        # Ghost-Actor Migration Handler (Sprint 1)
+        # ----------------------------------------------------------
+        from src.core.frontier.ghost_actor import GhostMeshCoordinator, GhostMeshRegistry
+
+        mesh_registry = GhostMeshRegistry(cache_mgr._redis, run_id)
+        # Assuming gossip is available via cache_mgr or another service in a real scenario
+        # For now, we use a stub/coordinator initialized with registry.
+        coordinator = GhostMeshCoordinator(mesh_registry, getattr(cache_mgr, "_gossip", None))
+        
+        self._migration_handler = ProactiveMigrationHandler(
+            coordinator=coordinator,
+            check_interval_seconds=float(getattr(config, "migration_check_interval", 30.0))
+        )
+        await self._migration_handler.start()
 
         force_fresh = getattr(args, "force_fresh_run", False)
         can_recover, recovered_state = attempt_recovery(
@@ -614,18 +634,32 @@ class PipelineOrchestrator:
         scope_interceptor: Any,
         previous_deltas: list[dict[str, Any]] | None = None,
     ) -> StageOutput | None:
-        return await run_stage_with_retry(
-            self,
-            stage_name,
-            method,
-            args,
-            config,
-            ctx,
-            timeout,
-            scope_interceptor,
-            emit_progress,
-            previous_deltas=previous_deltas,
-        )
+        # 🛸 Sprint 1: Register for proactive migration monitoring
+        actor_id = f"actor:{stage_name}:{ctx.run_id}"
+        # Note: In a real actor-based execution, the 'method' or 'stage_runner' 
+        # would be encapsulated in a ScanActor instance. For now, we register 
+        # the current stage execution context if the handler is active.
+        if self._migration_handler:
+            # We use the method as a proxy for the 'actor' logic for now.
+            # In a full Ghost-Actor implementation, this would be a pykka.ActorRef.
+            self._migration_handler.register_actor(actor_id, method)
+
+        try:
+            return await run_stage_with_retry(
+                self,
+                stage_name,
+                method,
+                args,
+                config,
+                ctx,
+                timeout,
+                scope_interceptor,
+                emit_progress,
+                previous_deltas=previous_deltas,
+            )
+        finally:
+            if self._migration_handler:
+                self._migration_handler.unregister_actor(actor_id)
 
     async def _record_stage_post_run(
         self,

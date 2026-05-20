@@ -10,6 +10,7 @@ from src.analysis.active.injection.parameter_pollution import hpp_active_probe
 from src.analysis.active.injection.proxy_ssrf import proxy_ssrf_probe
 from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
 from src.analysis.active.injection.xpath import xpath_injection_active_probe
+from src.analysis.behavior.flow_prober import run_cognitive_flow_analysis
 from src.analysis.checks.active.access_control_analyzer import access_control_analyzer
 from src.analysis.checks.active.auth_bypass_check import auth_bypass_check
 from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
@@ -23,7 +24,6 @@ from src.analysis.passive.detectors.detector_vulnerable_components import (
     vulnerable_component_detector,
 )
 from src.analysis.passive.detectors.detector_xxe import xxe_surface_detector
-from src.analysis.behavior.flow_prober import run_cognitive_flow_analysis
 from src.analysis.plugin_runtime_models import AnalyzerBinding
 from src.core.plugins import list_plugins, register_plugin
 

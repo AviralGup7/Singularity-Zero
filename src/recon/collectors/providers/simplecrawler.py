@@ -66,7 +66,15 @@ def _fetch_text(url: str, timeout_seconds: int, max_bytes: int) -> str:
     content_type = str(resp.headers.get("content-type", "")).lower()
     if content_type and not any(t in content_type for t in ("text", "html", "javascript", "json")):
         return ""
-    return (resp.text or "")[: max(4096, max_bytes)]
+    try:
+        requested_max = int(max_bytes)
+    except Exception:
+        requested_max = 0
+    if requested_max < 0:
+        logger.debug("simplecrawler: negative max_bytes=%s; using default cap", max_bytes)
+        requested_max = 0
+    cap = max(4096, requested_max)
+    return (resp.text or "")[:cap]
 
 
 def _scan_host(

@@ -253,7 +253,22 @@ class JobArtifactPackager:
 
     def _capture_env(self) -> dict[str, str]:
         """Capture CYBER_-prefixed environment variables."""
-        return {k: v for k, v in os.environ.items() if k.startswith("CYBER_")}
+        env: dict[str, str] = {}
+        sensitive_markers = ("KEY", "TOKEN", "SECRET", "PASS", "PASSWORD", "PRIVATE")
+        for k, v in os.environ.items():
+            if not k.startswith("CYBER_"):
+                continue
+            key_upper = k.upper()
+            if any(marker in key_upper for marker in sensitive_markers):
+                env[k] = "[REDACTED]"
+                continue
+            # Avoid embedding very large values into artifacts.
+            value = v
+            if isinstance(value, str) and len(value) > 2048:
+                env[k] = value[:2048] + "…[TRUNCATED]"
+            else:
+                env[k] = value
+        return env
 
 
 def package_job(

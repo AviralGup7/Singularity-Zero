@@ -59,7 +59,8 @@ def test_api_key_security(
 
         requests_module = requests
 
-    session = requests_module.Session()
+    from typing import Any, cast
+    session = cast(Any, requests_module).Session()
     try:
         normalized_base_url = normalize_base_url(base_url)
         cookie_map = cookie_jar(cookies)

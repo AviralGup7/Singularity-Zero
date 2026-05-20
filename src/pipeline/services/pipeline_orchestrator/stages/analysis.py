@@ -103,6 +103,11 @@ async def run_passive_scanning(
     }
 
     try:
+        # Load dynamic FP patterns for the decision engine
+        from src.learning.integration import LearningIntegration
+        learning_int = LearningIntegration.get_or_create()
+        dynamic_fp_patterns = await learning_int.get_active_fp_patterns()
+        
         # Resume from next iteration
         for iteration in range(iteration_offset + 1, max_iteration_limit + 1):
             emit_progress(
