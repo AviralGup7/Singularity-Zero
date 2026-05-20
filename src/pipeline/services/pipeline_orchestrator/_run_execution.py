@@ -171,6 +171,9 @@ async def _execute_single_stage(
 
             if stage_output is not None:
                 orchestrator._merge_stage_output(ctx, stage_name, stage_output)
+                # 🛸 Implement CRDT State Compaction (Stability Focus)
+                # Triggered after merge to ensure minimal state transfer for subsequent stages
+                ctx.compact_state()
 
             elapsed = time.time() - stage_started
 

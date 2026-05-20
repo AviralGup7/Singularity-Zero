@@ -104,6 +104,11 @@ class LWWset[T]:
                 if element.vclock.is_later_than(existing.vclock):
                     self._elements[item] = element
 
+    @property
+    def tombstone_count(self) -> int:
+        """Count the number of deleted items (tombstones) currently in memory."""
+        return sum(1 for el in self._elements.values() if el.deleted)
+
     def compact(self, max_tombstone_age_seconds: float = 86400.0) -> int:
         """
         Purge tombstones (deleted items) older than the threshold.
@@ -171,6 +176,25 @@ class NeuralState:
         self.urls = LWWset[str]()
         self.findings = LWWset[dict[str, Any]]()
         self.metadata: dict[str, Any] = {}
+
+    def compact(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
+        """
+        Safely purge old tombstones across all CRDT sets.
+        Default threshold is 1 hour for high-velocity scans.
+        """
+        purged = {
+            "subdomains": self.subdomains.compact(max_tombstone_age_seconds),
+            "urls": self.urls.compact(max_tombstone_age_seconds),
+            "findings": self.findings.compact(max_tombstone_age_seconds),
+        }
+        total = sum(purged.values())
+        if total > 0:
+            from src.core.logging.trace_logging import get_pipeline_logger
+
+            get_pipeline_logger(__name__).info(
+                "NeuralState: Compacted %d expired tombstones %s", total, purged
+            )
+        return purged
 
     def apply_delta(self, delta: dict[str, Any]) -> None:
         """Merge a state_delta using CRDT logic."""

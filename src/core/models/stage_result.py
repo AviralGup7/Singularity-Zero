@@ -136,6 +136,10 @@ class StageResult:
                 else:
                     setattr(self, key, value)
 
+    def compact_state(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
+        """Trigger CRDT tombstone compaction to save memory."""
+        return self._neural_state.compact(max_tombstone_age_seconds)
+
     #: Screenshot results (each entry contains URL, path, dimensions, etc.)
     screenshots: list[dict[str, Any]] = field(default_factory=list)
 
@@ -412,6 +416,10 @@ class PipelineContext:
             metrics=stage_metrics if isinstance(stage_metrics, dict) else {},
             artifacts=artifacts,
         )
+
+    def compact_state(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
+        """Delegate state compaction to the underlying result."""
+        return self.result.compact_state(max_tombstone_age_seconds)
 
     # ------------------------------------------------------------------
     # Typed property accessors — delegate to StageResult fields
