@@ -60,7 +60,7 @@ def _decode_jwt_part(part: str) -> dict | Any | None:
     try:
         decoded = _b64url_decode(part)
         return json.loads(decoded)
-    except Exception:
+    except (ValueError, TypeError, json.JSONDecodeError):
         return None
 
 
@@ -107,8 +107,8 @@ def _safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:  # noqa: S110
+                logger.debug("Failed to extract details from error response in jwt_attacks _safe_request: %s", exc)
         return {
             "status": status,
             "headers": headers,
@@ -145,7 +145,8 @@ def _get_original_status(url: str, session: Any) -> int:
             resp = session.get(url, timeout=8, verify=True)
             return cast(int, resp.status_code)
         return cast(int, _safe_request(url, timeout=8).get("status", 0))
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to fetch original status for %s: %s", url, e)
         return 0
 
 

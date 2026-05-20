@@ -52,9 +52,8 @@ def cache_deception_probe(
         if response_cache is not None:
             try:
                 resp = response_cache.get(url)
-            except Exception:
-                logger.warning("Cache lookup failed for %s", url)
-                pass
+            except Exception as e:
+                logger.warning("Cache lookup failed for %s: %s", url, e)
         if not is_sensitive_endpoint(url, resp):
             continue
         endpoints_to_test.append({"url": url, "response": resp})

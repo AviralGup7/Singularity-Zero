@@ -7,6 +7,8 @@ import json
 import logging
 from typing import Any
 
+import requests
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,7 +28,7 @@ def decode_jwt_part(part: str) -> dict | Any | None:
     try:
         decoded = b64url_decode(part)
         return json.loads(decoded)
-    except Exception:
+    except (ValueError, TypeError, json.JSONDecodeError):
         return None
 
 
@@ -79,7 +81,8 @@ class NoneAlgorithmAttack:
             try:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
-            except Exception:
+            except requests.RequestException as e:
+                logger.debug("Failed to fetch original baseline status in NoneAlgorithmAttack for %s: %s", url, e)
                 original_status = 0
 
             for auth_header in JWT_AUTH_HEADERS:
@@ -163,7 +166,8 @@ class AlgorithmConfusionAttack:
             try:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
-            except Exception:
+            except requests.RequestException as e:
+                logger.debug("Failed to fetch original baseline status in AlgorithmConfusionAttack for %s: %s", url, e)
                 original_status = 0
 
             for auth_header in JWT_AUTH_HEADERS:
@@ -229,7 +233,8 @@ class KidPathTraversalAttack:
             try:
                 orig = session.get(url, timeout=8, verify=True)
                 original_status = orig.status_code
-            except Exception:
+            except requests.RequestException as e:
+                logger.debug("Failed to fetch original baseline status in KidPathTraversalAttack for %s: %s", url, e)
                 original_status = 0
 
             for kid_path in traversal_paths:
