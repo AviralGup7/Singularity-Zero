@@ -22,12 +22,15 @@ Usage in PipelineOrchestrator:
 
 from __future__ import annotations
 
+import asyncio
 import atexit
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from src.infrastructure.mesh.sync import MeshSync
 from src.learning.config import LearningConfig
 from src.learning.feedback_loop import FeedbackLoopEngine
 from src.learning.fp_tracker import FPTracker
@@ -59,7 +62,14 @@ class LearningIntegration:
         self.store = store
         self.config = config or LearningConfig()
         self._feedback_engine = FeedbackLoopEngine(store)
-        self._fp_tracker = FPTracker(store)
+
+        # Mesh Sync for FP patterns
+        self._mesh_sync = None
+        redis_url = os.environ.get("REDIS_URL")
+        if redis_url:
+            self._mesh_sync = MeshSync(redis_url, "mesh.learning.fp_patterns")
+
+        self._fp_tracker = FPTracker(store, mesh_sync=self._mesh_sync)
         self._metrics = MetricsCollector(store)
         self._threshold_tuner = ThresholdTuner(
             store,
@@ -111,7 +121,22 @@ class LearningIntegration:
         store.initialize()
 
         _integration_instance = cls(store, config)
+
+        # Start mesh synchronization if available and in an event loop
+        if _integration_instance._mesh_sync:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_integration_instance._start_mesh_sync())
+            except RuntimeError:
+                # No running event loop
+                pass
+
         return _integration_instance
+
+    async def _start_mesh_sync(self) -> None:
+        """Start listening for mesh updates."""
+        if self._mesh_sync:
+            await self._mesh_sync.start_listening(self._fp_tracker._on_mesh_update)
 
     @classmethod
     def reset(cls) -> None:
@@ -428,7 +453,14 @@ class LearningIntegration:
         return self.store.get_db_size()
 
     def close(self) -> None:
-        """Close the telemetry store."""
+        """Close the telemetry store and mesh sync."""
+        if self._mesh_sync:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._mesh_sync.stop())
+            except Exception as e:
+                logger.debug("MeshSync shutdown during close failed: %s", e)
         self.store.close()
 
 
