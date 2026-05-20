@@ -19,6 +19,7 @@ This document defines the high-resilience, distributed execution model of the Cy
 - **Differential Logic Prober**: A high-speed State-Machine Fuzzer that compares endpoint responses across different authentication contexts using Levenshtein distance, automatically detecting IDOR and BAC vulnerabilities.
 - **Lateral Movement Graph**: Integrates the `Kuzu` Graph Database to link subdomains, URLs, and findings into Attack Chains, predicting multi-hop exploitation paths (Kill-Chains).
 - **Semantic Intelligence**: Finding deduplication uses vector-space Cosine Similarity via NumPy to group functionally identical security signals, bypassing rigid regex constraints.
+- **Cognitive-Logic Flow Probing**: Automatically discovers multi-request sequences (e.g., checkout flows) and models them as state transitions. The engine attempts to "break" these transitions by injecting out-of-order requests or manipulating state-dependent tokens (IDs, UUIDs), detecting high-level business logic flaws that atomic scanners miss.
 - **Hardware-Isolated WASM Validation**: The **AEVE** engine executes proof-of-concept payloads within restricted WASM sandboxes (`wasmtime`). This provides hardware-level memory and CPU isolation, ensuring that even zero-day PoC logic cannot compromise the pipeline nodes while transitioning finding status from 'Candidate' to 'Verified TP'.
 - **Neural-Score Engine**: Calculates the Composite Severity Index (CSI) using multi-factor weighting (CVSS, Confidence, Exploitability, and Mesh Consensus).
 
