@@ -110,22 +110,25 @@ class WASMPluginHost:
         input_ptr = cast(Any, allocate)(self._store, len(input_json))
 
         # Write to WASM memory - use memory.write for efficiency
-        # Fix #215: The wasmtime Python binding uses memory.write(store, ptr, data)
-        cast(Any, memory).write(self._store, input_ptr, input_json)
+        # Fix #215: The wasmtime Python binding uses memory.write(store, data, offset)
+        cast(Any, memory).write(self._store, input_json, int(input_ptr))
 
         # 2. Execute
         logger.info("Executing WASM Plugin...")
         start = time.monotonic()
-        output_ptr = cast(Any, run)(self._store, input_ptr, len(input_json))
+        output_ptr = cast(Any, run)(self._store, int(input_ptr), len(input_json))
         duration = time.monotonic() - start
 
         # 3. Retrieve Output
         # (Assuming the first 4 bytes at output_ptr contain the length)
-        output_len_bytes = cast(Any, memory).read(self._store, output_ptr, output_ptr + 4)
+        ptr = int(output_ptr)
+        output_len_bytes = cast(Any, memory).read(self._store, ptr, ptr + 4)
         output_len = int.from_bytes(output_len_bytes, "little")
-        output_json_bytes = cast(Any, memory).read(
-            self._store, output_ptr + 4, output_ptr + 4 + output_len
-        )
+
+        if output_len == 0:
+            return {"verified": False, "error": "empty_output"}
+
+        output_json_bytes = cast(Any, memory).read(self._store, ptr + 4, ptr + 4 + output_len)
         output_json = output_json_bytes.decode()
 
         result = cast(dict[str, Any], json.loads(output_json))
@@ -133,8 +136,8 @@ class WASMPluginHost:
 
         # 4. Cleanup
         if deallocate and isinstance(deallocate, wasmtime.Func):
-            cast(Any, deallocate)(self._store, input_ptr)
-            cast(Any, deallocate)(self._store, output_ptr)
+            cast(Any, deallocate)(self._store, int(input_ptr))
+            cast(Any, deallocate)(self._store, int(output_ptr))
 
         return result
 
