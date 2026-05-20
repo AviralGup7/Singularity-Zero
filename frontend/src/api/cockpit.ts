@@ -14,6 +14,7 @@ export interface CockpitEdge {
   source: string;
   target: string;
   label: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CockpitGraphResponse {

@@ -509,128 +509,78 @@ async def stream_job_progress(
         last_heartbeat = time.time()
         last_mesh_health = 0.0
 
-        while True:
-            if await request.is_disconnected():
-                break
+        event_queue: asyncio.Queue[str] = asyncio.Queue()
 
-            current_job = services.get_job(job_id)
-            if not current_job:
-                yield emitter.error(
-                    "Job not found", stage=last_stage, progress_percent=0, recoverable=False
-                )
-                break
+        # 1. Subscribe to asynchronous pipeline events
+        from src.core.events import EventType, get_event_bus
 
-            status = current_job.get("status", "")
-            stage = current_job.get("stage", "")
-            stage_label = STAGE_LABELS.get(stage, stage.replace("_", " ").title())
-            progress = int(current_job.get("progress_percent", 0) or 0)
-            job_snapshot = _snapshot_job(current_job)
+        async def on_migration(event: Any) -> None:
+            # We filter by job_id if present, otherwise broadcast to all active streams
+            msg_job_id = event.data.get("job_id")
+            if not msg_job_id or msg_job_id == job_id:
+                await event_queue.put(emitter.migration_event(event.data))
 
-            if stage != last_stage:
-                yield emitter.stage_change(
-                    previous_stage=last_stage,
-                    new_stage=stage,
-                    stage_label=stage_label,
-                    progress_percent=progress,
-                )
-                last_stage = stage
+        sub_id = get_event_bus().subscribe_async(EventType.GHOST_ACTOR_MIGRATED, on_migration)
 
-            processed = current_job.get("stage_processed")
-            total = current_job.get("stage_total")
-            stage_entry = _current_stage_entry(job_snapshot)
-            yield emitter.progress_update(
-                stage=stage,
-                stage_label=stage_label,
-                progress_percent=progress,
-                message=current_job.get("status_message", ""),
-                stage_processed=processed,
-                stage_total=total,
-                stage_percent=_current_stage_percent(job_snapshot, stage_entry),
-                status=current_job.get("status"),
-                failed_stage=current_job.get("failed_stage") or None,
-                failure_reason_code=current_job.get("failure_reason_code") or None,
-                failure_step=current_job.get("failure_step") or None,
-                failure_reason=current_job.get("failure_reason") or None,
-                stage_status=(stage_entry or {}).get("status")
-                if isinstance(stage_entry, dict)
-                else None,
-                stage_reason=(stage_entry or {}).get("reason")
-                if isinstance(stage_entry, dict)
-                else None,
-                stage_error=(stage_entry or {}).get("error")
-                if isinstance(stage_entry, dict)
-                else None,
-                retry_count=(stage_entry or {}).get("retry_count")
-                if isinstance(stage_entry, dict)
-                else None,
-                stage_progress=job_snapshot.get("stage_progress")
-                if isinstance(job_snapshot.get("stage_progress"), list)
-                else None,
-                progress_telemetry=job_snapshot.get("progress_telemetry")
-                if isinstance(job_snapshot.get("progress_telemetry"), dict)
-                else None,
-            )
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
 
-            current_iteration = current_job.get("iteration", 0)
-            if current_iteration != last_iteration:
-                max_iterations = current_job.get("max_iterations", 0)
-                stage_percent = _current_stage_percent(job_snapshot, stage_entry)
-                yield emitter.iteration_change(
-                    current_iteration=current_iteration,
-                    max_iterations=max_iterations,
-                    stage=stage,
-                    stage_percent=stage_percent,
-                    progress_percent=progress,
-                )
-                last_iteration = current_iteration
+                # 2. Check for queued async events
+                while not event_queue.empty():
+                    yield await event_queue.get()
 
-            now = time.time()
-            if status == "running" and now - last_mesh_health >= 5.0:
-                gossip = getattr(request.app.state, "gossip", None)
-                if gossip:
-                    yield emitter.mesh_health_update(gossip.mesh_health())
-                last_mesh_health = now
-
-            if status in ("completed", "failed", "stopped"):
-                # Emit error event before completed if the job failed
-                if status == "failed":
-                    error_msg = current_job.get("error", "") or current_job.get(
-                        "status_message", "Unknown error"
-                    )
+                current_job = services.get_job(job_id)
+                if not current_job:
                     yield emitter.error(
-                        error=str(error_msg),
-                        stage=stage,
-                        progress_percent=progress,
-                        recoverable=False,
-                        failed_stage=current_job.get("failed_stage") or stage,
-                        failure_reason_code=current_job.get("failure_reason_code") or None,
-                        failure_step=current_job.get("failure_step") or None,
-                        failure_reason=current_job.get("failure_reason") or str(error_msg),
-                        stage_progress=job_snapshot.get("stage_progress")
-                        if isinstance(job_snapshot.get("stage_progress"), list)
-                        else None,
-                        progress_telemetry=job_snapshot.get("progress_telemetry")
-                        if isinstance(job_snapshot.get("progress_telemetry"), dict)
-                        else None,
+                        "Job not found", stage=last_stage, progress_percent=0, recoverable=False
                     )
-                from src.dashboard.job_state import _coerce_epoch
+                    break
 
-                started_at = _coerce_epoch(current_job.get("started_at"), 0)
-                finished_at = current_job.get("finished_at")
-                now = time.time()
-                finished_or_now = _coerce_epoch(finished_at, now)
-                elapsed = finished_or_now - started_at
-                yield emitter.completed(
-                    status=status,
-                    progress_percent=100 if status == "completed" else progress,
+                status = current_job.get("status", "")
+                stage = current_job.get("stage", "")
+                stage_label = STAGE_LABELS.get(stage, stage.replace("_", " ").title())
+                progress = int(current_job.get("progress_percent", 0) or 0)
+                job_snapshot = _snapshot_job(current_job)
+
+                if stage != last_stage:
+                    yield emitter.stage_change(
+                        previous_stage=last_stage,
+                        new_stage=stage,
+                        stage_label=stage_label,
+                        progress_percent=progress,
+                    )
+                    last_stage = stage
+
+                processed = current_job.get("stage_processed")
+                total = current_job.get("stage_total")
+                stage_entry = _current_stage_entry(job_snapshot)
+                yield emitter.progress_update(
                     stage=stage,
                     stage_label=stage_label,
-                    total_duration_seconds=round(elapsed, 1),
-                    total_findings=current_job.get("total_findings", 0),
+                    progress_percent=progress,
+                    message=current_job.get("status_message", ""),
+                    stage_processed=processed,
+                    stage_total=total,
+                    stage_percent=_current_stage_percent(job_snapshot, stage_entry),
+                    status=current_job.get("status"),
                     failed_stage=current_job.get("failed_stage") or None,
                     failure_reason_code=current_job.get("failure_reason_code") or None,
                     failure_step=current_job.get("failure_step") or None,
                     failure_reason=current_job.get("failure_reason") or None,
+                    stage_status=(stage_entry or {}).get("status")
+                    if isinstance(stage_entry, dict)
+                    else None,
+                    stage_reason=(stage_entry or {}).get("reason")
+                    if isinstance(stage_entry, dict)
+                    else None,
+                    stage_error=(stage_entry or {}).get("error")
+                    if isinstance(stage_entry, dict)
+                    else None,
+                    retry_count=(stage_entry or {}).get("retry_count")
+                    if isinstance(stage_entry, dict)
+                    else None,
                     stage_progress=job_snapshot.get("stage_progress")
                     if isinstance(job_snapshot.get("stage_progress"), list)
                     else None,
@@ -638,24 +588,98 @@ async def stream_job_progress(
                     if isinstance(job_snapshot.get("progress_telemetry"), dict)
                     else None,
                 )
-                break
 
-            if now - last_heartbeat >= _heartbeat_interval_seconds():
-                from src.dashboard.job_state import _coerce_epoch
+                current_iteration = current_job.get("iteration", 0)
+                if current_iteration != last_iteration:
+                    max_iterations = current_job.get("max_iterations", 0)
+                    stage_percent = _current_stage_percent(job_snapshot, stage_entry)
+                    yield emitter.iteration_change(
+                        current_iteration=current_iteration,
+                        max_iterations=max_iterations,
+                        stage=stage,
+                        stage_percent=stage_percent,
+                        progress_percent=progress,
+                    )
+                    last_iteration = current_iteration
 
-                updated_at = _coerce_epoch(current_job.get("updated_at"), now)
-                since_update = now - updated_at
-                stalled = status == "running" and since_update >= STALLED_THRESHOLD_SECONDS
-                yield emitter.heartbeat(
-                    progress_percent=progress,
-                    stage=stage,
-                    stage_label=stage_label,
-                    stalled=stalled,
-                    seconds_since_last_update=since_update,
-                )
-                last_heartbeat = now
+                now = time.time()
+                if status == "running" and now - last_mesh_health >= 5.0:
+                    gossip = getattr(request.app.state, "gossip", None)
+                    if gossip:
+                        yield emitter.mesh_health_update(gossip.mesh_health())
+                    last_mesh_health = now
 
-            await asyncio.sleep(1.0)
+                if status in ("completed", "failed", "stopped"):
+                    # Emit error event before completed if the job failed
+                    if status == "failed":
+                        error_msg = current_job.get("error", "") or current_job.get(
+                            "status_message", "Unknown error"
+                        )
+                        yield emitter.error(
+                            error=str(error_msg),
+                            stage=stage,
+                            progress_percent=progress,
+                            recoverable=False,
+                            failed_stage=current_job.get("failed_stage") or stage,
+                            failure_reason_code=current_job.get("failure_reason_code") or None,
+                            failure_step=current_job.get("failure_step") or None,
+                            failure_reason=current_job.get("failure_reason") or str(error_msg),
+                            stage_progress=job_snapshot.get("stage_progress")
+                            if isinstance(job_snapshot.get("stage_progress"), list)
+                            else None,
+                            progress_telemetry=job_snapshot.get("progress_telemetry")
+                            if isinstance(job_snapshot.get("progress_telemetry"), dict)
+                            else None,
+                        )
+                    from src.dashboard.job_state import _coerce_epoch
+
+                    started_at = _coerce_epoch(current_job.get("started_at"), 0)
+                    finished_at = current_job.get("finished_at")
+                    now = time.time()
+                    finished_or_now = _coerce_epoch(finished_at, now)
+                    elapsed = finished_or_now - started_at
+                    yield emitter.completed(
+                        status=status,
+                        progress_percent=100 if status == "completed" else progress,
+                        stage=stage,
+                        stage_label=stage_label,
+                        total_duration_seconds=round(elapsed, 1),
+                        total_findings=current_job.get("total_findings", 0),
+                        failed_stage=current_job.get("failed_stage") or None,
+                        failure_reason_code=current_job.get("failure_reason_code") or None,
+                        failure_step=current_job.get("failure_step") or None,
+                        failure_reason=current_job.get("failure_reason") or None,
+                        stage_progress=job_snapshot.get("stage_progress")
+                        if isinstance(job_snapshot.get("stage_progress"), list)
+                        else None,
+                        progress_telemetry=job_snapshot.get("progress_telemetry")
+                        if isinstance(job_snapshot.get("progress_telemetry"), dict)
+                        else None,
+                    )
+                    break
+
+                if now - last_heartbeat >= _heartbeat_interval_seconds():
+                    from src.dashboard.job_state import _coerce_epoch
+
+                    updated_at = _coerce_epoch(current_job.get("updated_at"), now)
+                    since_update = now - updated_at
+                    stalled = status == "running" and since_update >= STALLED_THRESHOLD_SECONDS
+                    yield emitter.heartbeat(
+                        progress_percent=progress,
+                        stage=stage,
+                        stage_label=stage_label,
+                        stalled=stalled,
+                        seconds_since_last_update=since_update,
+                    )
+                    last_heartbeat = now
+
+                await asyncio.sleep(1.0)
+        finally:
+            from src.core.events import get_event_bus
+            try:
+                get_event_bus().unsubscribe(sub_id)
+            except Exception as e:
+                logger.debug("Failed to unsubscribe from event bus: %s", e)
 
     return StreamingResponse(
         progress_event_stream(),
@@ -666,8 +690,6 @@ async def stream_job_progress(
             "X-Accel-Buffering": "no",
         },
     )
-
-
 @router.post(
     "",
     response_model=JobResponse,

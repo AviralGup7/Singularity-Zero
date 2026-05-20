@@ -31,6 +31,7 @@ class EventType(StrEnum):
     STAGE_FAILED = "stage_failed"
     PIPELINE_COMPLETE = "pipeline_complete"
     PIPELINE_ERROR = "pipeline_error"
+    GHOST_ACTOR_MIGRATED = "ghost_actor_migrated"
 
 
 @dataclass
