@@ -235,11 +235,7 @@ class DashboardQueryService:
             last_updated = ""
 
             run_dirs = sorted(
-                [
-                    d
-                    for d in entry.iterdir()
-                    if d.is_dir() and (d / "run_summary.json").exists()
-                ],
+                [d for d in entry.iterdir() if d.is_dir() and (d / "run_summary.json").exists()],
                 key=lambda x: x.name,
                 reverse=True,
             )
@@ -289,7 +285,11 @@ class DashboardQueryService:
 
                 # Gap Analysis Fix: Metrics now resolve from both 'analysis' and 'passive_scan' keys
                 # This ensures telemetry matches backend field naming during frontier mesh runs.
-                analysis_metrics = summary.get("metrics", {}).get("analysis") or summary.get("metrics", {}).get("passive_scan") or {}
+                analysis_metrics = (
+                    summary.get("metrics", {}).get("analysis")
+                    or summary.get("metrics", {}).get("passive_scan")
+                    or {}
+                )
 
                 timeline.append(
                     {

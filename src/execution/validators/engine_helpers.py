@@ -122,7 +122,6 @@ def mutate_identifier(url: str) -> str:
             new_segments[len(path_segments) - 1 - i] = mutated_uuid
             return urlunparse(parsed._replace(path="/" + "/".join(new_segments)))
 
-
     return ""
 
 

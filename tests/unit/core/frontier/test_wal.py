@@ -12,9 +12,7 @@ class _DummyRedisClient:
         self.xrange_calls: list[dict[str, Any]] = []
 
     def xrange(self, stream_key: str, *, min: str, max: str, count: int) -> list[Any]:  # noqa: A002
-        self.xrange_calls.append(
-            {"stream_key": stream_key, "min": min, "max": max, "count": count}
-        )
+        self.xrange_calls.append({"stream_key": stream_key, "min": min, "max": max, "count": count})
         return []
 
 

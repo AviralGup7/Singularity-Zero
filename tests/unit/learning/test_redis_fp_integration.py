@@ -25,13 +25,18 @@ async def test_redis_fp_repo_upsert_and_get():
     assert fetched.pattern_id == pattern.pattern_id
     assert fetched.category == "test-cat"
 
+
 @pytest.mark.asyncio
 async def test_fp_tracker_uses_redis_repo():
     mock_store = MagicMock()
     mock_redis_repo = MagicMock()
-    mock_redis_repo.list_patterns = AsyncMock(return_value=[
-        FPPattern.create(category="redis-cat", status_codes={429}, body_indicators=["rate limit"])
-    ])
+    mock_redis_repo.list_patterns = AsyncMock(
+        return_value=[
+            FPPattern.create(
+                category="redis-cat", status_codes={429}, body_indicators=["rate limit"]
+            )
+        ]
+    )
 
     tracker = FPTracker(store=mock_store, redis_repo=mock_redis_repo)
 
@@ -42,6 +47,7 @@ async def test_fp_tracker_uses_redis_repo():
     assert "redis-cat" in [p.category for p in tracker._cache.values()]
     assert mock_redis_repo.list_patterns.called
 
+
 @pytest.mark.asyncio
 async def test_fp_tracker_updates_redis_repo_on_run_update():
     mock_store = MagicMock()
@@ -50,13 +56,15 @@ async def test_fp_tracker_updates_redis_repo_on_run_update():
     mock_redis_repo.upsert_pattern = AsyncMock()
 
     # Mock findings from run
-    mock_store.get_findings_for_run.return_value = [{
-        "response_status": 403,
-        "evidence": "Access Denied by WAF",
-        "category": "xss",
-        "decision": "DROP",
-        "lifecycle_state": "DISCOVERED"
-    }]
+    mock_store.get_findings_for_run.return_value = [
+        {
+            "response_status": 403,
+            "evidence": "Access Denied by WAF",
+            "category": "xss",
+            "decision": "DROP",
+            "lifecycle_state": "DISCOVERED",
+        }
+    ]
 
     tracker = FPTracker(store=mock_store, redis_repo=mock_redis_repo)
 

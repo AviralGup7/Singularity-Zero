@@ -21,7 +21,9 @@ _DOMAIN_RE = re.compile(
 
 def _normalize_domain(domain: str) -> str:
     cleaned = str(domain or "").strip().lower().strip(".")
-    if not cleaned or any(ch in cleaned for ch in ("/", "\\", ":", "@", "?", "#", " ", "\t", "\n", "\r")):
+    if not cleaned or any(
+        ch in cleaned for ch in ("/", "\\", ":", "@", "?", "#", " ", "\t", "\n", "\r")
+    ):
         return ""
     if not _DOMAIN_RE.fullmatch(cleaned):
         return ""

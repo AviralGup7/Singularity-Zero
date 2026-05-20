@@ -425,7 +425,7 @@ class PipelineOrchestrator:
 
         self._migration_handler = ProactiveMigrationHandler(
             coordinator=coordinator,
-            check_interval_seconds=float(getattr(config, "migration_check_interval", 30.0))
+            check_interval_seconds=float(getattr(config, "migration_check_interval", 30.0)),
         )
         await self._migration_handler.start()
 

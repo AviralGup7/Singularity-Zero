@@ -80,9 +80,7 @@ async def test_active_scan_wires_response_cache_to_cache_dependent_probes(
     monkeypatch.setattr(active_scan, "emit_progress", lambda *a, **k: None)
 
     # 3. Execution
-    config = SimpleNamespace(
-        analysis={"adaptive_mode": "false", "active_probe_timeout_seconds": 1}
-    )
+    config = SimpleNamespace(analysis={"adaptive_mode": "false", "active_probe_timeout_seconds": 1})
     await active_scan.run_active_scanning(args=None, config=config, ctx=ctx)
 
     # 4. Verify sqli was called with the shared_response_cache

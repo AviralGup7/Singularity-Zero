@@ -17,11 +17,13 @@ logger = get_pipeline_logger(__name__)
 
 class MeshTelemetryProvider(Protocol):
     """Protocol for providing real-time mesh health telemetry."""
+
     def get_mesh_health(self) -> dict[str, Any]: ...
 
 
 class GhostActorCoordinator(Protocol):
     """Protocol for coordinating ghost-actor migrations."""
+
     async def migrate_if_needed(self, actor_ref: Any, task_metadata: dict[str, Any]) -> bool: ...
 
 
@@ -62,8 +64,11 @@ class ProactiveMigrationHandler:
             return
         self._active = True
         self._monitor_task = asyncio.create_task(self._run_monitor())
-        logger.info("ProactiveMigration: Handler started (Thresholds: CPU=%.1f%%, RAM=%.1f%%)",
-                    self._cpu_threshold, self._ram_threshold)
+        logger.info(
+            "ProactiveMigration: Handler started (Thresholds: CPU=%.1f%%, RAM=%.1f%%)",
+            self._cpu_threshold,
+            self._ram_threshold,
+        )
 
     async def stop(self) -> None:
         """Stop the background monitoring loop."""
@@ -91,8 +96,7 @@ class ProactiveMigrationHandler:
                     # Request a migration check from the coordinator
                     # The coordinator uses the balancer to decide if a better node exists.
                     migration_triggered = await self._coordinator.migrate_if_needed(
-                        actor_ref,
-                        task_metadata={"actor_id": actor_id}
+                        actor_ref, task_metadata={"actor_id": actor_id}
                     )
 
                     if migration_triggered:
@@ -106,8 +110,8 @@ class ProactiveMigrationHandler:
                             data={
                                 "actor_id": actor_id,
                                 "timestamp": time.time(),
-                                "reason": "resource_pressure_evacuation"
-                            }
+                                "reason": "resource_pressure_evacuation",
+                            },
                         )
 
             except Exception as e:
