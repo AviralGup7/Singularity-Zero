@@ -1,9 +1,12 @@
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from src.analysis.plugins import ANALYSIS_PLUGIN_SPECS, ANALYSIS_PLUGIN_SPECS_BY_KEY
 from src.pipeline.storage import write_json
+
+logger = logging.getLogger(__name__)
 
 PLUGIN_ARTIFACT_DIRNAME = "analysis_plugins"
 PLUGIN_MANIFEST_FILENAME = "manifest.json"
@@ -54,7 +57,8 @@ def load_plugin_artifact(run_dir: Path, plugin_key: str) -> list[dict[str, Any]]
             continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: S112, BLE001
+        except (OSError, json.JSONDecodeError) as e:  # noqa: S112, BLE001
+            logger.warning("Failed to load plugin artifact from %s: %s", path, e)
             continue
         if isinstance(payload, list):
             return payload

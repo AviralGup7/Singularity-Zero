@@ -8,6 +8,7 @@ This package modularizes the findings logic into separate files
 for better maintainability and AI-agent editability.
 """
 
+import logging
 from typing import Any, cast
 
 # Re-export for backward compatibility
@@ -17,6 +18,8 @@ from ._categories import MITRE_ATTACK_MAPPING, SEVERITY_SCORES
 from ._history import annotate_finding_history
 from ._merge_orchestrator import merge_findings
 from ._scoring import confidence_for_evidence, confidence_reasoning
+
+logger = logging.getLogger(__name__)
 
 
 def _finding_key(item: dict[str, Any]) -> str:  # noqa
@@ -85,10 +88,11 @@ def correlate_validation_findings(
 def enrich_with_cvss(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:  # noqa
     """Add CVSS v3.1 scores to findings for standardized severity assessment."""
     try:
-        from src.analysis.cvss_scoring import enrich_findings_with_cvss
+        from src.analysis.intelligence.cvss_scoring import enrich_findings_with_cvss
 
         return cast(list[dict[str, Any]], enrich_findings_with_cvss(findings))
-    except Exception:
+    except (ImportError, Exception) as e:
+        logger.debug("Failed to enrich findings with CVSS: %s", e)
         return findings
 
 

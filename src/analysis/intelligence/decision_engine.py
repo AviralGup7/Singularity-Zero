@@ -407,11 +407,11 @@ def classify_finding(
 
     if mutated_status:
         body_snippet = str(evidence.get("body_snippet", ""))
-        
+
         # Try dynamic patterns first
         is_fp = False
         fp_category = ""
-        
+
         if dynamic_fp_patterns:
             import json
             body_lower = body_snippet.lower()
@@ -425,7 +425,7 @@ def classify_finding(
                         is_fp = True
                         fp_category = pattern_row.get("category", "dynamic")
                         break
-        
+
         if not is_fp:
             is_fp, fp_category = _is_likely_false_positive(
                 mutated_status, body_snippet
@@ -485,26 +485,6 @@ def annotate_finding_decisions(
                 "decision": decision,
                 "reason": classification.get("reason", ""),
                 "confidence_factors": classification.get("confidence_factors", []),
-                "reportable": decision != "DROP",
-                "suppress_reason": classification.get("suppress_reason", ""),
-                "diff_score": classification.get("diff_score", 0),
-                "diff_classification": classification.get("diff_classification", ""),
-            }
-        )
-    return annotated
-
-
-def filter_reportable_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Filter findings to only those that should appear in reports.
-
-    Args:
-        findings: List of annotated finding dicts with 'decision' keys.
-
-    Returns:
-        List of findings excluding those with 'DROP' decision.
-    """
-    return [item for item in findings if str(item.get("decision", "MEDIUM")).upper() != "DROP"]
-factors", []),
                 "reportable": decision != "DROP",
                 "suppress_reason": classification.get("suppress_reason", ""),
                 "diff_score": classification.get("diff_score", 0),

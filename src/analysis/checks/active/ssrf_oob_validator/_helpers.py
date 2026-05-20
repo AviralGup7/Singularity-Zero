@@ -1,5 +1,6 @@
 """Helper functions for SSRF out-of-band validation."""
 
+import logging
 import time
 from typing import Any
 
@@ -21,6 +22,8 @@ from ._constants import (
     INTERNAL_LEAK_PATTERNS,
     SSRF_PARAM_NAMES,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def safe_request(
@@ -70,8 +73,8 @@ def safe_request(
                 resp_body = resp_obj.text
                 status = getattr(resp_obj, "status_code", 0)
                 headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as e:  # noqa: S110
+                logger.debug("Failed to extract details from error response in ssrf_oob_validator safe_request: %s", e)
         return {
             "status": status,
             "headers": headers,

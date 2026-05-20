@@ -1,6 +1,7 @@
 """Helper functions for OAuth misconfiguration detection."""
 
 import json
+import logging
 import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -18,6 +19,8 @@ from ._constants import (
     OAUTH_TOKEN_PATHS,
     OAUTH_WELL_KNOWN_PATHS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def is_oauth_url(url: str) -> bool:
@@ -168,8 +171,8 @@ def check_url_oauth_issues(url: str) -> list[dict[str, Any]]:
                     issues.append("open_redirect_http")
                     evidence_parts.append(f"redirect to external HTTP URL: {redirect_uri[:80]}")
                     severity_score += 3
-        except Exception:  # noqa: S110
-            pass
+        except Exception as e:
+            logger.debug("Failed to parse redirect_uri %s: %s", redirect_uri, e)
 
     if not issues:
         return []
