@@ -8,12 +8,13 @@ import { Icon } from '@/components/Icon';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cockpitApi } from '@/api/cockpit';
 import type { CockpitNode, CockpitEdge, ForensicExchange } from '@/api/cockpit';
-import type { AttackChain } from '@/types/api';
+import type { AttackChain, MeshHealth } from '@/types/api';
 import { getNotes, createNote } from '@/api/notes';
 import type { Note } from '@/api/notes';
 import { apiClient } from '@/api/client';
 import { AttackChainVisualizer } from '@/components/AttackChainVisualizer';
 import { useToast } from '@/hooks/useToast';
+import { useSSEProgress } from '@/hooks/useSSEProgress';
 
 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment */
@@ -61,23 +62,118 @@ function metadataText(metadata: CockpitNode['metadata'], key: string): string {
   return String(value);
 }
 
+function TrafficParticles({ edges, nodes }: { edges: CockpitEdge[]; nodes: CockpitNode[] }) {
+  const particles = useMemo(() => {
+    const p: { pos: any; target: any; progress: number; speed: number }[] = [];
+    edges.forEach((edge) => {
+      const source = nodes.find((n) => n.id === edge.source);
+      const target = nodes.find((n) => n.id === edge.target);
+      if (source?.position && target?.position) {
+        // Create multiple particles per edge based on throughput
+        const throughput = (edge.metadata?.throughput as number) || 0;
+        const count = Math.min(5, Math.max(1, Math.floor(throughput / 10)));
+        for (let i = 0; i < count; i++) {
+          p.push({
+            pos: new (THREE as any).Vector3(...source.position),
+            target: new (THREE as any).Vector3(...target.position),
+            progress: Math.random(),
+            speed: 0.005 + Math.random() * 0.01,
+          });
+        }
+      }
+    });
+    return p;
+  }, [edges, nodes]);
+
+  const meshRef = useRef<any>(null);
+
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const tempObject = new (THREE as any).Object3D();
+    particles.forEach((p, i) => {
+      p.progress += p.speed;
+      if (p.progress > 1) p.progress = 0;
+      tempObject.position.lerpVectors(p.pos, p.target, p.progress);
+      tempObject.scale.setScalar(0.1);
+      tempObject.updateMatrix();
+      meshRef.current.setMatrixAt(i, tempObject.matrix);
+    });
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  });
+
+  if (particles.length === 0) return null;
+
+  return (
+    <ThreeInstancedMesh ref={meshRef} args={[null!, null!, particles.length]}>
+      <ThreeSphereGeometry args={[0.2, 8, 8]} />
+      <ThreeMeshStandardMaterial color="#00f3ff" emissive="#00f3ff" emissiveIntensity={5} toneMapped={false} />
+    </ThreeInstancedMesh>
+  );
+}
+
+function MigrationLines({ migrations, nodes }: { migrations: any[]; nodes: CockpitNode[] }) {
+  const lines = useMemo(() => {
+    const now = Date.now();
+    return migrations.filter(m => now - m.timestamp < 10000).map(m => {
+      const source = nodes.find(n => n.metadata?.id === m.source_node || n.id === m.source_node);
+      const target = nodes.find(n => n.metadata?.id === m.target_node || n.id === m.target_node);
+      if (source?.position && target?.position) {
+        return {
+          points: [new (THREE as any).Vector3(...source.position), new (THREE as any).Vector3(...target.position)],
+          id: m.id
+        };
+      }
+      return null;
+    }).filter((l): l is { points: any[]; id: string } => l !== null);
+  }, [migrations, nodes]);
+
+  return (
+    <>
+      {lines.map((line) => (
+        <ThreeLineSegments key={line.id}>
+          <ThreeBufferGeometry>
+            <ThreeBufferAttribute
+              attach="attributes-position"
+              count={2}
+              array={new Float32Array([...line.points[0].toArray(), ...line.points[1].toArray()])}
+              itemSize={3}
+              args={[new Float32Array([...line.points[0].toArray(), ...line.points[1].toArray()]), 3]}
+            />
+          </ThreeBufferGeometry>
+          <ThreeLineBasicMaterial color="#ff0055" linewidth={2} transparent opacity={0.8} />
+        </ThreeLineSegments>
+      ))}
+    </>
+  );
+}
+
 function InstancedNodes({ 
   nodes, 
   selectedId, 
   onSelect,
-  onHover
+  onHover,
+  meshHealth
 }: { 
   nodes: CockpitNode[]; 
   selectedId: string | null;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
+  meshHealth: MeshHealth | null;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const meshRef = useRef<any>(null);
   const { raycaster, camera, mouse } = useThree();
 
+  const nodeHealthMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    meshHealth?.nodes.forEach(n => {
+      map[n.id] = n.cpu_usage / 100;
+    });
+    return map;
+  }, [meshHealth]);
+
   const { matrices, colors } = useMemo(() => {
-    const tempMatrix = new THREE.Object3D();
+    const tempMatrix = new (THREE as any).Object3D();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tempColor = new (THREE as any).Color();
     const m = new Float32Array(nodes.length * 16);
@@ -117,6 +213,22 @@ function InstancedNodes({
     
     // Aesthetic Rotation
     meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.05;
+
+    // Pulsing effect for nodes with high CPU
+    nodes.forEach((node, i) => {
+      const cpu = nodeHealthMap[node.id] || 0;
+      if (cpu > 0.7) {
+        const pulse = 1 + Math.sin(state.clock.getElapsedTime() * 10) * (cpu - 0.7);
+        const tempMatrix = new (THREE as any).Object3D();
+        const [x, y, z] = node.position || [0, 0, 0];
+        tempMatrix.position.set(x, y, z);
+        const scale = (node.id === selectedId ? 1.4 : 0.7) * pulse;
+        tempMatrix.scale.set(scale, scale, scale);
+        tempMatrix.updateMatrix();
+        meshRef.current.setMatrixAt(i, tempMatrix.matrix);
+      }
+    });
+    if (meshHealth) meshRef.current.instanceMatrix.needsUpdate = true;
 
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObject(meshRef.current);
@@ -184,7 +296,7 @@ function OptimizedEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockpit
 }
 
    
-function Scene({ nodes, edges, selectedNode, onSelect, onHover }: { nodes: CockpitNode[]; edges: CockpitEdge[]; selectedNode: string | null; onSelect: (id: string) => void; onHover: (id: string | null) => void }) {
+function Scene({ nodes, edges, selectedNode, onSelect, onHover, meshHealth, migrations }: { nodes: CockpitNode[]; edges: CockpitEdge[]; selectedNode: string | null; onSelect: (id: string) => void; onHover: (id: string | null) => void; meshHealth: MeshHealth | null; migrations: any[] }) {
   return (
     <>
       <ThreeColor attach="background" args={['#020204']} />
@@ -194,15 +306,17 @@ function Scene({ nodes, edges, selectedNode, onSelect, onHover }: { nodes: Cockp
       <pointLight position={[20, 20, 20]} intensity={1.5} color="var(--color-accent)" />
       <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={1} />
       
-      <InstancedNodes nodes={nodes} selectedId={selectedNode} onSelect={onSelect} onHover={onHover} />
+      <InstancedNodes nodes={nodes} selectedId={selectedNode} onSelect={onSelect} onHover={onHover} meshHealth={meshHealth} />
       <OptimizedEdges edges={edges} nodes={nodes} />
+      
+      <TrafficParticles edges={edges} nodes={nodes} />
+      <MigrationLines migrations={migrations} nodes={nodes} />
       
       <PerspectiveCamera makeDefault position={[0, 0, 35]} />
       <OrbitControls makeDefault enableDamping dampingFactor={0.05} minDistance={5} maxDistance={100} />
       
       <EffectComposer>
         <Bloom luminanceThreshold={1} mipmapBlur intensity={1.2} radius={0.3} />
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <ChromaticAberration offset={new (THREE as any).Vector2(0.001, 0.001)} />
         <Vignette eskil={false} offset={0.1} darkness={1.1} />
       </EffectComposer>
@@ -311,6 +425,33 @@ export function CockpitPage() {
   const [probing, setProbing] = useState(false);
    
   const [newNote, setNewNote] = useState('');
+  const [activeJobId, setActiveJobId] = useState<string | undefined>(jobId);
+
+  const [meshHealth, setMeshHealth] = useState<MeshHealth | null>(null);
+  const [migrations, setMigrations] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!jobId && target) {
+      apiClient.get<any[]>('/api/jobs', { params: { target, status: 'running' } })
+        .then(res => {
+          if (res.data.length > 0) setActiveJobId(res.data[0].id);
+        })
+        .catch(() => {});
+    }
+  }, [jobId, target]);
+
+  useSSEProgress({
+    jobId: activeJobId,
+    enabled: !!activeJobId,
+    onEvent: (event) => {
+      if (event.event_type === 'mesh_health_update') {
+        setMeshHealth(event.data as unknown as MeshHealth);
+      } else if (event.event_type === 'migration_event') {
+        setMigrations(prev => [...prev, { ...event.data, id: event.id, timestamp: Date.now() }]);
+        toast.info(`Ghost-Actor Migration: ${event.data.actor_id} moved to ${event.data.target_node}`);
+      }
+    }
+  });
 
   useEffect(() => {
     const fetchGraph = async () => {
@@ -463,6 +604,8 @@ export function CockpitPage() {
                 selectedNode={selectedNodeId}
                 onSelect={handleSelectNode}
                 onHover={setHoveredNodeId}
+                meshHealth={meshHealth}
+                migrations={migrations}
               />
             </Canvas>
           </Suspense>
@@ -474,6 +617,17 @@ export function CockpitPage() {
             <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-[#ef4444]" /> High</div>
             <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-[#f59e0b]" /> Med</div>
           </div>
+          {meshHealth && (
+            <div className="flex items-center gap-4 bg-black/60 px-4 py-2 rounded border border-white/5 backdrop-blur-md text-[9px] text-accent font-mono uppercase tracking-widest">
+               <div className="flex items-center gap-1.5"><Icon name="activity" size={10} /> LATENCY: {meshHealth.avg_latency_ms}ms</div>
+               <div className="flex items-center gap-1.5"><Icon name="server" size={10} /> PEERS: {meshHealth.peer_count}</div>
+               {migrations.length > 0 && (
+                 <div className="flex items-center gap-1.5 text-[#ff0055] animate-pulse">
+                   <Icon name="gitBranch" size={10} /> MIGRATIONS: {migrations.filter(m => Date.now() - m.timestamp < 30000).length}
+                 </div>
+               )}
+            </div>
+          )}
           <div className="text-[9px] text-accent/40 self-center bg-black/40 px-4 py-2 rounded border border-white/5 backdrop-blur-md font-mono tracking-widest">
             NODES: {nodes.length} | EDGES: {edges.length} | ENGINE: R3F-INSTANCED
           </div>

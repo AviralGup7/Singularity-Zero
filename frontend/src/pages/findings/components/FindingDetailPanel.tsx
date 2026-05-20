@@ -266,8 +266,8 @@ export function FindingDetailPanel({
               <button 
                 className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
                 onClick={async () => {
-                  if (!detailFinding.url) {
-                    toast.error('Finding has no associated URL for probing');
+                  if (!detailFinding.target || !detailFinding.url) {
+                    toast.error('Missing target or URL for forensic probing');
                     return;
                   }
                   try {

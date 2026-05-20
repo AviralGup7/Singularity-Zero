@@ -92,8 +92,17 @@ const AttackGraph = memo(function AttackGraph({ chain }: { chain: AttackChain })
 
         {nodes.map((node) => (
           <g key={node.id} transform={`translate(${node.x || 0},${node.y || 0})`}>
-            <circle
+            <motion.circle
               r={12}
+              animate={{
+                r: [12, 13, 12],
+                strokeWidth: [2, 3, 2]
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
               fill={node.severity === 'critical' ? '#ff0055' : '#ef4444'}
               stroke="#000"
               strokeWidth={2}
@@ -171,10 +180,17 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
             </div>
 
             <div className="flex items-center justify-between mb-6 relative z-10">
-              <div>
-                <span className="text-[10px] font-black text-bad uppercase tracking-widest px-2 py-0.5 bg-bad/10 rounded mb-2 inline-block">
-                  Critical Attack Path
-                </span>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-bad uppercase tracking-widest px-2 py-0.5 bg-bad/10 rounded inline-block">
+                    Critical Attack Path
+                  </span>
+                  {chain.confidence > 0.9 && (
+                    <span className="flex items-center gap-1 text-[9px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded animate-pulse">
+                      <div className="w-1 h-1 rounded-full bg-accent" /> LIVE
+                    </span>
+                  )}
+                </div>
                 <h3 className="text-lg font-bold text-text uppercase tracking-tighter">{chain.description}</h3>
               </div>
               <div className="text-right">

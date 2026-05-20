@@ -112,6 +112,7 @@ export interface Target {
   severity_counts: Record<string, number>;
   run_count: number;
   last_scan?: string;
+  risk_score?: number;
 }
 
 export interface Job {

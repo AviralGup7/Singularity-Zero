@@ -118,7 +118,7 @@ export function useSSEProgress<T = SseEventData>({
 
     es.onmessage = handleMessage;
    
-    ['log', 'progress_update', 'stage_change', 'finding_batch', 'mesh_health_update', 'completed', 'error'].forEach(type => {
+    ['log', 'progress_update', 'stage_change', 'finding_batch', 'mesh_health_update', 'migration_event', 'completed', 'error'].forEach(type => {
       es.addEventListener(type, handleMessage);
     });
 
