@@ -84,7 +84,6 @@ _PERMANENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
     PermanentError,
     ValueError,
     TypeError,
-    AttributeError,
     KeyError,
 )
 
@@ -244,7 +243,7 @@ def sleep_before_retry(policy: RetryPolicy, attempt: int) -> float:
 logger = get_pipeline_logger(__name__)
 
 
-def execute_with_retry[T](
+def execute_with_retry[T](  # pylint: disable=W0621
     func: Callable[..., T],
     policy: RetryPolicy,
     metrics: RetryMetrics | None = None,
@@ -301,7 +300,7 @@ def execute_with_retry[T](
     raise RuntimeError("Retry loop exited without result or exception")
 
 
-def execute_with_retry_with_metrics[T](
+def execute_with_retry_with_metrics[T](  # pylint: disable=W0621
     func: Callable[..., T],
     policy: RetryPolicy,
     *args: Any,

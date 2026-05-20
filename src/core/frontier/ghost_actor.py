@@ -67,7 +67,8 @@ class ScanActor(pykka.ThreadingActor):
             return ActorState(
                 actor_id=self.actor_id,
                 stage=self.state.get("current_stage", "init"),
-                data=self.state,
+                # Fix S1-3: Use a copy of the state to avoid stale references
+                data=dict(self.state),
                 checkpoint_ts=time.time(),
                 evacuation_recommended=self._evacuation_recommended,
             )
@@ -75,7 +76,7 @@ class ScanActor(pykka.ThreadingActor):
         elif command == "recover":
             # Replay deltas from WAL
             wal_deltas = message.get("deltas", [])
-            logger.info("Ghost-Actor [%s]: Replaying %d deltas from WAL", 
+            logger.info("Ghost-Actor [%s]: Replaying %d deltas from WAL",
                         self.actor_id, len(wal_deltas))
             for delta_entry in wal_deltas:
                 delta = delta_entry.get("delta", {})
@@ -85,6 +86,7 @@ class ScanActor(pykka.ThreadingActor):
 
         elif command == "migrate":
             self.is_migrating = True
+            # Fix S1-3: Ensure we capture a stable snapshot before stopping
             snapshot = self.on_receive({"command": "snapshot"})
             logger.warning("Ghost-Actor [%s]: Initiating migration (Evac Recommended: %s)",
                            self.actor_id, self._evacuation_recommended)
@@ -96,7 +98,8 @@ class ScanActor(pykka.ThreadingActor):
             return {
                 "actor_id": self.actor_id,
                 "evacuation_recommended": self._evacuation_recommended,
-                "node_cpu": psutil.cpu_percent() if psutil else 0.0,
+                # Fix S1-1: Use interval to get a real CPU reading
+                "node_cpu": psutil.cpu_percent(interval=0.1) if psutil else 0.0,
             }
 
         else:
@@ -114,18 +117,22 @@ class ScanActor(pykka.ThreadingActor):
             return
 
         try:
-            cpu = psutil.cpu_percent()
+            # Fix S1-1: Use interval for health checks
+            cpu = psutil.cpu_percent(interval=0.1)
             ram_pct = psutil.virtual_memory().percent
 
             # Proactive evacuation if CPU > 90% or RAM > 95%
             if cpu > 90.0 or ram_pct > 95.0:
                 if not self._evacuation_recommended:
-                    logger.warning("Ghost-Actor [%s]: Node pressure detected (CPU: %.1f%%, RAM: %.1f%%). "
-                                   "Flagging for evacuation.", self.actor_id, cpu, ram_pct)
+                    logger.warning(
+                        "Ghost-Actor [%s]: Node pressure detected (CPU: %.1f%%, RAM: %.1f%%). "
+                        "Flagging for evacuation.",
+                        self.actor_id, cpu, ram_pct,
+                    )
                 self._evacuation_recommended = True
             else:
                 self._evacuation_recommended = False
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             logger.debug("Ghost-Actor [%s]: Health check failed: %s", self.actor_id, e)
 
     def _execute_logic(self, task_input: dict[str, Any]) -> dict[str, Any]:
@@ -134,7 +141,7 @@ class ScanActor(pykka.ThreadingActor):
         try:
             result = self.logic_fn(task_input, self.state)
             return {"status": "success", "output": result}
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             logger.error("Ghost-Actor [%s] failure: %s", self.actor_id, e)
             return {"status": "error", "error": str(e)}
 
@@ -148,10 +155,15 @@ class GhostMeshCoordinator:
     def __init__(self, registry: GhostMeshRegistry, gossip: Any) -> None:
         self.registry = registry
         self.gossip = gossip
-        from src.infrastructure.mesh.balancer import NeuralMeshBalancer
+        from src.infrastructure.mesh.balancer import NeuralMeshBalancer  # pylint: disable=C0415
+
         self.balancer = NeuralMeshBalancer()
 
-    async def migrate_if_needed(self, actor_ref: pykka.ActorRef, task_metadata: dict[str, Any]) -> bool:
+    async def migrate_if_needed(
+        self,
+        actor_ref: pykka.ActorRef,
+        task_metadata: dict[str, Any],
+    ) -> bool:
         """
         Check if an actor should be migrated and execute the move if a better node is found.
         Returns True if migration was successful.
@@ -180,7 +192,7 @@ class GhostMeshCoordinator:
                 await self.registry.register_actor(actor_id, target_node_id)
 
                 # 3. Emit Migration Event for Observability
-                from src.core.events import EventType, get_event_bus
+                from src.core.events import EventType, get_event_bus  # pylint: disable=C0415
                 get_event_bus().emit(
                     EventType.GHOST_ACTOR_MIGRATED,
                     source=f"ghost-coordinator-{self.gossip.local_node.id}",
@@ -197,7 +209,7 @@ class GhostMeshCoordinator:
                 return True
 
             return False
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             logger.error("Ghost-Coordinator: Migration failed: %s", e)
             return False
 

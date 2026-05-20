@@ -38,7 +38,13 @@ This plan outlines the next major phase of development for the Cyber Security Te
     *   **Status**: COMPLETED. Implemented `VectorClock.prune` and `LWWset.compact` in `src/core/frontier/state.py`.
     *   Tombstones are now purged after 24 hours to maintain linear memory growth.
 2.  **AES-GCM Key Rotation**:
-    *   **Status**: PENDING.
+    *   **Status**: COMPLETED. Implemented in `src/core/frontier/ghost_vfs.py`.
+    *   `GhostVFS.__init__()` accepts a `rotation_interval_hours` parameter (default 4 h).
+    *   `rotate_key()` decrypts all stored artifacts under the old key, re-encrypts under a
+        freshly generated key, and wipes the old key from memory via `_secure_wipe_bytes()`.
+    *   `write_file()` proactively calls `rotate_key()` whenever the interval has elapsed.
+    *   Remaining open item: `flush_to_disk()` — on-disk export of encrypted artifacts — is still
+        a stub.
 
 ---
 

@@ -80,6 +80,12 @@ BEHAVIOR_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "logic",
     ),
     spec(
+        "cognitive_flow_analysis",
+        "Cognitive Flow Prober",
+        "Analyze API interactions as stateful sequences and detect complex business logic flaws.",
+        "logic",
+    ),
+    spec(
         "server_side_injection_surface_analyzer",
         "Server-Side Injection Surface",
         "Flag SQLi, file inclusion, XXE, command, and RCE-style parameter surfaces from passive evidence.",

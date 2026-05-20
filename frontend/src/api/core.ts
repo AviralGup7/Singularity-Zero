@@ -50,6 +50,12 @@ apiClient.interceptors.request.use(
    
     config.headers['X-Request-ID'] = generateRequestId();
     config.metadata = { startTime: Date.now() };
+
+    // Fix S0-3: Mark mutation start to prevent stale reads during mutations
+    if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase()) && config.url) {
+      apiCache.markMutationStart(config.url);
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -59,6 +65,12 @@ apiClient.interceptors.response.use(
   (response) => {
     const responseTime = Date.now() - (response.config.metadata?.startTime ?? Date.now());
     
+    // Fix S0-3: Mark mutation end
+    if (response.config.method && response.config.url) {
+      apiCache.markMutationEnd(response.config.url);
+      apiCache.invalidateOnMutation(response.config.method, response.config.url);
+    }
+
     // --- Overhaul: Contract Guard Validation ---
     const schema = response.config.schema;
     if (schema) {
@@ -80,10 +92,6 @@ apiClient.interceptors.response.use(
       console.debug(`[API] ${response.config.method?.toUpperCase()} ${response.config.url} - ${responseTime}ms`);
     }
     
-    if (response.config.method && response.config.url) {
-      apiCache.invalidateOnMutation(response.config.method, response.config.url);
-    }
-    
     if (response.config.method === 'get') {
       const key = apiCache.generateKey(response.config.url ?? '', response.config.params);
    
@@ -98,6 +106,11 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Fix S0-3: Mark mutation end even on error
+    if (error.config?.method && error.config?.url) {
+      apiCache.markMutationEnd(error.config.url);
+    }
+
     if (axios.isCancel(error)) return Promise.reject(error);
     const responseTime = error.config?.metadata?.startTime
       ? Date.now() - error.config.metadata.startTime
@@ -143,7 +156,10 @@ interface CachedRequestOptions {
 export async function cachedGet<T>(url: string, options?: CachedRequestOptions): Promise<T> {
   const key = apiCache.generateKey(url, options?.params);
 
-  if (!options?.bypassCache) {
+  // Fix S0-3: Automatically bypass cache if a mutation is pending for this URL
+  const shouldBypass = options?.bypassCache || apiCache.shouldBypassForMutation(url);
+
+  if (!shouldBypass) {
     const cached = apiCache.get<T>(key);
     if (cached !== null && !apiCache.isStale(key)) {
       return cached;
