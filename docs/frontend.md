@@ -165,21 +165,33 @@ Hook-level dedupe:
 
 ### 6.3 API module map
 
-Modules include:
-- `jobs.ts`
-- `targets.ts`
-- `findings.ts`
-- `analysis.ts`
-- `registry.ts`
-- `reports.ts`
-- `health.ts`
-- `cacheMgmt.ts`
-- `replay.ts`
-- `export.ts`
-- `notes.ts`
+The table and facade below list all API client modules currently in `frontend/src/api/`.
 
-Facade:
-- `frontend/src/api/client.ts` re-exports most operations used by pages/components.
+| Module file | Role | Description |
+|---|---|---|
+| `core.ts` | Transport layer | Axios instance, `VITE_API_BASE` base URL, request/response interceptors, session-expired event dispatch |
+| `client.ts` | Facade | Re-exports most operations used by pages/components |
+| `schemas.ts` | Contracts | OpenAPI / Zod schema exports for contract typing |
+| `jobs.ts` | Jobs CRUD | Job state machine, start/stop/cancel, log retrieval |
+| `targets.ts` | Targets | Target registration, status polling, scan metadata |
+| `findings.ts` | Findings | CRUD, tag/filter, mark-fp, severity queries |
+| `analysis.ts` | Analysis | Analysis job submission, results polling |
+| `bloom.ts` | Bloom filter | Fragment + reconcile ops, health check, admin routes |
+| `audit.ts` | Audit log | Audit log retrieval, search, time-range filters |
+| `cache.ts` | Cache helpers | Cache hit/miss stats, low-level invalidation utilities |
+| `cacheMgmt.ts` | Cache management | Admin Bloom reconciliation trigger, snapshot purge |
+| `registry.ts` | Registry | Template and registry CRUD, discovery endpoints |
+| `reports.ts` | Reports | Report generation, artifact download, report history |
+| `health.ts` | Health probes | `/health` family: liveness, readiness, mesh status |
+| `replay.ts` | Replay | Checkpoint replay session CRUD, resume, step navigation |
+| `export.ts` | Export | Targeted export pipelines for jobs and findings |
+| `notes.ts` | Notes | Annotation CRUD for findings and targets |
+| `remediation.ts` | Remediation | Remediation plan CRUD, status tracking, assignment |
+| `cockpit.ts` | Cockpit | Operational cockpit view: live metrics, node status, scan rate |
+| `retry.ts` | Retry | Transient-failure retry pass, deduplication gate |
+| `security.ts` | Security | Admin security health summary, CORS stats, rate-limit tracking |
+| `tracing.ts` | Tracing | Distributed trace search, span detail, trace graph |
+| `networkStatus.ts` | Network | Peer node connectivity, peer-list sync status, latency histograms |
 
 ---
 
@@ -224,17 +236,6 @@ Failure behavior:
 
 Fallback behavior:
 - If streaming degrades, monitor falls back to polling and surfaces warning banner.
-
----
-
-## ⚠️ Planned Routes (Not Yet Implemented)
-The following routes are documented but pending implementation:
-- `/risk-score` -> Risk Score page
-- `/findings-timeline` -> Findings Timeline view
-- `/target-comparison` -> Target Comparison dashboard
-- `/cache-management` -> Cache management interface
-
-These will be added in the next sprint.
 
 ---
 

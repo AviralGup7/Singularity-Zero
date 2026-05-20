@@ -69,19 +69,21 @@ class SQLiteSpanExporter:
                 """
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_spans_trace_start ON spans(trace_id, start_time_unix_nano)"
+                "CREATE INDEX IF NOT EXISTS idx_spans_trace_start"
+                " ON spans(trace_id, start_time_unix_nano)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_spans_stage_start ON spans(stage_name, start_time_unix_nano)"
+                "CREATE INDEX IF NOT EXISTS idx_spans_stage_start"
+                " ON spans(stage_name, start_time_unix_nano)"
             )
 
     def export(self, spans: Any) -> Any:
         success_code: Any = 0
         try:
-            from opentelemetry.sdk.trace.export import SpanExportResult
+            from opentelemetry.sdk.trace.export import SpanExportResult  # pylint: disable=C0415
 
             success_code = SpanExportResult.SUCCESS
-        except Exception:  # noqa: S110
+        except Exception:  # noqa: S110  # pylint: disable=W0718
             pass
 
         rows = []
@@ -168,13 +170,18 @@ class TracingManager:
 
     def _init_otel(self) -> None:
         try:
-            from opentelemetry import propagate, trace
-            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-            from opentelemetry.sdk.resources import Resource
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
-            from opentelemetry.trace import Status, StatusCode
-        except Exception as exc:
+            from opentelemetry import propagate, trace  # pylint: disable=C0415
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+                OTLPSpanExporter,
+            )
+            from opentelemetry.sdk.resources import Resource  # pylint: disable=C0415
+            from opentelemetry.sdk.trace import TracerProvider  # pylint: disable=C0415
+            from opentelemetry.sdk.trace.export import (
+                BatchSpanProcessor,
+                SimpleSpanProcessor,
+            )
+            from opentelemetry.trace import Status, StatusCode  # pylint: disable=C0415
+        except Exception as exc:  # pylint: disable=W0718
             self.initialization_error = str(exc)
             return
 
@@ -190,7 +197,7 @@ class TracingManager:
             )
             try:
                 trace.set_tracer_provider(provider)
-            except Exception:  # noqa: S110
+            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
                 pass
 
             self._trace = trace
@@ -200,7 +207,7 @@ class TracingManager:
             self._provider = provider
             self._tracer = provider.get_tracer("cyber-pipeline")
             self.otel_available = True
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=W0718
             self.initialization_error = str(exc)
             self.otel_available = False
 
@@ -220,7 +227,7 @@ class TracingManager:
         if parent_headers and self._propagate is not None:
             try:
                 context = self._propagate.extract(dict(parent_headers))
-            except Exception:  # noqa: S110
+            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
                 context = None
 
         with self._tracer.start_as_current_span(
@@ -238,7 +245,7 @@ class TracingManager:
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             name = stage_name or getattr(func, "__name__", "stage")
 
-            import inspect
+            import inspect  # pylint: disable=C0415
 
             is_async = inspect.iscoroutinefunction(func)
 
@@ -251,7 +258,7 @@ class TracingManager:
                             result = await func(*args, **kwargs)
                             self.record_stage_result(span, result)
                             return result
-                        except Exception as exc:
+                        except Exception as exc:  # pylint: disable=W0718
                             self.record_exception(span, exc)
                             raise
 
@@ -264,7 +271,7 @@ class TracingManager:
                         result = func(*args, **kwargs)
                         self.record_stage_result(span, result)
                         return result
-                    except Exception as exc:
+                    except Exception as exc:  # pylint: disable=W0718
                         self.record_exception(span, exc)
                         raise
 
@@ -284,11 +291,11 @@ class TracingManager:
                 target_count = len(
                     getattr(ctx, "priority_urls", []) or getattr(ctx, "urls", []) or []
                 )
-            except Exception:  # noqa: S110
+            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
                 target_count = 0
             try:
                 scope_size = len(getattr(ctx, "scope_entries", []) or [])
-            except Exception:  # noqa: S110
+            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
                 scope_size = 0
         attributes = {
             "stage_name": stage_name,
@@ -321,7 +328,7 @@ class TracingManager:
             span.record_exception(exc)
             span.set_attribute("status", "ERROR")
             self._set_error_status(span, str(exc) or exc.__class__.__name__)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=W0718
             # Fix #338: Log OTel propagation failures instead of silently swallowing
             from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -332,7 +339,7 @@ class TracingManager:
         if self.otel_available and self._propagate is not None:
             try:
                 self._propagate.inject(headers)
-            except Exception:  # noqa: S110
+            except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
                 pass
         return headers
 
@@ -348,7 +355,7 @@ class TracingManager:
                 metadata=metadata,
                 traceparent=headers.get("traceparent", envelope.traceparent),
             )
-        except Exception:  # noqa: S110
+        except Exception:  # pylint: disable=W0718  # noqa: S110,BLE001
             return envelope
 
     @staticmethod
@@ -381,7 +388,7 @@ class TracingManager:
                 res = "connected"
         except error.HTTPError:
             res = "connected"
-        except Exception:  # noqa: S110
+        except Exception:  # noqa: S110  # pylint: disable=W0718  # pylint: disable=W0718
             res = "unreachable"
 
         self._status_cache = res
@@ -407,12 +414,16 @@ class TracingManager:
         if end_ms is not None:
             where.append("start_time_unix_nano <= ?")
             params.append(int(end_ms) * 1_000_000)
-        where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-        # Bandit flags f-strings in SQL, but these are sanitized via placeholders
-        inner_query = f"SELECT trace_id FROM spans {where_sql} GROUP BY trace_id"  # nosec B608 # noqa: S608
+
+        where_sql = ""
+        if where:
+            # We strictly only allow hardcoded placeholders here, never user-input interpolation
+            where_sql = f"WHERE {' AND '.join(where)}"
+
+        # Final query assembly using subqueries (CTEs) for clarity and performance
         query = f"""
             WITH filtered AS (
-                {inner_query}
+                SELECT trace_id FROM spans {where_sql} GROUP BY trace_id
             ),
             trace_bounds AS (
                 SELECT s.trace_id,
@@ -427,7 +438,9 @@ class TracingManager:
             roots AS (
                 SELECT s.trace_id, s.name, s.stage_name, s.service_name, s.status
                 FROM spans s
-                JOIN trace_bounds b ON b.trace_id = s.trace_id AND b.start_ns = s.start_time_unix_nano
+                JOIN trace_bounds b
+                    ON b.trace_id = s.trace_id
+                    AND b.start_ns = s.start_time_unix_nano
             )
             SELECT b.trace_id, r.name, r.stage_name, r.service_name, b.start_ns, b.end_ns,
                    ((b.end_ns - b.start_ns) / 1000000.0) AS duration_ms,

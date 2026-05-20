@@ -16,6 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from src.core.frontier.bloom import NeuralBloomFilter
+from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
 from src.dashboard.fastapi.config import DashboardConfig, FeatureFlags
 from src.dashboard.fastapi.middleware import (
     AuditLoggingMiddleware,
@@ -24,11 +26,12 @@ from src.dashboard.fastapi.middleware import (
     SecurityHeadersMiddleware,
 )
 from src.dashboard.fastapi.response_validator import ResponseValidationMiddleware
+from src.dashboard.fastapi.routers import api_router
 from src.dashboard.fastapi.schemas import (
     DashboardStatsResponse,
 )
 from src.dashboard.fastapi.security import SecurityStore, api_security_enabled, app_secret_key
-from src.dashboard.rate_limiter import RateLimitMiddleware
+from src.dashboard.rate_limiter import RateLimitConfig, RateLimitMiddleware
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.sharding import MeshShardManager
 from src.websocket_server.integration import (
@@ -65,13 +68,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("Project Root: %s", config.workspace_root)
     logger.info("Frontend Dist: %s", config.frontend_dist)
 
-    from src.infrastructure.security.audit import AuditLogger
-    from src.infrastructure.security.config import SecurityConfig
+    from src.infrastructure.security.audit import AuditLogger  # pylint: disable=C0415
+    from src.infrastructure.security.config import SecurityConfig  # pylint: disable=C0415
 
     app.state.audit_logger = AuditLogger(SecurityConfig())
 
-    from src.infrastructure.cache import CacheManager
-    from src.infrastructure.cache.config import CacheConfig
+    from src.infrastructure.cache import CacheManager  # pylint: disable=C0415
+    from src.infrastructure.cache.config import CacheConfig  # pylint: disable=C0415
 
     cache_config = CacheConfig(
         sqlite_db_path=config.cache_db_path,
@@ -80,11 +83,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     )
     app.state.cache_manager = CacheManager(config=cache_config)
 
-    from src.dashboard.fastapi.routers.cache import start_cache_analytics
+    from src.dashboard.fastapi.routers.cache import start_cache_analytics  # pylint: disable=C0415
 
     app.state.cache_analytics_task = start_cache_analytics(app)
 
-    from src.dashboard.services import DashboardServices
+    from src.dashboard.services import DashboardServices  # pylint: disable=C0415
 
     app.state.services = DashboardServices(
         workspace_root=config.workspace_root,
@@ -123,18 +126,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 job_state_store=app.state.services.jobs,
                 lock=app.state.services.lock,
             )
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=W0718
         logger.warning("WebSocket server initialization failed: %s", exc)
         app.state.ws_services = None
 
     # 1. Initialize local mesh node identity
     node_id = f"worker-{uuid.uuid4().hex[:8]}"
+    if psutil:
+        # Prime the CPU counter
+        psutil.cpu_percent(interval=None)
+
     local_node = MeshNode(
         id=node_id,
         host=config.host,
         port=config.port,
         status="alive",
-        cpu_usage=psutil.cpu_percent() if psutil else 0.0,
+        cpu_usage=psutil.cpu_percent(interval=0.1) if psutil else 0.0,
         ram_available_mb=psutil.virtual_memory().available / 1024 / 1024 if psutil else 0.0,
         active_jobs=0,
         last_seen=time.time(),
@@ -157,9 +164,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.sharding = shard_manager
 
     # 3b. Initialize Bloom frontier sync. Redis pub/sub starts only when configured.
-    from src.core.frontier.bloom import NeuralBloomFilter
-    from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
-
     bloom_filter = NeuralBloomFilter(
         capacity=int(os.getenv("BLOOM_CAPACITY", "1000000")),
         error_rate=float(os.getenv("BLOOM_ERROR_RATE", "0.001")),
@@ -178,7 +182,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         while True:
             try:
                 if psutil:
-                    node.cpu_usage = psutil.cpu_percent()
+                    # Fix S1-1: Use to_thread to avoid blocking the event loop
+                    # while getting fresh CPU %
+                    node.cpu_usage = await asyncio.to_thread(
+                        psutil.cpu_percent, interval=0.1
+                    )
                     node.ram_available_mb = psutil.virtual_memory().available / 1024 / 1024
                 # Filter running jobs
                 running = [
@@ -188,14 +196,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 node.last_seen = time.time()
                 # Gossip will propagate this on next cycle
                 await asyncio.sleep(5.0)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=W0718
                 logger.debug("Mesh telemetry pulse failed: %s", e)
                 await asyncio.sleep(10.0)
 
     asyncio.create_task(_mesh_telemetry_pulse(local_node, app))
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
-        from src.dashboard.eta_engine import get_eta_engine
+        from src.dashboard.eta_engine import get_eta_engine  # pylint: disable=C0415
 
         eta_engine = get_eta_engine()
         await eta_engine.start()
@@ -236,7 +244,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await app.state.bloom_mesh.stop()
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
-        from src.dashboard.eta_engine import get_eta_engine
+        from src.dashboard.eta_engine import get_eta_engine  # pylint: disable=C0415
 
         await get_eta_engine().stop()
 
@@ -275,8 +283,6 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    from src.dashboard.rate_limiter import RateLimitConfig
-
     security_enabled = api_security_enabled()
     rate_limit_config = RateLimitConfig(
         window_seconds=1.0 if security_enabled else 60.0,
@@ -298,8 +304,6 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     # ──────────────────────────────────────────────────────────
     # API Router Integration
     # ──────────────────────────────────────────────────────────
-    from src.dashboard.fastapi.routers import api_router
-
     app.include_router(api_router)
 
     def _error_payload(error: str, detail: Any = None, code: str | None = None) -> dict[str, Any]:
@@ -387,9 +391,16 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
 
         return HTMLResponse(
             status_code=404,
-            content=f"<!DOCTYPE html><html><body style='background:#0a0a0a;color:#f85149;padding:2rem;font-family:monospace;'>"
-            f"<h1>FATAL: Frontend Build Missing</h1><p>Artifacts not found at: <code>{config.frontend_dist}</code></p>"
-            f"<p>Run: <code>cd frontend && npm install && npm run build</code></p></body></html>",
+            content=(
+                "<!DOCTYPE html><html>"
+                "<body style='background:#0a0a0a;color:#f85149;"
+                "padding:2rem;font-family:monospace;'>"
+                f"<h1>FATAL: Frontend Build Missing</h1>"
+                f"<p>Artifacts not found at: "
+                f"<code>{config.frontend_dist}</code></p>"
+                f"<p>Run: <code>cd frontend && npm install && npm run build"
+                f"</code></p></body></html>"
+            ),
         )
 
     # Specific static files handlers

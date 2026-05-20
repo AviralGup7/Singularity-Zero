@@ -97,7 +97,8 @@ class RequestChameleon:
 
         # 4. Shuffle Order using Fisher-Yates via secrets
         items = list(headers.items())
-        for i in range(len(items) - 1, 0, -1):
+        # Fix S4-3: Use exhaustive range for Fisher-Yates shuffle
+        for i in range(len(items) - 1, -1, -1):
             j = secrets.randbelow(i + 1)
             items[i], items[j] = items[j], items[i]
 

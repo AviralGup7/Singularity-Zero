@@ -70,9 +70,9 @@ class FrontierWAL:
             import msgpack
 
             deltas = []
-            # Use provided start_id (exclusive) or the beginning of the stream
-            cursor: str = f"({start_id}" if start_id else "-"
-            
+            # Fix S1-2: Explicit None check to handle empty string start_id correctly
+            cursor: str = f"({start_id}" if start_id is not None else "-"
+
             while True:
                 raw_items = cast(
                     list[Any],
@@ -93,7 +93,7 @@ class FrontierWAL:
                 last_id = raw_items[-1][0]
                 last_id_str = last_id.decode() if isinstance(last_id, bytes) else str(last_id)
                 cursor = f"({last_id_str}"
-                
+
             return deltas
         except Exception as exc:
             logger.error("WAL recovery failed: %s", exc)

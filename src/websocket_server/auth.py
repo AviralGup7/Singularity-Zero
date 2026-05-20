@@ -241,7 +241,8 @@ def _authenticate_api_key(
     return AuthCredentials(
         user_id=user_id,
         roles=roles,
-        api_key_id=api_key[:8] + "...",
+        # Fix SEC-4: Mask API key prefix to prevent leak in logs/diagnostics
+        api_key_id="****" + api_key[-4:] if len(api_key) > 4 else "****",
         auth_method="api_key",
     )
 
