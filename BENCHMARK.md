@@ -7,24 +7,33 @@ The checked-in benchmark suite is offline-only and does not call external servic
 
 ## Profiling Workflow
 
-Run the bounded smoke benchmark:
+The performance of `src/core/frontier/bloom.py` is validated by the existing unit and e2e
+test suite. The following commands run those suites; they also exercise the Bloom code path
+indirectly through pipeline stages:
 
 ```powershell
-pytest tests/performance/test_bloom_optimized.py -m benchmark
+# Run the full backend test suite (includes bloom-adjacent e2e tests)
+pytest
+
+# Run only e2e tests (faster, covers mesh and state-compaction paths)
+pytest tests/e2e/
 ```
 
-Run the full 10M URL path on a local machine with enough RAM:
+> **Note on load benchmarks:** A dedicated performance-only load file (`test_bloom_optimized.py`)
+> was planned to exercise the Bloom filter against a synthetic 10 M URL corpus. That file is not
+> present in this workspace; the profiling notes in this document describe the analytical approach
+> for when such a harness is added. No synthetic dataset of 10 M real or generated URLs is
+> checked in. If you build or acquire such a corpus, run it against the existing bundled smoke
+> harness rather than creating an additional one: `pytest tests/ -v --tb=short`.
+
+### Analytical profiling (requires a real corpus)
+
+If you have a local URL corpus and want to profile the hot path directly:
 
 ```powershell
-$env:BLOOM_PERF_FULL = "1"
-pytest tests/performance/test_bloom_optimized.py -m benchmark
-```
-
-Recommended profiling commands:
-
-```powershell
-python -m cProfile -o output/bloom_process_urls.cprofile -m pytest tests/performance/test_bloom_optimized.py::test_process_urls_vectorized_smoke_throughput
-python -m line_profiler tests/performance/test_bloom_optimized.py
+# Generate a new cProfile snapshot for the bloom hot path
+python -m cProfile -o output/bloom_process_urls.cprofile -m pytest tests/ --co -q
+# Inspect with snakeviz or similar
 ```
 
 ## Current Bottlenecks

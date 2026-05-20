@@ -114,6 +114,19 @@ def build_explanation(
             parts.append(
                 "Direct access to a later workflow step was possible without completing prerequisite steps."
             )
+        elif module == "cognitive_flow_analysis":
+            if title == "Unenforced State Transition":
+                parts.append(
+                    "The state machine for this workflow allowed direct access to terminal or sensitive steps without valid state tokens from preceding requests, suggesting a bypass of prerequisite logic."
+                )
+            elif title == "Loose State-to-Session Binding":
+                parts.append(
+                    "A critical state parameter (ID/Token) was successfully modified without causing a session error, indicating that the server does not strictly bind resource state to the authenticated session."
+                )
+            else:
+                parts.append(
+                    "Advanced flow analysis detected a logical inconsistency in the request sequence, possibly allowing for step-skipping or state tampering."
+                )
 
     elif category == "access_control":
         if module == "privilege_escalation_detector":

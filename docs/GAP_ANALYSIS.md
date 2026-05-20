@@ -7,22 +7,40 @@ This document provides a high-level overview of the functional, architectural, a
 ## 🏗️ 1. Architectural Gaps
 
 ### 1.1 Actor-Mesh Maturity
-- **Status**: Partial
-- **Gap**: While the `GhostActor` implementation exists, the automated migration of actors based on resource pressure (CPU/RAM) is currently simulated in the scheduler.
-- **Impact**: Cluster load balancing is less efficient than the ideal state.
-- **Mitigation**: Implement real-time `psutil` feedback loops in `Balancer.py`.
+- **Status**: Functional
+- **Completed**: `Balancer` mesh balancer (`src/infrastructure/mesh/balancer.py`) ingests real-time `psutil`
+  data to compute a multi-factor Suitability Score (CPU, RAM, reputation, efficiency). `GhostActor`
+  (`src/core/frontier/ghost_actor.py`) exposes an `evacuation_recommended` flag on `ActorState`.
+- **Gap**: Automated mid-execution actor *migration* — performing a live state transfer across the
+  distributed mesh — is not yet implemented. The current code enables the *decision* to migrate but
+  does not yet move the running actor to a colder node.
+- **Impact**: Load-balancing decisions are accurate; workload is not yet redistributed mid-execution.
+- **Mitigation**: Implement live actor serialization and re-hydration on the target worker node.
 
 ### 1.2 State Consistency (CRDT)
-- **Status**: Functional
-- **Gap**: Vector clocks are implemented, but garbage collection (pruning) of old vector entries in long-running jobs is missing.
-- **Impact**: Potential memory bloat in the `NeuralState` over time.
-- **Mitigation**: Implement a threshold-based state compaction routine.
+- **Status**: COMPLETED
+- **Completed**: `VectorClock.prune(active_node_ids)` and `LWWset.compact()` are implemented in
+  `src/core/frontier/state.py`. Tombstones are purged by age threshold. `NeuralState.compact()`
+  handles the top-level aggregation. An e2e regression test exists at `tests/e2e/test_state_compaction.py`.
+- **Remaining gap**: Long-running, multi-day jobs can still accumulate vector-clock entries for
+  nodes that have left the mesh until the next explicit `prune()` call; a periodic background
+  sweeper that calls `NeuralState.compact()` on a fixed interval has not been wired into the
+  pipeline lifecycle hook yet.
+- **Impact**: Low — compaction is triggered on every stage boundary and manual `prune()` calls are
+  effective; no growth leak in normal scan durations.
+- **Mitigation**: Add a periodic background compaction task callable from the pipeline lifecycle.
 
 ### 1.3 Anti-Forensic Persistence
 - **Status**: Functional
-- **Gap**: `GhostVFS` uses AES-GCM for RAM storage, but the key rotation mechanism is static per-job.
-- **Impact**: Reduced security posture for multi-day, high-stakes engagements.
-- **Mitigation**: Implement temporal key rotation (every 4 hours) for the virtual filesystem.
+- **Gap**: `GhostVFS` (`src/core/frontier/ghost_vfs.py`) implements temporal AES-GCM key rotation.
+  The constructor accepts `rotation_interval_hours` (default 4.0 h); `rotate_key()` decrypts every
+  stored file with the old key, re-encrypts everything under a fresh key, and attempts a secure
+  memory wipe of the old key material. Rotation is also triggered proactively inside `write_file()`
+  whenever the interval has elapsed.
+  Remaining open item: `flush_to_disk()` is a stub — writing encrypted artifacts to a physical
+  disk destination is not implemented.
+- **Impact**: Low for transient scans; moderate for engagements that require on-disk evidence export.
+- **Mitigation**: Implement `flush_to_disk()` when durable export is required.
 
 ---
 
@@ -37,22 +55,31 @@ This document provides a high-level overview of the functional, architectural, a
 - **Impact**: Blind spots in sophisticated application logic vulnerabilities.
 
 ### 2.2 False Positive Reduction
-- **Status**: Improving
-- **Gap**: Semantic deduplication is effective for clustering, but the feedback loop (learning from user-marked FPs) is currently local and not shared across the mesh.
-- **Impact**: Analysts may have to triage the same FP category multiple times across different nodes.
-- **Mitigation**: Centralize the FP-Pattern repository in Redis with mesh-wide pub/sub synchronization.
+- **Status**: Partial — local per-node feedback loop; shared mesh-wide repository planned
+- **Gap**: Semantic deduplication clusters finding families correctly, but the feedback loop (analyst
+  FP marks rolling back into the pattern store) operates locally on each mesh node only. A
+  centrally shared FP-pattern repository backed by Redis with mesh-wide pub/sub sync has not been
+  deployed, so the same FP category may be triaged independently on multiple nodes.
+- **Impact**: Analyst triage burden is replicated across the mesh for recurring false-positive types.
+- **Mitigation**: Centralize the FP-pattern repository in Redis with mesh-wide pub/sub synchronization.
 
 ---
 
 ## 🖥️ 3. Frontend & Dashboard Gaps
 
 ### 3.1 Unimplemented Routes
-- **Status**: Significant
-- **Gaps**:
-    - `/risk-score`: Page exists but lacks the full 3D breakdown of the CSI components.
-    - `/target-comparison`: Missing comparative analytics between different scan windows.
-    - `/cache-management`: UI for invalidating specific Bloom snapshots is not yet linked.
-- **Impact**: Limited observability for advanced risk metrics.
+- **Status**: Partial — pages and routing are implemented; minor feature gaps remain per page.
+- **Details**:
+  - `/risk-score` — page component (`RiskScorePage.tsx`) is routed in `App.tsx`; factor card
+    and trend-chart are present, but the 3D instanced breakdown of CSI sub-graphs is not yet
+    built. A dedicated e2e spec (`risk-score.spec.ts`) exists.
+  - `/findings-timeline` — page scaffold present; no dedicated e2e test file yet.
+  - `/target-comparison` — page present; the cross-run comparison API endpoint is still under
+    development, so the page currently shows fixture data.
+  - `/cache-management` — admin page is rendered and mounted; `POST /api/bloom/reconcile`
+    trigger wiring in the UI is the remaining gap.
+- **Impact**: Limited observability for advanced risk metrics; three of four pages are usable today
+  and the fourth is a thin wrapper pending an API hookup.
 
 ### 3.2 Real-time Synchronization
 - **Status**: Beta

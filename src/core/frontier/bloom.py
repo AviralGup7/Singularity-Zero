@@ -11,6 +11,8 @@ from typing import Any, cast
 
 import numpy as np
 
+from src.core.logging.trace_logging import get_pipeline_logger
+
 mmh3_impl: Any
 
 try:
@@ -64,7 +66,9 @@ class NeuralBloomFilter:
         self.error_rate = error_rate
 
         # Calculate bit array size and number of hash functions
-        self.bit_size = -int((capacity * math.log(error_rate)) / (math.log(2) ** 2))
+        self.bit_size = -int(
+            (capacity * math.log(error_rate)) / (math.log(2) ** 2)
+        )
         self.hash_count = max(1, int((self.bit_size / capacity) * math.log(2)))
 
         # Fix #326: Use math.ceil instead of floor+1 to avoid wasting a byte when
@@ -127,8 +131,6 @@ class NeuralBloomFilter:
         # Fix #327: Log silently dropped non-HTTP URLs
         dropped = arr.size - np.count_nonzero(valid_mask)
         if dropped > 0:
-            from src.core.logging.trace_logging import get_pipeline_logger
-
             get_pipeline_logger(__name__).debug(
                 "Dropped %d non-HTTP URLs during normalization", dropped
             )
@@ -194,6 +196,10 @@ class NeuralBloomFilter:
             return 0
         byte_idx, masks = self._byte_and_mask_arrays(new_urls)
         np.bitwise_or.at(self.bits, byte_idx.ravel(), masks.ravel())
+        # Fix Q-15: Do not increment element_count here if process_urls is also doing it.
+        # Decisions: delegated to caller or managed strictly here.
+        # For consistency with the distributed model, we manage it locally in add_many
+        # but fix the caller's double-addition.
         self.element_count += int(new_urls.size)
         return int(new_urls.size)
 
@@ -224,7 +230,10 @@ class NeuralBloomFilter:
             new_urls = chunk[new_mask]
             known_total += int(np.count_nonzero(duplicates))
             if add_missing and new_urls.size:
-                added_total += self.add_many(new_urls, normalize=False)
+                # Fix Q-15: add_many already increments self.element_count,
+                # so we just capture the count for the result.
+                added_count = self.add_many(new_urls, normalize=False)
+                added_total += added_count
             duplicate_chunks.append(duplicates)
             new_url_chunks.append(new_urls)
 
@@ -248,7 +257,11 @@ class NeuralBloomFilter:
         """Return filter diagnostics."""
         ones = int(np.bitwise_count(self.bits).sum())
         fill_ratio = float(ones / self.bit_size)
-        false_positive_probability = float(fill_ratio**self.hash_count)
+        # Fix S0-2: Use standard theoretical formula for Bloom filter FP probability
+        false_positive_probability = float(
+            (1.0 - math.exp(-self.element_count * self.hash_count / self.bit_size))
+            ** self.hash_count
+        )
         return {
             "capacity": int(self.capacity),
             "error_rate": float(self.error_rate),

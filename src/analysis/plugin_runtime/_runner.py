@@ -30,6 +30,7 @@ _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
     "behavior_analysis": ("behavior_results",),
     "responses_and_bulk_items": ("responses", "bulk_items"),
     "header_targets_and_cache": ("header_targets", "response_cache"),
+    "urls_and_cache": ("urls", "response_cache"),
 }
 
 
@@ -313,6 +314,11 @@ def _resolve_input_kwargs(
     if kind == "header_targets_and_cache":
         return {
             "header_targets": context.header_targets,
+            "response_cache": context.response_cache,
+        }
+    if kind == "urls_and_cache":
+        return {
+            "urls": context.urls,
             "response_cache": context.response_cache,
         }
 

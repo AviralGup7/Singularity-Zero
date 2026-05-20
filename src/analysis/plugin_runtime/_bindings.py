@@ -23,6 +23,7 @@ from src.analysis.passive.detectors.detector_vulnerable_components import (
     vulnerable_component_detector,
 )
 from src.analysis.passive.detectors.detector_xxe import xxe_surface_detector
+from src.analysis.behavior.flow_prober import run_cognitive_flow_analysis
 from src.analysis.plugin_runtime_models import AnalyzerBinding
 from src.core.plugins import list_plugins, register_plugin
 
@@ -135,6 +136,12 @@ def _register_bindings() -> None:
         "payment_flow_intelligence": _binding("responses_only"),
         "payment_provider_detection": _binding("responses_only"),
         "behavior_analysis_layer": _binding("behavior_analysis"),
+        "cognitive_flow_analysis": _binding(
+            "urls_and_cache",
+            run_cognitive_flow_analysis,
+            limit_key="cognitive_flow_limit",
+            default_limit=12,
+        ),
         "redirect_chain_analyzer": _binding("responses_only"),
         "auth_boundary_redirect_detection": _binding("priority_urls_and_cache"),
         "graphql_introspection_exposure_checker": _binding("responses_only"),

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -31,7 +30,7 @@ async def get_remediation_plan(
         # For now, we aggregate from the local finding store/targets.
         targets_res = services.get_targets()
         all_findings = []
-        
+
         for target in targets_res.get("targets", []):
             target_name = target.get("name")
             if target_name:
@@ -43,7 +42,7 @@ async def get_remediation_plan(
 
         # 2. Group findings by category (Tactical Fix Units)
         groups: dict[str, dict[str, Any]] = {}
-        
+
         for finding in all_findings:
             category = finding.get("category", finding.get("type", "unknown")).lower()
             if category not in groups:
@@ -59,11 +58,11 @@ async def get_remediation_plan(
                     "total_count": 0,
                     "targets": set(),
                 }
-            
+
             groups[category]["findings"].append(finding)
             groups[category]["total_count"] += 1
             groups[category]["targets"].add(finding["target"])
-            
+
             # Elevate group severity if a critical finding is present
             if finding.get("severity") == "critical":
                 groups[category]["severity"] = "critical"

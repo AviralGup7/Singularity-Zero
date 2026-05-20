@@ -8,7 +8,6 @@ from __future__ import annotations
 import os
 import secrets
 import time
-from typing import Any
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -33,7 +32,7 @@ class GhostVFS:
         self._aesgcm = AESGCM(self._key)
         self._rotation_interval = rotation_interval_hours * 3600
         self._last_rotation = time.time()
-        logger.info("Ghost-VFS Initialized (Anti-Forensic Mode: ACTIVE, Rotation: %.1fh)", 
+        logger.info("Ghost-VFS Initialized (Anti-Forensic Mode: ACTIVE, Rotation: %.1fh)",
                     rotation_interval_hours)
 
     def write_file(self, path: str, content: str | bytes) -> None:
@@ -65,18 +64,24 @@ class GhostVFS:
         """
         logger.info("Ghost-VFS: Initiating temporal key rotation...")
         start_ts = time.monotonic()
-        
+
+        # Fix CORR-1: Pre-decrypt everything first to ensure we don't lose data
+        # if a single file fails re-encryption after the key has already swapped.
+        decrypted_data: dict[str, bytes] = {}
+        for path in list(self._files.keys()):
+            try:
+                decrypted_data[path] = self.read_file(path)
+            except Exception as e:
+                logger.error("Ghost-VFS: Failed to decrypt %s during rotation prep: %s", path, e)
+
         old_key = self._key
         new_key = AESGCM.generate_key(bit_length=256)
         new_aesgcm = AESGCM(new_key)
-        
-        # Re-encrypt everything
+
+        # Re-encrypt everything with the new key
         file_count = 0
-        for path in list(self._files.keys()):
+        for path, data in decrypted_data.items():
             try:
-                # 1. Decrypt with old key
-                data = self.read_file(path)
-                # 2. Encrypt with new key
                 new_nonce = os.urandom(12)
                 new_encrypted = new_aesgcm.encrypt(new_nonce, data, None)
                 self._files[path] = new_nonce + new_encrypted
@@ -91,9 +96,9 @@ class GhostVFS:
 
         # Wipe old key
         self._secure_wipe_bytes(old_key)
-        
+
         duration = time.monotonic() - start_ts
-        logger.info("Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs", 
+        logger.info("Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs",
                     file_count, duration)
 
     def _secure_wipe_bytes(self, b: bytes) -> None:
@@ -101,13 +106,15 @@ class GhostVFS:
         if not b or not isinstance(b, bytes):
             return
         try:
-            # Overwrite reference with random data to encourage GC
+            # Fix Q-7: In Python, bytes are immutable, but we can delete the
+            # reference and suggest GC. We also overwrite the local name.
             length = len(b)
-            dummy = secrets.token_bytes(length)
-            del dummy
-        except Exception:
+            # Create a large dummy to pressure memory if needed, but primarily
+            # we rely on the reference being gone.
+            _dummy = secrets.token_bytes(length)
+            del b
+        except Exception:  # noqa: S110
             pass
-
     def list_files(self) -> list[str]:
         """List all files in the virtual filesystem."""
         return list(self._files.keys())

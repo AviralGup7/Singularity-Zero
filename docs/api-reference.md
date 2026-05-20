@@ -119,6 +119,93 @@ paths:
       x-ai-impact: high
       responses:
         '200': {description: Cache cleared}
+
+  /api/health/live:
+    get:
+      summary: Liveness check
+      x-ai-action: check_liveness
+      x-ai-idempotency: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string}
+                  timestamp: {type: string}
+
+  /api/health/ready:
+    get:
+      summary: Readiness check — returns ready=true when all critical dependencies are UP
+      x-ai-action: check_readiness
+      x-ai-idempotency: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready: {type: boolean}
+                  checks: {type: object}
+
+  /api/health/mesh:
+    get:
+      summary: Mesh health — raw view of mesh membership and transport statistics
+      x-ai-action: get_mesh_health
+      x-ai-idempotency: true
+      responses:
+        '200': {description: Mesh telemetry JSON}
+
+  /api/bloom/health:
+    get:
+      summary: Bloom filter mesh health — per-node memory, element count, FP probability, saturation history
+      x-ai-action: get_bloom_health
+      x-ai-idempotency: true
+      responses:
+        '200': {description: Bloom mesh health JSON}
+
+  /api/bloom/reconcile:
+    post:
+      summary: Force an immediate Bloom snapshot publish across all online mesh nodes
+      x-ai-action: reconcile_bloom_mesh
+      x-ai-idempotency: true
+      x-ai-impact: medium
+      responses:
+        '200': {description: Reconciliation status JSON}
+
+  /api/findings/{finding_id}:
+    put:
+      summary: Update a finding's metadata (e.g. status, notes)
+      x-ai-action: update_finding
+      x-ai-idempotency: false
+      parameters:
+        - name: finding_id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200': {description: Finding updated}
+        '404': {$ref: '#/components/schemas/ErrorResponse'}
+        '401': {$ref: '#/components/schemas/ErrorResponse'}
+    delete:
+      summary: Remove a finding
+      x-ai-action: delete_finding
+      x-ai-idempotency: false
+      x-ai-impact: high
+      parameters:
+        - name: finding_id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200': {description: Finding deleted}
+        '404': {$ref: '#/components/schemas/ErrorResponse'}
 ```
 
 ---

@@ -22,12 +22,12 @@ def test_ghost_vfs_key_rotation():
     vfs = GhostVFS(rotation_interval_hours=0.0001)  # Very short interval
     vfs.write_file("data.bin", b"\x00\xff\xee")
     initial_key = vfs._key
-    
+
     # Manual rotation
     vfs.rotate_key()
     assert vfs._key != initial_key
     assert vfs.read_file("data.bin") == b"\x00\xff\xee"
-    
+
     # Proactive rotation on write
     vfs._last_rotation = 0  # Force timeout
     vfs.write_file("trigger.txt", "rotate me")
