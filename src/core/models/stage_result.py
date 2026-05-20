@@ -278,6 +278,7 @@ class PipelineContext:
 
     result: StageResult = field(default_factory=StageResult)
     output_store: Any = None
+    run_id: str = ""
     _checkpoint_mgr: Any = field(default=None, repr=False)
 
     def save_checkpoint_delta(

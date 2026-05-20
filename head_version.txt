@@ -418,7 +418,7 @@ class TracingManager:
         where_sql = ""
         if where:
             # We strictly only allow hardcoded placeholders here, never user-input interpolation
-            where_sql = "WHERE " + " AND ".join(where)
+            where_sql = f"WHERE {' AND '.join(where)}"
 
         # Final query assembly using subqueries (CTEs) for clarity and performance
         query = f"""
