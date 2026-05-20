@@ -168,7 +168,9 @@ async def run_parallel_group(
                         current_stage_state,
                         ctx.result.module_metrics.get(name, {}),
                     )
-            except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
                 logger.exception("Parallel stage %s raised an unhandled exception: %s", name, exc)
                 ctx.result.stage_status[name] = StageStatus.FAILED.value
                 ctx.result.module_metrics[name] = {
@@ -282,7 +284,19 @@ async def run_parallel_group(
         # Less than 2 tasks — no real parallelism to gain, skip
         return
 
-    await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for stage_name, result in zip(stage_labels, results, strict=False):
+        if isinstance(result, asyncio.CancelledError):
+            raise result
+        if isinstance(result, BaseException):
+            logger.exception("Parallel stage task %s failed: %s", stage_name, result)
+            ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
+            ctx.result.module_metrics[stage_name] = {
+                "status": "error",
+                "error": str(result) or result.__class__.__name__,
+                "failure_reason": str(result) or result.__class__.__name__,
+                "fatal": False,
+            }
 
     for paral_stage in stage_labels:
         handled_by_parallel.add(paral_stage)

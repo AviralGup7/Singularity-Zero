@@ -108,7 +108,8 @@ def mutate_identifier(url: str) -> str:
         if len(segment) >= 2:
             bumped = f"{path[:start]}{int(segment) + 1}{path[index + 1 :]}"
             return urlunparse(parsed._replace(path=bumped))
-        break
+        # Keep scanning earlier segments if we hit a short trailing digit (e.g., /v1/).
+        continue
 
     # Strategy 5: UUID in path segments
     path_segments = path.strip("/").split("/")
@@ -120,7 +121,7 @@ def mutate_identifier(url: str) -> str:
             new_segments = path_segments.copy()
             new_segments[len(path_segments) - 1 - i] = mutated_uuid
             return urlunparse(parsed._replace(path="/" + "/".join(new_segments)))
-        break
+
 
     return ""
 

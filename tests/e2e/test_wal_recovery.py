@@ -84,7 +84,7 @@ async def test_incremental_wal_recovery(monkeypatch):
     id1 = wal.log_delta("stage1", {"k1": "v1"})
 
     # Log second delta
-    id2 = wal.log_delta("stage2", {"k2": "v2"})
+    wal.log_delta("stage2", {"k2": "v2"})
 
     # Recover only after id1
     deltas = wal.recover_deltas(start_id=id1)

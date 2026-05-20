@@ -58,6 +58,12 @@ class ScanActor(pykka.ThreadingActor):
 
         command = message.get("command")
 
+        # Fix S2-2: Explicit command whitelist — unknown commands are rejected, not silently accepted
+        known_commands = {"execute", "snapshot", "recover", "migrate", "health_check"}
+        if command not in known_commands:
+            logger.error("Ghost-Actor [%s] failure: Unknown command %s", self.actor_id, command)
+            return {"status": "error", "error": f"Unknown command: {command}"}
+
         if command == "execute":
             # Auto-check health before execution
             self._check_local_health()

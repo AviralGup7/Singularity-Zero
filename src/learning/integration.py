@@ -461,6 +461,15 @@ class LearningIntegration:
                     loop.create_task(self._mesh_sync.stop())
             except Exception as e:
                 logger.debug("MeshSync shutdown during close failed: %s", e)
+
+        if self._redis_repo:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._redis_repo.close())
+            except Exception:
+                pass
+
         self.store.close()
 
 
@@ -473,3 +482,4 @@ def _cleanup_learning_integration() -> None:
 
 
 atexit.register(_cleanup_learning_integration)
+ning_integration)

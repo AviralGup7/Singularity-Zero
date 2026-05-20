@@ -87,7 +87,8 @@ class LWWset[T]:
         timestamp: float | None = None,
         vclock: VectorClock | None = None,
     ) -> None:
-        ts = timestamp or time.time()
+        # Match add(): preserve timestamp=0.0 (epoch)
+        ts = timestamp if timestamp is not None else time.time()
         key = self._key(item)
         existing = self._elements.get(key)
         if existing is None or ts > existing.timestamp:

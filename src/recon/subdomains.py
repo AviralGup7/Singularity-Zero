@@ -29,7 +29,7 @@ def fetch_crtsh_subdomains(
     timeout_seconds: int,
     retry_policy: RetryPolicy | None = None,
 ) -> set[str]:
-    url = f"https://crt.sh/?q=%25.{domain}&output=json"
+    url = f"https://crt.sh/?q=%25.{domain.rstrip('/')}&output=json"
     policy = retry_policy or RetryPolicy()
     payload = ""
     for attempt in range(1, policy.max_attempts + 1):

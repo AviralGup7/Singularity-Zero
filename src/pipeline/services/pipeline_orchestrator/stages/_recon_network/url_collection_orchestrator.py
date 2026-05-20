@@ -1,6 +1,7 @@
 """URL collection orchestration service."""
 
 import asyncio
+import logging
 import time
 from typing import Any
 
@@ -10,6 +11,8 @@ from src.recon.common import normalize_url
 
 from .async_utils import _run_sync_with_heartbeat
 from .url_stats import _should_refresh_low_signal_url_cache, _url_discovery_stats
+
+logger = logging.getLogger(__name__)
 
 
 class UrlCollectionOrchestrator:
@@ -339,10 +342,7 @@ class UrlCollectionOrchestrator:
             )
 
         except Exception as exc:
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.error("Stage 'urls' failed: %s", exc)
+            logger.exception("Stage 'urls' failed: %s", exc)
             state_delta = {
                 "urls": set(),
                 "url_stage_meta": {},
@@ -482,7 +482,8 @@ class UrlCollectionOrchestrator:
                 cached_meta = self.load_cached_json(
                     self.ctx.output_store.cache_root / "urls_meta.json"
                 )
-            except Exception:  # noqa: S110
+            except Exception:
+                logger.debug("Failed to load cached URL metadata", exc_info=True)
                 cached_meta = {}
             if cached_meta:
                 stage_meta.clear()
@@ -494,8 +495,8 @@ class UrlCollectionOrchestrator:
                     self.ctx.output_store.cache_root / "urls_meta.json",
                     stage_meta,
                 )
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.debug("Failed to persist URL metadata cache", exc_info=True)
 
     async def _run_refresh_phase(
         self,
@@ -583,8 +584,8 @@ class UrlCollectionOrchestrator:
             try:
                 meta_path = self.ctx.output_store.cache_root / "urls_meta.json"
                 await asyncio.to_thread(self.save_cached_json, meta_path, self._url_meta)
-            except Exception:  # noqa: S110
-                pass
+            except Exception:
+                logger.debug("Failed to persist refreshed URL metadata cache", exc_info=True)
             self.ctx.output_store.write_urls(self._urls)
             self.validate_recon_payload(
                 {"urls": sorted(self._urls), "live_hosts": sorted(self.ctx.live_hosts)}

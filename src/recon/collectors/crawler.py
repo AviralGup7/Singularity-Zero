@@ -208,6 +208,7 @@ def _crawl_single_host(
 
         # extract script urls and optionally fetch JS
         script_urls = set()
+        tag = None
         try:
             soup = BeautifulSoup(text or "", "html.parser")
             for tag in soup.find_all("script", src=True):
@@ -216,7 +217,7 @@ def _crawl_single_host(
                 if abs_src and _is_in_scope_url(abs_src, scope_roots):
                     script_urls.add(abs_src)
         except Exception as e:
-            logger.debug("Failed to parse script tag %s: %s", tag, e)
+            logger.debug("Failed to parse script tags for %s (tag=%s): %s", url, tag, e)
 
         scripts_found += len(script_urls)
         discovered.update(script_urls)

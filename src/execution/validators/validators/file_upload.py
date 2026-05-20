@@ -237,6 +237,9 @@ SIZE_LIMIT_TESTS = [
 ]
 
 
+MAX_SIZE_LIMIT_TEST_BYTES = 1024 * 1024 * 5
+
+
 def _build_multipart_body(
     filename: str,
     content: bytes,
@@ -429,7 +432,9 @@ def _active_file_upload_test(target_url: str, http_client: Any) -> dict[str, Any
             logger.debug("File upload test failed (traversal=%s): %s", traversal_filename, exc)
 
     for size, description in SIZE_LIMIT_TESTS:
-        content = b"A" * min(size, 1024 * 100)
+        capped = size > MAX_SIZE_LIMIT_TEST_BYTES
+        bytes_sent = min(size, MAX_SIZE_LIMIT_TEST_BYTES)
+        content = b"A" * bytes_sent
         try:
             body, content_type = _build_multipart_body("test_large.txt", content, "text/plain")
             response = http_client.request(
@@ -445,6 +450,8 @@ def _active_file_upload_test(target_url: str, http_client: Any) -> dict[str, Any
                 "test": "size_limit",
                 "description": description,
                 "size": size,
+                "bytes_sent": bytes_sent,
+                "capped": capped,
                 "status_code": status_code,
                 "accepted": accepted,
             }

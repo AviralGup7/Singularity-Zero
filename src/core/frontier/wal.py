@@ -70,8 +70,10 @@ class FrontierWAL:
             import msgpack
 
             deltas = []
-            # Fix S1-2: Explicit None check to handle empty string start_id correctly
-            cursor: str = f"({start_id}" if start_id is not None else "-"
+            # Fix S1-2: Empty/whitespace start_id must be treated as no cursor.
+            # Redis stream IDs are required after '(' for exclusive ranges; '(' alone is invalid.
+            start_id_norm = start_id.strip() if isinstance(start_id, str) else None
+            cursor: str = f"({start_id_norm}" if start_id_norm else "-"
 
             while True:
                 raw_items = cast(
