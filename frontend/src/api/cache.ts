@@ -26,20 +26,21 @@ class ApiCache {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  private stableStringify(obj: any): string {
+  private stableStringify(obj: unknown): string {
     if (obj === null || typeof obj !== 'object') {
       return String(obj);
     }
 
     if (Array.isArray(obj)) {
-      return `[${obj.map(item => this.stableStringify(item)).join(',')}]`;
+      return `[${obj.map((item: unknown) => this.stableStringify(item)).join(',')}]`;
     }
 
-    const keys = Object.keys(obj).sort();
-    return `{${keys.map(key => `${key}:${this.stableStringify(obj[key])}`).join(',')}}`;
+    const record = obj as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    return `{${keys.map(key => `${key}:${this.stableStringify(record[key])}`).join(',')}}`;
   }
 
-  generateKey(url: string, params?: any): string {
+  generateKey(url: string, params?: unknown): string {
     if (!params) return url;
     return `${url}?${this.stableStringify(params)}`;
   }
