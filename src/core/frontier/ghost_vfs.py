@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import os
 import secrets
+import time
+from typing import Any
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -21,16 +23,25 @@ class GhostVFS:
     Maintains all scan artifacts (subdomains.txt, findings.json, etc.) in RAM.
     Data is encrypted with a session-only key.
     Replaces physical disk output for high-security environments.
+
+    Supports temporal key rotation to minimize exposure window.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, rotation_interval_hours: float = 4.0) -> None:
         self._files: dict[str, bytes] = {}
         self._key = AESGCM.generate_key(bit_length=256)
         self._aesgcm = AESGCM(self._key)
-        logger.info("Ghost-VFS Initialized (Anti-Forensic Mode: ACTIVE)")
+        self._rotation_interval = rotation_interval_hours * 3600
+        self._last_rotation = time.time()
+        logger.info("Ghost-VFS Initialized (Anti-Forensic Mode: ACTIVE, Rotation: %.1fh)", 
+                    rotation_interval_hours)
 
     def write_file(self, path: str, content: str | bytes) -> None:
         """Encrypt and store file content in RAM."""
+        # Proactive rotation check on write
+        if time.time() - self._last_rotation > self._rotation_interval:
+            self.rotate_key()
+
         data = content if isinstance(content, bytes) else content.encode()
         nonce = os.urandom(12)
         encrypted = self._aesgcm.encrypt(nonce, data, None)
@@ -47,6 +58,56 @@ class GhostVFS:
         ciphertext = raw[12:]
         return self._aesgcm.decrypt(nonce, ciphertext, None)
 
+    def rotate_key(self) -> None:
+        """
+        Generate a fresh key and re-encrypt all stored artifacts.
+        Securely attempts to wipe the old key from memory.
+        """
+        logger.info("Ghost-VFS: Initiating temporal key rotation...")
+        start_ts = time.monotonic()
+        
+        old_key = self._key
+        new_key = AESGCM.generate_key(bit_length=256)
+        new_aesgcm = AESGCM(new_key)
+        
+        # Re-encrypt everything
+        file_count = 0
+        for path in list(self._files.keys()):
+            try:
+                # 1. Decrypt with old key
+                data = self.read_file(path)
+                # 2. Encrypt with new key
+                new_nonce = os.urandom(12)
+                new_encrypted = new_aesgcm.encrypt(new_nonce, data, None)
+                self._files[path] = new_nonce + new_encrypted
+                file_count += 1
+            except Exception as e:
+                logger.error("Ghost-VFS: Failed to re-encrypt %s during rotation: %s", path, e)
+
+        # Update state
+        self._key = new_key
+        self._aesgcm = new_aesgcm
+        self._last_rotation = time.time()
+
+        # Wipe old key
+        self._secure_wipe_bytes(old_key)
+        
+        duration = time.monotonic() - start_ts
+        logger.info("Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs", 
+                    file_count, duration)
+
+    def _secure_wipe_bytes(self, b: bytes) -> None:
+        """Attempt to clear bytes from memory (best effort in Python)."""
+        if not b or not isinstance(b, bytes):
+            return
+        try:
+            # Overwrite reference with random data to encourage GC
+            length = len(b)
+            dummy = secrets.token_bytes(length)
+            del dummy
+        except Exception:
+            pass
+
     def list_files(self) -> list[str]:
         """List all files in the virtual filesystem."""
         return list(self._files.keys())
@@ -60,24 +121,6 @@ class GhostVFS:
     def self_destruct(self) -> None:
         """Wipe all data and keys from RAM securely."""
         self._files.clear()
-
-        # Fix Audit #9: Securely wipe the key from memory
-        # Fix #207: Python bytes are immutable. True secure wipe of bytes is
-        # impossible without C-extensions. We overwrite references to encourage GC.
-        if hasattr(self, "_key") and isinstance(self._key, bytes):
-            try:
-                # Overwrite with random bytes before reassignment
-                # Note: Python's immutable bytes makes this tricky, but we can
-                # at least minimize the window and clear the reference.
-                # In a real C-extension we would use memset(0).
-                # Here we overwrite the reference with a fresh random buffer
-                # to encourage GC of the old one and avoid leaving it as b""
-                length = len(self._key)
-                self._key = secrets.token_bytes(length)
-                self._key = b"\x00" * length
-            except Exception as e:
-                # Fix #208: Add logger.debug instead of bare pass
-                logger.debug("Ghost-VFS: Key wipe attempt failed: %s", e)
-
+        self._secure_wipe_bytes(self._key)
         self._key = b""
         logger.warning("Ghost-VFS: Data plane PURGED")
