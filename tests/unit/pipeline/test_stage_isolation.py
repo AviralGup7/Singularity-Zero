@@ -79,7 +79,7 @@ class TestStageIsolationContracts:
         }
 
         config = argparse.Namespace(
-            analysis={"adaptive_mode": "false", "active_probe_timeout_seconds": 10},
+            analysis={"adaptive_mode": "false", "active_probe_timeout_seconds": 1},
             target_name="example",
         )
 
