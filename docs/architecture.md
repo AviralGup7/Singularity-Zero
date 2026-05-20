@@ -12,6 +12,8 @@ This document defines the high-resilience, distributed execution model of the Cy
 - **CRDT State Engine**: All critical pipeline data (subdomains, URLs, findings) are stored in Conflict-free Replicated Data Types using **Vector-Clocked LWW-Sets**. Every state update perfectly preserves causality.
 - **Durable Ledger (WAL)**: All state transitions are committed to a Redis-backed Write-Ahead Log *before* being merged into the context, surviving total cluster power loss.
 - **Tamper-Evident Audit Chain**: Administrative actions and sensitive API calls are recorded in a cryptographic audit ledger. Each entry contains an HMAC-SHA256 hash of the payload plus the previous entry's hash, creating an immutable chain-of-custody that can be verified via the dashboard.
+- **Mesh-wide Intelligence Sync**: Employs a Redis-backed Pub/Sub channel (`mesh.learning.fp_patterns`) to instantly propagate analyst-flagged False Positives across the entire cluster. This ensures that a single triage event on one node auto-suppresses redundant findings cluster-wide.
+- **Temporal Key Rotation (Ghost-VFS)**: To minimize the exposure window of anti-forensic scan artifacts, Ghost-VFS automatically rotates its AES-GCM encryption keys every 4 hours. All RAM-stored data is re-encrypted on the fly, and old keys are securely wiped from memory.
 
 ### 2. Cognitive-Logic Analysis
 - **Differential Logic Prober**: A high-speed State-Machine Fuzzer that compares endpoint responses across different authentication contexts using Levenshtein distance, automatically detecting IDOR and BAC vulnerabilities.
