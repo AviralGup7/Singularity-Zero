@@ -56,18 +56,52 @@ export const FindingSchema = z.object({
 export const FindingsListSchema = z.array(FindingSchema);
 
 export const RegistrySchema = z.object({
-  modules: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string(),
-    options: z.record(z.string(), z.any()).default({}),
-  })),
-  profiles: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string(),
-    modules: z.array(z.string()),
-  })),
+  modules: z.object({
+    options: z.array(z.object({
+      name: z.string(),
+      label: z.string(),
+      description: z.string(),
+      kind: z.string(),
+      group: z.string(),
+      dependency_hint: z.string().optional(),
+      requires: z.array(z.string()).optional(),
+    })),
+    groups: z.array(z.object({
+      name: z.string(),
+      label: z.string(),
+      description: z.string(),
+      icon: z.string(),
+    })),
+  }),
+  analysis: z.object({
+    check_options: z.array(z.object({
+      name: z.string(),
+      label: z.string(),
+      description: z.string(),
+      group: z.string(),
+    })),
+    control_groups: z.array(z.object({
+      name: z.string(),
+      label: z.string(),
+      description: z.string(),
+      icon: z.string().optional(),
+    })),
+    focus_presets: z.array(z.object({
+      name: z.string(),
+      label: z.string(),
+      description: z.string(),
+      checks: z.array(z.string()).optional(),
+    })),
+  }),
+  modes: z.object({
+    presets: z.array(z.object({
+      name: z.string(),
+      label: z.string(),
+      description: z.string(),
+      modules: z.array(z.string()),
+    })),
+    stage_labels: z.record(z.string(), z.string()),
+  }),
 });
 
 export const AppSettingsSchema = z.object({

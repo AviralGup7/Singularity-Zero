@@ -1,11 +1,12 @@
-import asyncio
 import pytest
+
 from src.execution.exploiters.aeve import AEVE, VerificationStatus
+
 
 @pytest.mark.asyncio
 async def test_aeve_verification_lifecycle():
     aeve = AEVE(use_wasm_sandbox=False)
-    
+
     # 1. Test Signal-based verification (IDOR)
     finding = {
         "id": "vuln-1",
@@ -14,7 +15,7 @@ async def test_aeve_verification_lifecycle():
         "url": "https://api.example.com/user/123",
         "confidence": 0.7
     }
-    
+
     verified = await aeve.verify_finding(finding)
     assert verified["verification_status"] == VerificationStatus.VERIFIED_TP.value
     assert verified["confidence"] == 1.0
@@ -22,7 +23,7 @@ async def test_aeve_verification_lifecycle():
 @pytest.mark.asyncio
 async def test_aeve_attack_chain_discovery():
     aeve = AEVE()
-    
+
     # Mock findings that should be chained
     findings = [
         {
@@ -40,7 +41,7 @@ async def test_aeve_attack_chain_discovery():
             "verification_status": VerificationStatus.VERIFIED_TP.value
         }
     ]
-    
+
     chains = aeve.discover_attack_chains(findings)
     assert len(chains) > 0
     assert "Account Takeover" in chains[0]["name"]
@@ -50,7 +51,7 @@ async def test_aeve_attack_chain_discovery():
 @pytest.mark.asyncio
 async def test_aeve_sandbox_simulation():
     aeve = AEVE(use_wasm_sandbox=True)
-    
+
     # Finding that needs sandbox verification
     finding = {
         "id": "vuln-2",
@@ -61,6 +62,6 @@ async def test_aeve_sandbox_simulation():
             "variant": "http://169.254.169.254/"
         }
     }
-    
+
     verified = await aeve.verify_finding(finding)
     assert verified["verification_status"] == VerificationStatus.VERIFIED_TP.value

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getDefaults, getRegistry } from '../../api/client';
 import { useToast } from '../../hooks/useToast';
 import { checkModuleDependencies, autoResolveDependencies } from '../../utils/moduleDependencies';
-import type { ModuleOption, ModuleGroup, ModePreset } from '../../types/api';
+import type { ModuleOption, ModuleGroup, ModePreset, AnalysisCheckOption, AnalysisControlGroup, AnalysisFocusPreset } from '../../types/api';
 
 export function useJobFormState() {
   const toast = useToast();
@@ -34,9 +34,9 @@ export function useJobFormState() {
    
   const [moduleOptions, setModuleOptions] = useState<ModuleOption[]>([]);
 
-  const [checkOptions, setCheckOptions] = useState<any[]>([]);
-  const [controlGroups, setControlGroups] = useState<any[]>([]);
-  const [focusPresets, setFocusPresets] = useState<any[]>([]);
+  const [checkOptions, setCheckOptions] = useState<AnalysisCheckOption[]>([]);
+  const [controlGroups, setControlGroups] = useState<AnalysisControlGroup[]>([]);
+  const [focusPresets, setFocusPresets] = useState<AnalysisFocusPreset[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -101,7 +101,7 @@ export function useJobFormState() {
         setControlGroups(registry.analysis?.control_groups || []);
         setFocusPresets(registry.analysis?.focus_presets || []);
 
-        const allChecks = new Set((registry.analysis?.check_options || []).map((c: any) => c.name));
+        const allChecks = new Set((registry.analysis?.check_options || []).map((c) => c.name));
         setAnalysisChecks(allChecks);
 
         const defaultPreset = presets.find(m => m.name === resolvedMode);
