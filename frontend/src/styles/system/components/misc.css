@@ -6,6 +6,7 @@
   text-align: center;
   color: var(--text-secondary);
   background: var(--surface-2);
+  animation: fade-in-up var(--motion-base) var(--easing-out) both;
 }
 
 .dropdown-menu {
@@ -17,6 +18,8 @@
   display: grid;
   box-shadow: var(--shadow-lg);
   padding: var(--space-1);
+  animation: scale-in var(--motion-fast) var(--easing-spring) both;
+  transform-origin: top center;
 }
 
 .dropdown-item {
@@ -102,10 +105,11 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: var(--space-5);
-  background: var(--surface-2);
+  background: linear-gradient(145deg, var(--surface-2), var(--surface));
   min-height: 500px;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
 
 .throughput-strip {
@@ -150,4 +154,10 @@
   background: var(--surface-3);
   color: var(--text-primary);
   border-color: var(--border-strong);
+  box-shadow: var(--shadow-xs);
+}
+
+.settings-page .settings-tab:hover:not(.active) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }

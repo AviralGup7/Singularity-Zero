@@ -13,12 +13,18 @@
   font-weight: 500;
   cursor: pointer;
   transition: all var(--motion-fast) var(--easing-out);
+  position: relative;
 }
 
 .btn:hover, .stop-btn:hover, .restart-btn:hover, .filter-btn:hover, .view-toggle-btn:hover {
   background: var(--surface-3);
   border-color: var(--border-strong);
   text-decoration: none;
+}
+
+.btn:active, .stop-btn:active, .restart-btn:active {
+  transform: scale(0.97);
+  transition-duration: var(--motion-instant);
 }
 
 .btn:disabled, .stop-btn:disabled, .restart-btn:disabled {
@@ -42,6 +48,7 @@
 .btn-primary:hover {
   background: var(--accent-2);
   border-color: var(--accent-2);
+  box-shadow: var(--glow-accent);
 }
 
 .btn-secondary {
@@ -62,6 +69,18 @@
 .btn-danger:hover, .stop-btn:hover {
   background: color-mix(in srgb, var(--bad) 80%, black);
   border-color: color-mix(in srgb, var(--bad) 80%, black);
+  box-shadow: var(--glow-bad);
+}
+
+.btn-warning, .restart-btn {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #000000;
+}
+
+.btn-warning:hover, .restart-btn:hover {
+  background: color-mix(in srgb, var(--warn) 85%, black);
+  border-color: color-mix(in srgb, var(--warn) 85%, black);
 }
 
 .btn-ghost {
@@ -73,4 +92,25 @@
 .btn-ghost:hover {
   background: var(--surface-2);
   color: var(--text-primary);
+}
+
+/* Loading state */
+.btn--loading {
+  pointer-events: none;
+  color: transparent;
+}
+
+.btn--loading::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+}
+
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
 }

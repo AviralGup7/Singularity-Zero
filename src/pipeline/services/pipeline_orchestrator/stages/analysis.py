@@ -105,9 +105,10 @@ async def run_passive_scanning(
     try:
         # Load dynamic FP patterns for the decision engine
         from src.learning.integration import LearningIntegration
+
         learning_int = LearningIntegration.get_or_create()
         dynamic_fp_patterns = await learning_int.get_active_fp_patterns()
-        
+
         # Resume from next iteration
         for iteration in range(iteration_offset + 1, max_iteration_limit + 1):
             emit_progress(
@@ -118,7 +119,6 @@ async def run_passive_scanning(
                 total=max_iteration_limit,
                 stage_percent=int((iteration / max_iteration_limit) * 100),
             )
-            # ... rest of loop logic ...
             state_delta["executed_iterations"] = iteration
             iteration_started = time.monotonic()
             passive_scan_retries = 2
@@ -202,7 +202,9 @@ async def run_passive_scanning(
                         ctx.target_profile,
                         config.mode,
                     ),
-                )
+                ),
+                target_profile=ctx.target_profile,
+                dynamic_fp_patterns=dynamic_fp_patterns,
             )
             state_delta["merged_findings"] = apply_lifecycle(state_delta["merged_findings"])
             validate_analysis_payload({"findings": state_delta["merged_findings"]})

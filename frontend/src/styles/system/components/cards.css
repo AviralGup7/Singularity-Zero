@@ -13,12 +13,33 @@
   box-shadow: var(--shadow-md);
 }
 
+.card--glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-color: var(--glass-border);
+}
+
 .error-card {
   border-color: var(--bad);
   background: color-mix(in srgb, var(--bad) 5%, var(--surface));
+  box-shadow: var(--glow-bad);
 }
 
 .warning-card {
   border-color: var(--warn);
   background: color-mix(in srgb, var(--warn) 5%, var(--surface));
+  box-shadow: var(--glow-warn);
+}
+
+.success-card {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 5%, var(--surface));
+  box-shadow: var(--glow-ok);
+}
+
+.info-card {
+  border-color: var(--info);
+  background: color-mix(in srgb, var(--info) 5%, var(--surface));
+  box-shadow: var(--glow-accent);
 }

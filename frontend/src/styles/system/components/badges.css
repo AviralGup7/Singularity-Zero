@@ -47,3 +47,35 @@
   border-color: color-mix(in srgb, var(--warn) 30%, transparent);
   background: color-mix(in srgb, var(--warn) 10%, transparent);
 }
+
+.status-queued, .job-status.queued, .status-badge.status-queued {
+  color: var(--text-secondary);
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+/* Pulsing dot for running states */
+.status-running::before {
+  animation: status-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* Count badge (notification bell, etc.) */
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: var(--bad);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 5px;
+  line-height: 1;
+}

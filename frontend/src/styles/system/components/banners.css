@@ -7,6 +7,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  animation: banner-slide-in var(--motion-base) var(--easing-out) both;
+}
+
+@keyframes banner-slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .banner.warning {
@@ -25,4 +31,25 @@
   border-color: color-mix(in srgb, var(--ok) 30%, transparent);
   background: color-mix(in srgb, var(--ok) 10%, transparent);
   color: color-mix(in srgb, var(--ok) 90%, white);
+}
+
+.banner.info {
+  border-color: color-mix(in srgb, var(--info) 30%, transparent);
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+  color: color-mix(in srgb, var(--info) 90%, white);
+}
+
+.dismiss-btn {
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-small);
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity var(--motion-fast) var(--easing-out);
+}
+
+.dismiss-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
 }
