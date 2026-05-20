@@ -3,7 +3,14 @@ import { useSearchParams } from 'react-router-dom';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Stars } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, ChromaticAberration } from '@react-three/postprocessing';
-import * as THREE from 'three';
+import { 
+  Vector3, 
+  InstancedMesh, 
+  Color, 
+  Vector2, 
+  Object3D, 
+  type Intersection 
+} from 'three';
 import { Icon } from '@/components/Icon';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cockpitApi } from '@/api/cockpit';
@@ -67,7 +74,7 @@ function TrafficParticles({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockp
   const randomSeeds = useRef<number[]>([]);
   
   const particles = useMemo(() => {
-    const p: { pos: THREE.Vector3; target: THREE.Vector3; progress: number; speed: number }[] = [];
+    const p: { pos: Vector3; target: Vector3; progress: number; speed: number }[] = [];
     let seedIdx = 0;
     
     // Pre-generate seeds if needed
@@ -84,8 +91,8 @@ function TrafficParticles({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockp
         const count = Math.min(5, Math.max(1, Math.floor(throughput / 10)));
         for (let i = 0; i < count; i++) {
           p.push({
-            pos: new THREE.Vector3(...source.position),
-            target: new THREE.Vector3(...target.position),
+            pos: new Vector3(...source.position),
+            target: new Vector3(...target.position),
             progress: randomSeeds.current[seedIdx++] || 0,
             speed: 0.005 + (randomSeeds.current[seedIdx++] || 0) * 0.01,
           });
@@ -95,11 +102,11 @@ function TrafficParticles({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockp
     return p;
   }, [edges, nodes]);
 
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const meshRef = useRef<InstancedMesh>(null);
 
   useFrame(() => {
     if (!meshRef.current) return;
-    const tempObject = new THREE.Object3D();
+    const tempObject = new Object3D();
     particles.forEach((p, i) => {
       p.progress += p.speed;
       if (p.progress > 1) p.progress = 0;
@@ -144,12 +151,12 @@ function MigrationLines({ migrations, nodes }: { migrations: MigrationEvent[]; n
       const target = nodes.find(n => n.metadata?.id === m.target_node || n.id === m.target_node);
       if (source?.position && target?.position) {
         return {
-          points: [new THREE.Vector3(...source.position), new THREE.Vector3(...target.position)],
+          points: [new Vector3(...source.position), new Vector3(...target.position)],
           id: m.id
         };
       }
       return null;
-    }).filter((l): l is { points: THREE.Vector3[]; id: string } => l !== null);
+    }).filter((l): l is { points: Vector3[]; id: string } => l !== null);
   }, [migrations, nodes, now]);
 
   return (
@@ -185,7 +192,7 @@ function InstancedNodes({
   onHover: (id: string | null) => void;
   meshHealth: MeshHealth | null;
 }) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const meshRef = useRef<InstancedMesh>(null);
   const { raycaster, camera, mouse } = useThree();
 
   const nodeHealthMap = useMemo(() => {
@@ -197,8 +204,8 @@ function InstancedNodes({
   }, [meshHealth]);
 
   const { matrices, colors } = useMemo(() => {
-    const tempMatrix = new THREE.Object3D();
-    const tempColor = new THREE.Color();
+    const tempMatrix = new Object3D();
+    const tempColor = new Color();
     const m = new Float32Array(nodes.length * 16);
     const c = new Float32Array(nodes.length * 3);
 
@@ -238,7 +245,7 @@ function InstancedNodes({
       const cpu = nodeHealthMap[node.id] || 0;
       if (cpu > 0.7) {
         const pulse = 1 + Math.sin(state.clock.getElapsedTime() * 10) * (cpu - 0.7);
-        const tempMatrix = new THREE.Object3D();
+        const tempMatrix = new Object3D();
         const [x, y, z] = node.position || [0, 0, 0];
         tempMatrix.position.set(x, y, z);
         const scale = (node.id === selectedId ? 1.4 : 0.7) * pulse;
@@ -263,7 +270,7 @@ function InstancedNodes({
     <ThreeInstancedMesh 
       ref={meshRef} 
       args={[null!, null!, nodes.length]}
-      onClick={(e: THREE.Intersection) => e.instanceId !== undefined && onSelect(nodes[e.instanceId].id)}
+      onClick={(e: Intersection) => e.instanceId !== undefined && onSelect(nodes[e.instanceId].id)}
     >
       <ThreeSphereGeometry args={[0.5, 16, 16]} />
       <ThreeMeshStandardMaterial 
@@ -333,7 +340,7 @@ function Scene({ nodes, edges, selectedNode, onSelect, onHover, meshHealth, migr
       
       <EffectComposer>
         <Bloom luminanceThreshold={1} mipmapBlur intensity={1.2} radius={0.3} />
-        <ChromaticAberration offset={useMemo(() => new THREE.Vector2(0.001, 0.001), [])} />
+        <ChromaticAberration offset={useMemo(() => new Vector2(0.001, 0.001), [])} />
         <Vignette eskil={false} offset={0.1} darkness={1.1} />
       </EffectComposer>
     </>

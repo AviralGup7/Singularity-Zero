@@ -10,11 +10,10 @@ from src.core.utils import format_iso_to_ist
 from src.dashboard.configuration import (
     build_form_defaults,
     default_mode_name,
-    load_template,
     preset_module_names,
 )
 from src.dashboard.job_state import STALLED_AFTER_SECONDS, snapshot_job
-from src.dashboard.registry import MODE_PRESETS, PROGRESS_PREFIX, STAGE_LABELS
+from src.dashboard.registry import MODE_PRESETS, STAGE_LABELS
 
 from .query_service_recovery import (
     is_terminal_reporting_state,
@@ -201,11 +200,11 @@ class DashboardQueryService:
             try:
                 summary = json.loads(summary_path.read_text(encoding="utf-8"))
                 run_timestamp = summary.get("generated_at_utc", run_dir.name)
-                
+
                 # Gap Analysis Fix: Metrics now resolve from both 'analysis' and 'passive_scan' keys
                 # This ensures telemetry matches backend field naming during frontier mesh runs.
                 analysis_metrics = summary.get("metrics", {}).get("analysis") or summary.get("metrics", {}).get("passive_scan") or {}
-                
+
                 timeline.append(
                     {
                         "run_id": run_dir.name,
