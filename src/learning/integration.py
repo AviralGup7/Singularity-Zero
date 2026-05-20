@@ -142,7 +142,7 @@ class LearningIntegration:
         if self._redis_repo:
             patterns = await self._redis_repo.list_patterns(active_only=True)
             return [p.to_db_row() for p in patterns]
-        
+
         # Fallback to local tracker cache
         return [p.to_db_row() for p in self._fp_tracker._cache.values() if p.is_active]
 
@@ -480,8 +480,8 @@ class LearningIntegration:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     loop.create_task(self._redis_repo.close())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Redis repository shutdown during close failed: %s", e)
 
         self.store.close()
 

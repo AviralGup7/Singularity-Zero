@@ -471,6 +471,32 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     async def health_check_live() -> dict[str, Any]:
         return {"status": "ok", "uptime": time.time() - (_START_TIME or time.time())}
 
+    @app.get("/api/health/ready", tags=["System"])
+    async def health_check_ready() -> dict[str, Any]:
+        """Readiness probe with subsystem checks."""
+        subsystems: dict[str, str] = {}
+        subsystems["websocket"] = "up" if getattr(app.state, "ws_services", None) else "down"
+        subsystems["gossip"] = "up" if getattr(app.state, "gossip", None) else "down"
+        subsystems["cache"] = "up" if getattr(app.state, "cache_manager", None) else "down"
+        subsystems["bloom"] = "up" if getattr(app.state, "bloom_filter", None) else "down"
+        all_up = all(v == "up" for v in subsystems.values())
+        return {
+            "status": "ready" if all_up else "degraded",
+            "subsystems": subsystems,
+            "uptime": time.time() - (_START_TIME or time.time()),
+        }
+
+    @app.get("/api/version", tags=["System"])
+    async def get_version() -> dict[str, Any]:
+        """Return build and runtime version metadata."""
+        return {
+            "version": "2.0.0",
+            "build": os.getenv("BUILD_SHA", "dev"),
+            "python": f"{__import__('sys').version_info.major}.{__import__('sys').version_info.minor}.{__import__('sys').version_info.micro}",
+            "boot_time": _START_TIME,
+            "uptime_seconds": round(time.time() - (_START_TIME or time.time()), 1),
+        }
+
     @app.get("/api/dashboard", response_model=DashboardStatsResponse, tags=["Analytics"])
     async def get_dashboard_stats() -> dict[str, Any]:
         """Compute and return global pipeline health and risk metrics."""

@@ -48,7 +48,6 @@ from ._constants import (
     PIPELINE_STAGES,
     STAGE_ORDER,
 )
-from .migration_handler import ProactiveMigrationHandler
 from ._orchestrator_helpers import build_stage_methods_map, finalize_run, stage_baseline
 from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
 from ._stage_retry import run_stage_with_retry
@@ -60,6 +59,7 @@ from ._state_helpers import (
     resolve_stage_timeout,
     safe_checkpoint_stage_outcome,
 )
+from .migration_handler import ProactiveMigrationHandler
 
 
 class FindingDict(TypedDict, total=False):
@@ -422,7 +422,7 @@ class PipelineOrchestrator:
         # Assuming gossip is available via cache_mgr or another service in a real scenario
         # For now, we use a stub/coordinator initialized with registry.
         coordinator = GhostMeshCoordinator(mesh_registry, getattr(cache_mgr, "_gossip", None))
-        
+
         self._migration_handler = ProactiveMigrationHandler(
             coordinator=coordinator,
             check_interval_seconds=float(getattr(config, "migration_check_interval", 30.0))
@@ -637,8 +637,8 @@ class PipelineOrchestrator:
     ) -> StageOutput | None:
         # 🛸 Sprint 1: Register for proactive migration monitoring
         actor_id = f"actor:{stage_name}:{ctx.run_id}"
-        # Note: In a real actor-based execution, the 'method' or 'stage_runner' 
-        # would be encapsulated in a ScanActor instance. For now, we register 
+        # Note: In a real actor-based execution, the 'method' or 'stage_runner'
+        # would be encapsulated in a ScanActor instance. For now, we register
         # the current stage execution context if the handler is active.
         if self._migration_handler:
             # We use the method as a proxy for the 'actor' logic for now.

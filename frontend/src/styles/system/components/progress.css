@@ -15,11 +15,22 @@
   height: 100%;
   background: var(--accent);
   border-radius: var(--radius-pill);
-  transition: width var(--motion-fast) ease-out;
+  transition: width var(--motion-base) ease-out;
 }
 
 .progress-fill.running {
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent));
+  background-size: 200% 100%;
+  animation: progress-shimmer 2s ease-in-out infinite;
+}
+
+.progress-fill.completed {
+  background: linear-gradient(90deg, var(--ok), color-mix(in srgb, var(--ok) 80%, var(--cyan)));
+}
+
+@keyframes progress-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .progress-details, .job-metrics-inline {

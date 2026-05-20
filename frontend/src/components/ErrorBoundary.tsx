@@ -10,16 +10,19 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
+  retryCount: number;
+  crashId: string;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null, errorInfo: null, retryCount: 0, crashId: '' };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error, errorInfo: null };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    const crashId = `ERR-${Date.now().toString(36).toUpperCase()}`;
+    return { hasError: true, error, errorInfo: null, crashId };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -31,7 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null });
+    this.setState(prev => ({ hasError: false, error: null, errorInfo: null, retryCount: prev.retryCount + 1, crashId: '' }));
   };
 
   handleGoHome = () => {
@@ -52,6 +55,9 @@ export class ErrorBoundary extends Component<Props, State> {
           <h3 className="error-title">Something went wrong</h3>
           <p className="error-message">
             {this.state.error?.message || 'An unexpected error occurred.'}
+          </p>
+          <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', marginTop: '8px' }}>
+            Crash ID: {this.state.crashId}{this.state.retryCount > 0 ? ` · Retry #${this.state.retryCount}` : ''}
           </p>
           {/* Security: suppress technical details and stack traces in production */}
           {import.meta.env.DEV && this.state.errorInfo && (
