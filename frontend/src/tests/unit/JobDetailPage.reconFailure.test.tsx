@@ -206,7 +206,7 @@ describe('JobDetailPage recon failure surfacing', () => {
     expect(screen.getByText('pipeline.recon.guard')).toBeInTheDocument();
   });
 
-  it('surfaces degraded providers and timeout telemetry in runtime signals', () => {
+  it('surfaces degraded providers and timeout telemetry in runtime signals', async () => {
     useJobMonitorMock.mockReturnValue({
       job: {
         id: 'job-3',
