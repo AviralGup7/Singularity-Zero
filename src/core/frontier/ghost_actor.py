@@ -148,7 +148,7 @@ class GhostMeshCoordinator:
         try:
             # We use block=True for ThreadingActors; Pykka futures are not natively awaitable.
             health = cast(dict[str, Any], actor_ref.ask({"command": "health_check"}, block=True))
-            
+
             if not isinstance(health, dict) or not health.get("evacuation_recommended"):
                 return False
 
@@ -168,7 +168,20 @@ class GhostMeshCoordinator:
                 # 2. Update Registry
                 await self.registry.register_actor(actor_id, target_node_id)
 
-                # 3. In a real system, we would now signal the remote node to spawn the actor.
+                # 3. Emit Migration Event for Observability
+                from src.core.events import EventType, get_event_bus
+                get_event_bus().emit(
+                    EventType.GHOST_ACTOR_MIGRATED,
+                    source=f"ghost-coordinator-{self.gossip.local_node.id}",
+                    data={
+                        "actor_id": actor_id,
+                        "source_node": current_node_id,
+                        "target_node": target_node_id,
+                        "reason": "resource_pressure"
+                    }
+                )
+
+                # 4. In a real system, we would now signal the remote node to spawn the actor.
                 # For this implementation, we assume the registry update is the 'handoff'.
                 return True
 

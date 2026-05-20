@@ -25,6 +25,7 @@ EVENT_TYPES = {
     "probe_event",
     "graph_event",
     "mesh_health_update",
+    "migration_event",
 }
 
 
@@ -354,3 +355,7 @@ class SSEEventEmitter:
     def mesh_health_update(self, mesh_health: dict[str, Any]) -> str:
         """Emit current mesh health while a job is active."""
         return self.emit("mesh_health_update", mesh_health)
+
+    def migration_event(self, migration_data: dict[str, Any]) -> str:
+        """Emit a ghost-actor migration event."""
+        return self.emit("migration_event", migration_data)
