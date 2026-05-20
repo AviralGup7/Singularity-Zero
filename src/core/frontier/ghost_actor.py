@@ -146,9 +146,8 @@ class GhostMeshCoordinator:
         Returns True if migration was successful.
         """
         try:
-            # Note: ask() returns a pykka.Future, we must .get() it.
-            health_future = actor_ref.ask({"command": "health_check"})
-            health = health_future.get() if hasattr(health_future, "get") else health_future
+            # We use block=True for ThreadingActors; Pykka futures are not natively awaitable.
+            health = cast(dict[str, Any], actor_ref.ask({"command": "health_check"}, block=True))
             
             if not isinstance(health, dict) or not health.get("evacuation_recommended"):
                 return False
@@ -164,7 +163,7 @@ class GhostMeshCoordinator:
                             actor_id, current_node_id, target_node_id)
 
                 # 1. Snapshot and Stop the actor
-                await actor_ref.ask({"command": "migrate"})
+                actor_ref.ask({"command": "migrate"}, block=True)
 
                 # 2. Update Registry
                 await self.registry.register_actor(actor_id, target_node_id)

@@ -1,7 +1,7 @@
 ﻿import { FormField } from '../FormField';
 import ScanPresets from '../ScanPresets';
 import AnalysisOptionsPanel from '../AnalysisOptionsPanel';
-import type { ModuleOption } from '../../types/api';
+import type { ModuleOption, AnalysisCheckOption, AnalysisControlGroup, AnalysisFocusPreset } from '../../types/api';
 
 interface ConfigStepProps {
   selectedModules: Set<string>;
@@ -24,9 +24,9 @@ interface ConfigStepProps {
   onUpdateRuntimeOverride: (key: string, value: string) => void;
   analysisChecks: Set<string>;
   onUpdateAnalysisChecks: (checks: Set<string>) => void;
-  checkOptions: any[];
-  controlGroups: any[];
-  focusPresets: any[];
+  checkOptions: AnalysisCheckOption[];
+  controlGroups: AnalysisControlGroup[];
+  focusPresets: AnalysisFocusPreset[];
 }
 
 export function ConfigStep({
