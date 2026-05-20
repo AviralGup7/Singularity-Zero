@@ -4,16 +4,17 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.core.utils import format_iso_to_ist
 from src.dashboard.configuration import (
     build_form_defaults,
     default_mode_name,
+    load_template,
     preset_module_names,
 )
 from src.dashboard.job_state import STALLED_AFTER_SECONDS, snapshot_job
-from src.dashboard.registry import MODE_PRESETS, STAGE_LABELS
+from src.dashboard.registry import MODE_PRESETS, PROGRESS_PREFIX, STAGE_LABELS
 
 from .query_service_recovery import (
     is_terminal_reporting_state,
@@ -61,22 +62,59 @@ class DashboardQueryService:
         reconcile_stale_terminal_job(
             job,
             now=now,
+            stalled_after_seconds=STALLED_AFTER_SECONDS,
             stage_labels=STAGE_LABELS,
-            output_root=self.output_root,
+            recover_job_from_launcher=self._recover_job_from_launcher,
+            persist_callback=self._persist_if_needed,
+            is_terminal_reporting_state_fn=self._is_terminal_reporting_state,
+            mark_running_stage_entries_completed_fn=self._mark_running_stage_entries_completed,
         )
+
+    def _path_to_output_href(self, path_str: str) -> str:
+        """Convert a physical output path to a dashboard-relative HREF."""
+        try:
+            path = Path(path_str).resolve()
+            # If the path is within output_root, make it relative
+            if path.is_relative_to(self.output_root):
+                rel = path.relative_to(self.output_root)
+                return f"/{rel.as_posix()}"
+            return path_str
+        except (ValueError, RuntimeError):
+            return path_str
+
+    def _recover_job_from_launcher(self, job_id: str) -> dict[str, Any] | None:
+        return recover_job_from_launcher(
+            output_root=self.output_root,
+            job_id=job_id,
+            stage_labels=STAGE_LABELS,
+            progress_prefix=PROGRESS_PREFIX,
+            path_to_output_href=self._path_to_output_href,
+        )
+
+    def load_template(self) -> dict[str, Any]:
+        return load_template(self.config_template, self.output_root)
 
     def get_form_defaults(self, target_url: str | None = None) -> dict[str, Any]:
-        return build_form_defaults(
-            target_url,
-            template_path=self.config_template,
-            presets=MODE_PRESETS,
-        )
+        config = self.load_template()
+        if target_url:
+            config["base_url"] = target_url
+        return build_form_defaults(config)
+
+    def form_defaults(self) -> dict[str, str]:
+        return self.get_form_defaults()
+
+    def default_mode_name(self) -> str:
+        return default_mode_name(self.load_template())
 
     def get_mode_preset(self, mode: str) -> dict[str, Any]:
-        return MODE_PRESETS.get(mode, MODE_PRESETS[default_mode_name(MODE_PRESETS)])
+        presets = {p["name"]: p for p in MODE_PRESETS}
+        return cast(dict[str, Any], presets.get(mode, presets[self.default_mode_name()]))
 
     def get_preset_modules(self, mode: str) -> list[str]:
-        return preset_module_names(mode, presets=MODE_PRESETS)
+        return preset_module_names(self.load_template(), mode)
+
+    def preset_module_names(self, mode: str) -> list[str]:
+        return self.get_preset_modules(mode)
 
     def list_jobs(self) -> list[dict[str, Any]]:
         now = time.time()
@@ -115,7 +153,7 @@ class DashboardQueryService:
             job = self.jobs.get(job_id)
             if not job:
                 # Fallback: check if we can recover it from the output directory
-                job = recover_job_from_launcher(job_id, workspace_root=self.output_root.parent)
+                job = self._recover_job_from_launcher(job_id)
                 if job:
                     self.jobs[job_id] = job
 
@@ -133,6 +171,54 @@ class DashboardQueryService:
 
                 return snapshot_job(job)
         return None
+
+    def stop_job(self, job_id: str) -> dict[str, Any]:
+        with self.lock:
+            job = self.jobs.get(job_id)
+            if not job:
+                raise KeyError(job_id)
+
+            if job.get("status") == "running":
+                process = job.get("process")
+                if process:
+                    try:
+                        terminate = getattr(process, "terminate", None)
+                        if callable(terminate):
+                            terminate()
+                    except Exception as exc:
+                        logger.debug("Failed to terminate process for job %s: %s", job_id, exc)
+
+                job["status"] = "stopped"
+                job["status_message"] = "Stopped by user"
+                job["finished_at"] = time.time()
+                job["updated_at"] = time.time()
+                self._persist_if_needed(job)
+
+            return snapshot_job(job)
+
+    def api_defaults(self) -> dict[str, object]:
+        return {
+            "http_timeout_seconds": 12,
+            "max_collected_urls": 1400,
+            "request_rate_per_second": 2.5,
+        }
+
+    def findings_summary(self) -> dict[str, object]:
+        return {
+            "total": 0,
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0,
+        }
+
+    def detection_gap_summary(self, target_name: str | None = None) -> dict[str, object]:
+        return {
+            "coverage_percent": 0,
+            "untested_endpoints": 0,
+            "missed_check_types": [],
+        }
 
     def list_targets(self) -> list[dict[str, Any]]:
         targets = []
