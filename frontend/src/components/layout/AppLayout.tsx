@@ -38,6 +38,7 @@ function useNavSections(): NavSection[] {
       items: [
         { path: '/pipeline', label: 'Pipeline Overview', icon: 'activity' },
         { path: '/cockpit', label: 'Security Cockpit', icon: 'target' },
+        { path: '/remediation-planner', label: 'Remediation Planner', icon: 'checkCircle' },
         { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
         { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
         { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
