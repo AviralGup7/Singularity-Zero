@@ -63,21 +63,31 @@ function metadataText(metadata: CockpitNode['metadata'], key: string): string {
 }
 
 function TrafficParticles({ edges, nodes }: { edges: CockpitEdge[]; nodes: CockpitNode[] }) {
+  // Use a ref to store random values to maintain purity in useMemo
+  const randomSeeds = useRef<number[]>([]);
+  
   const particles = useMemo(() => {
-    const p: { pos: any; target: any; progress: number; speed: number }[] = [];
+    const p: { pos: THREE.Vector3; target: THREE.Vector3; progress: number; speed: number }[] = [];
+    let seedIdx = 0;
+    
+    // Pre-generate seeds if needed
+    const totalPossibleParticles = edges.length * 5;
+    if (randomSeeds.current.length < totalPossibleParticles * 2) {
+      randomSeeds.current = Array.from({ length: totalPossibleParticles * 2 }, () => Math.random());
+    }
+
     edges.forEach((edge) => {
       const source = nodes.find((n) => n.id === edge.source);
       const target = nodes.find((n) => n.id === edge.target);
       if (source?.position && target?.position) {
-        // Create multiple particles per edge based on throughput
         const throughput = (edge.metadata?.throughput as number) || 0;
         const count = Math.min(5, Math.max(1, Math.floor(throughput / 10)));
         for (let i = 0; i < count; i++) {
           p.push({
-            pos: new (THREE as any).Vector3(...source.position),
-            target: new (THREE as any).Vector3(...target.position),
-            progress: Math.random(),
-            speed: 0.005 + Math.random() * 0.01,
+            pos: new THREE.Vector3(...source.position),
+            target: new THREE.Vector3(...target.position),
+            progress: randomSeeds.current[seedIdx++] || 0,
+            speed: 0.005 + (randomSeeds.current[seedIdx++] || 0) * 0.01,
           });
         }
       }
@@ -85,18 +95,18 @@ function TrafficParticles({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockp
     return p;
   }, [edges, nodes]);
 
-  const meshRef = useRef<any>(null);
+  const meshRef = useRef<THREE.InstancedMesh>(null);
 
   useFrame(() => {
     if (!meshRef.current) return;
-    const tempObject = new (THREE as any).Object3D();
+    const tempObject = new THREE.Object3D();
     particles.forEach((p, i) => {
       p.progress += p.speed;
       if (p.progress > 1) p.progress = 0;
       tempObject.position.lerpVectors(p.pos, p.target, p.progress);
       tempObject.scale.setScalar(0.1);
       tempObject.updateMatrix();
-      meshRef.current.setMatrixAt(i, tempObject.matrix);
+      meshRef.current?.setMatrixAt(i, tempObject.matrix);
     });
     meshRef.current.instanceMatrix.needsUpdate = true;
   });
@@ -111,21 +121,36 @@ function TrafficParticles({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockp
   );
 }
 
-function MigrationLines({ migrations, nodes }: { migrations: any[]; nodes: CockpitNode[] }) {
+interface MigrationEvent {
+  id: string;
+  timestamp: number;
+  actor_id: string;
+  source_node: string;
+  target_node: string;
+  [key: string]: unknown;
+}
+
+function MigrationLines({ migrations, nodes }: { migrations: MigrationEvent[]; nodes: CockpitNode[] }) {
+  const [now, setNow] = useState(() => Date.now());
+  
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const lines = useMemo(() => {
-    const now = Date.now();
     return migrations.filter(m => now - m.timestamp < 10000).map(m => {
       const source = nodes.find(n => n.metadata?.id === m.source_node || n.id === m.source_node);
       const target = nodes.find(n => n.metadata?.id === m.target_node || n.id === m.target_node);
       if (source?.position && target?.position) {
         return {
-          points: [new (THREE as any).Vector3(...source.position), new (THREE as any).Vector3(...target.position)],
+          points: [new THREE.Vector3(...source.position), new THREE.Vector3(...target.position)],
           id: m.id
         };
       }
       return null;
-    }).filter((l): l is { points: any[]; id: string } => l !== null);
-  }, [migrations, nodes]);
+    }).filter((l): l is { points: THREE.Vector3[]; id: string } => l !== null);
+  }, [migrations, nodes, now]);
 
   return (
     <>
@@ -160,8 +185,7 @@ function InstancedNodes({
   onHover: (id: string | null) => void;
   meshHealth: MeshHealth | null;
 }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const meshRef = useRef<any>(null);
+  const meshRef = useRef<THREE.InstancedMesh>(null);
   const { raycaster, camera, mouse } = useThree();
 
   const nodeHealthMap = useMemo(() => {
@@ -173,14 +197,12 @@ function InstancedNodes({
   }, [meshHealth]);
 
   const { matrices, colors } = useMemo(() => {
-    const tempMatrix = new (THREE as any).Object3D();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tempColor = new (THREE as any).Color();
+    const tempMatrix = new THREE.Object3D();
+    const tempColor = new THREE.Color();
     const m = new Float32Array(nodes.length * 16);
     const c = new Float32Array(nodes.length * 3);
 
     nodes.forEach((node, i) => {
-   
       const [x, y, z] = node.position || [0, 0, 0];
       tempMatrix.position.set(x, y, z);
       const scale = node.id === selectedId ? 1.4 : 0.7;
@@ -188,12 +210,10 @@ function InstancedNodes({
       tempMatrix.updateMatrix();
       tempMatrix.matrix.toArray(m, i * 16);
 
-   
       tempColor.set(SEVERITY_COLORS[node.severity] || '#ffffff');
       tempColor.toArray(c, i * 3);
     });
     return { matrices: m, colors: c };
-   
   }, [nodes, selectedId]);
 
   useEffect(() => {
@@ -205,7 +225,6 @@ function InstancedNodes({
         meshRef.current.instanceColor.needsUpdate = true;
       }
     }
-   
   }, [matrices, colors]);
 
   useFrame((state) => {
@@ -219,13 +238,13 @@ function InstancedNodes({
       const cpu = nodeHealthMap[node.id] || 0;
       if (cpu > 0.7) {
         const pulse = 1 + Math.sin(state.clock.getElapsedTime() * 10) * (cpu - 0.7);
-        const tempMatrix = new (THREE as any).Object3D();
+        const tempMatrix = new THREE.Object3D();
         const [x, y, z] = node.position || [0, 0, 0];
         tempMatrix.position.set(x, y, z);
         const scale = (node.id === selectedId ? 1.4 : 0.7) * pulse;
         tempMatrix.scale.set(scale, scale, scale);
         tempMatrix.updateMatrix();
-        meshRef.current.setMatrixAt(i, tempMatrix.matrix);
+        meshRef.current?.setMatrixAt(i, tempMatrix.matrix);
       }
     });
     if (meshHealth) meshRef.current.instanceMatrix.needsUpdate = true;
@@ -243,11 +262,8 @@ function InstancedNodes({
   return (
     <ThreeInstancedMesh 
       ref={meshRef} 
-   
       args={[null!, null!, nodes.length]}
-       
-   
-      onClick={(e: { instanceId?: number }) => e.instanceId !== undefined && onSelect(nodes[e.instanceId].id)}
+      onClick={(e: THREE.Intersection) => e.instanceId !== undefined && onSelect(nodes[e.instanceId].id)}
     >
       <ThreeSphereGeometry args={[0.5, 16, 16]} />
       <ThreeMeshStandardMaterial 
@@ -296,7 +312,7 @@ function OptimizedEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: Cockpit
 }
 
    
-function Scene({ nodes, edges, selectedNode, onSelect, onHover, meshHealth, migrations }: { nodes: CockpitNode[]; edges: CockpitEdge[]; selectedNode: string | null; onSelect: (id: string) => void; onHover: (id: string | null) => void; meshHealth: MeshHealth | null; migrations: any[] }) {
+function Scene({ nodes, edges, selectedNode, onSelect, onHover, meshHealth, migrations }: { nodes: CockpitNode[]; edges: CockpitEdge[]; selectedNode: string | null; onSelect: (id: string) => void; onHover: (id: string | null) => void; meshHealth: MeshHealth | null; migrations: MigrationEvent[] }) {
   return (
     <>
       <ThreeColor attach="background" args={['#020204']} />
@@ -317,7 +333,7 @@ function Scene({ nodes, edges, selectedNode, onSelect, onHover, meshHealth, migr
       
       <EffectComposer>
         <Bloom luminanceThreshold={1} mipmapBlur intensity={1.2} radius={0.3} />
-        <ChromaticAberration offset={new (THREE as any).Vector2(0.001, 0.001)} />
+        <ChromaticAberration offset={useMemo(() => new THREE.Vector2(0.001, 0.001), [])} />
         <Vignette eskil={false} offset={0.1} darkness={1.1} />
       </EffectComposer>
     </>
@@ -428,11 +444,11 @@ export function CockpitPage() {
   const [activeJobId, setActiveJobId] = useState<string | undefined>(jobId);
 
   const [meshHealth, setMeshHealth] = useState<MeshHealth | null>(null);
-  const [migrations, setMigrations] = useState<any[]>([]);
+  const [migrations, setMigrations] = useState<MigrationEvent[]>([]);
 
   useEffect(() => {
     if (!jobId && target) {
-      apiClient.get<any[]>('/api/jobs', { params: { target, status: 'running' } })
+      apiClient.get<{ id: string }[]>('/api/jobs', { params: { target, status: 'running' } })
         .then(res => {
           if (res.data.length > 0) setActiveJobId(res.data[0].id);
         })
@@ -447,8 +463,17 @@ export function CockpitPage() {
       if (event.event_type === 'mesh_health_update') {
         setMeshHealth(event.data as unknown as MeshHealth);
       } else if (event.event_type === 'migration_event') {
-        setMigrations(prev => [...prev, { ...event.data, id: event.id, timestamp: Date.now() }]);
-        toast.info(`Ghost-Actor Migration: ${event.data.actor_id} moved to ${event.data.target_node}`);
+        const data = event.data as Record<string, unknown>;
+        const migration: MigrationEvent = {
+          id: event.id,
+          timestamp: Date.now(),
+          actor_id: String(data.actor_id || 'unknown'),
+          source_node: String(data.source_node || 'unknown'),
+          target_node: String(data.target_node || 'unknown'),
+          ...data
+        };
+        setMigrations(prev => [...prev, migration]);
+        toast.info(`Ghost-Actor Migration: ${migration.actor_id} moved to ${migration.target_node}`);
       }
     }
   });

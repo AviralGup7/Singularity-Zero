@@ -13,13 +13,15 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from http.cookiejar import CookieJar
 from threading import Lock
+from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import HTTPCookieProcessor, build_opener
+from urllib.parse import urlencode, urlparse
+from urllib.request import HTTPCookieProcessor, HTTPRedirectHandler, build_opener
 from urllib.request import Request as UrlRequest
 
 from src.core.models import DEFAULT_USER_AGENT, Request, Response
 from src.core.session import Session, SessionRegistry
+from src.core.utils.url_validation import is_safe_url, is_safe_url_with_dns_check
 from src.execution.scenario_models import (
     ScenarioRunResult,
     ScenarioStep,
@@ -36,10 +38,16 @@ class ScenarioExecutionEngine:
         self,
         *,
         default_timeout_seconds: int = 12,
+        max_response_bytes: int = 1_000_000,
+        allow_private_networks: bool = False,
+        resolve_dns_for_ssrf_protection: bool = True,
         default_headers: dict[str, str] | None = None,
         transport: Transport | None = None,
     ) -> None:
         self.default_timeout_seconds = max(1, int(default_timeout_seconds))
+        self.max_response_bytes = max(1_024, int(max_response_bytes))
+        self.allow_private_networks = bool(allow_private_networks)
+        self.resolve_dns_for_ssrf_protection = bool(resolve_dns_for_ssrf_protection)
         self.default_headers = {
             "User-Agent": DEFAULT_USER_AGENT,
             **(default_headers or {}),
@@ -113,8 +121,9 @@ class ScenarioExecutionEngine:
                     break
                 continue
 
-            ready_names = {step.name for step in ready}
-            pending = [step for step in pending if step.name not in ready_names]
+            # Remove only the specific ready step objects; name-based filtering can accidentally
+            # drop distinct steps that share a name.
+            pending = [step for step in pending if step not in ready]
 
             skipped: list[ScenarioStep] = [
                 step
@@ -448,12 +457,25 @@ class ScenarioExecutionEngine:
         return re.sub(r"\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}", replacement, template)
 
     def _default_transport(self, request: Request, cookie_jar: CookieJar) -> Response:
-        opener = build_opener(HTTPCookieProcessor(cookie_jar))
+        opener = build_opener(HTTPCookieProcessor(cookie_jar), self._redirect_handler())
         method = str(request.method or "GET").upper()
         url = request.url
         if request.params:
             separator = "&" if "?" in url else "?"
             url = f"{url}{separator}{urlencode(request.params)}"
+
+        try:
+            self._validate_outbound_url(url)
+        except ValueError as exc:
+            return Response(
+                requested_url=request.url,
+                final_url=request.url,
+                status_code=None,
+                headers={},
+                body="",
+                latency_seconds=0.0,
+                error=f"blocked_url:{exc}",
+            )
 
         data: bytes | None = None
         if isinstance(request.body, bytes):
@@ -475,8 +497,14 @@ class ScenarioExecutionEngine:
                     charset = (
                         content_type.split("charset=", 1)[1].split(";", 1)[0].strip() or "utf-8"
                     )
-                body_bytes = raw_response.read()
+
+                body_bytes = raw_response.read(self.max_response_bytes + 1)
+                truncated = len(body_bytes) > self.max_response_bytes
+                if truncated:
+                    body_bytes = body_bytes[: self.max_response_bytes]
                 body_text = body_bytes.decode(charset, errors="replace")
+                if truncated:
+                    body_text = f"{body_text}\n...[truncated after {self.max_response_bytes} bytes]"
                 return Response(
                     requested_url=request.url,
                     final_url=final_url,
@@ -492,6 +520,7 @@ class ScenarioExecutionEngine:
             except OSError:
                 error_text = ""
             except Exception:
+                logger.exception("Failed reading HTTPError body for %s", url)
                 error_text = ""
             return Response(
                 requested_url=request.url,
@@ -512,3 +541,45 @@ class ScenarioExecutionEngine:
                 latency_seconds=round(time.monotonic() - started, 3),
                 error=f"network_error:{exc.reason}",
             )
+
+    def _redirect_handler(self) -> HTTPRedirectHandler:
+        engine = self
+
+        class _SafeRedirectHandler(HTTPRedirectHandler):
+            def redirect_request(
+                self,
+                req: Any,
+                fp: Any,
+                code: int,
+                msg: str,
+                headers: Any,
+                newurl: str,
+            ) -> Any:  # type: ignore[override]
+                try:
+                    engine._validate_outbound_url(str(newurl))
+                except ValueError:
+                    return None
+                return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+        return _SafeRedirectHandler()
+
+    def _validate_outbound_url(self, url: str) -> None:
+        parsed = urlparse(str(url))
+        scheme = (parsed.scheme or "").lower()
+        if scheme not in {"http", "https"}:
+            raise ValueError(f"unsupported_scheme:{scheme or 'missing'}")
+        if parsed.username or parsed.password:
+            raise ValueError("userinfo_not_allowed")
+        if not (parsed.hostname or "").strip():
+            raise ValueError("missing_host")
+
+        if self.allow_private_networks:
+            return
+
+        safe = (
+            is_safe_url_with_dns_check(str(url))
+            if self.resolve_dns_for_ssrf_protection
+            else is_safe_url(str(url))
+        )
+        if not safe:
+            raise ValueError("unsafe_target")

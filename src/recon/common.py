@@ -55,7 +55,7 @@ def run_commands_parallel(
 
     with ThreadPoolExecutor(max_workers=min(8, len(jobs))) as executor:
         futures = [
-            executor.submit(try_command, command, timeout, stdin_text, retry_policy)
+            executor.submit(try_command, list(command), timeout, stdin_text, retry_policy)
             for command, stdin_text, timeout, retry_policy in normalized_jobs
         ]
         return [future.result() for future in futures]
@@ -85,7 +85,7 @@ def run_commands_parallel_outcomes(
 
     with ThreadPoolExecutor(max_workers=min(8, len(jobs))) as executor:
         futures = [
-            executor.submit(execute_command, command, timeout, stdin_text, retry_policy)
+            executor.submit(execute_command, list(command), timeout, stdin_text, retry_policy)
             for command, stdin_text, timeout, retry_policy in normalized_jobs
         ]
         return [future.result() for future in futures]

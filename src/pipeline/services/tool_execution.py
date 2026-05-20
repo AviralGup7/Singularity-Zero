@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from src.core.contracts.pipeline import TIMEOUT_DEFAULTS
 from src.core.logging.pipeline_logging import emit_retry_warning, emit_warning
@@ -337,6 +338,7 @@ class ToolExecutionService:
             raise ToolExecutionError(resolved_command, 1, f"Circuit breaker OPEN for {tool_name}")
         policy = retry_policy or RetryPolicy()
         last_error: Exception | None = None
+        timeout_arg, timeout_effective = self._resolve_timeout(timeout)
         for attempt in range(1, policy.max_attempts + 1):
             try:
                 process = subprocess.run(  # noqa: S603
@@ -346,7 +348,7 @@ class ToolExecutionService:
                     encoding="utf-8",
                     errors="ignore",
                     capture_output=True,
-                    timeout=timeout or int(TIMEOUT_DEFAULTS["tool_command_seconds"]),
+                    timeout=timeout_arg,
                     check=False,
                     env=self.command_env(),
                 )
@@ -356,7 +358,7 @@ class ToolExecutionService:
                 if not policy.retry_on_timeout or not self._prepare_retry(
                     resolved_command,
                     attempt,
-                    f"timed out after {timeout or int(TIMEOUT_DEFAULTS['tool_command_seconds'])} seconds",
+                    f"timed out after {timeout_effective} seconds",
                     policy,
                 ):
                     raise
@@ -364,7 +366,7 @@ class ToolExecutionService:
 
             if process.returncode == 0:
                 breaker.record_success()
-                return process.stdout
+                return self._maybe_redact_echoed_stdin(process.stdout, stdin_text)
 
             breaker.record_failure()
 
@@ -393,7 +395,7 @@ class ToolExecutionService:
         tool_name = sanitized[0] if sanitized else "unknown"
         breaker = self._get_circuit_breaker(tool_name)
         resolved_command = self.resolve_command(sanitized)
-        effective_timeout_seconds = timeout or int(TIMEOUT_DEFAULTS["tool_command_seconds"])
+        timeout_arg, effective_timeout_seconds = self._resolve_timeout(timeout)
         if not breaker.can_execute():
             error_message = f"Circuit breaker OPEN for {tool_name}"
             return ToolExecutionOutcome(
@@ -423,7 +425,7 @@ class ToolExecutionService:
                     encoding="utf-8",
                     errors="ignore",
                     capture_output=True,
-                    timeout=effective_timeout_seconds,
+                    timeout=timeout_arg,
                     check=False,
                     env=self.command_env(),
                 )
@@ -432,7 +434,10 @@ class ToolExecutionService:
                 timeout_stderr = self._coerce_output_text(exc.stderr)
                 last_outcome = ToolExecutionOutcome(
                     command=resolved_command,
-                    stdout=self._coerce_output_text(exc.stdout),
+                    stdout=self._maybe_redact_echoed_stdin(
+                        self._coerce_output_text(exc.stdout),
+                        stdin_text,
+                    ),
                     stderr_lines=self._stderr_lines(timeout_stderr),
                     returncode=-1,
                     timed_out=True,
@@ -498,7 +503,7 @@ class ToolExecutionService:
                     classification = "warning"
                 return ToolExecutionOutcome(
                     command=resolved_command,
-                    stdout=process.stdout,
+                    stdout=self._maybe_redact_echoed_stdin(process.stdout, stdin_text),
                     stderr_lines=stderr_lines,
                     returncode=process.returncode,
                     timed_out=False,
@@ -520,7 +525,7 @@ class ToolExecutionService:
                 error_message = f"Command failed with exit code {process.returncode}"
             last_outcome = ToolExecutionOutcome(
                 command=resolved_command,
-                stdout=process.stdout,
+                stdout=self._maybe_redact_echoed_stdin(process.stdout, stdin_text),
                 stderr_lines=stderr_lines,
                 returncode=process.returncode,
                 timed_out=False,
@@ -602,7 +607,7 @@ class ToolExecutionService:
             return False
         delay = policy.delay_for_attempt(attempt + 1)
         emit_retry_warning(
-            "command " + " ".join(command),
+            "command " + cls._redact_command_for_logging(command),
             reason=reason,
             attempt=attempt,
             max_attempts=policy.max_attempts,
@@ -610,6 +615,77 @@ class ToolExecutionService:
         )
         sleep_before_retry(policy, attempt)
         return True
+
+    @staticmethod
+    def _resolve_timeout(timeout: int | None) -> tuple[float | None, int]:
+        """Return (timeout_arg_for_subprocess, effective_timeout_seconds).
+
+        Semantics:
+        - timeout is None -> use configured default.
+        - timeout == 0 -> no timeout.
+        - timeout > 0 -> that timeout.
+        """
+        default = int(TIMEOUT_DEFAULTS["tool_command_seconds"])
+        if timeout is None:
+            return float(default), default
+        parsed = int(timeout)
+        if parsed == 0:
+            return None, 0
+        return float(parsed), parsed
+
+    @staticmethod
+    def _maybe_redact_echoed_stdin(stdout: str, stdin_text: str | None) -> str:
+        """Best-effort redaction when a child process echoes small stdin secrets."""
+        if not stdout or not stdin_text:
+            return stdout
+        # Avoid redacting large/batch stdin payloads (common for URL lists).
+        if "\n" in stdin_text or "\r" in stdin_text or len(stdin_text) > 256:
+            return stdout
+        if stdin_text not in stdout:
+            return stdout
+        return stdout.replace(stdin_text, "[REDACTED_STDIN]")
+
+    @classmethod
+    def _redact_command_for_logging(cls, command: list[str]) -> str:
+        """Redact obvious secrets in command args before logging."""
+        redacted: list[str] = []
+        for arg in command:
+            redacted.append(cls._redact_arg_for_logging(str(arg)))
+        return " ".join(redacted)
+
+    @staticmethod
+    def _redact_arg_for_logging(arg: str) -> str:
+        raw = str(arg)
+        lowered = raw.lower()
+
+        # Redact common flag forms: --token=..., --api-key=..., etc.
+        for key in ("token", "api-key", "apikey", "password", "passwd", "pwd", "secret", "key"):
+            prefix = f"--{key}="
+            if lowered.startswith(prefix):
+                return raw.split("=", 1)[0] + "=[REDACTED]"
+
+        # Redact Authorization-like headers.
+        if "authorization" in lowered or lowered.startswith("bearer "):
+            if ":" in raw:
+                head, _ = raw.split(":", 1)
+                return f"{head}: [REDACTED]"
+            return "[REDACTED]"
+
+        # Redact URL credentials (scheme://user:pass@host/...).
+        try:
+            parts = urlsplit(raw)
+            if parts.scheme and parts.netloc and "@" in parts.netloc:
+                userinfo, hostport = parts.netloc.rsplit("@", 1)
+                if ":" in userinfo:
+                    user, _pwd = userinfo.split(":", 1)
+                    netloc = f"{user}:[REDACTED]@{hostport}"
+                else:
+                    netloc = f"[REDACTED]@{hostport}"
+                return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+        except Exception:
+            pass
+
+        return raw
 
     @staticmethod
     def _coerce_output_text(value: str | bytes | None) -> str:

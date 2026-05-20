@@ -244,6 +244,7 @@ class TestDetectionRegistry:
             "responses_and_bulk_items",
             "behavior_analysis",
             "header_targets_and_cache",
+            "urls_and_cache",
         }
         for plugin in DETECTION_PLUGINS:
             assert plugin.input_kind in valid_kinds

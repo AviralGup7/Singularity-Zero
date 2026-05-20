@@ -97,17 +97,10 @@ def write_flexible_chaining_test(
                     print(f"   {method} /{test['endpoint']} -> Error: {str(exc)[:60]}")
 
             print("\n2. Testing Key in Headers vs Query Parameters (Flexibility)")
+            from typing import cast
             for alt_placement in placements:
-                alt_placement_headers: dict[str, Any] = (
-                    alt_placement.get("headers", {})
-                    if isinstance(alt_placement.get("headers"), dict)
-                    else {}
-                )
-                alt_placement_params: dict[str, Any] = (
-                    alt_placement.get("params", {})
-                    if isinstance(alt_placement.get("params"), dict)
-                    else {}
-                )
+                alt_placement_headers = cast(dict[str, Any], alt_placement.get("headers", {}))
+                alt_placement_params = cast(dict[str, Any], alt_placement.get("params", {}))
                 alt_headers = {**headers, **alt_placement_headers}
                 alt_params: dict[str, Any] = alt_placement_params
                 try:

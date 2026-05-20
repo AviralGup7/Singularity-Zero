@@ -45,7 +45,7 @@ def dummy_logic(task_input, state):
 @pytest.mark.asyncio
 async def test_actor_death_and_registry_cleanup():
     """
-    Verify that when an actor stops (is killed), it can be detected as missing 
+    Verify that when an actor stops (is killed), it can be detected as missing
     from the local node and re-scheduled.
     """
     # 1. Setup
@@ -55,7 +55,7 @@ async def test_actor_death_and_registry_cleanup():
 
     redis = MockRedis()
     registry = GhostMeshRegistry(redis, run_id="test-run")
-    coordinator = GhostMeshCoordinator(registry, gossip)
+    _coordinator = GhostMeshCoordinator(registry, gossip)
 
     actor_id = "kill-me-actor"
     await registry.register_actor(actor_id, "node-a")

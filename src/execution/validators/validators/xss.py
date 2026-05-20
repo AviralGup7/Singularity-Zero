@@ -20,6 +20,8 @@ from src.core.models import ValidationResult
 from src.core.plugins import register_plugin
 from src.execution.validators.validators.shared import to_validation_result
 
+logger = logging.getLogger(__name__)
+
 # XSS test markers (safe, non-executing)
 XSS_TEST_MARKERS = [
     "<copilot-xss-test>",
@@ -345,8 +347,6 @@ def _active_xss_test(target_url: str, http_client: Any) -> dict[str, Any]:
         "payloads_tested": len(test_results),
     }
 
-
-logger = logging.getLogger(__name__)
 
 VALIDATOR = "validator"
 

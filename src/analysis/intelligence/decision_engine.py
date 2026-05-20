@@ -184,7 +184,9 @@ def _get_dynamic_thresholds(target_profile: dict[str, Any] | None = None) -> dic
 
 
 def classify_finding(
-    item: dict[str, Any], target_profile: dict[str, Any] | None = None
+    item: dict[str, Any],
+    target_profile: dict[str, Any] | None = None,
+    dynamic_fp_patterns: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Classify a security finding as HIGH, MEDIUM, Low, or DROP.
 
@@ -221,6 +223,7 @@ def classify_finding(
     Args:
         item: Finding dict with confidence, evidence, combined_signal, etc.
         target_profile: Optional dict for dynamic threshold adjustment.
+        dynamic_fp_patterns: Optional list of dynamic FP patterns to use.
 
     Returns:
         Dict with 'decision' (HIGH/MEDIUM/LOW/DROP), 'reason' (explanation),
@@ -403,9 +406,30 @@ def classify_finding(
     original_was_blocked = original_status in block_status_codes
 
     if mutated_status:
-        is_fp, fp_category = _is_likely_false_positive(
-            mutated_status, str(evidence.get("body_snippet", ""))
-        )
+        body_snippet = str(evidence.get("body_snippet", ""))
+        
+        # Try dynamic patterns first
+        is_fp = False
+        fp_category = ""
+        
+        if dynamic_fp_patterns:
+            import json
+            body_lower = body_snippet.lower()
+            for pattern_row in dynamic_fp_patterns:
+                status_code_raw = pattern_row.get("status_code_pattern", "[]")
+                status_codes = set(json.loads(status_code_raw))
+                if mutated_status in status_codes:
+                    body_pattern_raw = pattern_row.get("body_pattern", "[]")
+                    body_indicators = json.loads(body_pattern_raw)
+                    if any(indicator in body_lower for indicator in body_indicators):
+                        is_fp = True
+                        fp_category = pattern_row.get("category", "dynamic")
+                        break
+        
+        if not is_fp:
+            is_fp, fp_category = _is_likely_false_positive(
+                mutated_status, body_snippet
+            )
 
         # If original was blocked but mutated is not, this is a potential bypass
         if original_was_blocked and not is_fp:
@@ -436,13 +460,16 @@ def classify_finding(
 
 
 def annotate_finding_decisions(
-    findings: list[dict[str, Any]], target_profile: dict[str, Any] | None = None
+    findings: list[dict[str, Any]],
+    target_profile: dict[str, Any] | None = None,
+    dynamic_fp_patterns: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Annotate each finding with a decision, reason, and reportable flag.
 
     Args:
         findings: List of finding dicts to annotate.
         target_profile: Optional dict for dynamic threshold adjustment.
+        dynamic_fp_patterns: Optional list of dynamic FP patterns to use.
 
     Returns:
         List of findings with 'decision', 'reason', 'confidence_factors',
@@ -450,7 +477,7 @@ def annotate_finding_decisions(
     """
     annotated = []
     for item in findings:
-        classification = classify_finding(item, target_profile)
+        classification = classify_finding(item, target_profile, dynamic_fp_patterns)
         decision = classification["decision"]
         annotated.append(
             {
@@ -458,6 +485,26 @@ def annotate_finding_decisions(
                 "decision": decision,
                 "reason": classification.get("reason", ""),
                 "confidence_factors": classification.get("confidence_factors", []),
+                "reportable": decision != "DROP",
+                "suppress_reason": classification.get("suppress_reason", ""),
+                "diff_score": classification.get("diff_score", 0),
+                "diff_classification": classification.get("diff_classification", ""),
+            }
+        )
+    return annotated
+
+
+def filter_reportable_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Filter findings to only those that should appear in reports.
+
+    Args:
+        findings: List of annotated finding dicts with 'decision' keys.
+
+    Returns:
+        List of findings excluding those with 'DROP' decision.
+    """
+    return [item for item in findings if str(item.get("decision", "MEDIUM")).upper() != "DROP"]
+factors", []),
                 "reportable": decision != "DROP",
                 "suppress_reason": classification.get("suppress_reason", ""),
                 "diff_score": classification.get("diff_score", 0),

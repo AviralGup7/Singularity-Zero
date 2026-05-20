@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -26,13 +27,16 @@ logger = logging.getLogger(__name__)
 URLSCAN_SEARCH = "https://urlscan.io/api/v1/search/"
 
 
+_URL_RE = re.compile(r"https?://[^\s\"\'<>\\)]+", re.IGNORECASE)
+
+
 def _parse_urlscan_json(text: str) -> list[str]:
     urls: list[str] = []
     try:
         data = json.loads(text)
     except Exception:
-        # fallback: treat each non-empty line as a URL
-        return [line.strip() for line in (text or "").splitlines() if line.strip()]
+        # fallback: extract http(s) URLs from text/HTML
+        return _URL_RE.findall(text or "")
 
     # urlscan search returns an object with 'results' array
     if isinstance(data, dict) and "results" in data and isinstance(data["results"], list):

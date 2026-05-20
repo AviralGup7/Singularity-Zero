@@ -1,6 +1,7 @@
 """HTTP client and configuration for validation probes."""
 
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,16 +19,33 @@ class ValidationHttpConfig:
 class ValidationHttpClient:
     """HTTP client for validation probes that reuses the pipeline fetch client."""
 
+    _MAX_CACHE_ITEMS = 256
+
     def __init__(self, config: ValidationHttpConfig) -> None:
         self.config = config
-        self._response_cache: dict[str, dict[str, Any]] = {}
+        self._response_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
+
+    def _cache_get(self, key: str) -> dict[str, Any] | None:
+        value = self._response_cache.get(key)
+        if value is None:
+            return None
+        # LRU: refresh position
+        self._response_cache.move_to_end(key)
+        return value
+
+    def _cache_set(self, key: str, value: dict[str, Any]) -> None:
+        self._response_cache[key] = value
+        self._response_cache.move_to_end(key)
+        while len(self._response_cache) > self._MAX_CACHE_ITEMS:
+            self._response_cache.popitem(last=False)
 
     def request(
         self, url: str, *, method: str = "GET", headers: dict[str, str] | None = None
     ) -> dict[str, Any]:
         cache_key = f"{method}:{url}:{sorted((headers or {}).items())}"
-        if cache_key in self._response_cache:
-            return self._response_cache[cache_key]
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
 
         started = time.monotonic()
         last_error = "request_failed"
@@ -60,7 +78,7 @@ class ValidationHttpClient:
                             "latency_seconds": round(time.monotonic() - started, 3),
                             "error": "",
                         }
-                        self._response_cache[cache_key] = result
+                        self._cache_set(cache_key, result)
                         return result
                     last_error = f"retryable_status:{status_code}"
                 else:
@@ -82,5 +100,5 @@ class ValidationHttpClient:
             "latency_seconds": round(time.monotonic() - started, 3),
             "error": last_error,
         }
-        self._response_cache[cache_key] = result
+        self._cache_set(cache_key, result)
         return result

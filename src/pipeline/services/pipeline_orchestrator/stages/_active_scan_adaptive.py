@@ -52,6 +52,19 @@ class CompositeActiveProbe:
         # Host-focused probes (like Cloud Metadata) are better handled separately
         # to avoid redundant scanning.
 
+        probe_names = [
+            "sqli",
+            "csrf",
+            "jwt",
+            "xss",
+            "ssrf",
+            "idor",
+            "hpp",
+            "graphql",
+            "auth_bypass",
+            "json",
+            "fuzzing_suggestions",
+        ]
         tasks = [
             _try_probe(
                 "sqli",
@@ -141,7 +154,10 @@ class CompositeActiveProbe:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         all_findings = []
-        for r in results:
+        for probe_name, r in zip(probe_names, results, strict=False):
+            if isinstance(r, BaseException):
+                logger.error("Active scan probe '%s' failed: %s", probe_name, r)
+                continue
             if isinstance(r, tuple):
                 _, findings, ok = r
                 if ok and findings:
@@ -195,6 +211,7 @@ async def run_active_scanning_adaptive(
     host_priority_items = [{"url": url} for url in host_targets]
 
     logger.info("Running host-level probes on %d unique hosts", len(unique_hosts))
+    host_probe_names = ["cors", "trace", "options", "cloud_metadata"]
     host_tasks = [
         _try_probe("cors", probes["cors_preflight_probe"], host_priority_items, response_cache),
         _try_probe("trace", probes["trace_method_probe"], host_priority_items, response_cache),
@@ -204,7 +221,12 @@ async def run_active_scanning_adaptive(
     host_results = await asyncio.gather(*host_tasks, return_exceptions=True)
 
     all_findings: list[dict[str, Any]] = []
-    for r in host_results:
+    host_probe_errors: list[str] = []
+    for probe_name, r in zip(host_probe_names, host_results, strict=False):
+        if isinstance(r, BaseException):
+            host_probe_errors.append(f"{probe_name}: {r.__class__.__name__}: {r}")
+            logger.error("Host-level probe '%s' failed: %s", probe_name, r)
+            continue
         if isinstance(r, tuple):
             _, findings, ok = r
             if ok and findings:
@@ -241,6 +263,8 @@ async def run_active_scanning_adaptive(
         "boosted_count": batch_result.boosted_count,
         "early_terminated": batch_result.early_terminated,
         "adaptive_batches": len(batch_result.results) // batch_size + 1,
+        "host_probe_errors_count": len(host_probe_errors),
+        "host_probe_errors_sample": host_probe_errors[:5],
     }
 
     emit_progress(

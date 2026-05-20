@@ -92,7 +92,7 @@ async def finalize_run(
         flush_pending: Awaitable[Any] = event_bus.flush_pending(timeout=10.0)
         await flush_pending
     except Exception:
-        logger_obj.debug("Failed to flush pending event handlers", exc_info=True)
+        logger_obj.warning("Failed to flush pending event handlers", exc_info=True)
 
     try:
         import gc

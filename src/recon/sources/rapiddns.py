@@ -13,6 +13,21 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
+_DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$",
+    re.IGNORECASE,
+)
+
+
+def _normalize_domain(domain: str) -> str:
+    cleaned = str(domain or "").strip().lower().strip(".")
+    if not cleaned or any(ch in cleaned for ch in ("/", "\\", ":", "@", "?", "#", " ", "\t", "\n", "\r")):
+        return ""
+    if not _DOMAIN_RE.fullmatch(cleaned):
+        return ""
+    return cleaned
+
+
 async def query_rapiddns(
     domain: str,
     timeout: int = 30,
@@ -27,6 +42,10 @@ async def query_rapiddns(
         Set of discovered subdomain FQDNs.
     """
     subdomains: set[str] = set()
+    domain = _normalize_domain(domain)
+    if not domain:
+        logger.debug("RapidDNS: invalid domain input")
+        return set()
     pattern = re.compile(r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE)
 
     try:
@@ -37,7 +56,7 @@ async def query_rapiddns(
         }
         async with httpx.AsyncClient(
             timeout=timeout,
-            follow_redirects=True,
+            follow_redirects=False,
             headers=headers,
         ) as client:
             resp = await client.get(url)

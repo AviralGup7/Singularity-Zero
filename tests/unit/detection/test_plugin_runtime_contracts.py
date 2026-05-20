@@ -16,6 +16,7 @@ _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
     "behavior_analysis": ("behavior_results",),
     "responses_and_bulk_items": ("responses", "bulk_items"),
     "header_targets_and_cache": ("header_targets", "response_cache"),
+    "urls_and_cache": ("urls", "response_cache"),
 }
 
 
