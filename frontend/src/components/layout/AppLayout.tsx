@@ -113,6 +113,9 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/tracing': { title: 'Tracing', subtitle: 'Distributed stage waterfalls' },
   '/security': { title: 'Security', subtitle: 'API controls and enforcement events' },
   '/cockpit': { title: 'Security Cockpit', subtitle: 'Operations command center' },
+  '/remediation-planner': { title: 'Remediation Planner', subtitle: 'Prioritized fix tracking' },
+  '/mesh': { title: 'Mesh Command', subtitle: 'Distributed node orchestration' },
+  '/audit-logs': { title: 'Audit Logs', subtitle: 'System event journal' },
 };
 
 interface AppLayoutProps {
@@ -241,6 +244,12 @@ export function AppLayout({ children }: AppLayoutProps) {
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
       e.preventDefault();
       setSidebarCollapsed(prev => !prev);
+    } else if (e.key === '5') {
+      e.preventDefault();
+      navigate('/pipeline');
+    } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      emitRefresh();
     } else if (e.key === 'Escape') {
       setShowShortcuts(false);
       setCommandPaletteOpen(false);
@@ -510,6 +519,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <div className="shortcut-row"><span>Targets</span><kbd className="kbd">2</kbd></div>
                 <div className="shortcut-row"><span>Jobs</span><kbd className="kbd">3</kbd></div>
                 <div className="shortcut-row"><span>Findings</span><kbd className="kbd">4</kbd></div>
+                <div className="shortcut-row"><span>Pipeline Overview</span><kbd className="kbd">5</kbd></div>
+                <div className="shortcut-row"><span>Force Refresh</span><kbd className="kbd">R</kbd></div>
                 <div className="shortcut-row"><span>Theme Toggle</span><kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">D</kbd></div>
                 <div className="shortcut-row"><span>Settings</span><kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">S</kbd></div>
                 <div className="shortcut-row"><span>Sidebar Toggle</span><kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">B</kbd></div>

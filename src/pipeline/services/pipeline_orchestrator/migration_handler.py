@@ -99,7 +99,7 @@ class ProactiveMigrationHandler:
                         # Once migrated, we remove our local reference as the actor
                         # is now effectively on another node.
                         self.unregister_actor(actor_id)
-                        
+
                         get_event_bus().emit(
                             EventType.GHOST_ACTOR_EVACUATED,
                             source="proactive-migration-handler",
@@ -112,5 +112,5 @@ class ProactiveMigrationHandler:
 
             except Exception as e:
                 logger.error("ProactiveMigration: Error in monitor loop: %s", e)
-            
+
             await asyncio.sleep(self._check_interval)

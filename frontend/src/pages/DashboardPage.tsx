@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import {
   ShieldAlert,
   Target,
   Zap,
   Activity,
-  Server
+  Server,
+  Clock
 } from 'lucide-react';
 import type { DashboardStats as StatsType, Job } from '../types/api';
 import { useApi } from '../hooks/useApi';
@@ -28,6 +30,12 @@ export function DashboardPage() {
   const totalFindings = stats?.findings_summary?.total_findings || 0;
   const totalTargets = stats?.total_targets || 0;
 
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  useEffect(() => {
+    if (stats || jobsResponse) setLastUpdated(new Date());
+  }, [stats, jobsResponse]);
+
   return (
     <div className="space-y-6">
       <div className="page-header">
@@ -43,7 +51,7 @@ export function DashboardPage() {
       </div>
 
       {/* ── KPI Row ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 stagger">
         <div className="card">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-muted">Total Targets</span>
@@ -73,12 +81,19 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="card animate-fade-in-up">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-muted">System Health</span>
             <Server size={16} className="text-ok" />
           </div>
-          <div className="text-2xl font-semibold text-ok">Optimal</div>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-semibold text-ok">Optimal</span>
+            <span className="w-2 h-2 rounded-full bg-ok" style={{ boxShadow: 'var(--glow-ok)' }} />
+          </div>
+          <div className="flex items-center gap-1 mt-2">
+            <Clock size={10} className="text-muted" />
+            <span className="text-xs text-muted">{lastUpdated.toLocaleTimeString()}</span>
+          </div>
         </div>
       </div>
 

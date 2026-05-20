@@ -6,11 +6,10 @@ Gracefully degrades if no API key is provided.
 
 import logging
 import os
+import re
 from typing import Any
 
 import httpx
-
-import re
 
 logger = logging.getLogger(__name__)
 

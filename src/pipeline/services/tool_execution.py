@@ -682,8 +682,8 @@ class ToolExecutionService:
                 else:
                     netloc = f"[REDACTED]@{hostport}"
                 return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to parse URL for logging redaction: %s", e)
 
         return raw
 

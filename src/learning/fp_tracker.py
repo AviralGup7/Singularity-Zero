@@ -8,7 +8,7 @@ FP probability and confidence for each pattern.
 from __future__ import annotations
 
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 from src.learning.models.fp_pattern import FPPattern
 from src.learning.repositories.redis_fp_repo import RedisFPRepository
