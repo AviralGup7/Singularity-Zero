@@ -20,7 +20,6 @@ import {
   getCachePerformanceHistory,
   getCacheStatus,
   triggerCacheCleanup,
-  reconcileBloomFilter,
 } from '@/api/cacheMgmt';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -384,7 +383,7 @@ async function handleCleanup() {
             <Zap size={15} aria-hidden="true" />
             Cleanup
           </Button>
-          <Button variant="secondary" onClick={handleReconcileBloom} loading={actionLoading}>
+          <Button variant="secondary" onClick={handleReconcileBloom} loading={bloomReconciling}>
             <Activity size={15} aria-hidden="true" />
             Reconcile Bloom
           </Button>
