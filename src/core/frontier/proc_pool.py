@@ -8,14 +8,14 @@ from __future__ import annotations
 import asyncio
 import os
 import signal
+import struct
 import sys
 from dataclasses import dataclass
 from typing import Any
 
+from src.core.frontier.marshaller import mesh_marshal_pickle, mesh_unmarshal_pickle
 from src.core.frontier.state import stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
-import struct
-from src.core.frontier.marshaller import mesh_marshal_pickle, mesh_unmarshal_pickle
 
 logger = get_pipeline_logger(__name__)
 
@@ -129,7 +129,7 @@ class ResourceWatchdog:
                             new_proc = await asyncio.create_subprocess_exec(
                                 p.name, *base_args, **spawn_kwargs
                             )
-                            
+
                             # Safely replace process in the pool
                             async with self.pool._lock:
                                 p.process = new_proc

@@ -2,17 +2,14 @@ import os
 import shutil
 import tempfile
 import threading
-import logging
-import pytest
 from unittest.mock import MagicMock
 
-from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
-from src.infrastructure.queue.models import WorkerInfo, TaskResourceRequirement, ResourceProfile
 from src.core.frontier.ghost_vfs import GhostVFS
-from src.core.frontier.vault import CyberVault
 from src.decision.priority_queue import CorrelationPriorityQueue, ScanTarget
-from src.learning.threshold_tuner import ThresholdTuner, ThresholdConfig
+from src.infrastructure.queue.models import ResourceProfile, WorkerInfo
+from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
 from src.learning.signal_quality import score_signal_quality
+from src.learning.threshold_tuner import ThresholdConfig, ThresholdTuner
 
 
 def test_scheduler_thread_safety():

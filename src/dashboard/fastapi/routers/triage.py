@@ -5,7 +5,15 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 
 from src.dashboard.fastapi.collaboration import TriageCollaborationService, TriageConnection
 from src.dashboard.fastapi.dependencies import require_auth

@@ -93,16 +93,17 @@ def build_validator_registry() -> dict[str, ValidationStrategySpec]:
             or reg.key in {"access_control", "validation"}
         )
     ]
-    
+
     registry = {}
     from src.core.plugins.sandbox import ProcessSandboxCallable
     for reg in registrations:
         result_key = VALIDATOR_RESULT_KEYS.get(reg.key, f"{reg.key}_validation")
         if isinstance(reg.provider, ProcessSandboxCallable):
-            strategy_factory = lambda provider=reg.provider, name=reg.key, rk=result_key: DynamicValidationStrategy(name, rk, provider)
+            def strategy_factory(provider=reg.provider, name=reg.key, rk=result_key):
+                return DynamicValidationStrategy(name, rk, provider)
         else:
             strategy_factory = reg.provider
-        
+
         registry[reg.key] = ValidationStrategySpec(
             reg.key,
             result_key,
