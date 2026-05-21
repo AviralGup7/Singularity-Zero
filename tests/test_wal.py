@@ -76,12 +76,12 @@ def test_wal_active_log_delta(monkeypatch):
 
 def test_wal_log_delta_exception(monkeypatch):
     wal = FrontierWAL(None, "test_run_log_exc")
+
     # Mock stable_digest to raise exception
     def mock_stable_digest(*args, **kwargs):
         raise Exception("digest fail")
-    monkeypatch.setattr(
-        "src.core.frontier.wal.stable_digest", mock_stable_digest
-    )
+
+    monkeypatch.setattr("src.core.frontier.wal.stable_digest", mock_stable_digest)
     assert wal.log_delta("stage", {}) is None
     wal.cleanup()
 
@@ -475,9 +475,99 @@ def test_wal_cleanup_aof_exception(monkeypatch):
     wal = FrontierWAL(None, "run_cleanup_aof_exc")
     # Create AOF file
     wal._aof_path.write_text("dummy")
+
     # Mock unlink to raise exception
     def mock_unlink(*args, **kwargs):
         raise Exception("unlink fail")
+
     monkeypatch.setattr(Path, "unlink", mock_unlink)
     # Should not crash
+    wal.cleanup()
+
+
+def test_wal_aof_recovery_failed_completely(monkeypatch):
+    wal = FrontierWAL(None, "run_aof_failed_comp")
+    # Write a dummy file so that exists() returns True
+    wal._aof_path.write_text("dummy")
+
+    # Make open raise exception when reading the AOF file
+    def mock_open(*args, **kwargs):
+        raise OSError("Failed to open AOF file")
+
+    monkeypatch.setattr("builtins.open", mock_open)
+    # Should handle exception and return []
+    assert wal.recover_deltas() == []
+    # Make sure to cleanup/reset to avoid leaving builtins.open mocked
+    monkeypatch.undo()
+    wal.cleanup()
+
+
+def test_wal_snapshot_persist_exception(monkeypatch):
+    mock_redis = MagicMock()
+    mock_redis.ping.return_value = True
+    mock_redis.set.side_effect = Exception("Redis SET failed")
+    monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
+
+    wal = FrontierWAL("redis://localhost", "run_snap_persist_exc")
+    # persist_snapshot should handle the Redis SET exception and return False
+    assert wal.persist_snapshot(NeuralState()) is False
+    wal.cleanup()
+
+
+def test_wal_recover_state_non_dict_delta(monkeypatch):
+    mock_redis = MagicMock()
+    mock_redis.ping.return_value = True
+    monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
+
+    # Mock load_snapshot to return an envelope with a valid snapshot but one non-dictionary delta
+    wal = FrontierWAL("redis://localhost", "run_non_dict_delta")
+    envelope = {
+        "run_id": "run_non_dict_delta",
+        "snapshot": {"findings": []},
+    }
+    # Create the stable digest
+    from src.core.frontier.wal import stable_digest
+
+    envelope["digest"] = stable_digest(envelope["snapshot"])
+    mock_redis.get.return_value = msgpack.packb(envelope, use_bin_type=True)
+
+    # Mock recover_deltas to yield entries including one where delta is a non-dictionary
+    def mock_recover_deltas(*args, **kwargs):
+        return [
+            {"id": "entry-1", "stage": "stage_1", "delta": {"finding_id": "F1"}},
+            {"id": "entry-2", "stage": "stage_2", "delta": "invalid-non-dict-delta"},
+        ]
+
+    monkeypatch.setattr(wal, "recover_deltas", mock_recover_deltas)
+
+    # Rebuilding state should succeed without crashing, skipping the non-dictionary delta
+    state = wal.recover_state()
+    assert isinstance(state, NeuralState)
+    wal.cleanup()
+
+
+def test_wal_compact_after_snapshot_exception(monkeypatch):
+    mock_redis = MagicMock()
+    mock_redis.ping.return_value = True
+    # mock persist_snapshot to return True, but xtrim to raise Exception
+    mock_redis.xtrim.side_effect = Exception("XTRIM failed")
+    monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
+
+    wal = FrontierWAL("redis://localhost", "run_compact_exc")
+    # mock persist_snapshot to return True so we reach xtrim call
+    monkeypatch.setattr(wal, "persist_snapshot", lambda *a, **k: True)
+
+    assert wal.compact_after_snapshot(NeuralState()) is False
+    wal.cleanup()
+
+
+def test_wal_snapshot_missing_set(monkeypatch):
+    mock_redis = MagicMock()
+    mock_redis.ping.return_value = True
+    del mock_redis.set
+    monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
+
+    wal = FrontierWAL("redis://localhost", "run_no_set")
+    # should return False when client does not have 'set' method
+    assert wal.persist_snapshot(NeuralState()) is False
     wal.cleanup()
