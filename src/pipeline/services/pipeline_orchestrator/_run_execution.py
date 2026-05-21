@@ -112,6 +112,13 @@ async def execute_remaining_stages(
 
         completed_stages.update(active_tier)
 
+        if "urls" in active_tier:
+            _validate_recon_outputs(ctx)
+            if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
+                logger.error("Recon validation failed: no discoverable URLs found.")
+                error_emitter("recon_validation", "Recon validation failed: no discoverable URLs found.")
+                return 1
+
     return None
 
 
@@ -241,7 +248,7 @@ def resolve_pipeline_exit_code(
     findings_count = len(ctx.result.reportable_findings)
 
     # If any recon stage failed fatally, it's a critical failure (exit 1)
-    for recon_stage in ["subdomains", "live_hosts", "urls"]:
+    for recon_stage in ["subdomains", "live_hosts", "urls", "recon_validation"]:
         if ctx.result.stage_status.get(recon_stage) == StageStatus.FAILED.value:
             metrics = ctx.result.module_metrics.get(recon_stage, {})
             if metrics.get("fatal", True):

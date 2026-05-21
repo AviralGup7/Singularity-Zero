@@ -118,10 +118,17 @@ class StageResult:
         # 1. Update CRDT sets
         self._neural_state.apply_delta(delta)
 
+        # Sync reportable_findings from CRDT findings to guarantee no loss of state across stages
+        self.reportable_findings = list(self._neural_state.findings.values())
+
         # 2. Update auxiliary fields (Legacy/Non-resilient)
         for key, value in delta.items():
             if key == "findings":
                 key = "reportable_findings"
+
+            # Skip findings-related updates since they are already fully synced via CRDT above
+            if key in ("reportable_findings", "active_scan_findings"):
+                continue
 
             if hasattr(self, key):
                 current = getattr(self, key)

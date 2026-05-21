@@ -222,6 +222,18 @@ class NeuralState:
                 for finding in findings:
                     self.findings.add(finding, ts)
 
+        if "active_scan_findings" in delta:
+            findings = delta["active_scan_findings"]
+            if isinstance(findings, list):
+                for finding in findings:
+                    self.findings.add(finding, ts)
+
+        if "reportable_findings" in delta:
+            findings = delta["reportable_findings"]
+            if isinstance(findings, list):
+                for finding in findings:
+                    self.findings.add(finding, ts)
+
     def get_snapshot(self) -> dict[str, Any]:
         # Fix #355: Sort subdomains and urls for deterministic output across runs.
         return {

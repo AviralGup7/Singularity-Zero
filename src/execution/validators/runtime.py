@@ -5,6 +5,7 @@ validation engine, API key validation, and IDOR candidate promotion into
 a unified validation results dictionary.
 """
 
+import logging
 import time
 from typing import Any
 
@@ -15,6 +16,8 @@ from src.execution.validators.engine import (
     build_token_replay_summary,
     run_blackbox_validation_engine,
 )
+
+logger = logging.getLogger(__name__)
 
 VALIDATOR = "validator"
 
@@ -39,6 +42,7 @@ def execute_validation_runtime(
         runtime_inputs,
     )
     results = dict(engine_output.get("results", {}))
+    errors = list(engine_output.get("errors") or [])
     selection_explicit = bool(
         engine_output.get("settings", {}).get("validator_selection_explicit", False)
     )
@@ -61,8 +65,10 @@ def execute_validation_runtime(
             try:
                 validate_idor = resolve_plugin(VALIDATOR, "idor_candidates")
                 idor_results = validate_idor(analysis_results, token_replay)
-            except KeyError:
-                pass
+            except KeyError as e:
+                msg = f"Validator plugin 'idor_candidates' could not be resolved from registry: {e}"
+                logger.warning(msg)
+                errors.append(msg)
         results["idor_validation"] = idor_results
 
     # CSRF
@@ -72,8 +78,10 @@ def execute_validation_runtime(
             try:
                 validate_csrf = resolve_plugin(VALIDATOR, "csrf_candidates")
                 csrf_results = validate_csrf(analysis_results, callback_context)
-            except KeyError:
-                pass
+            except KeyError as e:
+                msg = f"Validator plugin 'csrf_candidates' could not be resolved from registry: {e}"
+                logger.warning(msg)
+                errors.append(msg)
         results["csrf_validation"] = csrf_results
 
     # XSS
@@ -83,8 +91,10 @@ def execute_validation_runtime(
             try:
                 validate_xss = resolve_plugin(VALIDATOR, "xss_candidates")
                 xss_results = validate_xss(analysis_results, callback_context)
-            except KeyError:
-                pass
+            except KeyError as e:
+                msg = f"Validator plugin 'xss_candidates' could not be resolved from registry: {e}"
+                logger.warning(msg)
+                errors.append(msg)
         results["xss_validation"] = xss_results
 
     # API Keys
@@ -92,10 +102,10 @@ def execute_validation_runtime(
         validate_api_keys = resolve_plugin(VALIDATOR, "api_key_candidates")
         api_key_results = validate_api_keys(runtime_inputs, validation_settings)
         results["api_key_validation"] = api_key_results
-    except KeyError:
-        pass
-
-    errors = engine_output.get("errors", [])
+    except KeyError as e:
+        msg = f"Validator plugin 'api_key_candidates' could not be resolved from registry: {e}"
+        logger.warning(msg)
+        errors.append(msg)
     duration = round(time.monotonic() - stage_started, 3)
     metric_payload = {
         "status": "ok" if not errors else "partial",
