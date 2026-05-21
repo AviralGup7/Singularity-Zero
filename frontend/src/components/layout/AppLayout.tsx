@@ -53,6 +53,7 @@ function useNavSections(): NavSection[] {
         { path: '/cache-management', label: 'Cache', icon: 'database' },
         { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
         { path: '/compliance', label: 'Compliance', icon: 'shieldCheck' },
+        { path: '/access-logs', label: 'Access Logs', icon: 'fileText' },
         { path: '/evidence-custody', label: 'Evidence Chain', icon: 'link' },
         { path: '/security', label: 'Security', icon: 'shieldCheck' },
         { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
@@ -118,6 +119,8 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/remediation-planner': { title: 'Remediation Planner', subtitle: 'Prioritized fix tracking' },
   '/mesh': { title: 'Mesh Command', subtitle: 'Distributed node orchestration' },
   '/audit-logs': { title: 'Audit Logs', subtitle: 'System event journal' },
+  '/compliance': { title: 'Security Compliance', subtitle: 'Regulatory GRC mapping and attestations' },
+  '/access-logs': { title: 'Access Logs', subtitle: 'Compliance audit trail' },
 };
 
 interface AppLayoutProps {

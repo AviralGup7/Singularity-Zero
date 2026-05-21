@@ -29,7 +29,8 @@ const MeshHealthPage = lazy(() => import('@/pages/MeshHealthPage').then(m => ({ 
 const TracingPage = lazy(() => import('@/pages/TracingPage').then(m => ({ default: m.TracingPage })));
 const SecurityPage = lazy(() => import('@/pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
 const AuditLogViewer = lazy(() => import('@/components/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })));
-const ComplianceLogViewer = lazy(() => import('@/components/ComplianceLogViewer').then(m => ({ default: m.ComplianceLogViewer })));
+const ComplianceDashboard = lazy(() => import('@/pages/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })));
+const AccessLogsPage = lazy(() => import('@/components/ComplianceLogViewer').then(m => ({ default: m.ComplianceLogViewer })));
 const EvidenceCustodyViewer = lazy(() => import('@/components/common/EvidenceCustodyViewer').then(m => ({ default: m.EvidenceCustodyViewer })));
 
 function RouteWatcher() {
@@ -86,7 +87,8 @@ export default function App() {
           <Route path="/security" element={<RouteGuard requiredRole="admin"><SecurityPage /></RouteGuard>} />
           <Route path="/tracing" element={<RouteGuard><TracingPage /></RouteGuard>} />
           <Route path="/audit-logs" element={<RouteGuard requiredPermission="viewAuditLogs"><AuditLogViewer /></RouteGuard>} />
-          <Route path="/compliance" element={<RouteGuard><ComplianceLogViewer /></RouteGuard>} />
+          <Route path="/compliance" element={<RouteGuard><ComplianceDashboard /></RouteGuard>} />
+          <Route path="/access-logs" element={<RouteGuard><AccessLogsPage /></RouteGuard>} />
           <Route path="/evidence-custody/:evidenceId" element={<RouteGuard><EvidenceCustodyViewerWrapper /></RouteGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

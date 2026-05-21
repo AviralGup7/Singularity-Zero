@@ -51,7 +51,7 @@ from ._constants import (
 )
 from ._orchestrator_helpers import build_stage_methods_map, finalize_run, stage_baseline
 from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
-from ._stage_retry import run_stage_with_retry
+from ._orchestrator import run_stage_with_retry
 from ._state_helpers import (
     build_stage_input_contract,
     log_live_hosts_timeout_diagnostics,
@@ -226,14 +226,28 @@ class PipelineOrchestrator:
         """Run the full security testing pipeline."""
         return asyncio.run(self.run(args))
 
-    async def _finalize_run(self, exit_code: int) -> int:
+    async def _finalize_run(
+        self,
+        exit_code: int,
+        ctx: PipelineContext | None = None,
+        config: Any | None = None,
+    ) -> int:
         if self._migration_handler:
             await self._migration_handler.stop()
+
+        event_data: dict[str, Any] = {"exit_code": exit_code}
+        if config:
+            event_data["target"] = str(getattr(config, "target_name", "unknown"))
+        if ctx:
+            event_data["run_id"] = ctx.run_id
+            summary = getattr(ctx.result, "summary", ctx.result.__dict__.get("summary"))
+            if summary and "compliance" in summary:
+                event_data["compliance"] = summary["compliance"]
 
         self._emit_event(
             EventType.PIPELINE_COMPLETE,
             source="orchestrator",
-            data={"exit_code": exit_code},
+            data=event_data,
         )
         return await finalize_run(event_bus=self._event_bus, exit_code=exit_code, logger_obj=logger)
 
@@ -290,15 +304,10 @@ class PipelineOrchestrator:
 
     async def run(self, args: argparse.Namespace) -> int:
         """Run the full security testing pipeline with distributed concurrency protection."""
-        flow_manifest = pipeline_flow_manifest()
-        emit_progress("startup", "Loading configuration", 3)
-
-        preloaded_config = getattr(args, "_loaded_config", None)
-        config = (
-            preloaded_config
-            if preloaded_config is not None
-            else load_config(Path(args.config).resolve())
-        )
+        from ._orchestrator.bootstrap import bootstrap_pipeline
+        config, scope_entries, tool_status, flow_manifest = bootstrap_pipeline(args)
+        setattr(args, "_loaded_config", config)
+        setattr(args, "_loaded_scope_entries", scope_entries)
 
         # ──────────────────────────────────────────────────────────
         # Distributed Concurrency Guard (Overhaul #4)
@@ -352,238 +361,8 @@ class PipelineOrchestrator:
         self, args: argparse.Namespace, config: Any, flow_manifest: Any, cache_mgr: Any
     ) -> int:
         """Internal execution loop after lock acquisition."""
-        preloaded_scope_entries = getattr(args, "_loaded_scope_entries", None)
-        scope_entries = (
-            list(preloaded_scope_entries)
-            if preloaded_scope_entries is not None
-            else read_scope(Path(args.scope).resolve())
-        )
-        screenshot_cfg = config.screenshots if isinstance(config.screenshots, dict) else {}
-        tool_status = build_tool_status(screenshot_cfg.get("browser_paths", []))
-        emit_progress("startup", f"Loaded config for {config.target_name}", 8)
-
-        if args.dry_run:
-            print(
-                json.dumps({"scope_entries": scope_entries, "tool_status": tool_status}, indent=2)
-            )
-            return await self._finalize_run(0)
-
-        started_at = time.time()
-        output_store = PipelineOutputStore.create(
-            config.output_dir, config.target_name, config.output, storage_config=config.storage
-        )
-        previous_run = find_previous_run(output_store.target_root)
-        use_cache = cache_enabled(config.cache)
-        module_metrics: dict[str, Any] = {}
-        module_metrics["pipeline_flow"] = {
-            "status": "ok",
-            "stage_count": len(flow_manifest),
-        }
-        output_store.write_scope(scope_entries)
-        discovery_enabled = any(
-            config.tools.get(name) for name in ("subfinder", "assetfinder", "amass")
-        )
-
-        run_id = generate_run_id()
-        ctx = PipelineContext(
-            result=StageResult(
-                scope_entries=list(scope_entries),
-                use_cache=use_cache,
-                module_metrics=module_metrics,
-                previous_run=previous_run,
-                tool_status=tool_status,
-                flow_manifest=flow_manifest,  # type: ignore[arg-type]
-                started_at=started_at,
-                discovery_enabled=discovery_enabled,
-            ),
-            output_store=output_store,
-            run_id=run_id,
-        )
-
-        # 🛸 Frontier Upgrade: Load adaptive config (Phase 5.2)
-        adaptive_config = load_adaptive_config(Path(config.output_dir), config.target_name)
-        if adaptive_config:
-            ctx_dict = ctx.to_dict()
-            self._learning_integration.apply_adaptations(ctx_dict, adaptive_config, config=config)
-            logger.info("Pre-applied adaptive configuration for target: %s", config.target_name)
-
-        checkpoint_mgr = create_checkpoint_manager(
-            Path(config.output_dir),
-            config.target_name,
-            run_id=run_id,
-            storage_config=config.storage,
-        )
-
-        # Distributed Write-Ahead Log (Overhaul #9)
-        # ----------------------------------------------------------
-        from src.core.frontier.wal import FrontierWAL
-
-        self._wal = FrontierWAL(getattr(config, "redis_url", None), run_id)
-        logger.info("Frontier WAL initialized: stream=cyber:wal:%s", run_id)
-
-        # ----------------------------------------------------------
-        # Ghost-Actor Migration Handler (Sprint 1)
-        # ----------------------------------------------------------
-        from src.core.frontier.ghost_actor import GhostMeshCoordinator, GhostMeshRegistry
-
-        mesh_registry = GhostMeshRegistry(cache_mgr._redis, run_id)
-        # Assuming gossip is available via cache_mgr or another service in a real scenario
-        # For now, we use a stub/coordinator initialized with registry.
-        coordinator = GhostMeshCoordinator(mesh_registry, getattr(cache_mgr, "_gossip", None))
-
-        self._migration_handler = ProactiveMigrationHandler(
-            coordinator=coordinator,
-            check_interval_seconds=float(getattr(config, "migration_check_interval", 30.0)),
-        )
-        await self._migration_handler.start()
-
-        force_fresh = getattr(args, "force_fresh_run", False)
-        can_recover, recovered_state = attempt_recovery(
-            Path(config.output_dir),
-            config.target_name,
-            force_fresh=force_fresh,
-            storage_config=config.storage,
-        )
-        if can_recover and recovered_state:
-            recovered_checkpoint_mgr = create_checkpoint_manager(
-                Path(config.output_dir),
-                config.target_name,
-                run_id=recovered_state.pipeline_run_id,
-                storage_config=config.storage,
-            )
-            recovered_completed_stages = {
-                str(stage).strip()
-                for stage in (getattr(recovered_state, "completed_stages", []) or [])
-                if str(stage).strip()
-            }
-            if hasattr(recovered_checkpoint_mgr, "load_latest_context_snapshot"):
-                recovered_payload = recovered_checkpoint_mgr.load_latest_context_snapshot(
-                    recovered_completed_stages
-                )
-            else:
-                recovered_payload = recovered_state.to_dict()
-            if isinstance(recovered_payload, dict) and {
-                "scope_entries",
-                "stage_status",
-            }.issubset(recovered_payload):
-                logger.info(
-                    "Recovering from full context checkpoint: run=%s completed_stages=%s",
-                    recovered_state.pipeline_run_id,
-                    recovered_state.completed_stages,
-                )
-                ctx = PipelineContext.restore(recovered_payload)
-                ctx.output_store = output_store
-                checkpoint_mgr = recovered_checkpoint_mgr
-                run_id = recovered_state.pipeline_run_id
-                remaining_stages = [
-                    stage for stage in STAGE_ORDER if stage not in recovered_completed_stages
-                ]
-                emit_progress(
-                    "startup",
-                    f"Recovered checkpoint run {run_id}; resuming {len(remaining_stages)} stage(s)",
-                    9,
-                    status="running",
-                    stage_status="running",
-                    details={
-                        "checkpoint_run_id": run_id,
-                        "completed_stage_count": len(recovered_completed_stages),
-                    },
-                )
-            else:
-                logger.warning(
-                    "Skipping checkpoint recovery for run=%s: incompatible checkpoint payload "
-                    "missing pipeline context fields",
-                    recovered_state.pipeline_run_id,
-                )
-                emit_progress(
-                    "startup",
-                    "Skipping stale checkpoint recovery; starting a fresh run",
-                    9,
-                    status="warning",
-                    details={
-                        "checkpoint_run_id": recovered_state.pipeline_run_id,
-                        "reason": "incompatible_checkpoint_payload",
-                    },
-                )
-                remaining_stages = list(STAGE_ORDER)
-        else:
-            remaining_stages = list(STAGE_ORDER)
-
-        scope_entries = list(ctx.scope_entries)
-        self._pipeline_correlation_id = run_id
-        self._pipeline_input = PipelineInput(
-            target_name=str(getattr(config, "target_name", "unknown") or "unknown"),
-            scope_entries=tuple(scope_entries),
-            run_id=run_id,
-            metadata={
-                "use_cache": bool(getattr(ctx.result, "use_cache", use_cache)),
-                "discovery_enabled": bool(
-                    getattr(ctx.result, "discovery_enabled", discovery_enabled)
-                ),
-                "flow_stage_count": len(flow_manifest),
-            },
-        )
-        self._emit_event(
-            EventType.PIPELINE_STARTED,
-            source="pipeline_orchestrator",
-            data={
-                "contract": self._pipeline_input.to_dict(),
-            },
-        )
-
-        scope_hosts = {entry.strip().lower() for entry in scope_entries if entry.strip()}
-        scope_hosts.update(
-            {
-                normalize_scope_entry(entry).strip().lower()
-                for entry in scope_entries
-                if normalize_scope_entry(entry).strip()
-            }
-        )
-        scope_validator = ScopeValidator(scope_hosts)
-        scope_interceptor = OutboundRequestInterceptor(scope_validator)
-
-        # Hook 1: Apply learning adaptations from previous runs
-        try:
-            from src.learning.integration import LearningIntegration
-
-            ctx_dict = ctx.to_dict()
-            learning = LearningIntegration.get_or_create(ctx_dict)
-            adaptations = learning.compute_adaptations(ctx_dict)
-            if adaptations:
-                learning.apply_adaptations(ctx_dict, adaptations, config=config)
-                ctx.result.module_metrics.setdefault("learning", {})["feedback_applied"] = True
-                logger.info("Applied %d learning adaptations from previous runs", len(adaptations))
-        except Exception as exc:
-            logger.warning("Learning adaptation failed: %s", exc)
-
-        stage_methods = self._build_stage_methods()
-        remaining_stages = [s for s in remaining_stages if s in stage_methods]
-
-        nuclei_status: Any = tool_status.get("nuclei", {})
-        nuclei_available = isinstance(nuclei_status, dict) and nuclei_status.get("available", False)
-
-        # Track which parallel stages have been handled by the parallel runner
-        handled_by_parallel: set[str] = set()
-        stage_execution_exit = await self._execute_remaining_stages(
-            remaining_stages=remaining_stages,
-            stage_methods=stage_methods,
-            args=args,
-            config=config,
-            ctx=ctx,
-            scope_interceptor=scope_interceptor,
-            nuclei_available=nuclei_available,
-            checkpoint_mgr=checkpoint_mgr,
-            handled_by_parallel=handled_by_parallel,
-        )
-        if stage_execution_exit is not None:
-            return await self._finalize_run(stage_execution_exit)
-
-        exit_code = self._resolve_pipeline_exit_code(
-            ctx=ctx,
-            config=config,
-            started_at=started_at,
-        )
-        return await self._finalize_run(exit_code)
+        from ._orchestrator.security import run_secured
+        return await run_secured(self, args, config, flow_manifest, cache_mgr)
 
     # ------------------------------------------------------------------ parallel helpers --
 
