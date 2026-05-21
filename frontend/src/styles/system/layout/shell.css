@@ -44,12 +44,40 @@
   max-width: 1440px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+}
+
+/* Subtle gradient line above footer */
+.app-footer::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--border-strong), transparent);
+  pointer-events: none;
+}
+
+.app-footer span {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  transition: color var(--motion-fast) var(--easing-out);
+}
+
+.app-footer span:hover {
+  color: var(--text-secondary);
 }
 
 .footer-health {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  transition: color var(--motion-fast) var(--easing-out);
+}
+
+.footer-health:hover {
+  color: var(--text-secondary);
 }
 
 .footer-health i {

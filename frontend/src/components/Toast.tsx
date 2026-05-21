@@ -60,32 +60,56 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
               className="pointer-events-auto"
             >
-              <div className={`
-                flex items-start gap-4 p-4 rounded-xl border shadow-2xl backdrop-blur-xl
-                ${toast.type === 'success' ? 'bg-green-950/80 border-green-500/50' : ''}
-                ${toast.type === 'error' ? 'bg-red-950/80 border-red-500/50' : ''}
-                ${toast.type === 'warning' ? 'bg-amber-950/80 border-amber-500/50' : ''}
-                ${toast.type === 'info' ? 'bg-blue-950/80 border-blue-500/50' : ''}
-              `}>
+              <div
+                className="flex items-start gap-4 p-4 rounded-xl border shadow-2xl"
+                style={{
+                  backdropFilter: 'blur(var(--glass-blur))',
+                  background:
+                    toast.type === 'success' ? 'color-mix(in srgb, var(--ok) 12%, var(--bg))' :
+                    toast.type === 'error' ? 'color-mix(in srgb, var(--bad) 12%, var(--bg))' :
+                    toast.type === 'warning' ? 'color-mix(in srgb, var(--warn) 12%, var(--bg))' :
+                    'color-mix(in srgb, var(--info) 12%, var(--bg))',
+                  borderColor:
+                    toast.type === 'success' ? 'color-mix(in srgb, var(--ok) 40%, transparent)' :
+                    toast.type === 'error' ? 'color-mix(in srgb, var(--bad) 40%, transparent)' :
+                    toast.type === 'warning' ? 'color-mix(in srgb, var(--warn) 40%, transparent)' :
+                    'color-mix(in srgb, var(--info) 40%, transparent)',
+                }}
+              >
                 <div className="shrink-0 mt-0.5">
-                  {toast.type === 'success' && <CheckCircle size={18} className="text-green-400" />}
-                  {toast.type === 'error' && <AlertOctagon size={18} className="text-red-400" />}
-                  {toast.type === 'warning' && <AlertTriangle size={18} className="text-amber-400" />}
-                  {toast.type === 'info' && <Info size={18} className="text-blue-400" />}
+                  {toast.type === 'success' && <CheckCircle size={18} style={{ color: 'var(--ok)' }} />}
+                  {toast.type === 'error' && <AlertOctagon size={18} style={{ color: 'var(--bad)' }} />}
+                  {toast.type === 'warning' && <AlertTriangle size={18} style={{ color: 'var(--warn)' }} />}
+                  {toast.type === 'info' && <Info size={18} style={{ color: 'var(--info)' }} />}
                 </div>
-                <div className="flex-1">
-                  <p className="text-[10px] font-black text-white/90 uppercase tracking-[0.2em] mb-1">
+                <div className="flex-1" style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: '10px', fontWeight: 900, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.2em', marginBottom: '4px', opacity: 0.9 }}>
                     {toast.type === 'success' ? 'Operation Success' :
                      toast.type === 'error' ? 'System Error' :
                      toast.type === 'warning' ? 'Security Warning' : 'System Notice'}
                   </p>
-                  <p className="text-xs text-white/80 leading-relaxed font-mono">
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.625, fontFamily: 'var(--font-mono)' }}>
                     {toast.message}
                   </p>
+                  {toast.duration > 0 && (
+                    <div style={{ marginTop: '8px', height: '2px', background: 'var(--surface-3)', borderRadius: '999px', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        borderRadius: '999px',
+                        background:
+                          toast.type === 'success' ? 'var(--ok)' :
+                          toast.type === 'error' ? 'var(--bad)' :
+                          toast.type === 'warning' ? 'var(--warn)' : 'var(--info)',
+                        animation: `toast-drain ${toast.duration}ms linear forwards`,
+                      }} />
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => removeToast(toast.id)}
-                  className="shrink-0 text-white/30 hover:text-white transition-colors"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  className="shrink-0 hover:text-text transition-colors"
+                  aria-label="Dismiss notification"
                 >
                   <X size={16} />
                 </button>

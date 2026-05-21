@@ -69,6 +69,27 @@ class RetryMetrics:
             return 0.0
         return self.total_retries / self.total_attempts
 
+    @property
+    def success_rate(self) -> float:
+        """Return the fraction of attempts that succeeded."""
+        if self.total_attempts == 0:
+            return 0.0
+        return self.total_successes / self.total_attempts
+
+    def to_dict(self) -> dict[str, int | float]:
+        """Export metrics as a dictionary for telemetry ingestion."""
+        return {
+            "total_attempts": self.total_attempts,
+            "total_retries": self.total_retries,
+            "total_failures": self.total_failures,
+            "total_successes": self.total_successes,
+            "transient_errors": self.transient_errors,
+            "permanent_errors": self.permanent_errors,
+            "total_backoff_seconds": round(self.total_backoff_seconds, 3),
+            "retry_rate": round(self.retry_rate, 4),
+            "success_rate": round(self.success_rate, 4),
+        }
+
 
 _TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
     TimeoutError,
@@ -92,7 +113,12 @@ _HTTP_PERMANENT_CODES = {400, 401, 403, 404, 405, 410, 422}
 
 
 def classify_error(exc: BaseException) -> str:
-    """Classify an exception as 'transient', 'permanent', or 'unknown'."""
+    """Classify an exception as 'transient', 'permanent', or 'unknown'.
+
+    Transient: TimeoutError, ConnectionError, HTTP 408/429/5xx
+    Permanent: ValueError, TypeError, KeyError, HTTP 4xx (non-retryable)
+    Unknown: everything else (policy decides whether to retry)
+    """
     if isinstance(exc, _TRANSIENT_EXCEPTIONS):
         return "transient"
     if isinstance(exc, _PERMANENT_EXCEPTIONS):

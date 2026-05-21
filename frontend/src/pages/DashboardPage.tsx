@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   ShieldAlert,
   Target,
@@ -50,23 +50,29 @@ export function DashboardPage() {
 
       {/* ── KPI Row ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 stagger">
-        <div className="card">
+        <div className="card animate-fade-in-up">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-muted">Total Targets</span>
             <Target size={16} className="text-muted" />
           </div>
-          <div className="text-2xl font-semibold text-text">{totalTargets}</div>
+          <div className="flex items-end gap-2">
+            <span className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>{totalTargets}</span>
+            <span className="text-xs text-muted mb-1">assets</span>
+          </div>
         </div>
         
-        <div className="card">
+        <div className="card animate-fade-in-up">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-muted">Active Scans</span>
             <Activity size={16} className="text-accent" />
           </div>
-          <div className="text-2xl font-semibold text-text">{activeJobsCount}</div>
+          <div className="flex items-end gap-2">
+            <span className="text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>{activeJobsCount}</span>
+            {activeJobsCount > 0 && <span className="text-xs text-accent mb-1">in progress</span>}
+          </div>
         </div>
 
-        <div className="card">
+        <div className="card animate-fade-in-up">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-muted">Open Findings</span>
             <ShieldAlert size={16} className={criticalFindings > 0 ? 'text-bad' : 'text-muted'} />
