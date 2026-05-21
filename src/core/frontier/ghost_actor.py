@@ -12,6 +12,7 @@ from typing import Any, cast
 
 import pykka
 
+from src.core.frontier.marshaller import mesh_marshal, mesh_unmarshal
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
@@ -32,6 +33,24 @@ class ActorState:
     data: dict[str, Any]
     checkpoint_ts: float
     evacuation_recommended: bool = False
+
+    def pack(self) -> bytes:
+        """Binary serialization via MessagePack."""
+        return mesh_marshal(
+            {
+                "actor_id": self.actor_id,
+                "stage": self.stage,
+                "data": self.data,
+                "checkpoint_ts": self.checkpoint_ts,
+                "evacuation_recommended": self.evacuation_recommended,
+            }
+        )
+
+    @classmethod
+    def unpack(cls, payload: bytes) -> ActorState:
+        """Binary deserialization via MessagePack."""
+        data = mesh_unmarshal(payload)
+        return cls(**data)
 
 
 class ScanActor(pykka.ThreadingActor):
@@ -94,14 +113,15 @@ class ScanActor(pykka.ThreadingActor):
         elif command == "migrate":
             self.is_migrating = True
             # Fix S1-3: Ensure we capture a stable snapshot before stopping
-            snapshot = self.on_receive({"command": "snapshot"})
+            snapshot = cast(ActorState, self.on_receive({"command": "snapshot"}))
             logger.warning(
                 "Ghost-Actor [%s]: Initiating migration (Evac Recommended: %s)",
                 self.actor_id,
                 self._evacuation_recommended,
             )
             self.stop()
-            return snapshot
+            # Return binary payload for mesh-transport
+            return snapshot.pack()
 
         elif command == "health_check":
             self._check_local_health()
@@ -181,17 +201,33 @@ class GhostMeshCoordinator:
         Returns True if migration was successful.
         """
         try:
-            # We use block=True for ThreadingActors; Pykka futures are not natively awaitable.
-            health = cast(dict[str, Any], actor_ref.ask({"command": "health_check"}, block=True))
+            # 🛸 Sprint 1 Hardening: Use live mesh telemetry instead of blocking actor calls
+            # This allows us to detect pressure even if the actor is busy executing.
+            local_node = self.gossip.local_node
+            
+            # Use same thresholds as ProactiveMigrationHandler (90% CPU, <500MB RAM available)
+            # Note: ram_available_mb is what we have left, not % usage.
+            # Assuming a 2GB comfortable baseline, 500MB is critical.
+            is_under_pressure = (
+                local_node.cpu_usage > 90.0 or 
+                local_node.ram_available_mb < 500.0
+            )
 
-            if not isinstance(health, dict) or not health.get("evacuation_recommended"):
-                return False
+            if not is_under_pressure:
+                # Also check if actor specifically recommended evacuation (e.g. for logic-level reasons)
+                # We still try to ask, but with a timeout to avoid hanging.
+                try:
+                    health = cast(dict[str, Any], actor_ref.ask({"command": "health_check"}, timeout=0.5))
+                    if not health.get("evacuation_recommended"):
+                        return False
+                except (pykka.TimeoutError, Exception):
+                    return False
 
-            actor_id = health["actor_id"]
-            logger.info("Ghost-Coordinator: Initiating proactive migration for [%s]", actor_id)
+            actor_id = f"actor:{task_metadata.get('actor_id', 'unknown')}"
+            logger.info("Ghost-Coordinator: Initiating proactive migration for [%s] due to node pressure", actor_id)
 
             target_node_id = self.balancer.select_best_node_from_gossip(self.gossip, task_metadata)
-            current_node_id = await self.registry.find_actor(actor_id)
+            current_node_id = local_node.id
 
             if target_node_id and target_node_id != current_node_id:
                 logger.info(

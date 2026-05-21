@@ -158,7 +158,7 @@ class DashboardQueryService:
                     self.jobs[job_id] = job
 
             if job:
-                if not self._is_terminal_reporting_state(job):
+                if job.get("status") in {"running", "failed"}:
                     self._reconcile_stale_terminal_job(job, now=now)
 
                 elapsed = now - float(job.get("updated_at", 0) or 0)
@@ -189,18 +189,42 @@ class DashboardQueryService:
                         logger.debug("Failed to terminate process for job %s: %s", job_id, exc)
 
                 job["status"] = "stopped"
-                job["status_message"] = "Stopped by user"
+                job["status_message"] = "Stopping run"
+                job["stop_requested"] = True
                 job["finished_at"] = time.time()
                 job["updated_at"] = time.time()
+
+                # Write stop marker artifact for historical recovery
+                launcher_dir = self.output_root / "_launcher" / job_id
+                if launcher_dir.exists():
+                    try:
+                        (launcher_dir / "stop_requested.marker").write_text(
+                            str(time.time()), encoding="utf-8"
+                        )
+                    except OSError as exc:
+                        logger.warning("Failed to write stop marker for %s: %s", job_id, exc)
+
                 self._persist_if_needed(job)
 
             return snapshot_job(job)
 
     def api_defaults(self) -> dict[str, object]:
+        config = self.load_template()
         return {
-            "http_timeout_seconds": 12,
-            "max_collected_urls": 1400,
-            "request_rate_per_second": 2.5,
+            "default_mode": self.default_mode_name(),
+            "form_defaults": {
+                "httpx_threads": config.get("httpx", {}).get("threads", 80),
+                "refresh_cache": False,
+                "auto_max_speed_mode": config.get("analysis", {}).get("auto_max_speed_mode", False),
+                "httpx_batch_concurrency": config.get("httpx", {}).get("batch_concurrency", 2),
+                "httpx_fallback_threads": config.get("httpx", {}).get("fallback_threads", 48),
+                "httpx_probe_timeout_seconds": config.get("httpx", {}).get("probe_timeout_seconds", 8),
+                "pagination_walk_limit": config.get("analysis", {}).get("pagination_walk_limit", 24),
+                "options_probe_limit": config.get("analysis", {}).get("options_probe_limit", 10),
+            },
+            "http_timeout_seconds": config.get("http_timeout_seconds", 12),
+            "max_collected_urls": config.get("filters", {}).get("max_collected_urls", 1400),
+            "request_rate_per_second": config.get("analysis", {}).get("request_rate_per_second", 2.5),
         }
 
     def findings_summary(self) -> dict[str, object]:

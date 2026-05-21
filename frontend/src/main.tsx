@@ -163,12 +163,14 @@ async function bootstrap() {
     let setupGlobalErrorTracking: (() => void) | undefined;
     let registerServiceWorker: (() => void) | undefined;
     let initWebVitals: (() => void) | undefined;
+    let initTimeSync: (() => void) | undefined;
 
     try {
       const init = await import('@/utils/init');
       setupGlobalErrorTracking = init.setupGlobalErrorTracking;
       registerServiceWorker = init.registerServiceWorker;
       initWebVitals = init.initWebVitals;
+      initTimeSync = init.initTimeSync;
     } catch (e) {
       console.warn('Failed to load init utilities:', e);
     }
@@ -177,6 +179,7 @@ async function bootstrap() {
     setupGlobalErrorTracking?.();
     registerServiceWorker?.();
     initWebVitals?.();
+    initTimeSync?.();
 
     // Ensure i18n is at least attempted before mount
     try {
