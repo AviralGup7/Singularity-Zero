@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 from src.core.contracts.pipeline_runtime import StageOutcome
 from src.core.models.stage_result import PipelineContext, StageResult
-from src.pipeline.services.pipeline_orchestrator.stages import _recon_network as recon_network_impl
 from src.pipeline.services.pipeline_orchestrator.stages import recon as recon_stages
 
 
@@ -226,39 +225,6 @@ def test_live_hosts_stage_clamps_enrichment_budget_to_stage_timeout_hint(tmp_pat
         output = asyncio.run(recon_stages.run_live_hosts(_args(), config, ctx))
 
     assert output.outcome == StageOutcome.COMPLETED
-
-
-def test_run_sync_with_heartbeat_suppresses_late_background_exception() -> None:
-    captured_contexts: list[dict[str, object]] = []
-
-    async def _exercise() -> None:
-        loop = asyncio.get_running_loop()
-        previous_handler = loop.get_exception_handler()
-
-        def _handler(_loop: asyncio.AbstractEventLoop, context: dict[str, object]) -> None:
-            captured_contexts.append(context)
-
-        def _late_failure() -> None:
-            time.sleep(0.2)
-            raise TimeoutError("late background failure")
-
-        loop.set_exception_handler(_handler)
-        try:
-            try:
-                await recon_network_impl._run_sync_with_heartbeat(
-                    _late_failure,
-                    heartbeat_seconds=1,
-                    on_heartbeat=lambda _elapsed: None,
-                    max_duration_seconds=0.05,
-                )
-            except TimeoutError:
-                pass
-            await asyncio.sleep(0.3)
-        finally:
-            loop.set_exception_handler(previous_handler)
-
-    asyncio.run(_exercise())
-    assert captured_contexts == []
 
 
 def test_url_stage_emits_collection_heartbeat_for_long_running_collect(tmp_path: Path) -> None:

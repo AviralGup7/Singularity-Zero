@@ -88,8 +88,8 @@ class JobStore:
         if hasattr(self._local, "_conn") and self._local._conn is not None:
             try:
                 self._local._conn.close()
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:  # noqa: S110
+                logger.warning("Failed to close SQLite connection cleanly: %s", exc)
             self._local._conn = None
 
     def save(self, job: dict[str, Any]) -> None:

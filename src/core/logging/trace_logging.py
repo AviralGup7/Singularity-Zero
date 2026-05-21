@@ -21,7 +21,7 @@ class TraceContextFilter(logging.Filter):
                 span_id = f"{ctx.span_id:016x}"
         except ImportError:
             pass  # OpenTelemetry not installed; trace enrichment disabled
-        except Exception:
+        except Exception:  # noqa: S110
             pass  # Span context extraction failed; non-critical
 
         record.trace_id = trace_id  # type: ignore[attr-defined]
