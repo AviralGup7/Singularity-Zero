@@ -1,2 +1,0 @@
-gau failed to collect URLs for square.com after retries
-waybackurls provider degraded: connection timeout on square.com
