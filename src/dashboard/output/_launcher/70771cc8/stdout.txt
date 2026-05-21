@@ -1,1 +1,0 @@
-PIPELINE_PROGRESS {"stage": "live_hosts", "status": "running", "percent": 30, "message": "Probing live hosts"}

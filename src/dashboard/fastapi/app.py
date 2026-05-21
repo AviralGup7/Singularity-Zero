@@ -448,8 +448,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     # Serve generated artifacts (Reports & Launcher logs)
     @app.get("/_launcher/{job_id}/{filename}", include_in_schema=False)
     async def serve_launcher_artifact(job_id: str, filename: str) -> Response:
-        safe_path = (config.workspace_root / "_launcher" / job_id / filename).resolve()
-        if safe_path.is_file() and safe_path.is_relative_to(config.workspace_root.resolve()):
+        safe_path = (config.output_root / "_launcher" / job_id / filename).resolve()
+        if safe_path.is_file() and safe_path.is_relative_to(config.output_root.resolve()):
             return FileResponse(path=safe_path)
         return Response(status_code=404)
 
