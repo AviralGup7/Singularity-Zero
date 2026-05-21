@@ -37,10 +37,12 @@ class CompositeActiveProbe:
         probes: dict[str, Any],
         response_cache: Any,
         timeout_seconds: float = 180.0,
+        error_accumulator: list[dict[str, Any]] | None = None,
     ) -> None:
         self.probes = probes
         self.response_cache = response_cache
         self.timeout_seconds = timeout_seconds
+        self.error_accumulator = error_accumulator
 
     async def __call__(self, url: str) -> list[dict[str, Any]]:
         """Run all relevant endpoint-level probes for a single URL."""
@@ -72,6 +74,7 @@ class CompositeActiveProbe:
                 item_l,
                 self.response_cache,
                 timeout_seconds=self.timeout_seconds,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "csrf",
@@ -79,6 +82,7 @@ class CompositeActiveProbe:
                 item_l,
                 self.response_cache,
                 timeout_seconds=self.timeout_seconds,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "jwt",
@@ -86,6 +90,7 @@ class CompositeActiveProbe:
                 item_l,
                 self.response_cache,
                 timeout_seconds=self.timeout_seconds,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "xss",
@@ -94,6 +99,7 @@ class CompositeActiveProbe:
                 self.response_cache,
                 4,
                 timeout_seconds=self.timeout_seconds,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "ssrf",
@@ -102,6 +108,7 @@ class CompositeActiveProbe:
                 self.response_cache,
                 4,
                 timeout_seconds=self.timeout_seconds,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "idor",
@@ -109,6 +116,7 @@ class CompositeActiveProbe:
                 item_l,
                 self.response_cache,
                 timeout_seconds=self.timeout_seconds,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "hpp",
@@ -116,6 +124,7 @@ class CompositeActiveProbe:
                 item_l,
                 self.response_cache,
                 timeout_seconds=self.timeout_seconds,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "graphql",
@@ -123,6 +132,7 @@ class CompositeActiveProbe:
                 item_l,
                 self.response_cache,
                 timeout_seconds=self.timeout_seconds,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "auth_bypass",
@@ -132,6 +142,7 @@ class CompositeActiveProbe:
                 6,
                 timeout_seconds=self.timeout_seconds,
                 probes=self.probes,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "json",
@@ -140,6 +151,7 @@ class CompositeActiveProbe:
                 self.response_cache,
                 timeout_seconds=self.timeout_seconds,
                 probes=self.probes,
+                error_accumulator=self.error_accumulator,
             ),
             _try_probe(
                 "fuzzing_suggestions",
@@ -148,6 +160,7 @@ class CompositeActiveProbe:
                 6,
                 timeout_seconds=self.timeout_seconds,
                 probes=self.probes,
+                error_accumulator=self.error_accumulator,
             ),
         ]
 
@@ -157,6 +170,12 @@ class CompositeActiveProbe:
         for probe_name, r in zip(probe_names, results, strict=False):
             if isinstance(r, BaseException):
                 logger.error("Active scan probe '%s' failed: %s", probe_name, r)
+                if self.error_accumulator is not None:
+                    self.error_accumulator.append({
+                        "probe": probe_name,
+                        "reason": "error",
+                        "message": f"Active scan probe '{probe_name}' failed: {r}"
+                    })
                 continue
             if isinstance(r, tuple):
                 _, findings, ok = r
@@ -210,13 +229,49 @@ async def run_active_scanning_adaptive(
     host_targets = [f"https://{host}" for host in unique_hosts if host]
     host_priority_items = [{"url": url} for url in host_targets]
 
+    degraded_probes: list[dict[str, Any]] = []
+
+    analysis_settings = getattr(config, "analysis", {}) if config is not None else {}
+    try:
+        probe_timeout_seconds = float(analysis_settings.get("active_probe_timeout_seconds", 180))
+    except (TypeError, ValueError):
+        probe_timeout_seconds = 180.0
+    probe_timeout_seconds = max(30.0, probe_timeout_seconds)
+
     logger.info("Running host-level probes on %d unique hosts", len(unique_hosts))
     host_probe_names = ["cors", "trace", "options", "cloud_metadata"]
     host_tasks = [
-        _try_probe("cors", probes["cors_preflight_probe"], host_priority_items, response_cache),
-        _try_probe("trace", probes["trace_method_probe"], host_priority_items, response_cache),
-        _try_probe("options", probes["options_method_probe"], host_priority_items, response_cache),
-        _try_probe("cloud_metadata", probes["cloud_metadata_active_probe"], host_targets),
+        _try_probe(
+            "cors",
+            probes["cors_preflight_probe"],
+            host_priority_items,
+            response_cache,
+            timeout_seconds=probe_timeout_seconds,
+            error_accumulator=degraded_probes,
+        ),
+        _try_probe(
+            "trace",
+            probes["trace_method_probe"],
+            host_priority_items,
+            response_cache,
+            timeout_seconds=probe_timeout_seconds,
+            error_accumulator=degraded_probes,
+        ),
+        _try_probe(
+            "options",
+            probes["options_method_probe"],
+            host_priority_items,
+            response_cache,
+            timeout_seconds=probe_timeout_seconds,
+            error_accumulator=degraded_probes,
+        ),
+        _try_probe(
+            "cloud_metadata",
+            probes["cloud_metadata_active_probe"],
+            host_targets,
+            timeout_seconds=probe_timeout_seconds,
+            error_accumulator=degraded_probes,
+        ),
     ]
     host_results = await asyncio.gather(*host_tasks, return_exceptions=True)
 
@@ -236,13 +291,17 @@ async def run_active_scanning_adaptive(
                 host_probe_errors.append(f"{probe_name}: probe failed or timed out")
 
     # 4. Adaptive Endpoint Probes
-    analysis_settings = getattr(config, "analysis", {}) if config is not None else {}
     batch_size = int(analysis_settings.get("adaptive_batch_size", 20))
     concurrency = int(analysis_settings.get("adaptive_concurrency", 5))
 
     coordinator = AdaptiveScanCoordinator(
         urls=all_urls,
-        probe_fn=CompositeActiveProbe(probes, response_cache),
+        probe_fn=CompositeActiveProbe(
+            probes,
+            response_cache,
+            timeout_seconds=probe_timeout_seconds,
+            error_accumulator=degraded_probes,
+        ),
         batch_size=batch_size,
         concurrency=concurrency,
         boost_on_findings=True,
@@ -268,6 +327,7 @@ async def run_active_scanning_adaptive(
         "adaptive_batches": len(batch_result.results) // batch_size + 1,
         "host_probe_errors_count": len(host_probe_errors),
         "host_probe_errors_sample": host_probe_errors[:5],
+        "degraded_probes": degraded_probes,
     }
 
     emit_progress(
