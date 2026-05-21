@@ -51,7 +51,22 @@ _SAFE_ALPHABET = st.characters(
     blacklist_characters=("<", ">", "'", '"', "&", "/", "\\", ";", "(", ")"),
 )
 
-_SAFE_TEXT = st.text(alphabet=_SAFE_ALPHABET, min_size=1, max_size=200)
+
+def _is_really_safe(text: str) -> bool:
+    from src.analysis.checks.active.ssrf_oob_validator._helpers import (
+        check_cloud_metadata,
+        check_internal_errors,
+        check_internal_leakage,
+    )
+
+    return (
+        not check_cloud_metadata(text)
+        and not check_internal_leakage(text)
+        and not check_internal_errors(text)
+    )
+
+
+_SAFE_TEXT = st.text(alphabet=_SAFE_ALPHABET, min_size=1, max_size=200).filter(_is_really_safe)
 
 _URL_SAFE_PATH = st.text(
     alphabet=string.ascii_lowercase + string.digits + "/_-",

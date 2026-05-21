@@ -35,26 +35,32 @@ def parse_ipv4_fast(ip_str: str) -> tuple[bool, int]:
 
     Returns (success, ip_as_uint32).
     """
+    if not ip_str:
+        return False, 0
+
     octet = 0
     dots = 0
     acc: list[int] = [0, 0, 0, 0]
+    has_digit = False
 
     for c in ip_str:
         if "0" <= c <= "9":
             d = ord(c) - 48
             octet = octet * 10 + d
+            has_digit = True
             if octet > 255:
                 return False, 0
         elif c == ".":
-            if dots >= 3:
+            if not has_digit or dots >= 3:
                 return False, 0
             acc[dots] = octet
             dots += 1
             octet = 0
+            has_digit = False
         else:
             return False, 0
 
-    if dots != 3:
+    if dots != 3 or not has_digit:
         return False, 0
     acc[3] = octet
 
