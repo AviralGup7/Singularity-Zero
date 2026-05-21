@@ -272,7 +272,10 @@ def _extract_manifest(tree: ast.AST) -> dict[str, Any] | None:
     for node in tree.body if isinstance(tree, ast.Module) else []:
         if not isinstance(node, ast.Assign):
             continue
-        if not any(isinstance(target, ast.Name) and target.id == "PLUGIN_MANIFEST" for target in node.targets):
+        if not any(
+            isinstance(target, ast.Name) and target.id == "PLUGIN_MANIFEST"
+            for target in node.targets
+        ):
             continue
         try:
             value = _literal_manifest_value(node.value)
@@ -288,7 +291,9 @@ def _extract_manifest(tree: ast.AST) -> dict[str, Any] | None:
 
 def _literal_manifest_value(node: ast.AST) -> dict[str, Any]:
     if isinstance(node, ast.Call) and _is_manifest_helper_call(node):
-        return {keyword.arg: ast.literal_eval(keyword.value) for keyword in node.keywords if keyword.arg}
+        return {
+            keyword.arg: ast.literal_eval(keyword.value) for keyword in node.keywords if keyword.arg
+        }
     value = ast.literal_eval(node)
     if not isinstance(value, dict):
         raise ValueError("manifest is not a dict")

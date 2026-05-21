@@ -75,7 +75,7 @@ def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
 
 
-def _numeric(value: object, default: float = 0.0) -> float:
+def _numeric(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -204,9 +204,7 @@ def score_signal_quality(
     evidence = _evidence(item)
     diff = _diff(item)
     signals = _signals(item)
-    confidence = _clamp(
-        _numeric(item.get("confidence", item.get("finding_confidence", 0.5)), 0.5)
-    )
+    confidence = _clamp(_numeric(item.get("confidence", item.get("finding_confidence", 0.5)), 0.5))
     model_tp = _clamp(_numeric(item.get("true_positive_probability"), confidence))
     model_fp = _clamp(_numeric(item.get("false_positive_probability"), 1.0 - model_tp))
     fp_pattern_probability, fp_category = _pattern_match(item, dynamic_fp_patterns)

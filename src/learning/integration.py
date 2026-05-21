@@ -482,7 +482,7 @@ class LearningIntegration:
                         "run_id": ctx.get("run_id"),
                         "timestamp": datetime.now(UTC).isoformat(),
                         "adaptations": adaptations,
-                        "kpis": kpis_dict
+                        "kpis": kpis_dict,
                     }
                     output_store.write_json_artifact("config.adaptive.ledger.json", ledger_entry)
 

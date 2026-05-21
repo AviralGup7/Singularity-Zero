@@ -212,7 +212,9 @@ class FPTracker:
                 if status_code and status_code in pattern.status_codes:
                     matched = pattern
                     break
-                if body_indicator and any(indicator in body_indicator.lower() for indicator in pattern.body_indicators):
+                if body_indicator and any(
+                    indicator in body_indicator.lower() for indicator in pattern.body_indicators
+                ):
                     matched = pattern
                     break
 

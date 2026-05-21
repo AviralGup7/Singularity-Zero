@@ -3,7 +3,7 @@
 import json
 import logging
 import shutil
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -40,6 +40,7 @@ router = APIRouter(prefix="/api/targets")
 
 class TargetComparisonDetail(BaseModel):
     """Comparative stats for a single target."""
+
     name: str
     risk_score: float = 0.0
     finding_count: int = 0
@@ -53,9 +54,9 @@ class TargetComparisonDetail(BaseModel):
 
 class TargetComparisonResponse(BaseModel):
     """Comparison response between two targets."""
+
     target_a: TargetComparisonDetail
     target_b: TargetComparisonDetail
-
 
 
 def _validate_target_name(name: str) -> bool:
@@ -442,7 +443,7 @@ async def get_target_compliance(
     compliance_path = latest_run / "compliance_coverage.json"
     if compliance_path.exists():
         try:
-            return json.loads(compliance_path.read_text(encoding="utf-8"))
+            return cast(dict[str, Any], json.loads(compliance_path.read_text(encoding="utf-8")))
         except Exception as e:
             logger.error("Failed to load compliance report: %s", e)
 
@@ -665,4 +666,3 @@ async def compare_targets(
         target_a=TargetComparisonDetail(**res_a),
         target_b=TargetComparisonDetail(**res_b),
     )
-

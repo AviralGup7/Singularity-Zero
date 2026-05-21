@@ -1,3 +1,5 @@
+from typing import Any
+
 PLUGIN_MANIFEST = {
     "id": "example.header_echo",
     "name": "Header Echo Check",
@@ -14,8 +16,9 @@ PLUGIN_MANIFEST = {
 }
 
 
-def run(payload):
+def run(payload: dict[str, Any]) -> list[dict[str, Any]]:
     response = payload.get("response", {})
+
     headers = response.get("headers", {})
     normalized = {str(key).lower(): value for key, value in headers.items()}
     if "x-debug" not in normalized:

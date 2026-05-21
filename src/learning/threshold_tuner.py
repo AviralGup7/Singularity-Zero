@@ -272,7 +272,9 @@ class ThresholdTuner:
 
         return self.current_thresholds
 
-    def active_learning_weight_update(self, labeled_findings: list[dict[str, Any]]) -> dict[str, float]:
+    def active_learning_weight_update(
+        self, labeled_findings: list[dict[str, Any]]
+    ) -> dict[str, float]:
         """Update dynamic heuristic weights vector based on true/false positive feedback loop."""
         if not labeled_findings:
             return self.weights
@@ -282,20 +284,31 @@ class ThresholdTuner:
         for finding in labeled_findings:
             # Extract features
             evidence = finding.get("evidence") or {}
-            confidence = max(0.0, min(1.0, float(finding.get("confidence", finding.get("finding_confidence", 0.5)))))
-            model_tp = max(0.0, min(1.0, float(finding.get("true_positive_probability", confidence))))
-            model_fp = max(0.0, min(1.0, float(finding.get("false_positive_probability", 1.0 - model_tp))))
+            confidence = max(
+                0.0,
+                min(1.0, float(finding.get("confidence", finding.get("finding_confidence", 0.5)))),
+            )
+            model_tp = max(
+                0.0, min(1.0, float(finding.get("true_positive_probability", confidence)))
+            )
+            model_fp = max(
+                0.0, min(1.0, float(finding.get("false_positive_probability", 1.0 - model_tp)))
+            )
 
             # Pattern probability
             fp_prob = 0.0
             status_code = int(finding.get("response_status", evidence.get("response_status", 0)))
             body = str(evidence.get("body_snippet") or evidence.get("response") or "").lower()
-            if status_code in {429, 503} and any(i in body for i in ["rate limit", "too many requests"]):
+            if status_code in {429, 503} and any(
+                i in body for i in ["rate limit", "too many requests"]
+            ):
                 fp_prob = 0.92
             elif status_code in {403, 406, 418} and any(i in body for i in ["blocked", "waf"]):
                 fp_prob = 0.88
 
-            is_reproducible = 1.0 if (evidence.get("reproducible") or evidence.get("confirmed")) else 0.0
+            is_reproducible = (
+                1.0 if (evidence.get("reproducible") or evidence.get("confirmed")) else 0.0
+            )
 
             # Compute current feature sum
             feature_sum = -0.85

@@ -11,7 +11,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from starlette.websockets import WebSocket, WebSocketState
 
@@ -262,7 +262,10 @@ class TriageCollaborationService:
         annotations: list[dict[str, Any]] = []
 
         for event in events:
-            payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+            payload = cast(
+                dict[str, Any],
+                event.get("payload") if isinstance(event.get("payload"), dict) else {},
+            )
             action = event.get("action")
             if action == "comment_added":
                 comment_id = str(payload.get("comment_id") or event.get("event_id"))
@@ -305,4 +308,3 @@ class TriageCollaborationService:
             "audit": events,
             "chain": self.verify_chain(),
         }
-

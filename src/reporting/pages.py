@@ -371,7 +371,9 @@ def build_dashboard_index(target_root: Path, run_dirs: list[Path]) -> None:
         manifest = {}
         if (run_dir / "report_manifest.json").exists():
             try:
-                manifest = json.loads((run_dir / "report_manifest.json").read_text(encoding="utf-8"))
+                manifest = json.loads(
+                    (run_dir / "report_manifest.json").read_text(encoding="utf-8")
+                )
             except json.JSONDecodeError:
                 manifest = {}
         library_reports.append(

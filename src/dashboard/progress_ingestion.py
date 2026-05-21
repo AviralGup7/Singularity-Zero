@@ -114,7 +114,9 @@ def _append_telemetry_event(job: dict[str, Any], event: dict[str, Any]) -> None:
         job["telemetry_events"] = ledger
     normalized = normalize_telemetry_event(event, fallback_stage=str(job.get("stage", "")))
     event_id = str(normalized.get("event_id", ""))
-    if event_id and any(isinstance(item, dict) and item.get("event_id") == event_id for item in ledger[-50:]):
+    if event_id and any(
+        isinstance(item, dict) and item.get("event_id") == event_id for item in ledger[-50:]
+    ):
         return
     ledger.append(normalized)
     if len(ledger) > TELEMETRY_EVENT_LIMIT:

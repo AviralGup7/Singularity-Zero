@@ -192,9 +192,7 @@ def _stage_output_schema_validator() -> Draft7Validator:
 
 @lru_cache(maxsize=1)
 def _finding_schema_validator() -> Draft7Validator:
-    schema_path = (
-        Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
-    )
+    schema_path = Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     return Draft7Validator(schema)
 

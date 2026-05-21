@@ -93,7 +93,10 @@ async def stream_job_logs(
 
                 job_snapshot = snapshot_job_api(current_job)
                 telemetry_events = job_snapshot.get("telemetry_events")
-                if isinstance(telemetry_events, list) and len(telemetry_events) > last_telemetry_count:
+                if (
+                    isinstance(telemetry_events, list)
+                    and len(telemetry_events) > last_telemetry_count
+                ):
                     for telemetry in telemetry_events[last_telemetry_count:]:
                         if isinstance(telemetry, dict):
                             yield emitter.telemetry_event(telemetry)
@@ -133,7 +136,9 @@ async def stream_job_logs(
                     progress_telemetry=job_snapshot.get("progress_telemetry")
                     if isinstance(job_snapshot.get("progress_telemetry"), dict)
                     else None,
-                    telemetry_events=telemetry_events[-25:] if isinstance(telemetry_events, list) else None,
+                    telemetry_events=telemetry_events[-25:]
+                    if isinstance(telemetry_events, list)
+                    else None,
                     state_version=state_version,
                 )
 
@@ -315,7 +320,10 @@ async def stream_job_progress(
                 progress = int(current_job.get("progress_percent", 0) or 0)
                 job_snapshot = snapshot_job_api(current_job)
                 telemetry_events = job_snapshot.get("telemetry_events")
-                if isinstance(telemetry_events, list) and len(telemetry_events) > last_telemetry_count:
+                if (
+                    isinstance(telemetry_events, list)
+                    and len(telemetry_events) > last_telemetry_count
+                ):
                     for telemetry in telemetry_events[last_telemetry_count:]:
                         if isinstance(telemetry, dict):
                             yield emitter.telemetry_event(telemetry)
@@ -364,7 +372,9 @@ async def stream_job_progress(
                     progress_telemetry=job_snapshot.get("progress_telemetry")
                     if isinstance(job_snapshot.get("progress_telemetry"), dict)
                     else None,
-                    telemetry_events=telemetry_events[-25:] if isinstance(telemetry_events, list) else None,
+                    telemetry_events=telemetry_events[-25:]
+                    if isinstance(telemetry_events, list)
+                    else None,
                 )
 
                 current_iteration = current_job.get("iteration", 0)

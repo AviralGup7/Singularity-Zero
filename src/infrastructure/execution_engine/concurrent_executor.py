@@ -306,10 +306,12 @@ class ConcurrentExecutor:
 
         resource_saturation = await self._pool_manager.saturation_snapshot()
         layer_tasks.sort(
-            key=lambda task: -score_with_runtime_contention(
-                bid_for_task(task),
-                resource_saturation=resource_saturation,
-                bloom_mesh_saturation=task.metadata.get("bloom_mesh_saturation"),
+            key=lambda task: (
+                -score_with_runtime_contention(
+                    bid_for_task(task),
+                    resource_saturation=resource_saturation,
+                    bloom_mesh_saturation=task.metadata.get("bloom_mesh_saturation"),
+                )
             )
         )
 

@@ -125,7 +125,7 @@ def test_threshold_tuner_active_learning():
             "evidence": {
                 "confirmed": True,
                 "reproducible": True,
-            }
+            },
         },
         {
             "confidence": 0.2,
@@ -135,8 +135,8 @@ def test_threshold_tuner_active_learning():
             "feedback": "fp",  # should push weights lower
             "evidence": {
                 "body_snippet": "rate limit",
-            }
-        }
+            },
+        },
     ]
 
     # Perform active learning weight updates
@@ -151,7 +151,7 @@ def test_threshold_tuner_active_learning():
         "confidence": 0.8,
         "true_positive_probability": 0.85,
         "false_positive_probability": 0.15,
-        "evidence": {}
+        "evidence": {},
     }
 
     result_default = score_signal_quality(finding)

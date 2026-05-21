@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from fastapi import (
     APIRouter,
@@ -74,7 +74,11 @@ async def record_triage_action(
     action = str(payload.get("action") or "")
     analyst_id = str(payload.get("analyst_id") or auth.get("user") or "analyst")
     analyst_name = str(payload.get("analyst_name") or analyst_id)
-    event_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
+    event_payload = (
+        cast(dict[str, Any], payload.get("payload"))
+        if isinstance(payload.get("payload"), dict)
+        else {}
+    )
     try:
         event = service.record_action(
             run_id=run_id,
@@ -187,4 +191,3 @@ async def handle_triage_websocket(
         pass
     finally:
         await service.disconnect(run_id, connection.connection_id)
-

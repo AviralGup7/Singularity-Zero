@@ -26,7 +26,9 @@ class ProcessSandboxCallable:
             payload = args[0]
         else:
             payload = {"args": args, "kwargs": kwargs}
-        return run_python_plugin_process(self.path, self.manifest.entrypoint, payload, self.manifest.timeout_seconds)
+        return run_python_plugin_process(
+            self.path, self.manifest.entrypoint, payload, self.manifest.timeout_seconds
+        )
 
 
 def run_python_plugin_process(

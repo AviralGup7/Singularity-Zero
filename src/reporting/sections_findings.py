@@ -444,7 +444,9 @@ def verified_exploits_section(summary: dict[str, Any]) -> str:
 
 def signal_quality_section(summary: dict[str, Any]) -> str:
     findings = summary.get("top_actionable_findings", [])
-    signal_scored = [item for item in findings if item.get("signal_quality") or item.get("signal_quality_score")]
+    signal_scored = [
+        item for item in findings if item.get("signal_quality") or item.get("signal_quality_score")
+    ]
     likely_true_positives = sum(
         1
         for item in findings
@@ -455,7 +457,8 @@ def signal_quality_section(summary: dict[str, Any]) -> str:
         1
         for item in findings
         if item.get("endpoint_type") in {"AUTH", "STATIC"}
-        or float(item.get("false_positive_probability", 1 - float(item.get("confidence", 0)))) >= 0.5
+        or float(item.get("false_positive_probability", 1 - float(item.get("confidence", 0))))
+        >= 0.5
     )
     multi_signal = sum(1 for item in findings if item.get("combined_signal"))
     rows = (

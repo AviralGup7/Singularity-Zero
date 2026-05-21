@@ -190,7 +190,14 @@ class ScanActor(pykka.ThreadingActor):
             return {"status": "error", "error": f"Unknown command: {command}"}
 
         # Block any mutating or executing requests if the actor is migrating
-        if self.is_migrating and command in {"execute", "recover", "migrate", "rehydrate", "cold_start", "warm_rejoin"}:
+        if self.is_migrating and command in {
+            "execute",
+            "recover",
+            "migrate",
+            "rehydrate",
+            "cold_start",
+            "warm_rejoin",
+        }:
             logger.warning(
                 "Ghost-Actor [%s] rejected command '%s': Actor is currently migrating",
                 self.actor_id,
@@ -529,7 +536,9 @@ class GhostMeshCoordinator:
             )
         for actor_ref in actor_refs or []:
             try:
-                health = cast(dict[str, Any], actor_ref.ask({"command": "health_check"}, timeout=0.5))
+                health = cast(
+                    dict[str, Any], actor_ref.ask({"command": "health_check"}, timeout=0.5)
+                )
                 metrics.append(
                     HealthMetric(
                         component=HealthComponent.GHOST_ACTOR,

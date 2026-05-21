@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 def load_triage_events(output_root: Path, run_id: str | None = None) -> list[dict[str, Any]]:
@@ -33,7 +33,11 @@ def triage_audit_section(output_root: Path, run_id: str | None = None, limit: in
         )
     rows = []
     for event in reversed(events):
-        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        payload = (
+            cast(dict[str, Any], event.get("payload"))
+            if isinstance(event.get("payload"), dict)
+            else {}
+        )
         note = payload.get("text") or payload.get("reason") or payload.get("status") or ""
         rows.append(
             "<li class='finding-card'>"
@@ -47,4 +51,3 @@ def triage_audit_section(output_root: Path, run_id: str | None = None, limit: in
             "</li>"
         )
     return f"<section><h2>Collaborative Triage Audit</h2><ul>{''.join(rows)}</ul></section>"
-

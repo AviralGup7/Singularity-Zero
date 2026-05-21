@@ -180,7 +180,9 @@ async def test_automatic_actor_migration_and_rehydration(monkeypatch: pytest.Mon
 
     try:
         # Run some execution to establish state
-        res1 = cast(dict[str, Any], actor_ref.ask({"command": "execute", "input": {"increment": 5}}))
+        res1 = cast(
+            dict[str, Any], actor_ref.ask({"command": "execute", "input": {"increment": 5}})
+        )
         assert res1["status"] == "success"
         assert res1["output"]["counter"] == 5
 
@@ -222,7 +224,9 @@ async def test_automatic_actor_migration_and_rehydration(monkeypatch: pytest.Mon
             assert state_proxy.get("current_stage") == "processing"
 
             # Execute another task, it should increment from 5
-            res2 = cast(dict[str, Any], actor_ref_b.ask({"command": "execute", "input": {"increment": 10}}))
+            res2 = cast(
+                dict[str, Any], actor_ref_b.ask({"command": "execute", "input": {"increment": 10}})
+            )
             assert res2["status"] == "success"
             assert res2["output"]["counter"] == 15
 
@@ -255,7 +259,10 @@ async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch)
 
     # Store sent messages to verify
     sent_reliable_calls = []
-    async def mock_send_reliable(peer: MeshNode, message_type: str, payload: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+
+    async def mock_send_reliable(
+        peer: MeshNode, message_type: str, payload: dict[str, Any]
+    ) -> tuple[bool, dict[str, Any]]:
         sent_reliable_calls.append((peer, message_type, payload))
         return True, {}
 
@@ -285,7 +292,9 @@ async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch)
 
     try:
         # Run some execution to establish state
-        res = cast(dict[str, Any], actor_ref.ask({"command": "execute", "input": {"val": "network-state"}}))
+        res = cast(
+            dict[str, Any], actor_ref.ask({"command": "execute", "input": {"val": "network-state"}})
+        )
         assert res["status"] == "success"
 
         # Mock the balancer to select Node-B for migration
@@ -310,6 +319,7 @@ async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch)
         coordinator_receiver = MagicMock(spec=GhostMeshCoordinator)
 
         spawned_future: asyncio.Future[tuple[str, Any]] = asyncio.Future()
+
         async def mock_spawn(aid: str, logic: Any) -> Any:
             spawned_future.set_result((aid, logic))
             return MagicMock()
@@ -318,32 +328,27 @@ async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch)
         gossip_receiver._coordinator = coordinator_receiver
 
         from src.infrastructure.mesh.gossip import GossipProtocol
+
         protocol = GossipProtocol(gossip_receiver)
 
         from src.core.frontier.ghost_actor import _LOGIC_REGISTRY
+
         assert "udp_logic" in _LOGIC_REGISTRY
 
         envelope = {
             "body": {
                 "type": "ghost_actor_spawn",
                 "msg_id": "test-msg-123",
-                "source": {
-                    "id": "node-a",
-                    "host": "127.0.0.1",
-                    "port": 9001,
-                    "status": "alive"
-                },
-                "payload": {
-                    "actor_id": actor_id,
-                    "logic_fn_name": "udp_logic"
-                }
+                "source": {"id": "node-a", "host": "127.0.0.1", "port": 9001, "status": "alive"},
+                "payload": {"actor_id": actor_id, "logic_fn_name": "udp_logic"},
             },
-            "sig": "valid-sig"
+            "sig": "valid-sig",
         }
 
         monkeypatch.setattr(gossip_receiver, "_verify", lambda d, s: True)
 
         import json
+
         raw_data = json.dumps(envelope).encode("utf-8")
         protocol.datagram_received(raw_data, ("127.0.0.1", 9001))
 
@@ -354,4 +359,3 @@ async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch)
     finally:
         if actor_ref.is_alive():
             actor_ref.stop()
-

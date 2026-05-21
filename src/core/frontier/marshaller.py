@@ -20,16 +20,21 @@ except ImportError:
 
 try:
     import zstandard as zstd
+
     _zstd_compressor = zstd.ZstdCompressor(level=3)
     _zstd_decompressor = zstd.ZstdDecompressor()
+
     def compress_bytes(data: bytes) -> bytes:
-        return _zstd_compressor.compress(data)
+        return cast(bytes, _zstd_compressor.compress(data))
+
     def decompress_bytes(data: bytes) -> bytes:
-        return _zstd_decompressor.decompress(data)
+        return cast(bytes, _zstd_decompressor.decompress(data))
 except ImportError:
     import zlib
+
     def compress_bytes(data: bytes) -> bytes:
         return zlib.compress(data)
+
     def decompress_bytes(data: bytes) -> bytes:
         return zlib.decompress(data)
 
@@ -62,7 +67,7 @@ class FrontierMarshaller:
     def pack_pickle(self, data: Any, compress: bool = True) -> bytes:
         """Serialize data to binary using cloudpickle and compress via zstd/zlib."""
         try:
-            serialized = cloudpickle.dumps(data)
+            serialized = cast(bytes, cloudpickle.dumps(data))
             if compress:
                 return compress_bytes(serialized)
             return serialized
@@ -92,7 +97,7 @@ def mesh_unmarshal(raw: bytes) -> Any:
 
 def mesh_marshal_pickle(data: Any, compress: bool = True) -> bytes:
     """Helper for one-off cloudpickle marshalling."""
-    serialized = cloudpickle.dumps(data)
+    serialized = cast(bytes, cloudpickle.dumps(data))
     if compress:
         return compress_bytes(serialized)
     return serialized

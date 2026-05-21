@@ -18,11 +18,12 @@ except ImportError:
     import types
 
     psutil = types.ModuleType("psutil")
-    psutil.cpu_count = lambda logical=True: 1
-    psutil.cpu_freq = lambda: None
-    psutil.virtual_memory = lambda: types.SimpleNamespace(total=0, available=0)
-    psutil.disk_usage = lambda path: types.SimpleNamespace(free=0)
+    psutil.cpu_count = lambda logical=True: 1  # type: ignore[attr-defined]
+    psutil.cpu_freq = lambda: None  # type: ignore[attr-defined]
+    psutil.virtual_memory = lambda: types.SimpleNamespace(total=0, available=0)  # type: ignore[attr-defined]
+    psutil.disk_usage = lambda path: types.SimpleNamespace(free=0)  # type: ignore[attr-defined]
     sys.modules.setdefault("psutil", psutil)
+
 
 from pydantic import BaseModel, Field
 

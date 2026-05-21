@@ -563,6 +563,7 @@ class GossipProtocol(asyncio.DatagramProtocol):
                 coordinator = getattr(self.engine, "_coordinator", None)
                 if coordinator and actor_id and logic_fn_name:
                     from src.core.frontier.ghost_actor import _LOGIC_REGISTRY
+
                     logic_fn = _LOGIC_REGISTRY.get(logic_fn_name)
                     if logic_fn:
                         asyncio.create_task(

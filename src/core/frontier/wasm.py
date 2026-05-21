@@ -108,7 +108,11 @@ def _audit_wasm_secret_boundary(redacted_input: dict[str, Any]) -> None:
             "wasm-plugin-host",
             "credential.wasm_boundary",
             "recorded",
-            {"input_sha256": hashlib.sha256(json.dumps(redacted_input, sort_keys=True).encode()).hexdigest()},
+            {
+                "input_sha256": hashlib.sha256(
+                    json.dumps(redacted_input, sort_keys=True).encode()
+                ).hexdigest()
+            },
         )
     except Exception:
         return

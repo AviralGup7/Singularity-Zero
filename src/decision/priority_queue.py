@@ -427,7 +427,9 @@ class CorrelationPriorityQueue:
                     path_overlap = set(finding_path) & set(url_path)
                     if len(path_overlap) >= 2:
                         boost = factor * (0.8 + 0.2 * min(len(path_overlap) / 3, 1))
-                        target.apply_boost(boost, f"path_overlap({', '.join(sorted(path_overlap))})")
+                        target.apply_boost(
+                            boost, f"path_overlap({', '.join(sorted(path_overlap))})"
+                        )
                         boosted.add(url)
                         continue
 

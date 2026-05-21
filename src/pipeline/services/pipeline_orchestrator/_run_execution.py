@@ -109,7 +109,9 @@ async def execute_remaining_stages(
             validate_recon_outputs(ctx)
             if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
                 logger.error("Recon validation failed: no discoverable URLs found.")
-                error_emitter("recon_validation", "Recon validation failed: no discoverable URLs found.")
+                error_emitter(
+                    "recon_validation", "Recon validation failed: no discoverable URLs found."
+                )
                 return 1
 
     return None

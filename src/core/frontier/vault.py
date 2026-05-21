@@ -114,23 +114,31 @@ class CyberVault:
         rotated: dict[str, str] = {}
         for secret_id, encrypted in records.items():
             with self.decrypt_lease(encrypted, purpose=secret_id) as lease:
-                rotated[secret_id] = self.encrypt(lease.bytes, purpose=secret_id, key_version=self._key_version + 1)
+                rotated[secret_id] = self.encrypt(
+                    lease.bytes, purpose=secret_id, key_version=self._key_version + 1
+                )
         self._key_version += 1
         self._rotated_at = time.time()
         self._audit("rotate", secret_count=len(records))
         return rotated
 
-    def rotate_if_due(self, encrypted_records: dict[str, str] | None = None) -> dict[str, str] | None:
+    def rotate_if_due(
+        self, encrypted_records: dict[str, str] | None = None
+    ) -> dict[str, str] | None:
         if self._rotation_policy.is_due(self._rotated_at):
             return self.rotate_key(encrypted_records)
         return None
 
-    def encrypt(self, data: str | bytes, *, purpose: str = "secret", key_version: int | None = None) -> str:
+    def encrypt(
+        self, data: str | bytes, *, purpose: str = "secret", key_version: int | None = None
+    ) -> str:
         """Encrypt plaintext and return an Argon2id/AES-GCM envelope."""
         version = key_version or self._key_version
         raw = data if isinstance(data, bytes) else data.encode("utf-8")
         try:
-            encrypted = self._envelope().encrypt(raw, self._aad(purpose, version), info=purpose.encode("utf-8"))
+            encrypted = self._envelope().encrypt(
+                raw, self._aad(purpose, version), info=purpose.encode("utf-8")
+            )
             self._audit("store", secret_id=purpose, key_version=version)
             return encrypted
         finally:
@@ -139,14 +147,18 @@ class CyberVault:
     def decrypt_lease(self, encrypted_payload: str, *, purpose: str = "secret") -> SecretLease:
         """Decrypt into a lease that wipes the plaintext buffer when released."""
         self._audit("access", secret_id=purpose)
-        return self._envelope().decrypt_lease(encrypted_payload, self._aad(purpose), info=purpose.encode("utf-8"))
+        return self._envelope().decrypt_lease(
+            encrypted_payload, self._aad(purpose), info=purpose.encode("utf-8")
+        )
 
     def decrypt(self, encrypted_payload: str, *, purpose: str = "secret") -> str:
         """Compatibility helper. Prefer decrypt_lease for zero-after-use behavior."""
         with self.decrypt_lease(encrypted_payload, purpose=purpose) as lease:
             return lease.text
 
-    def export_sealed_bundle(self, records: dict[str, str], passphrase: str, *, name: str = "credential-vault") -> str:
+    def export_sealed_bundle(
+        self, records: dict[str, str], passphrase: str, *, name: str = "credential-vault"
+    ) -> str:
         """Export encrypted records as a sealed, integrity-bound CI/CD bundle."""
         manifest_records = {
             key: {
@@ -156,7 +168,9 @@ class CyberVault:
             for key, value in sorted(records.items())
         }
         self._audit("bundle_export", secret_count=len(records), bundle_name=name)
-        return sealed_bundle_encrypt(name, manifest_records, passphrase, aad=b"csp:vault:sealed-bundle")
+        return sealed_bundle_encrypt(
+            name, manifest_records, passphrase, aad=b"csp:vault:sealed-bundle"
+        )
 
     def import_sealed_bundle(self, bundle: str | bytes, passphrase: str) -> dict[str, str]:
         """Import a sealed bundle and return encrypted vault records."""
