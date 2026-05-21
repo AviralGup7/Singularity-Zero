@@ -18,12 +18,12 @@ export { getJobs, getJob, getJobLogs, getJobTraceLink, getJobRemediation, startJ
 export type { StartJobPayload, HistoricalDurationEntry } from './jobs';
 export { getFindingsSummary, getFindings, getFindingRemediation, deleteFinding, updateFinding, bulkUpdateFindings } from './findings';
 export {
-  getRegistry, getModuleRegistry, getAnalysisRegistry, getModeRegistry,
+  getRegistry, getModuleRegistry, getAnalysisRegistry, getModeRegistry, getDynamicPluginCatalog,
 } from './registry';
 export type {
   ModuleRegistryEntry, ModuleRegistryGroup, ModuleRegistryResponse,
   AnalysisCheckOption, AnalysisControlGroup, AnalysisFocusPreset,
-  AnalysisRegistryResponse, ModePreset, ModeRegistryResponse,
+  AnalysisRegistryResponse, DynamicPluginCatalogResponse, ModePreset, ModeRegistryResponse,
 } from './registry';
 export { replayRequest } from './replay';
 export type { ReplayParams } from './replay';

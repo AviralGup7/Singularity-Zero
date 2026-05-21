@@ -1,3 +1,4 @@
+from src.core.storage.bounded_compaction_store import BoundedCompactionStateStore
 from src.core.storage.interfaces import ArtifactStore, CheckpointStore, FindingStore
 from src.core.storage.local_backends import (
     LocalArtifactStore,
@@ -12,4 +13,5 @@ __all__ = [
     "LocalArtifactStore",
     "LocalCheckpointStore",
     "LocalFindingStore",
+    "BoundedCompactionStateStore",
 ]

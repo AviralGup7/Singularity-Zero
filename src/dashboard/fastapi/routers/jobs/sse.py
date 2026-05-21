@@ -57,6 +57,7 @@ async def stream_job_logs(
             from src.dashboard.job_state import _coerce_epoch
 
             last_heartbeat = time.time()
+            last_telemetry_count = 0
 
             while True:
                 if await request.is_disconnected():
@@ -91,6 +92,12 @@ async def stream_job_logs(
                         yield emitter.log(log_line)
 
                 job_snapshot = snapshot_job_api(current_job)
+                telemetry_events = job_snapshot.get("telemetry_events")
+                if isinstance(telemetry_events, list) and len(telemetry_events) > last_telemetry_count:
+                    for telemetry in telemetry_events[last_telemetry_count:]:
+                        if isinstance(telemetry, dict):
+                            yield emitter.telemetry_event(telemetry)
+                    last_telemetry_count = len(telemetry_events)
                 stage_entry = current_stage_entry(job_snapshot)
                 processed = current_job.get("stage_processed")
                 total = current_job.get("stage_total")
@@ -126,6 +133,7 @@ async def stream_job_logs(
                     progress_telemetry=job_snapshot.get("progress_telemetry")
                     if isinstance(job_snapshot.get("progress_telemetry"), dict)
                     else None,
+                    telemetry_events=telemetry_events[-25:] if isinstance(telemetry_events, list) else None,
                     state_version=state_version,
                 )
 
@@ -270,8 +278,9 @@ async def stream_job_progress(
         nonlocal last_stage, last_iteration
         last_heartbeat = time.time()
         last_mesh_health = 0.0
+        last_telemetry_count = 0
 
-        event_queue: asyncio.Queue[str] = asyncio.Queue()
+        event_chan: asyncio.Queue[str] = asyncio.Queue()
 
         # 1. Subscribe to asynchronous pipeline events
         from src.core.events import EventType, get_event_bus
@@ -280,7 +289,7 @@ async def stream_job_progress(
             # We filter by job_id if present, otherwise broadcast to all active streams
             msg_job_id = event.data.get("job_id")
             if not msg_job_id or msg_job_id == job_id:
-                await event_queue.put(emitter.migration_event(event.data))
+                await event_chan.put(emitter.migration_event(event.data))
 
         sub_id = get_event_bus().subscribe_async(EventType.GHOST_ACTOR_MIGRATED, on_migration)
 
@@ -290,8 +299,8 @@ async def stream_job_progress(
                     break
 
                 # 2. Check for queued async events
-                while not event_queue.empty():
-                    yield await event_queue.get()
+                while not event_chan.empty():
+                    yield await event_chan.get()
 
                 current_job = services.get_job(job_id)
                 if not current_job:
@@ -305,6 +314,12 @@ async def stream_job_progress(
                 stage_label = STAGE_LABELS.get(stage, stage.replace("_", " ").title())
                 progress = int(current_job.get("progress_percent", 0) or 0)
                 job_snapshot = snapshot_job_api(current_job)
+                telemetry_events = job_snapshot.get("telemetry_events")
+                if isinstance(telemetry_events, list) and len(telemetry_events) > last_telemetry_count:
+                    for telemetry in telemetry_events[last_telemetry_count:]:
+                        if isinstance(telemetry, dict):
+                            yield emitter.telemetry_event(telemetry)
+                    last_telemetry_count = len(telemetry_events)
 
                 if stage != last_stage:
                     yield emitter.stage_change(
@@ -349,6 +364,7 @@ async def stream_job_progress(
                     progress_telemetry=job_snapshot.get("progress_telemetry")
                     if isinstance(job_snapshot.get("progress_telemetry"), dict)
                     else None,
+                    telemetry_events=telemetry_events[-25:] if isinstance(telemetry_events, list) else None,
                 )
 
                 current_iteration = current_job.get("iteration", 0)

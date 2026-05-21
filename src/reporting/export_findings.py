@@ -3,8 +3,11 @@ import io
 import json
 from typing import Any
 
+from src.intelligence.severity_model import enrich_finding_with_model_severity
+
 
 def flatten_finding_for_export(finding: dict[str, Any]) -> dict[str, Any]:
+    finding = enrich_finding_with_model_severity(finding)
     evidence = finding.get("evidence") or {}
     evidence_summary = json.dumps(evidence, ensure_ascii=False) if evidence else ""
 
@@ -36,6 +39,10 @@ def flatten_finding_for_export(finding: dict[str, Any]) -> dict[str, Any]:
         "title": finding.get("title", ""),
         "confidence": finding.get("confidence", ""),
         "score": finding.get("score", ""),
+        "severity_score": finding.get("severity_score", ""),
+        "true_positive_probability": finding.get("true_positive_probability", ""),
+        "false_positive_probability": finding.get("false_positive_probability", ""),
+        "severity_model": (finding.get("severity_model") or {}).get("model_version", ""),
         "description": description,
         "evidence_summary": evidence_summary,
         "mitre_attack": mitre_attack,
@@ -50,6 +57,10 @@ _CSV_COLUMNS = [
     "title",
     "confidence",
     "score",
+    "severity_score",
+    "true_positive_probability",
+    "false_positive_probability",
+    "severity_model",
     "description",
     "evidence_summary",
     "mitre_attack",

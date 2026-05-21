@@ -1,8 +1,5 @@
-import { useContext } from 'react';
-import { DisplayContext } from '../context/display-context';
+import { useDisplayStore } from '../stores/displayStore';
 
 export function useDisplay() {
-  const context = useContext(DisplayContext);
-  if (!context) throw new Error('useDisplay must be used within a DisplayProvider');
-  return context;
+  return useDisplayStore();
 }

@@ -3,6 +3,7 @@ export type {
   AnalysisCheckOption,
   AnalysisControlGroup,
   AnalysisFocusPreset,
+  DynamicPluginManifest,
   ModePreset
 } from '@/types/api';
 
@@ -11,6 +12,7 @@ import type {
   AnalysisCheckOption,
   AnalysisControlGroup,
   AnalysisFocusPreset,
+  DynamicPluginManifest,
   ModePreset
 } from '@/types/api';
 
@@ -42,6 +44,14 @@ export interface AnalysisRegistryResponse {
   check_options: AnalysisCheckOption[];
   control_groups: AnalysisControlGroup[];
   focus_presets: AnalysisFocusPreset[];
+  dynamic_plugins?: DynamicPluginManifest[];
+  invalid_dynamic_plugins?: DynamicPluginManifest[];
+}
+
+export interface DynamicPluginCatalogResponse {
+  plugins: DynamicPluginManifest[];
+  invalid: DynamicPluginManifest[];
+  watched_dirs: string[];
 }
 
 export interface ModeRegistryResponse {
@@ -63,4 +73,8 @@ export async function getAnalysisRegistry(signal?: AbortSignal, ttl?: number): P
 
 export async function getModeRegistry(signal?: AbortSignal, ttl?: number): Promise<ModeRegistryResponse> {
   return cachedGet<ModeRegistryResponse>('/api/registry/modes', { signal, ttl });
+}
+
+export async function getDynamicPluginCatalog(signal?: AbortSignal, ttl?: number): Promise<DynamicPluginCatalogResponse> {
+  return cachedGet<DynamicPluginCatalogResponse>('/api/registry/plugins', { signal, ttl, bypassCache: true });
 }

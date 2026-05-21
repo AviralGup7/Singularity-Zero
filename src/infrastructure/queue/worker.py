@@ -21,6 +21,12 @@ from src.infrastructure.checkpoint import DistributedCheckpointStore
 from src.infrastructure.queue.job_queue import JobQueue
 from src.infrastructure.queue.models import Job, WorkerInfo
 from src.infrastructure.queue.redis_client import RedisClient
+from src.pipeline.self_healing import (
+    CorrectionEvent,
+    CorrectiveAction,
+    HealthComponent,
+    HealthFinding,
+)
 
 logger = get_pipeline_logger(__name__)
 
@@ -97,12 +103,14 @@ class Worker:
             status="idle",
             concurrency=self.concurrency,
             capabilities=self.capabilities,
+            metadata={"accepts_concurrent_claims": self.concurrency > 1},
         )
         self._running = False
         self._shutdown_requested = False
         self._active_tasks: set[asyncio.Task[Any]] = set()
         self._lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._restart_requested = False
 
     @property
     def info(self) -> WorkerInfo:
@@ -479,6 +487,19 @@ class Worker:
         logger.info("Stopping worker %s...", self.worker_id)
         self._shutdown_requested = True
 
+    async def restart_from_health_finding(self, finding: HealthFinding | None = None) -> CorrectionEvent:
+        """Request a graceful restart when the health controller finds this worker wedged."""
+        self._restart_requested = True
+        await self.stop()
+        return CorrectionEvent(
+            finding_id=finding.finding_id if finding else "",
+            action=CorrectiveAction.RESTART_WORKER,
+            success=True,
+            message=f"Worker {self.worker_id} restart requested",
+            component=HealthComponent.WORKER,
+            details={"worker_id": self.worker_id, "labels": finding.labels if finding else {}},
+        )
+
     def get_health(self) -> dict[str, Any]:
         """Get the current health status of the worker.
 
@@ -491,6 +512,7 @@ class Worker:
             "status": self._info.status,
             "is_running": self._running,
             "shutdown_requested": self._shutdown_requested,
+            "restart_requested": self._restart_requested,
             "active_jobs": len(self._info.active_jobs),
             "concurrency": self.concurrency,
             "total_processed": self._info.total_processed,

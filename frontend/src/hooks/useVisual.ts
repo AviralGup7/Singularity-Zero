@@ -1,6 +1,5 @@
-import { useContext } from 'react';
-import { VisualContext } from '../context/visual-context';
+import { useVisualStore } from '../stores/visualStore';
 
 export function useVisual() {
-  return useContext(VisualContext);
+  return useVisualStore();
 }

@@ -51,8 +51,8 @@ class CockpitApiTests(unittest.TestCase):
                 )
             )
 
-            self.assertEqual(len(result["nodes"]), 3)  # 2 urls + 1 finding
-            self.assertEqual(len(result["edges"]), 1)
+            self.assertEqual(len(result["nodes"]), 4)  # 1 subdomain + 2 urls + 1 finding
+            self.assertEqual(len(result["edges"]), 3)
             self.assertEqual(result["metadata"]["target"], target)
             self.assertEqual(result["metadata"]["run"], run_name)
 

@@ -241,6 +241,14 @@ export function FindingsTimelinePage() {
                 <div><dt>Job</dt><dd>{selectedEvent.job_id || 'Unknown'}</dd></div>
                 <div><dt>Module</dt><dd>{selectedEvent.module || 'Unknown'}</dd></div>
                 <div><dt>Confidence</dt><dd>{selectedEvent.confidence ?? 'n/a'}</dd></div>
+                {selectedEvent.telemetry_event && (
+                  <>
+                    <div><dt>Telemetry</dt><dd>{selectedEvent.telemetry_event.event_type}</dd></div>
+                    <div><dt>Event ID</dt><dd>{selectedEvent.telemetry_event.event_id}</dd></div>
+                    <div><dt>Source</dt><dd>{selectedEvent.telemetry_event.source}</dd></div>
+                    <div><dt>Artifact</dt><dd>{selectedEvent.telemetry_event.artifact_id || 'n/a'}</dd></div>
+                  </>
+                )}
               </dl>
               <p className="timeline-detail-preview">{selectedEvent.preview}</p>
               <Link className="btn btn-primary" to={`/findings?finding=${encodeURIComponent(selectedEvent.finding_id)}`}>

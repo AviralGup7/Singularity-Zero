@@ -4,6 +4,11 @@ Provides functions for calculating intelligence-enriched risk scores,
 scoring endpoint exposure, and computing aggregate risk profiles.
 """
 
+from src.intelligence.severity_model import (
+    enrich_findings_with_model_severity,
+    get_default_severity_model,
+)
+
 # CVE bonus constants
 _CVE_BONUS_PER_CVE = 0.05
 _CVE_MAX_BONUS = 0.15
@@ -48,9 +53,9 @@ def calculate_intelligence_risk(
     Returns:
         Risk score from 0.0 to 1.0.
     """
-    severity_scores = {"critical": 1.0, "high": 0.8, "medium": 0.5, "low": 0.3, "info": 0.1}
-    base_score = severity_scores.get(finding.get("severity", "low"), 0.3)
-    confidence = finding.get("confidence", 0.5)
+    modeled = get_default_severity_model().predict(finding)
+    base_score = modeled.score / 10.0
+    confidence = modeled.true_positive_probability
 
     # Base risk = severity * confidence
     risk = base_score * confidence
@@ -92,9 +97,9 @@ def score_endpoint_exposure(
     factors: dict[str, float] = {}
     recommendations: list[str] = []
 
-    severity_scores = {"critical": 1.0, "high": 0.8, "medium": 0.5, "low": 0.3, "info": 0.1}
+    modeled_findings = enrich_findings_with_model_severity(findings)
     max_sev = max(
-        (severity_scores.get(f.get("severity", "low"), 0.1) for f in findings),
+        (min(1.0, float(f.get("severity_score", 0.0)) / 10.0) for f in modeled_findings),
         default=0.0,
     )
     factors["max_finding_severity"] = max_sev
@@ -117,7 +122,7 @@ def score_endpoint_exposure(
     if is_public:
         recommendations.append("Publicly accessible - ensure proper access controls")
 
-    auth_findings = [f for f in findings if "auth" in f.get("category", "").lower()]
+    auth_findings = [f for f in modeled_findings if "auth" in f.get("category", "").lower()]
     factors["auth_risk"] = min(1.0, len(auth_findings) * 0.3)
     if auth_findings:
         recommendations.append("Authentication-related findings detected - review access controls")
@@ -159,15 +164,15 @@ def aggregate_risk_profile(
     severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
     category_counts: dict[str, int] = {}
 
-    for f in findings:
+    modeled_findings = enrich_findings_with_model_severity(findings)
+    for f in modeled_findings:
         sev = f.get("severity", "info").lower()
         if sev in severity_counts:
             severity_counts[sev] += 1
         cat = f.get("category", "unknown")
         category_counts[cat] = category_counts.get(cat, 0) + 1
 
-    severity_weights = {"critical": 10, "high": 7, "medium": 4, "low": 2, "info": 1}
-    weighted_sum = sum(severity_counts[k] * severity_weights[k] for k in severity_counts)
+    weighted_sum = sum(float(f.get("severity_score", 0.0)) for f in modeled_findings)
     total_findings = sum(severity_counts.values()) or 1
     overall_risk = min(1.0, weighted_sum / (total_findings * 10))
 
@@ -175,7 +180,9 @@ def aggregate_risk_profile(
     if endpoints:
         ep_scores = []
         for ep in endpoints:
-            ep_findings = [f for f in findings if f.get("url", "").startswith(ep.get("url", ""))]
+            ep_findings = [
+                f for f in modeled_findings if f.get("url", "").startswith(ep.get("url", ""))
+            ]
             if ep_findings:
                 score = score_endpoint_exposure(
                     ep.get("url", ""),

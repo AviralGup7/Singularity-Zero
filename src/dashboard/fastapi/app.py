@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
+from src.dashboard.fastapi.collaboration import TriageCollaborationService
 from src.dashboard.fastapi.config import DashboardConfig, FeatureFlags
 from src.dashboard.fastapi.middleware import (
     AuditLoggingMiddleware,
@@ -33,6 +34,16 @@ from src.dashboard.fastapi.spa import setup_mimetypes, setup_spa_routes
 from src.dashboard.rate_limiter import RateLimitConfig, RateLimitMiddleware
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.sharding import MeshShardManager
+from src.intelligence.ml.registry import ModelVersionRegistry
+from src.pipeline.self_healing import (
+    CorrectionEvent,
+    CorrectiveAction,
+    CorrectiveActionRegistry,
+    HealthComponent,
+    HealthMetric,
+    HealthStatus,
+    SelfHealingController,
+)
 from src.websocket_server.integration import (
     WSServices,
     integrate_with_pipeline_progress,
@@ -65,6 +76,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("Project Root: %s", config.workspace_root)
     logger.info("Frontend Dist: %s", config.frontend_dist)
 
+    from src.core.plugins.loader import refresh_dynamic_plugins, start_dynamic_plugin_watcher
+
+    refresh_dynamic_plugins()
+    start_dynamic_plugin_watcher()
+
     from src.infrastructure.security.audit import AuditLogger  # pylint: disable=C0415
     from src.infrastructure.security.config import SecurityConfig  # pylint: disable=C0415
 
@@ -95,6 +111,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Initialize persistent job store (SQLite)
     db_path = config.output_root / "jobs.db"
     app.state.services.init_persistence(db_path)
+    app.state.triage_collaboration = TriageCollaborationService(config.output_root)
 
     # Set up WebSocket server for real-time communication
     ws_services: WSServices | None = None
@@ -173,6 +190,151 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await bloom_mesh.start()
     app.state.bloom_filter = bloom_filter
     app.state.bloom_mesh = bloom_mesh
+    app.state.model_registry = ModelVersionRegistry()
+
+    async def _pipeline_stage_probe() -> list[HealthMetric]:
+        metrics: list[HealthMetric] = []
+        now = time.time()
+        jobs = getattr(app.state.services, "jobs", {})
+        for job_id, job in list(jobs.items()):
+            if job.get("status") != "running":
+                continue
+            updated = float(
+                job.get("updated_at")
+                or job.get("last_update")
+                or job.get("started_at")
+                or now
+            )
+            age = max(0.0, now - updated)
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.PIPELINE_STAGE,
+                    name="stage_age_seconds",
+                    value=round(age, 2),
+                    labels={
+                        "job_id": job_id,
+                        "stage": job.get("stage", "unknown"),
+                        "target": job.get("target", ""),
+                    },
+                )
+            )
+        return metrics
+
+    async def _dashboard_connection_probe() -> list[HealthMetric]:
+        ws = getattr(app.state, "ws_services", None)
+        if ws is None:
+            return [
+                HealthMetric(
+                    component=HealthComponent.DASHBOARD_CONNECTION,
+                    name="dashboard_connection_age",
+                    value=0,
+                    status=HealthStatus.DEGRADED,
+                    labels={"reason": "websocket_services_unavailable"},
+                )
+            ]
+        connections = await ws.manager.get_all_connections()
+        now = time.time()
+        metrics = [
+            HealthMetric(
+                component=HealthComponent.DASHBOARD_CONNECTION,
+                name="dashboard_active_connections",
+                value=len(connections),
+            )
+        ]
+        for connection in connections:
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.DASHBOARD_CONNECTION,
+                    name="dashboard_connection_age",
+                    value=round(now - connection.last_activity, 2),
+                    labels={"connection_id": connection.connection_id, "user_id": connection.user_id},
+                )
+            )
+        return metrics
+
+    action_registry = CorrectiveActionRegistry()
+
+    async def _refresh_stuck_stage(finding: Any) -> CorrectionEvent:
+        job_id = finding.labels.get("job_id")
+        jobs = getattr(app.state.services, "jobs", {})
+        job = jobs.get(job_id) if job_id else None
+        if isinstance(job, dict):
+            job["updated_at"] = time.time()
+            job["health_recovery"] = {
+                "action": "refetch_stage_timeout",
+                "reason": finding.reason,
+                "at": time.time(),
+            }
+        return CorrectionEvent(
+            finding_id=finding.finding_id,
+            action=CorrectiveAction.REFRESH_STUCK_STAGE,
+            success=job is not None,
+            message=f"Refreshed stuck stage watchdog for {job_id or 'unknown job'}",
+            component=HealthComponent.PIPELINE_STAGE,
+            details={"job_id": job_id},
+        )
+
+    async def _flush_bloom(finding: Any) -> CorrectionEvent:
+        details = await bloom_mesh.flush_overflowing_filter(reason="self_healing")
+        return CorrectionEvent(
+            finding_id=finding.finding_id,
+            action=CorrectiveAction.FLUSH_BLOOM_FILTER,
+            success=True,
+            message="Flushed saturated Bloom filter and published reconciliation snapshot",
+            component=HealthComponent.BLOOM_MESH,
+            details=details,
+        )
+
+    async def _rollback_model(finding: Any) -> CorrectionEvent:
+        registry = app.state.model_registry
+        details = registry.rollback_bad_model_version(finding.labels.get("model_name"))
+        return CorrectionEvent(
+            finding_id=finding.finding_id,
+            action=CorrectiveAction.ROLLBACK_MODEL_VERSION,
+            success=bool(details.get("rolled_back")),
+            message=details.get("reason", "Model rollback evaluated"),
+            component=HealthComponent.MODEL_REGISTRY,
+            details=details,
+        )
+
+    async def _escalate(finding: Any) -> CorrectionEvent:
+        return CorrectionEvent(
+            finding_id=finding.finding_id,
+            action=CorrectiveAction.ESCALATE_ANALYST,
+            success=True,
+            message=f"Escalated {finding.component.value}: {finding.reason}",
+            component=finding.component,
+            details={"labels": finding.labels},
+        )
+
+    async def _rebalance(finding: Any) -> CorrectionEvent:
+        gossip = getattr(app.state, "gossip", None)
+        details = gossip.mesh_health() if gossip else {"mesh": "unavailable"}
+        return CorrectionEvent(
+            finding_id=finding.finding_id,
+            action=CorrectiveAction.REBALANCE_ACTORS,
+            success=gossip is not None,
+            message="Rebalanced actor placement pressure against current mesh telemetry",
+            component=finding.component,
+            details=details,
+        )
+
+    action_registry.register(CorrectiveAction.REFRESH_STUCK_STAGE, _refresh_stuck_stage)
+    action_registry.register(CorrectiveAction.FLUSH_BLOOM_FILTER, _flush_bloom)
+    action_registry.register(CorrectiveAction.ROLLBACK_MODEL_VERSION, _rollback_model)
+    action_registry.register(CorrectiveAction.ESCALATE_ANALYST, _escalate)
+    action_registry.register(CorrectiveAction.REBALANCE_ACTORS, _rebalance)
+
+    controller = SelfHealingController(action_registry=action_registry)
+    controller.register_probe("pipeline_stages", _pipeline_stage_probe)
+    controller.register_probe("dashboard_connections", _dashboard_connection_probe)
+    controller.register_probe(
+        "bloom_mesh",
+        lambda: bloom_mesh.health_metrics(fill_threshold=controller.bloom_fill_threshold),
+    )
+    controller.register_probe("model_registry", app.state.model_registry.health_metrics)
+    app.state.self_healing_controller = controller
+    await controller.start()
 
     # 4. Background telemetry heartbeat for Gossip
     async def _mesh_telemetry_pulse(node: MeshNode, app_ref: FastAPI) -> None:
@@ -234,6 +396,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     if hasattr(app.state, "cache_manager"):
         app.state.cache_manager.close()
+
+    if hasattr(app.state, "self_healing_controller"):
+        await app.state.self_healing_controller.stop()
 
     if hasattr(app.state, "bloom_mesh"):
         await app.state.bloom_mesh.stop()
@@ -402,6 +567,16 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "boot_time": _START_TIME,
             "uptime_seconds": round(time.time() - (_START_TIME or time.time()), 1),
         }
+
+    @app.websocket("/ws/triage/{run_id}")
+    async def ws_triage(websocket: Any, run_id: str) -> None:
+        from src.dashboard.fastapi.routers.triage import handle_triage_websocket
+
+        service = getattr(app.state, "triage_collaboration", None)
+        if service is None:
+            service = TriageCollaborationService(config.output_root)
+            app.state.triage_collaboration = service
+        await handle_triage_websocket(websocket, run_id, service)
 
     @app.get("/api/dashboard", response_model=DashboardStatsResponse, tags=["Analytics"])
     async def get_dashboard_stats() -> dict[str, Any]:

@@ -2,9 +2,8 @@ import os
 import shutil
 import tempfile
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
 from src.core.frontier.ghost_vfs import GhostVFS
+from src.infrastructure.security.encryption import Argon2idAESGCM
 
 
 def test_ghost_vfs_flush_to_disk():
@@ -25,25 +24,14 @@ def test_ghost_vfs_flush_to_disk():
         expected_file = os.path.join(export_dir, test_path)
         assert os.path.exists(expected_file)
 
-        # Decrypt manually to verify
+        # Decrypt manually to verify the Argon2id/AES-GCM envelope
         with open(expected_file, "rb") as f:
             raw = f.read()
 
-        salt = raw[:16]
-        nonce = raw[16:28]
-        ciphertext = raw[28:]
-
-        from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,
+        decrypted = Argon2idAESGCM(master_key).decrypt(
+            raw,
+            f"ghost-vfs:{test_path}".encode(),
         )
-        derived_key = kdf.derive(master_key.encode())
-        aesgcm = AESGCM(derived_key)
-        decrypted = aesgcm.decrypt(nonce, ciphertext, None)
 
         assert decrypted.decode() == test_content
 
@@ -74,20 +62,10 @@ def test_ghost_vfs_flush_handles_multiple_files():
             with open(expected_file, "rb") as f:
                 raw = f.read()
 
-            salt = raw[:16]
-            nonce = raw[16:28]
-            ciphertext = raw[28:]
-
-            from cryptography.hazmat.primitives import hashes
-            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=salt,
-                iterations=100000,
+            decrypted = Argon2idAESGCM(master_key).decrypt(
+                raw,
+                f"ghost-vfs:{p}".encode(),
             )
-            derived_key = kdf.derive(master_key.encode())
-            decrypted = AESGCM(derived_key).decrypt(nonce, ciphertext, None)
             assert decrypted.decode() == c
 
     finally:

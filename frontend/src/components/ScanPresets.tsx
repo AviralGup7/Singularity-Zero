@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getDynamicPluginCatalog } from '../api/registry';
 import { useToast } from '../hooks/useToast';
+import type { DynamicPluginManifest } from '../types/api';
 
 interface ScanPreset {
   id: string;
@@ -55,6 +57,8 @@ export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresets
   const [presetDescription, setPresetDescription] = useState('');
    
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [dynamicPlugins, setDynamicPlugins] = useState<DynamicPluginManifest[]>([]);
+  const [invalidPlugins, setInvalidPlugins] = useState<DynamicPluginManifest[]>([]);
   const toast = useToast();
 
   useEffect(() => {
@@ -63,6 +67,20 @@ export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresets
       if (mounted) setPresets(loadPresets());
     });
     return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getDynamicPluginCatalog(controller.signal)
+      .then((catalog) => {
+        setDynamicPlugins(catalog.plugins);
+        setInvalidPlugins(catalog.invalid);
+      })
+      .catch(() => {
+        setDynamicPlugins([]);
+        setInvalidPlugins([]);
+      });
+    return () => controller.abort();
   }, []);
 
   const handleSave = useCallback(() => {
@@ -197,6 +215,42 @@ export default function ScanPresets({ currentConfig, onLoadPreset }: ScanPresets
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {(dynamicPlugins.length > 0 || invalidPlugins.length > 0) && (
+        <div className="mt-4">
+          <div className="scan-presets-header">
+            <h4 className="scan-presets-title">Dynamic Plugins</h4>
+            <span className="scan-preset-meta">
+              {dynamicPlugins.length} loaded
+              {invalidPlugins.length > 0 ? ` - ${invalidPlugins.length} invalid` : ''}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {dynamicPlugins.map((plugin) => (
+              <div key={plugin.id} className="scan-preset-card card">
+                <div className="scan-preset-info">
+                  <span className="scan-preset-name">{plugin.name}</span>
+                  <span className="scan-preset-desc">{plugin.description}</span>
+                  <span className="scan-preset-meta">
+                    {plugin.kind} &middot; {plugin.group} &middot; {plugin.sandbox}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {invalidPlugins.map((plugin) => (
+              <div key={plugin.id} className="scan-preset-card card border-[var(--warn)]/60">
+                <div className="scan-preset-info">
+                  <span className="scan-preset-name">{plugin.name}</span>
+                  <span className="scan-preset-desc">
+                    {plugin.errors?.[0] || 'Manifest validation failed.'}
+                  </span>
+                  <span className="scan-preset-meta">invalid</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

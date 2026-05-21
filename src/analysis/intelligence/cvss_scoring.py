@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.core.plugins import register_plugin
+from src.intelligence.severity_model import enrich_finding_with_model_severity
 
 
 @dataclass(frozen=True)
@@ -695,14 +696,18 @@ def enrich_findings_with_cvss(findings: list[dict[str, Any]]) -> list[dict[str, 
             scope_changed=bool(finding.get("evidence", {}).get("trust_boundary_shift")),
         )
 
-        enriched.append(
-            {
-                **finding,
-                "cvss_score": cvss.base_score,
-                "cvss_vector": cvss.vector_string,
-                "cvss_severity": cvss.severity,
-                "cvss_explanation": cvss.explanation,
-            }
-        )
+        with_cvss = {
+            **finding,
+            "cvss_score": cvss.base_score,
+            "cvss_vector": cvss.vector_string,
+            "cvss_severity": cvss.severity,
+            "cvss_explanation": cvss.explanation,
+            "cvss": {
+                "base_score": cvss.base_score,
+                "vector_string": cvss.vector_string,
+                "severity": cvss.severity,
+            },
+        }
+        enriched.append(enrich_finding_with_model_severity(with_cvss))
 
     return enriched

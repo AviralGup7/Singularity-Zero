@@ -1,0 +1,209 @@
+{
+  "description": "Controlled golden set for signal-quality FP reduction across analysis, detection, execution, and intelligence stages.",
+  "findings": [
+    {
+      "label": "true_positive",
+      "stage": "analysis",
+      "finding": {
+        "id": "tp-analysis-idor",
+        "module": "analysis.idor",
+        "category": "idor",
+        "severity": "high",
+        "confidence": 0.82,
+        "url": "https://api.example.test/v1/users/1001",
+        "endpoint_type": "API",
+        "combined_signal": "auth + idor",
+        "true_positive_probability": 0.84,
+        "false_positive_probability": 0.16,
+        "evidence": {
+          "diff": {
+            "status_changed": true,
+            "original_status": 403,
+            "mutated_status": 200,
+            "content_changed": true,
+            "body_similarity": 0.22
+          },
+          "reproducible": true
+        }
+      }
+    },
+    {
+      "label": "true_positive",
+      "stage": "detection",
+      "finding": {
+        "id": "tp-detection-token",
+        "module": "detection.token",
+        "category": "token_leak",
+        "severity": "critical",
+        "confidence": 0.88,
+        "url": "https://app.example.test/debug/config",
+        "endpoint_type": "API",
+        "combined_signal": "token + secret",
+        "true_positive_probability": 0.89,
+        "false_positive_probability": 0.11,
+        "evidence": {
+          "match": "live api token with production prefix",
+          "confirmed": true,
+          "diff": {"content_changed": true, "body_similarity": 0.18}
+        }
+      }
+    },
+    {
+      "label": "true_positive",
+      "stage": "execution",
+      "finding": {
+        "id": "tp-execution-ssrf",
+        "module": "execution.ssrf_validator",
+        "category": "ssrf",
+        "severity": "high",
+        "confidence": 0.79,
+        "url": "https://api.example.test/render?url=http://169.254.169.254/",
+        "endpoint_type": "API",
+        "combined_signal": "ssrf + oob",
+        "true_positive_probability": 0.81,
+        "false_positive_probability": 0.19,
+        "evidence": {
+          "cross_run_reproducible": true,
+          "diff": {"status_changed": true, "content_changed": true, "body_similarity": 0.31}
+        }
+      }
+    },
+    {
+      "label": "true_positive",
+      "stage": "intelligence",
+      "finding": {
+        "id": "tp-intelligence-chain",
+        "module": "intelligence.correlation",
+        "category": "access_control",
+        "severity": "high",
+        "confidence": 0.76,
+        "url": "https://admin.example.test/users",
+        "endpoint_type": "ADMIN",
+        "combined_signal": "auth + idor + token",
+        "true_positive_probability": 0.78,
+        "false_positive_probability": 0.22,
+        "evidence": {
+          "trust_boundary_shift": true,
+          "diff": {"status_changed": true, "original_status": 401, "mutated_status": 200}
+        }
+      }
+    },
+    {
+      "label": "true_positive",
+      "stage": "analysis",
+      "finding": {
+        "id": "tp-analysis-xss",
+        "module": "analysis.xss_reflect",
+        "category": "xss",
+        "severity": "medium",
+        "confidence": 0.71,
+        "url": "https://app.example.test/search?q=<svg/onload=alert(1)>",
+        "endpoint_type": "GENERAL",
+        "combined_signal": "xss + reflection",
+        "true_positive_probability": 0.72,
+        "false_positive_probability": 0.28,
+        "evidence": {
+          "intra_run_confirmed": true,
+          "diff": {"content_changed": true, "body_similarity": 0.2}
+        }
+      }
+    },
+    {
+      "label": "false_positive",
+      "stage": "analysis",
+      "finding": {
+        "id": "fp-analysis-rate-limit",
+        "module": "analysis.anomaly",
+        "category": "anomaly",
+        "severity": "medium",
+        "confidence": 0.68,
+        "url": "https://api.example.test/v1/search",
+        "endpoint_type": "API",
+        "combined_signal": "anomaly",
+        "true_positive_probability": 0.24,
+        "false_positive_probability": 0.76,
+        "evidence": {
+          "body_snippet": "too many requests, rate limit exceeded",
+          "diff": {"mutated_status": 429, "content_changed": true, "body_similarity": 0.81}
+        }
+      }
+    },
+    {
+      "label": "false_positive",
+      "stage": "detection",
+      "finding": {
+        "id": "fp-detection-waf",
+        "module": "detection.nuclei",
+        "category": "generic",
+        "severity": "high",
+        "confidence": 0.74,
+        "url": "https://www.example.test/login",
+        "endpoint_type": "AUTH",
+        "combined_signal": "template",
+        "true_positive_probability": 0.22,
+        "false_positive_probability": 0.78,
+        "evidence": {
+          "body_snippet": "request blocked by cloudflare waf",
+          "diff": {"mutated_status": 403, "content_changed": true}
+        }
+      }
+    },
+    {
+      "label": "false_positive",
+      "stage": "execution",
+      "finding": {
+        "id": "fp-execution-cdn",
+        "module": "execution.validator",
+        "category": "ssrf",
+        "severity": "medium",
+        "confidence": 0.62,
+        "url": "https://cdn.example.test/image.png",
+        "endpoint_type": "ASSET",
+        "combined_signal": "ssrf",
+        "true_positive_probability": 0.18,
+        "false_positive_probability": 0.82,
+        "evidence": {
+          "body_snippet": "bad gateway from origin error",
+          "diff": {"mutated_status": 502, "content_changed": true}
+        }
+      }
+    },
+    {
+      "label": "false_positive",
+      "stage": "intelligence",
+      "finding": {
+        "id": "fp-intelligence-docs",
+        "module": "intelligence.endpoint_graph",
+        "category": "exposure",
+        "severity": "low",
+        "confidence": 0.55,
+        "url": "https://docs.example.test/swagger",
+        "endpoint_type": "DOCUMENTATION",
+        "combined_signal": "exposure",
+        "true_positive_probability": 0.26,
+        "false_positive_probability": 0.74,
+        "evidence": {"diff": {"content_changed": false, "body_similarity": 0.93}}
+      }
+    },
+    {
+      "label": "false_positive",
+      "stage": "analysis",
+      "finding": {
+        "id": "fp-analysis-500",
+        "module": "analysis.fuzzer",
+        "category": "misconfiguration",
+        "severity": "medium",
+        "confidence": 0.59,
+        "url": "https://app.example.test/profile",
+        "endpoint_type": "GENERAL",
+        "combined_signal": "anomaly",
+        "true_positive_probability": 0.28,
+        "false_positive_probability": 0.72,
+        "evidence": {
+          "body_snippet": "internal server error",
+          "diff": {"mutated_status": 500, "content_changed": true, "body_similarity": 0.71}
+        }
+      }
+    }
+  ]
+}

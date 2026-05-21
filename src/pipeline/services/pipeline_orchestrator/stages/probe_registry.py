@@ -6,6 +6,7 @@ import functools
 from typing import Any
 from urllib.parse import urlparse
 
+from src.execution.active_manifest import DEFAULT_ACTIVE_MANIFEST_REGISTRY
 from src.recon.common import normalize_url
 
 
@@ -93,7 +94,7 @@ def _load_active_probe_functions() -> dict[str, Any]:
         generate_header_payloads,
     )
 
-    return {
+    probes = {
         "run_auth_bypass_probes": run_auth_bypass_probes,
         "cloud_metadata_active_probe": cloud_metadata_active_probe,
         "cors_preflight_probe": cors_preflight_probe,
@@ -136,3 +137,5 @@ def _load_active_probe_functions() -> dict[str, Any]:
         "jwt_manipulation_probe": jwt_manipulation_probe,
         "run_mutation_tests": run_mutation_tests,
     }
+    probes["_active_check_manifests"] = DEFAULT_ACTIVE_MANIFEST_REGISTRY.all()
+    return probes

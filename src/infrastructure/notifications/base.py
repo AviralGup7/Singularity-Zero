@@ -27,6 +27,7 @@ class NotificationEvent(StrEnum):
     RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
     SYSTEM_ERROR = "system_error"
     PIPELINE_TIMEOUT = "pipeline_timeout"
+    SELF_HEALING_ACTION = "self_healing_action"
     COMPLIANCE_VIOLATION = "compliance_violation"
     CUSTOM = "custom"
 

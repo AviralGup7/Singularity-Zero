@@ -12,6 +12,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.pipeline.self_healing import HealthComponent, HealthMetric, HealthStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -274,6 +276,46 @@ class LoadBalancer:
             "total_failed": total_failed,
             "effective_concurrency": self._effective_concurrency,
             "target_concurrency": self._target_concurrency,
+        }
+
+    async def health_metrics(self) -> list[HealthMetric]:
+        """Expose worker pressure as controller-readable metrics."""
+        summary = await self.get_load_summary()
+        metrics = [
+            HealthMetric(
+                component=HealthComponent.EXECUTION_ENGINE,
+                name="execution_active_tasks",
+                value=summary["total_active"],
+                labels={"worker_count": len(summary["workers"])},
+            )
+        ]
+        for worker_id, data in summary["workers"].items():
+            overloaded = bool(data.get("is_overloaded"))
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.EXECUTION_ENGINE,
+                    name="execution_worker_backpressure",
+                    value=float(data.get("backpressure_factor", 1.0)),
+                    threshold=0.2,
+                    status=HealthStatus.DEGRADED if overloaded else HealthStatus.OK,
+                    labels={"worker_id": worker_id, **data},
+                )
+            )
+        return metrics
+
+    async def rebalance_overloaded_workers(self) -> dict[str, Any]:
+        """Reduce pressure on overloaded workers by lowering effective concurrency."""
+        before = self._effective_concurrency
+        async with self._lock:
+            overloaded = [w.worker_id for w in self._workers.values() if w.is_overloaded]
+            if overloaded:
+                self._effective_concurrency = max(1, self._effective_concurrency - len(overloaded))
+                for worker_id in overloaded:
+                    self._workers[worker_id].backpressure_factor = 0.1
+        return {
+            "overloaded_workers": overloaded,
+            "effective_concurrency_before": before,
+            "effective_concurrency_after": self._effective_concurrency,
         }
 
     async def start_monitoring(self) -> None:

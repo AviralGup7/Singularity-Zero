@@ -21,6 +21,11 @@ from src.core.logging.trace_logging import get_pipeline_logger
 logger = get_pipeline_logger(__name__)
 
 
+def _cypher_string(value: object) -> str:
+    """Return a single-quoted Cypher literal for simple scalar values."""
+    return str(value).replace("\\", "\\\\").replace("'", "\\'")
+
+
 class LateralGraph:
     """
     Frontier Knowledge Graph.
@@ -68,17 +73,120 @@ class LateralGraph:
         """Ingest an asset and its finding into the graph."""
         if not self._conn:
             return
-        fid = finding["id"]
+        fid = _cypher_string(finding["id"])
+        asset = _cypher_string(asset_id)
+        severity = _cypher_string(finding.get("severity", "info"))
+        finding_type = str(finding.get("type", "")).lower()
         # Create Nodes
-        self._conn.execute(f"MERGE (a:Asset {{id: '{asset_id}', type: 'endpoint'}})")
-        self._conn.execute(f"MERGE (f:Finding {{id: '{fid}', severity: '{finding['severity']}'}})")
+        self._conn.execute(f"MERGE (a:Asset {{id: '{asset}', type: 'endpoint'}})")
+        self._conn.execute(f"MERGE (f:Finding {{id: '{fid}', severity: '{severity}'}})")
 
         # Link Finding to Asset
-        self._conn.execute("MERGE (a)-[:HAS_VULN]->(f)")
+        self._conn.execute(
+            f"MATCH (a:Asset {{id: '{asset}'}}), (f:Finding {{id: '{fid}'}}) "
+            "MERGE (a)-[:HAS_VULN]->(f)"
+        )
 
         # Heuristic: If finding is an IDOR or SSRF, it's a PIVOT point
-        if "idor" in finding["type"] or "ssrf" in finding["type"]:
-            self._conn.execute("MERGE (f)-[:PIVOTS_TO]->(a)")
+        if "idor" in finding_type or "ssrf" in finding_type:
+            self._conn.execute(
+                f"MATCH (a:Asset {{id: '{asset}'}}), (f:Finding {{id: '{fid}'}}) "
+                "MERGE (f)-[:PIVOTS_TO]->(a)"
+            )
+
+    def export_graph(self, max_nodes: int = 2000) -> dict[str, Any]:
+        """Export Kuzu nodes and relationships as dashboard-ready graph data."""
+        if not self._conn:
+            return {"nodes": [], "edges": []}
+
+        limit = max(1, min(int(max_nodes), 10000))
+        nodes: list[dict[str, Any]] = []
+        edges: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        def _rows(query: str) -> list[list[Any]]:
+            result = cast(Any, self._conn.execute(query))
+            collected: list[list[Any]] = []
+            while result.has_next():
+                row = result.get_next()
+                collected.append(list(row) if isinstance(row, (list, tuple)) else [row])
+            return collected
+
+        try:
+            for asset_id, asset_type in _rows(
+                f"MATCH (a:Asset) RETURN a.id, a.type LIMIT {limit}"
+            ):
+                node_id = f"asset:{asset_id}"
+                if node_id in seen:
+                    continue
+                asset_kind = str(asset_type or "endpoint").lower()
+                nodes.append(
+                    {
+                        "id": node_id,
+                        "type": "subdomain" if asset_kind == "subdomain" else "endpoint",
+                        "label": str(asset_id),
+                        "severity": "info",
+                        "metadata": {"asset_id": str(asset_id), "asset_type": asset_kind},
+                    }
+                )
+                seen.add(node_id)
+
+            remaining = max(1, limit - len(nodes))
+            for finding_id, severity in _rows(
+                f"MATCH (f:Finding) RETURN f.id, f.severity LIMIT {remaining}"
+            ):
+                node_id = f"finding:{finding_id}"
+                if node_id in seen:
+                    continue
+                nodes.append(
+                    {
+                        "id": node_id,
+                        "type": "finding",
+                        "label": str(finding_id),
+                        "severity": str(severity or "info").lower(),
+                        "metadata": {"finding_id": str(finding_id)},
+                    }
+                )
+                seen.add(node_id)
+
+            relation_queries = (
+                (
+                    "belongs_to",
+                    "MATCH (a1:Asset)-[:BELONGS_TO]->(a2:Asset) RETURN a1.id, a2.id",
+                    "asset:",
+                    "asset:",
+                ),
+                (
+                    "has_vuln",
+                    "MATCH (a:Asset)-[:HAS_VULN]->(f:Finding) RETURN a.id, f.id",
+                    "asset:",
+                    "finding:",
+                ),
+                (
+                    "pivots_to",
+                    "MATCH (f:Finding)-[:PIVOTS_TO]->(a:Asset) RETURN f.id, a.id",
+                    "finding:",
+                    "asset:",
+                ),
+            )
+            for label, query, source_prefix, target_prefix in relation_queries:
+                for source, target in _rows(f"{query} LIMIT {limit * 2}"):
+                    source_id = f"{source_prefix}{source}"
+                    target_id = f"{target_prefix}{target}"
+                    if source_id in seen and target_id in seen:
+                        edges.append(
+                            {
+                                "source": source_id,
+                                "target": target_id,
+                                "label": label,
+                                "metadata": {"relationship": label},
+                            }
+                        )
+        except Exception as e:
+            logger.debug("Failed to export Kuzu lateral graph: %s", e)
+            return {"nodes": [], "edges": []}
+
+        return {"nodes": nodes, "edges": edges}
 
     def find_attack_chains(self) -> list[list[str]]:
         """

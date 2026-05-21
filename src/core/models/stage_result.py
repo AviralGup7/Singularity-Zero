@@ -215,7 +215,7 @@ class StageResult:
     @staticmethod
     def _serialize_value(value: Any) -> Any:
         if isinstance(value, NeuralState):
-            return value.get_snapshot()
+            return value.to_crdt_snapshot()
         if isinstance(value, set):
             return sorted(value)
         if isinstance(value, Path):
@@ -232,6 +232,8 @@ class StageResult:
     def _restore_neural_state(value: Any, data: dict[str, Any]) -> NeuralState:
         state = NeuralState()
         snapshot = value if isinstance(value, dict) else data
+        if isinstance(snapshot, dict) and snapshot.get("format") == "neural-state-crdt-v2":
+            return NeuralState.from_crdt_snapshot(snapshot)
         state.apply_delta(
             {
                 "subdomains": list(snapshot.get("subdomains", []) or []),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
@@ -19,3 +20,61 @@ class HttpProbeProvider(Protocol):
 
 class CrawlerProvider(Protocol):
     def crawl(self, seeds: list[str], **kwargs: Any) -> set[str]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilityManifest:
+    """Serializable view of built-in and dynamic extension capabilities."""
+
+    generated_by: str = "src.core.capabilities.generate_capability_manifest"
+    plugin_schema_version: str = "1.0"
+    providers: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    dynamic_plugins: list[dict[str, Any]] = field(default_factory=list)
+    invalid_dynamic_plugins: list[dict[str, Any]] = field(default_factory=list)
+    watched_dirs: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "generated_by": self.generated_by,
+            "plugin_schema_version": self.plugin_schema_version,
+            "providers": self.providers,
+            "dynamic_plugins": self.dynamic_plugins,
+            "invalid_dynamic_plugins": self.invalid_dynamic_plugins,
+            "watched_dirs": self.watched_dirs,
+        }
+
+
+def generate_capability_manifest() -> CapabilityManifest:
+    """Build a fresh capability manifest from the live plugin registry."""
+
+    from src.core.plugins import list_plugins
+    from src.core.plugins.loader import dynamic_plugin_payload, refresh_dynamic_plugins
+
+    refresh_dynamic_plugins()
+    provider_kinds = (
+        "recon_provider",
+        "scanner",
+        "validator",
+        "exporter",
+        "enrichment_provider",
+        "detector_spec",
+        "dynamic_plugin",
+    )
+    providers: dict[str, list[dict[str, Any]]] = {}
+    for kind in provider_kinds:
+        providers[kind] = [
+            {
+                "key": registration.key,
+                "metadata": registration.metadata,
+                "provider": type(registration.provider).__name__,
+            }
+            for registration in list_plugins(kind)
+        ]
+
+    payload = dynamic_plugin_payload()
+    return CapabilityManifest(
+        providers=providers,
+        dynamic_plugins=payload["plugins"],
+        invalid_dynamic_plugins=payload["invalid"],
+        watched_dirs=payload["watched_dirs"],
+    )

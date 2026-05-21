@@ -59,7 +59,12 @@ async def run_active_scanning(
         logger.info("Adaptive scan mode enabled (default)")
         from .active_scan_adaptive import run_active_scanning_adaptive
 
-        return await run_active_scanning_adaptive(args, config, ctx)
+        return await run_active_scanning_adaptive(
+            args,
+            config,
+            ctx,
+            probe_loader=_load_active_probe_functions,
+        )
 
     stage_started = time.monotonic()
 

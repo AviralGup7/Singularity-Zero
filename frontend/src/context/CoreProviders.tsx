@@ -2,6 +2,7 @@ import { type ReactNode, Suspense } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import { LazyMotion, domAnimation } from 'framer-motion';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18n from '@/i18n';
 
 import { ThemeProvider } from './ThemeContext';
@@ -11,6 +12,15 @@ import { AuthProvider } from './AuthContext';
 import { VisualProvider } from './VisualContext';
 import { ToastProvider } from '@/components/Toast';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 interface CoreProvidersProps {
   children: ReactNode;
@@ -27,21 +37,23 @@ export function CoreProviders({ children }: CoreProvidersProps) {
           </div>
         }>
           <LazyMotion features={domAnimation}>
-            <BrowserRouter>
-              <VisualProvider>
-                <ThemeProvider>
-                  <ToastProvider>
-                    <SettingsProvider>
-                      <AuthProvider>
-                        <DisplayProvider>
-                          {children}
-                        </DisplayProvider>
-                      </AuthProvider>
-                    </SettingsProvider>
-                  </ToastProvider>
-                </ThemeProvider>
-              </VisualProvider>
-            </BrowserRouter>
+            <QueryClientProvider client={queryClient}>
+              <BrowserRouter>
+                <VisualProvider>
+                  <ThemeProvider>
+                    <ToastProvider>
+                      <SettingsProvider>
+                        <AuthProvider>
+                          <DisplayProvider>
+                            {children}
+                          </DisplayProvider>
+                        </AuthProvider>
+                      </SettingsProvider>
+                    </ToastProvider>
+                  </ThemeProvider>
+                </VisualProvider>
+              </BrowserRouter>
+            </QueryClientProvider>
           </LazyMotion>
         </Suspense>
       </ErrorBoundary>

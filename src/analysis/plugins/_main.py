@@ -373,13 +373,26 @@ def get_analysis_plugin_specs() -> tuple[Any, ...]:
     return _SPECS_CACHE
 
 
+def invalidate_analysis_plugin_cache() -> None:
+    global _SPECS_CACHE, ANALYSIS_PLUGIN_SPECS
+    _SPECS_CACHE = None
+    ANALYSIS_PLUGIN_SPECS = get_analysis_plugin_specs()
+    PASSIVE_CHECK_NAMES.clear()
+    PASSIVE_CHECK_NAMES.extend(spec.key for spec in ANALYSIS_PLUGIN_SPECS)
+    ANALYSIS_PLUGIN_SPECS_BY_KEY.clear()
+    ANALYSIS_PLUGIN_SPECS_BY_KEY.update({spec.key: spec for spec in ANALYSIS_PLUGIN_SPECS})
+
+
 # Re-export for backward compatibility
 ANALYSIS_PLUGIN_SPECS = get_analysis_plugin_specs()
-PASSIVE_CHECK_NAMES = tuple(spec.key for spec in ANALYSIS_PLUGIN_SPECS)
+PASSIVE_CHECK_NAMES = [spec.key for spec in ANALYSIS_PLUGIN_SPECS]
 ANALYSIS_PLUGIN_SPECS_BY_KEY = {spec.key: spec for spec in ANALYSIS_PLUGIN_SPECS}
 
 
 def analysis_check_options() -> list[dict[str, object]]:
+    from src.core.plugins.loader import refresh_dynamic_plugins
+
+    refresh_dynamic_plugins()
     return [
         {
             "name": spec.key,
@@ -387,6 +400,8 @@ def analysis_check_options() -> list[dict[str, object]]:
             "description": spec.description,
             "group": spec.group,
             "slug": spec.slug,
+            "enabled_by_default": getattr(spec, "enabled_by_default", True),
+            "source": getattr(spec, "source", "builtin"),
         }
-        for spec in ANALYSIS_PLUGIN_SPECS
+        for spec in get_analysis_plugin_specs()
     ]

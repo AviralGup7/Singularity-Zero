@@ -2,6 +2,7 @@ import html
 from typing import Any
 
 from src.execution.validators.api_test_integration import build_api_test_result
+from src.intelligence.severity_model import enrich_findings_with_model_severity
 
 # MITRE ATT&CK technique display names for reporting
 MITRE_TECHNIQUE_NAMES = {
@@ -247,8 +248,41 @@ def _render_attack_chain_badge(item: dict[str, Any]) -> str:
     return f"<span class='chain-badge' style='background:#9b59b6;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.85em;' title='Part of attack chain'>⛓️ {html.escape(chain).replace(chr(39), '&#x27;')}</span> "
 
 
+def _render_model_badge(item: dict[str, Any]) -> str:
+    """Render calibrated ML severity metadata."""
+    score = item.get("severity_score")
+    model = item.get("severity_model") or {}
+    signal = item.get("signal_quality") or {}
+    signal_score = item.get("signal_quality_score", signal.get("quality_score"))
+    if score is None and not model and signal_score is None:
+        return ""
+    tp = float(item.get("true_positive_probability", model.get("true_positive_probability", 0.0)))
+    fp = float(item.get("false_positive_probability", model.get("false_positive_probability", 0.0)))
+    title = (
+        f"Calibrated ML severity. TP probability {tp:.1%}; "
+        f"FP probability {fp:.1%}; samples {model.get('training_samples', 0)}"
+    )
+    signal_badge = ""
+    if signal_score is not None:
+        action = str(signal.get("action", "keep")).replace("_", " ")
+        signal_title = f"Signal quality {float(signal_score):.1f}; action {action}; FP {fp:.1%}"
+        signal_badge = (
+            "<span class='model-badge' "
+            "style='background:#14532d;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.85em;' "
+            f"title='{html.escape(signal_title).replace(chr(39), '&#x27;')}'>"
+            f"Signal {float(signal_score):.0f}</span> "
+        )
+    return (
+        "<span class='model-badge' "
+        "style='background:#164e63;color:#fff;padding:2px 6px;border-radius:3px;font-size:0.85em;' "
+        f"title='{html.escape(title).replace(chr(39), '&#x27;')}'>"
+        f"ML {float(score or 0.0):.2f}</span> "
+        f"{signal_badge}"
+    )
+
+
 def top_findings_section(summary: dict[str, Any]) -> str:
-    items = summary.get("top_actionable_findings", [])
+    items = enrich_findings_with_model_severity(summary.get("top_actionable_findings", []))
     if not items:
         return "<section><h2>Top Actionable Findings</h2><p class='muted'>No prioritized findings yet.</p></section>"
     rows = []
@@ -273,6 +307,7 @@ def top_findings_section(summary: dict[str, Any]) -> str:
             "<li>"
             f"<strong>{html.escape(str(item.get('severity', 'info')).upper())}</strong> "
             f"{html.escape(item.get('title', 'Finding'))} "
+            f"{_render_model_badge(item)}"
             f"{_render_cvss_badge(item)}"
             f"{_render_attack_chain_badge(item)}"
             f"<span class='muted'>score {html.escape(str(item.get('score', 0)))} | confidence {html.escape(str(round(float(item.get('confidence', 0)) * 100)))}% | {html.escape(str(item.get('history_status', 'new')))}</span><br>"
@@ -288,13 +323,14 @@ def top_findings_section(summary: dict[str, Any]) -> str:
 
 
 def high_confidence_shortlist_section(summary: dict[str, Any]) -> str:
-    items = summary.get("high_confidence_shortlist", [])
+    items = enrich_findings_with_model_severity(summary.get("high_confidence_shortlist", []))
     if not items:
         return "<section><h2>High-Confidence Shortlist</h2><p class='muted'>No shortlist entries yet.</p></section>"
     rows = [
         "<li>"
         f"<strong>{html.escape(str(item.get('severity', 'info')).upper())}</strong> "
         f"{html.escape(item.get('title', 'Shortlist item'))} "
+        f"{_render_model_badge(item)}"
         f"<span class='muted'>{html.escape(str(item.get('category', 'unknown')))} | confidence {html.escape(str(round(float(item.get('confidence', 0)) * 100)))}% | {html.escape(str(item.get('history_status', 'new')))}</span><br>"
         f"{html.escape(item.get('url', ''))}<br>"
         f"<span class='muted'>{html.escape(item.get('explanation', item.get('next_step', '')))}</span>"
@@ -305,7 +341,7 @@ def high_confidence_shortlist_section(summary: dict[str, Any]) -> str:
 
 
 def manual_verification_section(summary: dict[str, Any]) -> str:
-    items = summary.get("manual_verification_queue", [])
+    items = enrich_findings_with_model_severity(summary.get("manual_verification_queue", []))
     if not items:
         return "<section><h2>Manual Verification Queue</h2><p class='muted'>No queued review tasks.</p></section>"
     rows = []
@@ -361,6 +397,7 @@ def manual_verification_section(summary: dict[str, Any]) -> str:
             "<li class='finding-card'>"
             "<div class='finding-head'>"
             f"<span class='ui-badge {tone}'>{html.escape(str(item.get('severity', 'info')))}</span>"
+            f"{_render_model_badge(item)}"
             f"<strong>{html.escape(item.get('title', 'Review finding'))}</strong> "
             f"<span class='muted'>confidence {html.escape(str(round(float(item.get('confidence', 0)) * 100)))}% | {html.escape(str(item.get('history_status', 'new')))}</span>"
             "</div>"
@@ -383,7 +420,7 @@ def manual_verification_section(summary: dict[str, Any]) -> str:
 
 
 def verified_exploits_section(summary: dict[str, Any]) -> str:
-    items = summary.get("verified_exploits", [])
+    items = enrich_findings_with_model_severity(summary.get("verified_exploits", []))
     if not items:
         return "<section><h2>Validated Leads</h2><p class='muted'>No evidence-backed leads were promoted by the built-in validation runtime for this run.</p></section>"
     rows = []
@@ -392,6 +429,7 @@ def verified_exploits_section(summary: dict[str, Any]) -> str:
             "<li class='finding-card'>"
             "<div class='finding-head'>"
             f"<span class='ui-badge bad'>{html.escape(str(item.get('severity', 'info')).upper())}</span>"
+            f"{_render_model_badge(item)}"
             f"<strong>{html.escape(item.get('title', 'Verified result'))}</strong>"
             "</div>"
             f"{html.escape(item.get('url', ''))}"
@@ -406,23 +444,25 @@ def verified_exploits_section(summary: dict[str, Any]) -> str:
 
 def signal_quality_section(summary: dict[str, Any]) -> str:
     findings = summary.get("top_actionable_findings", [])
+    signal_scored = [item for item in findings if item.get("signal_quality") or item.get("signal_quality_score")]
     likely_true_positives = sum(
         1
         for item in findings
-        if float(item.get("confidence", 0)) >= 0.8
+        if float(item.get("true_positive_probability", item.get("confidence", 0))) >= 0.8
         and item.get("endpoint_type") not in {"AUTH", "STATIC"}
     )
     likely_noise = sum(
         1
         for item in findings
         if item.get("endpoint_type") in {"AUTH", "STATIC"}
-        or float(item.get("confidence", 0)) < 0.65
+        or float(item.get("false_positive_probability", 1 - float(item.get("confidence", 0)))) >= 0.5
     )
     multi_signal = sum(1 for item in findings if item.get("combined_signal"))
     rows = (
         f"<div class='card'><div class='label'>Likely True Positives</div><div class='value'>{likely_true_positives}</div></div>"
         f"<div class='card'><div class='label'>Likely Noise</div><div class='value'>{likely_noise}</div></div>"
         f"<div class='card'><div class='label'>Multi-Signal Flows</div><div class='value'>{multi_signal}</div></div>"
+        f"<div class='card'><div class='label'>ML Quality Scored</div><div class='value'>{len(signal_scored)}</div></div>"
     )
     return f"<section><h2>Signal Quality</h2><div class='grid'>{rows}</div></section>"
 

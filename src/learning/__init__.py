@@ -42,6 +42,11 @@ _EXPORTS: dict[str, str] = {
     "ThresholdUpdate": "src.learning.threshold_tuner",
     "MetricsCollector": "src.learning.metrics",
     "PipelineKPIs": "src.learning.metrics",
+    "SignalQualityResult": "src.learning.signal_quality",
+    "GoldenSetEvaluation": "src.learning.signal_quality",
+    "score_signal_quality": "src.learning.signal_quality",
+    "annotate_signal_quality": "src.learning.signal_quality",
+    "evaluate_golden_set": "src.learning.signal_quality",
 }
 
 __all__ = [
@@ -61,6 +66,12 @@ __all__ = [
     # Metrics
     "MetricsCollector",
     "PipelineKPIs",
+    # Signal quality
+    "SignalQualityResult",
+    "GoldenSetEvaluation",
+    "score_signal_quality",
+    "annotate_signal_quality",
+    "evaluate_golden_set",
 ]
 
 

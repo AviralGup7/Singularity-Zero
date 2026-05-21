@@ -17,6 +17,7 @@ from src.intelligence.graph.threat_graph import (
     build_threat_graph,
     find_critical_paths,
     graph_risk_summary,
+    load_lateral_movement_graph,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "build_threat_graph",
     "find_critical_paths",
     "graph_risk_summary",
+    "load_lateral_movement_graph",
 ]

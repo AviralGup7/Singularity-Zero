@@ -172,7 +172,35 @@ class ProgressTelemetry(BaseModel):
     bottleneck_seconds: float | None = None
     next_best_action: str = ""
     learning_feedback: dict[str, Any] | str | None = None
+    event_counts: dict[str, int] = Field(default_factory=dict)
+    artifact_counts: dict[str, int] = Field(default_factory=dict)
     last_update_epoch: float | None = None
+
+
+class PipelineTelemetryEvent(BaseModel):
+    """Replayable structured event emitted by the pipeline."""
+
+    event_id: str
+    schema_version: str = "telemetry.v2"
+    event_type: str
+    timestamp: str
+    epoch: float
+    stage: str
+    status: str
+    message: str = ""
+    source: str = ""
+    trace_id: str = ""
+    parent_id: str = ""
+    check_id: str = ""
+    artifact_type: str = ""
+    artifact_id: str = ""
+    finding_id: str = ""
+    severity: str = ""
+    target: str = ""
+    run_id: str = ""
+    sequence: int = 0
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class JobResponse(BaseModel):
@@ -218,6 +246,7 @@ class JobResponse(BaseModel):
     stage_progress_label: str | None = None
     stage_progress: list[StageProgressEntry] = Field(default_factory=list)
     progress_telemetry: ProgressTelemetry = Field(default_factory=ProgressTelemetry)
+    telemetry_events: list[PipelineTelemetryEvent] = Field(default_factory=list)
     concurrent_stage_count: int = 0
 
 
@@ -516,6 +545,8 @@ class RegistryAnalysisOptions(BaseModel):
     check_options: list[dict[str, Any]] = Field(default_factory=list)
     control_groups: list[dict[str, Any]] = Field(default_factory=list)
     focus_presets: list[dict[str, Any]] = Field(default_factory=list)
+    dynamic_plugins: list[dict[str, Any]] = Field(default_factory=list)
+    invalid_dynamic_plugins: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class RegistryModePresets(BaseModel):
@@ -531,6 +562,7 @@ class RegistryResponse(BaseModel):
     modules: RegistryModuleOptions
     analysis: RegistryAnalysisOptions
     modes: RegistryModePresets
+    capabilities: dict[str, Any] = Field(default_factory=dict)
 
 
 class DashboardStatsResponse(BaseModel):

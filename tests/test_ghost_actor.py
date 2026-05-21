@@ -1,6 +1,9 @@
 import time
+from typing import Any
 
-from src.core.frontier.ghost_actor import ActorState, ScanActor
+import pytest
+
+from src.core.frontier.ghost_actor import ActorState, GhostMeshRegistry, ScanActor
 
 
 def mock_logic(task_input, state):
@@ -63,6 +66,66 @@ def test_actor_recovery_from_snapshot():
     assert actual_state["discovered"] == ["a", "b"]
 
     new_actor.stop()
+
+
+def test_actor_recovery_deduplicates_wal_lists():
+    actor = ScanActor.start(actor_id="actor-dedupe", logic_fn=mock_logic)
+
+    try:
+        deltas = [
+            {"id": "1-0", "delta": {"findings": [{"id": "f1"}]}},
+            {"id": "1-0", "delta": {"findings": [{"id": "f1"}]}},
+            {"id": "2-0", "delta": {"findings": [{"id": "f1"}, {"id": "f2"}]}},
+        ]
+        result = actor.ask({"command": "recover", "deltas": deltas}, block=True)
+        snapshot = actor.ask({"command": "snapshot"}, block=True)
+
+        assert result["status"] == "success"
+        assert snapshot.data["findings"] == [{"id": "f1"}, {"id": "f2"}]
+        assert snapshot.last_wal_id == "2-0"
+    finally:
+        actor.stop()
+
+
+class _AsyncRedis:
+    def __init__(self) -> None:
+        self.data: dict[tuple[str, str], Any] = {}
+
+    async def hset(self, key: str, field: str, value: Any) -> None:
+        self.data[(key, field)] = value
+
+    async def hget(self, key: str, field: str) -> Any:
+        return self.data.get((key, field))
+
+    async def hdel(self, key: str, field: str) -> None:
+        self.data.pop((key, field), None)
+
+    async def expire(self, key: str, seconds: int) -> None:
+        pass
+
+
+@pytest.mark.asyncio
+async def test_registry_migration_marker_prepare_commit_clear():
+    registry = GhostMeshRegistry(_AsyncRedis(), run_id="run")
+
+    await registry.prepare_migration(
+        actor_id="actor",
+        migration_id="mig-1",
+        source_node="node-a",
+        target_node="node-b",
+        state_digest="abc",
+    )
+    prepared = await registry.get_migration("actor")
+    assert prepared is not None
+    assert prepared["status"] == "prepared"
+
+    await registry.commit_migration("actor", "mig-1")
+    committed = await registry.get_migration("actor")
+    assert committed is not None
+    assert committed["status"] == "committed"
+
+    await registry.clear_migration("actor")
+    assert await registry.get_migration("actor") is None
 
 
 def test_actor_migration_command_rejection():
