@@ -10,7 +10,7 @@ import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
@@ -167,7 +167,9 @@ def build_cyclonedx_sbom(
                     "name": str(name),
                     "version": "available" if available else "unavailable",
                     "bom-ref": f"tool:{name}",
-                    "properties": [{"name": "pipeline:tool_available", "value": str(bool(available)).lower()}],
+                    "properties": [
+                        {"name": "pipeline:tool_available", "value": str(bool(available)).lower()}
+                    ],
                 }
             )
     return {
@@ -250,7 +252,11 @@ def _write_simple_pdf(path: Path, lines: list[str]) -> None:
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Length "
+        + str(len(stream)).encode("ascii")
+        + b" >>\nstream\n"
+        + stream
+        + b"\nendstream",
     ]
     output = bytearray(b"%PDF-1.4\n")
     offsets = [0]
@@ -331,7 +337,9 @@ def write_report_package(
         compliance_report=summary.get("compliance", {}),
     )
     (run_dir / "attestation.html").write_text(attestation_html, encoding="utf-8")
-    _write_simple_pdf(run_dir / "attestation.pdf", _attestation_pdf_lines(target_name, run_id, report))
+    _write_simple_pdf(
+        run_dir / "attestation.pdf", _attestation_pdf_lines(target_name, run_id, report)
+    )
 
     private_key = _load_or_create_private_key(run_dir.parent)
     public_key = private_key.public_key()
@@ -362,7 +370,7 @@ def write_report_package(
     manifest = {
         **manifest_unsigned,
         "signature": {
-            **manifest_unsigned["signature"],
+            **cast(dict[str, Any], manifest_unsigned["signature"]),
             "value": signature,
             "signed_payload_sha256": sha256_bytes(payload),
         },
@@ -425,7 +433,7 @@ def report_links_for_run(target_name: str, run_id: str) -> dict[str, str]:
 
 
 def build_report_library(output_root: Path) -> dict[str, Any]:
-    reports = []
+    reports: list[dict[str, Any]] = []
     if not output_root.exists():
         return {"reports": reports, "total": 0}
     for target_dir in sorted(output_root.iterdir(), key=lambda item: item.name.lower()):

@@ -17,7 +17,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 SEVERITY_LABELS = ("info", "low", "medium", "high", "critical")
@@ -88,7 +88,7 @@ def score_from_severity(severity: object) -> float:
     return SEVERITY_TO_IMPACT.get(str(severity or "info").strip().lower(), 0.35) * 10.0
 
 
-def _numeric(value: object, default: float = 0.0) -> float:
+def _numeric(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -100,7 +100,11 @@ def _normalise_token(value: object) -> str:
 
 
 def _tokens_from_finding(finding: dict[str, Any]) -> list[str]:
-    evidence = finding.get("evidence") if isinstance(finding.get("evidence"), dict) else {}
+    evidence = (
+        cast(dict[str, Any], finding.get("evidence"))
+        if isinstance(finding.get("evidence"), dict)
+        else {}
+    )
     signals = finding.get("signals") or evidence.get("signals") or []
     if not isinstance(signals, list):
         signals = [signals]
@@ -118,13 +122,21 @@ def _tokens_from_finding(finding: dict[str, Any]) -> list[str]:
     tokens.extend(f"path={part}" for part in path_parts)
     tokens.extend(f"signal={_normalise_token(signal)}" for signal in signals[:8])
     combined = str(finding.get("combined_signal") or "")
-    tokens.extend(f"combined={_normalise_token(part)}" for part in combined.split("+") if part.strip())
+    tokens.extend(
+        f"combined={_normalise_token(part)}" for part in combined.split("+") if part.strip()
+    )
     return tokens
 
 
 def _feature_vector(finding: dict[str, Any]) -> dict[str, float]:
-    evidence = finding.get("evidence") if isinstance(finding.get("evidence"), dict) else {}
-    diff = evidence.get("diff") if isinstance(evidence.get("diff"), dict) else {}
+    evidence = (
+        cast(dict[str, Any], finding.get("evidence"))
+        if isinstance(finding.get("evidence"), dict)
+        else {}
+    )
+    diff = (
+        cast(dict[str, Any], evidence.get("diff")) if isinstance(evidence.get("diff"), dict) else {}
+    )
     features: dict[str, float] = {
         "bias": 1.0,
         "confidence": _clamp(
@@ -137,10 +149,14 @@ def _feature_vector(finding: dict[str, Any]) -> dict[str, float]:
         "cvss": _clamp(_numeric(finding.get("cvss_score"), 0.0) / 10.0),
         "score_hint": _clamp(_numeric(finding.get("score"), 0.0) / 100.0),
         "response_delta": _clamp(
-            _numeric(finding.get("response_delta_score") or evidence.get("response_delta_score"), 0.0)
+            _numeric(
+                finding.get("response_delta_score") or evidence.get("response_delta_score"), 0.0
+            )
             / 10.0
         ),
-        "diff_score": _clamp(_numeric(finding.get("diff_score") or evidence.get("diff_score"), 0.0) / 8.0),
+        "diff_score": _clamp(
+            _numeric(finding.get("diff_score") or evidence.get("diff_score"), 0.0) / 8.0
+        ),
         "status_changed": 1.0 if diff.get("status_changed") else 0.0,
         "content_changed": 1.0 if diff.get("content_changed") else 0.0,
         "redirect_changed": 1.0 if diff.get("redirect_changed") else 0.0,
@@ -172,7 +188,10 @@ class CalibratedSeverityModel:
 
     def __init__(self, db_path: str | Path | None = None, *, iterations: int = 14) -> None:
         self.db_path = Path(
-            db_path or os.getenv("VULN_SEVERITY_DB_PATH") or os.getenv("PIPELINE_TELEMETRY_DB") or DEFAULT_DB_PATH
+            db_path
+            or os.getenv("VULN_SEVERITY_DB_PATH")
+            or os.getenv("PIPELINE_TELEMETRY_DB")
+            or DEFAULT_DB_PATH
         )
         self.iterations = iterations
         self.weights: dict[str, float] = {}
@@ -189,15 +208,22 @@ class CalibratedSeverityModel:
 
     def predict(self, finding: dict[str, Any]) -> SeverityPrediction:
         features = _feature_vector(finding)
-        raw_probability = self._sigmoid(sum(self.weights.get(k, 0.0) * v for k, v in features.items()))
+        raw_probability = self._sigmoid(
+            sum(self.weights.get(k, 0.0) * v for k, v in features.items())
+        )
         calibrated_tp, calibration = self._calibrate(raw_probability, finding)
-        input_impact = score_from_severity(finding.get("severity") or finding.get("finding_severity")) / 10.0
+        input_impact = (
+            score_from_severity(finding.get("severity") or finding.get("finding_severity")) / 10.0
+        )
         cvss_impact = _clamp(_numeric(finding.get("cvss_score"), input_impact * 10.0) / 10.0)
         impact = _clamp((input_impact * 0.55) + (cvss_impact * 0.30) + (calibrated_tp * 0.15))
         score = round(_clamp((calibrated_tp * 0.72) + (impact * 0.28)) * 10.0, 2)
         severity = severity_from_score(score)
         confidence = round(
-            _clamp((self.training_samples / (self.training_samples + 40.0)) * 0.65 + calibration["support"] * 0.35),
+            _clamp(
+                (self.training_samples / (self.training_samples + 40.0)) * 0.65
+                + calibration["support"] * 0.35
+            ),
             3,
         )
         return SeverityPrediction(
@@ -232,14 +258,22 @@ class CalibratedSeverityModel:
     def aggregate_score(self, findings: list[dict[str, Any]]) -> float:
         if not findings:
             return 0.0
-        scores = [self.predict(f).score if "severity_score" not in f else _numeric(f["severity_score"]) for f in findings]
+        scores = [
+            self.predict(f).score if "severity_score" not in f else _numeric(f["severity_score"])
+            for f in findings
+        ]
         return round(sum(scores) / len(scores), 2)
 
     def _train(self) -> None:
         examples = self._load_training_examples()
         self.training_samples = len(examples)
         if not examples:
-            self.weights = {"bias": 0.0, "confidence": 1.35, "legacy_impact": 1.0, "reproducible": 1.1}
+            self.weights = {
+                "bias": 0.0,
+                "confidence": 1.35,
+                "legacy_impact": 1.0,
+                "reproducible": 1.1,
+            }
             return
         positives = sum(example.label * example.weight for example in examples)
         total_weight = sum(example.weight for example in examples) or 1.0
@@ -335,17 +369,23 @@ class CalibratedSeverityModel:
         positives, total = bucket.get(key, (0, 0))
         bucket[key] = (positives + int(label >= 0.5), total + 1)
 
-    def _calibrate(self, raw_probability: float, finding: dict[str, Any]) -> tuple[float, dict[str, float]]:
+    def _calibrate(
+        self, raw_probability: float, finding: dict[str, Any]
+    ) -> tuple[float, dict[str, float]]:
         category = _normalise_token(finding.get("category") or finding.get("finding_category"))
         plugin = _normalise_token(finding.get("plugin_name") or finding.get("module"))
         parameter_type = _normalise_token(finding.get("parameter_type"))
         rates = [
             self._smoothed_rate(self.category_rates.get(category, (0, 0)), strength=0.36),
-            self._smoothed_rate(self.plugin_rates.get(f"{category}|{plugin}", (0, 0)), strength=0.42),
+            self._smoothed_rate(
+                self.plugin_rates.get(f"{category}|{plugin}", (0, 0)), strength=0.42
+            ),
             self._smoothed_rate(self.param_rates.get(parameter_type, (0, 0)), strength=0.22),
         ]
         support = _clamp(sum(rate[1] for rate in rates) / 80.0)
-        historical_tp = sum(rate[0] * rate[1] for rate in rates) / max(1e-9, sum(rate[1] for rate in rates))
+        historical_tp = sum(rate[0] * rate[1] for rate in rates) / max(
+            1e-9, sum(rate[1] for rate in rates)
+        )
         blend = _clamp(0.52 + support * 0.30)
         calibrated = _clamp(raw_probability * blend + historical_tp * (1.0 - blend), 0.01, 0.99)
         return calibrated, {
@@ -385,7 +425,12 @@ class CalibratedSeverityModel:
 @lru_cache(maxsize=4)
 def get_default_severity_model(db_path: str | Path | None = None) -> CalibratedSeverityModel:
     """Return a cached model trained from the telemetry database."""
-    key_path = str(db_path or os.getenv("VULN_SEVERITY_DB_PATH") or os.getenv("PIPELINE_TELEMETRY_DB") or DEFAULT_DB_PATH)
+    key_path = str(
+        db_path
+        or os.getenv("VULN_SEVERITY_DB_PATH")
+        or os.getenv("PIPELINE_TELEMETRY_DB")
+        or DEFAULT_DB_PATH
+    )
     return CalibratedSeverityModel(key_path)
 
 

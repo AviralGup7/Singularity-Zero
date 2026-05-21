@@ -21,7 +21,8 @@ logger = get_pipeline_logger(__name__)
 
 # CRC-64-ECMA polynomial: 0x42F0E1EBA9EA3693
 POLY_64 = 0x42F0E1EBA9EA3693
-CRC64_TABLE = []
+CRC64_TABLE: list[int] = []
+
 
 def _init_crc64_table() -> None:
     if CRC64_TABLE:
@@ -35,6 +36,7 @@ def _init_crc64_table() -> None:
                 crc >>= 1
         CRC64_TABLE.append(crc)
 
+
 def crc64_pure(data: bytes) -> int:
     _init_crc64_table()
     crc = 0xFFFFFFFFFFFFFFFF
@@ -42,12 +44,18 @@ def crc64_pure(data: bytes) -> int:
         crc = CRC64_TABLE[(crc ^ b) & 0xFF] ^ (crc >> 8)
     return crc ^ 0xFFFFFFFFFFFFFFFF
 
+
 try:
     import crcmod
-    _crc64_func = crcmod.mkCrcFun(POLY_64, rev=True, initCrc=0xFFFFFFFFFFFFFFFF, xorOut=0xFFFFFFFFFFFFFFFF)
+
+    _crc64_func = crcmod.mkCrcFun(
+        POLY_64, rev=True, initCrc=0xFFFFFFFFFFFFFFFF, xorOut=0xFFFFFFFFFFFFFFFF
+    )
+
     def compute_crc64(data: bytes) -> str:
         return f"{_crc64_func(data):016x}"
 except Exception:
+
     def compute_crc64(data: bytes) -> str:
         return f"{crc64_pure(data):016x}"
 
@@ -164,7 +172,10 @@ class FrontierWAL:
                         # Validate integrity
                         computed_crc = compute_crc64(raw_delta)
                         if stored_crc and computed_crc != stored_crc:
-                            logger.error("WAL Redis stream corruption detected at ID %s! CRC mismatch", wal_id)
+                            logger.error(
+                                "WAL Redis stream corruption detected at ID %s! CRC mismatch",
+                                wal_id,
+                            )
                             redis_failed = True
                             break
 
@@ -213,7 +224,7 @@ class FrontierWAL:
                             logger.error(
                                 "WAL AOF file corruption detected for stage %s (tx_id: %s)! Skipping entry.",
                                 entry["stage"],
-                                entry["tx_id"]
+                                entry["tx_id"],
                             )
                             continue
 

@@ -127,7 +127,10 @@ class NucleiTagOptimizer:
 
             # Ensure we don't leave an endpoint type with zero tags (fallback)
             if not keep_tags and tags:
-                logger.info("NucleiTagOptimizer: All tags for [%s] noisy, retaining primary fallback", ep_type)
+                logger.info(
+                    "NucleiTagOptimizer: All tags for [%s] noisy, retaining primary fallback",
+                    ep_type,
+                )
                 keep_tags = [tags[0]]
 
             optimized_tags[ep_type] = keep_tags

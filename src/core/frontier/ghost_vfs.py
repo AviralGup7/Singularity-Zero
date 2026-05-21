@@ -110,7 +110,9 @@ class GhostVFS:
 
         # Policy enforcement
         if not self._policy_engine.is_allowed(self._principal, "write", path):
-            raise PermissionError(f"Ghost-VFS: Principal '{self._principal}' is not allowed to write '{path}'")
+            raise PermissionError(
+                f"Ghost-VFS: Principal '{self._principal}' is not allowed to write '{path}'"
+            )
 
         # Proactive rotation check on write
         if time.time() - self._last_rotation > self._rotation_interval:
@@ -157,7 +159,9 @@ class GhostVFS:
 
         # Policy enforcement
         if not self._policy_engine.is_allowed(self._principal, "read", path):
-            raise PermissionError(f"Ghost-VFS: Principal '{self._principal}' is not allowed to read '{path}'")
+            raise PermissionError(
+                f"Ghost-VFS: Principal '{self._principal}' is not allowed to read '{path}'"
+            )
 
         raw = self._files.get(path)
         if not raw:
@@ -320,7 +324,9 @@ class GhostVFS:
                         f"ghost-vfs:{path}".encode(),
                     )
 
-                fd, temp_file_path = tempfile.mkstemp(dir=target_dir, prefix=".vfs_tmp_", suffix=".tmp")
+                fd, temp_file_path = tempfile.mkstemp(
+                    dir=target_dir, prefix=".vfs_tmp_", suffix=".tmp"
+                )
                 try:
                     with os.fdopen(fd, "wb") as f:
                         f.write(sealed.encode("utf-8"))
@@ -356,7 +362,9 @@ class GhostVFS:
 
                 # Prevent Path Traversal by checking commonpath
                 if os.path.commonpath([base_abs, full_path]) != base_abs:
-                    logger.error("Ghost-VFS: Path traversal blocked during load for path: %s", full_path)
+                    logger.error(
+                        "Ghost-VFS: Path traversal blocked during load for path: %s", full_path
+                    )
                     continue
 
                 # Calculate relative virtual path
@@ -372,7 +380,10 @@ class GhostVFS:
                         file_content = f.read()
 
                     if len(file_content) < 28:
-                        logger.error("Ghost-VFS: File %s is too short to contain cryptographic format", rel_path)
+                        logger.error(
+                            "Ghost-VFS: File %s is too short to contain cryptographic format",
+                            rel_path,
+                        )
                         continue
 
                     decrypted = Argon2idAESGCM(master_key).decrypt(
@@ -389,7 +400,9 @@ class GhostVFS:
 
         logger.info("Ghost-VFS: Load complete. %d files re-hydrated.", count)
 
-    def export_sealed_bundle(self, output_path: str, master_key: str, *, name: str = "ghost-vfs") -> None:
+    def export_sealed_bundle(
+        self, output_path: str, master_key: str, *, name: str = "ghost-vfs"
+    ) -> None:
         """Export all virtual files as one sealed, integrity-bound bundle."""
         records: dict[str, str] = {}
         for path in self.list_files():
@@ -403,19 +416,27 @@ class GhostVFS:
                     lease.bytes,
                     f"ghost-vfs-bundle:{path}".encode(),
                 )
-        bundle = sealed_bundle_encrypt(name, records, master_key, aad=b"csp:ghost-vfs:sealed-bundle")
+        bundle = sealed_bundle_encrypt(
+            name, records, master_key, aad=b"csp:ghost-vfs:sealed-bundle"
+        )
         with open(output_path, "w", encoding="utf-8") as fh:
             fh.write(bundle)
-        logger.info("Ghost-VFS: Sealed bundle exported to %s with %d files.", output_path, len(records))
+        logger.info(
+            "Ghost-VFS: Sealed bundle exported to %s with %d files.", output_path, len(records)
+        )
 
     def import_sealed_bundle(self, bundle_path: str, master_key: str) -> None:
         """Load files from a sealed bundle created for air-gapped runners."""
         with open(bundle_path, encoding="utf-8") as fh:
-            payload = sealed_bundle_decrypt(fh.read(), master_key, aad=b"csp:ghost-vfs:sealed-bundle")
+            payload = sealed_bundle_decrypt(
+                fh.read(), master_key, aad=b"csp:ghost-vfs:sealed-bundle"
+            )
         for path, encrypted in payload["records"].items():
             cleaned_path = os.path.normpath(str(path))
             if cleaned_path.startswith("..") or os.path.isabs(cleaned_path):
-                logger.error("Ghost-VFS: Path traversal blocked during bundle import for path: %s", path)
+                logger.error(
+                    "Ghost-VFS: Path traversal blocked during bundle import for path: %s", path
+                )
                 continue
 
             # Policy enforcement

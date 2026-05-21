@@ -34,7 +34,6 @@ def _scale_10(value: Any, default: float = 0.0) -> float:
     return _clamp(raw)
 
 
-
 def _first_present(*sources: dict[str, Any], keys: tuple[str, ...], default: Any = None) -> Any:
     for source in sources:
         for key in keys:
@@ -106,8 +105,7 @@ class MultiObjectiveBid:
 
 
 class HasResourceHealth(Protocol):
-    async def saturation_snapshot(self) -> dict[str, float]:
-        ...
+    async def saturation_snapshot(self) -> dict[str, float]: ...
 
 
 def bid_from_mapping(
@@ -229,7 +227,9 @@ def bid_from_mapping(
     )
 
 
-def bid_for_job(job: Any, *, weights: BidWeights | None = None, now: float | None = None) -> MultiObjectiveBid:
+def bid_for_job(
+    job: Any, *, weights: BidWeights | None = None, now: float | None = None
+) -> MultiObjectiveBid:
     payload = getattr(job, "payload", {}) or {}
     metadata = getattr(job, "metadata", {}) or {}
     if not isinstance(payload, dict):
@@ -248,7 +248,9 @@ def bid_for_job(job: Any, *, weights: BidWeights | None = None, now: float | Non
     )
 
 
-def bid_for_task(task: Any, *, weights: BidWeights | None = None, now: float | None = None) -> MultiObjectiveBid:
+def bid_for_task(
+    task: Any, *, weights: BidWeights | None = None, now: float | None = None
+) -> MultiObjectiveBid:
     priority = 10.0 - (float(getattr(getattr(task, "priority", 2), "value", 2)) * 2.0)
     return bid_from_mapping(
         payload=getattr(task, "kwargs", {}) or {},

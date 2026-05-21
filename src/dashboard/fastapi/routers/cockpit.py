@@ -96,10 +96,14 @@ def _build_run_artifact_graph(run_dir: Path, max_nodes: int) -> dict[str, Any]:
     seen_nodes: set[str] = set()
     seen_edges: set[tuple[str, str, str]] = set()
 
-    def add_edge(source: str, target: str, label: str, metadata: dict[str, Any] | None = None) -> None:
+    def add_edge(
+        source: str, target: str, label: str, metadata: dict[str, Any] | None = None
+    ) -> None:
         key = (source, target, label)
         if key not in seen_edges and source in seen_nodes and target in seen_nodes:
-            edges.append({"source": source, "target": target, "label": label, "metadata": metadata or {}})
+            edges.append(
+                {"source": source, "target": target, "label": label, "metadata": metadata or {}}
+            )
             seen_edges.add(key)
 
     subdomains_path = run_dir / "subdomains.txt"
@@ -165,7 +169,9 @@ def _build_run_artifact_graph(run_dir: Path, max_nodes: int) -> dict[str, Any]:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
             if isinstance(findings, dict):
                 findings = findings.get("findings", [])
-            for index, finding in enumerate(findings[:max_nodes] if isinstance(findings, list) else []):
+            for index, finding in enumerate(
+                findings[:max_nodes] if isinstance(findings, list) else []
+            ):
                 finding_id = finding.get("id") or finding.get("finding_id") or f"finding-{index}"
                 node_id = f"finding:{finding_id}"
                 severity = str(finding.get("severity", "info")).lower()
@@ -229,7 +235,9 @@ def _merge_graphs(*graphs: dict[str, Any]) -> dict[str, Any]:
         metadata = node.setdefault("metadata", {})
         if isinstance(metadata, dict):
             metadata["health"] = _node_health(
-                str(node.get("severity", "info")), str(node.get("type", "endpoint")), edge_counts.get(str(node.get("id")), 0)
+                str(node.get("severity", "info")),
+                str(node.get("type", "endpoint")),
+                edge_counts.get(str(node.get("id")), 0),
             )
 
     return {"nodes": nodes, "edges": edges}
@@ -309,7 +317,7 @@ async def get_cockpit_graph(
         run_dir / "graph.db",
         output_root / target / "graph.db",
     ]
-    kuzu_graph = {"nodes": [], "edges": []}
+    kuzu_graph: dict[str, Any] = {"nodes": [], "edges": []}
     for candidate in kuzu_candidates:
         if candidate.exists():
             kuzu_graph = load_lateral_movement_graph(str(candidate), max_nodes=max_node_limit)
@@ -320,7 +328,9 @@ async def get_cockpit_graph(
     severities: dict[str, int] = {}
     types: dict[str, int] = {}
     for node in graph["nodes"]:
-        severities[str(node.get("severity", "info"))] = severities.get(str(node.get("severity", "info")), 0) + 1
+        severities[str(node.get("severity", "info"))] = (
+            severities.get(str(node.get("severity", "info")), 0) + 1
+        )
         types[str(node.get("type", "unknown"))] = types.get(str(node.get("type", "unknown")), 0) + 1
 
     return {
@@ -428,8 +438,7 @@ async def stream_cockpit_graph(
                 services=services,
             )
             signature = (
-                f"{graph['metadata'].get('node_count', 0)}:"
-                f"{graph['metadata'].get('edge_count', 0)}"
+                f"{graph['metadata'].get('node_count', 0)}:{graph['metadata'].get('edge_count', 0)}"
             )
             if signature != last_signature:
                 payload = json.dumps(

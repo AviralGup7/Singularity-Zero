@@ -123,6 +123,7 @@ class ResourceWatchdog:
                                 spawn_kwargs["preexec_fn"] = os.setpgrp
                             else:
                                 import subprocess
+
                                 spawn_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
 
                             base_args = self.pool._base_args_map.get(p.name, [])
@@ -344,7 +345,10 @@ class FrontierProcessPool:
         if not p:
             # Fallback to one-off process if pool is full
             proc = await asyncio.create_subprocess_exec(
-                tool_name, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, stdin=asyncio.subprocess.PIPE
+                tool_name,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.PIPE,
             )
             packed_data = mesh_marshal_pickle(task_obj)
             try:
@@ -375,11 +379,13 @@ class FrontierProcessPool:
                     f"ToolExecutionError: One-off process {tool_name} failed (exit {proc.returncode})"
                 )
             if len(stdout) < 4:
-                raise RuntimeError("ToolExecutionError: One-off process output too short (missing length prefix)")
+                raise RuntimeError(
+                    "ToolExecutionError: One-off process output too short (missing length prefix)"
+                )
             length = struct.unpack("!I", stdout[:4])[0]
             if len(stdout) < 4 + length:
                 raise RuntimeError("ToolExecutionError: One-off process output incomplete")
-            output = mesh_unmarshal_pickle(stdout[4:4+length])
+            output = mesh_unmarshal_pickle(stdout[4 : 4 + length])
             self._binary_task_cache[stable_task_id] = output
             self._task_receipts[stable_task_id] = ProcessTaskReceipt(
                 stable_task_id, tool_name, "completed", output=repr(output)

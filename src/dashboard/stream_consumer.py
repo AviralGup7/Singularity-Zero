@@ -44,6 +44,7 @@ def consume_stream(
     persist_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> None:
     """Consume an execution process stream (stdout/stderr) and update job progress state."""
+
     def _persist_if_needed(*, force: bool = False) -> None:
         if persist_callback is None:
             return

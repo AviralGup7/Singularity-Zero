@@ -561,7 +561,9 @@ def compute_aggregate_risk_score(
     finding_count = len(modeled_findings)
     avg_score = round(total_weighted / finding_count, 2) if finding_count > 0 else 0.0
 
-    max_model_score = max((float(f.get("severity_score", 0.0)) for f in modeled_findings), default=0.0)
+    max_model_score = max(
+        (float(f.get("severity_score", 0.0)) for f in modeled_findings), default=0.0
+    )
     if total_weighted >= _AGGREGATE_RISK_CRITICAL_THRESHOLD or max_model_score >= 8.8:
         score_label = "critical"
     elif total_weighted >= _AGGREGATE_RISK_HIGH_THRESHOLD or max_model_score >= 6.8:

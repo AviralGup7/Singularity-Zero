@@ -87,7 +87,9 @@ class DynamicPluginCatalog:
                 return
             self._watch_started = True
 
-        thread = threading.Thread(target=self._watch_loop, name="dynamic-plugin-watcher", daemon=True)
+        thread = threading.Thread(
+            target=self._watch_loop, name="dynamic-plugin-watcher", daemon=True
+        )
         thread.start()
 
     def _watch_loop(self) -> None:
@@ -121,7 +123,9 @@ class DynamicPluginCatalog:
             if manifest is None:
                 return
             stat = path.stat()
-            record = DynamicPluginRecord(manifest=manifest, path=path, mtime_ns=stat.st_mtime_ns, size=stat.st_size)
+            record = DynamicPluginRecord(
+                manifest=manifest, path=path, mtime_ns=stat.st_mtime_ns, size=stat.st_size
+            )
             self._records[manifest.id] = record
             self._register(record)
         except (OSError, SyntaxError, PluginValidationError, ValueError) as exc:
@@ -159,7 +163,9 @@ class DynamicPluginCatalog:
         if registry_kind is None:
             return
         provider = ProcessSandboxCallable(manifest, record.path)
-        register_plugin(registry_kind, manifest.key, manifest=manifest.to_dict(), dynamic=True)(provider)
+        register_plugin(registry_kind, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
+            provider
+        )
         self._registered[manifest.id] = (registry_kind, manifest.key)
 
     def _register_analysis(self, record: DynamicPluginRecord) -> None:
@@ -176,7 +182,9 @@ class DynamicPluginCatalog:
             enabled_by_default=manifest.enabled_by_default,
             source="dynamic",
         )
-        register_plugin(DETECTOR_SPEC, manifest.key, manifest=manifest.to_dict(), dynamic=True)(plugin_spec)
+        register_plugin(DETECTOR_SPEC, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
+            plugin_spec
+        )
         self._registered[manifest.id] = (DETECTOR_SPEC, manifest.key)
 
     @staticmethod

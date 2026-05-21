@@ -179,17 +179,34 @@ class SelfHealingController:
         return findings
 
     def _derive_status(self, metric: HealthMetric) -> HealthStatus:
-        if metric.name.endswith("queue_depth") and float(metric.value or 0) > self.queue_depth_threshold:
+        if (
+            metric.name.endswith("queue_depth")
+            and float(metric.value or 0) > self.queue_depth_threshold
+        ):
             return HealthStatus.DEGRADED
-        if metric.name.endswith("worker_heartbeat_age") and float(metric.value or 0) > self.worker_heartbeat_timeout:
+        if (
+            metric.name.endswith("worker_heartbeat_age")
+            and float(metric.value or 0) > self.worker_heartbeat_timeout
+        ):
             return HealthStatus.CRITICAL
-        if metric.name.endswith("stage_age_seconds") and float(metric.value or 0) > self.stale_stage_seconds:
+        if (
+            metric.name.endswith("stage_age_seconds")
+            and float(metric.value or 0) > self.stale_stage_seconds
+        ):
             return HealthStatus.DEGRADED
-        if metric.name.endswith("bloom_fill_ratio") and float(metric.value or 0) > self.bloom_fill_threshold:
+        if (
+            metric.name.endswith("bloom_fill_ratio")
+            and float(metric.value or 0) > self.bloom_fill_threshold
+        ):
             return HealthStatus.CRITICAL
-        if metric.name.endswith("dashboard_connection_age") and float(metric.value or 0) > self.dashboard_connection_timeout:
+        if (
+            metric.name.endswith("dashboard_connection_age")
+            and float(metric.value or 0) > self.dashboard_connection_timeout
+        ):
             return HealthStatus.DEGRADED
-        if metric.name.endswith("model_error_rate") and float(metric.value or 0) > float(metric.threshold or 0.2):
+        if metric.name.endswith("model_error_rate") and float(metric.value or 0) > float(
+            metric.threshold or 0.2
+        ):
             return HealthStatus.CRITICAL
         return HealthStatus.OK
 
@@ -242,4 +259,3 @@ def _dataclass_to_dict(value: Any) -> dict[str, Any]:
         raw = getattr(value, field_name)
         data[field_name] = raw.value if isinstance(raw, StrEnum) else raw
     return data
-

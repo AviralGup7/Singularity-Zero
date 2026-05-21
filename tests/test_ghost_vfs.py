@@ -183,7 +183,10 @@ def test_ghost_vfs_chunked_streaming():
     # Modifying chunk length header to trigger length corruption error
     raw_payload[16] ^= 0xFF
     vfs._files[path] = bytes(raw_payload)
-    with pytest.raises(ValueError, match="Ghost-VFS: Corrupt chunk payload|Ghost-VFS: Corrupt chunk length header|decryption failed"):
+    with pytest.raises(
+        ValueError,
+        match="Ghost-VFS: Corrupt chunk payload|Ghost-VFS: Corrupt chunk length header|decryption failed",
+    ):
         list(vfs.read_file_stream(path))
 
 

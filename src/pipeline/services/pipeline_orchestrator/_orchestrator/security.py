@@ -59,9 +59,7 @@ async def run_secured(
     emit_progress("startup", f"Loaded config for {config.target_name}", 8)
 
     if args.dry_run:
-        print(
-            json.dumps({"scope_entries": scope_entries, "tool_status": tool_status}, indent=2)
-        )
+        print(json.dumps({"scope_entries": scope_entries, "tool_status": tool_status}, indent=2))
         return cast(int, await orchestrator._finalize_run(0))
 
     started_at = time.time()
@@ -100,7 +98,9 @@ async def run_secured(
     adaptive_config = load_adaptive_config(Path(config.output_dir), config.target_name)
     if adaptive_config:
         ctx_dict = ctx.to_dict()
-        orchestrator._learning_integration.apply_adaptations(ctx_dict, adaptive_config, config=config)
+        orchestrator._learning_integration.apply_adaptations(
+            ctx_dict, adaptive_config, config=config
+        )
         logger.info("Pre-applied adaptive configuration for target: %s", config.target_name)
 
     checkpoint_mgr = create_checkpoint_manager(
@@ -214,9 +214,7 @@ async def run_secured(
         run_id=run_id,
         metadata={
             "use_cache": bool(getattr(ctx.result, "use_cache", use_cache)),
-            "discovery_enabled": bool(
-                getattr(ctx.result, "discovery_enabled", discovery_enabled)
-            ),
+            "discovery_enabled": bool(getattr(ctx.result, "discovery_enabled", discovery_enabled)),
             "flow_stage_count": len(flow_manifest),
         },
     )
@@ -272,7 +270,9 @@ async def run_secured(
         handled_by_parallel=handled_by_parallel,
     )
     if stage_execution_exit is not None:
-        return cast(int, await orchestrator._finalize_run(stage_execution_exit, ctx=ctx, config=config))
+        return cast(
+            int, await orchestrator._finalize_run(stage_execution_exit, ctx=ctx, config=config)
+        )
 
     exit_code = orchestrator._resolve_pipeline_exit_code(
         ctx=ctx,

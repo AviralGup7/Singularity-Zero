@@ -18,7 +18,7 @@ class BoundedCompactionStateStore:
         self,
         backend: CheckpointStore,
         budget: CRDTCompactionBudget | None = None,
-        max_tombstone_age_seconds: float = 3600.0
+        max_tombstone_age_seconds: float = 3600.0,
     ) -> None:
         self.backend = backend
         self.budget = budget or CRDTCompactionBudget()

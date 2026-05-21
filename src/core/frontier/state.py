@@ -414,7 +414,7 @@ def radix_sort_timestamps(items: list[tuple[Any, float]]) -> list[tuple[Any, flo
     base = 10
     placement = 1
     while placement <= max_val:
-        buckets = [[] for _ in range(base)]
+        buckets: list[list[tuple[Any, float, int]]] = [[] for _ in range(base)]
         for item in int_items:
             digit = (item[2] // placement) % base
             buckets[digit].append(item)
@@ -431,6 +431,7 @@ class CRDTCompactionBudget:
     Tracks and dynamically adjusts the compaction budget (max execution time)
     using an Additive Increase / Multiplicative Decrease (AIMD) algorithm.
     """
+
     def __init__(
         self,
         initial_budget_ms: float = 50.0,
@@ -457,7 +458,7 @@ def compact_state(
     state: NeuralState,
     budget: CRDTCompactionBudget,
     max_tombstone_age_seconds: float = 3600.0,
-) -> dict[str, int]:
+) -> dict[str, Any]:
     """
     Compact tombstones across all sets in NeuralState within the specified CRDTCompactionBudget.
     Uses radix sort and AIMD budget gating to ensure low latency.

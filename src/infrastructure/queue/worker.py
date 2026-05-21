@@ -487,7 +487,9 @@ class Worker:
         logger.info("Stopping worker %s...", self.worker_id)
         self._shutdown_requested = True
 
-    async def restart_from_health_finding(self, finding: HealthFinding | None = None) -> CorrectionEvent:
+    async def restart_from_health_finding(
+        self, finding: HealthFinding | None = None
+    ) -> CorrectionEvent:
         """Request a graceful restart when the health controller finds this worker wedged."""
         self._restart_requested = True
         await self.stop()

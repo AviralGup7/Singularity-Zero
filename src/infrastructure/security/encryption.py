@@ -43,6 +43,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 # Cython acceleration fallback stub. If compiled, uses compiled high-performance path.
 try:
     import cython_aesgcm  # type: ignore
+
     CYTHON_AVAILABLE = True
 except ImportError:
     CYTHON_AVAILABLE = False
@@ -164,7 +165,9 @@ class Argon2idAESGCM:
             type=Type.ID,
         )
 
-    def encrypt(self, data: str | bytes, aad: bytes | None = None, info: bytes | None = None) -> str:
+    def encrypt(
+        self, data: str | bytes, aad: bytes | None = None, info: bytes | None = None
+    ) -> str:
         raw = data if isinstance(data, bytes) else data.encode("utf-8")
         salt = os.urandom(self.params.salt_len)
         nonce = os.urandom(12)
@@ -203,7 +206,9 @@ class Argon2idAESGCM:
         ).decode("ascii")
         return ARGON2ID_AESGCM_PREFIX + encoded
 
-    def decrypt(self, encrypted: str | bytes, aad: bytes | None = None, info: bytes | None = None) -> bytes:
+    def decrypt(
+        self, encrypted: str | bytes, aad: bytes | None = None, info: bytes | None = None
+    ) -> bytes:
         text = encrypted.decode("utf-8") if isinstance(encrypted, bytes) else encrypted
         if not text.startswith(ARGON2ID_AESGCM_PREFIX):
             raise ValueError("unsupported encryption envelope")
@@ -227,13 +232,15 @@ class Argon2idAESGCM:
                 key = subkey
 
             if CYTHON_AVAILABLE:
-                return cython_aesgcm.decrypt(key, nonce, ciphertext, aad)
+                return cast(bytes, cython_aesgcm.decrypt(key, nonce, ciphertext, aad))
             else:
-                return AESGCM(key).decrypt(nonce, ciphertext, aad)
+                return cast(bytes, AESGCM(key).decrypt(nonce, ciphertext, aad))
         finally:
             secure_wipe(bytearray(key))
 
-    def decrypt_lease(self, encrypted: str | bytes, aad: bytes | None = None, info: bytes | None = None) -> SecretLease:
+    def decrypt_lease(
+        self, encrypted: str | bytes, aad: bytes | None = None, info: bytes | None = None
+    ) -> SecretLease:
         plaintext = self.decrypt(encrypted, aad, info)
         try:
             return SecretLease(plaintext)
@@ -290,7 +297,9 @@ def sealed_bundle_decrypt(
     if not hmac_module.compare_digest(expected_manifest_hash, cast(str, data["manifest_sha256"])):
         raise ValueError("sealed bundle manifest integrity check failed")
 
-    plaintext = Argon2idAESGCM(passphrase).decrypt(cast(str, data["envelope"]), aad=aad or manifest_bytes)
+    plaintext = Argon2idAESGCM(passphrase).decrypt(
+        cast(str, data["envelope"]), aad=aad or manifest_bytes
+    )
     payload = json.loads(plaintext.decode("utf-8"))
     records = cast(dict[str, Any], payload["records"])
     canonical_records = json.dumps(records, sort_keys=True, separators=(",", ":")).encode("utf-8")

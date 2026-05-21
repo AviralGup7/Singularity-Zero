@@ -82,4 +82,3 @@ def test_model_registry_rolls_back_bad_active_version() -> None:
     assert metrics[0].status == HealthStatus.CRITICAL
     assert rollback["rolled_back"] is True
     assert registry.snapshot()["active"]["severity"]["version"] == "1.0.0"
-

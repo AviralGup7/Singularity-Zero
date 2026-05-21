@@ -155,11 +155,13 @@ class CompositeActiveProbe:
             if isinstance(r, BaseException):
                 logger.error("Active scan probe '%s' failed: %s", probe_name, r)
                 if self.error_accumulator is not None:
-                    self.error_accumulator.append({
-                        "probe": probe_name,
-                        "reason": "error",
-                        "message": f"Active scan probe '{probe_name}' failed: {r}"
-                    })
+                    self.error_accumulator.append(
+                        {
+                            "probe": probe_name,
+                            "reason": "error",
+                            "message": f"Active scan probe '{probe_name}' failed: {r}",
+                        }
+                    )
                 continue
             if isinstance(r, tuple):
                 _, findings, ok = r

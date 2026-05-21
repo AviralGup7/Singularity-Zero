@@ -59,7 +59,7 @@ async def test_actor_cold_start_warm_rejoin():
     # Replay deltas
     deltas = [
         {"id": "wal-1", "delta": {"subdomains": ["a.com"]}},
-        {"id": "wal-2", "delta": {"urls": ["http://b.com"]}}
+        {"id": "wal-2", "delta": {"urls": ["http://b.com"]}},
     ]
     new_actor.ask({"command": "cold_start", "snapshot": snapshot, "deltas": deltas})
 
@@ -68,9 +68,7 @@ async def test_actor_cold_start_warm_rejoin():
     assert "a.com" in actor_state["subdomains"]
 
     # Warm rejoin with new deltas
-    new_deltas = [
-        {"id": "wal-3", "delta": {"subdomains": ["c.com"]}}
-    ]
+    new_deltas = [{"id": "wal-3", "delta": {"subdomains": ["c.com"]}}]
     new_actor.ask({"command": "warm_rejoin", "deltas": new_deltas})
     actor_state = new_actor.proxy().state.get()
     assert "c.com" in actor_state["subdomains"]

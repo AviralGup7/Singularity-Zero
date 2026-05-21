@@ -302,6 +302,7 @@ class PipelineOrchestrator:
     async def run(self, args: argparse.Namespace) -> int:
         """Run the full security testing pipeline with distributed concurrency protection."""
         from ._orchestrator.bootstrap import bootstrap_pipeline
+
         config, scope_entries, tool_status, flow_manifest = bootstrap_pipeline(args)
         setattr(args, "_loaded_config", config)
         setattr(args, "_loaded_scope_entries", scope_entries)
@@ -359,6 +360,7 @@ class PipelineOrchestrator:
     ) -> int:
         """Internal execution loop after lock acquisition."""
         from ._orchestrator.security import run_secured
+
         return await run_secured(self, args, config, flow_manifest, cache_mgr)
 
     # ------------------------------------------------------------------ parallel helpers --

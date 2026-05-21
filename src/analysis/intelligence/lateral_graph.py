@@ -113,9 +113,7 @@ class LateralGraph:
             return collected
 
         try:
-            for asset_id, asset_type in _rows(
-                f"MATCH (a:Asset) RETURN a.id, a.type LIMIT {limit}"
-            ):
+            for asset_id, asset_type in _rows(f"MATCH (a:Asset) RETURN a.id, a.type LIMIT {limit}"):
                 node_id = f"asset:{asset_id}"
                 if node_id in seen:
                     continue

@@ -49,6 +49,7 @@ def run_pipeline_job(
     persist_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> None:
     """Run a pipeline job as a subprocess, consuming and tracking its stdout/stderr streams."""
+
     def _persist(force: bool = False) -> None:
         if persist_callback is None:
             return

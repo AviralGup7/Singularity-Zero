@@ -25,7 +25,7 @@ async def test_update_finding_propagates_fp_mesh_sync(tmp_path):
         "response_status": 403,
         "evidence": "Blocked by WAF indicator",
         "category": "waf_block",
-        "decision": "KEEP"
+        "decision": "KEEP",
     }
     findings_file.write_text(json.dumps([finding_data]), encoding="utf-8")
 
@@ -45,7 +45,7 @@ async def test_update_finding_propagates_fp_mesh_sync(tmp_path):
         finding_id="finding-123",
         update_data=update_data,
         _auth={"user": "admin", "role": "admin"},
-        services=mock_queue_client
+        services=mock_queue_client,
     )
 
     # Verify the finding was updated
@@ -72,10 +72,9 @@ def test_chameleon_adapts_to_active_fp_patterns():
     learning._fp_tracker._cache.clear()
 
     from src.learning.models.fp_pattern import FPPattern
+
     waf_pattern = FPPattern.create(
-        category="waf_block",
-        status_codes={403},
-        body_indicators=["blocked"]
+        category="waf_block", status_codes={403}, body_indicators=["blocked"]
     )
     waf_pattern.is_active = True
     learning._fp_tracker._cache[waf_pattern.pattern_id] = waf_pattern
@@ -98,6 +97,8 @@ def test_chameleon_adapts_to_active_fp_patterns():
 
     # Under standard 30% chance, 50 trials yields ~15 noise headers.
     # Under 90% chance, 50 trials yields ~45 noise headers.
-    assert noise_count > 35, f"Expected extremely high noise header count under 90% chance, got {noise_count}"
+    assert noise_count > 35, (
+        f"Expected extremely high noise header count under 90% chance, got {noise_count}"
+    )
 
     LearningIntegration.reset()

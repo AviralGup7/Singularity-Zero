@@ -13,6 +13,7 @@ def mock_store():
     store = MagicMock(spec=TelemetryStore)
     return store
 
+
 def test_optimize_adaptive_tags_no_events(mock_store):
     mock_store.get_feedback_events.return_value = []
     optimizer = NucleiTagOptimizer(mock_store)
@@ -22,6 +23,7 @@ def test_optimize_adaptive_tags_no_events(mock_store):
 
     assert optimized == current_tags
 
+
 def test_optimize_adaptive_tags_demote_noisy(mock_store):
     # Simulate events where 'exposure' tag on 'api' endpoint type is noisy (all FPs)
     events = [
@@ -30,7 +32,7 @@ def test_optimize_adaptive_tags_demote_noisy(mock_store):
             "endpoint_type": "api",
             "finding_category": "http/exposures/token.yaml",
             "was_validated": False,
-            "was_false_positive": True
+            "was_false_positive": True,
         }
     ] * 5
 
@@ -44,6 +46,7 @@ def test_optimize_adaptive_tags_demote_noisy(mock_store):
     assert "exposure" not in optimized["api"]
     assert "api" in optimized["api"]
 
+
 def test_optimize_adaptive_tags_keep_good(mock_store):
     # Simulate events where 'api' tag is performing well (all TPs)
     events = [
@@ -52,7 +55,7 @@ def test_optimize_adaptive_tags_keep_good(mock_store):
             "endpoint_type": "api",
             "finding_category": "http/vulnerabilities/api/token.yaml",
             "was_validated": True,
-            "was_false_positive": False
+            "was_false_positive": False,
         }
     ] * 5
 
