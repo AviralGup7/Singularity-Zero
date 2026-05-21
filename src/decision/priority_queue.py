@@ -447,6 +447,9 @@ class CorrelationPriorityQueue:
         Returns:
             True if early termination is recommended.
         """
+        if self._pop_count == 0:
+            return False
+
         if self.remaining < min_items:
             return True
 
