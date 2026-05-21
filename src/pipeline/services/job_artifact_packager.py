@@ -207,7 +207,7 @@ class JobArtifactPackager:
         Returns:
             dict with parity results: matches, changed_fields, warning_delta, etc.
         """
-        from src.dashboard.launcher_forensics import compare_launcher_replay_manifests
+        from src.dashboard.forensics.launcher import compare_launcher_replay_manifests
 
         baseline_manifest = {
             "schema_version": 1,

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.dashboard.launcher_forensics import (
+from src.dashboard.forensics.launcher import (
     SQUARE_BASELINE_JOB_IDS,
     SQUARE_REFERENCE_JOB_ID,
     build_launcher_replay_manifest,

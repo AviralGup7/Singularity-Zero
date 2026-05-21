@@ -130,7 +130,7 @@ async def _run_replay(args: argparse.Namespace) -> int:
 
         run_pipeline(config, scope_entries, tmp_output, replay_args)
 
-        from src.dashboard.launcher_forensics import build_launcher_replay_manifest
+        from src.dashboard.forensics.launcher import build_launcher_replay_manifest
 
         tmp_path = Path(tmp_output)
         launcher_dirs = list(tmp_path.glob("_launcher/*"))
