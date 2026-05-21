@@ -9,8 +9,9 @@
   height: var(--topbar-height);
   padding: 0 var(--space-6);
   border-bottom: 1px solid var(--border);
-  background: rgba(12, 15, 20, 0.85);
-  backdrop-filter: blur(12px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .header-left {
@@ -71,6 +72,11 @@
   border-color: var(--border-strong);
 }
 
+.command-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
 .command-search span {
   flex: 1;
   text-align: left;
@@ -99,6 +105,7 @@
 
 .topbar-primary:hover {
   background: var(--accent-2);
+  box-shadow: var(--glow-accent);
 }
 
 .topbar-refresh {
@@ -127,9 +134,16 @@
   border-radius: var(--radius-pill);
   display: inline-grid;
   place-items: center;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--surface-2)));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: #ffffff;
   font-size: var(--text-small);
-  font-weight: 500;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  transition: box-shadow var(--motion-fast) var(--easing-out);
+}
+
+.header-live-pill:hover {
+  box-shadow: var(--glow-accent);
 }

@@ -1,6 +1,14 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getHealth } from '../api/client';
 import type { HealthStatus } from '@/types/api';
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
 
 export default function HealthIndicator() {
    
@@ -31,8 +39,8 @@ export default function HealthIndicator() {
 
   if (error) {
     return (
-      <div className="text-xs text-bad" role="status" aria-label="Backend is offline">
-        <span aria-hidden="true">!</span>
+      <div className="flex items-center gap-2 text-xs text-bad" role="status" aria-label="Backend is offline">
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--bad)', boxShadow: 'var(--glow-bad)', display: 'inline-block' }} aria-hidden="true" />
         <span>Backend Offline</span>
       </div>
     );
@@ -40,10 +48,15 @@ export default function HealthIndicator() {
 
   if (!health) return null;
 
+  const uptime = typeof (health as Record<string, unknown>).uptime === 'number'
+    ? formatUptime((health as Record<string, unknown>).uptime as number)
+    : null;
+
   return (
-    <div className="text-xs text-ok" role="status" aria-label="Backend is online">
-      <span aria-hidden="true">✅</span>
-      <span>Backend Online</span>
+    <div className="flex items-center gap-2 text-xs text-ok" role="status" aria-label="Backend is online">
+      <span className="pulse-dot" aria-hidden="true" />
+      <span>Online</span>
+      {uptime && <span className="text-muted">· {uptime}</span>}
     </div>
   );
 }
