@@ -79,7 +79,7 @@ class FrontierMarshaller:
         """Decompress and deserialize binary data using cloudpickle."""
         try:
             decompressed = decompress_bytes(raw_data) if decompress else raw_data
-            return cloudpickle.loads(decompressed)  # noqa: S301
+            return cloudpickle.loads(decompressed)  # nosec B301  # noqa: S301
         except Exception as e:
             logger.error("Marshaller: Pickle unpacking failed: %s", e)
             raise
@@ -106,4 +106,4 @@ def mesh_marshal_pickle(data: Any, compress: bool = True) -> bytes:
 def mesh_unmarshal_pickle(raw: bytes, decompress: bool = True) -> Any:
     """Helper for one-off cloudpickle unmarshalling."""
     decompressed = decompress_bytes(raw) if decompress else raw
-    return cloudpickle.loads(decompressed)  # noqa: S301
+    return cloudpickle.loads(decompressed)  # nosec B301  # noqa: S301
