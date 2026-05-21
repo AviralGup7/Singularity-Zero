@@ -4,7 +4,6 @@ Handles job record creation, subprocess launching, stream consumption,
 and job lifecycle management for pipeline runs initiated from the dashboard.
 """
 
-import json
 import os
 import subprocess
 import sys
@@ -12,196 +11,31 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any
 
 from src.core.utils.safe_errors import safe_error_message
 from src.core.utils.stderr_classification import classify_stderr_text, extract_degraded_providers
-from src.dashboard.job_state import append_log, apply_progress
+from src.dashboard.error_classification import (
+    _extract_stdout_error_detail,
+    _truncate_lines,
+)
+
+# Re-expose and leverage deconstructed modular components
+from src.dashboard.job_record_builder import create_job_record as create_job_record
+from src.dashboard.job_state import append_log
 from src.dashboard.registry import PROGRESS_PREFIX, STAGE_LABELS
+from src.dashboard.stream_consumer import (
+    _last_progress_payload_from_file,
+)
+from src.dashboard.stream_consumer import (
+    consume_stream as consume_stream,
+)
 
-
-def create_job_record(
-    job_id: str,
-    normalized_url: str,
-    hostname: str,
-    scope_entries: list[str],
-    enabled_modules: list[str],
-    target_name: str,
-    mode_name: str,
-    execution_options: dict[str, bool] | None = None,
-) -> dict[str, Any]:
-    """Create a new job record for tracking a pipeline run.
-
-    Args:
-        job_id: Unique job identifier.
-        normalized_url: Target base URL.
-        hostname: Target hostname.
-        scope_entries: List of scope entries.
-        enabled_modules: List of enabled module names.
-        target_name: Target name for output directory.
-        mode_name: Pipeline mode (e.g., 'idor', 'ssrf').
-        execution_options: Optional execution flags.
-
-    Returns:
-        Job record dict with initial state and metadata.
-    """
-    started_at = time.time()
-    flags = execution_options or {}
-    return {
-        "id": job_id,
-        "base_url": normalized_url,
-        "hostname": hostname,
-        "scope_entries": scope_entries,
-        "enabled_modules": enabled_modules,
-        "mode": mode_name,
-        "target_name": target_name,
-        "status": "running",
-        "started_at": started_at,
-        "updated_at": started_at,
-        "finished_at": None,
-        "stage": "startup",
-        "stage_label": STAGE_LABELS["startup"],
-        "status_message": "Creating config and scope",
-        "progress_percent": 2,
-        "stage_processed": None,
-        "stage_total": None,
-        "progress_history": [(started_at, 2)],
-        "progress_telemetry": {
-            "active_task_count": 1,
-            "retry_count": 0,
-            "failure_count": 0,
-            "targets": {"queued": 0, "scanning": 0, "done": 0},
-            "stage_transitions": [
-                {
-                    "stage": "startup",
-                    "status": "running",
-                    "timestamp": started_at,
-                    "message": "Creating config and scope",
-                }
-            ],
-            "event_triggers": [],
-            "skipped_stages": [],
-            "top_active_targets": [],
-            "last_update_epoch": started_at,
-        },
-        "config_href": f"/_launcher/{job_id}/config.json",
-        "scope_href": f"/_launcher/{job_id}/scope.txt",
-        "stdout_href": f"/_launcher/{job_id}/stdout.txt",
-        "stderr_href": f"/_launcher/{job_id}/stderr.txt",
-        "target_href": f"/{target_name}/index.html",
-        "returncode": None,
-        "error": "",
-        "failed_stage": "",
-        "failure_reason_code": "",
-        "failure_step": "",
-        "failure_reason": "",
-        "warnings": [],
-        "stderr_warning_lines": [],
-        "stderr_fatal_lines": [],
-        "timeout_events": [],
-        "degraded_providers": [],
-        "configured_timeout_seconds": None,
-        "effective_timeout_seconds": None,
-        "warning_count": 0,
-        "fatal_signal_count": 0,
-        "execution_options": {
-            "refresh_cache": bool(flags.get("refresh_cache")),
-            "skip_crtsh": bool(flags.get("skip_crtsh")),
-            "dry_run": bool(flags.get("dry_run")),
-        },
-        "process": None,
-        "stop_requested": False,
-        "latest_logs": [
-            "Run queued",
-            f"Mode: {mode_name}",
-            f"Scope: {', '.join(scope_entries)}",
-            f"Modules: {', '.join(enabled_modules) or 'none'}",
-        ],
-    }
-
-
-def _last_progress_payload_from_file(path: Path, *, progress_prefix: str) -> dict[str, Any]:
-    try:
-        lines = [
-            line.strip()
-            for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
-            if line.strip()
-        ]
-    except OSError:
-        return {}
-
-    last_payload: dict[str, Any] = {}
-    for line in lines:
-        if not line.startswith(progress_prefix):
-            continue
-        try:
-            parsed = json.loads(line[len(progress_prefix) :])
-        except json.JSONDecodeError:
-            continue
-        if isinstance(parsed, dict):
-            last_payload = parsed
-    return last_payload
-
-
-def consume_stream(
-    job: dict[str, Any],
-    stream: TextIO,
-    sink: TextIO,
-    source: str,
-    lock: threading.Lock,
-    persist_callback: Callable[[dict[str, Any]], None] | None = None,
-) -> None:
-    def _persist_if_needed(*, force: bool = False) -> None:
-        if persist_callback is None:
-            return
-        now = time.time()
-        last_persist = float(job.get("_persist_last_epoch", 0.0) or 0.0)
-        if not force and (now - last_persist) < 2.0:
-            return
-        job["_persist_last_epoch"] = now
-        try:
-            persist_callback(job)
-        except Exception:  # noqa: S110
-            # Persistence is best-effort and must not break pipeline execution.
-            pass
-
-    try:
-        for raw_line in iter(stream.readline, ""):
-            try:
-                sink.write(raw_line)
-                sink.flush()
-                line = raw_line.rstrip()
-                if not line:
-                    continue
-                if source == "stdout" and line.startswith(PROGRESS_PREFIX):
-                    try:
-                        payload = json.loads(line[len(PROGRESS_PREFIX) :])
-                    except json.JSONDecodeError:
-                        payload = None
-                    if isinstance(payload, dict):
-                        with lock:
-                            apply_progress(job, payload)
-                            _persist_if_needed()
-                        continue
-
-                with lock:
-                    if source == "stderr" and line.lower().startswith("warning"):
-                        warning_text = line.strip()
-                        job["warnings"].append(warning_text)
-                    job["warnings"] = job["warnings"][-6:]
-                prefix = "stderr: " if source == "stderr" else ""
-                append_log(job, f"{prefix}{line}")
-            except Exception as exc:
-                with lock:
-                    append_log(job, f"Stream error ({source}): {exc}")
-                    _persist_if_needed(force=True)
-                break
-    finally:
-        stream.close()
-        try:
-            sink.close()
-        except Exception:  # noqa: S110
-            pass
+__all__ = [
+    "create_job_record",
+    "consume_stream",
+    "run_pipeline_job",
+]
 
 
 def run_pipeline_job(
@@ -214,6 +48,7 @@ def run_pipeline_job(
     stderr_path: Path,
     persist_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> None:
+    """Run a pipeline job as a subprocess, consuming and tracking its stdout/stderr streams."""
     def _persist(force: bool = False) -> None:
         if persist_callback is None:
             return
@@ -245,41 +80,6 @@ def run_pipeline_job(
         except Exception:  # noqa: S110
             # Forensic capture is best-effort and must not change job outcome.
             pass
-
-    def _truncate_lines(lines: list[str], *, limit: int = 6) -> list[str]:
-        deduped: list[str] = []
-        for line in lines:
-            text = str(line or "").strip()
-            if not text or text in deduped:
-                continue
-            deduped.append(text)
-        return deduped[-limit:]
-
-    def _extract_stdout_error_detail(stdout_text: str) -> str:
-        if not stdout_text:
-            return ""
-        stdout_lines = stdout_text.splitlines()
-        error_lines = [
-            line
-            for line in stdout_lines
-            if line.strip()
-            and (
-                not line.strip().startswith(PROGRESS_PREFIX)
-                and (
-                    "error" in line.lower()
-                    or "exception" in line.lower()
-                    or "traceback" in line.lower()
-                    or "fatal" in line.lower()
-                    or line.lstrip().startswith("FATAL:")
-                )
-            )
-        ]
-        if not error_lines:
-            return ""
-        detail = chr(10).join(error_lines[-10:])
-        if len(detail) > 500:
-            detail = "..." + detail[-497:]
-        return detail
 
     command = [
         sys.executable,
