@@ -23,6 +23,10 @@ from src.analysis.intelligence.insights import (
     build_next_steps,
     build_trend,
 )
+from src.intelligence.severity_model import (
+    enrich_finding_with_model_severity,
+    enrich_findings_with_model_severity,
+)
 
 __all__ = [
     "attach_queue_replay_links",
@@ -33,6 +37,8 @@ __all__ = [
     "classify_finding",
     "annotate_finding_decisions",
     "filter_reportable_findings",
+    "enrich_finding_with_model_severity",
+    "enrich_findings_with_model_severity",
     "build_attack_surface",
     "build_cross_finding_correlation",
     "build_feedback_targets",

@@ -198,6 +198,7 @@ async def export_latest_findings(
 )
 async def export_compliance_attestation(
     target_name: str,
+    format: str = Query("pdf", pattern="^(html|pdf)$", description="Export format: html or pdf"),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> Response:
@@ -212,6 +213,17 @@ async def export_compliance_attestation(
     latest_run = _find_latest_run_dir(target_dir)
     if not latest_run:
         raise HTTPException(status_code=404, detail="No scan runs found for target")
+
+    if format == "pdf":
+        pdf_path = latest_run / "attestation.pdf"
+        if pdf_path.exists():
+            return Response(
+                content=pdf_path.read_bytes(),
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{target_dir.name}_compliance_attestation.pdf"'
+                },
+            )
 
     # Load compliance report from latest run
     compliance_path = latest_run / "compliance_coverage.json"
@@ -237,4 +249,3 @@ async def export_compliance_attestation(
             "Content-Disposition": f'attachment; filename="{target_dir.name}_compliance_attestation.html"'
         },
     )
-

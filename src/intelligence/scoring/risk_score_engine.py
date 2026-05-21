@@ -9,6 +9,11 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from src.intelligence.severity_model import (
+    enrich_findings_with_model_severity,
+    severity_from_score,
+)
+
 
 @dataclass
 class RiskScore:
@@ -22,23 +27,7 @@ class RiskScore:
 
 
 class RiskScoringEngine:
-    """Automated risk scoring based on multiple factors.
-
-    Scoring model:
-    - Severity weights: critical=10, high=7.5, medium=5, low=2.5, info=1
-    - Quantity factor: more findings = higher score (logarithmic)
-    - Attack chain multiplier: chains increase score
-    - Exposure factor: public-facing = higher score
-    - Data sensitivity: PII/financial = higher score
-    """
-
-    SEVERITY_WEIGHTS: dict[str, float] = {
-        "critical": 10.0,
-        "high": 7.5,
-        "medium": 5.0,
-        "low": 2.5,
-        "info": 1.0,
-    }
+    """Automated risk scoring based on calibrated model severity."""
 
     def __init__(self) -> None:
         self._scores: list[RiskScore] = []
@@ -54,8 +43,8 @@ class RiskScoringEngine:
         factors: list[str] = []
         category_scores: dict[str, float] = {}
 
-        # Base score from findings
-        base_score = self._calculate_base_score(findings, factors)
+        modeled_findings = enrich_findings_with_model_severity(findings)
+        base_score = self._calculate_base_score(modeled_findings, factors)
         category_scores["vulnerability_score"] = base_score
 
         # Attack chain multiplier
@@ -84,9 +73,11 @@ class RiskScoringEngine:
             final_score = min(10, final_score + (exposure_score / 10))
 
         # Generate recommendations
-        recommendations = self._generate_recommendations(findings, attack_chains, sensitive_data)
+        recommendations = self._generate_recommendations(
+            modeled_findings, attack_chains, sensitive_data
+        )
 
-        risk_level = self._score_to_level(final_score)
+        risk_level = severity_from_score(final_score)
 
         score = RiskScore(
             overall_score=round(final_score, 1),
@@ -103,28 +94,19 @@ class RiskScoringEngine:
         if not findings:
             return 0.0
 
-        severity_counts: dict[str, int] = {
-            "critical": 0,
-            "high": 0,
-            "medium": 0,
-            "low": 0,
-            "info": 0,
-        }
+        severity_counts: dict[str, int] = {label: 0 for label in ("critical", "high", "medium", "low", "info")}
+        score_total = 0.0
         for f in findings:
             sev = f.get("severity", "info").lower()
             if sev in severity_counts:
                 severity_counts[sev] += 1
-
-        # Weighted sum
-        weighted_sum = sum(
-            count * self.SEVERITY_WEIGHTS[sev] for sev, count in severity_counts.items()
-        )
+            score_total += float(f.get("severity_score", 0.0))
 
         # Logarithmic scaling to prevent extreme scores
         total_findings = len(findings)
         quantity_factor = 1 + math.log10(total_findings + 1)
 
-        base_score = min(10, (weighted_sum / 10) * quantity_factor)
+        base_score = min(10, (score_total / max(1, total_findings)) * quantity_factor)
 
         if severity_counts["critical"] > 0:
             factors.append(f"{severity_counts['critical']} critical vulnerabilities found")
@@ -221,18 +203,6 @@ class RiskScoringEngine:
             recs.append("Continue monitoring and regular security testing")
 
         return recs
-
-    def _score_to_level(self, score: float) -> str:
-        """Convert numeric score to risk level."""
-        if score >= 9.0:
-            return "critical"
-        elif score >= 7.0:
-            return "high"
-        elif score >= 4.0:
-            return "medium"
-        elif score >= 2.0:
-            return "low"
-        return "info"
 
     def get_latest_score(self) -> RiskScore | None:
         """Get the most recently calculated risk score."""

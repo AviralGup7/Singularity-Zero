@@ -3,6 +3,7 @@
 import time
 from typing import Any
 
+from src.core.telemetry import build_telemetry_event
 from src.dashboard.registry import STAGE_LABELS
 
 
@@ -33,6 +34,18 @@ def create_job_record(
     """
     started_at = time.time()
     flags = execution_options or {}
+    startup_event = build_telemetry_event(
+        event_type="pipeline.queued",
+        stage="startup",
+        message="Run queued",
+        status="running",
+        source="dashboard.launcher",
+        trace_id=job_id,
+        target=target_name,
+        run_id=job_id,
+        epoch=started_at,
+        payload={"base_url": normalized_url, "mode": mode_name, "modules": enabled_modules},
+    )
     return {
         "id": job_id,
         "base_url": normalized_url,
@@ -68,8 +81,11 @@ def create_job_record(
             "event_triggers": [],
             "skipped_stages": [],
             "top_active_targets": [],
+            "event_counts": {"pipeline.queued": 1},
+            "artifact_counts": {},
             "last_update_epoch": started_at,
         },
+        "telemetry_events": [startup_event],
         "config_href": f"/_launcher/{job_id}/config.json",
         "scope_href": f"/_launcher/{job_id}/scope.txt",
         "stdout_href": f"/_launcher/{job_id}/stdout.txt",

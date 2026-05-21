@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getJobs, getJobLogs } from '../api/client';
-import type { Job } from '../types/api';
+import type { Job, PipelineTelemetryEvent } from '../types/api';
 
 export interface LiveTerminalLine {
   id: number;
@@ -10,6 +10,7 @@ export interface LiveTerminalLine {
   message: string;
   source?: string;
   jobId?: string;
+  telemetry?: PipelineTelemetryEvent;
 }
 
 const TOOL_REGEX = /(nuclei|nmap|masscan|sqlmap|nikto|gobuster|ffuf|dirb|subfinder|amass|httpx|whatweb|wafw00f|testssl|sslscan|metasploit|crackmapexec|bloodhound|responder|xsser|zaproxy|w3af|skipfish|hydra)/i;
@@ -60,6 +61,28 @@ function classifyLogLine(line: string): Omit<LiveTerminalLine, 'id'> {
   message = message.replace(/^\[[+*-]\]\s*/, '');
 
   return { timestamp: ts, level, module, message, source };
+}
+
+function classifyTelemetryEvent(event: PipelineTelemetryEvent): Omit<LiveTerminalLine, 'id'> {
+  const parsedTime = Number.isFinite(event.epoch) ? new Date(event.epoch * 1000) : new Date(event.timestamp);
+  const timestamp = parsedTime.toLocaleTimeString('en-GB', { hour12: false }) + '.' + String(parsedTime.getMilliseconds()).padStart(3, '0');
+  const eventType = event.event_type || 'telemetry';
+  const level: LiveTerminalLine['level'] =
+    event.status === 'error' || event.severity === 'high' ? 'error' :
+    event.severity === 'critical' ? 'critical' :
+    event.event_type.includes('completed') ? 'success' :
+    event.event_type.includes('artifact') ? 'system' :
+    'info';
+  const artifact = event.artifact_id ? ` ${event.artifact_type || 'artifact'}=${event.artifact_id}` : '';
+  const finding = event.finding_id ? ` finding=${event.finding_id}` : '';
+  return {
+    timestamp,
+    level,
+    module: (event.stage || event.check_id || 'telemetry').toUpperCase(),
+    message: `[${eventType}] ${event.message}${artifact}${finding}`,
+    source: event.source,
+    telemetry: event,
+  };
 }
 
 export function useLiveTerminal(options: {
@@ -133,6 +156,23 @@ export function useLiveTerminal(options: {
     logBufferRef.current.push(...raw);
   }, []);
 
+  const addTelemetryEvents = useCallback((events: PipelineTelemetryEvent[], jobId?: string) => {
+    if (events.length === 0) return;
+    const newEntries: LiveTerminalLine[] = [];
+    for (const event of events) {
+      const key = `${jobId || currentJobId || 'global'}:${event.event_id}`;
+      if (seenLogKeysRef.current.has(key)) continue;
+      seenLogKeysRef.current.add(key);
+      newEntries.push({ ...classifyTelemetryEvent(event), id: lineIdRef.current++, jobId: jobId || currentJobId });
+    }
+    if (newEntries.length > 0) {
+      setLines(prev => {
+        const next = [...prev, ...newEntries];
+        return next.length > maxLines ? next.slice(-maxLines) : next;
+      });
+    }
+  }, [currentJobId, maxLines]);
+
   useEffect(() => {
     flushTimerRef.current = setInterval(flushBuffer, 150);
     return () => { if (flushTimerRef.current) clearInterval(flushTimerRef.current); };
@@ -173,6 +213,27 @@ export function useLiveTerminal(options: {
       }
     });
 
+    es.addEventListener('telemetry_event', (e: MessageEvent) => {
+      try {
+        const parsed = JSON.parse(e.data) as { job_id?: string; data?: PipelineTelemetryEvent };
+        if (parsed.data?.event_id) addTelemetryEvents([parsed.data], parsed.job_id || id);
+        setConnectionMode('sse');
+      } catch (_e) {
+        setConnectionMode('polling');
+      }
+    });
+
+    es.addEventListener('progress_update', (e: MessageEvent) => {
+      try {
+        const parsed = JSON.parse(e.data) as { job_id?: string; data?: { telemetry_events?: PipelineTelemetryEvent[] } };
+        const telemetry = parsed.data?.telemetry_events ?? [];
+        addTelemetryEvents(telemetry, parsed.job_id || id);
+        setConnectionMode('sse');
+      } catch (_e) {
+        setConnectionMode('polling');
+      }
+    });
+
     es.onerror = () => {
       if (es.readyState === EventSource.CLOSED) {
         setConnectionMode('polling');
@@ -183,7 +244,7 @@ export function useLiveTerminal(options: {
       }
     };
    
-  }, [addLinesToBuffer]);
+  }, [addLinesToBuffer, addTelemetryEvents]);
 
   useEffect(() => {
     if (isRunning && currentJobId) {

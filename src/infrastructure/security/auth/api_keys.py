@@ -1,12 +1,19 @@
 """API key generation, validation, rotation, and revocation."""
 
 import hashlib
+import json
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Any, Protocol
 
 from src.infrastructure.security.config import SecurityConfig
+from src.infrastructure.security.encryption import sealed_bundle_decrypt, sealed_bundle_encrypt
 
 from .models import APIKey, Role
+
+
+class _AuditSink(Protocol):
+    def log(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
 def generate_api_key(config: SecurityConfig) -> str:
@@ -42,7 +49,7 @@ class APIKeyStore:
         _user_api_keys: Dict mapping user_id -> list of key hashes.
     """
 
-    def __init__(self, config: SecurityConfig) -> None:
+    def __init__(self, config: SecurityConfig, audit_logger: _AuditSink | None = None) -> None:
         """Initialize the API key store.
 
         Args:
@@ -51,6 +58,20 @@ class APIKeyStore:
         self.config = config
         self._api_keys: dict[str, APIKey] = {}
         self._user_api_keys: dict[str, list[str]] = {}
+        self._audit_logger = audit_logger
+
+    def _audit(self, event: str, user_id: str | None = None, key_id: str | None = None, **details: Any) -> None:
+        if self._audit_logger is None:
+            return
+        try:
+            self._audit_logger.log(
+                event=event,
+                user_id=user_id,
+                resource_id=key_id,
+                details=details,
+            )
+        except Exception:
+            return
 
     def create(
         self,
@@ -109,6 +130,7 @@ class APIKeyStore:
         if user_id not in self._user_api_keys:
             self._user_api_keys[user_id] = []
         self._user_api_keys[user_id].append(key_hash)
+        self._audit("apikey.create", user_id=user_id, key_id=api_key.id, key_prefix=key_prefix)
 
         return raw_key, api_key
 
@@ -125,9 +147,17 @@ class APIKeyStore:
         api_key = self._api_keys.get(key_hash)
 
         if api_key is None or not api_key.is_valid:
+            self._audit("apikey.access", result="denied")
             return None
 
         api_key.last_used_at = datetime.now(UTC).timestamp()
+        self._audit(
+            "apikey.access",
+            user_id=api_key.user_id,
+            key_id=api_key.id,
+            key_prefix=api_key.key_prefix,
+            result="success",
+        )
         return api_key
 
     def rotate(self, key_id: str) -> tuple[str, APIKey] | None:
@@ -155,6 +185,7 @@ class APIKeyStore:
             name=f"{old_key.name} (rotated)",
             role=old_key.role,
         )
+        self._audit("apikey.rotate", user_id=old_key.user_id, key_id=old_key.id, new_key_id=new_key.id)
 
         return new_raw_key, new_key
 
@@ -171,6 +202,7 @@ class APIKeyStore:
             if api_key.id == key_id:
                 api_key.is_revoked = True
                 api_key.is_active = False
+                self._audit("apikey.revoke", user_id=api_key.user_id, key_id=api_key.id)
                 return True
         return False
 
@@ -185,3 +217,24 @@ class APIKeyStore:
         """
         key_ids = self._user_api_keys.get(user_id, [])
         return [key for key_hash, key in self._api_keys.items() if key_hash in key_ids]
+
+    def export_sealed_bundle(self, passphrase: str, *, name: str = "api-key-store") -> str:
+        """Export stored API key metadata in a sealed Argon2id/AES-GCM bundle."""
+        records = {
+            "api_keys": {key_hash: key.model_dump(mode="json") for key_hash, key in self._api_keys.items()},
+            "user_api_keys": self._user_api_keys,
+        }
+        self._audit("credential.bundle_export", secret_count=len(self._api_keys), bundle_name=name)
+        return sealed_bundle_encrypt(name, records, passphrase, aad=b"csp:auth:api-key-store")
+
+    def import_sealed_bundle(self, bundle: str | bytes, passphrase: str) -> None:
+        """Restore API key metadata from a sealed bundle."""
+        payload = sealed_bundle_decrypt(bundle, passphrase, aad=b"csp:auth:api-key-store")
+        records = payload["records"]
+        raw_keys = json.loads(json.dumps(records.get("api_keys", {})))
+        self._api_keys = {key_hash: APIKey.model_validate(value) for key_hash, value in raw_keys.items()}
+        self._user_api_keys = {
+            str(user_id): [str(item) for item in values]
+            for user_id, values in records.get("user_api_keys", {}).items()
+        }
+        self._audit("credential.bundle_import", secret_count=len(self._api_keys))

@@ -258,3 +258,50 @@
   overflow: hidden;
   clip: rect(0,0,0,0);
 }
+
+.finding-signal-quality {
+  min-width: 128px;
+}
+
+.signal-quality-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: var(--text-micro);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.signal-clean {
+  background: rgba(34,197,94,0.12);
+  border-color: rgba(34,197,94,0.28);
+  color: var(--good);
+}
+
+.signal-review {
+  background: rgba(234,179,8,0.12);
+  border-color: rgba(234,179,8,0.28);
+  color: var(--warn);
+}
+
+.signal-noisy {
+  background: rgba(239,68,68,0.12);
+  border-color: rgba(239,68,68,0.28);
+  color: var(--bad);
+}
+
+.signal-action {
+  display: block;
+  margin-top: 4px;
+  max-width: 116px;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--text-micro);
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}

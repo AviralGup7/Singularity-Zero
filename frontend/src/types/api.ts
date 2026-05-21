@@ -161,6 +161,7 @@ export interface Job {
   stage_progress_label?: string;
   stage_progress?: StageProgressEntry[];
   progress_telemetry?: ProgressTelemetry;
+  telemetry_events?: PipelineTelemetryEvent[];
   concurrent_stage_count?: number;
   can_stop?: boolean;
   returncode?: number | null;
@@ -207,6 +208,30 @@ export interface StageTransitionEntry {
   message?: string;
 }
 
+export interface PipelineTelemetryEvent {
+  event_id: string;
+  schema_version: 'telemetry.v2' | string;
+  event_type: string;
+  timestamp: string;
+  epoch: number;
+  stage: string;
+  status: string;
+  message: string;
+  source: string;
+  trace_id: string;
+  parent_id?: string;
+  check_id?: string;
+  artifact_type?: string;
+  artifact_id?: string;
+  finding_id?: string;
+  severity?: string;
+  target?: string;
+  run_id?: string;
+  sequence?: number;
+  metrics?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+}
+
 export interface SkippedStageEntry {
   stage: string;
   reason?: string;
@@ -230,6 +255,8 @@ export interface ProgressTelemetry {
   failure_count?: number;
   stage_transitions?: StageTransitionEntry[];
   event_triggers?: string[];
+  event_counts?: Record<string, number>;
+  artifact_counts?: Record<string, number>;
   skipped_stages?: SkippedStageEntry[];
   top_active_targets?: string[];
   bottleneck_stage?: string;
@@ -334,6 +361,18 @@ export interface Finding {
   metadata?: Record<string, unknown>;
   csi_score?: number;
   logic_diff?: string;
+  signal_quality_score?: number;
+  true_positive_probability?: number;
+  false_positive_probability?: number;
+  signal_quality?: {
+    quality_score?: number;
+    true_positive_probability?: number;
+    false_positive_probability?: number;
+    action?: 'keep' | 'triage_low_priority' | 'suppress' | string;
+    reportable?: boolean;
+    reasons?: string[];
+    model_version?: string;
+  };
 
   // UI / Analysis extensions (optional)
   cve?: string;
@@ -414,6 +453,26 @@ export interface AnalysisCheckOption {
   label: string;
   description: string;
   group: string;
+  slug?: string;
+  source?: string;
+  enabled_by_default?: boolean;
+}
+
+export interface DynamicPluginManifest {
+  id: string;
+  key: string;
+  name: string;
+  version: string;
+  kind: 'analysis' | 'validator' | 'scanner' | 'enrichment' | 'exporter' | 'recon';
+  description: string;
+  group: string;
+  enabled_by_default: boolean;
+  sandbox: string;
+  source_path?: string;
+  status: 'loaded' | 'invalid';
+  errors?: string[];
+  capabilities?: string[];
+  tags?: string[];
 }
 
 export interface ModePreset {
@@ -446,11 +505,14 @@ export interface RegistryResponse {
     check_options: AnalysisCheckOption[];
     control_groups: AnalysisControlGroup[];
     focus_presets: AnalysisFocusPreset[];
+    dynamic_plugins?: DynamicPluginManifest[];
+    invalid_dynamic_plugins?: DynamicPluginManifest[];
   };
   modes: {
     presets: ModePreset[];
     stage_labels: Record<string, string>;
   };
+  capabilities?: Record<string, unknown>;
 }
 
 export interface HealthResponse {

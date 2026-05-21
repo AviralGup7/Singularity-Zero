@@ -1,6 +1,7 @@
 import html
 from typing import Any
 
+from src.intelligence.severity_model import enrich_findings_with_model_severity
 from src.reporting.sections_campaigns import campaign_summary_section
 from src.reporting.sections_findings import (
     graphql_findings_section,
@@ -76,14 +77,6 @@ __all__ = [
     "vrt_coverage_section",
 ]
 
-SEVERITY_WEIGHTS: dict[str, int] = {
-    "critical": 10,
-    "high": 7,
-    "medium": 4,
-    "low": 2,
-    "info": 1,
-}
-
 SEVERITY_COLOR_MAP: dict[str, str] = {
     "critical": "#cc0000",
     "high": "#ff6600",
@@ -96,8 +89,9 @@ SEVERITY_COLOR_MAP: dict[str, str] = {
 def _calculate_risk_score(findings: list[dict[str, Any]]) -> float:
     if not findings:
         return 0.0
-    total = sum(SEVERITY_WEIGHTS.get(str(f.get("severity", "info")).lower(), 1) for f in findings)
-    return min(round(total / max(1, len(findings)), 1), 10.0)
+    modeled = enrich_findings_with_model_severity(findings)
+    total = sum(float(f.get("severity_score", 0.0)) for f in modeled)
+    return min(round(total / max(1, len(modeled)), 1), 10.0)
 
 
 def _risk_level(score: float) -> tuple[str, str]:
@@ -114,7 +108,7 @@ def _risk_level(score: float) -> tuple[str, str]:
 
 def _severity_distribution(findings: list[dict[str, Any]]) -> dict[str, int]:
     dist: dict[str, int] = {}
-    for f in findings:
+    for f in enrich_findings_with_model_severity(findings):
         sev = str(f.get("severity", "info")).lower()
         dist[sev] = dist.get(sev, 0) + 1
     return dist
@@ -125,7 +119,9 @@ def build_executive_summary(
     summary_data: dict[str, Any],
     diff_summary: dict[str, Any] | None = None,
 ) -> str:
-    all_findings = summary.get("top_actionable_findings", []) + summary.get("verified_exploits", [])
+    all_findings = enrich_findings_with_model_severity(
+        summary.get("top_actionable_findings", []) + summary.get("verified_exploits", [])
+    )
     risk_score = _calculate_risk_score(all_findings)
     risk_label, risk_color = _risk_level(risk_score)
 

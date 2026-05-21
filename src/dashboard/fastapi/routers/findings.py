@@ -205,6 +205,67 @@ def _collect_timeline_events(
     return events[offset : offset + limit]
 
 
+def _telemetry_timeline_events(
+    jobs: list[dict[str, Any]],
+    *,
+    job_id: str | None = None,
+    severity: str | None = None,
+    target: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[dict[str, Any]]:
+    start_dt = _parse_timestamp(start_date, "1970-01-01") if start_date else None
+    end_dt = _parse_timestamp(end_date, "2999-12-31") if end_date else None
+    events: list[dict[str, Any]] = []
+    for job in jobs:
+        current_job_id = str(job.get("id") or "")
+        if job_id and current_job_id != job_id:
+            continue
+        job_target = str(job.get("target_name") or job.get("hostname") or "")
+        if target and job_target.lower() != target.lower():
+            continue
+        telemetry_events = job.get("telemetry_events")
+        if not isinstance(telemetry_events, list):
+            continue
+        for telemetry in telemetry_events:
+            if not isinstance(telemetry, dict):
+                continue
+            event_type = str(telemetry.get("event_type") or "")
+            if event_type not in {"artifact.discovered", "finding.discovered"}:
+                continue
+            event_severity = str(telemetry.get("severity") or "info").lower() or "info"
+            if severity and event_severity != severity.lower():
+                continue
+            timestamp = _parse_timestamp(telemetry.get("timestamp"), datetime.now(UTC).isoformat())
+            if start_dt and timestamp < start_dt:
+                continue
+            if end_dt and timestamp > end_dt:
+                continue
+            artifact_type = str(telemetry.get("artifact_type") or "")
+            artifact_id = str(telemetry.get("artifact_id") or "")
+            finding_id = str(telemetry.get("finding_id") or telemetry.get("event_id") or "")
+            title = str(telemetry.get("message") or event_type)
+            events.append(
+                {
+                    "id": str(telemetry.get("event_id") or f"{current_job_id}:{len(events)}"),
+                    "title": title,
+                    "severity": event_severity,
+                    "target": job_target,
+                    "timestamp": timestamp.isoformat(),
+                    "finding_id": finding_id or artifact_id,
+                    "job_id": current_job_id,
+                    "url": artifact_id if artifact_type in {"url", "live_host", "subdomain"} else str(telemetry.get("target") or ""),
+                    "module": str(telemetry.get("stage") or telemetry.get("check_id") or "telemetry"),
+                    "preview": f"{event_type} from {telemetry.get('source', 'pipeline')}",
+                    "confidence": (telemetry.get("payload") or {}).get("confidence")
+                    if isinstance(telemetry.get("payload"), dict)
+                    else None,
+                    "telemetry_event": telemetry,
+                }
+            )
+    return events
+
+
 @router.get(
     "",
     response_model=FindingsSummaryResponse,
@@ -334,6 +395,19 @@ async def get_findings_timeline(
         limit=limit,
         offset=offset,
     )
+    telemetry_events = _telemetry_timeline_events(
+        services.list_jobs(),
+        job_id=job_id,
+        severity=severity,
+        target=target,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    if telemetry_events:
+        merged = {str(item.get("id")): item for item in [*events, *telemetry_events]}
+        events = sorted(merged.values(), key=lambda item: str(item.get("timestamp", "")), reverse=True)[
+            offset : offset + limit
+        ]
     if not events and offset == 0:
         return _seeded_timeline_events(limit, offset)
     return events

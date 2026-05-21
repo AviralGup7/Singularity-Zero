@@ -411,6 +411,8 @@ def merge_stage_output(
     if wal:
         wal_id = wal.log_delta(stage_name, state_delta)
         if wal_id and hasattr(ctx.result, "_neural_state"):
+            state_delta = dict(state_delta)
+            state_delta["_wal_id"] = wal_id
             ctx.result._neural_state.last_wal_id = wal_id
 
     ctx.result.apply_state_delta(state_delta)

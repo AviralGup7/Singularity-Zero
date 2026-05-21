@@ -350,6 +350,7 @@ class DashboardQueryService:
             run_count = 0
             total_findings = 0
             last_updated = ""
+            latest_report_href = ""
 
             run_dirs = sorted(
                 [d for d in entry.iterdir() if d.is_dir() and (d / "run_summary.json").exists()],
@@ -361,6 +362,7 @@ class DashboardQueryService:
                 run_count = len(run_dirs)
                 last_run_dir = run_dirs[0]
                 last_run = last_run_dir.name
+                latest_report_href = f"/reports/{entry.name}/{last_run}/report.html"
                 summary_path = last_run_dir / "run_summary.json"
                 try:
                     summary = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -379,6 +381,7 @@ class DashboardQueryService:
                     "run_count": run_count,
                     "total_findings": total_findings,
                     "last_updated": last_updated,
+                    "latest_report_href": latest_report_href,
                 }
             )
         return targets

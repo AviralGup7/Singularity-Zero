@@ -14,6 +14,7 @@ import msgspec
 
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.state import LWWset, VectorClock
+from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,43 @@ class BloomMeshSynchronizer:
             "remote_nodes": len(self.remote_health),
             "last_sync_time": self._last_sync_time,
         }
+
+    async def flush_overflowing_filter(self, *, reason: str = "self_healing") -> dict[str, Any]:
+        """Clear a saturated local filter and publish a fresh empty snapshot."""
+        before = self.filter.get_stats()
+        self.filter.reset()
+        self.remote_health.clear()
+        self.remote_clocks.clear()
+        self.saturation_history.clear()
+        self._record_saturation()
+        published = await self.publish_snapshot(reason=reason)
+        return {
+            "status": "flushed",
+            "node_id": self.node_id,
+            "published": published,
+            "before": before,
+            "after": self.filter.get_stats(),
+        }
+
+    def health_metrics(self, *, fill_threshold: float = 0.92) -> list[HealthMetric]:
+        """Return mesh node saturation and staleness metrics."""
+        snapshot = self.health_snapshot()
+        metrics: list[HealthMetric] = []
+        for node in snapshot["nodes"]:
+            fill_ratio = float(node.get("fill_ratio", 0.0) or 0.0)
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.BLOOM_MESH,
+                    name="bloom_fill_ratio",
+                    value=fill_ratio,
+                    threshold=fill_threshold,
+                    status=HealthStatus.CRITICAL
+                    if fill_ratio >= fill_threshold or node.get("stale")
+                    else HealthStatus.OK,
+                    labels={"node_id": node.get("node_id"), "stale": bool(node.get("stale"))},
+                )
+            )
+        return metrics
 
     async def publish_snapshot(self, *, reason: str = "gossip") -> bool:
         """Serialize and publish the local filter snapshot."""

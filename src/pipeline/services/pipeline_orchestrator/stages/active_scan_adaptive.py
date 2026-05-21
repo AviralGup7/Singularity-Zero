@@ -33,6 +33,8 @@ async def run_active_scanning_adaptive(
     args: Any,
     config: Any,
     ctx: PipelineContext,
+    *,
+    probe_loader: Any = _load_active_probe_functions,
 ) -> StageOutput:
     """Adaptive Stage: Active probing with dynamic prioritization and boosting."""
     stage_started = time.monotonic()
@@ -56,7 +58,7 @@ async def run_active_scanning_adaptive(
 
     # 2. Resource Initialization
     try:
-        probes = _load_active_probe_functions()
+        probes = probe_loader()
         response_cache = _build_response_cache()
     except Exception as exc:
         logger.error("Failed to initialize active scan resources: %s", exc)

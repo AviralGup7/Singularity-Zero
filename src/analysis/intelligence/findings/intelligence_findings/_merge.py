@@ -10,8 +10,9 @@ from src.analysis.helpers import (
     resolve_endpoint_key,
 )
 from src.core.contracts.pipeline import dedup_digest, dedup_key
+from src.intelligence.severity_model import enrich_finding_with_model_severity
 
-from ._categories import MITRE_ATTACK_MAPPING, SEVERITY_SCORES
+from ._categories import MITRE_ATTACK_MAPPING
 
 
 def _with_anomaly(item: dict[str, Any], anomaly_keys: set[str]) -> dict[str, Any]:
@@ -46,7 +47,7 @@ def _finding(
     seen.add(dedupe_key)
     evidence_text = json.dumps(evidence, sort_keys=True)
     finding_id = dedup_digest(dedup_key(module, category, endpoint_base, title, evidence_text))
-    score = SEVERITY_SCORES.get(severity, 15) + min(priority_bonus, 25)
+    score = min(priority_bonus, 25)
     if evidence.get("comparison"):
         score += 10
     if evidence.get("location") == "referer_risk":
@@ -76,7 +77,7 @@ def _finding(
     confidence_reason = confidence_reasoning(module, evidence, confidence)
     mitre_techniques = MITRE_ATTACK_MAPPING.get(category, [])
 
-    return {
+    finding = {
         "id": finding_id,
         "module": module,
         "category": category,
@@ -96,3 +97,4 @@ def _finding(
         "evidence": evidence,
         "mitre_attack": mitre_techniques,
     }
+    return enrich_finding_with_model_severity(finding)

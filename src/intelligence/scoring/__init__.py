@@ -17,6 +17,11 @@ from src.intelligence.scoring.risk_scoring import (
     calculate_intelligence_risk,
     score_endpoint_exposure,
 )
+from src.intelligence.severity_model import (
+    CalibratedSeverityModel,
+    enrich_finding_with_model_severity,
+    enrich_findings_with_model_severity,
+)
 
 __all__ = [
     # Re-exports from analysis
@@ -27,4 +32,7 @@ __all__ = [
     "calculate_intelligence_risk",
     "score_endpoint_exposure",
     "aggregate_risk_profile",
+    "CalibratedSeverityModel",
+    "enrich_finding_with_model_severity",
+    "enrich_findings_with_model_severity",
 ]

@@ -28,6 +28,15 @@ export function DashboardPage() {
   });
 
   const recentJobs = (jobsResponse?.jobs ?? []).slice(0, 5);
+  const telemetryTotals = (jobsResponse?.jobs ?? []).reduce((acc, job) => {
+    const counts = job.progress_telemetry?.event_counts ?? {};
+    for (const [key, value] of Object.entries(counts)) {
+      if (key === '__proto__' || key === 'constructor') continue;
+      acc.set(key, (acc.get(key) ?? 0) + Number(value ?? 0));
+    }
+    return acc;
+  }, new Map<string, number>());
+  const telemetryEntries = Array.from(telemetryTotals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   const activeJobsCount = (jobsResponse?.jobs ?? []).filter(j => j.status === 'running').length || 0;
   const criticalFindings = stats?.findings_summary?.severity_totals?.critical || 0;
@@ -103,6 +112,24 @@ export function DashboardPage() {
 
       {/* ── Severity Breakdown & Score ──────────────────────────── */}
       <FindingsOverview />
+
+      <section className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-text">Pipeline Telemetry Ledger</h3>
+          <Link to="/findings-timeline" className="text-xs font-medium text-accent hover:text-accent-2 transition-colors">Inspect Timeline</Link>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {(telemetryEntries.length ? telemetryEntries : [['stage.progress', 0], ['artifact.discovered', 0], ['finding.discovered', 0]]).map(([name, count]) => (
+            <div key={name} className="rounded-md border border-border bg-surface-2 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-muted truncate">{name}</div>
+              <div className="mt-2 flex items-end gap-2">
+                <span className="text-xl font-semibold text-text">{count}</span>
+                <span className="text-xs text-muted mb-0.5">events</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         

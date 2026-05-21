@@ -8,6 +8,8 @@ import { EvidenceDisplay } from '../../../components/EvidenceDisplay';
 import { AttackChainVisualizer } from '../../../components/AttackChainVisualizer';
 import { FindingComments } from '../../../components/FindingComments';
 import { RequestResponseViewer } from '../../../components/RequestResponseViewer';
+import { recordTriageAction } from '@/api/triage';
+import { getTriageAnalyst } from '@/hooks/useTriageCollaboration';
 
 export type DetailTab = 'cvss' | 'csi' | 'evidence' | 'simulation' | 'request' | 'logic' | 'comments';
 
@@ -71,6 +73,12 @@ export function FindingDetailPanel({
   const isLogicBreach = detailFinding.type?.startsWith('logic_breach');
 
   const evidence = detailFinding.evidence as ExtendedEvidence | undefined;
+  const runId = String(
+    detailFinding.metadata?.run_name
+    || detailFinding.metadata?.job_id
+    || detailFinding.target
+    || 'global'
+  );
 
   const chainSimulation: AttackChain | null = (detailFinding.metadata?.chain_simulation as AttackChain) || 
                                               evidence?.chain_simulation || 
@@ -219,7 +227,7 @@ export function FindingDetailPanel({
 
               {detailTab === 'comments' && (
                 <div className="glass-panel p-6 rounded-2xl border border-white/5">
-                  <FindingComments findingId={detailFinding.id} targetName={detailFinding.target} />
+                  <FindingComments findingId={detailFinding.id} targetName={detailFinding.target} runId={runId} />
                 </div>
               )}
 
@@ -281,7 +289,30 @@ export function FindingDetailPanel({
               >
                 Forensic Probe
               </button>
-              <button className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black">Flag False Positive</button>
+              <button
+                className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
+                onClick={async () => {
+                  try {
+                    await recordTriageAction(
+                      runId,
+                      detailFinding.id,
+                      'finding_false_positive',
+                      {
+                        category: String(detailFinding.metadata?.category || detailFinding.type || detailFinding.metadata?.module || 'manual_triage'),
+                        status_code: detailFinding.metadata?.response_status || detailFinding.metadata?.status_code,
+                        description: detailFinding.description,
+                        evidence: JSON.stringify(detailFinding.evidence || {}),
+                      },
+                      getTriageAnalyst(),
+                    );
+                    toast.success('False-positive pattern shared with the mesh');
+                  } catch {
+                    toast.error('Unable to record false-positive triage');
+                  }
+                }}
+              >
+                Flag False Positive
+              </button>
            </div>
            <button className="btn-primary btn-small uppercase tracking-widest text-[9px] font-black" onClick={onClose}>Acknowledge</button>
         </div>

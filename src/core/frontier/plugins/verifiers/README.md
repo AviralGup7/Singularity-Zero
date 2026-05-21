@@ -19,3 +19,16 @@ To build a new verifier:
 3. Place the `.wasm` file in this directory named as `{category}_verifier.wasm`.
 
 The generic verifier (`generic_verifier.wasm`) is used as a fallback for unsupported vulnerability categories.
+Active verifier plugins must be registered through the active-check manifest
+contract in `src.execution.active_manifest`. The JSON schema for serialized
+plugin metadata lives at `src/core/frontier/plugins/active_manifest_schema.json`.
+
+Every verifier declares:
+
+- `io`: input schema, output schema, and result encoding.
+- `required_capabilities`: host features the verifier may use.
+- `budget`: timeout, memory target, and output ceiling.
+- `isolation`: `wasm` for verifier modules, `process` for Python active checks.
+
+The runtime enforces the declared timeout with a revocable OS process kill path
+before results are decoded back into the pipeline worker.

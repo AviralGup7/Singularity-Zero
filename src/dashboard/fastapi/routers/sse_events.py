@@ -26,6 +26,7 @@ EVENT_TYPES = {
     "graph_event",
     "mesh_health_update",
     "migration_event",
+    "telemetry_event",
 }
 
 
@@ -129,6 +130,7 @@ class SSEEventEmitter:
         retry_count: int | None = None,
         stage_progress: list[dict[str, Any]] | None = None,
         progress_telemetry: dict[str, Any] | None = None,
+        telemetry_events: list[dict[str, Any]] | None = None,
         state_version: int | None = None,
     ) -> str:
         data: dict[str, Any] = {
@@ -179,6 +181,8 @@ class SSEEventEmitter:
             data["stage_progress"] = stage_progress
         if progress_telemetry is not None:
             data["progress_telemetry"] = progress_telemetry
+        if telemetry_events is not None:
+            data["telemetry_events"] = telemetry_events
         return self.emit("progress_update", data, state_version=state_version)
 
     def iteration_change(
@@ -256,6 +260,7 @@ class SSEEventEmitter:
         failure_reason: str | None = None,
         stage_progress: list[dict[str, Any]] | None = None,
         progress_telemetry: dict[str, Any] | None = None,
+        telemetry_events: list[dict[str, Any]] | None = None,
     ) -> str:
         data: dict[str, Any] = {
             "status": status,
@@ -278,6 +283,8 @@ class SSEEventEmitter:
             data["stage_progress"] = stage_progress
         if progress_telemetry is not None:
             data["progress_telemetry"] = progress_telemetry
+        if telemetry_events is not None:
+            data["telemetry_events"] = telemetry_events
         return self.emit("completed", data)
 
     def error(
@@ -359,3 +366,7 @@ class SSEEventEmitter:
     def migration_event(self, migration_data: dict[str, Any]) -> str:
         """Emit a ghost-actor migration event."""
         return self.emit("migration_event", migration_data)
+
+    def telemetry_event(self, telemetry: dict[str, Any]) -> str:
+        """Emit a single replayable pipeline telemetry event."""
+        return self.emit("telemetry_event", telemetry)

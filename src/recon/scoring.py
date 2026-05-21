@@ -19,6 +19,7 @@ from src.analysis.helpers import (
     meaningful_query_pairs,
     parameter_weight,
 )
+from src.intelligence.severity_model import enrich_findings_with_model_severity
 from src.recon.ranking_support import (
     HistoryFeedback,
     build_flow_graph,
@@ -517,14 +518,6 @@ def prioritize_urls(
     return [item["url"] for item in rank_urls(urls, filters, scoring, mode)]
 
 
-SEVERITY_WEIGHTS: dict[str, int] = {
-    "critical": 10,
-    "high": 7,
-    "medium": 4,
-    "low": 1,
-    "info": 0,
-}
-
 # Aggregate risk score thresholds for labeling
 _AGGREGATE_RISK_CRITICAL_THRESHOLD = 50
 _AGGREGATE_RISK_HIGH_THRESHOLD = 30
@@ -544,18 +537,19 @@ def compute_aggregate_risk_score(
         Dict with aggregate_score, severity_breakdown, max_severity,
         finding_count, score_label, and per-category scores.
     """
+    modeled_findings = enrich_findings_with_model_severity(
+        [finding for finding in findings if isinstance(finding, dict)]
+    )
     severity_counts: dict[str, int] = {}
     category_scores: dict[str, float] = {}
     total_weighted = 0.0
     max_severity = "info"
     severity_order = ["critical", "high", "medium", "low", "info"]
 
-    for finding in findings:
-        if not isinstance(finding, dict):
-            continue
+    for finding in modeled_findings:
         sev = str(finding.get("severity", "info")).strip().lower() or "info"
         severity_counts[sev] = severity_counts.get(sev, 0) + 1
-        weight = SEVERITY_WEIGHTS.get(sev, 0)
+        weight = float(finding.get("severity_score", 0.0))
         total_weighted += weight
 
         category = str(finding.get("category", "uncategorized")).strip().lower() or "uncategorized"
@@ -564,14 +558,15 @@ def compute_aggregate_risk_score(
         if severity_order.index(sev) < severity_order.index(max_severity):
             max_severity = sev
 
-    finding_count = len(findings)
+    finding_count = len(modeled_findings)
     avg_score = round(total_weighted / finding_count, 2) if finding_count > 0 else 0.0
 
-    if total_weighted >= _AGGREGATE_RISK_CRITICAL_THRESHOLD:
+    max_model_score = max((float(f.get("severity_score", 0.0)) for f in modeled_findings), default=0.0)
+    if total_weighted >= _AGGREGATE_RISK_CRITICAL_THRESHOLD or max_model_score >= 8.8:
         score_label = "critical"
-    elif total_weighted >= _AGGREGATE_RISK_HIGH_THRESHOLD:
+    elif total_weighted >= _AGGREGATE_RISK_HIGH_THRESHOLD or max_model_score >= 6.8:
         score_label = "high"
-    elif total_weighted >= _AGGREGATE_RISK_MEDIUM_THRESHOLD:
+    elif total_weighted >= _AGGREGATE_RISK_MEDIUM_THRESHOLD or max_model_score >= 3.8:
         score_label = "medium"
     elif total_weighted > 0:
         score_label = "low"

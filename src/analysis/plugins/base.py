@@ -9,6 +9,7 @@ class AnalysisPluginSpec:
     group: str
     slug: str
     enabled_by_default: bool = True
+    source: str = "builtin"
 
 
 _SLUG_OVERRIDES = {
@@ -35,6 +36,7 @@ def spec(
     *,
     slug: str | None = None,
     enabled_by_default: bool = True,
+    source: str = "builtin",
 ) -> AnalysisPluginSpec:
     return AnalysisPluginSpec(
         key=key,
@@ -43,6 +45,7 @@ def spec(
         group=group,
         slug=slug or _default_slug(key),
         enabled_by_default=enabled_by_default,
+        source=source,
     )
 
 

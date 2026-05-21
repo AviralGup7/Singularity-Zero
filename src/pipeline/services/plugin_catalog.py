@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from src.core.plugins import list_plugins, register_plugin, resolve_plugin
+from src.core.plugins.loader import refresh_dynamic_plugins
 
 RECON_PROVIDER = "recon_provider"
 SCANNER = "scanner"
@@ -66,11 +67,13 @@ def _register_defaults() -> None:
     import src.recon.urls  # noqa: F401
     import src.reporting.pipeline  # noqa: F401
 
+    refresh_dynamic_plugins()
     _DEFAULTS_REGISTERED = True
 
 
 def resolve_stage_runner(stage_name: str) -> Callable[..., Any]:
     _register_defaults()
+    refresh_dynamic_plugins()
     normalized = stage_name.strip().lower()
     for kind in (RECON_PROVIDER, SCANNER, VALIDATOR, ENRICHMENT_PROVIDER, EXPORTER):
         try:
@@ -82,6 +85,7 @@ def resolve_stage_runner(stage_name: str) -> Callable[..., Any]:
 
 def list_registered_stage_runners() -> dict[str, tuple[str, ...]]:
     _register_defaults()
+    refresh_dynamic_plugins()
     return {
         RECON_PROVIDER: tuple(reg.key for reg in list_plugins(RECON_PROVIDER)),
         SCANNER: tuple(reg.key for reg in list_plugins(SCANNER)),

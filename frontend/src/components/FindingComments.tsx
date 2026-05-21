@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Note } from '@/types/extended';
-import { createNote, deleteNote } from '@/api/notes';
+import { useTriageCollaboration } from '@/hooks/useTriageCollaboration';
+import { AnalystPresenceIndicator } from '@/components/AnalystPresenceIndicator';
 
 export interface FindingComment {
   id: string;
@@ -51,17 +52,18 @@ function extractMentions(text: string): string[] {
 interface FindingCommentsProps {
   findingId: string;
   targetName?: string;
+  runId?: string;
 }
 
-function useFindingComments(findingId: string, targetName?: string) {
+function useFindingComments(findingId: string, targetName?: string, runId?: string) {
    
   const [comments, setComments] = useState<FindingComment[]>([]);
    
-  const [apiNotes, setApiNotes] = useState<Note[]>([]);
+  const [, setApiNotes] = useState<Note[]>([]);
    
   const [loading, setLoading] = useState(false);
    
-  const [saving, setSaving] = useState(false);
+  const [saving] = useState(false);
    
   const [error, setError] = useState<string | null>(null);
    
@@ -70,8 +72,21 @@ function useFindingComments(findingId: string, targetName?: string) {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
    
   const [replyText, setReplyText] = useState('');
+  const triageRunId = runId || targetName || 'global';
+  const collaboration = useTriageCollaboration(triageRunId, findingId);
 
   useEffect(() => {
+    if (collaboration.state) {
+      setComments(collaboration.state.comments.map(comment => ({
+        id: comment.id,
+        findingId: comment.finding_id,
+        author: comment.author,
+        text: comment.text,
+        mentions: comment.mentions || [],
+        timestamp: comment.timestamp,
+      })));
+      return;
+    }
     if (!targetName) return;
     setLoading(true);
     import('@/api/notes').then(({ getNotes }) =>
@@ -93,66 +108,24 @@ function useFindingComments(findingId: string, targetName?: string) {
         .finally(() => setLoading(false))
     );
    
-  }, [findingId, targetName]);
+  }, [collaboration.state, findingId, targetName]);
 
   const addComment = useCallback(async () => {
     if (!newComment.trim()) return;
     const mentions = extractMentions(newComment);
-    if (targetName) {
-      setSaving(true);
-      try {
-        const note = await createNote(targetName, {
-          finding_id: findingId,
-          note: newComment.trim(),
-          tags: mentions,
-          author: 'Analyst',
-        });
-        setComments(prev => [...prev, {
-          id: note.id,
-          findingId: note.finding_id,
-          author: note.author || 'Unknown',
-          text: note.note,
-          mentions: note.tags || [],
-          timestamp: note.created_at,
-        }]);
-   
-        setApiNotes(prev => [...prev, note]);
-        setNewComment('');
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setSaving(false);
-      }
-    } else {
-      const comment: FindingComment = {
-        id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        findingId,
-        author: 'current-user',
-        text: newComment.trim(),
-        mentions,
-        timestamp: new Date().toISOString(),
-      };
-   
-      setComments(prev => [...prev, comment]);
-      setNewComment('');
-    }
-   
-  }, [newComment, findingId, targetName]);
+    const text = newComment.trim();
+    await collaboration.sendAction('comment_added', {
+      comment_id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text,
+      mentions,
+    });
+    setNewComment('');
+  }, [collaboration, newComment]);
 
   const deleteComment = useCallback(async (commentId: string) => {
-    if (targetName && apiNotes.some(n => n.id === commentId)) {
-      try {
-        await deleteNote(targetName, commentId);
-        setComments(prev => prev.filter(c => c.id !== commentId));
-        setApiNotes(prev => prev.filter(n => n.id !== commentId));
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
-    } else {
-      setComments(prev => prev.filter(c => c.id !== commentId));
-    }
-   
-  }, [targetName, apiNotes]);
+    await collaboration.sendAction('comment_deleted', { comment_id: commentId });
+    setComments(prev => prev.filter(c => c.id !== commentId));
+  }, [collaboration]);
 
   const rootComments = comments.filter(c => !c.parentId);
   const getReplies = (parentId: string) => comments.filter(c => c.parentId === parentId);
@@ -172,10 +145,11 @@ function useFindingComments(findingId: string, targetName?: string) {
     saving,
     error,
     teamMembers: TEAM_MEMBERS,
+    collaboration,
   };
 }
 
-export function FindingComments({ findingId, targetName }: FindingCommentsProps) {
+export function FindingComments({ findingId, targetName, runId }: FindingCommentsProps) {
   const {
     comments,
     getReplies,
@@ -191,7 +165,8 @@ export function FindingComments({ findingId, targetName }: FindingCommentsProps)
     saving,
     error,
     teamMembers,
-  } = useFindingComments(findingId, targetName);
+    collaboration,
+  } = useFindingComments(findingId, targetName, runId);
 
   const renderMentions = (text: string) => {
     const ranges = findMentionRanges(text, teamMembers);
@@ -227,7 +202,14 @@ export function FindingComments({ findingId, targetName }: FindingCommentsProps)
   return (
     <div className="finding-comments">
       {error && <div className="mb-2 text-red-400 text-sm">{error}</div>}
-      <h4 className="comments-title">Comments ({comments.length})</h4>
+      <div className="mb-3 flex flex-col gap-2">
+        <h4 className="comments-title">Comments ({comments.length})</h4>
+        <AnalystPresenceIndicator
+          analysts={collaboration.presence}
+          currentAnalystId={collaboration.analyst.analyst_id}
+          connected={collaboration.connected}
+        />
+      </div>
 
       <div className="comments-list">
         {comments.length === 0 && (
@@ -310,7 +292,10 @@ export function FindingComments({ findingId, targetName }: FindingCommentsProps)
           className="form-textarea"
           placeholder="Add a comment... Use @ to mention team members"
           value={newComment}
-          onChange={e => setNewComment(e.target.value)}
+          onChange={e => {
+            setNewComment(e.target.value);
+            collaboration.broadcastCursor({ area: 'comments', field: 'new-comment', length: e.target.value.length });
+          }}
           rows={2}
         />
         <div className="comment-input-actions">
@@ -326,6 +311,11 @@ export function FindingComments({ findingId, targetName }: FindingCommentsProps)
           </button>
         </div>
       </div>
+      {collaboration.state?.chain && (
+        <div className="mt-3 text-[10px] text-muted font-mono">
+          Audit chain: {collaboration.state.chain.valid ? 'verified' : 'invalid'} | {collaboration.state.chain.entries} entries | {collaboration.state.chain.latest_hash.slice(0, 12)}
+        </div>
+      )}
     </div>
   );
 }

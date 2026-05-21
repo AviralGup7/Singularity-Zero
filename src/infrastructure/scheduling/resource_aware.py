@@ -7,6 +7,7 @@ handling browser tasks, RPi handling light probing).
 """
 
 import logging
+import threading
 from typing import Any, cast
 
 from src.infrastructure.queue.models import (
@@ -14,6 +15,7 @@ from src.infrastructure.queue.models import (
     TaskResourceRequirement,
     WorkerInfo,
 )
+from src.infrastructure.scheduling.bidding import MultiObjectiveBid, bid_for_job
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,7 @@ class ResourceAwareScheduler:
     def __init__(self) -> None:
         """Initialize the scheduler with an empty worker registry."""
         self.workers: dict[str, WorkerInfo] = {}
-        self._lock = False  # Simple flag; use threading.Lock() in production
+        self._lock = threading.RLock()
 
     def update_worker(self, worker_id: str, info: WorkerInfo) -> None:
         """Update worker information in the registry.
@@ -42,14 +44,15 @@ class ResourceAwareScheduler:
             worker_id: Unique identifier for the worker.
             info: WorkerInfo instance with current state and resources.
         """
-        self.workers[worker_id] = info
-        logger.debug(
-            "Updated worker %s: status=%s, active_jobs=%d, RAM=%dMB",
-            worker_id,
-            info.status,
-            len(info.active_jobs),
-            info.resources.available_ram_mb if info.resources else 0,
-        )
+        with self._lock:
+            self.workers[worker_id] = info
+            logger.debug(
+                "Updated worker %s: status=%s, active_jobs=%d, RAM=%dMB",
+                worker_id,
+                info.status,
+                len(info.active_jobs),
+                info.resources.available_ram_mb if info.resources else 0,
+            )
 
     def remove_worker(self, worker_id: str) -> None:
         """Remove a worker from the registry (e.g., on shutdown).
@@ -57,9 +60,10 @@ class ResourceAwareScheduler:
         Args:
             worker_id: Unique identifier for the worker to remove.
         """
-        if worker_id in self.workers:
-            del self.workers[worker_id]
-            logger.info("Removed worker %s from scheduler registry", worker_id)
+        with self._lock:
+            if worker_id in self.workers:
+                del self.workers[worker_id]
+                logger.info("Removed worker %s from scheduler registry", worker_id)
 
     def select_worker(self, job: Job) -> str | None:
         """Select the best worker for a job based on resource requirements.
@@ -75,19 +79,21 @@ class ResourceAwareScheduler:
             Worker ID of the selected worker, or None if no suitable worker found.
         """
         requirements = TaskResourceRequirement.for_task_type(job.type)
+        job_bid = bid_for_job(job)
         candidates: list[tuple[float, str]] = []
 
-        for worker_id, worker in self.workers.items():
-            if self._can_handle(worker, requirements):
-                score = self._calculate_score(worker, requirements)
-                candidates.append((score, worker_id))
-                logger.debug(
-                    "Worker %s is eligible for job %s (type=%s), score=%.2f",
-                    worker_id,
-                    job.id,
-                    job.type,
-                    score,
-                )
+        with self._lock:
+            for worker_id, worker in self.workers.items():
+                if self._can_handle(worker, requirements):
+                    score = self._calculate_score(worker, requirements, job_bid)
+                    candidates.append((score, worker_id))
+                    logger.debug(
+                        "Worker %s is eligible for job %s (type=%s), score=%.2f",
+                        worker_id,
+                        job.id,
+                        job.type,
+                        score,
+                    )
 
         if not candidates:
             logger.warning(
@@ -120,9 +126,12 @@ class ResourceAwareScheduler:
         Returns:
             True if the worker can handle the task.
         """
-        # Check worker status — only idle workers can accept new jobs
-        if worker.status != "idle":
+        accepts_concurrent = bool(worker.metadata.get("accepts_concurrent_claims"))
+        if worker.status != "idle" and not (worker.status == "busy" and accepts_concurrent):
             logger.debug("Worker %s cannot handle task: status=%s", worker.id, worker.status)
+            return False
+        if len(worker.active_jobs) >= worker.concurrency:
+            logger.debug("Worker %s is at concurrency capacity", worker.id)
             return False
 
         # Check resource profile exists
@@ -162,7 +171,12 @@ class ResourceAwareScheduler:
 
         return True
 
-    def _calculate_score(self, worker: WorkerInfo, req: TaskResourceRequirement) -> float:
+    def _calculate_score(
+        self,
+        worker: WorkerInfo,
+        req: TaskResourceRequirement,
+        job_bid: MultiObjectiveBid | None = None,
+    ) -> float:
         """Calculate a suitability score for a worker (higher is better).
 
         Considers:
@@ -183,6 +197,9 @@ class ResourceAwareScheduler:
         if not worker.resources:
             return 0.0
 
+        job_score = job_bid.score * 100.0 if job_bid else 0.0
+        score += job_score
+
         # RAM score: available RAM contributes positively
         ram_score = worker.resources.available_ram_mb / 1024.0 * 10
         score += ram_score
@@ -193,8 +210,16 @@ class ResourceAwareScheduler:
 
         # Load penalty: fewer active jobs = better
         active_jobs_count = len(worker.active_jobs)
-        load_penalty = active_jobs_count * 20.0
+        load_penalty = (active_jobs_count / max(worker.concurrency, 1)) * 75.0
         score -= load_penalty
+
+        saturation = worker.metadata.get("bloom_mesh_saturation")
+        if saturation is not None:
+            score -= min(max(float(saturation), 0.0), 1.0) * 50.0
+
+        velocity = worker.metadata.get("historical_scan_velocity")
+        if velocity is not None:
+            score += min(max(float(velocity), 0.0), 1.0) * 25.0
 
         # CPU frequency bonus (if available)
         if worker.resources.cpu_freq_mhz > 0:
@@ -212,9 +237,10 @@ class ResourceAwareScheduler:
             score += 10.0
 
         logger.debug(
-            "Score for worker %s: total=%.2f (RAM=%.2f, CPU=%.2f, load_penalty=%.2f)",
+            "Score for worker %s: total=%.2f (bid=%.2f, RAM=%.2f, CPU=%.2f, load_penalty=%.2f)",
             worker.id,
             score,
+            job_score,
             ram_score,
             cpu_score,
             load_penalty,
@@ -230,21 +256,22 @@ class ResourceAwareScheduler:
         Returns:
             Dict with load information, or None if worker not found.
         """
-        worker = self.workers.get(worker_id)
-        if not worker:
-            return None
+        with self._lock:
+            worker = self.workers.get(worker_id)
+            if not worker:
+                return None
 
-        return {
-            "worker_id": worker.id,
-            "status": worker.status,
-            "active_jobs": len(worker.active_jobs),
-            "concurrency": worker.concurrency,
-            "cpu_count": worker.resources.cpu_count if worker.resources else 0,
-            "available_ram_mb": worker.resources.available_ram_mb if worker.resources else 0,
-            "load_percentage": (len(worker.active_jobs) / worker.concurrency * 100)
-            if worker.concurrency > 0
-            else 0,
-        }
+            return {
+                "worker_id": worker.id,
+                "status": worker.status,
+                "active_jobs": len(worker.active_jobs),
+                "concurrency": worker.concurrency,
+                "cpu_count": worker.resources.cpu_count if worker.resources else 0,
+                "available_ram_mb": worker.resources.available_ram_mb if worker.resources else 0,
+                "load_percentage": (len(worker.active_jobs) / worker.concurrency * 100)
+                if worker.concurrency > 0
+                else 0,
+            }
 
     def get_all_workers_summary(self) -> list[dict[str, Any]]:
         """Get a summary of all registered workers and their load.
@@ -252,8 +279,9 @@ class ResourceAwareScheduler:
         Returns:
             List of dicts with worker load information.
         """
-        return [
-            cast(dict[str, Any], self.get_worker_load(worker_id))
-            for worker_id in self.workers
-            if self.get_worker_load(worker_id) is not None
-        ]
+        with self._lock:
+            return [
+                cast(dict[str, Any], self.get_worker_load(worker_id))
+                for worker_id in self.workers
+                if self.get_worker_load(worker_id) is not None
+            ]

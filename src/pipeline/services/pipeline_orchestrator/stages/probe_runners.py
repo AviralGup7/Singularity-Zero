@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import os
 from typing import Any, cast
 from urllib.parse import parse_qsl, urlparse
 
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.execution.active_manifest import ActiveCapability, ActiveCheckManifest, get_active_manifest
+from src.execution.isolated import replace_unpicklable_response_caches, run_callable_isolated
+from src.pipeline.runner_support import emit_progress
 
 logger = get_pipeline_logger(__name__)
 
@@ -215,9 +219,89 @@ async def _try_probe(
     *args: Any,
     timeout_seconds: float | None = None,
     error_accumulator: list[dict[str, Any]] | None = None,
+    manifest: ActiveCheckManifest | None = None,
     **kwargs: Any,
 ) -> tuple[str, list[dict[str, Any]], bool]:
     """Run a probe, return (name, findings, success)."""
+    emit_progress(
+        "active_scan",
+        f"Starting active check {name}",
+        91,
+        check_id=name,
+        sub_stage=name,
+        telemetry_event_type="check.started",
+        stage_status="running",
+    )
+
+    def _record_failure(reason: str, message: str) -> tuple[str, list[dict[str, Any]], bool]:
+        logger.warning(message)
+        emit_progress(
+            "active_scan",
+            message,
+            91,
+            check_id=name,
+            sub_stage=name,
+            telemetry_event_type="check.failed",
+            stage_status="error",
+            reason=reason,
+            error=message,
+        )
+        if error_accumulator is not None:
+            error_accumulator.append({"probe": name, "reason": reason, "message": message})
+        return name, [], False
+
+    try:
+        active_manifest = (manifest or get_active_manifest(name)).with_timeout(timeout_seconds)
+    except KeyError:
+        active_manifest = None
+
+    if active_manifest is not None and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off":
+        isolated_args = args
+        isolated_kwargs = kwargs
+        if ActiveCapability.RESPONSE_CACHE in active_manifest.required_capabilities:
+            isolated_args = replace_unpicklable_response_caches(args)
+            isolated_kwargs = replace_unpicklable_response_caches(kwargs)
+        result = await asyncio.to_thread(
+            run_callable_isolated,
+            probe_fn,
+            isolated_args,
+            isolated_kwargs,
+            active_manifest,
+        )
+        if result.reason == "serialization_error" and os.environ.get("PYTEST_CURRENT_TEST"):
+            logger.debug("Falling back to in-process probe execution for pytest-local callable")
+        elif result.reason == "serialization_error":
+            return _record_failure(
+                "serialization_error",
+                f"Probe '{name}' could not enter isolated execution: {result.error}",
+            )
+        else:
+            if not result.ok:
+                reason = result.reason or "error"
+                message = (
+                    f"Probe '{name}' failed in isolated process: {result.error}"
+                    if reason != "timeout"
+                    else f"Probe '{name}' timed out after {active_manifest.budget.timeout_seconds}s"
+                )
+                return _record_failure(reason, message)
+
+            findings = cast(
+                list[dict[str, Any]],
+                result.value
+                if isinstance(result.value, list)
+                else ([result.value] if result.value else []),
+            )
+            emit_progress(
+                "active_scan",
+                f"Completed active check {name} with {len(findings)} findings",
+                92,
+                check_id=name,
+                sub_stage=name,
+                telemetry_event_type="check.completed",
+                targets_done=len(findings),
+                stage_status="running",
+            )
+            return name, findings, True
 
     async def _execute_probe() -> object:
         if inspect.iscoroutinefunction(probe_fn):
@@ -237,16 +321,20 @@ async def _try_probe(
             list[dict[str, Any]],
             result if isinstance(result, list) else ([result] if result else []),
         )
+        emit_progress(
+            "active_scan",
+            f"Completed active check {name} with {len(findings)} findings",
+            92,
+            check_id=name,
+            sub_stage=name,
+            telemetry_event_type="check.completed",
+            targets_done=len(findings),
+            stage_status="running",
+        )
         return name, findings, True
     except TimeoutError:
         msg = f"Probe '{name}' timed out after {timeout_seconds}s"
-        logger.warning(msg)
-        if error_accumulator is not None:
-            error_accumulator.append({"probe": name, "reason": "timeout", "message": msg})
-        return name, [], False
+        return _record_failure("timeout", msg)
     except Exception as exc:
         msg = f"Probe '{name}' failed: {exc}"
-        logger.warning(msg)
-        if error_accumulator is not None:
-            error_accumulator.append({"probe": name, "reason": "error", "message": msg})
-        return name, [], False
+        return _record_failure("error", msg)

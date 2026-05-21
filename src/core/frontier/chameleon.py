@@ -10,6 +10,7 @@ import uuid
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.execution.active_manifest import ActiveCapability, query_active_manifests
 
 logger = get_pipeline_logger(__name__)
 
@@ -184,6 +185,13 @@ class RequestChameleon:
             "ja3_signature": secrets.choice(self._ja3_signatures),
             "http2": secrets.randbelow(10) < http2_chance,
         }
+
+    def active_checks_requiring_network(self) -> list[dict[str, Any]]:
+        """Expose active-check capability queries to frontier scheduling."""
+        return [
+            manifest.as_dict()
+            for manifest in query_active_manifests(capability=ActiveCapability.NETWORK_EGRESS)
+        ]
 
 
 # Singleton instance for pool warming and efficiency

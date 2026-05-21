@@ -4,6 +4,7 @@ import copy
 from typing import Any
 
 from src.analysis.helpers import resolve_endpoint_key
+from src.intelligence.severity_model import enrich_findings_with_model_severity
 
 _VALIDATION_STATE_RANKS: dict[str, int] = {
     "": 0,
@@ -413,5 +414,6 @@ def merge_findings(
     flattened = _dedup_evidence_similarity(flattened)
     flattened = _dedup_fuzzy_url_patterns(flattened)
     flattened = _apply_correlation(flattened)
+    flattened = enrich_findings_with_model_severity(flattened)
     flattened.sort(key=lambda item: (-item.get("score", 0), item["url"], item["title"]))
     return flattened

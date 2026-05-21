@@ -6,6 +6,27 @@ import { formatFindingDate } from '@/lib/utils';
 type SortKey = 'severity' | 'type' | 'target' | 'status' | 'date';
 type SortDir = 'asc' | 'desc';
 
+function signalQualityFor(finding: Finding) {
+  const quality =
+    finding.signal_quality?.quality_score ??
+    finding.signal_quality_score ??
+    (typeof finding.true_positive_probability === 'number'
+      ? finding.true_positive_probability * 100
+      : finding.confidence * 100);
+  const fpProbability =
+    finding.signal_quality?.false_positive_probability ??
+    finding.false_positive_probability ??
+    Math.max(0, 1 - finding.confidence);
+  const action = finding.signal_quality?.action || (fpProbability >= 0.5 ? 'review' : 'keep');
+  const tier = fpProbability >= 0.7 ? 'noisy' : fpProbability >= 0.4 ? 'review' : 'clean';
+  return {
+    action,
+    fpProbability,
+    quality,
+    tier,
+  };
+}
+
 interface FindingsTableViewProps {
   paginated: Finding[];
   filtered: Finding[];
@@ -125,6 +146,7 @@ export function FindingsTableView({
                 </button>
               </th>
               <th scope="col">Lifecycle</th>
+              <th scope="col">Signal</th>
               <th scope="col">
                 <button className="sort-btn" onClick={() => handleSort('date')} aria-label={`Sort by date, currently ${sortDir}`}>
                   Date
@@ -140,6 +162,7 @@ export function FindingsTableView({
             {paginated.map((finding, idx) => {
               const dupCount = (finding.duplicates || []).length;
               const isFP = finding.falsePositive;
+              const signal = signalQualityFor(finding);
               return (
                 <tr
                   key={finding.id || idx}
@@ -191,6 +214,15 @@ export function FindingsTableView({
                     <span className="lifecycle-badge">
                       {finding.lifecycle_state || 'detected'}
                     </span>
+                  </td>
+                  <td className="finding-signal-quality">
+                    <span
+                      className={`signal-quality-badge signal-${signal.tier}`}
+                      title={`FP probability ${Math.round(signal.fpProbability * 100)}%`}
+                    >
+                      {Math.round(signal.quality)}%
+                    </span>
+                    <span className="signal-action">{signal.action.replace(/_/g, ' ')}</span>
                   </td>
                   <td className="finding-date">{formatFindingDate(finding.timestamp)}</td>
                   <td className="finding-assignee">

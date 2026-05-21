@@ -1,0 +1,131 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e235] [cursor=pointer]:
+    - /url: "#main"
+  - navigation "Main navigation" [ref=e236]:
+    - generic [ref=e237]:
+      - button "Navigate to dashboard" [ref=e238] [cursor=pointer]:
+        - img [ref=e239]
+        - generic [ref=e241]: Security Console
+      - button "Collapse sidebar" [ref=e242] [cursor=pointer]:
+        - img [ref=e243]
+    - navigation "Sidebar navigation" [ref=e245]:
+      - generic [ref=e246]:
+        - generic [ref=e247]: Overview
+        - link "Navigate to Dashboard" [ref=e248] [cursor=pointer]:
+          - /url: /
+          - img [ref=e249]
+          - generic [ref=e251]: Dashboard
+          - generic [ref=e252]: "1"
+        - link "Navigate to Targets" [ref=e253] [cursor=pointer]:
+          - /url: /targets
+          - img [ref=e254]
+          - generic [ref=e258]: Targets
+          - generic [ref=e259]: "2"
+        - link "Navigate to Jobs" [ref=e260] [cursor=pointer]:
+          - /url: /jobs
+          - img [ref=e261]
+          - generic [ref=e263]: Jobs
+          - generic [ref=e264]: "3"
+        - link "Navigate to Findings" [ref=e265] [cursor=pointer]:
+          - /url: /findings
+          - img [ref=e266]
+          - generic [ref=e268]: Findings
+          - generic [ref=e269]: "4"
+      - generic [ref=e270]:
+        - generic [ref=e271]: Analysis
+        - link "Navigate to Pipeline Overview" [ref=e272] [cursor=pointer]:
+          - /url: /pipeline
+          - img [ref=e273]
+          - generic [ref=e275]: Pipeline Overview
+        - link "Navigate to Security Cockpit" [ref=e276] [cursor=pointer]:
+          - /url: /cockpit
+          - img [ref=e277]
+          - generic [ref=e281]: Security Cockpit
+        - link "Navigate to Remediation Planner" [ref=e282] [cursor=pointer]:
+          - /url: /remediation-planner
+          - img [ref=e283]
+          - generic [ref=e286]: Remediation Planner
+        - link "Navigate to Risk Score" [ref=e287] [cursor=pointer]:
+          - /url: /risk-score
+          - img [ref=e288]
+          - generic [ref=e290]: Risk Score
+        - link "Navigate to Compare" [ref=e291] [cursor=pointer]:
+          - /url: /target-comparison
+          - img [ref=e292]
+          - generic [ref=e294]: Compare
+        - link "Navigate to Gap Analysis" [ref=e295] [cursor=pointer]:
+          - /url: /gap-analysis
+          - img [ref=e296]
+          - generic [ref=e299]: Gap Analysis
+        - link "Navigate to Autonomous Learning" [ref=e300] [cursor=pointer]:
+          - /url: /learning
+          - img [ref=e301]
+          - generic [ref=e303]: Autonomous Learning
+      - generic [ref=e304]:
+        - generic [ref=e305]: System
+        - link "Navigate to Mesh Command" [ref=e306] [cursor=pointer]:
+          - /url: /mesh
+          - generic [ref=e307]: Mesh Command
+        - link "Navigate to Tracing" [ref=e308] [cursor=pointer]:
+          - /url: /tracing
+          - img [ref=e309]
+          - generic [ref=e311]: Tracing
+        - link "Navigate to Cache" [ref=e312] [cursor=pointer]:
+          - /url: /cache-management
+          - img [ref=e313]
+          - generic [ref=e317]: Cache
+        - link "Navigate to Audit Logs" [ref=e318] [cursor=pointer]:
+          - /url: /audit-logs
+          - generic [ref=e319]: Audit Logs
+        - link "Navigate to Compliance" [ref=e320] [cursor=pointer]:
+          - /url: /compliance
+          - img [ref=e321]
+          - generic [ref=e324]: Compliance
+        - link "Navigate to Reports" [ref=e325] [cursor=pointer]:
+          - /url: /reports
+          - img [ref=e326]
+          - generic [ref=e329]: Reports
+        - link "Navigate to Access Logs" [ref=e330] [cursor=pointer]:
+          - /url: /access-logs
+          - img [ref=e331]
+          - generic [ref=e334]: Access Logs
+        - link "Navigate to Evidence Chain" [ref=e335] [cursor=pointer]:
+          - /url: /evidence-custody
+          - generic [ref=e336]: Evidence Chain
+        - link "Navigate to Security" [ref=e337] [cursor=pointer]:
+          - /url: /security
+          - img [ref=e338]
+          - generic [ref=e341]: Security
+        - link "Navigate to Settings" [ref=e342] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e343]
+          - generic [ref=e346]: Settings
+          - generic [ref=e347]: S
+    - button "Switch to dark mode" [ref=e349] [cursor=pointer]:
+      - img [ref=e350]
+      - generic [ref=e356]: Light
+  - generic [ref=e357]:
+    - banner [ref=e358]:
+      - heading "Security Cockpit" [level=1] [ref=e361]
+      - button "Open command palette" [ref=e363] [cursor=pointer]:
+        - img [ref=e364]
+        - generic [ref=e367]: Search or run command...
+        - generic [ref=e368]: ⌘ K
+      - generic [ref=e370]: SU
+    - main [ref=e371]:
+      - generic [ref=e373]:
+        - generic:
+          - heading "Security Cockpit" [level=2]
+          - generic:
+            - img
+            - text: Grid Standby
+        - generic [ref=e374]: Establishing 3D Neural Link...
+        - generic [ref=e375]:
+          - generic [ref=e376]:
+            - generic [ref=e377]: Critical
+            - generic [ref=e379]: High
+            - generic [ref=e381]: Med
+          - generic [ref=e383]: "NODES: 0 | EDGES: 0 | ENGINE: R3F-INSTANCED"
+    - contentinfo [ref=e384]:
+      - generic [ref=e385]: v2.0.0
+      - button "System Status" [ref=e386] [cursor=pointer]: System Status

@@ -202,6 +202,18 @@ async def run_reporting(
             ctx.parameters,
             ctx.analysis_results,
         )
+        for artifact_name in (
+            "report.html",
+            "report.json",
+            "sbom.cdx.json",
+            "attestation.html",
+            "attestation.pdf",
+            "report_manifest.json",
+            "report_manifest.sig",
+        ):
+            artifact_path = ctx.output_store.run_dir / artifact_name
+            if artifact_path.exists():
+                await asyncio.to_thread(ctx.output_store.upload_file, artifact_path, artifact_name)
 
         await asyncio.to_thread(build_dashboard_index, ctx.output_store.target_root)
         emit_progress("completed", "Run complete", 100)

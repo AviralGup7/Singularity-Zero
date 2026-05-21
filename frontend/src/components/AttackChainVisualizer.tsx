@@ -1,258 +1,216 @@
-import { memo, useEffect, useRef, useState } from 'react';
-import { Shield, ArrowRight, Zap, Target, AlertTriangle, Network, List } from 'lucide-react';
+import { memo, useMemo, useState } from 'react';
+import { ArrowRight, List, Network, Shield, Target, Zap } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { AttackChain } from '@/types/api';
-import { motion, AnimatePresence } from 'framer-motion';
-import * as d3Force from 'd3-force';
+import type { CockpitEdge, CockpitNode } from '@/api/cockpit';
+import { AttackChainGraph3D } from '@/components/charts';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// D3 Force Graph Component (Optimized for standalone d3-force)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface GraphNode extends d3Force.SimulationNodeDatum {
-  id: string;
-  label: string;
-  severity: string;
-  x?: number;
-  y?: number;
+interface AttackChainVisualizerProps {
+  chains: AttackChain[];
+  onFindingSelect?: (findingId: string) => void;
 }
 
-interface GraphLink extends d3Force.SimulationLinkDatum<GraphNode> {
-  source: string | GraphNode;
-  target: string | GraphNode;
-}
+const severityRank: Record<string, number> = {
+  critical: 5,
+  high: 4,
+  medium: 3,
+  low: 2,
+  info: 1,
+};
 
-const AttackGraph = memo(function AttackGraph({ chain }: { chain: AttackChain }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes] = useState<GraphNode[]>([]);
-  const [links, setLinks] = useState<GraphLink[]>([]);
+function chainToGraph(chain: AttackChain): { nodes: CockpitNode[]; edges: CockpitEdge[] } {
+  const nodes: CockpitNode[] = [];
+  const edges: CockpitEdge[] = [];
+  const seen = new Set<string>();
 
-  useEffect(() => {
-    const width = 400;
-    const height = 200;
-
-    const initialNodes: GraphNode[] = chain.steps.map((step) => ({
-      id: step.finding_id,
-      label: step.asset_id,
-      severity: step.severity,
-    }));
-
-    const initialLinks: GraphLink[] = [];
-    let prevNode: GraphNode | null = null;
-    for (const node of initialNodes) {
-      if (prevNode) {
-        initialLinks.push({ source: prevNode.id, target: node.id });
-      }
-      prevNode = node;
+  chain.steps.forEach((step, index) => {
+    const assetId = `asset:${step.asset_id}`;
+    const findingId = `finding:${step.finding_id}`;
+    if (!seen.has(assetId)) {
+      nodes.push({
+        id: assetId,
+        type: index === 0 ? 'subdomain' : 'endpoint',
+        label: step.asset_id,
+        severity: 'info',
+        metadata: { health: 0.86, host: step.asset_id },
+      });
+      seen.add(assetId);
     }
+    if (!seen.has(findingId)) {
+      nodes.push({
+        id: findingId,
+        type: 'finding',
+        label: step.finding_id,
+        severity: step.severity || 'high',
+        metadata: { health: 1 - ((severityRank[step.severity] || 3) * 0.14), finding_id: step.finding_id },
+      });
+      seen.add(findingId);
+    }
+    edges.push({ source: assetId, target: findingId, label: 'exposes', metadata: { relationship: 'exposes' } });
 
-    const simulation = d3Force.forceSimulation<GraphNode>(initialNodes)
-      .force("link", d3Force.forceLink<GraphNode, GraphLink>(initialLinks).id(d => d.id).distance(80))
-      .force("charge", d3Force.forceManyBody().strength(-200))
-      .force("center", d3Force.forceCenter(width / 2, height / 2))
-      .force("x", d3Force.forceX(width / 2).strength(0.1))
-      .force("y", d3Force.forceY(height / 2).strength(0.1));
+    const next = chain.steps[index + 1];
+    if (next) {
+      edges.push({
+        source: findingId,
+        target: `asset:${next.asset_id}`,
+        label: 'pivots_to',
+        metadata: { relationship: 'lateral_movement' },
+      });
+    }
+  });
 
-    simulation.on("tick", () => {
-      setNodes([...initialNodes]);
-      setLinks([...initialLinks]);
-    });
+  return { nodes, edges };
+}
 
-    return () => { simulation.stop(); };
-  }, [chain]);
+export const AttackChainVisualizer = memo(function AttackChainVisualizer({
+  chains,
+  onFindingSelect,
+}: AttackChainVisualizerProps) {
+  const [viewMode, setViewMode] = useState<'cards' | 'graph'>('graph');
+  const [selectedChainId, setSelectedChainId] = useState<string | null>(chains[0]?.id ?? null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
-  return (
-    <div ref={containerRef} className="bg-black/40 rounded-xl border border-white/5 overflow-hidden h-[200px] relative">
-      <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <marker
-            id={`arrow-${chain.id}`}
-            viewBox="0 -5 10 10"
-            refX={20}
-            refY={0}
-            markerWidth={6}
-            markerHeight={6}
-            orient="auto"
-          >
-            <path d="M0,-5L10,0L0,5" fill="#444" />
-          </marker>
-        </defs>
-        
-        {links.map((link, i) => {
-          const s = link.source as GraphNode;
-          const t = link.target as GraphNode;
-          return (
-            <line
-              key={i}
-              x1={s.x}
-              y1={s.y}
-              x2={t.x}
-              y2={t.y}
-              stroke="#333"
-              strokeWidth={2}
-              markerEnd={`url(#arrow-${chain.id})`}
-            />
-          );
-        })}
-
-        {nodes.map((node) => (
-          <g key={node.id} transform={`translate(${node.x || 0},${node.y || 0})`}>
-            <motion.circle
-              r={12}
-              animate={{
-                r: [12, 13, 12],
-                strokeWidth: [2, 3, 2]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-              fill={node.severity === 'critical' ? '#ff0055' : '#ef4444'}
-              stroke="#000"
-              strokeWidth={2}
-            />
-            <text
-              y={25}
-              textAnchor="middle"
-              fill="#94a3b8"
-              fontSize="8px"
-              fontFamily="monospace"
-            >
-              {node.label}
-            </text>
-          </g>
-        ))}
-      </svg>
-      <div className="absolute bottom-2 right-2 text-[8px] font-mono text-muted uppercase tracking-widest opacity-50">
-        React-Rendered Force Engine Active
-      </div>
-    </div>
+  const activeChain = useMemo(
+    () => chains.find((chain) => chain.id === selectedChainId) || chains[0],
+    [chains, selectedChainId],
   );
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Primary Component
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const AttackChainVisualizer = memo(function AttackChainVisualizer({ 
-  chains 
-}: { 
-  chains: AttackChain[] 
-}) {
-  const [viewMode, setViewMode] = useState<'cards' | 'graph'>('cards');
+  const activeGraph = useMemo(
+    () => (activeChain ? chainToGraph(activeChain) : { nodes: [], edges: [] }),
+    [activeChain],
+  );
 
   if (chains.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-muted opacity-30 gap-4">
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted opacity-40">
         <Shield size={48} strokeWidth={1} />
         <p className="text-xs uppercase tracking-[0.2em]">No Kill-Chains Identified</p>
       </div>
     );
   }
 
+  const handleSelectNode = (id: string) => {
+    setSelectedNodeId(id);
+    if (id.startsWith('finding:')) {
+      onFindingSelect?.(id.replace('finding:', ''));
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Neural Correlation Results</h4>
-        <div className="flex bg-white/5 rounded-lg p-1 border border-white/5">
-          <button 
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/45">Kill-Chain Model</h4>
+        <div className="flex rounded border border-white/10 bg-white/5 p-1">
+          <button
+            type="button"
+            aria-label="List view"
             onClick={() => setViewMode('cards')}
-            className={`p-1.5 rounded-md transition-all ${viewMode === 'cards' ? 'bg-accent text-black shadow-lg' : 'text-muted hover:text-white'}`}
+            className={`rounded p-1.5 transition-all ${viewMode === 'cards' ? 'bg-cyan-300 text-black' : 'text-muted hover:text-white'}`}
           >
             <List size={14} />
           </button>
-          <button 
+          <button
+            type="button"
+            aria-label="3D graph view"
             onClick={() => setViewMode('graph')}
-            className={`p-1.5 rounded-md transition-all ${viewMode === 'graph' ? 'bg-accent text-black shadow-lg' : 'text-muted hover:text-white'}`}
+            className={`rounded p-1.5 transition-all ${viewMode === 'graph' ? 'bg-cyan-300 text-black' : 'text-muted hover:text-white'}`}
           >
             <Network size={14} />
           </button>
         </div>
       </div>
 
-      <div className="space-y-8">
-        {chains.map((chain, idx) => (
-          <motion.div 
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-cyber">
+        {chains.map((chain, index) => (
+          <button
             key={chain.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="glass-panel p-6 rounded-2xl border-l-4 border-l-bad relative overflow-hidden"
+            type="button"
+            onClick={() => setSelectedChainId(chain.id)}
+            className={`shrink-0 rounded border px-3 py-2 text-left transition-colors ${
+              activeChain?.id === chain.id
+                ? 'border-cyan-300/60 bg-cyan-300/10 text-white'
+                : 'border-white/10 bg-white/5 text-muted hover:text-white'
+            }`}
           >
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-               <Target size={120} />
-            </div>
-
-            <div className="flex items-center justify-between mb-6 relative z-10">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black text-bad uppercase tracking-widest px-2 py-0.5 bg-bad/10 rounded inline-block">
-                    Critical Attack Path
-                  </span>
-                  {chain.confidence > 0.9 && (
-                    <span className="flex items-center gap-1 text-[9px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded animate-pulse">
-                      <div className="w-1 h-1 rounded-full bg-accent" /> LIVE
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-lg font-bold text-text uppercase tracking-tighter">{chain.description}</h3>
-              </div>
-              <div className="text-right">
-                 <div className="text-2xl font-black text-white">{Math.round(chain.confidence * 100)}%</div>
-                 <div className="text-[9px] text-muted uppercase font-bold tracking-widest">Confidence</div>
-              </div>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {viewMode === 'cards' ? (
-                <motion.div 
-                  key="cards"
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-cyber relative z-10"
-                >
-                  {chain.steps.map((step, sIdx) => (
-                    <div key={sIdx} className="flex items-center gap-4 shrink-0">
-                      <div className="flex flex-col items-center gap-2">
-                         <div className={`w-12 h-12 rounded-xl border flex items-center justify-center ${
-                           step.severity === 'critical' ? 'bg-bad/10 border-bad/30 text-bad shadow-[0_0_15px_rgba(255,0,85,0.2)]' : 'bg-high/10 border-high/30 text-high'
-                         }`}>
-                            <Zap size={20} />
-                         </div>
-                         <div className="text-[9px] font-mono text-muted truncate max-w-[80px]">{step.asset_id}</div>
-                      </div>
-                      
-                      {sIdx < chain.steps.length - 1 && (
-                        <div className="flex flex-col items-center gap-1">
-                          <ArrowRight size={16} className="text-muted" />
-                          <span className="text-[8px] font-black text-accent uppercase tracking-tighter">Pivot</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="graph"
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                >
-                  <AttackGraph chain={chain} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="mt-4 p-3 bg-black/40 rounded-lg border border-white/5 flex items-center gap-3">
-               <AlertTriangle size={14} className="text-warn" />
-               <p className="text-[10px] text-muted font-mono leading-relaxed">
-                 Tactical Warning: This path utilizes an authenticated logical breach on {chain.steps[0].asset_id} to gain deeper access.
-               </p>
-            </div>
-          </motion.div>
+            <div className="text-[9px] font-black uppercase tracking-widest">Path {index + 1}</div>
+            <div className="mt-1 text-[10px] font-mono">{Math.round(chain.confidence * 100)}% confidence</div>
+          </button>
         ))}
       </div>
+
+      {activeChain && (
+        <motion.div
+          key={activeChain.id}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="overflow-hidden rounded border border-white/10 bg-black/45"
+        >
+          <div className="flex items-start justify-between gap-4 border-b border-white/10 p-4">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded bg-red-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-red-300">
+                <Target size={12} />
+                Critical Attack Path
+              </div>
+              <h3 className="text-sm font-bold leading-snug text-text">{activeChain.description}</h3>
+            </div>
+            <div className="text-right">
+              <div className="text-xl font-black text-white">{Math.round(activeChain.confidence * 100)}%</div>
+              <div className="text-[9px] font-bold uppercase tracking-widest text-muted">Confidence</div>
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {viewMode === 'cards' ? (
+              <motion.div
+                key="cards"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-4 overflow-x-auto p-4 scrollbar-cyber"
+              >
+                {activeChain.steps.map((step, index) => (
+                  <div key={`${step.finding_id}-${index}`} className="flex shrink-0 items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => onFindingSelect?.(step.finding_id)}
+                      className="flex flex-col items-center gap-2 rounded border border-white/10 bg-white/5 p-3 hover:border-cyan-300/50"
+                    >
+                      <div className="flex h-11 w-11 items-center justify-center rounded border border-red-400/30 bg-red-500/10 text-red-300">
+                        <Zap size={18} />
+                      </div>
+                      <div className="max-w-[110px] truncate text-[9px] font-mono text-muted">{step.asset_id}</div>
+                    </button>
+                    {index < activeChain.steps.length - 1 && (
+                      <div className="flex flex-col items-center gap-1 text-cyan-200">
+                        <ArrowRight size={16} />
+                        <span className="text-[8px] font-black uppercase tracking-widest">Pivot</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="graph"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="h-[320px]"
+              >
+                <AttackChainGraph3D
+                  nodes={activeGraph.nodes}
+                  edges={activeGraph.edges}
+                  selectedNodeId={selectedNodeId}
+                  hoveredNodeId={hoveredNodeId}
+                  onSelectNode={handleSelectNode}
+                  onHoverNode={setHoveredNodeId}
+                  className="h-full w-full"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
     </div>
   );
 });

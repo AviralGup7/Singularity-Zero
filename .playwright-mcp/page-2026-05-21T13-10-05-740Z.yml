@@ -1,0 +1,24 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e3]:
+    - generic [ref=e4]: ⚠️
+    - heading "Something went wrong" [level=3] [ref=e5]
+    - paragraph [ref=e6]: Cannot set properties of null (setting 'needsUpdate')
+    - paragraph [ref=e7]: "Crash ID: ERR-MPFICYSS"
+    - group [ref=e8]:
+      - generic "Technical details" [ref=e9]
+    - generic [ref=e10]:
+      - button "Try again" [ref=e11] [cursor=pointer]: Try Again
+      - link "Go to dashboard" [ref=e12] [cursor=pointer]:
+        - /url: /
+        - text: Go Home
+  - generic [ref=e14]:
+    - generic [ref=e15]:
+      - heading "⚠️ JavaScript Error" [level=2] [ref=e16]
+      - button "✕ Close" [ref=e17] [cursor=pointer]
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - paragraph [ref=e20]: "Error Details:"
+        - generic [ref=e21]: Cannot set properties of null (setting 'needsUpdate')
+      - group [ref=e22]:
+        - generic "📋 Full Stack Trace" [ref=e23] [cursor=pointer]
+      - paragraph [ref=e25]: "💡 Tip: Check the browser console (F12) for more details."

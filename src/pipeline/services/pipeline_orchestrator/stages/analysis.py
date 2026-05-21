@@ -286,6 +286,47 @@ async def run_passive_scanning(
                     "deterministic_contract_error": iteration_deterministic_error,
                 }
             )
+            finding_events: list[dict[str, Any]] = []
+            try:
+                from src.core.telemetry import build_telemetry_event
+
+                for index, finding in enumerate(state_delta["reportable_findings"]):
+                    finding_id = finding_identity(finding)
+                    finding_events.append(
+                        build_telemetry_event(
+                            event_type="finding.discovered",
+                            stage="passive_scan",
+                            message=str(finding.get("title") or finding.get("type") or "Finding"),
+                            status="running",
+                            source="stage.passive_scan",
+                            check_id=str(finding.get("module") or finding.get("type") or ""),
+                            finding_id=finding_id,
+                            severity=str(finding.get("severity") or "info").lower(),
+                            target=str(finding.get("url") or finding.get("host") or ""),
+                            sequence=index + 1,
+                            payload={
+                                "iteration": iteration,
+                                "confidence": finding.get("confidence"),
+                                "url": finding.get("url"),
+                                "module": finding.get("module") or finding.get("type"),
+                            },
+                        )
+                    )
+            except Exception:
+                finding_events = []
+            emit_progress(
+                "passive_scan",
+                f"Round {iteration} produced {len(state_delta['reportable_findings'])} reportable findings",
+                89,
+                processed=iteration,
+                total=max_iteration_limit,
+                stage_percent=int((iteration / max_iteration_limit) * 100),
+                telemetry_event_type="analysis.iteration.completed",
+                telemetry_events=finding_events[:250],
+                targets_done=len(state_delta["reportable_findings"]),
+                confidence_score=avg_confidence,
+                event_trigger="analysis_iteration_completed",
+            )
 
             if iteration > 1 and not new_keys:
                 state_delta["iterative_stop_reason"] = "no_new_findings"

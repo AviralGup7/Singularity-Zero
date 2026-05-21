@@ -76,6 +76,16 @@ class PluginRegistry:
             values = tuple(self._providers.get(normalized_kind, {}).values())
         return values
 
+    def unregister(self, kind: str, key: str) -> bool:
+        normalized_kind = kind.strip().lower()
+        normalized_key = key.strip().lower()
+        with self._lock:
+            providers = self._providers.get(normalized_kind)
+            if not providers or normalized_key not in providers:
+                return False
+            del providers[normalized_key]
+        return True
+
 
 GLOBAL_PLUGIN_REGISTRY = PluginRegistry()
 
@@ -92,3 +102,7 @@ def resolve_plugin(kind: str, key: str) -> Any:
 
 def list_plugins(kind: str) -> tuple[PluginRegistration[Any], ...]:
     return GLOBAL_PLUGIN_REGISTRY.list(kind=kind)
+
+
+def unregister_plugin(kind: str, key: str) -> bool:
+    return GLOBAL_PLUGIN_REGISTRY.unregister(kind=kind, key=key)

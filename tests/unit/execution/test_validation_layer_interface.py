@@ -38,6 +38,56 @@ class ValidationLayerInterfaceTests(unittest.TestCase):
             strategy = spec.strategy_factory()
             self.assertIsInstance(strategy, ValidationStrategy)
 
+    def test_dynamic_validation_strategy_adapter(self) -> None:
+        from src.execution.validators.engine._runner import DynamicValidationStrategy
+        from src.core.plugins.sdk import PluginManifest
+        from pathlib import Path
+        from unittest.mock import MagicMock
+        from src.execution.validators.engine._base import ValidationContext
+
+        manifest = PluginManifest(
+            id="demo.dynamic_check",
+            name="Demo Dynamic Check",
+            version="1.0.0",
+            kind="validator",
+            description="Demo validator",
+            entrypoint="run",
+            sandbox="process",
+        )
+
+        def mock_sandbox_callable(payload: dict) -> dict:
+            return {"ok": True, "url": payload["target"]["url"]}
+
+        strategy = DynamicValidationStrategy(
+            name="demo_dynamic_check",
+            result_key="demo_dynamic_check_validation",
+            sandbox_callable=mock_sandbox_callable,
+        )
+
+        self.assertEqual(strategy.name, "demo_dynamic_check")
+        self.assertEqual(strategy.result_key, "demo_dynamic_check_validation")
+
+        context = ValidationContext(
+            analysis_results={"idor": [{"url": "https://example.com/api/v1", "confidence": 0.8, "score": 8}]},
+            ranked_priority_urls=[],
+            callback_context={},
+            token_replay={},
+            runtime_inputs={},
+            scope_hosts={"example.com"},
+            http_client=MagicMock(),
+            active_probe_enabled=True,
+            per_validator_limit=10,
+            selector_config={},
+        )
+
+        findings, errors = strategy.run(context)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(findings[0]["url"], "https://example.com/api/v1")
+        self.assertEqual(findings[0]["score"], 8)
+        self.assertEqual(findings[0]["validator"], "demo_dynamic_check")
+
 
 if __name__ == "__main__":
     unittest.main()
+

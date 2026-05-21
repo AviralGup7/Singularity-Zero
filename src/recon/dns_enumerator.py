@@ -14,6 +14,7 @@ import logging
 import socket
 from typing import Any
 
+from src.intelligence.severity_model import enrich_findings_with_model_severity
 from src.pipeline.services.tool_execution import CompletedToolRun, ToolInvocation, run_external_tool
 
 logger = logging.getLogger(__name__)
@@ -266,6 +267,19 @@ def build_dns_report(records: list[dict[str, Any]]) -> dict[str, Any]:
     # Check for missing security records
     security_checks = _check_dns_security(by_domain)
 
+    security_findings = enrich_findings_with_model_severity(
+        [
+            {
+                **finding,
+                "category": "dns",
+                "title": str(finding.get("finding", "DNS security signal")),
+                "url": str(finding.get("domain", "")),
+                "confidence": 0.55,
+            }
+            for finding in security_findings
+        ]
+    )
+
     return {
         "domains_queried": len(by_domain),
         "total_records": len(records),
@@ -308,4 +322,15 @@ def _check_dns_security(by_domain: dict[str, list[dict[str, Any]]]) -> list[dict
                 }
             )
 
-    return findings
+    return enrich_findings_with_model_severity(
+        [
+            {
+                **finding,
+                "category": "dns",
+                "title": str(finding.get("issue", "DNS security finding")),
+                "url": str(finding.get("domain", "")),
+                "confidence": 0.62,
+            }
+            for finding in findings
+        ]
+    )

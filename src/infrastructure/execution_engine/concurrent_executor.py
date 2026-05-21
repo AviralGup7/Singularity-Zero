@@ -27,6 +27,7 @@ from src.infrastructure.execution_engine.models import (
     TaskStatus,
 )
 from src.infrastructure.execution_engine.resource_pool import ResourcePool, ResourcePoolManager
+from src.infrastructure.scheduling.bidding import bid_for_task, score_with_runtime_contention
 
 from ._scheduler import _DAGScheduler
 
@@ -302,6 +303,15 @@ class ConcurrentExecutor:
 
         if not layer_tasks:
             return
+
+        resource_saturation = await self._pool_manager.saturation_snapshot()
+        layer_tasks.sort(
+            key=lambda task: -score_with_runtime_contention(
+                bid_for_task(task),
+                resource_saturation=resource_saturation,
+                bloom_mesh_saturation=task.metadata.get("bloom_mesh_saturation"),
+            )
+        )
 
         async def _run_with_semaphore(task: Task) -> TaskResult:
             async with cast(Any, self._semaphore):
