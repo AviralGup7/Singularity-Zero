@@ -409,6 +409,58 @@ async def get_historical_scores(
 
 
 @router.get(
+    "/{target_name}/compliance",
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    summary="Get compliance report for a target",
+)
+async def get_target_compliance(
+    target_name: str,
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> dict[str, Any]:
+    """Get the latest compliance coverage and maturity report (Phase 6)."""
+    if not _validate_target_name(target_name):
+        raise HTTPException(status_code=400, detail="Invalid target name")
+
+    output_root = services.query.output_root
+    target_dir = output_root / target_name
+    if not target_dir.exists():
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    latest_run = max(
+        (
+            child
+            for child in target_dir.iterdir()
+            if child.is_dir() and (child / "run_summary.json").exists()
+        ),
+        key=lambda d: d.name,
+        default=None,
+    )
+    if not latest_run:
+        raise HTTPException(status_code=404, detail="No scan runs found for target")
+
+    compliance_path = latest_run / "compliance_coverage.json"
+    if compliance_path.exists():
+        try:
+            return json.loads(compliance_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.error("Failed to load compliance report: %s", e)
+
+    # Fallback: Generate it if it doesn't exist
+    from src.reporting.compliance_mapping import build_compliance_report
+
+    findings_path = latest_run / "findings.json"
+    findings = []
+    if findings_path.exists():
+        try:
+            findings = json.loads(findings_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    return build_compliance_report(findings)
+
+
+@router.get(
     "/findings/list",
     responses={401: {"model": ErrorResponse}},
     summary="List all findings with pagination",

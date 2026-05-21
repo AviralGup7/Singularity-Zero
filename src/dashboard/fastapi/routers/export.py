@@ -189,3 +189,52 @@ async def export_latest_findings(
                 "Content-Disposition": f'attachment; filename="{target_dir.name}{suffix}.json"'
             },
         )
+
+
+@router.get(
+    "/compliance/{target_name}/attestation",
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    summary="Export compliance attestation (SOC 2 / PCI DSS)",
+)
+async def export_compliance_attestation(
+    target_name: str,
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> Response:
+    """Export a high-fidelity HTML compliance attestation (Phase 6.3)."""
+    from src.reporting.compliance_attestation import generate_compliance_attestation_html
+
+    output_root = services.query.output_root
+    target_dir = _find_target_dir(output_root, target_name)
+    if target_dir is None:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    latest_run = _find_latest_run_dir(target_dir)
+    if not latest_run:
+        raise HTTPException(status_code=404, detail="No scan runs found for target")
+
+    # Load compliance report from latest run
+    compliance_path = latest_run / "compliance_coverage.json"
+    if not compliance_path.exists():
+        # Fallback: Generate it if it doesn't exist (backwards compatibility)
+        from src.reporting.compliance_mapping import build_compliance_report
+
+        findings = _load_findings(latest_run)
+        compliance_report = build_compliance_report(findings)
+    else:
+        compliance_report = json.loads(compliance_path.read_text(encoding="utf-8"))
+
+    html_content = generate_compliance_attestation_html(
+        target_name=target_dir.name,
+        run_id=latest_run.name,
+        compliance_report=compliance_report,
+    )
+
+    return Response(
+        content=html_content.encode("utf-8"),
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{target_dir.name}_compliance_attestation.html"'
+        },
+    )
+
