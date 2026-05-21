@@ -809,7 +809,7 @@ class CacheManager:
     @property
     def _redis(self) -> Any | None:
         """Return the underlying Redis client if L2 is Redis.
-        
+
         This is primarily used by distributed components (like GhostMeshRegistry)
         to share the same connection pool as the cache layer.
         """

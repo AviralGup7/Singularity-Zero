@@ -1,11 +1,10 @@
 import json
-import os
 import tempfile
 from pathlib import Path
 
 import pytest
 
-from src.infrastructure.security.audit import AuditLogger, AuditEvent, AuditSeverity
+from src.infrastructure.security.audit import AuditEvent, AuditLogger, AuditSeverity
 from src.infrastructure.security.config import SecurityConfig
 
 
@@ -22,7 +21,7 @@ def audit_logger(temp_audit_log):
     config.audit.log_path = str(temp_audit_log)
     config.audit.tamper_evident = True
     config.audit.hmac_secret = "test-secret"
-    
+
     logger = AuditLogger(config)
     yield logger
     logger.close()
@@ -62,13 +61,13 @@ def test_audit_rotation_sync(audit_logger, temp_audit_log):
     audit_logger.log(AuditEvent.AUTH_SUCCESS, user_id="pre-rotation")
     entries = audit_logger.get_entries()
     assert len(entries) == 1
-    
+
     # 2. Trigger rotation
     audit_logger._rotate_log()
-    
+
     # 3. Verify SQLite is cleared
     assert len(audit_logger.get_entries()) == 0
-    
+
     # 4. Log post-rotation and verify
     audit_logger.log(AuditEvent.AUTH_SUCCESS, user_id="post-rotation")
     entries = audit_logger.get_entries()
@@ -79,24 +78,24 @@ def test_audit_rotation_sync(audit_logger, temp_audit_log):
 def test_audit_integrity_verification(audit_logger):
     audit_logger.log(AuditEvent.AUTH_SUCCESS, user_id="user1")
     audit_logger.log(AuditEvent.AUTH_SUCCESS, user_id="user2")
-    
+
     is_valid, compromised = audit_logger.verify_integrity()
     assert is_valid
     assert len(compromised) == 0
-    
+
     # Tamper with the file
     log_path = Path(audit_logger.config.audit.log_path)
-    with open(log_path, "r") as f:
+    with open(log_path) as f:
         lines = f.readlines()
-    
+
     # Change user_id in the second entry
     data = json.loads(lines[1])
     data["user_id"] = "hacker"
     lines[1] = json.dumps(data) + "\n"
-    
+
     with open(log_path, "w") as f:
         f.writelines(lines)
-        
+
     is_valid, compromised = audit_logger.verify_integrity()
     assert not is_valid
     assert 2 in compromised

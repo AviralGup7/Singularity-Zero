@@ -39,7 +39,7 @@ def test_ghost_vfs_rotation_failure_handling():
     vfs = GhostVFS()
     vfs.write_file("good.txt", "essential data")
     vfs.write_file("bad.txt", "will fail")
-    
+
     initial_key = vfs._key
     initial_aesgcm = vfs._aesgcm
 
@@ -52,7 +52,7 @@ def test_ghost_vfs_rotation_failure_handling():
     # Verify that the vault state is untouched and original key/aesgcm remains active
     assert vfs._key == initial_key
     assert vfs._aesgcm == initial_aesgcm
-    
+
     # Verify we can still decrypt the uncorrupted file using the original key
     assert vfs.read_file("good.txt") == b"essential data"
 

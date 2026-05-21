@@ -109,7 +109,7 @@ async def get_gap_analysis(
     }
 
     # Map categories to their descriptive lists of checks (matching ideal_counts length)
-    ALL_CHECKS = {
+    all_checks = {
         "idor": [
             "IDOR primary key fuzzing (sequential & randomized integers)",
             "Nested resource ID tampering (nested endpoint manipulation)",
@@ -284,7 +284,7 @@ async def get_gap_analysis(
         if status != "complete":
             modules_with_gaps += 1
 
-        total_list = ALL_CHECKS.get(cat_id, [])
+        total_list = all_checks.get(cat_id, [])
         missing_checks_list = total_list[covered:]
 
         results.append(

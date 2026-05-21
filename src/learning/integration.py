@@ -130,9 +130,12 @@ class LearningIntegration:
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(_integration_instance._start_mesh_sync())
-            except RuntimeError:
+            except RuntimeError as exc:
                 # No running event loop
-                pass
+                logger.debug(
+                    "Mesh sync skipped because no asyncio event loop is running (e.g. synchronous context).",
+                    exc_info=exc,
+                )
 
         return _integration_instance
 
@@ -323,8 +326,13 @@ class LearningIntegration:
                 if isinstance(end, str):
                     end = datetime.fromisoformat(end)
                 duration = (end - start).total_seconds()
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as exc:
+                logger.warning(
+                    "Failed to parse scan start/end timestamps (%s, %s): %s. scan_duration_sec defaults to 0.0.",
+                    start,
+                    end,
+                    exc,
+                )
 
         row = {
             "run_id": run_id,

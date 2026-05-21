@@ -51,7 +51,12 @@ class DashboardQueryService:
         try:
             self.persist_callback(job)
         except Exception as exc:  # noqa: S110, S112
-            logger.debug("Persistence callback failed: %s", exc)
+            logger.error(
+                "Persistence callback failed for job %s: %s",
+                job.get("id", "unknown"),
+                exc,
+                exc_info=True,
+            )
             # Reconciliation should never fail request handling.
             pass
 
@@ -255,10 +260,9 @@ class DashboardQueryService:
                     if entry.is_dir() and not entry.name.startswith("_"):
                         targets_to_process.append(entry.name)
 
-        active_modules = set()
-        empty_modules = set()
-        coverage_by_category = {}
-        has_runs = False
+        active_modules: set[str] = set()
+        empty_modules: set[str] = set()
+        coverage_by_category: dict[str, int] = {}
 
         for target in targets_to_process:
             target_dir = self.output_root / target
@@ -270,13 +274,12 @@ class DashboardQueryService:
             if not run_dirs:
                 continue
 
-            has_runs = True
             latest_run_dir = run_dirs[0]
             summary_path = latest_run_dir / "run_summary.json"
             try:
                 summary = json.loads(summary_path.read_text(encoding="utf-8"))
                 coverage = summary.get("detection_coverage") or {}
-                
+
                 run_active = coverage.get("active_modules") or []
                 run_empty = coverage.get("empty_modules") or []
                 run_cat_counts = coverage.get("coverage_by_category") or {}
@@ -286,9 +289,9 @@ class DashboardQueryService:
                     counts = summary.get("counts") or {}
                     for k, v in counts.items():
                         if k not in {
-                            "scope_entries", "subdomains", "live_hosts", "urls", 
-                            "parameters", "priority_urls", "screenshots", 
-                            "attack_campaigns", "validation_results", "validated_leads", 
+                            "scope_entries", "subdomains", "live_hosts", "urls",
+                            "parameters", "priority_urls", "screenshots",
+                            "attack_campaigns", "validation_results", "validated_leads",
                             "vrt_direct", "vrt_signal_only", "vrt_disabled", "vrt_unsupported"
                         }:
                             if isinstance(v, int) and v > 0:

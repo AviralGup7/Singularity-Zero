@@ -19,7 +19,6 @@ except ImportError:
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
-...
 
 
 class LateralGraph:
