@@ -43,3 +43,24 @@
 .glass-panel {
   @apply bg-[#12161E]/90 border border-white/10 shadow-lg;
 }
+
+/* ── Toast Progress Drain ────────────────────────────────────── */
+@keyframes toast-drain {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+/* ── Pulse Dot for Live Indicators ───────────────────────────── */
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
+  animation: pulse-dot-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot-glow {
+  0%, 100% { box-shadow: 0 0 4px var(--ok); opacity: 1; }
+  50%      { box-shadow: 0 0 12px var(--ok); opacity: 0.7; }
+}

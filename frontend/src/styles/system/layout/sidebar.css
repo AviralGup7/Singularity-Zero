@@ -8,9 +8,22 @@
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  transition: width var(--motion-fast) var(--easing-out),
-              transform var(--motion-fast) var(--easing-out);
+  transition: width var(--motion-base) var(--easing-out),
+              transform var(--motion-base) var(--easing-out);
   overflow: hidden;
+}
+
+/* Accent gradient stripe along the right edge */
+.sidebar::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--accent), transparent);
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .sidebar--collapsed {
@@ -80,7 +93,10 @@
 .sidebar-nav {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-3) var(--space-2) var(--space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .sidebar-section {
@@ -121,7 +137,7 @@
 .sidebar-nav-item--active {
   color: var(--text-primary);
   font-weight: 500;
-  background: transparent;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .sidebar-nav-item--active::before {
@@ -133,6 +149,7 @@
   width: 3px;
   border-radius: 0 2px 2px 0;
   background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
 }
 
 .sidebar-nav-label {
