@@ -14,13 +14,17 @@ import { DashboardStatsSchema } from '../api/schemas';
 import FindingsOverview from '../components/FindingsOverview';
 
 export function DashboardPage() {
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
   const { data: stats } = useApi<StatsType>('/api/dashboard', { 
     refetchInterval: 10000,
-    schema: DashboardStatsSchema
+    schema: DashboardStatsSchema,
+    onSuccess: () => setLastUpdated(new Date())
   });
   
   const { data: jobsResponse } = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
     refetchInterval: 5000,
+    onSuccess: () => setLastUpdated(new Date())
   });
 
   const recentJobs = (jobsResponse?.jobs ?? []).slice(0, 5);
@@ -29,12 +33,6 @@ export function DashboardPage() {
   const criticalFindings = stats?.findings_summary?.severity_totals?.critical || 0;
   const totalFindings = stats?.findings_summary?.total_findings || 0;
   const totalTargets = stats?.total_targets || 0;
-
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-
-  useEffect(() => {
-    if (stats || jobsResponse) setLastUpdated(new Date());
-  }, [stats, jobsResponse]);
 
   return (
     <div className="space-y-6">
