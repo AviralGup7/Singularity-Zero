@@ -8,6 +8,7 @@ separated for easier maintenance.
 import logging
 
 from src.infrastructure.execution_engine.models import Task
+from src.infrastructure.scheduling.bidding import bid_for_task
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,11 @@ class _DAGScheduler:
     def __init__(self, tasks: list[Task]) -> None:
         self._tasks: dict[str, Task] = {t.id: t for t in tasks}
         self._all_ids = set(self._tasks.keys())
+        self._bids = {t.id: bid_for_task(t) for t in tasks}
+
+    def _sort_key(self, task_id: str) -> tuple[float, int, str]:
+        task = self._tasks[task_id]
+        return (-self._bids[task_id].score, task.priority.value, task.name)
 
     def validate(self) -> list[str]:
         """Validate the DAG and return any cycle warnings.
@@ -86,14 +92,14 @@ class _DAGScheduler:
                     dependents[dep_id].add(task.id)
 
         queue = [tid for tid, degree in in_degree.items() if degree == 0]
-        queue.sort(key=lambda tid: self._tasks[tid].priority.value)
+        queue.sort(key=self._sort_key)
 
         layers: list[list[Task]] = []
         executed: set[str] = set()
 
         while queue:
             layer_tasks = [self._tasks[tid] for tid in queue]
-            layer_tasks.sort(key=lambda t: (t.priority.value, t.name))
+            layer_tasks.sort(key=lambda t: self._sort_key(t.id))
             layers.append(layer_tasks)
             executed.update(queue)
 
@@ -104,13 +110,13 @@ class _DAGScheduler:
                     if in_degree[dependent_id] == 0:
                         next_queue.append(dependent_id)
 
-            next_queue.sort(key=lambda tid: self._tasks[tid].priority.value)
+            next_queue.sort(key=self._sort_key)
             queue = next_queue
 
         remaining = self._all_ids - executed
         if remaining:
             remaining_tasks = [self._tasks[tid] for tid in remaining]
-            remaining_tasks.sort(key=lambda t: (t.priority.value, t.name))
+            remaining_tasks.sort(key=lambda t: self._sort_key(t.id))
             layers.append(remaining_tasks)
             logger.warning("Tasks with unresolvable dependencies: %s", remaining)
 

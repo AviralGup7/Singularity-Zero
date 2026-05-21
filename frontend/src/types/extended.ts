@@ -233,6 +233,7 @@ export interface FindingTimelineEvent {
   module?: string;
   preview?: string;
   confidence?: number;
+  telemetry_event?: import('./api').PipelineTelemetryEvent;
 }
 
 export interface TargetHistoricalScores {

@@ -110,6 +110,9 @@ async def run_subdomain_enumeration(
             targets_scanning=0,
             targets_queued=0,
             event_trigger="recon_subdomains_discovered",
+            telemetry_event_type="recon.subdomains.completed",
+            artifact_type="subdomain",
+            telemetry_items=sorted(subdomains),
         )
 
         # Write to output store (side effect allowed in wrapper)
@@ -210,6 +213,9 @@ async def run_live_hosts(
             stage_status="running",
             targets_done=len(live_hosts),
             event_trigger="recon_live_hosts_discovered",
+            telemetry_event_type="recon.live_hosts.completed",
+            artifact_type="live_host",
+            telemetry_items=sorted(live_hosts),
         )
 
         return cast(StageOutput, stage_output)
@@ -286,6 +292,9 @@ async def run_url_collection(
             stage_status="running",
             targets_done=len(urls),
             event_trigger="recon_urls_collected",
+            telemetry_event_type="recon.urls.completed",
+            artifact_type="url",
+            telemetry_items=sorted(urls)[:500],
         )
 
         return cast(StageOutput, stage_output)

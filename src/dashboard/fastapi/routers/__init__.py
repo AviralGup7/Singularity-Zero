@@ -20,10 +20,13 @@ from .notes import router as notes_router
 from .registry import router as registry_router
 from .remediation import router as remediation_router
 from .replay import router as replay_router
+from .reports import router as reports_router
 from .risk import router as risk_router
 from .security import router as security_router
+from .self_healing import router as self_healing_router
 from .targets import router as targets_router
 from .tracing import router as tracing_router
+from .triage import router as triage_router
 
 imports_router: Any = None
 try:
@@ -37,6 +40,7 @@ except RuntimeError as exc:
 api_router = APIRouter()
 
 api_router.include_router(health_router, tags=["Health"])
+api_router.include_router(self_healing_router, tags=["Self-Healing"])
 api_router.include_router(audit_router, tags=["Audit"])
 api_router.include_router(bloom_router, tags=["Bloom"])
 api_router.include_router(cockpit_router, tags=["Cockpit"])
@@ -51,6 +55,7 @@ api_router.include_router(export_router, tags=["Export"])
 api_router.include_router(replay_router, tags=["Replay"])
 api_router.include_router(risk_router, tags=["Risk"])
 api_router.include_router(remediation_router, tags=["Remediation"])
+api_router.include_router(reports_router, tags=["Reports"])
 api_router.include_router(registry_router, tags=["Registry"])
 if imports_router is not None:
     api_router.include_router(imports_router, tags=["Imports"])
@@ -58,3 +63,4 @@ api_router.include_router(gap_analysis_router, tags=["Gap Analysis"])
 api_router.include_router(security_router, tags=["Security"])
 api_router.include_router(launcher_router, tags=["Launcher"])
 api_router.include_router(tracing_router, tags=["Tracing"])
+api_router.include_router(triage_router, tags=["Triage Collaboration"])

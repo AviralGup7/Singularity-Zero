@@ -4,6 +4,7 @@ import logging
 import time
 from typing import Any
 
+from src.core.telemetry import build_telemetry_event, normalize_telemetry_event
 from src.dashboard.job_state_helpers import (
     EVENT_LOG_LIMIT,
     PROGRESS_HISTORY_LIMIT,
@@ -22,6 +23,7 @@ from src.dashboard.registry import STAGE_LABELS
 from src.pipeline.constants.progress import STAGE_BASELINE_PERCENT
 
 logger = logging.getLogger(__name__)
+TELEMETRY_EVENT_LIMIT = 1000
 
 
 def _infer_percent(job: dict[str, Any], stage: str, payload: dict[str, Any]) -> int:
@@ -100,7 +102,94 @@ def _ensure_progress_telemetry(job: dict[str, Any]) -> dict[str, Any]:
     telemetry.setdefault("event_triggers", [])
     telemetry.setdefault("skipped_stages", [])
     telemetry.setdefault("top_active_targets", [])
+    telemetry.setdefault("event_counts", {})
+    telemetry.setdefault("artifact_counts", {})
     return telemetry
+
+
+def _append_telemetry_event(job: dict[str, Any], event: dict[str, Any]) -> None:
+    ledger = job.setdefault("telemetry_events", [])
+    if not isinstance(ledger, list):
+        ledger = []
+        job["telemetry_events"] = ledger
+    normalized = normalize_telemetry_event(event, fallback_stage=str(job.get("stage", "")))
+    event_id = str(normalized.get("event_id", ""))
+    if event_id and any(isinstance(item, dict) and item.get("event_id") == event_id for item in ledger[-50:]):
+        return
+    ledger.append(normalized)
+    if len(ledger) > TELEMETRY_EVENT_LIMIT:
+        del ledger[:-TELEMETRY_EVENT_LIMIT]
+
+    telemetry = _ensure_progress_telemetry(job)
+    event_type = str(normalized.get("event_type") or "unknown")
+    counts = telemetry.setdefault("event_counts", {})
+    if isinstance(counts, dict):
+        counts[event_type] = int(counts.get(event_type, 0) or 0) + 1
+    artifact_type = str(normalized.get("artifact_type") or "")
+    if artifact_type:
+        artifact_counts = telemetry.setdefault("artifact_counts", {})
+        if isinstance(artifact_counts, dict):
+            artifact_counts[artifact_type] = int(artifact_counts.get(artifact_type, 0) or 0) + 1
+
+
+def _ingest_payload_telemetry(
+    job: dict[str, Any],
+    *,
+    payload: dict[str, Any],
+    stage: str,
+    stage_status: str,
+    now: float,
+) -> None:
+    base = payload.get("telemetry_event")
+    if isinstance(base, dict):
+        _append_telemetry_event(job, base)
+    else:
+        _append_telemetry_event(
+            job,
+            build_telemetry_event(
+                event_type="stage.progress",
+                stage=stage,
+                message=str(payload.get("message") or ""),
+                status=stage_status,
+                source=f"stage.{stage}",
+                metrics={
+                    "percent": _coerce_int(payload.get("percent")) or 0,
+                    "stage_percent": _coerce_int(payload.get("stage_percent")) or 0,
+                    "processed": _coerce_int(payload.get("processed")) or 0,
+                    "total": _coerce_int(payload.get("total")) or 0,
+                },
+                epoch=now,
+            ),
+        )
+
+    extra_events = payload.get("telemetry_events")
+    if isinstance(extra_events, list):
+        for event in extra_events:
+            if isinstance(event, dict):
+                _append_telemetry_event(job, event)
+
+    telemetry_items = payload.get("telemetry_items")
+    artifact_type = str(payload.get("artifact_type") or "")
+    if isinstance(telemetry_items, list) and artifact_type:
+        for index, item in enumerate(telemetry_items):
+            artifact_id = str(item.get("id") if isinstance(item, dict) else item)
+            if not artifact_id:
+                continue
+            _append_telemetry_event(
+                job,
+                build_telemetry_event(
+                    event_type="artifact.discovered",
+                    stage=stage,
+                    message=f"{artifact_type} discovered: {artifact_id}",
+                    status=stage_status,
+                    source=f"stage.{stage}",
+                    artifact_type=artifact_type,
+                    artifact_id=artifact_id,
+                    sequence=index + 1,
+                    payload=item if isinstance(item, dict) else {"value": artifact_id},
+                    epoch=now,
+                ),
+            )
 
 
 def _stage_running_count(job: dict[str, Any]) -> int:
@@ -498,6 +587,13 @@ def apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
         job["stage_total"] = None
 
     _merge_progress_telemetry(
+        job,
+        payload=payload,
+        stage=stage,
+        stage_status=stage_status,
+        now=now,
+    )
+    _ingest_payload_telemetry(
         job,
         payload=payload,
         stage=stage,

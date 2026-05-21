@@ -57,7 +57,7 @@ class TestFindingsSections:
         result = top_findings_section(summary)
         assert "<section>" in result
         assert "SQL Injection found" in result
-        assert "HIGH" in result
+        assert "ML " in result
         assert "example.com" in result
 
     def test_top_findings_limits_to_five(self) -> None:

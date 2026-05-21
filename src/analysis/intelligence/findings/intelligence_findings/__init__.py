@@ -1,7 +1,7 @@
 """Intelligence findings merger and history annotator.
 
 Merges analysis results from multiple plugins into a unified findings list
-with severity scoring, deduplication, and priority ranking. Also provides
+with model severity scoring, deduplication, and priority ranking. Also provides
 finding history annotation to track new vs existing findings across runs.
 
 This package modularizes the findings logic into separate files
@@ -14,7 +14,7 @@ from typing import Any, cast
 # Re-export for backward compatibility
 from src.analysis.intelligence.findings_dedup import finding_key as _finding_key_internal
 
-from ._categories import MITRE_ATTACK_MAPPING, SEVERITY_SCORES
+from ._categories import MITRE_ATTACK_MAPPING
 from ._history import annotate_finding_history
 from ._merge_orchestrator import merge_findings
 from ._scoring import confidence_for_evidence, confidence_reasoning
@@ -97,7 +97,6 @@ def enrich_with_cvss(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:  #
 
 
 __all__ = [
-    "SEVERITY_SCORES",
     "MITRE_ATTACK_MAPPING",
     "merge_findings",
     "annotate_finding_history",

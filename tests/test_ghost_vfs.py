@@ -1,6 +1,15 @@
+import base64
+import json
+
 import pytest
 
 from src.core.frontier.ghost_vfs import GhostVFS
+
+
+def _envelope_salt(raw: bytes) -> str:
+    text = raw.decode("utf-8")
+    payload = base64.urlsafe_b64decode(text.split(":", 1)[1].encode("ascii"))
+    return json.loads(payload.decode("utf-8"))["salt"]
 
 
 def test_ghost_vfs_lifecycle():
@@ -115,7 +124,7 @@ def test_ghost_vfs_roundtrip_persistence(tmp_path):
     # Verify unique salts per file
     with open(findings_file, "rb") as f:
         findings_content = f.read()
-    assert content[:16] != findings_content[:16]  # Different random salts
+    assert _envelope_salt(content) != _envelope_salt(findings_content)
 
     # 3. Create a fresh VFS instance and load from disk
     new_vfs = GhostVFS()
@@ -140,12 +149,64 @@ def test_ghost_vfs_roundtrip_persistence(tmp_path):
             (str(tmp_path), [], ["outside.txt"]),  # outside of disk_dir
         ]
 
-        # Write valid file to disk
-        with open(disk_dir / "valid.txt", "wb") as f:
-            f.write(content)
+        # Write a valid file with path-bound AAD for the mocked walk.
+        path_bound_vfs = GhostVFS()
+        path_bound_vfs.write_file("valid.txt", "valid data")
+        path_bound_vfs.flush_to_disk(str(disk_dir), master_key)
 
         bad_vfs.load_from_disk(str(disk_dir), master_key)
 
         # valid.txt should be loaded, but outside.txt should NOT be loaded
         assert "valid.txt" in bad_vfs.list_files()
         assert "outside.txt" not in bad_vfs.list_files()
+
+
+def test_ghost_vfs_chunked_streaming():
+    vfs = GhostVFS()
+    path = "large_log.bin"
+    chunks = [b"chunk number 1 data", b"second chunk data block", b"final block of information"]
+    
+    # 1. Write the stream of chunks
+    vfs.write_file_stream(path, iter(chunks))
+    assert path in vfs.list_files()
+    
+    # 2. Stream read back chunk by chunk
+    retrieved_chunks = list(vfs.read_file_stream(path))
+    assert retrieved_chunks == chunks
+    
+    # 3. Read back full content flatly
+    assert vfs.read_file(path) == b"".join(chunks)
+
+    # 4. Verify tamper resistance on chunk headers
+    raw_payload = bytearray(vfs._files[path])
+    
+    # Modifying chunk length header to trigger length corruption error
+    raw_payload[16] ^= 0xFF
+    vfs._files[path] = bytes(raw_payload)
+    with pytest.raises(ValueError, match="Ghost-VFS: Corrupt chunk payload|Ghost-VFS: Corrupt chunk length header|decryption failed"):
+        list(vfs.read_file_stream(path))
+
+
+def test_ghost_vfs_policy_enforcement():
+    # 1. Test analyst role (read-only)
+    analyst_vfs = GhostVFS(principal="analyst")
+    
+    with pytest.raises(PermissionError, match="not allowed to write"):
+        analyst_vfs.write_file("report.txt", "analyst comment")
+
+    # 2. Test system role (allowed to read/write general paths, restricted on secrets/keys)
+    system_vfs = GhostVFS(principal="system")
+    system_vfs.write_file("scans/subdomains.txt", "subdomains info")
+    assert system_vfs.read_file("scans/subdomains.txt") == b"subdomains info"
+    
+    # Allowed access to secrets by system role
+    system_vfs.write_file("secrets/app.pem", "private certificate data")
+    assert system_vfs.read_file("secrets/app.pem") == b"private certificate data"
+
+    # Test audit role (read-only, restricted on secrets)
+    audit_vfs = GhostVFS(principal="audit")
+    # Manually inject secret into the storage layer
+    audit_vfs._files["secrets/app.pem"] = system_vfs._files["secrets/app.pem"]
+    
+    with pytest.raises(PermissionError, match="not allowed to read"):
+        audit_vfs.read_file("secrets/app.pem")

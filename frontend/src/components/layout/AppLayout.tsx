@@ -53,6 +53,7 @@ function useNavSections(): NavSection[] {
         { path: '/cache-management', label: 'Cache', icon: 'database' },
         { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
         { path: '/compliance', label: 'Compliance', icon: 'shieldCheck' },
+        { path: '/reports', label: 'Reports', icon: 'fileText' },
         { path: '/access-logs', label: 'Access Logs', icon: 'fileText' },
         { path: '/evidence-custody', label: 'Evidence Chain', icon: 'link' },
         { path: '/security', label: 'Security', icon: 'shieldCheck' },
@@ -120,6 +121,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/mesh': { title: 'Mesh Command', subtitle: 'Distributed node orchestration' },
   '/audit-logs': { title: 'Audit Logs', subtitle: 'System event journal' },
   '/compliance': { title: 'Security Compliance', subtitle: 'Regulatory GRC mapping and attestations' },
+  '/reports': { title: 'Reports', subtitle: 'Signed report artefacts and attestations' },
   '/access-logs': { title: 'Access Logs', subtitle: 'Compliance audit trail' },
 };
 

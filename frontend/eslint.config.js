@@ -53,6 +53,7 @@ export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/compone
     'src/components/motion/CinematicIntro.tsx',
     'src/components/PipelineStageTimeline.tsx',
     'src/components/motion/StatePulse.tsx',
+    'src/components/charts/AttackChainGraph3D.tsx',
   ],
   rules: {
     'no-restricted-imports': ['error', {
@@ -78,6 +79,7 @@ export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/compone
   },
 }, {
   files: ['src/components/charts/**/*.{ts,tsx}'],
+  ignores: ['src/components/charts/AttackChainGraph3D.tsx'],
   rules: {
     'no-restricted-imports': ['error', {
       paths: [

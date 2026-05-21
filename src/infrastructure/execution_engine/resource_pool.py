@@ -318,6 +318,14 @@ class ResourcePoolManager:
             results[name] = await pool.health_check()
         return results
 
+    async def saturation_snapshot(self) -> dict[str, float]:
+        """Return current pool saturation values in the range 0.0-1.0."""
+        health = await self.health_check_all()
+        return {
+            name: min(max(snapshot.current_usage / max(snapshot.max_concurrent, 1), 0.0), 1.0)
+            for name, snapshot in health.items()
+        }
+
     async def start_monitoring(
         self,
         interval_seconds: float = 60.0,

@@ -25,8 +25,51 @@ def emit_progress_event(stage: str, message: str, percent: int, **fields: object
         **fields: Additional key-value pairs to include in the event.
     """
     from src.core.events import EventType, get_event_bus
+    from src.core.telemetry import build_telemetry_event
 
-    payload = {"stage": stage, "message": message, "percent": int(percent)}
+    status = str(fields.get("stage_status") or fields.get("status") or "running")
+    event_type = str(fields.get("telemetry_event_type") or "stage.progress")
+    trace_id = str(fields.get("trace_id") or fields.get("run_id") or "")
+    telemetry_event = build_telemetry_event(
+        event_type=event_type,
+        stage=stage,
+        message=message,
+        status=status,
+        source=f"stage.{stage}",
+        trace_id=trace_id,
+        check_id=str(fields.get("check_id") or fields.get("sub_stage") or ""),
+        artifact_type=str(fields.get("artifact_type") or ""),
+        artifact_id=str(fields.get("artifact_id") or ""),
+        finding_id=str(fields.get("finding_id") or ""),
+        severity=str(fields.get("severity") or ""),
+        target=str(fields.get("target") or fields.get("target_name") or ""),
+        run_id=str(fields.get("run_id") or ""),
+        metrics={
+            key: value
+            for key, value in fields.items()
+            if key
+            in {
+                "processed",
+                "total",
+                "stage_percent",
+                "targets_done",
+                "targets_queued",
+                "targets_scanning",
+                "requests_per_second",
+                "throughput_per_second",
+                "confidence_score",
+                "vulnerability_likelihood_score",
+            }
+        },
+        payload={"percent": int(percent)},
+    )
+    payload = {
+        "stage": stage,
+        "message": message,
+        "percent": int(percent),
+        "telemetry_schema_version": telemetry_event["schema_version"],
+        "telemetry_event": telemetry_event,
+    }
     for key, value in fields.items():
         if value is None:
             continue

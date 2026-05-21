@@ -147,6 +147,10 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
                     }
                 )
 
+    telemetry_events = job.get("telemetry_events")
+    if not isinstance(telemetry_events, list):
+        telemetry_events = []
+
     return {
         "id": str(job.get("id", "")),
         "base_url": str(job.get("base_url", "")),
@@ -204,6 +208,7 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
         "stage_progress_label": stage_progress_label,
         "stage_progress": stage_progress_list,
         "progress_telemetry": _snapshot_progress_telemetry(job, now=now),
+        "telemetry_events": telemetry_events[-500:],
         # Expose the count of concurrently running stages for the frontend
         "concurrent_stage_count": len(
             [

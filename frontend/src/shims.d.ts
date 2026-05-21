@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'framer-motion';
 declare module 'gsap';
+declare module 'three/examples/jsm/controls/OrbitControls.js';
 
 declare namespace JSX {
   interface IntrinsicElements {

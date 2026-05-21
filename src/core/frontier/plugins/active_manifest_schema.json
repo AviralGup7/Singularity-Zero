@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyber-pipeline.local/schemas/active-check-manifest.v1.json",
+  "title": "Active Check Manifest",
+  "type": "object",
+  "required": [
+    "check_id",
+    "display_name",
+    "io",
+    "required_capabilities",
+    "budget",
+    "isolation",
+    "result_encoding_version"
+  ],
+  "properties": {
+    "check_id": { "type": "string", "minLength": 1 },
+    "display_name": { "type": "string", "minLength": 1 },
+    "io": {
+      "type": "object",
+      "required": ["input_kind", "input_schema", "output_schema", "result_encoding"],
+      "properties": {
+        "input_kind": {
+          "type": "string",
+          "enum": ["url_items", "urls", "hosts", "finding", "stage_input"]
+        },
+        "input_schema": { "type": "string", "minLength": 1 },
+        "output_schema": { "type": "string", "minLength": 1 },
+        "result_encoding": {
+          "type": "string",
+          "enum": ["findings_json", "suggestions_json", "verification_json"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "required_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "http_client",
+          "response_cache",
+          "network_egress",
+          "payload_generation",
+          "jwt_crypto",
+          "wasm"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "budget": {
+      "type": "object",
+      "required": ["timeout_seconds", "memory_mb", "max_output_bytes"],
+      "properties": {
+        "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 },
+        "memory_mb": { "type": "integer", "minimum": 32 },
+        "max_output_bytes": { "type": "integer", "minimum": 4096 }
+      },
+      "additionalProperties": false
+    },
+    "isolation": { "type": "string", "enum": ["process", "wasm"] },
+    "result_encoding_version": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

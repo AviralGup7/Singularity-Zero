@@ -44,16 +44,20 @@ async def get_analysis_options(
     _auth: Any = Depends(require_auth),
 ) -> RegistryAnalysisOptions:
     """Return analysis check options, control groups, and focus presets."""
+    from src.analysis.plugins import analysis_check_options
+    from src.core.plugins.loader import dynamic_plugin_payload
     from src.dashboard.registry import (
-        ANALYSIS_CHECK_OPTIONS,
         ANALYSIS_CONTROL_GROUPS,
         ANALYSIS_FOCUS_PRESETS,
     )
 
+    plugin_payload = dynamic_plugin_payload()
     return RegistryAnalysisOptions(
-        check_options=ANALYSIS_CHECK_OPTIONS,
+        check_options=analysis_check_options(),
         control_groups=ANALYSIS_CONTROL_GROUPS,
         focus_presets=ANALYSIS_FOCUS_PRESETS,
+        dynamic_plugins=plugin_payload["plugins"],
+        invalid_dynamic_plugins=plugin_payload["invalid"],
     )
 
 
@@ -82,8 +86,10 @@ async def get_registry(
     _auth: Any = Depends(require_auth),
 ) -> RegistryResponse:
     """Return all registry data (modules, analysis, modes) in a single response."""
+    from src.analysis.plugins import analysis_check_options
+    from src.core.capabilities import generate_capability_manifest
+    from src.core.plugins.loader import dynamic_plugin_payload
     from src.dashboard.registry import (
-        ANALYSIS_CHECK_OPTIONS,
         ANALYSIS_CONTROL_GROUPS,
         ANALYSIS_FOCUS_PRESETS,
         MODE_PRESETS,
@@ -92,12 +98,44 @@ async def get_registry(
         STAGE_LABELS,
     )
 
+    plugin_payload = dynamic_plugin_payload()
     return RegistryResponse(
         modules=RegistryModuleOptions(options=MODULE_OPTIONS, groups=MODULE_GROUPS),
         analysis=RegistryAnalysisOptions(
-            check_options=ANALYSIS_CHECK_OPTIONS,
+            check_options=analysis_check_options(),
             control_groups=ANALYSIS_CONTROL_GROUPS,
             focus_presets=ANALYSIS_FOCUS_PRESETS,
+            dynamic_plugins=plugin_payload["plugins"],
+            invalid_dynamic_plugins=plugin_payload["invalid"],
         ),
         modes=RegistryModePresets(presets=MODE_PRESETS, stage_labels=STAGE_LABELS),
+        capabilities=generate_capability_manifest().to_dict(),
     )
+
+
+@router.get(
+    "/plugins",
+    responses={401: {"model": ErrorResponse}},
+    summary="Get dynamic plugin catalog",
+)
+async def get_dynamic_plugins(
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
+    """Return hot-loaded third-party plugin manifests and validation errors."""
+    from src.core.plugins.loader import dynamic_plugin_payload
+
+    return dynamic_plugin_payload()
+
+
+@router.get(
+    "/capabilities",
+    responses={401: {"model": ErrorResponse}},
+    summary="Get generated capability manifest",
+)
+async def get_capabilities(
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
+    """Return the generated capability manifest for built-in and dynamic plugins."""
+    from src.core.capabilities import generate_capability_manifest
+
+    return generate_capability_manifest().to_dict()

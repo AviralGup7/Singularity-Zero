@@ -1,5 +1,8 @@
-from src.intelligence.correlation import *  # noqa: F403
-from src.intelligence.graph import *  # noqa: F403
-from src.intelligence.scoring import *  # noqa: F403
+"""Intelligence package.
 
-__all__ = [name for name in globals() if not name.startswith("_")]
+Subpackages are intentionally imported directly by their callers. Keeping this
+module light avoids circular imports between finding classification and the
+learning-backed severity model.
+"""
+
+__all__: list[str] = []

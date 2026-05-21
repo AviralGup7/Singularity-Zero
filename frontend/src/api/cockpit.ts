@@ -2,10 +2,15 @@ import { apiClient } from './client';
 
 export interface CockpitNode {
   id: string;
-  type: 'endpoint' | 'finding';
+  type: 'subdomain' | 'endpoint' | 'finding';
   label: string;
   severity: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> & {
+    url?: string;
+    host?: string;
+    health?: number;
+    finding_id?: string;
+   };
    
   position?: [number, number, number];
 }
@@ -24,6 +29,12 @@ export interface CockpitGraphResponse {
     target: string;
     run?: string;
     job_id?: string;
+    node_count?: number;
+    edge_count?: number;
+    severity_counts?: Record<string, number>;
+    type_counts?: Record<string, number>;
+    source?: string;
+    generated_at?: number;
   };
 }
 
@@ -69,6 +80,15 @@ export interface ForensicExchange {
 export const cockpitApi = {
   getGraph: (target: string, run?: string, jobId?: string) =>
     apiClient.get<CockpitGraphResponse>('/api/cockpit/graph', { params: { target, run, job_id: jobId } }),
+
+  graphStreamUrl: (target: string, run?: string, jobId?: string) => {
+    const params = new URLSearchParams({ target });
+    if (run) params.set('run', run);
+    if (jobId) params.set('job_id', jobId);
+    const token = sessionStorage.getItem('auth_token');
+    if (token) params.set('token', token);
+    return `/api/cockpit/graph/stream?${params.toString()}`;
+  },
 
   getEvents: (target: string, cursor?: string) =>
     apiClient.get<CockpitEventsResponse>('/api/cockpit/events', { params: { target, cursor } }),

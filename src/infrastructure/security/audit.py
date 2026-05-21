@@ -103,8 +103,16 @@ class AuditEvent(StrEnum):
 
     # API Keys
     APIKEY_CREATE = "apikey.create"
+    APIKEY_ACCESS = "apikey.access"
     APIKEY_ROTATE = "apikey.rotate"
     APIKEY_REVOKE = "apikey.revoke"
+
+    # Credential vault / sealed bundles
+    CREDENTIAL_STORE = "credential.store"
+    CREDENTIAL_ACCESS = "credential.access"
+    CREDENTIAL_ROTATE = "credential.rotate"
+    CREDENTIAL_BUNDLE_EXPORT = "credential.bundle_export"
+    CREDENTIAL_BUNDLE_IMPORT = "credential.bundle_import"
 
     # System
     SYSTEM_START = "system.start"
@@ -146,8 +154,14 @@ _SEVERITY_MAP: dict[AuditEvent, AuditSeverity] = {
     AuditEvent.CACHE_CLEAR: AuditSeverity.WARNING,
     AuditEvent.RATE_LIMIT_EXCEEDED: AuditSeverity.WARNING,
     AuditEvent.APIKEY_CREATE: AuditSeverity.INFO,
+    AuditEvent.APIKEY_ACCESS: AuditSeverity.INFO,
     AuditEvent.APIKEY_ROTATE: AuditSeverity.INFO,
     AuditEvent.APIKEY_REVOKE: AuditSeverity.WARNING,
+    AuditEvent.CREDENTIAL_STORE: AuditSeverity.INFO,
+    AuditEvent.CREDENTIAL_ACCESS: AuditSeverity.INFO,
+    AuditEvent.CREDENTIAL_ROTATE: AuditSeverity.INFO,
+    AuditEvent.CREDENTIAL_BUNDLE_EXPORT: AuditSeverity.WARNING,
+    AuditEvent.CREDENTIAL_BUNDLE_IMPORT: AuditSeverity.WARNING,
     AuditEvent.SYSTEM_START: AuditSeverity.INFO,
     AuditEvent.SYSTEM_SHUTDOWN: AuditSeverity.INFO,
     AuditEvent.PIPELINE_START: AuditSeverity.INFO,

@@ -9,10 +9,76 @@ from src.execution.validators.registry import VALIDATOR_RESULT_KEYS
 from src.execution.validators.strategy import ValidationStrategySpec
 from src.pipeline.retry import RetryPolicy
 
-from ._base import ValidationContext
+from ._base import BaseValidator, ValidationContext
 from ._http_client import ValidationHttpClient, ValidationHttpConfig
 
 RUNTIME_SCHEMA_VERSION = VALIDATION_RUNTIME_SCHEMA_VERSION
+
+
+class DynamicValidationStrategy(BaseValidator):
+    def __init__(self, name: str, result_key: str, sandbox_callable: Any) -> None:
+        self.name = name
+        self.result_key = result_key
+        self.category = name
+        self.sandbox_callable = sandbox_callable
+
+    def run(self, context: ValidationContext) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        urls = set()
+        for item in context.ranked_priority_urls:
+            if isinstance(item, dict) and item.get("url"):
+                urls.add(item["url"])
+        for key, items in context.analysis_results.items():
+            if isinstance(items, list):
+                for item in items:
+                    if isinstance(item, dict) and item.get("url"):
+                        urls.add(item["url"])
+        for url in context.runtime_inputs.get("urls", []):
+            urls.add(url)
+
+        findings = []
+        errors = []
+        for url in sorted(urls)[:context.per_validator_limit]:
+            payload = {
+                "target": {"url": url},
+                "active_probe_enabled": context.active_probe_enabled,
+                "callback_context": context.callback_context,
+            }
+            try:
+                raw_result = self.sandbox_callable(payload)
+                if isinstance(raw_result, dict):
+                    finding = self._base_finding(
+                        url=url,
+                        context=context,
+                        confidence=0.8 if raw_result.get("ok") else 0.2,
+                        validation_state="active_ready" if context.active_probe_enabled else "passive_only",
+                        signals=["dynamic_validator_match"],
+                        score=8 if raw_result.get("ok") else 2,
+                        evidence=raw_result,
+                    )
+                    findings.append(finding)
+                elif isinstance(raw_result, list):
+                    for res in raw_result:
+                        if isinstance(res, dict):
+                            finding = self._base_finding(
+                                url=res.get("url", url),
+                                context=context,
+                                confidence=float(res.get("confidence", 0.7)),
+                                validation_state=res.get("validation_state", "passive_only"),
+                                signals=list(res.get("signals", ["dynamic_validator_match"])),
+                                score=int(res.get("score", 5)),
+                                evidence=res,
+                            )
+                            findings.append(finding)
+            except Exception as exc:
+                errors.append({
+                    "validator": self.name,
+                    "url": url,
+                    "error": {
+                        "code": "dynamic_validator_error",
+                        "message": str(exc),
+                    },
+                })
+        return findings, errors
 
 
 def build_validator_registry() -> dict[str, ValidationStrategySpec]:
@@ -27,14 +93,23 @@ def build_validator_registry() -> dict[str, ValidationStrategySpec]:
             or reg.key in {"access_control", "validation"}
         )
     ]
-    return {
-        reg.key: ValidationStrategySpec(
+    
+    registry = {}
+    from src.core.plugins.sandbox import ProcessSandboxCallable
+    for reg in registrations:
+        result_key = VALIDATOR_RESULT_KEYS.get(reg.key, f"{reg.key}_validation")
+        if isinstance(reg.provider, ProcessSandboxCallable):
+            strategy_factory = lambda provider=reg.provider, name=reg.key, rk=result_key: DynamicValidationStrategy(name, rk, provider)
+        else:
+            strategy_factory = reg.provider
+        
+        registry[reg.key] = ValidationStrategySpec(
             reg.key,
-            VALIDATOR_RESULT_KEYS.get(reg.key, f"{reg.key}_validation"),
-            reg.provider,
+            result_key,
+            strategy_factory,
         )
-        for reg in registrations
-    }
+    return registry
+
 
 
 def run_blackbox_validation_engine(

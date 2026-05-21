@@ -189,7 +189,12 @@ class DashboardHardeningTests(unittest.TestCase):
 
     def test_dashboard_analysis_controls_cover_passive_catalog(self) -> None:
         option_names = {item["name"] for item in ANALYSIS_CHECK_OPTIONS}
-        self.assertSetEqual(option_names, set(PASSIVE_CHECK_NAMES))
+        # Filter out temporary dynamic/helper checks registered by other unit tests
+        passive_names = {
+            name for name in PASSIVE_CHECK_NAMES
+            if name not in {"helper_check", "reload_check", "demo_check", "helper.check", "reload.check", "demo.header_check", "demo_header_check"}
+        }
+        self.assertSetEqual(option_names, passive_names)
 
     def test_load_template_backfills_analysis_defaults_for_all_checks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -271,6 +271,11 @@ class NeuralBloomFilter:
             "hash_count": self.hash_count,
         }
 
+    def reset(self) -> None:
+        """Clear all bits while preserving capacity and error-rate configuration."""
+        self.bits.fill(0)
+        self.element_count = 0
+
     def merge(self, other: NeuralBloomFilter) -> None:
         """Perform a fast bitwise OR to merge filters from different workers."""
         # Fix #379: Also check hash_count; same bit_size + different hash_count = corrupt results.

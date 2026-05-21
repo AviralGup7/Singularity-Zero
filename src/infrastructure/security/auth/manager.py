@@ -2,6 +2,7 @@
 
 import threading
 from datetime import UTC, datetime, timedelta
+from typing import Any, Protocol
 
 from src.infrastructure.security.config import SecurityConfig
 
@@ -20,6 +21,10 @@ from .passwords import hash_password as _hash_password
 from .passwords import verify_password as _verify_password
 
 
+class _AuditSink(Protocol):
+    def log(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
 class AuthManager:
     """Main authentication orchestrator.
 
@@ -34,14 +39,14 @@ class AuthManager:
         _revoked_tokens: Set of revoked JWT IDs.
     """
 
-    def __init__(self, config: SecurityConfig) -> None:
+    def __init__(self, config: SecurityConfig, audit_logger: _AuditSink | None = None) -> None:
         """Initialize the authentication manager.
 
         Args:
             config: Security configuration.
         """
         self.config = config
-        self._api_key_store = APIKeyStore(config)
+        self._api_key_store = APIKeyStore(config, audit_logger=audit_logger)
         self._sessions: dict[str, Session] = {}
         self._passwords: dict[str, PasswordHash] = {}
         self._revoked_tokens: set[str] = set()
@@ -205,6 +210,14 @@ class AuthManager:
             List of APIKey models.
         """
         return self._api_key_store.list_keys(user_id)
+
+    def export_api_keys_sealed_bundle(self, passphrase: str, *, name: str = "api-key-store") -> str:
+        """Export API key metadata as a sealed bundle for offline runners."""
+        return self._api_key_store.export_sealed_bundle(passphrase, name=name)
+
+    def import_api_keys_sealed_bundle(self, bundle: str | bytes, passphrase: str) -> None:
+        """Import API key metadata from a sealed bundle."""
+        self._api_key_store.import_sealed_bundle(bundle, passphrase)
 
     # Session Management
 

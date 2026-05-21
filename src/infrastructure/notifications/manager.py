@@ -13,6 +13,7 @@ from src.infrastructure.notifications.base import (
     NotificationPriority,
     NotificationResult,
 )
+from src.pipeline.self_healing import CorrectionEvent, HealthFinding, HealthStatus
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,26 @@ class ManagerConfig(BaseModel):
     aggregate_results: bool = Field(default=True)
     deduplication_window_seconds: float = Field(default=60.0)
     max_concurrent_sends: int = Field(default=10, gt=0)
+
+
+class AlertRoutingPolicy(BaseModel):
+    """Notification policy for autonomous remediation events."""
+
+    alert_on_successful_recovery: bool = Field(default=False)
+    alert_on_failed_recovery: bool = Field(default=True)
+    alert_on_critical_findings: bool = Field(default=True)
+
+    def priority_for(
+        self, finding: HealthFinding, correction: CorrectionEvent | None = None
+    ) -> NotificationPriority | None:
+        if correction is not None:
+            if correction.success and self.alert_on_successful_recovery:
+                return NotificationPriority.MEDIUM
+            if not correction.success and self.alert_on_failed_recovery:
+                return NotificationPriority.CRITICAL
+        if finding.status == HealthStatus.CRITICAL and self.alert_on_critical_findings:
+            return NotificationPriority.HIGH
+        return None
 
 
 class NotificationManager:
@@ -339,6 +360,43 @@ class NotificationManager:
             title=error_title,
             message=error_message,
             correlation_id=correlation_id,
+        )
+
+    async def send_self_healing_alert(
+        self,
+        finding: HealthFinding,
+        correction: CorrectionEvent | None = None,
+        *,
+        policy: AlertRoutingPolicy | None = None,
+        correlation_id: str | None = None,
+    ) -> list[NotificationResult]:
+        routing = policy or AlertRoutingPolicy()
+        priority = routing.priority_for(finding, correction)
+        if priority is None:
+            return []
+        title = f"Self-healing {finding.action.value}: {finding.component.value}"
+        message = correction.message if correction else finding.reason
+        metadata: dict[str, Any] = {
+            "component": finding.component.value,
+            "status": finding.status.value,
+            "metric": finding.metric,
+            "action": finding.action.value,
+            "labels": finding.labels,
+        }
+        if correction is not None:
+            metadata.update(
+                {
+                    "correction_success": correction.success,
+                    "correction_details": correction.details,
+                }
+            )
+        return await self.send(
+            event=NotificationEvent.SELF_HEALING_ACTION,
+            priority=priority,
+            title=title,
+            message=message,
+            metadata=metadata,
+            correlation_id=correlation_id or finding.finding_id,
         )
 
     async def send_compliance_alert(

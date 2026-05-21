@@ -7,6 +7,21 @@ identifying critical attack paths, and computing risk summaries.
 from typing import Any, cast
 
 
+def load_lateral_movement_graph(db_path: str, max_nodes: int = 2000) -> dict[str, Any]:
+    """Load the persisted Kuzu lateral movement graph for dashboard visualization.
+
+    The Kuzu-backed writer lives in ``src.analysis.intelligence.lateral_graph``. This
+    helper keeps the public threat-graph module as the stable read boundary used by
+    dashboard code and future intelligence callers.
+    """
+    try:
+        from src.analysis.intelligence.lateral_graph import LateralGraph
+
+        return cast(dict[str, Any], LateralGraph(db_path=db_path).export_graph(max_nodes=max_nodes))
+    except Exception:
+        return {"nodes": [], "edges": []}
+
+
 def build_threat_graph(
     findings: list[dict],
     endpoints: list[dict] | None = None,

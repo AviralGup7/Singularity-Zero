@@ -113,7 +113,7 @@ async def run_stage_with_retry(
             key: value
             for key, value in post_snapshot.items()
             if pre_snapshot.get(key) != value
-            and key not in {"output_store", "module_metrics", "stage_status"}
+            and key not in {"output_store", "module_metrics", "stage_status", "_neural_state"}
         }
         stage_metrics = isolated_ctx.result.module_metrics.get(stage_name, {})
         stage_state = str(

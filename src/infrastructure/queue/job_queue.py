@@ -16,6 +16,7 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.queue.models import Job, JobState, WorkerInfo
 from src.infrastructure.queue.redis_client import RedisClient
 from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
+from src.pipeline.self_healing import HealthComponent, HealthMetric, HealthStatus
 
 # Fix #283: use pipeline logger instead of stdlib
 logger = get_pipeline_logger(__name__)
@@ -83,8 +84,9 @@ redis.call('HSET', job_key, 'error', error_msg)
 if retries < max_retries then
     local backoff = math.floor(math.min(tonumber(ARGV[5]) * math.pow(tonumber(ARGV[6]), retries), tonumber(ARGV[7])))
     local retry_at = now + backoff
+    local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or retry_at
     redis.call('HSET', job_key, 'state', 'retrying', 'worker_id', '', 'lease_expires_at', '')
-    redis.call('ZADD', queue_key, retry_at, job_key)
+    redis.call('ZADD', queue_key, bid_score, job_key)
     redis.call('HINCRBY', metrics_key, 'retried', 1)
     return {1, 'retrying', tostring(retry_at)}
 else
@@ -111,7 +113,8 @@ end
 
 redis.call('HSET', job_key, 'state', 'pending', 'worker_id', '', 'lease_expires_at', '')
 redis.call('SREM', worker_key, job_key)
-redis.call('ZADD', queue_key, 0, job_key)
+local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or 0
+redis.call('ZADD', queue_key, bid_score, job_key)
 return {1}
 """
 
@@ -122,8 +125,9 @@ local priority = tonumber(ARGV[1])
 local job_id = ARGV[2]
 local created_at = tonumber(ARGV[3])
 local hash_args = cjson.decode(ARGV[4])
+local bid_score = tonumber(ARGV[5])
 
-local score = (priority * 10000000000) - created_at
+local score = bid_score or ((priority * 10000000000) - created_at)
 redis.call('HSET', job_key, unpack(hash_args))
 redis.call('ZADD', queue_key, score, job_key)
 return {1, job_id}
@@ -287,6 +291,7 @@ class JobQueue:
             max_retries=max_retries if max_retries is not None else self.retry_policy.max_retries,
             job_id=job_id,
         )
+        job.compute_bid()
 
         job_hash = job.to_redis_hash()
         hash_args: list[str] = []
@@ -304,7 +309,13 @@ class JobQueue:
         self.redis.execute_script(
             "enqueue",
             keys=[self._job_key(job.id), self._key("queue")],
-            args=[str(job.priority), job.id, str(job.created_at), hash_args_json],
+            args=[
+                str(job.priority),
+                job.id,
+                str(job.created_at),
+                hash_args_json,
+                str(job.bid_score),
+            ],
         )
         logger.info(
             "Enqueued task job %s (type=%s, correlation_id=%s)",
@@ -329,7 +340,7 @@ class JobQueue:
         self._register_scripts()
 
         queue_key = self._key("queue")
-        candidates = self.redis.execute_command("ZRANGE", queue_key, 0, 9, "REV")
+        candidates = self.redis.execute_command("ZREVRANGE", queue_key, 0, 24)
 
         if not candidates:
             return None
@@ -580,6 +591,7 @@ class JobQueue:
             }
         )
 
+        new_bid = new_job.compute_bid()
         job_hash = new_job.to_redis_hash()
         hash_args: list[str] = []
         for k, v in job_hash.items():
@@ -592,7 +604,13 @@ class JobQueue:
         self.redis.execute_script(
             "enqueue",
             keys=[self._job_key(job_id), self._key("queue")],
-            args=[str(job.priority), job_id, str(time.time()), json.dumps(hash_args)],
+            args=[
+                str(job.priority),
+                job_id,
+                str(time.time()),
+                json.dumps(hash_args),
+                str(new_bid.score),
+            ],
         )
 
         logger.info("Re-enqueued dead-letter job %s", job_id)
@@ -666,6 +684,64 @@ class JobQueue:
 
         return metrics
 
+    async def health_metrics(self, *, worker_timeout_seconds: float = 60.0) -> list[HealthMetric]:
+        """Return queue and worker liveness metrics for the self-healing controller."""
+        metrics = await self.get_metrics()
+        queue_depth = int(metrics.get("queue_length", 0) or 0)
+        dead_letters = int(metrics.get("dead_letter_count", 0) or 0)
+        result = [
+            HealthMetric(
+                component=HealthComponent.QUEUE,
+                name="queue_depth",
+                value=queue_depth,
+                labels={"queue": self.queue_name},
+            ),
+            HealthMetric(
+                component=HealthComponent.QUEUE,
+                name="dead_letter_count",
+                value=dead_letters,
+                status=HealthStatus.DEGRADED if dead_letters else HealthStatus.OK,
+                labels={"queue": self.queue_name},
+            ),
+        ]
+
+        for worker in self._list_workers():
+            heartbeat_age = max(0.0, time.time() - worker.last_heartbeat)
+            result.append(
+                HealthMetric(
+                    component=HealthComponent.WORKER,
+                    name="worker_heartbeat_age",
+                    value=round(heartbeat_age, 2),
+                    threshold=worker_timeout_seconds,
+                    status=HealthStatus.CRITICAL
+                    if heartbeat_age > worker_timeout_seconds
+                    else HealthStatus.OK,
+                    labels={
+                        "queue": self.queue_name,
+                        "worker_id": worker.id,
+                        "status": worker.status,
+                        "active_jobs": list(worker.active_jobs),
+                    },
+                )
+            )
+        return result
+
+    async def heal_stale_queue_state(self, finding: Any | None = None) -> dict[str, Any]:
+        """Release expired leases and retry bounded dead-letter work for autonomous recovery."""
+        worker_id = None
+        if finding is not None:
+            worker_id = getattr(finding, "labels", {}).get("worker_id")
+        released = await self.cleanup_stale_leases(worker_id=worker_id)
+        retried = 0
+        for job in await self.list_dead_letters(limit=10):
+            if await self.retry_dead_letter(job.id):
+                retried += 1
+        return {
+            "queue": self.queue_name,
+            "released_stale_leases": released,
+            "retried_dead_letters": retried,
+        }
+
     async def get_next_job_for_worker(self, worker_id: str) -> Job | None:
         """Get the next job that is suitable for this worker.
 
@@ -705,7 +781,7 @@ class JobQueue:
 
         # Get candidates from the queue
         queue_key = self._key("queue")
-        candidates = self.redis.execute_command("ZRANGE", queue_key, 0, 9, "REV")
+        candidates = self.redis.execute_command("ZREVRANGE", queue_key, 0, 49)
 
         if not candidates:
             return None
@@ -718,6 +794,8 @@ class JobQueue:
                 continue
 
             job = Job.from_redis_hash(job_data)
+            if job.bid_score == 0.0:
+                job.compute_bid()
 
             # Check if this worker is the best fit
             best_worker = self.scheduler.select_worker(job)
@@ -745,6 +823,20 @@ class JobQueue:
                 )
 
         return None
+
+    def _list_workers(self) -> list[WorkerInfo]:
+        workers_key = self._key("workers")
+        worker_ids = self.redis.execute_command("SMEMBERS", workers_key) or []
+        workers: list[WorkerInfo] = []
+        for raw_id in worker_ids:
+            worker_id = raw_id.decode("utf-8") if isinstance(raw_id, bytes) else str(raw_id)
+            worker_data = self.redis.execute_command("HGETALL", self._key(f"worker:{worker_id}"))
+            if worker_data:
+                try:
+                    workers.append(WorkerInfo.from_redis_hash(worker_data))
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    logger.debug("Skipping malformed worker health record %s: %s", worker_id, exc)
+        return workers
 
     def register_handler(self, job_type: str, handler: Callable[[Job], Any]) -> None:
         """Register a handler function for a specific job type.
@@ -790,9 +882,12 @@ class JobQueue:
             cursor = 0
             while True:
                 # Use SCAN to find all worker job sets without blocking
-                cursor, keys = self.redis.execute_command(
+                scan_result = self.redis.execute_command(
                     "SCAN", cursor, "MATCH", self._key("worker:*:jobs"), "COUNT", 100
                 )
+                if not scan_result:
+                    break
+                cursor, keys = scan_result
                 worker_keys.extend(keys)
                 if int(cursor) == 0:
                     break

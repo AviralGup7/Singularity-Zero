@@ -348,6 +348,29 @@ class RedisClient:
                         removed += 1
                 return removed
 
+            if cmd == "SMEMBERS":
+                key = args[0] if args else ""
+                if isinstance(key, bytes):
+                    key = key.decode("utf-8")
+                data = self._fallback.get(key, set())
+                if isinstance(data, set):
+                    return [m.encode("utf-8") if isinstance(m, str) else m for m in data]
+                return []
+
+            if cmd == "SCAN":
+                pattern = "*"
+                if "MATCH" in [str(arg).upper() for arg in args]:
+                    upper_args = [str(arg).upper() for arg in args]
+                    pattern = str(args[upper_args.index("MATCH") + 1])
+                import fnmatch
+
+                keys = [
+                    key.encode("utf-8")
+                    for key in self._fallback
+                    if fnmatch.fnmatch(str(key), pattern)
+                ]
+                return 0, keys
+
             if cmd == "ZADD":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
@@ -563,7 +586,7 @@ class RedisClient:
             queue_key = _as_str(keys[1])
             priority = float(args[0])
             created_at = float(args[2])
-            score = (priority * 10000000000) - created_at
+            score = float(args[4]) if len(args) > 4 else (priority * 10000000000) - created_at
 
             hash_args_raw = args[3]
             hash_args_list = []
@@ -663,6 +686,11 @@ class RedisClient:
             if retries < max_retries:
                 backoff = min(initial * (multiplier**retries), max_delay)
                 retry_at = now_ff + backoff
+                bid_raw = self.execute_command("HGET", job_key, "bid_score")
+                try:
+                    queue_score = float(_as_str(bid_raw)) if bid_raw is not None else retry_at
+                except (TypeError, ValueError):
+                    queue_score = retry_at
                 self.execute_command(
                     "HSET",
                     job_key,
@@ -673,7 +701,7 @@ class RedisClient:
                     "lease_expires_at",
                     "",
                 )
-                self.execute_command("ZADD", queue_key, retry_at, job_key)
+                self.execute_command("ZADD", queue_key, queue_score, job_key)
                 self.execute_command("HINCRBY", metrics_key, "retried", 1)
                 return [1, b"retrying", str(retry_at).encode("utf-8")]
 
@@ -717,7 +745,12 @@ class RedisClient:
                 "",
             )
             self.execute_command("SREM", worker_key, job_key)
-            self.execute_command("ZADD", queue_key, 0, job_key)
+            bid_raw = self.execute_command("HGET", job_key, "bid_score")
+            try:
+                queue_score = float(_as_str(bid_raw)) if bid_raw is not None else 0.0
+            except (TypeError, ValueError):
+                queue_score = 0.0
+            self.execute_command("ZADD", queue_key, queue_score, job_key)
             return [1]
 
         return [0]

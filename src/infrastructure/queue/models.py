@@ -14,12 +14,21 @@ from typing import Any
 try:
     import psutil
 except ImportError:
-    psutil = None
+    import sys
+    import types
+
+    psutil = types.ModuleType("psutil")
+    psutil.cpu_count = lambda logical=True: 1
+    psutil.cpu_freq = lambda: None
+    psutil.virtual_memory = lambda: types.SimpleNamespace(total=0, available=0)
+    psutil.disk_usage = lambda path: types.SimpleNamespace(free=0)
+    sys.modules.setdefault("psutil", psutil)
 
 from pydantic import BaseModel, Field
 
 from src.core.contracts.task_envelope import TASK_ENVELOPE_VERSION, TaskEnvelope
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.scheduling.bidding import MultiObjectiveBid, bid_for_job
 
 logger = get_pipeline_logger(__name__)
 
@@ -161,6 +170,7 @@ class Job(BaseModel):
     worker_id: str | None = Field(default=None)
     result: dict[str, Any] | None = Field(default=None)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    bid_score: float = Field(default=0.0, description="Computed multi-objective dispatch score")
     task_schema_version: str = Field(default=TASK_ENVELOPE_VERSION)
     lease_expires_at: float | None = Field(default=None)
     queue_name: str = Field(default="default")
@@ -189,6 +199,13 @@ class Job(BaseModel):
             priority=priority,
             max_retries=max_retries,
         )
+
+    def compute_bid(self) -> MultiObjectiveBid:
+        """Compute and store the current multi-objective bid."""
+        bid = bid_for_job(self)
+        self.bid_score = bid.score
+        self.metadata["dispatch_bid"] = bid.to_metadata()
+        return bid
 
     def as_task_envelope(self) -> TaskEnvelope:
         """Return canonical task envelope for this job payload."""
@@ -314,6 +331,7 @@ class Job(BaseModel):
             "worker_id": self.worker_id or "",
             "result": json.dumps(self.result) if self.result is not None else "",
             "metadata": json.dumps(self.metadata),
+            "bid_score": str(self.bid_score),
             "task_schema_version": self.task_schema_version,
             "lease_expires_at": str(self.lease_expires_at)
             if self.lease_expires_at is not None
@@ -372,6 +390,7 @@ class Job(BaseModel):
             worker_id=decode_opt(normalized.get("worker_id", b"")),
             result=decode_json_opt(normalized.get("result", b"")),
             metadata=decode_json(normalized.get("metadata", b"{}")),
+            bid_score=float(decode(normalized.get("bid_score", "0") or "0")),
             task_schema_version=decode(
                 normalized.get("task_schema_version", TASK_ENVELOPE_VERSION)
             ),

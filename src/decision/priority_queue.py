@@ -27,6 +27,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from src.infrastructure.scheduling.bidding import MultiObjectiveBid, bid_for_target
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,13 +122,42 @@ class ScanTarget:
     boost_factors: list[str] = field(default_factory=list)
     scanned: bool = False
     heap_idx: int = -1
+    metadata: dict[str, Any] = field(default_factory=dict)
+    bid: MultiObjectiveBid | None = None
+
+    def refresh_bid(self) -> MultiObjectiveBid:
+        """Recompute the multi-objective bid for this target."""
+        self.bid = bid_for_target(
+            url=self.url,
+            base_priority=self.base_priority,
+            current_priority=self.current_priority,
+            metadata=self.metadata,
+        )
+        return self.bid
+
+    def apply_boost(self, factor: float, reason: str) -> None:
+        """Boost target priority while enforcing a cap of 5.0 * base_priority (min ceiling 50.0)."""
+        old_priority = self.current_priority
+        # Calculate new potential priority
+        new_priority = self.current_priority * factor
+        # Cap the boosted priority at 5x base_priority or a minimum ceiling of 50.0
+        cap = max(5.0 * self.base_priority, 50.0)
+        if new_priority > cap:
+            new_priority = cap
+        self.current_priority = new_priority
+        if reason:
+            self.boost_factors.append(reason)
+        if self.current_priority != old_priority:
+            self.refresh_bid()
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, ScanTarget):
             return NotImplemented
-        # heapq is a min-heap, so negate for max-heap behavior
-        if self.current_priority != other.current_priority:
-            return self.current_priority > other.current_priority
+        self_bid = self.bid or self.refresh_bid()
+        other_bid = other.bid or other.refresh_bid()
+        # heapq is a min-heap, so invert the bid score for max-heap behavior.
+        if self_bid.score != other_bid.score:
+            return self_bid.score > other_bid.score
         # Tie-breaker: lower index first (more recently added)
         return self.heap_idx < other.heap_idx
 
@@ -194,6 +225,7 @@ class CorrelationPriorityQueue:
         if targets:
             for i, t in enumerate(targets):
                 t.heap_idx = i
+                t.refresh_bid()
                 heapq.heappush(self._targets, t)
                 self._url_map[t.url] = t
                 self._patterns[t.url] = _url_patterns(t.url)
@@ -221,7 +253,7 @@ class CorrelationPriorityQueue:
         """
         targets = []
         for url in urls:
-            score = base_scores.get(url, 1.0) if base_scores else 1.0
+            score = base_scores.get(url, 10.0) if base_scores else 10.0
             targets.append(ScanTarget(url=url, base_priority=score, current_priority=score))
         return cls(
             targets=targets,
@@ -256,6 +288,7 @@ class CorrelationPriorityQueue:
         Useful when the scan dynamically discovers new targets to check."""
         with self._lock:
             target.heap_idx = len(self._targets)
+            target.refresh_bid()
             heapq.heappush(self._targets, target)
             self._url_map[target.url] = target
             self._patterns[target.url] = _url_patterns(target.url)
@@ -293,9 +326,7 @@ class CorrelationPriorityQueue:
             if target is None or target.scanned:
                 return False
             old_priority = target.current_priority
-            target.current_priority *= factor
-            if reason:
-                target.boost_factors.append(reason)
+            target.apply_boost(factor, reason)
             if target.current_priority != old_priority:
                 heapq.heapify(self._targets)
             return True
@@ -374,23 +405,20 @@ class CorrelationPriorityQueue:
                     overlap = finding_params & url_params
                     overlap_ratio = len(overlap) / max(len(finding_params | url_params), 1)
                     if overlap_ratio >= 0.5:
-                        target.current_priority *= factor
-                        target.boost_factors.append(f"param_overlap({', '.join(sorted(overlap))})")
+                        target.apply_boost(factor, f"param_overlap({', '.join(sorted(overlap))})")
                         boosted.add(url)
                         continue
 
                 # Rule 2: Specific vulnerability-based correlations
                 if finding_category and "ssrf" in finding_category:
                     if url_patterns["has_ssrf_param"]:
-                        target.current_priority *= factor * 1.5
-                        target.boost_factors.append("ssrf_correlation")
+                        target.apply_boost(factor * 1.5, "ssrf_correlation")
                         boosted.add(url)
                         continue
 
                 if finding_category and "idor" in finding_category:
                     if url_patterns["has_id_param"]:
-                        target.current_priority *= factor * 1.5
-                        target.boost_factors.append("idor_correlation")
+                        target.apply_boost(factor * 1.5, "idor_correlation")
                         boosted.add(url)
                         continue
 
@@ -399,10 +427,7 @@ class CorrelationPriorityQueue:
                     path_overlap = set(finding_path) & set(url_path)
                     if len(path_overlap) >= 2:
                         boost = factor * (0.8 + 0.2 * min(len(path_overlap) / 3, 1))
-                        target.current_priority *= boost
-                        target.boost_factors.append(
-                            f"path_overlap({', '.join(sorted(path_overlap))})"
-                        )
+                        target.apply_boost(boost, f"path_overlap({', '.join(sorted(path_overlap))})")
                         boosted.add(url)
                         continue
 
@@ -411,16 +436,14 @@ class CorrelationPriorityQueue:
                     if trigger == "<id>":
                         # ID-based correlation: any URL with ID-like params
                         if finding_params & IDOR_PARAM_PATTERNS and url_patterns["has_id_param"]:
-                            target.current_priority *= factor * 0.8
-                            target.boost_factors.append("idor_pattern_match")
+                            target.apply_boost(factor * 0.8, "idor_pattern_match")
                             boosted.add(url)
                     else:
                         for segment in finding_path:
                             if trigger in segment:
                                 for related_path in related:
                                     if any(related_path in ps for ps in url_path):
-                                        target.current_priority *= factor * 0.5
-                                        target.boost_factors.append(f"rule_{trigger}"[:30])
+                                        target.apply_boost(factor * 0.5, f"rule_{trigger}"[:30])
                                         boosted.add(url)
                                         break
 
@@ -493,6 +516,7 @@ class CorrelationPriorityQueue:
                     {
                         "url": t.url,
                         "priority": round(t.current_priority, 2),
+                        "bid_score": round((t.bid or t.refresh_bid()).score, 3),
                         "boosts": len(t.boost_factors),
                     }
                     for t in heapq.nlargest(5, unscanned)

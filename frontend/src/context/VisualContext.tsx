@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
-import { DEFAULT_VISUAL_STATE, type VisualState } from '@/lib/visualState';
+import { type ReactNode, useEffect } from 'react';
 import { VisualContext } from './visual-context';
+import { useVisualStore } from '@/stores/visualStore';
+import { type VisualState } from '@/lib/visualState';
 
 export type { VisualContextValue } from './visual-context';
 
@@ -10,11 +11,16 @@ interface VisualProviderProps {
 }
 
 export function VisualProvider({ children, initialValue }: VisualProviderProps) {
-   
-  const [state, setState] = useState<VisualState>(initialValue ?? DEFAULT_VISUAL_STATE);
+  const store = useVisualStore();
+
+  useEffect(() => {
+    if (initialValue) {
+      store.setState(initialValue);
+    }
+  }, [initialValue, store]);
 
   return (
-    <VisualContext.Provider value={{ state, setState }}>
+    <VisualContext.Provider value={store}>
       {children}
     </VisualContext.Provider>
   );

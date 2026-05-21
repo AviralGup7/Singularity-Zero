@@ -5,6 +5,11 @@ from typing import Any
 
 from src.core.utils import IST_LABEL, format_iso_to_ist
 from src.reporting.assets import INDEX_STYLES, REPORT_SCRIPT, RUN_REPORT_STYLES
+from src.reporting.report_artifacts import (
+    report_library_index_html,
+    report_links_for_run,
+    write_report_package,
+)
 from src.reporting.sections import (
     analysis_section,
     attack_graph_section,
@@ -39,6 +44,7 @@ from src.reporting.sections import (
     verified_exploits_section,
     vrt_coverage_section,
 )
+from src.reporting.triage_audit import triage_audit_section
 
 
 def generate_run_report(
@@ -83,6 +89,7 @@ def generate_run_report(
         top_findings_section(summary),
         high_confidence_shortlist_section(summary),
         manual_verification_section(summary),
+        triage_audit_section(run_dir.parent.parent, run_id=run_dir.name),
         signal_quality_section(summary),
         flow_detection_section(analysis_results),
         response_snapshot_section(analysis_results),
@@ -295,7 +302,8 @@ def generate_run_report(
         ),
         screenshot_section(screenshots),
     ]
-    target_name = summary.get("target_name", "")
+    target_name = str(summary.get("target_name", ""))
+    report_links = report_links_for_run(target_name, run_dir.name)
     export_header = (
         "<div class='export-bar'>"
         f"<span class='export-label'>Export findings:</span>"
@@ -303,6 +311,9 @@ def generate_run_report(
         f"<a class='export-btn' href='/api/export/findings/{html.escape(target_name)}/latest?format=json' download>JSON (latest run)</a>"
         f"<a class='export-btn' href='/api/export/findings/{html.escape(target_name)}?format=csv' download>CSV (all runs)</a>"
         f"<a class='export-btn' href='/api/export/findings/{html.escape(target_name)}?format=json' download>JSON (all runs)</a>"
+        f"<a class='export-btn' href='{html.escape(report_links['attestation_pdf'])}' download>Attestation PDF</a>"
+        f"<a class='export-btn' href='{html.escape(report_links['sbom'])}' download>SBOM</a>"
+        f"<a class='export-btn' href='{html.escape(report_links['manifest'])}' download>Signed manifest</a>"
         "</div>"
     )
     page = (
@@ -314,10 +325,29 @@ def generate_run_report(
         f"{''.join(sections)}</main><script>{REPORT_SCRIPT}</script></body></html>"
     )
     (run_dir / "report.html").write_text(page, encoding="utf-8")
+    findings = summary.get("top_actionable_findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    findings_path = run_dir / "findings.json"
+    if findings_path.exists():
+        try:
+            loaded_findings = json.loads(findings_path.read_text(encoding="utf-8"))
+            if isinstance(loaded_findings, list):
+                findings = [item for item in loaded_findings if isinstance(item, dict)]
+        except (json.JSONDecodeError, OSError):
+            pass
+    write_report_package(
+        run_dir=run_dir,
+        target_name=target_name,
+        summary=summary,
+        findings=[item for item in findings if isinstance(item, dict)],
+        diff_summary=diff_summary,
+    )
 
 
 def build_dashboard_index(target_root: Path, run_dirs: list[Path]) -> None:
     rows = []
+    library_reports = []
     for run_dir in reversed(run_dirs):
         summary = json.loads((run_dir / "run_summary.json").read_text(encoding="utf-8"))
         generated_at = str(summary.get("generated_at_ist", "")).strip() or format_iso_to_ist(
@@ -337,6 +367,22 @@ def build_dashboard_index(target_root: Path, run_dirs: list[Path]) -> None:
             diff_line = (
                 f"<p class='muted'>Delta across tracked artifacts: +{added} / -{removed}</p>"
             )
+        report_links = report_links_for_run(target_root.name, run_dir.name)
+        manifest = {}
+        if (run_dir / "report_manifest.json").exists():
+            try:
+                manifest = json.loads((run_dir / "report_manifest.json").read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                manifest = {}
+        library_reports.append(
+            {
+                "run_id": run_dir.name,
+                "generated_at": generated_at,
+                "version": manifest.get("schema_version", ""),
+                "signature_valid": bool(manifest.get("signature", {}).get("value")),
+                "links": report_links,
+            }
+        )
         rows.append(
             "<div class='run'>"
             f"<h2>{html.escape(run_dir.name)}</h2>"
@@ -348,6 +394,8 @@ def build_dashboard_index(target_root: Path, run_dirs: list[Path]) -> None:
             f"<a class='export-btn' href='/api/export/findings/{html.escape(target_root.name)}/latest?format=json' download>JSON</a>"
             f"<a class='export-btn' href='/api/export/findings/{html.escape(target_root.name)}?format=csv' download>All CSV</a>"
             f"<a class='export-btn' href='/api/export/findings/{html.escape(target_root.name)}?format=json' download>All JSON</a>"
+            f"<a class='export-btn' href='{html.escape(report_links['attestation_pdf'])}' download>PDF</a>"
+            f"<a class='export-btn' href='{html.escape(report_links['manifest'])}' download>Manifest</a>"
             "</div></div>"
         )
     empty = "<p class='muted'>No runs yet.</p>"
@@ -356,6 +404,7 @@ def build_dashboard_index(target_root: Path, run_dirs: list[Path]) -> None:
         f"<title>{html.escape(target_root.name)} dashboard</title><style>{INDEX_STYLES}</style></head><body><main>"
         f"<h1>{html.escape(target_root.name)} Dashboard</h1>"
         "<p class='muted'>Serve this directory with dashboard.py or any static file server.</p>"
-        f"{''.join(rows) if rows else empty}</main></body></html>"
+        f"{''.join(rows) if rows else empty}"
+        f"{report_library_index_html(target_root, library_reports)}</main></body></html>"
     )
     (target_root / "index.html").write_text(page, encoding="utf-8")

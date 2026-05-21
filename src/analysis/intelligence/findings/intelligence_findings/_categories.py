@@ -1,17 +1,8 @@
-"""Severity scores and MITRE ATT&CK mappings for findings."""
+"""MITRE ATT&CK mappings for findings."""
 
 __all__ = [
-    "SEVERITY_SCORES",
     "MITRE_ATTACK_MAPPING",
 ]
-
-SEVERITY_SCORES = {
-    "critical": 100,
-    "high": 80,
-    "medium": 55,
-    "low": 30,
-    "info": 15,
-}
 
 # MITRE ATT&CK technique mapping for security finding categories
 # Maps pipeline detection categories to ATT&CK technique IDs and names

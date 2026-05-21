@@ -5,6 +5,7 @@ from src.core.plugins.registry import (
     list_plugins,
     register_plugin,
     resolve_plugin,
+    unregister_plugin,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "register_plugin",
     "resolve_plugin",
     "list_plugins",
+    "unregister_plugin",
 ]
