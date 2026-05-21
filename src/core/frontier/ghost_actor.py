@@ -83,6 +83,15 @@ class ScanActor(pykka.ThreadingActor):
             logger.error("Ghost-Actor [%s] failure: Unknown command %s", self.actor_id, command)
             return {"status": "error", "error": f"Unknown command: {command}"}
 
+        # Block any mutating or executing requests if the actor is migrating
+        if self.is_migrating and command in {"execute", "recover", "migrate"}:
+            logger.warning(
+                "Ghost-Actor [%s] rejected command '%s': Actor is currently migrating",
+                self.actor_id,
+                command,
+            )
+            return {"status": "error", "error": "Actor is currently migrating"}
+
         if command == "execute":
             # Auto-check health before execution
             self._check_local_health()
@@ -204,12 +213,12 @@ class GhostMeshCoordinator:
             # 🛸 Sprint 1 Hardening: Use live mesh telemetry instead of blocking actor calls
             # This allows us to detect pressure even if the actor is busy executing.
             local_node = self.gossip.local_node
-            
+
             # Use same thresholds as ProactiveMigrationHandler (90% CPU, <500MB RAM available)
             # Note: ram_available_mb is what we have left, not % usage.
             # Assuming a 2GB comfortable baseline, 500MB is critical.
             is_under_pressure = (
-                local_node.cpu_usage > 90.0 or 
+                local_node.cpu_usage > 90.0 or
                 local_node.ram_available_mb < 500.0
             )
 

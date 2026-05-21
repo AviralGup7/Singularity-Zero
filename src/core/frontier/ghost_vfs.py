@@ -39,6 +39,16 @@ class GhostVFS:
 
     def write_file(self, path: str, content: str | bytes) -> None:
         """Encrypt and store file content in RAM."""
+        # Sanity check to prevent in-memory path manipulation
+        cleaned_path = os.path.normpath(path)
+        if (
+            cleaned_path.startswith("..")
+            or os.path.isabs(cleaned_path)
+            or cleaned_path.startswith(("/", "\\"))
+            or (len(cleaned_path) > 1 and cleaned_path[1] == ":")
+        ):
+            raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
+
         # Proactive rotation check on write
         if time.time() - self._last_rotation > self._rotation_interval:
             self.rotate_key()
@@ -134,18 +144,26 @@ class GhostVFS:
         derived_key = hashlib.sha256(master_key.encode()).digest()
         disk_aesgcm = AESGCM(derived_key)
 
+        # Canonicalize base path
+        base_abs = os.path.abspath(physical_path)
+
         count = 0
         for path in self.list_files():
             try:
                 # 1. Read and decrypt from RAM
                 data = self.read_file(path)
 
-                # 2. Re-encrypt for disk
+                # 2. Prevent Path Traversal by checking commonpath
+                full_path = os.path.abspath(os.path.join(base_abs, path))
+                if os.path.commonpath([base_abs, full_path]) != base_abs:
+                    logger.error("Ghost-VFS: Path traversal blocked for path: %s", path)
+                    continue
+
+                # 3. Re-encrypt for disk
                 nonce = os.urandom(12)
                 encrypted = disk_aesgcm.encrypt(nonce, data, None)
 
-                # 3. Write to physical disk
-                full_path = os.path.join(physical_path, path)
+                # 4. Write to physical disk
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
                 with open(full_path, "wb") as f:
