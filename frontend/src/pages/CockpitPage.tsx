@@ -6,7 +6,7 @@ import { EffectComposer, Bloom, Vignette, ChromaticAberration } from '@react-thr
 import * as THREE from 'three';
 import { Icon } from '@/components/Icon';
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const { Vector3, InstancedMesh, Color, Vector2, Object3D } = THREE as any;
 type Vector3 = any;
 type InstancedMesh = any;
@@ -14,7 +14,7 @@ type Color = any;
 type Vector2 = any;
 type Object3D = any;
 type Intersection = any;
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/ban-ts-comment */
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { cockpitApi } from '@/api/cockpit';
@@ -67,7 +67,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 
    
 function metadataText(metadata: CockpitNode['metadata'], key: string): string {
-  const value = metadata?.[key];
+  const value = metadata ? Reflect.get(metadata, key) : undefined;
   if (typeof value === 'string') return value;
   if (value == null) return '';
   return String(value);
@@ -264,7 +264,7 @@ function InstancedNodes({
     const intersects = raycaster.intersectObject(meshRef.current);
     if (intersects.length > 0) {
       const instanceId = intersects[0].instanceId;
-      if (instanceId !== undefined) onHover(nodes[instanceId].id);
+      if (instanceId !== undefined) onHover(nodes.at(instanceId)?.id ?? null);
     } else {
       onHover(null);
     }
@@ -274,7 +274,7 @@ function InstancedNodes({
     <ThreeInstancedMesh 
       ref={meshRef} 
       args={[null!, null!, nodes.length]}
-      onClick={(e: Intersection) => e.instanceId !== undefined && onSelect(nodes[e.instanceId].id)}
+      onClick={(e: Intersection) => e.instanceId !== undefined && onSelect(nodes.at(e.instanceId)?.id ?? '')}
     >
       <ThreeSphereGeometry args={[0.5, 16, 16]} />
       <ThreeMeshStandardMaterial 

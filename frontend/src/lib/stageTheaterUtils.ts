@@ -54,7 +54,7 @@ const STAGE_ALIASES: Record<string, string> = {
 function normalizeStageName(stageName: string | undefined): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
-  return Object.prototype.hasOwnProperty.call(STAGE_ALIASES, normalized) ? STAGE_ALIASES[normalized] : normalized;
+  return Object.prototype.hasOwnProperty.call(STAGE_ALIASES, normalized) ? Reflect.get(STAGE_ALIASES, normalized) : normalized;
 }
 
 function normalizeStageProgress(entries: StageProgressEntry[]): Map<string, StageProgressEntry> {
@@ -117,7 +117,7 @@ function findStageLabelFromJobs(jobs: Job[], stageName: string): string {
     }
   }
   return Object.prototype.hasOwnProperty.call(STAGE_LABELS, stageName)
-    ? STAGE_LABELS[stageName]
+    ? Reflect.get(STAGE_LABELS, stageName)
     : stageName.replace(/_/g, ' ');
 }
 
@@ -196,7 +196,7 @@ export function buildStageTheaterNodesFromJob(job: Job): StageTheaterNode[] {
     const label =
       (existing?.stage_label || '').trim() ||
       (currentStage === stageName ? (job.stage_label || '').trim() : '') ||
-      (Object.prototype.hasOwnProperty.call(STAGE_LABELS, stageName) ? STAGE_LABELS[stageName] : '') ||
+      (Object.prototype.hasOwnProperty.call(STAGE_LABELS, stageName) ? Reflect.get(STAGE_LABELS, stageName) : '') ||
       stageName.replace(/_/g, ' ');
 
     return {

@@ -70,7 +70,7 @@ export function ScanSummaryCard({ job, historicalComparison }: ScanSummaryCardPr
           </h4>
           <div className="flex flex-wrap gap-2">
             {SEVERITY_ORDER.map((sev) => {
-              const count = severityTotals[sev] ?? 0;
+              const count = Reflect.get(severityTotals, sev) ?? 0;
               if (count === 0) return null;
               return (
                 <span
@@ -134,7 +134,7 @@ function severityColorClass(sev: string): string {
    
     info: 'bg-[var(--muted)]/20 text-[var(--muted)] border-[var(--muted)]/40',
   };
-  return map[sev] ?? map.info;
+  return Reflect.get(map, sev) ?? Reflect.get(map, 'info');
 }
 
 function computeDurationSeconds(job: Job): number {

@@ -11,8 +11,8 @@ export async function getGapAnalysis(target?: string | null, signal?: AbortSigna
   
   if (typeof target === 'string') {
     targetStr = target;
-  } else if (target instanceof AbortSignal || (target && 'aborted' in target)) {
-    abortSignal = target as AbortSignal;
+  } else if (((target as unknown) instanceof AbortSignal) || (target && 'aborted' in (target as Record<string, unknown>))) {
+    abortSignal = target as unknown as AbortSignal;
   }
   
   const params = targetStr ? { target: targetStr } : undefined;

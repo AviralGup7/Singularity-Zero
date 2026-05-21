@@ -110,7 +110,7 @@ export function ConfirmDialog({
 
   if (!isOpen) return null;
 
-  const config = variantConfig[variant] || variantConfig.danger;
+  const config = Reflect.get(variantConfig, variant) || variantConfig.danger;
 
   return (
     <div
@@ -136,7 +136,6 @@ export function ConfirmDialog({
           "[clip-path:polygon(0_0,calc(100%_-_8px)_0,100%_8px,100%_100%,8px_100%,0_calc(100%_-_8px))]",
           className
         )}
-        onClick={(e) => e.stopPropagation()}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"

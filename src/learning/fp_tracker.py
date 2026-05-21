@@ -221,4 +221,3 @@ class FPTracker:
                 return pattern
 
         return None
-

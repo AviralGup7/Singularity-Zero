@@ -112,7 +112,7 @@ export function useJobFormState() {
         const overrides: Record<string, string> = {};
    
         for (const [key, value] of Object.entries(defaults.form_defaults ?? {})) {
-          overrides[key] = value;
+          Reflect.set(overrides, key, value);
         }
         setRuntimeOverrides(overrides);
         setError(null);
@@ -152,12 +152,19 @@ export function useJobFormState() {
   }, []);
 
   const toggleExecutionOption = useCallback((key: string) => {
-    setExecutionOptions(prev => ({ ...prev, [key]: !prev[key] }));
+    setExecutionOptions(prev => {
+      const next = { ...prev };
+      Reflect.set(next, key, !Reflect.get(prev, key));
+      return next;
+    });
   }, []);
 
   const updateRuntimeOverride = useCallback((key: string, value: string) => {
-   
-    setRuntimeOverrides(prev => ({ ...prev, [key]: value }));
+    setRuntimeOverrides(prev => {
+      const next = { ...prev };
+      Reflect.set(next, key, value);
+      return next;
+    });
   }, []);
 
   const updateAnalysisChecks = useCallback((checks: Set<string>) => {

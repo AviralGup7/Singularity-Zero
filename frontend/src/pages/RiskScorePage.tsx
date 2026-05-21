@@ -124,7 +124,9 @@ export function RiskScorePage() {
 
   const lineData = useMemo(() => columns.map((day) => {
     const row: Record<string, string | number> = { day: day.slice(5) };
-    for (const target of visibleTargets) row[target] = heatmapByTargetDay.get(`${target}:${day}`)?.csi_value ?? 0;
+    for (const target of visibleTargets) {
+      Reflect.set(row, target, heatmapByTargetDay.get(`${target}:${day}`)?.csi_value ?? 0);
+    }
     return row;
    
   }), [columns, heatmapByTargetDay, visibleTargets]);

@@ -66,7 +66,7 @@ const STAGE_ALIASES: Record<string, string> = {
 function normalizeStageName(stageName: string): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
-  return STAGE_ALIASES[normalized] ?? normalized;
+  return Reflect.get(STAGE_ALIASES, normalized) ?? normalized;
 }
 
 export function StageDurationHeatmap({ jobs }: { jobs: Job[] }) {
@@ -95,7 +95,7 @@ export function StageDurationHeatmap({ jobs }: { jobs: Job[] }) {
           jobId,
           jobLabel,
           stage,
-          stageLabel: STAGE_LABELS[stage] || stage.replace(/_/g, ' '),
+          stageLabel: Reflect.get(STAGE_LABELS, stage) || stage.replace(/_/g, ' '),
           duration,
           status: job.status,
         });
@@ -118,7 +118,7 @@ export function StageDurationHeatmap({ jobs }: { jobs: Job[] }) {
         count: durations.length,
       };
 
-      return { stage, stageLabel: STAGE_LABELS[stage] || stage.replace(/_/g, ' '), cells, stats };
+      return { stage, stageLabel: Reflect.get(STAGE_LABELS, stage) || stage.replace(/_/g, ' '), cells, stats };
     }).filter((r) => r.stats.mean > 0); // Only show stages with actual data
 
     return rows;

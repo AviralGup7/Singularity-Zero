@@ -37,8 +37,12 @@ const AttackGraph = memo(function AttackGraph({ chain }: { chain: AttackChain })
     }));
 
     const initialLinks: GraphLink[] = [];
-    for (let i = 0; i < initialNodes.length - 1; i++) {
-      initialLinks.push({ source: initialNodes[i].id, target: initialNodes[i+1].id });
+    let prevNode: GraphNode | null = null;
+    for (const node of initialNodes) {
+      if (prevNode) {
+        initialLinks.push({ source: prevNode.id, target: node.id });
+      }
+      prevNode = node;
     }
 
     const simulation = d3Force.forceSimulation<GraphNode>(initialNodes)

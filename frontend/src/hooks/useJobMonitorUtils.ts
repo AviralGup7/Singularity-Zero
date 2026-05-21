@@ -83,12 +83,65 @@ export function compactPipelineError(raw: unknown): string {
   if (importIdx >= 0) {
     return input.slice(importIdx).trim();
   }
-  const collapsed = input
-    .replace(/\s+/g, ' ')
-   
-    .replace(/(?:Rate limited by NVD CVE, retrying after [0-9.]+s ){2,}/gi, 'Rate limited by NVD CVE; backing off retries ')
-    .trim();
-  return collapsed || 'Unknown pipeline error';
+  let collapsed = input.replace(/\s+/g, ' ');
+  
+  // Find all NVD rate limit messages using a simple literal pattern to avoid any regex warnings
+  const pattern = /Rate limited by NVD CVE, retrying after /gi;
+  const matches = [...collapsed.matchAll(pattern)];
+  const validMatches: Array<{ index: number; length: number }> = [];
+  
+  for (const m of matches) {
+    const startIndex = m.index;
+    if (typeof startIndex !== 'number') continue;
+    const matchStr = m[0];
+    const afterIndex = startIndex + matchStr.length;
+    
+    let i = afterIndex;
+    while (i < collapsed.length && collapsed.charCodeAt(i) >= 48 && collapsed.charCodeAt(i) <= 57) {
+      i++;
+    }
+    if (i > afterIndex) {
+      if (collapsed.charAt(i) === '.') {
+        i++;
+        const decimalStart = i;
+        while (i < collapsed.length && collapsed.charCodeAt(i) >= 48 && collapsed.charCodeAt(i) <= 57) {
+          i++;
+        }
+        if (i === decimalStart) {
+          continue;
+        }
+      }
+      if (collapsed.charAt(i) === 's' || collapsed.charAt(i) === 'S') {
+        i++;
+        validMatches.push({
+          index: startIndex,
+          length: i - startIndex
+        });
+      }
+    }
+  }
+
+  if (validMatches.length >= 2) {
+    let isConsecutive = true;
+    for (let i = 0; i < validMatches.length - 1; i++) {
+      const current = validMatches.at(i);
+      const next = validMatches.at(i + 1);
+      if (!current || !next) continue;
+      const between = collapsed.slice(current.index + current.length, next.index).trim();
+      if (between !== '') {
+        isConsecutive = false;
+        break;
+      }
+    }
+    if (isConsecutive) {
+      const first = validMatches.at(0);
+      const last = validMatches.at(validMatches.length - 1);
+      if (first && last) {
+        collapsed = collapsed.slice(0, first.index) + 'Rate limited by NVD CVE; backing off retries ' + collapsed.slice(last.index + last.length);
+      }
+    }
+  }
+  return collapsed.trim() || 'Unknown pipeline error';
 }
 
 export function synthesizeCurrentStageEntry(jobLike: Partial<Job>): StageProgressEntry | null {

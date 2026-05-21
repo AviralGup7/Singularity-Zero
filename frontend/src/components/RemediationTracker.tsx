@@ -91,7 +91,7 @@ export function RemediationTracker({ entries }: RemediationTrackerProps) {
 
       <div className="remediation-filters">
         <div className="rem-filter-group">
-          <label>Status:</label>
+          <span>Status:</span>
           {['all', 'open', 'in-progress', 'remediated', 'accepted'].map(s => (
             <button
               key={s}
@@ -103,8 +103,9 @@ export function RemediationTracker({ entries }: RemediationTrackerProps) {
           ))}
         </div>
         <div className="rem-filter-group">
-          <label>Sort:</label>
+          <label htmlFor="rem-sort-select">Sort:</label>
           <select
+            id="rem-sort-select"
             className="form-select rem-sort-select"
             value={sortBy}
             onChange={e => setSortBy(e.target.value as 'date' | 'severity' | 'time')}

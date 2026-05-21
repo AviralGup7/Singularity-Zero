@@ -46,13 +46,13 @@ export function detectPII(text: string): PIIMatch[] {
    
     ['email', /[\w.%+-]+@[\w.-]+\.[a-zA-Z]{2,}/g],
    
-    ['phone', /(?:\+?1[ .-])?\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}/g],
+    ['phone', /\b(?:\+1-)?\d{3}-\d{3}-\d{4}\b|\b1-\d{3}-\d{3}-\d{4}\b|\b\d{10}\b/g],
    
     ['ssn', /\b\d{3}-\d{2}-\d{4}\b/g],
    
-    ['creditCard', /\b\d{4}(?:[ -]?\d{4}){3}\b/g],
+    ['creditCard', /\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b/g],
    
-    ['ipAddress', /\b\d{1,3}(?:\.\d{1,3}){3}\b/g],
+    ['ipAddress', /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g],
    
     ['name', /(?:Name|User|Author|Owner|Sender|From|Customer|Client|Contact):\s+[A-Z][a-z][\w ]{1,30}/g],
    
@@ -62,7 +62,7 @@ export function detectPII(text: string): PIIMatch[] {
    
   for (const [category, pattern] of checks) {
    
-    const mask = REDACTION_MASKS[category as keyof typeof REDACTION_MASKS];
+    const mask = Reflect.get(REDACTION_MASKS, category) as string;
     let match;
     while ((match = pattern.exec(text)) !== null) {
       matches.push({

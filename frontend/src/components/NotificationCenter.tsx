@@ -129,12 +129,12 @@ export function NotificationCenter({
 
   const filtered = filter === 'all' ? notifications : notifications.filter(n => n.type === filter);
 
-  const grouped = filtered.reduce<Record<string, Notification[]>>((acc, n) => {
+  const grouped = filtered.reduce<Map<string, Notification[]>>((acc, n) => {
     const key = n.type;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(n);
+    if (!acc.has(key)) acc.set(key, []);
+    acc.get(key)!.push(n);
     return acc;
-  }, {});
+  }, new Map<string, Notification[]>());
 
   const groupLabels: Record<string, string> = {
     scan_complete: 'Scan Complete',
@@ -207,7 +207,7 @@ export function NotificationCenter({
               </div>
             ) : (
    
-              Object.entries(grouped).map(([type, items]) => (
+              Array.from(grouped.entries()).map(([type, items]) => (
                 <div key={type} className="notification-group">
                   <div className="notification-group-header">
                     <span>{Reflect.get(groupLabels, type) || type}</span>

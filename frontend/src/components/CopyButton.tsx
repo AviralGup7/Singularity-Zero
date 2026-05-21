@@ -4,14 +4,17 @@ interface CopyButtonProps {
   text: string;
   size?: 'sm' | 'md';
   className?: string;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
-export function CopyButton({ text, size = 'sm', className = '' }: CopyButtonProps) {
+export function CopyButton({ text, size = 'sm', className = '', onClick }: CopyButtonProps) {
    
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleCopy = useCallback(async () => {
+  const handleCopy = useCallback(async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (onClick) onClick(e);
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -28,7 +31,7 @@ export function CopyButton({ text, size = 'sm', className = '' }: CopyButtonProp
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setCopied(false), 2000);
    
-  }, [text]);
+  }, [text, onClick]);
 
    
   const sz = size === 'md' ? 'min-h-[32px] px-2.5 text-xs' : '';

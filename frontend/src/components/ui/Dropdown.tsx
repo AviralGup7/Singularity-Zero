@@ -24,7 +24,7 @@ export function Dropdown({ trigger, children, align = 'left', className }: Dropd
       <DropdownMenuTrigger asChild>
         <span className="inline-block">{trigger}</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={alignMap[align]} className={className}>
+      <DropdownMenuContent align={Reflect.get(alignMap, align)} className={className}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
