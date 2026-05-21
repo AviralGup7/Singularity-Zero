@@ -56,3 +56,34 @@ def test_ghost_vfs_rotation_failure_handling():
     # Verify we can still decrypt the uncorrupted file using the original key
     assert vfs.read_file("good.txt") == b"essential data"
 
+
+def test_ghost_vfs_path_traversal_prevention(tmp_path):
+    vfs = GhostVFS()
+
+    # 1. Verify write_file rejects paths with directory traversal or absolute patterns
+    with pytest.raises(ValueError, match="Invalid virtual path"):
+        vfs.write_file("../traversal.txt", "hacked")
+
+    with pytest.raises(ValueError, match="Invalid virtual path"):
+        vfs.write_file("/absolute/path.txt", "hacked")
+
+    # 2. Verify flush_to_disk handles path containment safely
+    vfs.write_file("valid.txt", "safe data")
+
+    # Manually bypass write_file sanity checks by directly writing to the in-memory dict
+    # to simulate a legacy/compromised stage trying to traverse on flush
+    vfs._files["../hacked.txt"] = vfs._files["valid.txt"]
+
+    # Use a physical directory inside tmp_path
+    disk_dir = tmp_path / "sandbox"
+    disk_dir.mkdir()
+
+    vfs.flush_to_disk(str(disk_dir), "some_master_key")
+
+    # Assert valid.txt was written successfully
+    assert (disk_dir / "valid.txt").exists()
+
+    # Assert the traversal file did NOT escape the sandbox and was NOT written
+    assert not (tmp_path / "hacked.txt").exists()
+    assert not (disk_dir / "../hacked.txt").exists()
+

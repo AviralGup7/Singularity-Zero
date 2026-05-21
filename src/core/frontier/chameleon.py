@@ -102,7 +102,18 @@ class RequestChameleon:
 
         # 3. Inject Polymorphic Noise headers
         if secrets.randbelow(10) > 6:  # ~30% chance
-            headers[f"X-Frontend-ID-{secrets.randbelow(999) + 1}"] = str(uuid.uuid4())
+            noise_prefixes = [
+                "X-Request-ID",
+                "X-Correlation-ID",
+                "X-Session-Token",
+                "X-Trace-ID",
+                "X-Flow-ID",
+                "X-Client-Signature",
+                "X-Frontend-ID",
+                "X-Telemetry-ID",
+            ]
+            prefix = secrets.choice(noise_prefixes)
+            headers[f"{prefix}-{secrets.randbelow(999) + 1}"] = str(uuid.uuid4())
 
         # 4. Shuffle Order using Fisher-Yates via secrets
         items = list(headers.items())
