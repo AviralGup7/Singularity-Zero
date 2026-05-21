@@ -32,6 +32,7 @@ async def test_coordinator_triggers_migration_on_telemetry_pressure():
     mock_actor_ref = MagicMock()
     # If ask is called, return normal health
     mock_actor_ref.ask.return_value = {"actor_id": "test-1", "evacuation_recommended": False}
+    mock_actor_ref.proxy.return_value.actor_id.get.return_value = "actor:test-1"
 
     # Execution
     triggered = await coordinator.migrate_if_needed(mock_actor_ref, {"actor_id": "test-1"})
