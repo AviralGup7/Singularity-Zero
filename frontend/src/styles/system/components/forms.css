@@ -17,6 +17,11 @@
   transition: all var(--motion-fast) var(--easing-out);
 }
 
+.search-input::placeholder, .form-input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
 .search-input:hover, .form-input:hover, .form-select:hover {
   border-color: var(--border-strong);
 }
@@ -25,6 +30,43 @@
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--accent-soft);
+}
+
+.search-input:disabled, .form-input:disabled, .form-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-muted);
+}
+
+/* Textarea */
+.form-textarea {
+  min-width: 220px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: var(--text-body);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color var(--motion-fast) var(--easing-out);
+}
+
+.form-textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--accent-soft);
+}
+
+/* Error state for inputs */
+.form-input--error, .form-textarea--error {
+  border-color: var(--bad);
+}
+
+.form-input--error:focus-visible, .form-textarea--error:focus-visible {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px color-mix(in srgb, var(--bad) 25%, transparent);
 }
 
 .filter-group {
@@ -36,4 +78,37 @@
   font-size: var(--text-small);
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+/* Checkbox / Toggle */
+.form-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--easing-out);
+  position: relative;
+}
+
+.form-checkbox:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.form-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.form-checkbox:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
