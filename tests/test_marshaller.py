@@ -92,9 +92,9 @@ def test_pickle_roundtrip():
 def test_pickle_errors():
     marshaller = FrontierMarshaller()
 
-    # sys module is not picklable and should raise an exception
+    # Generator expressions cannot be pickled (even by cloudpickle) and should raise an exception
     with pytest.raises(Exception):
-        marshaller.pack_pickle(sys)
+        marshaller.pack_pickle((x for x in range(10)))
 
     # Invalid bytes cannot be unpickled
     with pytest.raises(Exception):
