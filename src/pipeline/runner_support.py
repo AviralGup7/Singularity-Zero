@@ -1,4 +1,6 @@
 import argparse
+import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +9,26 @@ from src.core.models import TOOL_NAMES
 from src.pipeline.cache import load_cached_set, save_cached_set
 from src.pipeline.screenshots import detect_browser
 from src.pipeline.tools import projectdiscovery_httpx_available, tool_available
+
+logger = logging.getLogger(__name__)
+
+
+def load_adaptive_config(output_dir: Path, target_name: str) -> dict[str, Any]:
+    """Load the latest adaptive configuration for a target (Phase 5.2)."""
+    adaptive_path = output_dir / target_name / "config.adaptive.json"
+    if not adaptive_path.exists():
+        return {}
+
+    try:
+        with open(adaptive_path, encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                logger.info("Loaded adaptive configuration from %s", adaptive_path)
+                return data
+    except Exception as exc:
+        logger.warning("Failed to load adaptive configuration: %s", exc)
+
+    return {}
 
 
 def emit_progress(stage: str, message: str, percent: int, **fields: object) -> None:

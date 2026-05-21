@@ -138,6 +138,10 @@ class TelemetryStore:
         """Get feedback events for a run."""
         return self.feedback.get_feedback_events_for_run(run_id)
 
+    def get_feedback_events(self, limit: int = 1000) -> list[dict]:
+        """Get the most recent feedback events across all runs."""
+        return self.feedback.get_feedback_events(limit)
+
     def get_feedback_events_for_endpoint(
         self, endpoint: str, host: str, limit: int = 50
     ) -> list[dict]:
