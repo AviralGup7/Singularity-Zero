@@ -503,6 +503,7 @@ export interface GapAnalysisResult {
   missing_checks: number;
   coverage_percent: number;
   status: 'complete' | 'partial' | 'missing';
+  missing_check_details?: string[];
 }
 
 export interface DetectionGapResponse {
