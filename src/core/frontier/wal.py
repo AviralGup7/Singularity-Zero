@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import time
 from pathlib import Path
 from typing import Any, cast
@@ -161,7 +160,7 @@ class FrontierWAL:
                         wal_id = item_id.decode() if isinstance(item_id, bytes) else str(item_id)
                         raw_delta = item[b"delta"]
                         stored_crc = item.get(b"crc64", b"").decode()
-                        
+
                         # Validate integrity
                         computed_crc = compute_crc64(raw_delta)
                         if stored_crc and computed_crc != stored_crc:
@@ -199,7 +198,7 @@ class FrontierWAL:
 
         aof_deltas = []
         try:
-            with open(self._aof_path, "r", encoding="utf-8") as f:
+            with open(self._aof_path, encoding="utf-8") as f:
                 for line in f:
                     if not line.strip():
                         continue
@@ -207,7 +206,7 @@ class FrontierWAL:
                         entry = json.loads(line)
                         raw_delta = base64.b64decode(entry["delta"])
                         stored_crc = entry.get("crc64")
-                        
+
                         # Validate integrity
                         computed_crc = compute_crc64(raw_delta)
                         if stored_crc and computed_crc != stored_crc:

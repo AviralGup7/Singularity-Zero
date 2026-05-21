@@ -13,10 +13,10 @@ from typing import Any, cast
 
 import pykka
 
+from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 from src.core.frontier.marshaller import mesh_marshal, mesh_unmarshal
 from src.core.frontier.state import stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 
 logger = get_pipeline_logger(__name__)
 

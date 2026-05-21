@@ -405,12 +405,12 @@ def radix_sort_timestamps(items: list[tuple[Any, float]]) -> list[tuple[Any, flo
         # millisecond precision as integer
         val = int((ts - min_ts) * 1000)
         int_items.append((key, ts, val))
-    
+
     # Standard Radix Sort (LSD)
     max_val = max(item[2] for item in int_items)
     if max_val == 0:
         return [(item[0], item[1]) for item in int_items]
-        
+
     base = 10
     placement = 1
     while placement <= max_val:
@@ -422,7 +422,7 @@ def radix_sort_timestamps(items: list[tuple[Any, float]]) -> list[tuple[Any, flo
         for bucket in buckets:
             int_items.extend(bucket)
         placement *= base
-        
+
     return [(item[0], item[1]) for item in int_items]
 
 

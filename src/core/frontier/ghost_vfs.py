@@ -75,7 +75,7 @@ class GhostVFS:
         self._files: dict[str, bytes] = {}
         self._key = AESGCM.generate_key(bit_length=256)
         self._aesgcm = AESGCM(self._key)
-        
+
         # Use explicit rotation interval constant if hours not specified
         if rotation_interval_hours is not None:
             self._rotation_interval = rotation_interval_hours * 3600
@@ -130,7 +130,7 @@ class GhostVFS:
             for idx, chunk in enumerate(stream):
                 nonce = os.urandom(12)
                 # Associated data prevents block reordering/injection attacks
-                aad = f"chunk:{idx}".encode("utf-8")
+                aad = f"chunk:{idx}".encode()
                 ciphertext = AESGCM(file_key).encrypt(nonce, chunk, aad)
                 chunk_payload = nonce + ciphertext
                 length_bytes = len(chunk_payload).to_bytes(4, byteorder="big")
@@ -191,7 +191,7 @@ class GhostVFS:
 
                 nonce = chunk_payload[:12]
                 ciphertext = chunk_payload[12:]
-                aad = f"chunk:{idx}".encode("utf-8")
+                aad = f"chunk:{idx}".encode()
 
                 decrypted_chunk = AESGCM(file_key).decrypt(nonce, ciphertext, aad)
                 yield decrypted_chunk
@@ -247,7 +247,7 @@ class GhostVFS:
                     file_key = hkdf.derive(new_key)
 
                     nonce = os.urandom(12)
-                    aad = "chunk:0".encode("utf-8")
+                    aad = b"chunk:0"
                     ciphertext = AESGCM(file_key).encrypt(nonce, data, aad)
                     chunk_payload = nonce + ciphertext
                     length_bytes = len(chunk_payload).to_bytes(4, byteorder="big")
@@ -333,7 +333,7 @@ class GhostVFS:
                     if os.path.exists(temp_file_path):
                         try:
                             os.remove(temp_file_path)
-                        except Exception:
+                        except Exception:  # noqa: S110
                             pass
                     raise
 

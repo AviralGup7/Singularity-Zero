@@ -15,7 +15,6 @@ from typing import Any
 
 from starlette.websockets import WebSocket, WebSocketState
 
-
 TRIAGE_ACTIONS = {
     "comment_added",
     "comment_updated",
@@ -163,7 +162,7 @@ class TriageCollaborationService:
             try:
                 await connection.websocket.send_text(data)
                 sent += 1
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
         return sent
 
@@ -193,7 +192,7 @@ class TriageCollaborationService:
             "previous_hash": previous_hash,
         }
         event["hash"] = hashlib.sha256(
-            f"{previous_hash}{_canonical_json(event)}".encode("utf-8")
+            f"{previous_hash}{_canonical_json(event)}".encode()
         ).hexdigest()
         with self.audit_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
@@ -248,7 +247,7 @@ class TriageCollaborationService:
                 if event.get("previous_hash") != previous_hash:
                     return {"valid": False, "entries": count, "failed_at": line_number}
                 computed = hashlib.sha256(
-                    f"{previous_hash}{_canonical_json(event)}".encode("utf-8")
+                    f"{previous_hash}{_canonical_json(event)}".encode()
                 ).hexdigest()
                 if computed != recorded_hash:
                     return {"valid": False, "entries": count, "failed_at": line_number}

@@ -4,7 +4,6 @@ from pathlib import Path
 
 from src.learning.signal_quality import evaluate_golden_set, score_signal_quality
 
-
 FIXTURE = Path("tests/fixtures/golden_false_positive_findings.json")
 
 
