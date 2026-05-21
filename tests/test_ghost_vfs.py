@@ -86,3 +86,66 @@ def test_ghost_vfs_path_traversal_prevention(tmp_path):
     # Assert the traversal file did NOT escape the sandbox and was NOT written
     assert not (tmp_path / "hacked.txt").exists()
     assert not (disk_dir / "../hacked.txt").exists()
+
+
+def test_ghost_vfs_roundtrip_persistence(tmp_path):
+    vfs = GhostVFS()
+    vfs.write_file("subdomains.txt", "admin.internal.net\napi.internal.net")
+    vfs.write_file("reports/findings.json", '{"vuln": "SQLi"}')
+
+    disk_dir = tmp_path / "scan_export"
+    disk_dir.mkdir()
+
+    master_key = "SuperSecretMasterKey123!"
+
+    # 1. Flush to disk
+    vfs.flush_to_disk(str(disk_dir), master_key)
+
+    # 2. Verify physical files exist
+    subdomains_file = disk_dir / "subdomains.txt"
+    findings_file = disk_dir / "reports" / "findings.json"
+    assert subdomains_file.exists()
+    assert findings_file.exists()
+
+    # Verify cryptographic layout: salt (16 bytes) + nonce (12 bytes) + ciphertext
+    with open(subdomains_file, "rb") as f:
+        content = f.read()
+    assert len(content) > 28
+
+    # Verify unique salts per file
+    with open(findings_file, "rb") as f:
+        findings_content = f.read()
+    assert content[:16] != findings_content[:16]  # Different random salts
+
+    # 3. Create a fresh VFS instance and load from disk
+    new_vfs = GhostVFS()
+    new_vfs.load_from_disk(str(disk_dir), master_key)
+
+    # Verify re-hydrated memory
+    assert "subdomains.txt" in new_vfs.list_files()
+    assert "reports/findings.json" in new_vfs.list_files()
+    assert new_vfs.read_file("subdomains.txt") == b"admin.internal.net\napi.internal.net"
+    assert new_vfs.read_file("reports/findings.json") == b'{"vuln": "SQLi"}'
+
+    # 4. Verify path traversal protection during load_from_disk
+    import unittest.mock as mock
+
+    bad_vfs = GhostVFS()
+
+    # Mock os.walk to simulate walking and finding a file outside commonpath
+    with mock.patch("os.walk") as mock_walk:
+        # root, dirs, files
+        mock_walk.return_value = [
+            (str(disk_dir), [], ["valid.txt"]),
+            (str(tmp_path), [], ["outside.txt"]),  # outside of disk_dir
+        ]
+
+        # Write valid file to disk
+        with open(disk_dir / "valid.txt", "wb") as f:
+            f.write(content)
+
+        bad_vfs.load_from_disk(str(disk_dir), master_key)
+
+        # valid.txt should be loaded, but outside.txt should NOT be loaded
+        assert "valid.txt" in bad_vfs.list_files()
+        assert "outside.txt" not in bad_vfs.list_files()

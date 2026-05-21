@@ -557,6 +557,17 @@ class GossipProtocol(asyncio.DatagramProtocol):
             elif message_type == "dead_probe":
                 target_id = str(payload.get("target_id", ""))
                 ack_payload = self.engine._handle_dead_probe(target_id)
+            elif message_type == "ghost_actor_spawn":
+                actor_id = payload.get("actor_id")
+                logic_fn_name = payload.get("logic_fn_name")
+                coordinator = getattr(self.engine, "_coordinator", None)
+                if coordinator and actor_id and logic_fn_name:
+                    from src.core.frontier.ghost_actor import _LOGIC_REGISTRY
+                    logic_fn = _LOGIC_REGISTRY.get(logic_fn_name)
+                    if logic_fn:
+                        asyncio.create_task(
+                            coordinator.spawn_or_rehydrate_actor(actor_id, logic_fn)
+                        )
             else:
                 # Compatibility with the original unactioned gossip body shape.
                 if isinstance(body.get("source"), dict):

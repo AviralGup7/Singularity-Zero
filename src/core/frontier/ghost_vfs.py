@@ -137,14 +137,11 @@ class GhostVFS:
         return list(self._files.keys())
 
     def flush_to_disk(self, physical_path: str, master_key: str) -> None:
-        """Persist RAM state to disk using a user-provided master key."""
+        """Persist RAM state to disk using a user-provided master key with PBKDF2HMAC and AESGCM."""
         logger.info("Ghost-VFS: Flushing volatile state to %s", physical_path)
 
-        # Derive a 32-byte key from the master_key string
-        import hashlib
-
-        derived_key = hashlib.sha256(master_key.encode()).digest()
-        disk_aesgcm = AESGCM(derived_key)
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
         # Canonicalize base path
         base_abs = os.path.abspath(physical_path)
@@ -161,20 +158,84 @@ class GhostVFS:
                     logger.error("Ghost-VFS: Path traversal blocked for path: %s", path)
                     continue
 
-                # 3. Re-encrypt for disk
+                # 3. Derive unique file key using a random 16-byte salt per file
+                salt = os.urandom(16)
+                kdf = PBKDF2HMAC(
+                    algorithm=hashes.SHA256(),
+                    length=32,
+                    salt=salt,
+                    iterations=100000,
+                )
+                derived_key = kdf.derive(master_key.encode())
+                disk_aesgcm = AESGCM(derived_key)
+
+                # 4. Encrypt for disk
                 nonce = os.urandom(12)
                 encrypted = disk_aesgcm.encrypt(nonce, data, None)
 
-                # 4. Write to physical disk
+                # 5. Write to physical disk: salt + nonce + ciphertext
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
                 with open(full_path, "wb") as f:
-                    f.write(nonce + encrypted)
+                    f.write(salt + nonce + encrypted)
                 count += 1
             except Exception as e:
                 logger.error("Ghost-VFS: Failed to flush %s to disk: %s", path, e)
 
         logger.info("Ghost-VFS: Flush complete. %d artifacts persisted to disk.", count)
+
+    def load_from_disk(self, physical_path: str, master_key: str) -> None:
+        """Decrypt physical files and re-hydrate virtual filesystem RAM state."""
+        logger.info("Ghost-VFS: Loading volatile state from %s", physical_path)
+
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+        base_abs = os.path.abspath(physical_path)
+
+        count = 0
+        for root, _, files in os.walk(base_abs):
+            for file in files:
+                full_path = os.path.abspath(os.path.join(root, file))
+
+                # Prevent Path Traversal by checking commonpath
+                if os.path.commonpath([base_abs, full_path]) != base_abs:
+                    logger.error("Ghost-VFS: Path traversal blocked during load for path: %s", full_path)
+                    continue
+
+                # Calculate relative virtual path
+                rel_path = os.path.relpath(full_path, base_abs).replace("\\", "/")
+
+                try:
+                    with open(full_path, "rb") as f:
+                        file_content = f.read()
+
+                    if len(file_content) < 28:
+                        logger.error("Ghost-VFS: File %s is too short to contain cryptographic format", rel_path)
+                        continue
+
+                    salt = file_content[:16]
+                    nonce = file_content[16:28]
+                    ciphertext = file_content[28:]
+
+                    kdf = PBKDF2HMAC(
+                        algorithm=hashes.SHA256(),
+                        length=32,
+                        salt=salt,
+                        iterations=100000,
+                    )
+                    derived_key = kdf.derive(master_key.encode())
+
+                    disk_aesgcm = AESGCM(derived_key)
+                    decrypted = disk_aesgcm.decrypt(nonce, ciphertext, None)
+
+                    # Re-hydrate the memory
+                    self.write_file(rel_path, decrypted)
+                    count += 1
+                except Exception as e:
+                    logger.error("Ghost-VFS: Failed to load/decrypt %s: %s", rel_path, e)
+
+        logger.info("Ghost-VFS: Load complete. %d files re-hydrated.", count)
 
     def self_destruct(self) -> None:
         """Wipe all data and keys from RAM securely."""
