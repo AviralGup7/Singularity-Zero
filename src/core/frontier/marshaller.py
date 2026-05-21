@@ -79,6 +79,8 @@ class FrontierMarshaller:
         """Decompress and deserialize binary data using cloudpickle."""
         try:
             decompressed = decompress_bytes(raw_data) if decompress else raw_data
+            # SECURITY: Unpacking is safe here as this marshaller only deserializes internally generated,
+            # trusted, and/or cryptographically secured local state data exchanged via local IPC or WAL.
             return cloudpickle.loads(decompressed)  # nosec B301  # noqa: S301
         except Exception as e:
             logger.error("Marshaller: Pickle unpacking failed: %s", e)
@@ -106,4 +108,6 @@ def mesh_marshal_pickle(data: Any, compress: bool = True) -> bytes:
 def mesh_unmarshal_pickle(raw: bytes, decompress: bool = True) -> Any:
     """Helper for one-off cloudpickle unmarshalling."""
     decompressed = decompress_bytes(raw) if decompress else raw
+    # SECURITY: This helper is exclusively used inside the FrontierProcessPool for secure parent-worker
+    # IPC. The serialized data is exchanged locally over internal, authenticated process pipes.
     return cloudpickle.loads(decompressed)  # nosec B301  # noqa: S301
