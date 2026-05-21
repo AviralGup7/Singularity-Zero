@@ -4,6 +4,8 @@ import logging
 from collections.abc import Awaitable
 from typing import Any
 
+from src.pipeline.constants.progress import _STAGE_BASELINE_PROGRESS
+
 LEGACY_STAGE_ATTRS: dict[str, str] = {
     "subdomains": "run_subdomain_enumeration",
     "live_hosts": "run_live_hosts",
@@ -18,23 +20,6 @@ LEGACY_STAGE_ATTRS: dict[str, str] = {
     "validation": "run_validation",
     "intelligence": "run_post_analysis_enrichments",
     "reporting": "run_reporting",
-}
-
-_STAGE_BASELINE_PROGRESS = {
-    "subdomains": 12,
-    "live_hosts": 30,
-    "urls": 50,
-    "parameters": 62,
-    "ranking": 74,
-    "priority": 78,
-    "passive_scan": 86,
-    "active_scan": 88,
-    "nuclei": 90,
-    "semgrep": 91,
-    "access_control": 92,
-    "validation": 94,
-    "intelligence": 96,
-    "reporting": 98,
 }
 
 
