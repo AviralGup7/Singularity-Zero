@@ -1,6 +1,6 @@
 # Singularity-Zero: Evolution Alpha - Development Roadmap
 
-This plan outlines the major phases of development for the Cyber Security Test Pipeline, showcasing the transition from architectural foundations to a fully operational, production-grade autonomous security engine. All phases are now fully complete.
+This plan outlines the major phases of development for the Cyber Security Test Pipeline, showcasing the transition from architectural foundations to a fully operational, production-grade autonomous security engine. Phases 1–4 are completed; Phases 5–11 are the active evolution roadmap.
 
 ---
 
@@ -49,8 +49,130 @@ This plan outlines the major phases of development for the Cyber Security Test P
 
 ---
 
-## 🚀 Execution Strategy
+## 🔄 Phase 5: Continuous Self-Learning & Autonomous Threshold Tuning
+**Goal**: Close the feedback loop end-to-end. The learning subsystem (`src/learning/`) records telemetry and adjusts thresholds *between* runs, but no mechanism currently triggers automatic config mutation *during* a live scan or validates that learned thresholds constitute an improvement before the next run begins.
 
-1.  **Sprint 1**: Metric-Aware Balancing & State Compaction (Stability Focus) - **COMPLETE**.
-2.  **Sprint 2**: WASM-based Validation & AEVE Core (Feature Focus) - **COMPLETE**.
-3.  **Sprint 3**: Dashboard Visualization, Findings Chronology & E2E Testing (Observability Focus) - **COMPLETE**.
+1.  **Adaptive Nuclei Tag Bootstrapping**
+    *   **Status**: 🟡 PARTIAL. `src/learning/threshold_tuner.py` and `src/learning/integration.py` exist and wire into the orchestrator via `learning_hooks.py` (`apply_learning_adaptations`, `emit_feedback_events`, `run_learning_update`).
+    *   **Gap**: Nuclei adaptive tags in `configs/config.example.json` (`adaptive_tags` map) are a static JSON blob. No consumer watches FP rates per nuclei template category to promote/demote tags automatically between runs.
+    *   **Hardening**: Build `src/learning/nuclei_tag_optimizer.py` — reads `FeedbackEvent` rows from `TelemetryStore`, computes per-tag TP/FP/F1 ratios from prior runs, produces a revised `adaptive_tags` override dict. Wired into `Hook 1` (pre-scan `compute_adaptations`) so the orchestrator passes the live override to `build_nuclei_plan()`. MVP acceptance: a synthetic run with injected FP noise reduces nuclei false-positive rate by ≥30% in the second run.
+
+2.  **Pre-Scan Config Mutation with Rollback**
+    *   **Status**: ❌ NOT STARTED. The `compute_adaptations → apply_adaptations` pipeline in `LearningIntegration` writes into the in-memory `ctx` dict only. Mutations are lost when the process exits.
+    *   **Gap**: Re-running `cyber scan run` always starts from the static JSON config. There is no durable record of "what worked last time."
+    *   **Hardening**: Persist effective adaptations to `<output>/config.adaptive.json` after each run via `PipelineOutputStore`. On the next run, `runner_support.py` reads `config.adaptive.json`, merges it on top of `config.json`, and passes the composed result to the orchestrator. Implement a two-generation rollback window — only promote an adaptation if it improves FP-rate for ≥3 consecutive runs, measured by `ThresholdTuner.is_converged`. Store the applied adaptations ledger in `config.adaptive.ledger.json` for human audit.
+
+3.  **Dashboard Learning Tab**
+    *   **Status**: ❌ NOT STARTED. Telemetry exists in `.pipeline/telemetry.db` via `TelemetryStore`, `MetricsCollector`, and `PipelineKPIs` — but no frontend page surfaces it.
+    *   **Gap**: Analysts cannot inspect what the learning system is doing (which thresholds drifted, which FP patterns were suppressed, per-plugin precision/recall over time). The data is buried in a local SQLite file.
+    *   **Hardening**: Add FastAPI route `GET /api/learning/kpis` in `src/dashboard/fastapi/routers/learning.py` and a React page `src/dashboard/pages/LearningPage.tsx`. Use `recharts` for trend lines over `PipelineKPIs` metrics (precision, recall, fp_rate, scan_duration_sec). Add `GET /api/learning/feedback` for per-finding feedback event listing. Acceptance: navigating to `/learning` on a warmed-up cluster renders real telemetry charts within 2 s of load.
+
+---
+
+## 🔐 Phase 6: Automated Compliance & Regulatory Reporting
+**Goal**: The compliance mapping module (`src/reporting/compliance_mapping.py`) already covers OWASP Top 10, NIST SP 800-53, ISO 27001:2022, and PCI DSS v4.0 — four frameworks with 11 mapping dicts. However, these mappings are consumed only by internal calls. No automated output artifact ties findings to compliance evidence in a format consumable by auditors, GRC teams, or incident-response workflows.
+
+1.  **Compliance Coverage Report Generator**
+    *   **Status**: 🟡 PARTIAL. `build_compliance_report(findings)` returns structured data. `src/reporting/pipeline.py` does not call it.
+    *   **Hardening**: Call `build_compliance_report(findings)` at the end of the reporting stage in `src/pipeline/services/pipeline_orchestrator/stages/reporting.py`. Stream a compliance JSON artifact to `<output>/compliance/<YYYY-MM-DD>_<target>.json` alongside the HTML report. Each control entry includes: framework ID, control description, target URL, finding severity, and a one-line remediation hint pulled from `src/reporting/remediation_logic.json`. Acceptance: a fresh compliance artifact appears after every scan with a hit-list of controls touched by actual findings.
+
+2.  **Pass/Fail Control Maturity Scoring**
+    *   **Status**: ❌ NOT STARTED. Current output is a flat coverage map showing which controls were *touched*, not whether they are *under control*.
+    *   **Hardening**: Define `ControlMaturity(Enum)` in `src/reporting/compliance_maturity.py` with bands: `FAIL` (open critical finding against control), `AT_RISK` (open high finding), `PARTIAL` (open medium finding / no finding but partial compensating control detected), `PASS` (no open finding of any severity). Produce per-target `compliance_maturity.json` alongside the coverage artifact. Wire `FAIL` and `AT_RISK` items into the notification system (`src/infrastructure/notifications/`) so GRC stakeholders receive automated alerts. Acceptance: maturity file shows at least one `FAIL` band for any target carrying an unresolved critical finding.
+
+3.  **SOC 2 / PCI-DSS Attestation PDF Export**
+    *   **Status**: ❌ NOT STARTED. No PDF generation module exists in `src/reporting/`. The existing HTML exporter covers VRT coverage and CIS benchmarks, not regulatory evidence packs.
+    *   **Hardening**: Add `src/reporting/compliance_pdf.py` using `reportlab`. Produce a two-part document: (a) a one-page executive summary listing critical/high findings, affected controls with framework IDs, and a remediation SLA table; (b) a detailed evidence pack (up to 10 pages) with per-finding request/response snapshots, chain diagrams, and timestamped audit-log excerpts. Wire to `GET /api/reports/compliance/pdf?target=<name>` in the FastAPI router. Acceptance: `curl` to the endpoint returns a valid, signed PDF with correct control IDs matching `compliance_mapping.py`.
+
+---
+
+## 🌐 Phase 7: Multi-Tenant Isolation & Federated Mesh
+**Goal**: The `Ghost-Actor Mesh` (`src/core/frontier/ghost_actor.py`, `src/infrastructure/mesh/`) is single-tenant — every node sees every finding, Redis keys are shared across all concurrent scans, and no per-client namespace boundary exists. This blocks commercial/consultancy use where multiple clients' scans must be strictly separated in both data and compute.
+
+1.  **Redis Key Namespacing Layer**
+    *   **Status**: ❌ NOT STARTED. `src/infrastructure/queue/redis_client.py` and `src/learning/repositories/redis_fp_repo.py` write to flat top-level keys like `mesh.learning.fp_patterns`, `pipeline.progress.*`, `security-events`, `pipeline.state.*`.
+    *   **Hardening**: Introduce `TenantContext` Pydantic model in `src/core/models/tenant.py` (fields: `tenant_id: str`, `namespace_prefix: str`, `allowed_networks: list[str]`). Update `RedisClient` in `src/infrastructure/queue/redis_client.py` to accept an optional `tenant_id` parameter and prepend `"{tenant_id}:"` to every key operation. Update all concurrent callers (`FPTracker`, `MeshSync`, `JobQueue`, `CheckpointManager`) to read `tenant_id` from `PipelineContext`. Acceptance: two concurrent runs with different `tenant_id` values read/write disjoint Redis key sets with zero cross-contamination verified by an integration test.
+
+2.  **RBAC Dashboard Layer with Tenant Scoping**
+    *   **Status**: 🟡 PARTIAL. `AuthManager` (`src/infrastructure/security/auth/manager.py`) supports roles (`VIEWER`, `ADMIN`, `WORKER`), and `require_auth` / `require_admin` dependencies exist in `src/dashboard/fastapi/dependencies.py`. No per-target or per-tenant scope filtering exists on any list endpoint.
+    *   **Hardening**: Extend `AuthManager.get_current_user()` to return a `CurrentUser` Pydantic model with fields `user_id`, `role`, `tenant_id`, `tenant_scope` (either `GLOBAL` or a list of allowed target hosts). Filter `GET /api/targets`, `GET /api/findings`, and `GET /api/jobs` in their respective routers (`targets.py`, `findings.py`) by the caller's `tenant_id`. Add integration tests that assert a `VIEWER` user scoped to tenant A receives an empty list when requesting tenant B targets. Acceptance: tenant isolation test suite passes in `tests/integration/test_tenant_isolation.py`.
+
+3.  **Cross-Tenant Playbook Isolation**
+    *   **Status**: ❌ NOT STARTED. Nuclei templates, WAF evasion profiles (`src/core/frontier/chameleon.py`), and exploit playbooks are loaded globally with no tenant-scoped directory isolation.
+    *   **Hardening**: Scope all `nuclei` template path resolution by `tenant_id` — each tenant gets an isolated `nuclei/` sub-directory under `<output_root>/<tenant_id>/`. Scope `Chameleon` header mutation profiles by `tenant_id` so concurrent tenants running identical payloads trace independent header sets. Add `tenant_id` to the `StageInput` contract so isolation is preserved across every DAG stage. Acceptance: two tenants using the same chameleon profile mutate headers concurrently without crosstalk, verified by a concurrent-execution integration test.
+
+---
+
+## 🛡️ Phase 8: Supply Chain Integrity & SBOM Automation
+**Goal**: The CI pipeline (`ci.yml`) runs `pip-audit`, `safety`, `semgrep`, and `trivy` — but there is no automated software bill of materials (SBOM) workflow with attestation, no nuclei template provenance check, and no dependency pinning enforcement gate. Supply chain attacks (compromised pip packages, typosquanted nuclei templates) are not currently guarded against.
+
+1.  **CycloneDX SBOM Diff Gate in CI**
+    *   **Status**: ❌ NOT STARTED. `ci.yml` generates an SBOM artifact using `cyclonedx-bom` but does not compare it against a previous baseline or enforce a "no-new-critical" gate. Anyone can silently introduce a vulnerable dependency.
+    *   **Hardening**: Add `SBOM Diff` job to `.github/workflows/ci.yml`. Store the last-approved SBOM in `configs/sbom-baseline.json`. On each PR, run `syft . -o cyclonedx-json > sbom-current.json`, diff against the baseline with `grype sbom-current.json --fail-on high`, and fail the job if any new package has a `cvssScore ≥ 7.0`. Update the baseline only via a manual maintainer merge to `main`. Acceptance: a PR introducing `requests==2.99.0` (hypothetical vulnerable version) fails CI with a clear SBOM diff report.
+
+2.  **Nuclei Template Provenance Validation**
+    *   **Status**: ❌ NOT STARTED. `NUCLEI_TEMPLATE_PATH` in `.env` defaults to `~/.nuclei-templates` with no integrity verification. A compromised `~/.nuclei-templates/` directory would silently inject malicious scan logic.
+    *   **Hardening**: Add `src/recon/nuclei_template_validation.py` — on pipeline startup, compute SHA-256 hashes of every `.yaml` template under `NUCLEI_TEMPLATE_PATH` (filtering the top 40 k highest-priority templates to avoid start-up overhead), compare against a signed manifest stored in `configs/nuclei_manifest.json`. Store the manifest as an Ed25519 signature over the JSON hash-map. Fail fast on any mismatch and log the specific filename + expected vs. actual hash. Acceptance: tampering a single nuclei template file causes an immediate pipeline abort with the filename and hash mismatch in the log output.
+
+3.  **Dependency Pinning Policy Enforcement**
+    *   **Status**: ❌ NOT STARTED. `pyproject.toml` uses open semver ranges (`httpx>=0.28.0,<1.0.0`, `fastapi>=0.115.0,<1.0.0`) rather than pinned versions. A new upstream release introducing a CVE would be picked up silently in every `pip install`.
+    *   **Hardening**: Add `ci.yml` job `dependency-pins` that runs `pip-compile --generate-hashes` against `pyproject.toml` and verifies `requirements-lock.txt` matches exactly. Fail if drift is detected. In the `security` job, raise `pip-audit` from informational to `error` for any `HIGH`/`CRITICAL` CVE in direct (not transitive) dependencies. Acceptance: loosening a version range in `pyproject.toml` without an accompanying `requirements-lock.txt` update triggers a CI failure before merge.
+
+---
+
+## 🔁 Phase 9: Closed-Loop Exploit Remediation Verification
+**Goal**: AEVE (`src/execution/exploiters/aeve.py`) transitions findings through `CANDIDATE → VERIFYING → VERIFIED_TP / FALSE_POSITIVE`, but there is no automated re-verification path after a remediation ticket is filed and closed — the pipeline treats the issue as "handled" and stops tracking it, leaving a regression blind spot for weeks or months.
+
+1.  **Remediation Re-Scan Firewall**
+    *   **Status**: ❌ NOT STARTED. No reinvocation strategy exists for previously-verified findings.
+    *   **Hardening**: Add `src/execution/remediators/remediation_scanner.py` — accepts a `verified_finding_id`, looks up the original finding in `<output>/findings/findings.json`, extracts the affected endpoint and payload, re-targets only that endpoint with the same AEVE payload, and transitions the stored status to `REGRESSED` or `REMEDIATED`. Triggered by `POST /api/remediated/{finding_id}/verify`, guarded by an adaptive cooldown defaulting to 72 h (configurable in `configs/config.example.json` under `remediation.cooldown_hours`). Acceptance: running a remediation verification scan on a confirmed-fixed IDOR endpoint returns `REGRESSED` or `REMEDIATED` within two pipeline stages.
+
+2.  **Recurring False-Positive Re-Evaluation Watchlist**
+    *   **Status**: ❌ NOT STARTED. Findings marked `FALSE_POSITIVE` in one run are silently dropped and never re-evaluated. A previously-FP finding that reappears due to a code rollback goes unnoticed.
+    *   **Hardening**: Serialize all `FALSE_POSITIVE` findings into `<output>/regression-watchlist.json` on every run completion. On every subsequent run, inject watchlist URLs through `src/recon/urls.py` + `build_nuclei_plan()` with an elevated confidence threshold specifically for watchlist items. Notify on any re-emergence via `NotificationManager` so the security team receives a `regression` alert rather than the finding silently merging into the normal pipeline. Acceptance: a previously-FP endpoint that reappears (same URL pattern, same vulnerability class) triggers a notification rather than being silently dropped.
+
+3.  **Exploit Chain Drift Detection**
+    *   **Status**: ⚠️ FRAGMENTED. `VulnCorrelationEngine` (`src/intelligence/correlation/attack_chain_correlator.py`) builds attack chains and `src/reporting/pipeline.py` stores chain artifacts. No mechanism compares chain shapes between runs to detect new exposures or remediated paths.
+    *   **Hardening**: Add `src/intelligence/correlation/chain_diff_engine.py` — canonicalizes each run's attack chain as a sorted graph-node list, then computes Jaccard similarity per chain node. Flag nodes present in Run B but absent from Run A as *new exposure*; flag Run A nodes absent from Run B as *closed chain* (remediated path). Expose via `GET /api/chains/diff?from_run=<run_id>&to_run=<run_id>` and add a Chain Drift tile to `RiskScorePage.tsx`. Acceptance: a chain diff showing ≥10% node churn per 30-day window surfaces on the dashboard Chains page.
+
+---
+
+## 📡 Phase 10: API-Led Governance & Developer Experience
+**Goal**: The pipeline exposes 30+ FastAPI endpoints but has no OpenAPI-generated contract documentation, no request/response schema stability gate, and no developer tooling for extending the analyzer without touching core code.
+
+1.  **OpenAPI Contract Quality Gate**
+    *   **Status**: ❌ NOT STARTED. FastAPI auto-generates `/docs` and `/openapi.json`, but the generated schemas are unstructured prose. No CI gate enforces schema stability — any endpoint change silently breaks consumer integrations.
+    *   **Hardening**: Add `scripts/validate_openapi.py` — starts the dashboard in the background, downloads `openapi.json`, runs `openapi-spec-validator`, then diffs against `configs/openapi-baseline.json` using `jsondiff`. Fail CI if breaking changes are detected without a `.openapi-bump.md` changelog entry in the same PR. The bump entry documents the changed path, operation, and a justification field. Acceptance: removing a response field from any production endpoint causes the CI job to fail before merge.
+
+2.  **Plugin Scaffold CLI (`cyber plugin new`)**
+    *   **Status**: ❌ NOT STARTED. The plugin registry (`src/core/plugins.py`) requires developers to manually add boilerplate imports, `@register_plugin` decorators, contract protocol classes, and Zod schema updates across 3–4 files.
+    *   **Hardening**: Add `plugin new` subcommand to `src/cli.py` with interactive prompts (`rich.prompt.Prompt`) for plugin name, category, and I/O contract fields. Template-generate `src/recon/sources/<name>.py`, `src/core/contracts/<name>.py`, and `frontend/src/api/schemas/<name>.ts` from Jinja2 templates stored in `configs/plugin_templates/`. Run `ruff check` and `mypy` before the CLI confirms. Write the new plugin name to `configs/plugins/registry.json` so `list_plugins()` discovers it automatically. Acceptance: running `cyber plugin new` produces a compilable, type-checked plugin in <60 s without manual file edits.
+
+3.  **Local Dev Self-Check (`cyber doctor`)**
+    *   **Status**: ❌ NOT STARTED. The README Quick Start requires six manual steps with no pre-flight verification. New contributors frequently hit hidden dependency issues.
+    *   **Hardening**: Add `doctor` subcommand to `src/cli.py` that checks: Python ≥3.14 is the active interpreter (compare `sys.version_info`), required system binaries (`nuclei`, `httpx`, `subfinder`) are callable on `$PATH`, Redis is reachable and responds to `PING`, `.env` is present and non-default (not `change-me-in-production`), and `configs/config.json` is valid JSON with all required top-level keys (`tools`, `nuclei`, `analysis`). Produce a machine-readable exit code per failure class (`2` = missing system dep, `3` = misconfigured env, `4` = unreachable service, `5` = invalid config). Add a `make doctor` alias. Acceptance: `cyber doctor` returns exit code 0 on a correctly configured machine and emits color-coded diagnostics via `rich` on failure.
+
+---
+
+## 🎭 Phase 11: Playwright Accessibility & Frontend Security Codex
+**Goal**: Frontend E2E coverage (`frontend/tests/e2e/`) and `playwright.config.ts` exist, but no E2E suite validates WCAG 2.2 AA conformance or screens for common frontend security anti-patterns (`dangerouslySetInnerHTML`, missing CSP headers in the dist bundle, hardcoded secrets).
+
+1.  **WCAG 2.2 AA E2E Audit Suite**
+    *   **Status**: ❌ NOT STARTED. The E2E suite covers functional flows (findings timeline, job monitoring) but asserts nothing about accessibility conformance.
+    *   **Hardening**: Add `frontend/tests/e2e/a11y.spec.ts` using `@playwright/test` + `@axe-core/playwright`. Assert A-level success criteria: skip-links are present and focusable on every page, focus-visible rings on all interactive controls, ARIA labels on all icon-only buttons, `role` attributes on navigation landmarks, and color-contrast ratio ≥4.5:1 for body text. Fail the `test:e2e` CI job (with `npx playwright test --reporter=... tests/e2e/a11y.spec.ts`) on any A-level violation. Acceptance: an `<a>` tag missing an `href` or a form input missing a label triggers a playwright test failure before merge.
+
+2.  **Bundle Hash Attestation (Prevent Secret Leak in Dist)**
+    *   **Status**: ❌ NOT STARTED. The build emits `frontend/dist/assets/*.js` bundles with no attestation that they match the published TypeScript source. An inadvertently committed `console.log(process.env.SECRET_KEY)` or `dangerouslySetInnerHTML` block would ship to production unnoticed.
+    *   **Hardening**: Add `scripts/verify_bundle_hashes.sh` that computes `sha256` of every `frontend/dist/assets/*.js` bundle after `npm run build` and verifies against baselines stored in `configs/bundle_baselines.json`. Fail the `build` CI job if the final bundle deviates. Baseline entries are updated only via a manual `.openapi-bump.md`-style changelog commit. Acceptance: injecting a `console.log(process.env.*)` snippet into any page component causes a bundle hash mismatch and a CI failure.
+
+3.  **CSRF Token Propagation in Dashboard Forms**
+    *   **Status**: ⚠️ PARTIAL. `csrf` detection exists in `src/reporting/compliance_mapping.py` → `A01:2021-Broken Access Control`, and validators exist in `src/execution/validators/validators/`, but all dashboard forms at `frontend/src/pages/*.tsx` use plain `fetch`/`axios` calls without anti-CSRF tokens.
+    *   **Hardening**: On app bootstrap, call `GET /api/csrf-token` to obtain a per-session token. Audit all `fetch` and `axios` POST/PUT/DELETE calls across `frontend/src/pages/` and `frontend/src/api/`, adding `X-CSRF-Token` header sourced from the bootstrap call. Wire a Playwright route interceptor that marks the `test:e2e` job as failed if any mutating request in the trace session is sent without the header. Acceptance: a Playwright trace shows `X-CSRF-Token` present on every mutating dashboard mutation.
+
+---
+
+## Success Criteria
+
+Per-phase acceptance tests must pass on the `main` branch before a sprint is considered complete. All new endpoints return OpenAPI-validated schemas, all new Python modules pass `ruff check --select S` (Bandit security rules) and `mypy --strict`, and all new frontend pages pass `npm run check:types` and `npm run lint`.
+
+Integration tests for new learning/chain features use `httpx.AsyncClient` against a locally-started dashboard. Mutation tests (`mutmut`) cover all new stage runner logic. SBOM and nuclei provenance jobs gate the `main` branch CI for any PR that touches `pyproject.toml`, `configs/nuclei_manifest.json`, or `requirements-lock.txt`.

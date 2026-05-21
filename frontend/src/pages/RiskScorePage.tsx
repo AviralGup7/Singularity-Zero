@@ -23,6 +23,12 @@ import type { RiskHistoryEntry } from '@/types/extended';
 
 const TARGET_COLORS = ['#2FD8F8', '#FF9A3D', '#2ECC71', '#A55CFF', '#F2C94C', '#4FA3FF'];
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const { Vector3, BufferGeometry } = THREE as any;
+const ThreeGroup = 'group' as any;
+const ThreeLine = 'line' as any;
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 function formatDateInput(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -51,7 +57,7 @@ function RiskNode({ position, label, value, color, size = 1, isMain = false }: {
   isMain?: boolean;
 }) {
   return (
-    <group position={position}>
+    <ThreeGroup position={position}>
       <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
         <Sphere args={[size * 0.4, 32, 32]}>
           <meshStandardMaterial
@@ -79,18 +85,18 @@ function RiskNode({ position, label, value, color, size = 1, isMain = false }: {
           {label}: {value.toFixed(1)}
         </div>
       </Html>
-    </group>
+    </ThreeGroup>
   );
 }
 
 function ConnectionLine({ start, end, color }: { start: [number, number, number], end: [number, number, number], color: string }) {
-  const points = useMemo(() => [new THREE.Vector3(...start), new THREE.Vector3(...end)], [start, end]);
-  const lineGeometry = useMemo(() => new THREE.BufferGeometry().setFromPoints(points), [points]);
+  const points = useMemo(() => [new Vector3(...start), new Vector3(...end)], [start, end]);
+  const lineGeometry = useMemo(() => new BufferGeometry().setFromPoints(points), [points]);
 
   return (
-    <line geometry={lineGeometry}>
+    <ThreeLine geometry={lineGeometry}>
       <lineBasicMaterial color={color} transparent opacity={0.4} />
-    </line>
+    </ThreeLine>
   );
 }
 
@@ -107,7 +113,7 @@ function RiskGraph({ data, factors }: { data: RiskHistoryEntry | null, factors: 
   const factorDefinitions = factors?.factors ?? [];
 
   return (
-    <group>
+    <ThreeGroup>
       <RiskNode
         position={[0, 0, 0]}
         label="CSI"
@@ -117,11 +123,11 @@ function RiskGraph({ data, factors }: { data: RiskHistoryEntry | null, factors: 
         isMain
       />
       {factorDefinitions.map((f, i) => {
-        const factorKey = f.key as keyof typeof data.factors;
-        const val = data.factors?.[factorKey] ?? 0;
+        const factorKey = f.key;
+        const val = data.factors ? (Reflect.get(data.factors, factorKey) as number ?? 0) : 0;
         const pos = factorPositions[i % factorPositions.length];
         return (
-          <group key={f.key}>
+          <ThreeGroup key={f.key}>
             <RiskNode
               position={pos}
               label={f.label}
@@ -130,13 +136,13 @@ function RiskGraph({ data, factors }: { data: RiskHistoryEntry | null, factors: 
               size={0.8}
             />
             <ConnectionLine start={[0, 0, 0]} end={pos} color="#2FD8F8" />
-          </group>
+          </ThreeGroup>
         );
       })}
       <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.5} />
       <ambientLight intensity={0.5} />
       <pointLight position={[10, 10, 10]} intensity={1} />
-    </group>
+    </ThreeGroup>
   );
 }
 
@@ -214,7 +220,9 @@ export function RiskScorePage() {
 
   const lineData = useMemo(() => columns.map((day) => {
     const row: Record<string, string | number> = { day: day.slice(5) };
-    for (const target of visibleTargets) row[target] = heatmapByTargetDay.get(`${target}:${day}`)?.csi_value ?? 0;
+    for (const target of visibleTargets) {
+      Reflect.set(row, target, heatmapByTargetDay.get(`${target}:${day}`)?.csi_value ?? 0);
+    }
     return row;
   }), [columns, heatmapByTargetDay, visibleTargets]);
 
