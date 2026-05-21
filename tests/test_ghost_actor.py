@@ -1,7 +1,7 @@
-import pytest
 import time
-from src.core.frontier.ghost_actor import ScanActor, ActorState
-from src.core.frontier.marshaller import mesh_unmarshal
+
+from src.core.frontier.ghost_actor import ActorState, ScanActor
+
 
 def mock_logic(task_input, state):
     state["last_input"] = task_input
@@ -16,7 +16,7 @@ def test_actor_state_packing():
     )
     packed = state.pack()
     assert isinstance(packed, bytes)
-    
+
     unpacked = ActorState.unpack(packed)
     assert unpacked.actor_id == state.actor_id
     assert unpacked.data == state.data
@@ -24,26 +24,26 @@ def test_actor_state_packing():
 
 def test_actor_migration_serialization():
     actor = ScanActor.start(actor_id="actor-1", logic_fn=mock_logic).proxy()
-    
+
     # 1. Execute logic to set some state
     actor.on_receive({"command": "execute", "input": {"url": "example.com"}}).get()
-    
+
     # 2. Trigger migration
     packed_snapshot = actor.on_receive({"command": "migrate"}).get()
-    
+
     assert isinstance(packed_snapshot, bytes)
-    
+
     # 3. Unpack and verify state
     snapshot = ActorState.unpack(packed_snapshot)
     assert snapshot.actor_id == "actor-1"
     assert snapshot.data["last_input"] == {"url": "example.com"}
-    
+
     actor.stop()
 
 def test_actor_recovery_from_snapshot():
     actor_id = "actor-2"
     snapshot_data = {"progress": 50, "discovered": ["a", "b"]}
-    
+
     state = ActorState(
         actor_id=actor_id,
         stage="analysis",
@@ -51,15 +51,15 @@ def test_actor_recovery_from_snapshot():
         checkpoint_ts=time.time()
     )
     packed = state.pack()
-    
+
     # Simulate recovery on a new node
     new_actor = ScanActor.start(actor_id=actor_id, logic_fn=mock_logic).proxy()
-    
+
     # Normally the coordinator or orchestrator would handle this.
     # We'll just manually set the state from the unpacked snapshot for this test
     recovered_state = ActorState.unpack(packed)
     new_actor.on_receive({"command": "recover", "deltas": [{"delta": recovered_state.data}]}).get()
-    
+
     # Verify recovered state
     actual_state = new_actor.on_receive({"command": "snapshot"}).get().data
     assert actual_state["progress"] == 50

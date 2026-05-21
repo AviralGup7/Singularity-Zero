@@ -38,7 +38,6 @@ _EXPORTS: dict[str, str] = {
     "tracing": "src.infrastructure.observability.tracing",
     # Security
     "auth": "src.infrastructure.security.auth",
-    "cors": "src.infrastructure.security.cors",
     "encryption": "src.infrastructure.security.encryption",
     "headers": "src.infrastructure.security.headers",
     "input_validation": "src.infrastructure.security.input_validation",
@@ -80,7 +79,6 @@ __all__ = [
     "tracing",
     # Security
     "auth",
-    "cors",
     "encryption",
     "headers",
     "input_validation",

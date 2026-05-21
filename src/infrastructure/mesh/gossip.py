@@ -377,15 +377,15 @@ class GossipEngine:
                 try:
                     # Non-blocking CPU check
                     self.local_node.cpu_usage = psutil.cpu_percent(interval=None)
-                    
+
                     mem = psutil.virtual_memory()
                     self.local_node.ram_available_mb = round(mem.available / (1024 * 1024), 2)
-                    
+
                     # Update local seen timestamp
                     self.local_node.last_seen = time.time()
                 except Exception as e:
                     logger.debug("Mesh telemetry collection failed: %s", e)
-            
+
             await asyncio.sleep(5.0)
 
     def _handle_ack(self, payload: dict[str, Any]) -> None:

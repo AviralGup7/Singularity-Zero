@@ -389,8 +389,8 @@ def check_response_oauth_issues(response: dict[str, Any]) -> list[dict[str, Any]
                                 "risk_score": 4,
                             }
                         )
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.debug("OAuth response body is not valid JSON (parsing skipped): %s", exc)
 
     location_header = headers.get("location", "")
     if location_header:
