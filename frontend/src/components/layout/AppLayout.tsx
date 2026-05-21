@@ -503,14 +503,12 @@ export function AppLayout({ children }: AppLayoutProps) {
             role="button"
             tabIndex={0}
             aria-label="Close shortcuts modal"
-            onClick={() => setShowShortcuts(false)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowShortcuts(false); }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowShortcuts(false); }}
+            onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) setShowShortcuts(false); }}
           >
             <div
               tabIndex={-1}
               className="card modal-card"
-              onClick={e => e.stopPropagation()}
-              onKeyDown={e => e.stopPropagation()}
               role="document"
             >
               <h3 id="shortcuts-modal-title" className="mb-16 text-accent">Keyboard Shortcuts</h3>

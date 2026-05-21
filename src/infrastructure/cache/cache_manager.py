@@ -813,11 +813,7 @@ class CacheManager:
         This is primarily used by distributed components (like GhostMeshRegistry)
         to share the same connection pool as the cache layer.
         """
-        if (
-            self._config.enable_l2
-            and self._config.l2_backend == "redis"
-            and self._l2 is not None
-        ):
+        if self._config.enable_l2 and self._config.l2_backend == "redis" and self._l2 is not None:
             # RedisBackend exposes self._client
             return getattr(self._l2, "_client", None)
         return None

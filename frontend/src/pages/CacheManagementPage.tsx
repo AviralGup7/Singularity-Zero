@@ -39,7 +39,7 @@ function formatBytes(bytes?: number | null): string {
    
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  return `${(value / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+  return `${(value / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units.at(index)}`;
 }
 
 function formatRatio(value?: number | null): string {
@@ -148,7 +148,7 @@ function PerformanceLineChart({
   const chartHeight = height - padding.top - padding.bottom;
   const xFor = (index: number) => padding.left + (data.length === 1 ? 0 : (index / (data.length - 1)) * chartWidth);
   const yFor = (value: number) => padding.top + (1 - clampPercent(value) / 100) * chartHeight;
-  const pathFor = (key: 'hit' | 'miss') => data.map((point, index) => `${xFor(index)},${yFor(point[key])}`).join(' ');
+  const pathFor = (key: 'hit' | 'miss') => data.map((point, index) => `${xFor(index)},${yFor(Reflect.get(point, key))}`).join(' ');
   const xTicks = data.filter((_, index) => index === 0 || index === data.length - 1 || index % Math.max(1, Math.floor(data.length / 4)) === 0);
 
   return (

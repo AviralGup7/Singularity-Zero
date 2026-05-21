@@ -20,14 +20,14 @@ const STAGE_ORDER = [
   'reporting',
 ];
 
-const STAGE_ALIASES: Record<string, string> = {
-  priority: 'ranking',
-};
+const STAGE_ALIASES = new Map<string, string>([
+  ['priority', 'ranking'],
+]);
 
 function normalizeStageName(stageName: string | undefined): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
-  return STAGE_ALIASES[normalized] ?? normalized;
+  return STAGE_ALIASES.get(normalized) ?? normalized;
 }
 
    

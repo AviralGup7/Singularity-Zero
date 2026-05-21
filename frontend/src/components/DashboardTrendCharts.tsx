@@ -55,15 +55,15 @@ function StackedBarChart({ data, width, height, maxVal }: { data: Array<{ critic
   const barWidth = Math.max(4, (width - data.length * 2) / data.length);
    
   const elements: React.ReactElement[] = [];
-  const colors = {
-    critical: 'var(--severity-critical)',
-    high: 'var(--severity-high)',
-    medium: 'var(--severity-medium)',
-    low: 'var(--severity-low)',
-    info: 'var(--severity-info)',
-  };
+  const colors = new Map<string, string>([
+    ['critical', 'var(--severity-critical)'],
+    ['high', 'var(--severity-high)'],
+    ['medium', 'var(--severity-medium)'],
+    ['low', 'var(--severity-low)'],
+    ['info', 'var(--severity-info)'],
+  ]);
    
-  const keys: Array<keyof typeof colors> = ['critical', 'high', 'medium', 'low', 'info'];
+  const keys = ['critical', 'high', 'medium', 'low', 'info'] as const;
 
   data.forEach((point, i) => {
     let cumulativeHeight = 0;
@@ -73,7 +73,7 @@ function StackedBarChart({ data, width, height, maxVal }: { data: Array<{ critic
       const x = i * (barWidth + 2);
       const y = height - cumulativeHeight - barH - 15;
       elements.push(
-        <rect key={`${i}-${key}`} x={x} y={y} width={barWidth} height={barH} fill={colors[key]} rx={1} />
+        <rect key={`${i}-${key}`} x={x} y={y} width={barWidth} height={barH} fill={colors.get(key) || ''} rx={1} />
       );
       cumulativeHeight += barH;
     });

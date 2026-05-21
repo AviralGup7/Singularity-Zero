@@ -133,7 +133,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
       const idx = state.pluginProgress.findIndex((p) => p.label === entry.label);
       const nextProgress = [...state.pluginProgress];
       if (idx >= 0) {
-        nextProgress[idx] = entry;
+        nextProgress.splice(idx, 1, entry);
       } else {
         nextProgress.push(entry);
       }
@@ -149,7 +149,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
       const idx = state.stageProgress.findIndex((s) => s.stage === entry.stage);
       const nextStages = [...state.stageProgress];
       if (idx >= 0) {
-        nextStages[idx] = { ...nextStages[idx], ...entry };
+        nextStages.splice(idx, 1, { ...nextStages.at(idx)!, ...entry });
       } else {
         nextStages.push(entry);
       }

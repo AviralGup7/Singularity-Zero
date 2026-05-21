@@ -217,23 +217,25 @@ class GhostMeshCoordinator:
             # Use same thresholds as ProactiveMigrationHandler (90% CPU, <500MB RAM available)
             # Note: ram_available_mb is what we have left, not % usage.
             # Assuming a 2GB comfortable baseline, 500MB is critical.
-            is_under_pressure = (
-                local_node.cpu_usage > 90.0 or
-                local_node.ram_available_mb < 500.0
-            )
+            is_under_pressure = local_node.cpu_usage > 90.0 or local_node.ram_available_mb < 500.0
 
             if not is_under_pressure:
                 # Also check if actor specifically recommended evacuation (e.g. for logic-level reasons)
                 # We still try to ask, but with a timeout to avoid hanging.
                 try:
-                    health = cast(dict[str, Any], actor_ref.ask({"command": "health_check"}, timeout=0.5))
+                    health = cast(
+                        dict[str, Any], actor_ref.ask({"command": "health_check"}, timeout=0.5)
+                    )
                     if not health.get("evacuation_recommended"):
                         return False
                 except (pykka.Timeout, Exception):
                     return False
 
             actor_id = f"actor:{task_metadata.get('actor_id', 'unknown')}"
-            logger.info("Ghost-Coordinator: Initiating proactive migration for [%s] due to node pressure", actor_id)
+            logger.info(
+                "Ghost-Coordinator: Initiating proactive migration for [%s] due to node pressure",
+                actor_id,
+            )
 
             target_node_id = self.balancer.select_best_node_from_gossip(self.gossip, task_metadata)
             current_node_id = local_node.id

@@ -48,8 +48,9 @@ export default function HealthIndicator() {
 
   if (!health) return null;
 
-  const uptime = typeof (health as Record<string, unknown>).uptime === 'number'
-    ? formatUptime((health as Record<string, unknown>).uptime as number)
+  const rawUptime = health.uptime_seconds ?? (health as unknown as Record<string, unknown>).uptime;
+  const uptime = typeof rawUptime === 'number'
+    ? formatUptime(rawUptime)
     : null;
 
   return (

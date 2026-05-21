@@ -46,13 +46,13 @@ export function SeverityBadge({ severity, count, className, showIcon = true }: S
       className={cn(
    
         'inline-flex items-center gap-1 px-2 py-0.5 text-[length:var(--text-xs)] font-mono font-bold uppercase tracking-wider border rounded-sm',
-        severityClasses[severity],
+        Reflect.get(severityClasses, severity),
         className
       )}
       role="status"
-      aria-label={`${severityLabels[severity]} severity${count !== undefined ? `: ${count} findings` : ''}`}
+      aria-label={`${Reflect.get(severityLabels, severity)} severity${count !== undefined ? `: ${count} findings` : ''}`}
     >
-      {showIcon && <span aria-hidden="true" className="severity-icon-marker">{severityIcons[severity]}</span>}
+      {showIcon && <span aria-hidden="true" className="severity-icon-marker">{Reflect.get(severityIcons, severity)}</span>}
       <span className="severity-text-label">{severity}</span>
       {count !== undefined && <span className="ml-1" aria-label={`${count} findings`}>{count}</span>}
     </span>

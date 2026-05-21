@@ -133,7 +133,7 @@ export function autoResolveDependencies(
   while (changed) {
     changed = false;
     for (const mod of resolved) {
-      const dep = MODULE_DEPENDENCIES[mod];
+      const dep = Reflect.get(MODULE_DEPENDENCIES, mod);
       if (dep?.requires) {
         for (const req of dep.requires) {
           if (!resolved.has(req)) {

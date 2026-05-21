@@ -1,6 +1,6 @@
 import { useState, useCallback, type ReactNode } from 'react';
 import { createToken } from '@/api/security';
-import { safeSession } from '@/utils/storage';
+import { safeSession, safeStorage } from '@/utils/storage';
 import { AuthContext } from './auth-context';
 
 export type { UserRole, Permission, AuthContextType } from './auth-context';
@@ -30,9 +30,12 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
   },
 };
 
-const ROLE_HIERARCHY: Record<UserRole, number> = {
-  viewer: 0, analyst: 1, 'team-lead': 2, admin: 3,
-};
+const ROLE_HIERARCHY = new Map<UserRole, number>([
+  ['viewer', 0],
+  ['analyst', 1],
+  ['team-lead', 2],
+  ['admin', 3]
+]);
 
 const AUTH_STORAGE_KEY = 'cyber-pipeline-auth';
 
@@ -86,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const hasPermission = useCallback(
-    (permission: keyof Permission) => permissions[permission],
+    (permission: keyof Permission) => Reflect.get(permissions, permission) as boolean,
    
     [permissions]
   );
@@ -94,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = useCallback(
     (role: UserRole) => {
       if (!user) return role === 'viewer';
-      return ROLE_HIERARCHY[user.role] >= ROLE_HIERARCHY[role];
+      return (ROLE_HIERARCHY.get(user.role) ?? 0) >= (ROLE_HIERARCHY.get(role) ?? 0);
     },
    
     [user]

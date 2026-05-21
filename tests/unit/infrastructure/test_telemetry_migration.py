@@ -21,7 +21,9 @@ async def test_coordinator_triggers_migration_on_telemetry_pressure():
     mock_gossip.local_node = local_node
 
     # Target node with low usage
-    target_node = MeshNode(id="node-2", host="127.0.0.2", port=8000, cpu_usage=10.0, ram_available_mb=2048)
+    target_node = MeshNode(
+        id="node-2", host="127.0.0.2", port=8000, cpu_usage=10.0, ram_available_mb=2048
+    )
     mock_gossip.mesh_nodes.return_value = [local_node, target_node]
 
     coordinator = GhostMeshCoordinator(mock_registry, mock_gossip)
@@ -32,15 +34,13 @@ async def test_coordinator_triggers_migration_on_telemetry_pressure():
     mock_actor_ref.ask.return_value = {"actor_id": "test-1", "evacuation_recommended": False}
 
     # Execution
-    triggered = await coordinator.migrate_if_needed(
-        mock_actor_ref,
-        {"actor_id": "test-1"}
-    )
+    triggered = await coordinator.migrate_if_needed(mock_actor_ref, {"actor_id": "test-1"})
 
     # Verification
     assert triggered is True
     # Verify registry update to new node
     mock_registry.register_actor.assert_called_with("actor:test-1", "node-2")
+
 
 @pytest.mark.asyncio
 async def test_coordinator_skips_migration_when_healthy():
@@ -60,10 +60,7 @@ async def test_coordinator_skips_migration_when_healthy():
     mock_actor_ref.ask.return_value = {"evacuation_recommended": False}
 
     # Execution
-    triggered = await coordinator.migrate_if_needed(
-        mock_actor_ref,
-        {"actor_id": "test-1"}
-    )
+    triggered = await coordinator.migrate_if_needed(mock_actor_ref, {"actor_id": "test-1"})
 
     # Verification
     assert triggered is False

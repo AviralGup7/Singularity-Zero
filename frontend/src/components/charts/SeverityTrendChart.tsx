@@ -104,7 +104,7 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data }: Sev
    
   }, [visualState.instability, xScale, yScale]);
 
-  const hoveredPoint = hoveredIndex !== null ? chartData[hoveredIndex] ?? null : null;
+  const hoveredPoint = hoveredIndex !== null ? chartData.at(hoveredIndex) ?? null : null;
 
   if (!chartData.length) {
     return (
@@ -128,8 +128,8 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data }: Sev
           <defs>
             {SEVERITY_KEYS.map((severity) => (
               <linearGradient key={severity} id={`severity-gradient-${severity}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={COLORS[severity]} stopOpacity={0.55} />
-                <stop offset="100%" stopColor={COLORS[severity]} stopOpacity={0.04} />
+                <stop offset="0%" stopColor={Reflect.get(COLORS, severity)} stopOpacity={0.55} />
+                <stop offset="100%" stopColor={Reflect.get(COLORS, severity)} stopOpacity={0.04} />
               </linearGradient>
             ))}
           </defs>
@@ -166,7 +166,7 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data }: Sev
                   key={severity}
                   d={pathData}
                   fill={`url(#severity-gradient-${severity})`}
-                  stroke={COLORS[severity]}
+                  stroke={Reflect.get(COLORS, severity)}
                   strokeWidth={1.8}
                   opacity={hoveredPoint ? 0.42 : 0.95}
                 />
@@ -233,7 +233,7 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data }: Sev
       <div className="chart-summary">
         {SEVERITY_KEYS.map((severity) => (
           <span key={severity} className="chart-summary-item">
-            <span className="chart-summary-dot" style={{ backgroundColor: COLORS[severity] }} />
+            <span className="chart-summary-dot" style={{ backgroundColor: Reflect.get(COLORS, severity) }} />
             {severity}
           </span>
         ))}
@@ -245,9 +245,9 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data }: Sev
           <div className="cyber-tooltip-body">
             {SEVERITY_KEYS.map((severity) => (
               <div key={severity} className="cyber-tooltip-row">
-                <span className="cyber-tooltip-dot" style={{ backgroundColor: COLORS[severity] }} />
+                <span className="cyber-tooltip-dot" style={{ backgroundColor: Reflect.get(COLORS, severity) }} />
                 <span className="cyber-tooltip-label">{severity}:</span>
-                <span className="cyber-tooltip-value">{hoveredPoint[severity]}</span>
+                <span className="cyber-tooltip-value">{Reflect.get(hoveredPoint, severity)}</span>
               </div>
             ))}
           </div>

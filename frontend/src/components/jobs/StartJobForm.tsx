@@ -92,14 +92,14 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
 
     setSubmitting(true);
     try {
-      const nonDefaultExec = Object.entries(form.executionOptions)
-   
-        .filter(([, v]) => v)
-        .reduce((acc, [k, v]) => { acc[k] = v; return acc; }, {} as Record<string, boolean>);
-      const nonEmptyOverrides = Object.entries(form.runtimeOverrides)
-   
-        .filter(([, v]) => v.trim().length > 0)
-        .reduce((acc, [k, v]) => { acc[k] = v.trim(); return acc; }, {} as Record<string, string>);
+      const nonDefaultExec = Object.fromEntries(
+        Object.entries(form.executionOptions).filter(([, v]) => v)
+      );
+      const nonEmptyOverrides = Object.fromEntries(
+        Object.entries(form.runtimeOverrides)
+          .filter(([, v]) => v.trim().length > 0)
+          .map(([k, v]) => [k, v.trim()])
+      );
 
       // Map analysis checks to runtime overrides
       const analysisOverrides: Record<string, string> = {};
@@ -172,14 +172,15 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
 
           <div className="wizard-progress">
             {STEPS.map((label, idx) => (
-              <div
+              <button
                 key={label}
+                type="button"
                 className={`wizard-step-indicator ${idx === currentStep ? 'active' : ''} ${idx < currentStep ? 'completed' : ''}`}
                 onClick={() => { if (idx < currentStep) setCurrentStep(idx); }}
               >
                 <span className="wizard-step-number">{idx + 1}</span>
                 <span className="wizard-step-label">{label}</span>
-              </div>
+              </button>
             ))}
             <div className="wizard-progress-bar">
               <div className="wizard-progress-fill" style={{ width: `${(currentStep / (STEPS.length - 1)) * 100}%` }} />

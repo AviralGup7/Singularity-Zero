@@ -223,13 +223,19 @@ class DashboardQueryService:
                 "auto_max_speed_mode": config.get("analysis", {}).get("auto_max_speed_mode", False),
                 "httpx_batch_concurrency": config.get("httpx", {}).get("batch_concurrency", 2),
                 "httpx_fallback_threads": config.get("httpx", {}).get("fallback_threads", 48),
-                "httpx_probe_timeout_seconds": config.get("httpx", {}).get("probe_timeout_seconds", 8),
-                "pagination_walk_limit": config.get("analysis", {}).get("pagination_walk_limit", 24),
+                "httpx_probe_timeout_seconds": config.get("httpx", {}).get(
+                    "probe_timeout_seconds", 8
+                ),
+                "pagination_walk_limit": config.get("analysis", {}).get(
+                    "pagination_walk_limit", 24
+                ),
                 "options_probe_limit": config.get("analysis", {}).get("options_probe_limit", 10),
             },
             "http_timeout_seconds": config.get("http_timeout_seconds", 12),
             "max_collected_urls": config.get("filters", {}).get("max_collected_urls", 1400),
-            "request_rate_per_second": config.get("analysis", {}).get("request_rate_per_second", 2.5),
+            "request_rate_per_second": config.get("analysis", {}).get(
+                "request_rate_per_second", 2.5
+            ),
         }
 
     def findings_summary(self) -> dict[str, object]:
@@ -267,7 +273,11 @@ class DashboardQueryService:
         for target in targets_to_process:
             target_dir = self.output_root / target
             run_dirs = sorted(
-                [d for d in target_dir.iterdir() if d.is_dir() and (d / "run_summary.json").exists()],
+                [
+                    d
+                    for d in target_dir.iterdir()
+                    if d.is_dir() and (d / "run_summary.json").exists()
+                ],
                 key=lambda x: x.name,
                 reverse=True,
             )
@@ -289,10 +299,20 @@ class DashboardQueryService:
                     counts = summary.get("counts") or {}
                     for k, v in counts.items():
                         if k not in {
-                            "scope_entries", "subdomains", "live_hosts", "urls",
-                            "parameters", "priority_urls", "screenshots",
-                            "attack_campaigns", "validation_results", "validated_leads",
-                            "vrt_direct", "vrt_signal_only", "vrt_disabled", "vrt_unsupported"
+                            "scope_entries",
+                            "subdomains",
+                            "live_hosts",
+                            "urls",
+                            "parameters",
+                            "priority_urls",
+                            "screenshots",
+                            "attack_campaigns",
+                            "validation_results",
+                            "validated_leads",
+                            "vrt_direct",
+                            "vrt_signal_only",
+                            "vrt_disabled",
+                            "vrt_unsupported",
                         }:
                             if isinstance(v, int) and v > 0:
                                 run_active.append(k)

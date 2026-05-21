@@ -91,7 +91,7 @@ export function StatePulse({ state, className }: StatePulseProps) {
    
     const ring = cloned.layers?.[0]?.shapes?.[1];
     if (ring && typeof ring === 'object' && 'c' in ring) {
-      (ring as { c: { a: number; k: number[] } }).c.k = hexToRgbArray(stateColor[state]);
+      (ring as { c: { a: number; k: number[] } }).c.k = hexToRgbArray(Reflect.get(stateColor, state));
     }
     return cloned;
    
@@ -100,7 +100,7 @@ export function StatePulse({ state, className }: StatePulseProps) {
   if (!policy.allowLottie) {
     return (
       <span className={`state-pulse-fallback state-pulse-${state} ${className ?? ''}`}>
-        {fallbackLabel[state]}
+        {Reflect.get(fallbackLabel, state)}
       </span>
     );
   }

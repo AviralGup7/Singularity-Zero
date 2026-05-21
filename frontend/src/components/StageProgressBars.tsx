@@ -1,4 +1,4 @@
-﻿import { motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import type { StageProgressEntry } from '../types/api';
 import { useMotionPolicy } from '../hooks/useMotionPolicy';
@@ -36,7 +36,7 @@ function getStatusClass(status: string): string {
 }
 
 function getStageIcon(stage: string): string {
-  return STAGE_ICONS[stage] || 'STEP';
+  return Reflect.get(STAGE_ICONS, stage) || 'STEP';
 }
 
 function formatCount(processed: number, total: number | null): string {

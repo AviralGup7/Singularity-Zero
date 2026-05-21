@@ -112,7 +112,9 @@ class GhostVFS:
 
         duration = time.monotonic() - start_ts
         logger.info(
-            "Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs", len(new_files), duration
+            "Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs",
+            len(new_files),
+            duration,
         )
 
     def _secure_wipe_bytes(self, b: bytes) -> None:

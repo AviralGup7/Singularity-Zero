@@ -55,7 +55,8 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-        next[id] = { ...(prev[id] || {}), ...updates };
+        const prevItem = (Reflect.get(prev, id) as Partial<Finding> | undefined) || {};
+        Reflect.set(next, id, { ...prevItem, ...updates });
         addAuditLog(id, 'bulk_status_change', `Changed to ${status}`);
       }
       return next;
@@ -72,7 +73,8 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-        next[id] = { ...(prev[id] || {}), ...updates };
+        const prevItem = (Reflect.get(prev, id) as Partial<Finding> | undefined) || {};
+        Reflect.set(next, id, { ...prevItem, ...updates });
         addAuditLog(id, 'bulk_false_positive', 'Marked as false positive');
       }
       return next;
@@ -90,7 +92,8 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-        next[id] = { ...(prev[id] || {}), assignedTo: assignee };
+        const prevItem = (Reflect.get(prev, id) as Partial<Finding> | undefined) || {};
+        Reflect.set(next, id, { ...prevItem, assignedTo: assignee });
         addAuditLog(id, 'bulk_assign', `Assigned to ${assignee}`);
       }
       return next;
@@ -107,7 +110,8 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-        next[id] = { ...(prev[id] || {}), _deleted: true } as unknown as Partial<Finding>;
+        const prevItem = (Reflect.get(prev, id) as Partial<Finding> | undefined) || {};
+        Reflect.set(next, id, { ...prevItem, _deleted: true });
         addAuditLog(id, 'bulk_delete', 'Deleted via bulk action');
       }
       return next;
