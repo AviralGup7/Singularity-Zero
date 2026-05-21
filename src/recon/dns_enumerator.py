@@ -139,9 +139,9 @@ def _parse_nslookup_output(output: str, record_type: str) -> list[str]:
     for line in output.splitlines():
         line = line.strip()
         if record_type == "MX" and "mail exchanger" in line.lower():
-            values.append(line.split("mail exchanger =")[-1].strip())
+            values.append(line.split("mail exchanger =")[-1].strip().rstrip("."))
         elif record_type == "NS" and line.startswith("nameserver"):
-            values.append(line.split("nameserver =")[-1].strip())
+            values.append(line.split("nameserver =")[-1].strip().rstrip("."))
         elif record_type == "TXT" and ('"' in line or line.startswith("text")):
             text = line.split("text =")[-1].strip().strip('"')
             if text:
@@ -149,7 +149,7 @@ def _parse_nslookup_output(output: str, record_type: str) -> list[str]:
         elif record_type == "SOA" and "serial" in line.lower():
             values.append(line)
         elif record_type == "CNAME" and "canonical name" in line.lower():
-            values.append(line.split("canonical name =")[-1].strip())
+            values.append(line.split("canonical name =")[-1].strip().rstrip("."))
         elif record_type == "SRV" and "sv service" in line.lower():
             values.append(line)
         else:
