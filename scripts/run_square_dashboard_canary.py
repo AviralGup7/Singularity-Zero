@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from src.dashboard.configuration import default_mode_name, default_module_names, load_template
-from src.dashboard.launcher_forensics import (
+from src.dashboard.forensics.launcher import (
     SQUARE_REFERENCE_JOB_ID,
     build_launcher_replay_manifest,
     capture_launcher_replay_manifest,
