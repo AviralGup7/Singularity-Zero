@@ -596,7 +596,7 @@ class AuditLogger:
         # Fix #300: Prioritize SQLite for high-performance queries
         if hasattr(self, "_db"):
             query = "SELECT data FROM audit_log WHERE 1=1"
-            params = []
+            params: list[Any] = []
             if event:
                 query += " AND event = ?"
                 params.append(event)

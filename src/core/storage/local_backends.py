@@ -39,7 +39,7 @@ class LocalArtifactStore(ArtifactStore):
         results = []
         for p in prefix_path.rglob("*"):
             if p.is_file():
-                results.append(str(p.relative_to(self._root)))
+                results.append(p.relative_to(self._root).as_posix())
         return sorted(results)
 
 

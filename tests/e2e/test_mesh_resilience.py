@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.core.frontier.ghost_actor import (
+    ActorState,
     GhostMeshCoordinator,
     GhostMeshRegistry,
     ScanActor,
@@ -120,7 +121,8 @@ async def test_mesh_wide_state_consistency_during_migration():
         # Note: In a real system, the new actor would be started by the node's supervisor
         new_actor_ref = ScanActor.start(actor_id, dummy_logic)
         # Manually restore state from snapshot
-        new_actor_ref.proxy().state = snapshot.data
+        unpacked = ActorState.unpack(snapshot)
+        new_actor_ref.proxy().state = unpacked.data
 
         # 4. Execute again and verify state was preserved
         result2 = new_actor_ref.ask({"command": "execute", "input": {}}, block=True)
