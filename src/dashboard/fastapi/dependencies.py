@@ -210,6 +210,13 @@ async def require_worker(
     return auth
 
 
+async def get_learning_integration() -> Any:
+    """Provide the LearningIntegration singleton (Phase 5.3)."""
+    from src.learning.integration import LearningIntegration
+
+    return LearningIntegration.get_or_create()
+
+
 class RateLimiter:
     """In-memory sliding window rate limiter."""
 

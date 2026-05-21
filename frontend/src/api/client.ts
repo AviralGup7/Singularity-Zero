@@ -35,6 +35,17 @@ export { getCacheStats, triggerCacheCleanup, invalidateCacheNamespace, reconcile
 export type { CacheStats, CacheCleanupResponse } from '@/types/extended';
 export { getTargetRiskScore, getTargetHistoricalScores, getTargetTimeline, getJobTimeline } from './analysis';
 export type { RiskScore, HistoricalScoreResponse, TimelineResponse, TimelineEntry } from '@/types/extended';
+export {
+  getThresholdHistory,
+  getFPPatterns,
+  getLearningKPIs,
+  getLearningDbStats,
+} from './learning';
+export type {
+  ThresholdHistoryEntry,
+  FPPattern,
+  LearningKPIs,
+} from './learning';
 export { exportTargetFindings, exportLatestFindings } from './export';
 export {
   createToken,

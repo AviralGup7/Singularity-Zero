@@ -24,6 +24,7 @@ const FindingsTimelinePage = lazy(() => import('@/pages/FindingsTimelinePage').t
 const TargetComparison = lazy(() => import('@/pages/TargetComparison').then(m => ({ default: m.TargetComparison })));
 const RemediationPlanner = lazy(() => import('@/pages/RemediationPlanner').then(m => ({ default: m.RemediationPlanner })));
 const GapAnalysisPage = lazy(() => import('@/pages/GapAnalysisPage').then(m => ({ default: m.GapAnalysisPage })));
+const LearningPage = lazy(() => import('@/pages/LearningPage').then(m => ({ default: m.LearningPage })));
 const MeshHealthPage = lazy(() => import('@/pages/MeshHealthPage').then(m => ({ default: m.MeshHealthPage })));
 const TracingPage = lazy(() => import('@/pages/TracingPage').then(m => ({ default: m.TracingPage })));
 const SecurityPage = lazy(() => import('@/pages/SecurityPage').then(m => ({ default: m.SecurityPage })));
@@ -80,6 +81,7 @@ export default function App() {
           <Route path="/target-comparison" element={<RouteGuard><TargetComparison /></RouteGuard>} />
           <Route path="/remediation-planner" element={<RouteGuard><RemediationPlanner /></RouteGuard>} />
           <Route path="/gap-analysis" element={<RouteGuard><GapAnalysisPage /></RouteGuard>} />
+          <Route path="/learning" element={<RouteGuard><LearningPage /></RouteGuard>} />
           <Route path="/mesh" element={<RouteGuard><MeshHealthPage /></RouteGuard>} />
           <Route path="/security" element={<RouteGuard requiredRole="admin"><SecurityPage /></RouteGuard>} />
           <Route path="/tracing" element={<RouteGuard><TracingPage /></RouteGuard>} />

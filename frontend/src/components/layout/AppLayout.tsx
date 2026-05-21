@@ -42,6 +42,7 @@ function useNavSections(): NavSection[] {
         { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
         { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
         { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
+        { path: '/learning', label: 'Autonomous Learning', icon: 'zap' },
       ],
     },
     {
@@ -107,6 +108,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/findings-timeline': { title: 'Timeline', subtitle: 'Findings activity over time' },
   '/target-comparison': { title: 'Compare', subtitle: 'Target posture comparison' },
   '/gap-analysis': { title: 'Gap Analysis', subtitle: 'Detection coverage review' },
+  '/learning': { title: 'Autonomous Learning', subtitle: 'Neural feedback and threshold calibration' },
   '/replay': { title: 'Replay', subtitle: 'Request replay tooling' },
   '/cache-management': { title: 'Cache', subtitle: 'Backend cache controls' },
   '/settings': { title: 'Settings', subtitle: 'System preferences and controls' },
