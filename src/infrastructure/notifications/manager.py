@@ -110,11 +110,18 @@ class NotificationManager:
 
     def _get_config_class(self, notifier_cls: type[BaseNotifier]) -> type:
         import inspect
+        import sys
 
         sig = inspect.signature(notifier_cls.__init__)
         for param in sig.parameters.values():
             if param.name == "config" and param.annotation != inspect.Parameter.empty:
-                return cast(type, param.annotation)
+                ann = param.annotation
+                if isinstance(ann, str):
+                    module = sys.modules.get(notifier_cls.__module__)
+                    if module and hasattr(module, ann):
+                        return getattr(module, ann)
+                else:
+                    return cast(type, ann)
 
         from src.infrastructure.notifications.base import NotificationConfig
 
