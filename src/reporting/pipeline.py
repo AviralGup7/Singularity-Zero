@@ -184,6 +184,10 @@ def build_summary(
         parameters=parameters,
     )
 
+    from src.reporting.compliance_mapping import build_compliance_report
+
+    compliance_report = build_compliance_report(merged_findings)
+
     return {
         "target_name": target_name,
         "generated_at_ist": ist_timestamp(),
@@ -191,6 +195,7 @@ def build_summary(
         "previous_run": str(previous_run) if previous_run else "",
         "counts": counts,
         "scan_quality": scan_quality,
+        "compliance": compliance_report,
         "high_value_endpoints": ranked_priority_urls[:20],
         "prioritized_endpoints": endpoint_intelligence[:20],
         "attack_graph": build_attack_graph(

@@ -145,24 +145,52 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
     Returns:
         Dict with per-framework control coverage and associated findings.
     """
-    framework_coverage: dict[str, dict[str, list[str]]] = {}
+    from src.reporting.compliance_maturity import (
+        calculate_control_maturity,
+        get_maturity_recommendation,
+    )
+
+    framework_coverage: dict[str, dict[str, dict[str, Any]]] = {}
     category_counts: dict[str, int] = {}
 
+    # Group findings by category for processing
+    findings_by_category: dict[str, list[dict[str, Any]]] = {}
     for finding in findings:
         category = finding.get("category", "unknown")
-        title = finding.get("title", "Unknown")
-        severity = finding.get("severity", "info")
-
+        findings_by_category.setdefault(category, []).append(finding)
         category_counts[category] = category_counts.get(category, 0) + 1
 
+    # Map categories to frameworks and controls
+    for category, cat_findings in findings_by_category.items():
         mapped = map_finding_to_compliance(category)
         for framework, controls in mapped.items():
             if framework not in framework_coverage:
                 framework_coverage[framework] = {}
             for control in controls:
                 if control not in framework_coverage[framework]:
-                    framework_coverage[framework][control] = []
-                framework_coverage[framework][control].append(f"[{severity}] {title}")
+                    framework_coverage[framework][control] = {
+                        "control_id": control,
+                        "findings": [],
+                        "maturity": "UNKNOWN",
+                        "recommendation": "",
+                    }
+
+                # Add findings to this control
+                for f in cat_findings:
+                    f_summary = {
+                        "id": f.get("id"),
+                        "title": f.get("title"),
+                        "severity": f.get("severity"),
+                        "url": f.get("url"),
+                    }
+                    framework_coverage[framework][control]["findings"].append(f_summary)
+
+    # Calculate maturity and recommendations for each control
+    for framework, controls_dict in framework_coverage.items():
+        for control_id, data in controls_dict.items():
+            maturity = calculate_control_maturity(data["findings"])
+            data["maturity"] = maturity.value
+            data["recommendation"] = get_maturity_recommendation(maturity, control_id)
 
     return {
         "framework_coverage": framework_coverage,

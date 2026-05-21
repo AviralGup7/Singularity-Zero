@@ -1,4 +1,3 @@
-import hashlib
 import os
 import shutil
 import tempfile
@@ -30,10 +29,19 @@ def test_ghost_vfs_flush_to_disk():
         with open(expected_file, "rb") as f:
             raw = f.read()
 
-        nonce = raw[:12]
-        ciphertext = raw[12:]
+        salt = raw[:16]
+        nonce = raw[16:28]
+        ciphertext = raw[28:]
 
-        derived_key = hashlib.sha256(master_key.encode()).digest()
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+        )
+        derived_key = kdf.derive(master_key.encode())
         aesgcm = AESGCM(derived_key)
         decrypted = aesgcm.decrypt(nonce, ciphertext, None)
 
@@ -66,9 +74,19 @@ def test_ghost_vfs_flush_handles_multiple_files():
             with open(expected_file, "rb") as f:
                 raw = f.read()
 
-            nonce = raw[:12]
-            ciphertext = raw[12:]
-            derived_key = hashlib.sha256(master_key.encode()).digest()
+            salt = raw[:16]
+            nonce = raw[16:28]
+            ciphertext = raw[28:]
+
+            from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                iterations=100000,
+            )
+            derived_key = kdf.derive(master_key.encode())
             decrypted = AESGCM(derived_key).decrypt(nonce, ciphertext, None)
             assert decrypted.decode() == c
 

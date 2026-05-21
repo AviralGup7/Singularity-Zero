@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_learning_integration
 from src.learning.integration import LearningIntegration
