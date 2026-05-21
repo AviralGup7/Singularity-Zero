@@ -70,7 +70,7 @@ def run_pipeline_job(
         if launcher_dir.name != job_id or launcher_dir.parent.name != "_launcher":
             return
         try:
-            from src.dashboard.launcher_forensics import capture_launcher_replay_manifest
+            from src.dashboard.forensics.launcher import capture_launcher_replay_manifest
 
             capture_launcher_replay_manifest(
                 launcher_dir.parent.parent,

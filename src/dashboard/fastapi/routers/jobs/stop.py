@@ -1,0 +1,36 @@
+"""Endpoint for stopping a scan job."""
+
+import logging
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.dashboard.fastapi.routers.utils import snapshot_job_api
+from src.dashboard.fastapi.schemas import ErrorResponse, JobResponse
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/jobs")
+
+
+@router.post(
+    "/{job_id}/stop",
+    response_model=JobResponse,
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    summary="Stop a running job",
+)
+async def stop_job(
+    job_id: str,
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> JobResponse:
+    """Request graceful stop of a running pipeline job."""
+    try:
+        result = services.stop_job(job_id)
+        return JobResponse(**snapshot_job_api(result))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Job not found")
+    except Exception as exc:
+        logger.exception("Failed to stop job %s: %s", job_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to stop job")

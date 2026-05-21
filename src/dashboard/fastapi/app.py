@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import mimetypes
 import os
 import time
 import uuid
@@ -13,8 +12,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
@@ -31,6 +29,7 @@ from src.dashboard.fastapi.schemas import (
     DashboardStatsResponse,
 )
 from src.dashboard.fastapi.security import SecurityStore, api_security_enabled, app_secret_key
+from src.dashboard.fastapi.spa import setup_mimetypes, setup_spa_routes
 from src.dashboard.rate_limiter import RateLimitConfig, RateLimitMiddleware
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.sharding import MeshShardManager
@@ -41,9 +40,7 @@ from src.websocket_server.integration import (
 )
 
 # Fix for Windows mimetypes
-mimetypes.add_type("application/javascript", ".js")
-mimetypes.add_type("application/javascript", ".mjs")
-mimetypes.add_type("text/css", ".css")
+setup_mimetypes()
 
 try:
     import psutil
@@ -369,97 +366,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             content=_error_payload("Internal Server Error", detail, "internal_server_error"),
         )
 
-    # ──────────────────────────────────────────────────────────
-    # Static Assets & SPA Orchestration
-    # ──────────────────────────────────────────────────────────
+    # SPA assets and fallback routes setup will be handled at the end of app creation
 
-    def _get_spa_index() -> Response:
-        """Helper to serve the SPA index with optimal cache headers."""
-        index_path = config.frontend_dist / "index.html"
-        if index_path.exists():
-            return HTMLResponse(
-                content=index_path.read_text(encoding="utf-8"),
-                headers={
-                    "Cache-Control": "no-cache, no-store, must-revalidate",
-                    "Pragma": "no-cache",
-                    "Expires": "0",
-                    "X-Frontend-Version": "2.0.0-modern",
-                },
-            )
-
-        return HTMLResponse(
-            status_code=404,
-            content=(
-                "<!DOCTYPE html><html>"
-                "<body style='background:#0a0a0a;color:#f85149;"
-                "padding:2rem;font-family:monospace;'>"
-                f"<h1>FATAL: Frontend Build Missing</h1>"
-                f"<p>Artifacts not found at: "
-                f"<code>{config.frontend_dist}</code></p>"
-                f"<p>Run: <code>cd frontend && npm install && npm run build"
-                f"</code></p></body></html>"
-            ),
-        )
-
-    # Specific static files handlers
-    @app.get("/favicon.svg", include_in_schema=False)
-    async def favicon_svg() -> Response:
-        path = config.frontend_dist / "favicon.svg"
-        if path.exists():
-            return FileResponse(path=path, media_type="image/svg+xml")
-        return Response(status_code=204)
-
-    @app.get("/favicon.ico", include_in_schema=False)
-    async def favicon_ico() -> Response:
-        path = config.frontend_dist / "favicon.ico"
-        if not path.exists():
-            path = config.frontend_dist / "favicon.svg"
-        if path.exists():
-            return FileResponse(path=path)
-        return Response(status_code=204)
-
-    @app.get("/manifest.json", include_in_schema=False)
-    async def manifest_json() -> Response:
-        path = config.frontend_dist / "manifest.json"
-        if path.exists():
-            return FileResponse(path=path, media_type="application/manifest+json")
-        return Response(status_code=204)
-
-    @app.get("/sw.js", include_in_schema=False)
-    async def service_worker() -> Response:
-        path = config.frontend_dist / "sw.js"
-        if path.exists():
-            return FileResponse(path=path, media_type="application/javascript")
-        return Response(status_code=404)
-
-    # Mounting the primary assets directory
-    if config.frontend_dist.exists():
-        assets_dir = config.frontend_dist / "assets"
-        if assets_dir.exists():
-            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
-
-        # Backward compatibility for /react path
-        app.mount(
-            "/react",
-            StaticFiles(directory=str(config.frontend_dist), html=True),
-            name="legacy-compat",
-        )
-
-    # Serve generated artifacts (Reports & Launcher logs)
-    @app.get("/_launcher/{job_id}/{filename}", include_in_schema=False)
-    async def serve_launcher_artifact(job_id: str, filename: str) -> Response:
-        safe_path = (config.output_root / "_launcher" / job_id / filename).resolve()
-        if safe_path.is_file() and safe_path.is_relative_to(config.output_root.resolve()):
-            return FileResponse(path=safe_path)
-        return Response(status_code=404)
-
-    @app.get("/reports/{target_name:path}/{file_path:path}", include_in_schema=False)
-    async def serve_pipeline_report(target_name: str, file_path: str) -> Response:
-        base = config.output_root.resolve()
-        full_path = (base / target_name / file_path).resolve()
-        if full_path.is_file() and full_path.is_relative_to(base):
-            return FileResponse(path=full_path)
-        return Response(status_code=404)
 
     # ──────────────────────────────────────────────────────────
     # Primary Application Endpoints
@@ -564,19 +472,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             },
         }
 
-    # SPA Fallback logic
-    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    async def root_entry() -> Response:
-        return _get_spa_index()
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def spa_catch_all(full_path: str) -> Response:
-        normalized = full_path.strip("/")
-        if (
-            normalized.startswith(("api/", "ws/", "reports/", "_launcher/"))
-            or "." in normalized.split("/")[-1]
-        ):
-            return Response(status_code=404)
-        return _get_spa_index()
+    # SPA Fallback and static assets setup
+    setup_spa_routes(app)
 
     return app

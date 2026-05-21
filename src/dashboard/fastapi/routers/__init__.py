@@ -13,6 +13,7 @@ from .findings import router as findings_router
 from .gap_analysis import router as gap_analysis_router
 from .health import router as health_router
 from .jobs import router as jobs_router
+from .launcher import router as launcher_router
 from .learning import router as learning_router
 from .mesh import router as mesh_router
 from .notes import router as notes_router
@@ -55,4 +56,5 @@ if imports_router is not None:
     api_router.include_router(imports_router, tags=["Imports"])
 api_router.include_router(gap_analysis_router, tags=["Gap Analysis"])
 api_router.include_router(security_router, tags=["Security"])
+api_router.include_router(launcher_router, tags=["Launcher"])
 api_router.include_router(tracing_router, tags=["Tracing"])

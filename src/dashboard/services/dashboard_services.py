@@ -35,11 +35,11 @@ class DashboardServices:
 
         Loads existing jobs from disk and marks stale running jobs as failed.
         """
-        from src.dashboard.job_store import JobStore
-        from src.dashboard.launcher_forensics import (
+        from src.dashboard.forensics.launcher import (
             merge_persisted_job_with_recovered_truth,
             persisted_job_has_truth_drift,
         )
+        from src.dashboard.job_store import JobStore
 
         if db_path is None:
             db_path = Path("output") / "jobs.db"
