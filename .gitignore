@@ -138,9 +138,11 @@ GEMINI.md
 
 # Test fixture data tracked in source (override output/ and dist/ ignores)
 !src/dashboard/output/
-!src/dashboard/output/_launcher/
-!src/dashboard/output/_launcher/**
 !src/dashboard/output/square.com/
 !src/dashboard/output/square.com/**
 !frontend/dist/
 !frontend/dist/**
+
+# Ignore runtime launcher job data
+_launcher/
+src/dashboard/output/_launcher/
