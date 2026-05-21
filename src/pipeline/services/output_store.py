@@ -188,6 +188,22 @@ class PipelineOutputStore:
         self.write_json_artifact("verified_exploits.json", summary.get("verified_exploits", []))
         self.write_json_artifact("validation_results.json", summary.get("validation_results", {}))
         self.write_json_artifact("run_summary.json", summary)
+
+        # 🔐 Phase 6: Compliance Artifacts
+        compliance = summary.get("compliance")
+        if compliance:
+            self.write_json_artifact("compliance_coverage.json", compliance)
+
+            # Also write a flattened version for GRC intake
+            maturity_summary = {
+                framework: {
+                    cid: {"maturity": data["maturity"], "rec": data["recommendation"]}
+                    for cid, data in controls.items()
+                }
+                for framework, controls in compliance.get("framework_coverage", {}).items()
+            }
+            self.write_json_artifact("compliance_maturity.json", maturity_summary)
+
         if self.write_artifact_manifest:
             self.write_json_artifact(
                 "artifacts.json",
