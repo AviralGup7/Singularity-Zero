@@ -105,14 +105,20 @@ class RequestChameleon:
         noise_chance = 6  # Default ~30% chance (secrets.randbelow(10) > 6)
         try:
             from src.learning.integration import LearningIntegration
+
             learning = LearningIntegration.get_or_create()
             if learning and learning.config.enabled:
                 try:
-                    active_patterns = [p.to_db_row() for p in learning._fp_tracker._cache.values() if p.is_active]
+                    active_patterns = [
+                        p.to_db_row() for p in learning._fp_tracker._cache.values() if p.is_active
+                    ]
                 except Exception:
                     active_patterns = []
 
-                if any(p.get("category") in ("waf_block", "rate_limit", "cdn_error") for p in active_patterns):
+                if any(
+                    p.get("category") in ("waf_block", "rate_limit", "cdn_error")
+                    for p in active_patterns
+                ):
                     noise_chance = 0  # Increase to 90% chance (secrets.randbelow(10) > 0)
         except Exception as e:
             logger.debug("Chameleon noise adaptation skipped: %s", e)
@@ -152,16 +158,20 @@ class RequestChameleon:
         # Query Learning Integration if enabled to see if we are dealing with high-WAF or rate-limiting blockages
         try:
             from src.learning.integration import LearningIntegration
+
             learning = LearningIntegration.get_or_create()
             if learning and learning.config.enabled:
                 import asyncio
+
                 # Load patterns from local store/cache or Redis
                 try:
                     loop = asyncio.get_running_loop()
                     active_patterns = loop.run_until_complete(learning.get_active_fp_patterns())
                 except RuntimeError:
                     # In a context without running loop or when we can't block, try local cache directly
-                    active_patterns = [p.to_db_row() for p in learning._fp_tracker._cache.values() if p.is_active]
+                    active_patterns = [
+                        p.to_db_row() for p in learning._fp_tracker._cache.values() if p.is_active
+                    ]
 
                 has_waf_block = any(p.get("category") == "waf_block" for p in active_patterns)
                 has_rate_limit = any(p.get("category") == "rate_limit" for p in active_patterns)

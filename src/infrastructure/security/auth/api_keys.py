@@ -60,7 +60,9 @@ class APIKeyStore:
         self._user_api_keys: dict[str, list[str]] = {}
         self._audit_logger = audit_logger
 
-    def _audit(self, event: str, user_id: str | None = None, key_id: str | None = None, **details: Any) -> None:
+    def _audit(
+        self, event: str, user_id: str | None = None, key_id: str | None = None, **details: Any
+    ) -> None:
         if self._audit_logger is None:
             return
         try:
@@ -185,7 +187,9 @@ class APIKeyStore:
             name=f"{old_key.name} (rotated)",
             role=old_key.role,
         )
-        self._audit("apikey.rotate", user_id=old_key.user_id, key_id=old_key.id, new_key_id=new_key.id)
+        self._audit(
+            "apikey.rotate", user_id=old_key.user_id, key_id=old_key.id, new_key_id=new_key.id
+        )
 
         return new_raw_key, new_key
 
@@ -221,7 +225,9 @@ class APIKeyStore:
     def export_sealed_bundle(self, passphrase: str, *, name: str = "api-key-store") -> str:
         """Export stored API key metadata in a sealed Argon2id/AES-GCM bundle."""
         records = {
-            "api_keys": {key_hash: key.model_dump(mode="json") for key_hash, key in self._api_keys.items()},
+            "api_keys": {
+                key_hash: key.model_dump(mode="json") for key_hash, key in self._api_keys.items()
+            },
             "user_api_keys": self._user_api_keys,
         }
         self._audit("credential.bundle_export", secret_count=len(self._api_keys), bundle_name=name)
@@ -232,7 +238,9 @@ class APIKeyStore:
         payload = sealed_bundle_decrypt(bundle, passphrase, aad=b"csp:auth:api-key-store")
         records = payload["records"]
         raw_keys = json.loads(json.dumps(records.get("api_keys", {})))
-        self._api_keys = {key_hash: APIKey.model_validate(value) for key_hash, value in raw_keys.items()}
+        self._api_keys = {
+            key_hash: APIKey.model_validate(value) for key_hash, value in raw_keys.items()
+        }
         self._user_api_keys = {
             str(user_id): [str(item) for item in values]
             for user_id, values in records.get("user_api_keys", {}).items()

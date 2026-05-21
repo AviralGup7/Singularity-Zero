@@ -40,6 +40,7 @@ async def test_active_scan_degraded_probes_populated_on_timeout(
             if should_timeout:
                 raise TimeoutError(f"Simulated timeout for {name}")
             return []
+
         return _probe
 
     mock_probes = {
@@ -116,7 +117,8 @@ async def test_active_scan_degraded_probes_populated_on_timeout(
 
     # Verify our timed out sqli probe is listed in degraded_probes
     sqli_timeouts = [
-        dict(item) for item in cast(Any, degraded_probes)
+        dict(item)
+        for item in cast(Any, degraded_probes)
         if dict(item).get("probe") == "sqli" and dict(item).get("reason") == "timeout"
     ]
     assert len(sqli_timeouts) == 1
@@ -146,6 +148,7 @@ async def test_active_scan_adaptive_degraded_probes_populated_on_timeout(
             if should_timeout:
                 raise TimeoutError(f"Simulated timeout for {name}")
             return []
+
         return _probe
 
     mock_probes = {
@@ -222,9 +225,9 @@ async def test_active_scan_adaptive_degraded_probes_populated_on_timeout(
 
     # Verify our timed out sqli probe is listed in degraded_probes
     sqli_timeouts = [
-        dict(item) for item in cast(Any, degraded_probes)
+        dict(item)
+        for item in cast(Any, degraded_probes)
         if dict(item).get("probe") == "sqli" and dict(item).get("reason") == "timeout"
     ]
     assert len(sqli_timeouts) == 1
     assert "timed out after" in sqli_timeouts[0].get("message", "")
-

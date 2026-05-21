@@ -126,4 +126,3 @@ class ModelVersionRegistry:
             "history_depth": {name: len(history) for name, history in self._history.items()},
             "rollback_log": list(self._rollback_log[-20:]),
         }
-

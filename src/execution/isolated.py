@@ -99,7 +99,7 @@ def _child_entry(
         else:
             result = func(*args, **kwargs)
             if inspect.isawaitable(result):
-                result = asyncio.run(result)
+                result = asyncio.run(result)  # type: ignore[arg-type]
 
         payload = pickle.dumps(result)
         if len(payload) > max_output_bytes:
@@ -122,7 +122,7 @@ def _child_entry(
         )
 
 
-def _terminate_process(process: mp.Process) -> bool:
+def _terminate_process(process: Any) -> bool:
     if not process.is_alive():
         return False
     try:

@@ -57,7 +57,9 @@ class ValidationLayerInterfaceTests(unittest.TestCase):
         self.assertEqual(strategy.result_key, "demo_dynamic_check_validation")
 
         context = ValidationContext(
-            analysis_results={"idor": [{"url": "https://example.com/api/v1", "confidence": 0.8, "score": 8}]},
+            analysis_results={
+                "idor": [{"url": "https://example.com/api/v1", "confidence": 0.8, "score": 8}]
+            },
             ranked_priority_urls=[],
             callback_context={},
             token_replay={},
@@ -79,4 +81,3 @@ class ValidationLayerInterfaceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

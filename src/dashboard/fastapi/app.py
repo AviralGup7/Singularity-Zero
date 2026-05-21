@@ -200,10 +200,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             if job.get("status") != "running":
                 continue
             updated = float(
-                job.get("updated_at")
-                or job.get("last_update")
-                or job.get("started_at")
-                or now
+                job.get("updated_at") or job.get("last_update") or job.get("started_at") or now
             )
             age = max(0.0, now - updated)
             metrics.append(
@@ -247,7 +244,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     component=HealthComponent.DASHBOARD_CONNECTION,
                     name="dashboard_connection_age",
                     value=round(now - connection.last_activity, 2),
-                    labels={"connection_id": connection.connection_id, "user_id": connection.user_id},
+                    labels={
+                        "connection_id": connection.connection_id,
+                        "user_id": connection.user_id,
+                    },
                 )
             )
         return metrics
@@ -532,7 +532,6 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         )
 
     # SPA assets and fallback routes setup will be handled at the end of app creation
-
 
     # ──────────────────────────────────────────────────────────
     # Primary Application Endpoints

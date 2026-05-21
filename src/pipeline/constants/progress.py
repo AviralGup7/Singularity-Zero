@@ -23,7 +23,5 @@ STAGE_BASELINE_PERCENT = {
 
 # Sibling mapping for orchestrator stage baseline lookups
 _STAGE_BASELINE_PROGRESS = {
-    k: v
-    for k, v in STAGE_BASELINE_PERCENT.items()
-    if k not in {"startup", "completed", "analysis"}
+    k: v for k, v in STAGE_BASELINE_PERCENT.items() if k not in {"startup", "completed", "analysis"}
 }

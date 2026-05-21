@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Request
 
@@ -21,7 +21,7 @@ async def self_healing_snapshot(request: Request) -> dict[str, Any]:
             "corrections": [],
             "controller": "disabled",
         }
-    return controller.last_snapshot.as_dict()
+    return cast(dict[str, Any], controller.last_snapshot.as_dict())
 
 
 @router.post("/evaluate")
@@ -31,7 +31,7 @@ async def evaluate_self_healing(request: Request) -> dict[str, Any]:
     if controller is None:
         return {"status": "unknown", "controller": "disabled"}
     snapshot = await controller.evaluate_once()
-    return snapshot.as_dict()
+    return cast(dict[str, Any], snapshot.as_dict())
 
 
 @router.get("/tile")
@@ -39,7 +39,12 @@ async def self_healing_tile(request: Request) -> dict[str, Any]:
     """Compact health tile payload for dashboard clients."""
     controller = getattr(request.app.state, "self_healing_controller", None)
     if controller is None:
-        return {"label": "Self-Healing", "status": "unknown", "active_findings": 0, "last_action": None}
+        return {
+            "label": "Self-Healing",
+            "status": "unknown",
+            "active_findings": 0,
+            "last_action": None,
+        }
     snapshot = controller.last_snapshot
     last_action = snapshot.corrections[-1] if snapshot.corrections else None
     return {
@@ -56,4 +61,3 @@ async def self_healing_tile(request: Request) -> dict[str, Any]:
         if last_action
         else None,
     }
-

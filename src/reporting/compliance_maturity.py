@@ -11,11 +11,11 @@ from typing import Any
 class ControlMaturity(StrEnum):
     """Maturity levels for a security control."""
 
-    PASS = "P" + "ASS"             # No open findings of any severity
-    PARTIAL = "PARTIAL"       # No high/critical, but medium findings or compensating controls detected
-    AT_RISK = "AT_RISK"       # Open high-severity finding against control
-    FAIL = "FAIL"             # Open critical-severity finding against control
-    UNKNOWN = "UNKNOWN"       # Control not evaluated
+    PASS = "P" + "ASS"  # No open findings of any severity
+    PARTIAL = "PARTIAL"  # No high/critical, but medium findings or compensating controls detected
+    AT_RISK = "AT_RISK"  # Open high-severity finding against control
+    FAIL = "FAIL"  # Open critical-severity finding against control
+    UNKNOWN = "UNKNOWN"  # Control not evaluated
 
 
 class MaturityScore(IntEnum):

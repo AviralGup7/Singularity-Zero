@@ -314,12 +314,14 @@ async def _try_probe(
 
     try:
         if timeout_seconds is not None and timeout_seconds > 0:
-            result = await asyncio.wait_for(_execute_probe(), timeout=timeout_seconds)
+            probe_result = await asyncio.wait_for(_execute_probe(), timeout=timeout_seconds)
         else:
-            result = await _execute_probe()
+            probe_result = await _execute_probe()
         findings = cast(
             list[dict[str, Any]],
-            result if isinstance(result, list) else ([result] if result else []),
+            probe_result
+            if isinstance(probe_result, list)
+            else ([probe_result] if probe_result else []),
         )
         emit_progress(
             "active_scan",

@@ -94,7 +94,9 @@ class RiskScoringEngine:
         if not findings:
             return 0.0
 
-        severity_counts: dict[str, int] = {label: 0 for label in ("critical", "high", "medium", "low", "info")}
+        severity_counts: dict[str, int] = {
+            label: 0 for label in ("critical", "high", "medium", "low", "info")
+        }
         score_total = 0.0
         for f in findings:
             sev = f.get("severity", "info").lower()

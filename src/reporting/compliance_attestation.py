@@ -175,9 +175,9 @@ def generate_compliance_attestation_html(
             frameworks_html += f"""
                     <tr>
                         <td><strong>{cid}</strong></td>
-                        <td><span class="status-pill status-{data['maturity']}">{data['maturity']}</span></td>
+                        <td><span class="status-pill status-{data["maturity"]}">{data["maturity"]}</span></td>
                         <td>{findings_html}</td>
-                        <td style="font-size: 11px;">{data['recommendation']}</td>
+                        <td style="font-size: 11px;">{data["recommendation"]}</td>
                     </tr>
             """
         frameworks_html += """
@@ -212,11 +212,11 @@ def generate_compliance_attestation_html(
             <div class="summary-grid">
                 <div class="kpi-card">
                     <label>Total Findings</label>
-                    <value>{compliance_report.get('total_findings', 0)}</value>
+                    <value>{compliance_report.get("total_findings", 0)}</value>
                 </div>
                 <div class="kpi-card">
                     <label>Frameworks Evaluated</label>
-                    <value>{len(compliance_report.get('framework_coverage', {}))}</value>
+                    <value>{len(compliance_report.get("framework_coverage", {}))}</value>
                 </div>
                 <div class="kpi-card">
                     <label>Assessed At</label>
