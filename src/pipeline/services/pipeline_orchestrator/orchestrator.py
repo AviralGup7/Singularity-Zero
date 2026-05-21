@@ -2,26 +2,21 @@
 
 import argparse
 import asyncio
-import json
 import os
-import time
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
 from src.core.checkpoint import (
     StageCheckpointGuard,
-    attempt_recovery,
-    create_checkpoint_manager,
-    generate_run_id,
+    attempt_recovery,  # noqa: F401 – module-namespace seam used by security.py via getattr
+    create_checkpoint_manager,  # noqa: F401 – module-namespace seam
+    generate_run_id,  # noqa: F401 – module-namespace seam
 )
-from src.core.config import load_config
 from src.core.contracts.pipeline_runtime import PipelineInput, StageOutput
 from src.core.events import EVENT_SCHEMA_VERSION, EventBus, EventType, get_event_bus
 from src.core.logging.pipeline_logging import emit_error
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.middleware import OutboundRequestInterceptor, ScopeValidator
-from src.core.models.stage_result import PipelineContext, StageResult
-from src.core.utils import normalize_scope_entry
+from src.core.models.stage_result import PipelineContext
 from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
 from src.infrastructure.observability.audit_subscriber import register_audit_subscriber
 from src.infrastructure.observability.event_subscribers import register_event_metrics_subscribers
@@ -31,17 +26,17 @@ from src.infrastructure.observability.notification_subscriber import (
 )
 from src.infrastructure.observability.progress_subscriber import register_progress_subscriber
 from src.learning.integration import LearningIntegration
-from src.pipeline.cache import cache_enabled
+from src.pipeline.cache import cache_enabled  # noqa: F401 – module-namespace seam
 from src.pipeline.retry import RetryMetrics, RetryPolicy
 from src.pipeline.runner_support import (
-    build_tool_status,
+    build_tool_status,  # noqa: F401 – module-namespace seam
     emit_progress,
-    load_adaptive_config,
+    load_adaptive_config,  # noqa: F401 – module-namespace seam
 )
-from src.pipeline.services.output_store import PipelineOutputStore
-from src.pipeline.services.pipeline_flow import pipeline_flow_manifest
+from src.pipeline.services.output_store import PipelineOutputStore  # noqa: F401 – seam
+from src.pipeline.services.pipeline_flow import pipeline_flow_manifest  # noqa: F401 – seam
 from src.pipeline.services.plugin_catalog import resolve_stage_runner
-from src.pipeline.storage import read_scope
+from src.pipeline.storage import read_scope  # noqa: F401 – module-namespace seam
 
 from . import parallel
 from ._constants import (
@@ -49,17 +44,19 @@ from ._constants import (
     PIPELINE_STAGES,
     STAGE_ORDER,
 )
-from ._orchestrator_helpers import build_stage_methods_map, finalize_run, stage_baseline
-from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
-from ._orchestrator import run_stage_with_retry
-from ._state_helpers import (
+from ._orchestrator import (
     build_stage_input_contract,
+    build_stage_methods_map,
+    finalize_run,
     log_live_hosts_timeout_diagnostics,
     merge_stage_output,
     record_stage_post_run,
     resolve_stage_timeout,
+    run_stage_with_retry,
     safe_checkpoint_stage_outcome,
+    stage_baseline,
 )
+from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
 from .migration_handler import ProactiveMigrationHandler
 
 

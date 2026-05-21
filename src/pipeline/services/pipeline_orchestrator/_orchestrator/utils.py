@@ -1,5 +1,23 @@
+"""Unified orchestrator utilities.
+
+Consolidates all helper functions previously spread across ``_orchestrator_helpers.py``,
+``_state_helpers.py``, and the dead ``_helpers.py`` into a single, coherent module.
+
+Sections:
+* Stage baseline / stage method resolution    (from _orchestrator_helpers)
+* Pipeline run finalisation                   (from _orchestrator_helpers)
+* Stage timeout resolution                    (from _state_helpers)
+* Stage output merge & WAL durability         (from _state_helpers)
+* Checkpoint persistence & alert checking     (from _state_helpers)
+* Stage-input contract builder                (from _state_helpers)
+* Live-host timeout diagnostics               (from _state_helpers)
+"""
+
+from __future__ import annotations
+
 import json
-from collections.abc import Mapping
+import logging
+from collections.abc import Awaitable, Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -27,36 +45,136 @@ from src.core.contracts.pipeline_runtime import PipelineInput, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
 from src.infrastructure.observability.alerts import get_alert_rule_checker
+from src.pipeline.constants.progress import _STAGE_BASELINE_PROGRESS
 
-from ._constants import STAGE_ORDER, STAGE_TIMEOUTS
+from .._constants import STAGE_ORDER, STAGE_TIMEOUTS
 
 logger = get_pipeline_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Legacy stage attribute map (for monkeypatch seams in tests)
+# ---------------------------------------------------------------------------
 
-# Thresholds for adaptive timeout calculation
-# These values trigger extended timeouts for large-scale scans
+LEGACY_STAGE_ATTRS: dict[str, str] = {
+    "subdomains": "run_subdomain_enumeration",
+    "live_hosts": "run_live_hosts",
+    "urls": "run_url_collection",
+    "parameters": "run_parameter_extraction",
+    "ranking": "run_priority_ranking",
+    "passive_scan": "run_passive_scanning",
+    "active_scan": "run_active_scanning",
+    "nuclei": "run_nuclei_stage",
+    "semgrep": "run_semgrep_stage",
+    "access_control": "run_access_control_testing",
+    "validation": "run_validation",
+    "intelligence": "run_post_analysis_enrichments",
+    "reporting": "run_reporting",
+}
+
+# ---------------------------------------------------------------------------
+# Timeout constants
+# ---------------------------------------------------------------------------
+
 SUBDOMAIN_COUNT_WARNING = 8000
 HOST_COUNT_WARNING = 4000
 MAXIMUM_URLS_PER_HOST = 1500
-
-# Default batch processing settings for httpx probing
 DEFAULT_BATCH_SIZE = 400
-
-# Timeout estimation multipliers
-# Applied to estimated probe duration to account for network variance
 PROBE_TIME_MULTIPLIER = 1.35
-# Buffer seconds added to estimated time for safety margin
 PROBE_TIME_BUFFER_SECONDS = 300
-
-# Count thresholds for various stage timeout extensions
-# access_control: minimum candidates to warrant extended timeout
 ACCESS_CONTROL_CANDIDATE_THRESHOLD = 150
-# urls stage: live host count thresholds for progressive timeout extension
 LIVE_HOST_COUNT_WARNING = 2500
 LIVE_HOST_COUNT_LOW = 1200
 LIVE_HOST_COUNT_HIGH = 600
-# urls stage: scope entries requiring extended timeout
 SCOPE_ENTRY_THRESHOLD = 1200
+
+# ---------------------------------------------------------------------------
+# Stage baseline
+# ---------------------------------------------------------------------------
+
+
+def stage_baseline(stage_name: str, stage_order: list[str]) -> int:
+    """Compute the baseline progress percentage for a given stage.
+
+    Uses a predefined map of known stages for accurate percentages based on
+    empirical pipeline timing data. Falls back to proportional calculation
+    for unknown stages based on their position in the stage order.
+    """
+    if stage_name in _STAGE_BASELINE_PROGRESS:
+        return _STAGE_BASELINE_PROGRESS[stage_name]
+    if stage_name in stage_order:
+        index = stage_order.index(stage_name)
+        return int(((index + 1) / max(1, len(stage_order))) * 100)
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Stage method resolution
+# ---------------------------------------------------------------------------
+
+
+def build_stage_methods_map(
+    *,
+    stage_order: list[str],
+    module_globals: dict[str, Any],
+    resolve_stage_runner_func: Any,
+) -> dict[str, Any]:
+    """Resolve concrete stage callables while preserving legacy monkeypatch seams."""
+    stage_methods: dict[str, Any] = {}
+    for stage_name in stage_order:
+        legacy_attr = LEGACY_STAGE_ATTRS.get(stage_name, "")
+        legacy_runner = module_globals.get(legacy_attr) if legacy_attr else None
+        if callable(legacy_runner):
+            stage_methods[stage_name] = legacy_runner
+            continue
+        try:
+            stage_methods[stage_name] = resolve_stage_runner_func(stage_name)
+        except KeyError:
+            continue
+    return stage_methods
+
+
+# ---------------------------------------------------------------------------
+# Pipeline run finalisation
+# ---------------------------------------------------------------------------
+
+
+async def finalize_run(
+    *,
+    event_bus: Any,
+    exit_code: int,
+    logger_obj: logging.Logger,
+) -> int:
+    """Drain async side effects and perform best-effort HTTP client cleanup."""
+    try:
+        flush_pending: Awaitable[Any] = event_bus.flush_pending(timeout=10.0)
+        await flush_pending
+    except Exception:
+        logger_obj.warning("Failed to flush pending event handlers", exc_info=True)
+
+    try:
+        import gc
+
+        import httpx
+
+        leaked_clients = 0
+        for obj in gc.get_objects():
+            if not isinstance(obj, httpx.AsyncClient):
+                continue
+            if obj.is_closed:
+                continue
+            await obj.aclose()
+            leaked_clients += 1
+        if leaked_clients:
+            logger_obj.debug("Closed %d leaked AsyncClient instance(s)", leaked_clients)
+    except Exception:
+        logger_obj.debug("Best-effort AsyncClient cleanup failed", exc_info=True)
+
+    return exit_code
+
+
+# ---------------------------------------------------------------------------
+# Stage-output schema validation (private)
+# ---------------------------------------------------------------------------
 
 
 class StageOutputValidationError(ValueError):
@@ -66,29 +184,26 @@ class StageOutputValidationError(ValueError):
 @lru_cache(maxsize=1)
 def _stage_output_schema_validator() -> Draft7Validator:
     schema_path = (
-        Path(__file__).resolve().parents[4] / ".ai" / "schemas" / "stage_output.schema.json"
+        Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "stage_output.schema.json"
     )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    validator = Draft7Validator(schema)
-    return validator
+    return Draft7Validator(schema)
 
 
 @lru_cache(maxsize=1)
 def _finding_schema_validator() -> Draft7Validator:
-    schema_path = Path(__file__).resolve().parents[4] / ".ai" / "schemas" / "finding.schema.json"
+    schema_path = (
+        Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
+    )
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    validator = Draft7Validator(schema)
-    return validator
+    return Draft7Validator(schema)
 
 
 def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) -> None:
     """Validate the full StageOutput contract and deep-validate critical state keys."""
     payload = stage_output.to_dict()
-
-    # 1. Top-level contract validation
     errors = list(_stage_output_schema_validator().iter_errors(payload))
 
-    # 2. Deep validation for findings-related keys in state_delta
     state_delta = payload.get("state_delta", {})
     finding_keys = {"findings", "merged_findings", "reportable_findings", "vulnerabilities"}
 
@@ -105,7 +220,6 @@ def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) 
                     )
                     continue
                 for error in validator.iter_errors(item):
-                    # Wrap the error with path context
                     error.message = f"In {key}[{i}]: {error.message}"
                     errors.append(error)
 
@@ -117,6 +231,11 @@ def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) 
         for error in sorted(errors, key=lambda e: str(e.path))
     )
     raise StageOutputValidationError(f"Stage '{stage_name}' contract violation: {details}")
+
+
+# ---------------------------------------------------------------------------
+# Stage timeout resolution
+# ---------------------------------------------------------------------------
 
 
 def resolve_stage_timeout(
@@ -210,6 +329,11 @@ def resolve_stage_timeout(
     return base_timeout
 
 
+# ---------------------------------------------------------------------------
+# Live-host timeout diagnostics
+# ---------------------------------------------------------------------------
+
+
 def log_live_hosts_timeout_diagnostics(
     ctx: PipelineContext,
     timeout: int,
@@ -255,37 +379,9 @@ def log_live_hosts_timeout_diagnostics(
         logger.warning("Failed to capture live-host timeout diagnostics: %s", exc)
 
 
-def build_stage_input_contract(
-    orchestrator: Any,
-    stage_name: str,
-    ctx: PipelineContext,
-    config: Any | None = None,
-) -> dict[str, Any]:
-    stage_index = (STAGE_ORDER.index(stage_name) + 1) if stage_name in STAGE_ORDER else 0
-    if orchestrator._pipeline_input is None:
-        orchestrator._pipeline_input = PipelineInput(
-            target_name="unknown",
-            scope_entries=tuple(ctx.result.scope_entries),
-            run_id=orchestrator._pipeline_correlation_id or "runtime",
-            metadata={
-                "flow_stage_count": len(STAGE_ORDER),
-            },
-        )
-    stage_input = ctx.build_stage_input(
-        stage_name=stage_name,
-        stage_index=stage_index,
-        stage_total=len(STAGE_ORDER),
-        pipeline_input=orchestrator._pipeline_input,
-        runtime={
-            "mode": str(getattr(config, "mode", "default") or "default") if config else "default",
-            "filters": dict(getattr(config, "filters", {}) or {}) if config else {},
-            "analysis": dict(getattr(config, "analysis", {}) or {}) if config else {},
-            "scoring": dict(getattr(config, "scoring", {}) or {}) if config else {},
-        },
-    )
-    from typing import cast
-
-    return cast(dict[str, Any], stage_input.to_dict())
+# ---------------------------------------------------------------------------
+# Stage-output merge
+# ---------------------------------------------------------------------------
 
 
 def merge_stage_output(
@@ -304,7 +400,6 @@ def merge_stage_output(
             return [_to_mutable(item) for item in value]
         return value
 
-    # Phase 1: Strict contract and state-delta validation before mutating context.
     _validate_stage_output_contract(stage_name, stage_output)
     state_delta = dict(stage_output.state_delta)
     validation_errors = GLOBAL_STATE_SCHEMA_REGISTRY.validate_delta(state_delta)
@@ -313,13 +408,11 @@ def merge_stage_output(
             f"Stage '{stage_name}' produced invalid state_delta: " + "; ".join(validation_errors)
         )
 
-    # Phase 2: Frontier Durability - Log to WAL before applying
     if wal:
         wal_id = wal.log_delta(stage_name, state_delta)
         if wal_id and hasattr(ctx.result, "_neural_state"):
             ctx.result._neural_state.last_wal_id = wal_id
 
-    # Use the new CRDT-aware merge logic in ctx.result
     ctx.result.apply_state_delta(state_delta)
 
     if hasattr(ctx.result.stage_status, "copy"):
@@ -346,6 +439,11 @@ def merge_stage_output(
         ctx.output_store.write_parameters(ctx.result.parameters)
     elif stage_name == "ranking":
         ctx.output_store.write_priority_endpoints(ctx.result.priority_urls)
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint utilities
+# ---------------------------------------------------------------------------
 
 
 def safe_checkpoint_stage_outcome(
@@ -437,3 +535,41 @@ async def record_stage_post_run(
             )
     except (OSError, TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.warning("Failed to persist checkpoint for stage %s: %s", stage_name, exc)
+
+
+# ---------------------------------------------------------------------------
+# Stage-input contract builder
+# ---------------------------------------------------------------------------
+
+
+def build_stage_input_contract(
+    orchestrator: Any,
+    stage_name: str,
+    ctx: PipelineContext,
+    config: Any | None = None,
+) -> dict[str, Any]:
+    stage_index = (STAGE_ORDER.index(stage_name) + 1) if stage_name in STAGE_ORDER else 0
+    if orchestrator._pipeline_input is None:
+        orchestrator._pipeline_input = PipelineInput(
+            target_name="unknown",
+            scope_entries=tuple(ctx.result.scope_entries),
+            run_id=orchestrator._pipeline_correlation_id or "runtime",
+            metadata={
+                "flow_stage_count": len(STAGE_ORDER),
+            },
+        )
+    stage_input = ctx.build_stage_input(
+        stage_name=stage_name,
+        stage_index=stage_index,
+        stage_total=len(STAGE_ORDER),
+        pipeline_input=orchestrator._pipeline_input,
+        runtime={
+            "mode": str(getattr(config, "mode", "default") or "default") if config else "default",
+            "filters": dict(getattr(config, "filters", {}) or {}) if config else {},
+            "analysis": dict(getattr(config, "analysis", {}) or {}) if config else {},
+            "scoring": dict(getattr(config, "scoring", {}) or {}) if config else {},
+        },
+    )
+    from typing import cast
+
+    return cast(dict[str, Any], stage_input.to_dict())
