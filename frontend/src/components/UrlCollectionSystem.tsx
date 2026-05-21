@@ -355,7 +355,11 @@ export function UrlCollectionSystem() {
     const failedIds: string[] = [];
 
     for (let i = 0; i < targetIds.length; i += 1) {
-      const itemId = targetIds[i];
+      const itemId = targetIds.at(i);
+      if (!itemId) {
+        failed += 1;
+        continue;
+      }
       const item = snapshot.get(itemId);
       if (!item) {
         failed += 1;

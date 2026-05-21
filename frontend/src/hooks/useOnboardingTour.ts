@@ -89,7 +89,7 @@ export function useOnboardingTour(steps: OnboardingStep[] = DEFAULT_STEPS) {
     return () => { mounted = false; };
   }, []);
 
-  const current = steps[currentStep] || steps[0];
+  const current = steps.at(currentStep) || steps.at(0);
 
   useEffect(() => {
     if (!isOpen || !current?.target) {

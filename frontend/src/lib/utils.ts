@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function safeGet<V>(obj: Record<string, V>, key: string): V | undefined;
 export function safeGet<V>(obj: Record<string, V>, key: string, fallback: V): V;
 export function safeGet<V>(obj: Record<string, V>, key: string, fallback?: V): V | undefined {
-  return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : fallback;
+  return Object.prototype.hasOwnProperty.call(obj, key) ? Reflect.get(obj, key) : fallback;
 }
 
 export function classifyLogLine(line: string): string {
@@ -96,7 +96,7 @@ export function formatBytes(bytes: number): string {
    
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes.at(i)}`;
 }
 
 export function parseUrls(url: string): string[] {

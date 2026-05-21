@@ -36,8 +36,8 @@ class ApiCache {
     }
 
     const record = obj as Record<string, unknown>;
-    const keys = Object.keys(record).sort();
-    return `{${keys.map(key => `${key}:${this.stableStringify(record[key])}`).join(',')}}`;
+    const entries = Object.entries(record).sort((a, b) => a[0].localeCompare(b[0]));
+    return `{${entries.map(([key, value]) => `${key}:${this.stableStringify(value)}`).join(',')}}`;
   }
 
   generateKey(url: string, params?: unknown): string {

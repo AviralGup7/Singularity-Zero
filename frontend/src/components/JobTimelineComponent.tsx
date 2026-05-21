@@ -4,14 +4,14 @@ import { getJobTimeline } from '@/api/analysis';
 import { getJob } from '@/api/jobs';
 import type { Job } from '@/types/api';
 
-const STAGE_COLORS: Record<string, string> = {
-  discovery: 'bg-blue-500',
-  collection: 'bg-purple-500',
-  analysis: 'bg-yellow-500',
-  validation: 'bg-orange-500',
-  reporting: 'bg-green-500',
-  default: 'bg-gray-500',
-};
+const STAGE_COLORS = new Map<string, string>([
+  ['discovery', 'bg-blue-500'],
+  ['collection', 'bg-purple-500'],
+  ['analysis', 'bg-yellow-500'],
+  ['validation', 'bg-orange-500'],
+  ['reporting', 'bg-green-500'],
+  ['default', 'bg-gray-500'],
+]);
 
 export function JobTimelineComponent({ jobId }: { jobId: string }) {
    
@@ -70,7 +70,7 @@ export function JobTimelineComponent({ jobId }: { jobId: string }) {
         <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-[#1f2937]" />
         {timeline.map((entry, i) => {
           const colorKey = entry.stage?.toLowerCase() || 'default';
-          const color = STAGE_COLORS[colorKey] || STAGE_COLORS.default;
+          const color = STAGE_COLORS.get(colorKey) || STAGE_COLORS.get('default') || 'bg-gray-500';
           return (
             <div key={i} className="relative">
               <div className={`absolute left-[-20px] top-1.5 w-2.5 h-2.5 rounded-full ${color}`} />

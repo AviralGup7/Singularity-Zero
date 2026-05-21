@@ -38,7 +38,7 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
     const calc = (t: Target): string => {
       const counts = t.severity_counts ?? {};
       for (const sev of order) {
-        if ((counts[sev] || 0) > 0) return sev;
+        if (((Reflect.get(counts, sev) as number | undefined) || 0) > 0) return sev;
       }
       return 'info';
     };

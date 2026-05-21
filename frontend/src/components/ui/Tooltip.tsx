@@ -31,9 +31,9 @@ export function LegacyTooltip({ content, shortcut, children, className, position
   return (
     <ShadcnTooltip>
       <ShadcnTooltipTrigger asChild>
-        <span className={className} tabIndex={0}>{children}</span>
+        <span className={className} tabIndex={0} role="button">{children}</span>
       </ShadcnTooltipTrigger>
-      <ShadcnTooltipContent side={sideMap[position]}>
+      <ShadcnTooltipContent side={Reflect.get(sideMap, position)}>
         <p>{content}{shortcut && <kbd className="ml-1 text-xs opacity-60">{shortcut}</kbd>}</p>
       </ShadcnTooltipContent>
     </ShadcnTooltip>

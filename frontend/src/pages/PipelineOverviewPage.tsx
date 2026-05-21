@@ -1,4 +1,4 @@
-﻿import { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useJobs } from '../hooks';
 import { SkeletonCard, SkeletonText } from '../components/ui/Skeleton';
@@ -24,7 +24,7 @@ const STAGE_ALIASES: Record<string, string> = {
 function normalizeStageName(stageName: string | undefined): string {
   const normalized = String(stageName || '').trim().toLowerCase();
   if (!normalized) return '';
-  return STAGE_ALIASES[normalized] ?? normalized;
+  return (Reflect.get(STAGE_ALIASES, normalized) as string | undefined) ?? normalized;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -286,7 +286,7 @@ function buildStageList(job: Job): StageProgressEntry[] {
   const filled: StageProgressEntry[] = [];
 
   for (let i = 0; i < stageOrder.length; i++) {
-    const stageName = stageOrder[i];
+    const stageName = stageOrder.at(i) ?? '';
     const existing = stageMap.get(stageName);
     if (existing) {
       filled.push(existing);

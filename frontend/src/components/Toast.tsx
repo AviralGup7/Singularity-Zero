@@ -91,7 +91,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.625, fontFamily: 'var(--font-mono)' }}>
                     {toast.message}
                   </p>
-                  {toast.duration > 0 && (
+                  {toast.duration !== undefined && toast.duration > 0 && (
                     <div style={{ marginTop: '8px', height: '2px', background: 'var(--surface-3)', borderRadius: '999px', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%',
@@ -100,7 +100,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                           toast.type === 'success' ? 'var(--ok)' :
                           toast.type === 'error' ? 'var(--bad)' :
                           toast.type === 'warning' ? 'var(--warn)' : 'var(--info)',
-                        animation: `toast-drain ${toast.duration}ms linear forwards`,
+                        animation: `toast-drain ${toast.duration ?? 0}ms linear forwards`,
                       }} />
                     </div>
                   )}

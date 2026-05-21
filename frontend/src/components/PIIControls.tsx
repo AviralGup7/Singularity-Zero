@@ -87,22 +87,15 @@ export function PIIAwareText({ text, category = 'custom' }: { text: string; cate
     return <span className="pii-visible-text">{text}</span>;
   }
 
-  const REDACTION_MAP: Record<string, string> = {
-   
-    email: '[EMAIL REDACTED]',
-   
-    phone: '[PHONE REDACTED]',
-   
-    ssn: '[SSN REDACTED]',
-   
-    creditCard: '[CARD REDACTED]',
-   
-    ipAddress: '[IP REDACTED]',
-   
-    name: '[NAME REDACTED]',
-   
-    custom: '[SENSITIVE REDACTED]',
-  };
+  const REDACTION_MAP = new Map<string, string>([
+    ['email', '[EMAIL REDACTED]'],
+    ['phone', '[PHONE REDACTED]'],
+    ['ssn', '[SSN REDACTED]'],
+    ['creditCard', '[CARD REDACTED]'],
+    ['ipAddress', '[IP REDACTED]'],
+    ['name', '[NAME REDACTED]'],
+    ['custom', '[SENSITIVE REDACTED]'],
+  ]);
 
-  return <span className="pii-redacted-text">{REDACTION_MAP[category] || '[REDACTED]'}</span>;
+  return <span className="pii-redacted-text">{REDACTION_MAP.get(category) || '[REDACTED]'}</span>;
 }

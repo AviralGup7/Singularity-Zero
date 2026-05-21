@@ -39,9 +39,9 @@ const severityBadgeClasses: Record<Exclude<BadgeVariant, 'status'>, string> = {
 export function Badge({ variant = 'info', status, children, className }: BadgeProps) {
   const isStatus = variant === 'status' && status;
   const classes = isStatus
-    ? statusClasses[status]
+    ? Reflect.get(statusClasses, status)
    
-    : severityBadgeClasses[variant as Exclude<BadgeVariant, 'status'>];
+    : Reflect.get(severityBadgeClasses, variant);
 
   const ariaLabel = isStatus
     ? `Status: ${status}`

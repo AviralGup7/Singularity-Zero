@@ -127,16 +127,18 @@ export function OnboardingTour() {
   return (
     <div
       className="onboarding-overlay"
-      onClick={skip}
-      onKeyDown={(e) => e.key === 'Enter' && skip()}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) skip();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && e.target === e.currentTarget) skip();
+      }}
       role="button"
       tabIndex={-1}
       aria-label="Close tour"
     >
       <div 
         className="onboarding-card" 
-        onClick={e => e.stopPropagation()} 
-        onKeyDown={e => e.stopPropagation()}
         role="dialog" 
         aria-modal="true"
         aria-labelledby="tour-title"

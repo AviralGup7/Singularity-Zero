@@ -114,7 +114,7 @@ export function RequestResponseViewer({ pairs, className, defaultRedacted = fals
    
   const [copied, setCopied] = useState(false);
 
-  const currentPair = pairs[activeIndex] ?? null;
+  const currentPair = pairs.at(activeIndex) ?? null;
 
   const processedRequest = useMemo(() => {
     if (!currentPair) return { headers: '', body: '' };

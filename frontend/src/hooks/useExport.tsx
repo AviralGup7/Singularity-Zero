@@ -26,9 +26,9 @@ function stripPII(data: Record<string, unknown>[]): Record<string, unknown>[] {
    
     for (const [key, value] of Object.entries(row)) {
       if (piiKeys.some((pii) => key.toLowerCase().includes(pii))) {
-        cleaned[key] = '[REDACTED]';
+        Reflect.set(cleaned, key, '[REDACTED]');
       } else {
-        cleaned[key] = value;
+        Reflect.set(cleaned, key, value);
       }
     }
     return cleaned;
@@ -44,7 +44,7 @@ function exportToCSV(data: Record<string, unknown>[], filename: string): void {
     headers.join(','),
     ...data.map((row) =>
       headers.map((h) => {
-        const val = row[h];
+        const val = Reflect.get(row, h);
         const str = val === null || val === undefined ? '' : String(val);
         return str.includes(',') || str.includes('"') || str.includes('\n')
           ? `"${str.replace(/"/g, '""')}"`

@@ -120,9 +120,14 @@ export const VirtualizedFindingsList = memo(function VirtualizedFindingsList({
         useWindowScroll={false}
         className="scrollbar-cyber"
         itemContent={(_index: number, finding: Finding) => (
-          <div onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={() => onSelect?.(finding)} key={finding.id}>
+          <button
+            type="button"
+            className="w-full text-left block focus:outline-none"
+            onClick={() => onSelect?.(finding)}
+            key={finding.id}
+          >
             <FindingRow finding={finding} />
-          </div>
+          </button>
         )}
         components={{
           Header

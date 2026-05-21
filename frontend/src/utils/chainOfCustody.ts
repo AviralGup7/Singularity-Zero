@@ -173,7 +173,7 @@ function saveEvidenceRecord(record: EvidenceRecord): void {
     const records = getAllEvidenceRecords();
     const idx = records.findIndex((r) => r.id === record.id);
     if (idx >= 0) {
-      records[idx] = record;
+      records.splice(idx, 1, record);
     } else {
       records.push(record);
     }

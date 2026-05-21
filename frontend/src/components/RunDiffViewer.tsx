@@ -59,24 +59,23 @@ export function RunDiffViewer({ runA, runB }: RunDiffViewerProps) {
   }, [runA, runB]);
 
   const severityBreakdown = useMemo(() => {
-    const breakdown: Record<string, { new: number; removed: number; changed: number }> = {};
+    const breakdown = new Map<string, { new: number; removed: number; changed: number }>();
     for (const sev of SEVERITY_ORDER) {
-      breakdown[sev] = { new: 0, removed: 0, changed: 0 };
+      breakdown.set(sev, { new: 0, removed: 0, changed: 0 });
     }
     for (const f of diff.newFindings) {
-   
-      if (breakdown[f.severity]) breakdown[f.severity].new++;
+      const entry = breakdown.get(f.severity);
+      if (entry) entry.new++;
     }
     for (const f of diff.removedFindings) {
-   
-      if (breakdown[f.severity]) breakdown[f.severity].removed++;
+      const entry = breakdown.get(f.severity);
+      if (entry) entry.removed++;
     }
     for (const c of diff.changedFindings) {
-   
-      if (breakdown[c.new.severity]) breakdown[c.new.severity].changed++;
+      const entry = breakdown.get(c.new.severity);
+      if (entry) entry.changed++;
     }
     return breakdown;
-   
   }, [diff]);
 
   const filteredItems = useMemo(() => {
@@ -123,14 +122,17 @@ export function RunDiffViewer({ runA, runB }: RunDiffViewerProps) {
       <div className="run-diff-severity-breakdown">
         <h4 className="run-diff-subtitle">Severity Breakdown</h4>
         <div className="severity-diff-grid">
-          {SEVERITY_ORDER.map(sev => (
-            <div key={sev} className={`severity-diff-row severity-diff-${sev}`}>
-              <span className="severity-diff-name">{sev}</span>
-              <span className="severity-diff-new">+{severityBreakdown[sev].new}</span>
-              <span className="severity-diff-removed">-{severityBreakdown[sev].removed}</span>
-              <span className="severity-diff-changed">~{severityBreakdown[sev].changed}</span>
-            </div>
-          ))}
+          {SEVERITY_ORDER.map(sev => {
+            const entry = severityBreakdown.get(sev) || { new: 0, removed: 0, changed: 0 };
+            return (
+              <div key={sev} className={`severity-diff-row severity-diff-${sev}`}>
+                <span className="severity-diff-name">{sev}</span>
+                <span className="severity-diff-new">+{entry.new}</span>
+                <span className="severity-diff-removed">-{entry.removed}</span>
+                <span className="severity-diff-changed">~{entry.changed}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 

@@ -68,9 +68,7 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
             <span className="recon-section-count bg-accent/20 text-accent px-2 py-0.5 rounded-full text-[10px]">{(subdomains || []).length}</span>
           </div>
           {subdomains.length > 0 && (
-            <div onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={e => e.stopPropagation()}>
-              <CopyButton text={getSubdomainsText()} />
-            </div>
+            <CopyButton text={getSubdomainsText()} />
           )}
         </summary>
         <div className="recon-section-content p-4">
@@ -124,9 +122,7 @@ export function ReconResults({ target, subdomains = [], urls = [], parameters = 
             <span className="recon-section-count bg-accent/20 text-accent px-2 py-0.5 rounded-full text-[10px]">{(urls || []).length}</span>
           </div>
           {urls.length > 0 && (
-            <div onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={e => e.stopPropagation()}>
-              <CopyButton text={getUrlsText()} />
-            </div>
+            <CopyButton text={getUrlsText()} />
           )}
         </summary>
         <div className="recon-section-content p-4">

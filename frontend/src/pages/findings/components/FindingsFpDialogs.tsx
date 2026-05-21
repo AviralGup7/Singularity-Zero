@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import type { Finding } from '../../../types/api';
 
 interface FindingsFpDialogsProps {
@@ -27,18 +28,32 @@ export function FindingsFpDialogs({
   onFpReview,
   onCloseFpReview,
 }: FindingsFpDialogsProps) {
+  const dialogTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const reviewTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (fpDialogFinding) {
+      dialogTextareaRef.current?.focus();
+    }
+  }, [fpDialogFinding]);
+
+  useEffect(() => {
+    if (fpReviewDialog) {
+      reviewTextareaRef.current?.focus();
+    }
+  }, [fpReviewDialog]);
+
   return (
     <>
       {fpDialogFinding && (
         <div 
           className="modal-overlay" 
-          onClick={onCloseFpDialog}
+          onClick={e => { if (e.target === e.currentTarget) onCloseFpDialog(); }}
           onKeyDown={e => e.key === 'Escape' && onCloseFpDialog()}
           role="presentation"
         >
           <div 
             className="modal-content fp-dialog" 
-            onClick={e => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="fp-dialog-title"
@@ -52,12 +67,12 @@ export function FindingsFpDialogs({
               <label htmlFor="fp-justification">Justification <span className="required">*</span></label>
               <textarea
                 id="fp-justification"
+                ref={dialogTextareaRef}
                 className="form-textarea"
                 value={fpJustification}
                 onChange={e => setFpJustification(e.target.value)}
                 placeholder="Provide a detailed justification for marking this finding as a false positive..."
                 rows={4}
-                autoFocus
               />
             </div>
             <div className="modal-actions">
@@ -79,13 +94,12 @@ export function FindingsFpDialogs({
       {fpReviewDialog && (
         <div 
           className="modal-overlay" 
-          onClick={onCloseFpReview}
+          onClick={e => { if (e.target === e.currentTarget) onCloseFpReview(); }}
           onKeyDown={e => e.key === 'Escape' && onCloseFpReview()}
           role="presentation"
         >
           <div 
             className="modal-content fp-review-dialog" 
-            onClick={e => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="fp-review-title"
@@ -103,12 +117,12 @@ export function FindingsFpDialogs({
               <label htmlFor="fp-review-comment">Reviewer Comment (optional)</label>
               <textarea
                 id="fp-review-comment"
+                ref={reviewTextareaRef}
                 className="form-textarea"
                 value={fpReviewComment}
                 onChange={e => setFpReviewComment(e.target.value)}
                 placeholder="Add a comment for this review decision..."
                 rows={3}
-                autoFocus
               />
             </div>
             <div className="modal-actions">

@@ -86,4 +86,3 @@ def test_ghost_vfs_path_traversal_prevention(tmp_path):
     # Assert the traversal file did NOT escape the sandbox and was NOT written
     assert not (tmp_path / "hacked.txt").exists()
     assert not (disk_dir / "../hacked.txt").exists()
-

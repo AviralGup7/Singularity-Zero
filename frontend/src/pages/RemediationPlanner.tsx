@@ -43,8 +43,16 @@ function UnitCard({ unit }: { unit: RemediationUnit }) {
       className="glass-panel border border-white/5 rounded-2xl overflow-hidden"
     >
       <div 
+        role="button"
+        tabIndex={0}
         className="p-6 cursor-pointer flex items-center justify-between hover:bg-white/[0.02] transition-colors"
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
       >
         <div className="flex items-center gap-6">
            <div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border ${SEVERITY_COLORS[unit.severity]}`}>

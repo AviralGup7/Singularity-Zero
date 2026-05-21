@@ -8,7 +8,13 @@ type StatusFilter = 'all' | 'open' | 'closed' | 'accepted';
 type ViewMode = 'table' | 'kanban';
 type KanbanColumn = 'new' | 'in-progress' | 'resolved';
 
-const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+const SEVERITY_ORDER = new Map<string, number>([
+  ['critical', 0],
+  ['high', 1],
+  ['medium', 2],
+  ['low', 3],
+  ['info', 4]
+]);
 const PAGE_SIZE = 20;
 
 function computeDuplicateKey(f: Finding): string {
@@ -100,7 +106,7 @@ export function useFindingsTable({ findings }: UseFindingsTableInput) {
     result.sort((a, b) => {
       let cmp = 0;
    
-      if (sortKey === 'severity') cmp = (SEVERITY_ORDER[a.severity] ?? 5) - (SEVERITY_ORDER[b.severity] ?? 5);
+      if (sortKey === 'severity') cmp = (SEVERITY_ORDER.get(a.severity) ?? 5) - (SEVERITY_ORDER.get(b.severity) ?? 5);
       else if (sortKey === 'type') cmp = (a.type || '').localeCompare(b.type || '');
       else if (sortKey === 'target') cmp = (a.target || '').localeCompare(b.target || '');
       else if (sortKey === 'status') cmp = (a.status || '').localeCompare(b.status || '');
@@ -121,12 +127,19 @@ export function useFindingsTable({ findings }: UseFindingsTableInput) {
 
   const kanbanFindings = useMemo(() => {
    
-    const cols: Record<KanbanColumn, Finding[]> = { 'new': [], 'in-progress': [], 'resolved': [] };
+    const cols = new Map<KanbanColumn, Finding[]>([
+      ['new', []],
+      ['in-progress', []],
+      ['resolved', []]
+    ]);
     for (const f of filtered) {
       const col = f.kanbanStatus || 'new';
-      if (cols[col]) cols[col].push(f);
+      const arr = cols.get(col);
+      if (arr) {
+        arr.push(f);
+      }
     }
-    return cols;
+    return Object.fromEntries(cols.entries()) as Record<KanbanColumn, Finding[]>;
    
   }, [filtered]);
 

@@ -10,7 +10,7 @@ interface LogRowData {
 
 function LogRowRenderer(props: RowComponentProps<LogRowData>) {
   const { index, style, lines } = props;
-  return <LogLine line={lines[index]} index={index} style={style} />;
+  return <LogLine line={lines.at(index) ?? ''} index={index} style={style} />;
 }
 
 interface JobLogViewerProps {

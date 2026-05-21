@@ -7,12 +7,10 @@ def mock_logic(task_input, state):
     state["last_input"] = task_input
     return {"processed": True}
 
+
 def test_actor_state_packing():
     state = ActorState(
-        actor_id="test-actor",
-        stage="recon",
-        data={"key": "value"},
-        checkpoint_ts=time.time()
+        actor_id="test-actor", stage="recon", data={"key": "value"}, checkpoint_ts=time.time()
     )
     packed = state.pack()
     assert isinstance(packed, bytes)
@@ -21,6 +19,7 @@ def test_actor_state_packing():
     assert unpacked.actor_id == state.actor_id
     assert unpacked.data == state.data
     assert unpacked.checkpoint_ts == state.checkpoint_ts
+
 
 def test_actor_migration_serialization():
     actor = ScanActor.start(actor_id="actor-1", logic_fn=mock_logic).proxy()
@@ -40,15 +39,13 @@ def test_actor_migration_serialization():
 
     actor.stop()
 
+
 def test_actor_recovery_from_snapshot():
     actor_id = "actor-2"
     snapshot_data = {"progress": 50, "discovered": ["a", "b"]}
 
     state = ActorState(
-        actor_id=actor_id,
-        stage="analysis",
-        data=snapshot_data,
-        checkpoint_ts=time.time()
+        actor_id=actor_id, stage="analysis", data=snapshot_data, checkpoint_ts=time.time()
     )
     packed = state.pack()
 

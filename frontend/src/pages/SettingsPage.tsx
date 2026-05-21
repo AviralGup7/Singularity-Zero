@@ -224,7 +224,7 @@ export function SettingsPage() {
         const scrollPosition = window.scrollY + 100;
         for (const item of settingsNavItems) {
    
-          const element = sectionRefs.current[item.id];
+          const element = Reflect.get(sectionRefs.current, item.id) as HTMLElement | null;
           if (element) {
             const { offsetTop, offsetHeight } = element;
             if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
@@ -242,7 +242,7 @@ export function SettingsPage() {
   }, []);
 
   const scrollToSection = useCallback((sectionId: SettingsSection) => {
-    const element = sectionRefs.current[sectionId];
+    const element = Reflect.get(sectionRefs.current, sectionId) as HTMLElement | null;
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setActiveSection(sectionId);
@@ -441,10 +441,10 @@ export function SettingsPage() {
             .map(sectionId => (
               <div
                 key={sectionId}
-                ref={el => { sectionRefs.current[sectionId] = el; }}
+                ref={el => { Reflect.set(sectionRefs.current, sectionId, el); }}
                 className="settings-section"
               >
-                {sectionRenderers[sectionId]}
+                {Reflect.get(sectionRenderers, sectionId) as React.ReactNode}
               </div>
             ))}
         </div>

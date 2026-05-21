@@ -100,7 +100,7 @@ export function resolveComponentMotionStrategy(
   component: MotionComponentClass,
   policy: MotionPolicy
 ): ComponentMotionStrategy {
-  const configured = COMPONENT_RULES[component];
+  const configured = Reflect.get(COMPONENT_RULES, component);
   if (!configured) {
     return { ...DEFAULT_STRATEGY, component };
   }

@@ -41,7 +41,7 @@ export function ThemeSection({ themeMode, accentColor, onThemeModeChange, onAcce
         ))}
       </div>
       <div className="accent-color-picker">
-        <label className="setting-label"><span className="setting-title">Accent Color</span></label>
+        <span className="setting-label"><span className="setting-title">Accent Color</span></span>
         <div className="accent-colors">
           {accentColors.map(color => (
             <button
