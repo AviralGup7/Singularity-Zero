@@ -38,6 +38,26 @@ class TargetFindingsResponse(BaseModel):
 router = APIRouter(prefix="/api/targets")
 
 
+class TargetComparisonDetail(BaseModel):
+    """Comparative stats for a single target."""
+    name: str
+    risk_score: float = 0.0
+    finding_count: int = 0
+    url_count: int = 0
+    parameter_count: int = 0
+    attack_chain_count: int = 0
+    run_count: int = 0
+    latest_run: str = ""
+    severity_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class TargetComparisonResponse(BaseModel):
+    """Comparison response between two targets."""
+    target_a: TargetComparisonDetail
+    target_b: TargetComparisonDetail
+
+
+
 def _validate_target_name(name: str) -> bool:
     from src.dashboard.fastapi.validation import validate_target_name
 
@@ -476,3 +496,121 @@ async def list_all_findings(
         "has_next": end < total,
         "has_prev": page > 1,
     }
+
+
+def _get_target_comparison_details(target_name: str, services: Any) -> dict[str, Any]:
+    output_root = services.query.output_root
+    target_dir = output_root / target_name
+
+    # Defaults
+    details = {
+        "name": target_name,
+        "risk_score": 0.0,
+        "finding_count": 0,
+        "url_count": 0,
+        "parameter_count": 0,
+        "attack_chain_count": 0,
+        "run_count": 0,
+        "latest_run": "",
+        "severity_counts": {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0},
+    }
+
+    if not target_dir.exists():
+        # Case-insensitive check
+        matched = next(
+            (
+                child
+                for child in output_root.iterdir()
+                if child.is_dir() and child.name.lower() == target_name.lower()
+            ),
+            None,
+        )
+        if matched:
+            target_dir = matched
+            details["name"] = matched.name
+        else:
+            return details
+
+    run_dirs = sorted(
+        [d for d in target_dir.iterdir() if d.is_dir() and (d / "run_summary.json").exists()],
+        key=lambda x: x.name,
+        reverse=True,
+    )
+
+    details["run_count"] = len(run_dirs)
+    if not run_dirs:
+        return details
+
+    latest_run_dir = run_dirs[0]
+    details["latest_run"] = latest_run_dir.name
+
+    summary_path = latest_run_dir / "run_summary.json"
+    findings_path = latest_run_dir / "findings.json"
+
+    findings = []
+    if findings_path.exists():
+        try:
+            findings = json.loads(findings_path.read_text(encoding="utf-8"))
+            if not isinstance(findings, list):
+                findings = []
+        except Exception as e:
+            logger.warning("Failed to load findings for target comparison: %s", e)
+
+    summary = {}
+    if summary_path.exists():
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning("Failed to load summary for target comparison: %s", e)
+
+    # Calculate risk score using compute_aggregate_risk_score
+    from src.recon.scoring import compute_aggregate_risk_score
+
+    risk_data = compute_aggregate_risk_score(findings, summary)
+    details["risk_score"] = risk_data.get("aggregate_score", 0.0)
+
+    details["finding_count"] = len(findings)
+    counts = summary.get("counts", {})
+    details["url_count"] = counts.get("urls", 0)
+    details["parameter_count"] = counts.get("parameters", 0)
+
+    attack_graph = summary.get("attack_graph", {})
+    chains = attack_graph.get("chains", []) if isinstance(attack_graph, dict) else []
+    details["attack_chain_count"] = len(chains)
+
+    sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    for f in findings:
+        if isinstance(f, dict):
+            sev = str(f.get("severity", "info")).strip().lower()
+            if sev in sev_counts:
+                sev_counts[sev] += 1
+            else:
+                sev_counts["info"] += 1
+    details["severity_counts"] = sev_counts
+
+    return details
+
+
+@router.get(
+    "/compare",
+    response_model=TargetComparisonResponse,
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    summary="Compare two targets side by side",
+)
+async def compare_targets(
+    target_a: str = Query(..., description="First target name"),
+    target_b: str = Query(..., description="Second target name"),
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> TargetComparisonResponse:
+    if not _validate_target_name(target_a) or not _validate_target_name(target_b):
+        raise HTTPException(status_code=400, detail="Invalid target name")
+
+    res_a = _get_target_comparison_details(target_a, services)
+    res_b = _get_target_comparison_details(target_b, services)
+
+    return TargetComparisonResponse(
+        target_a=TargetComparisonDetail(**res_a),
+        target_b=TargetComparisonDetail(**res_b),
+    )
+

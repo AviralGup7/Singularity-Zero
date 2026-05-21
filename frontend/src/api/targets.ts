@@ -14,3 +14,16 @@ export async function deleteTarget(id: string, signal?: AbortSignal): Promise<vo
   await apiClient.delete(`/api/targets/${id}`, { signal });
   apiCache.invalidatePrefix('/api/targets');
 }
+
+export async function compareTargets(
+  targetA: string,
+  targetB: string,
+  signal?: AbortSignal
+): Promise<{ target_a: Target; target_b: Target }> {
+  const { data } = await apiClient.get<{ target_a: Target; target_b: Target }>('/api/targets/compare', {
+    params: { target_a: targetA, target_b: targetB },
+    signal,
+  });
+  return data;
+}
+

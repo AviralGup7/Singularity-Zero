@@ -63,3 +63,9 @@ export async function invalidateCacheNamespace(namespace: string, signal?: Abort
   apiCache.invalidateAll();
   return data;
 }
+
+export async function reconcileBloomFilter(signal?: AbortSignal): Promise<Record<string, unknown>> {
+  const { data } = await apiClient.post<Record<string, unknown>>('/api/bloom/reconcile', undefined, { signal });
+  return data;
+}
+
