@@ -471,11 +471,18 @@ class LearningIntegration:
                     output_store.write_adaptive_config(adaptations)
 
                     # Phase 5.2: Write ledger for human audit
+                    kpis_dict = {}
+                    try:
+                        kpis_obj = self._metrics.compute_kpis(target=ctx.get("target_name"))
+                        kpis_dict = kpis_obj.to_dict()
+                    except Exception as e:
+                        logger.debug("Failed to compute KPIs for adaptive config ledger: %s", e)
+
                     ledger_entry = {
                         "run_id": ctx.get("run_id"),
                         "timestamp": datetime.now(UTC).isoformat(),
                         "adaptations": adaptations,
-                        "kpis": results.get("kpis", {})
+                        "kpis": kpis_dict
                     }
                     output_store.write_json_artifact("config.adaptive.ledger.json", ledger_entry)
 

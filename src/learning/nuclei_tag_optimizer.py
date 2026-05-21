@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
 from src.learning.telemetry_store import TelemetryStore
 
@@ -73,7 +72,7 @@ class NucleiTagOptimizer:
             return current_adaptive_tags
 
         # 2. Track performance of (endpoint_type, nuclei_tag) pairs
-        # Since FeedbackEvent doesn't store the exact tags triggered, 
+        # Since FeedbackEvent doesn't store the exact tags triggered,
         # we infer them from the adaptive_tags mapping and the finding's endpoint_type.
         performance_map: dict[str, dict[str, TagPerformance]] = {}
 
@@ -110,17 +109,17 @@ class NucleiTagOptimizer:
 
             keep_tags = []
             for tag in tags:
-                perf = performance_map[ep_type].get(tag)
-                if not perf or perf.total < min_events:
+                tag_perf = performance_map[ep_type].get(tag)
+                if not tag_perf or tag_perf.total < min_events:
                     keep_tags.append(tag)
                     continue
 
-                if perf.fp_rate >= fp_threshold:
+                if tag_perf.fp_rate >= fp_threshold:
                     logger.warning(
                         "NucleiTagOptimizer: Demoting noisy tag [%s] for endpoint type [%s] (FP Rate: %.2f)",
                         tag,
                         ep_type,
-                        perf.fp_rate,
+                        tag_perf.fp_rate,
                     )
                     # Skip adding this tag to the optimized list (demotion)
                 else:
