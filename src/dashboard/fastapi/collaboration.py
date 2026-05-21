@@ -275,6 +275,7 @@ class TriageCollaborationService:
                     "author": event.get("analyst_name", "Analyst"),
                     "text": str(payload.get("text") or ""),
                     "mentions": payload.get("mentions") or [],
+                    "parent_id": payload.get("parent_id"),
                     "timestamp": event.get("timestamp"),
                     "updated_at": event.get("timestamp"),
                 }

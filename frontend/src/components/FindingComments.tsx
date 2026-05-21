@@ -63,7 +63,7 @@ function useFindingComments(findingId: string, targetName?: string, runId?: stri
    
   const [loading, setLoading] = useState(false);
    
-  const [saving] = useState(false);
+  const [saving, setSaving] = useState(false);
    
   const [error, setError] = useState<string | null>(null);
    
@@ -72,6 +72,8 @@ function useFindingComments(findingId: string, targetName?: string, runId?: stri
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
    
   const [replyText, setReplyText] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
   const triageRunId = runId || targetName || 'global';
   const collaboration = useTriageCollaboration(triageRunId, findingId);
 
@@ -83,6 +85,7 @@ function useFindingComments(findingId: string, targetName?: string, runId?: stri
         author: comment.author,
         text: comment.text,
         mentions: comment.mentions || [],
+        parentId: comment.parent_id || undefined,
         timestamp: comment.timestamp,
       })));
       return;
@@ -114,17 +117,84 @@ function useFindingComments(findingId: string, targetName?: string, runId?: stri
     if (!newComment.trim()) return;
     const mentions = extractMentions(newComment);
     const text = newComment.trim();
-    await collaboration.sendAction('comment_added', {
-      comment_id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      text,
-      mentions,
-    });
-    setNewComment('');
+    setSaving(true);
+    setError(null);
+    try {
+      await collaboration.sendAction('comment_added', {
+        comment_id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        text,
+        mentions,
+      });
+      setNewComment('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to post comment');
+    } finally {
+      setSaving(false);
+    }
   }, [collaboration, newComment]);
 
+  const addReply = useCallback(async (parentId: string) => {
+    if (!replyText.trim()) return;
+    const text = replyText.trim();
+    setSaving(true);
+    setError(null);
+    try {
+      await collaboration.sendAction('comment_added', {
+        comment_id: `reply-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        parent_id: parentId,
+        text,
+        mentions: extractMentions(text),
+      });
+      setReplyText('');
+      setReplyingTo(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to post reply');
+    } finally {
+      setSaving(false);
+    }
+  }, [collaboration, replyText]);
+
+  const startEditing = useCallback((comment: FindingComment) => {
+    setEditingCommentId(comment.id);
+    setEditingText(comment.text);
+  }, []);
+
+  const cancelEditing = useCallback(() => {
+    setEditingCommentId(null);
+    setEditingText('');
+  }, []);
+
+  const updateComment = useCallback(async (commentId: string) => {
+    if (!editingText.trim()) return;
+    const text = editingText.trim();
+    setSaving(true);
+    setError(null);
+    try {
+      await collaboration.sendAction('comment_updated', {
+        comment_id: commentId,
+        text,
+        mentions: extractMentions(text),
+      });
+      setEditingCommentId(null);
+      setEditingText('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to update comment');
+    } finally {
+      setSaving(false);
+    }
+  }, [collaboration, editingText]);
+
   const deleteComment = useCallback(async (commentId: string) => {
-    await collaboration.sendAction('comment_deleted', { comment_id: commentId });
-    setComments(prev => prev.filter(c => c.id !== commentId));
+    setSaving(true);
+    setError(null);
+    try {
+      await collaboration.sendAction('comment_deleted', { comment_id: commentId });
+      setComments(prev => prev.filter(c => c.id !== commentId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to delete comment');
+    } finally {
+      setSaving(false);
+    }
   }, [collaboration]);
 
   const rootComments = comments.filter(c => !c.parentId);
@@ -136,11 +206,18 @@ function useFindingComments(findingId: string, targetName?: string, runId?: stri
     newComment,
     setNewComment,
     addComment,
+    addReply,
     deleteComment,
+    startEditing,
+    cancelEditing,
+    updateComment,
     replyingTo,
     setReplyingTo,
     replyText,
     setReplyText,
+    editingCommentId,
+    editingText,
+    setEditingText,
     loading,
     saving,
     error,
@@ -156,11 +233,18 @@ export function FindingComments({ findingId, targetName, runId }: FindingComment
     newComment,
     setNewComment,
     addComment,
+    addReply,
     deleteComment,
+    startEditing,
+    cancelEditing,
+    updateComment,
     replyingTo,
     setReplyingTo,
     replyText,
     setReplyText,
+    editingCommentId,
+    editingText,
+    setEditingText,
     loading,
     saving,
     error,
@@ -230,7 +314,36 @@ export function FindingComments({ findingId, targetName, runId }: FindingComment
                       onClick={() => deleteComment(comment.id)} aria-label="Delete comment">Delete</button>
                   )}
                 </div>
-                <div className="comment-text">{renderMentions(comment.text)}</div>
+                {editingCommentId === comment.id ? (
+                  <div className="mt-2 space-y-2">
+                    <textarea
+                      className="form-textarea"
+                      value={editingText}
+                      onChange={e => {
+                        setEditingText(e.target.value);
+                        collaboration.broadcastCursor({ area: 'comments', field: `edit-${comment.id}`, length: e.target.value.length });
+                      }}
+                      rows={3}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => updateComment(comment.id)}
+                        disabled={!editingText.trim() || saving}
+                      >
+                        {saving ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        className="btn btn-sm"
+                        onClick={cancelEditing}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="comment-text">{renderMentions(comment.text)}</div>
+                )}
                 {comment.mentions.length > 0 && (
                   <div className="comment-mentions">
                     Mentioned: {comment.mentions.join(', ')}
@@ -242,6 +355,12 @@ export function FindingComments({ findingId, targetName, runId }: FindingComment
                 >
                   Reply
                 </button>
+                <button
+                  className="comment-reply-btn ml-3"
+                  onClick={() => startEditing(comment)}
+                >
+                  Edit
+                </button>
               </div>
 
               {replies.length > 0 && (
@@ -252,7 +371,42 @@ export function FindingComments({ findingId, targetName, runId }: FindingComment
                         <span className="comment-author">{reply.author}</span>
                         <span className="comment-time">{formatTime(reply.timestamp)}</span>
                       </div>
-                      <div className="comment-text">{renderMentions(reply.text)}</div>
+                      {editingCommentId === reply.id ? (
+                        <div className="mt-2 space-y-2">
+                          <textarea
+                            className="form-textarea"
+                            value={editingText}
+                            onChange={e => {
+                              setEditingText(e.target.value);
+                              collaboration.broadcastCursor({ area: 'comments', field: `edit-${reply.id}`, length: e.target.value.length });
+                            }}
+                            rows={2}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={() => updateComment(reply.id)}
+                              disabled={!editingText.trim() || saving}
+                            >
+                              {saving ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              className="btn btn-sm"
+                              onClick={cancelEditing}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="comment-text">{renderMentions(reply.text)}</div>
+                      )}
+                      <button
+                        className="comment-reply-btn"
+                        onClick={() => startEditing(reply)}
+                      >
+                        Edit
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -269,13 +423,13 @@ export function FindingComments({ findingId, targetName, runId }: FindingComment
                     onKeyDown={e => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        addComment();
+                        addReply(comment.id);
                       }
                     }}
                   />
                   <button
                     className="btn btn-sm btn-primary"
-                    onClick={addComment}
+                    onClick={() => addReply(comment.id)}
                     disabled={!replyText.trim() || saving}
                   >
                     {saving ? 'Posting...' : 'Reply'}
