@@ -101,7 +101,22 @@ class RequestChameleon:
             headers[new_key] = v
 
         # 3. Inject Polymorphic Noise headers
-        if secrets.randbelow(10) > 6:  # ~30% chance
+        noise_chance = 6  # Default ~30% chance (secrets.randbelow(10) > 6)
+        try:
+            from src.learning.integration import LearningIntegration
+            learning = LearningIntegration.get_or_create()
+            if learning and learning.config.enabled:
+                try:
+                    active_patterns = [p.to_db_row() for p in learning._fp_tracker._cache.values() if p.is_active]
+                except Exception:
+                    active_patterns = []
+
+                if any(p.get("category") in ("waf_block", "rate_limit", "cdn_error") for p in active_patterns):
+                    noise_chance = 0  # Increase to 90% chance (secrets.randbelow(10) > 0)
+        except Exception as e:
+            logger.debug("Chameleon noise adaptation skipped: %s", e)
+
+        if secrets.randbelow(10) > noise_chance:
             noise_prefixes = [
                 "X-Request-ID",
                 "X-Correlation-ID",
@@ -125,16 +140,49 @@ class RequestChameleon:
         return dict(items)
 
     def get_stealth_options(self) -> dict[str, Any]:
-        """Return advanced stealth parameters for httpx/requests."""
-        # Jittered timeout: pick randomly from a range using secrets
+        """Return advanced stealth parameters for httpx/requests.
+        Dynamically adapts based on active False Positive mesh patterns.
+        """
+        # Default options
         timeout_choices = [10.0, 12.0, 14.0, 15.0, 16.0, 18.0, 20.0]
+        timeout = secrets.choice(timeout_choices)
+        http2_chance = 8  # 80% default
+
+        # Query Learning Integration if enabled to see if we are dealing with high-WAF or rate-limiting blockages
+        try:
+            from src.learning.integration import LearningIntegration
+            learning = LearningIntegration.get_or_create()
+            if learning and learning.config.enabled:
+                import asyncio
+                # Load patterns from local store/cache or Redis
+                try:
+                    loop = asyncio.get_running_loop()
+                    active_patterns = loop.run_until_complete(learning.get_active_fp_patterns())
+                except RuntimeError:
+                    # In a context without running loop or when we can't block, try local cache directly
+                    active_patterns = [p.to_db_row() for p in learning._fp_tracker._cache.values() if p.is_active]
+
+                has_waf_block = any(p.get("category") == "waf_block" for p in active_patterns)
+                has_rate_limit = any(p.get("category") == "rate_limit" for p in active_patterns)
+
+                if has_waf_block or has_rate_limit:
+                    # Double timeouts to prevent timing fingerprinting & bypass CDN/WAF rate limits
+                    timeout *= 2.0
+                    # Limit to safe ceiling
+                    timeout = min(timeout, 40.0)
+                    # Force HTTP/2 usage (100% chance) to blend in with modern browser fingerprints
+                    http2_chance = 10
+        except Exception as e:
+            # Absolute fallback to safe defaults if anything fails (no event loop, import error, etc.)
+            logger.debug("Chameleon stealth options adaptation skipped: %s", e)
+
         return {
             "follow_redirects": True,
-            "timeout": secrets.choice(timeout_choices),
+            "timeout": timeout,
             "verify": True,  # GEMINI.md mandate: Default to True for security
             # 🛸 Sprint 1: Inject JA3 signature for downstream TLS fingerprinting
             "ja3_signature": secrets.choice(self._ja3_signatures),
-            "http2": secrets.randbelow(10) > 2,  # 80% chance of HTTP/2
+            "http2": secrets.randbelow(10) < http2_chance,
         }
 
 

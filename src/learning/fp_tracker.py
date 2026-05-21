@@ -196,6 +196,50 @@ class FPTracker:
 
         return updated_count
 
+    async def add_manual_fp(
+        self,
+        category: str,
+        status_code: int | None = None,
+        body_indicator: str | None = None,
+    ) -> FPPattern:
+        """Manually add or update a false positive pattern from triage and sync it mesh-wide."""
+        await self._ensure_loaded_async()
+
+        # Try to find if there's an existing pattern for this category and characteristics
+        matched = None
+        for pattern in self._cache.values():
+            if pattern.category == category:
+                if status_code and status_code in pattern.status_codes:
+                    matched = pattern
+                    break
+                if body_indicator and any(indicator in body_indicator.lower() for indicator in pattern.body_indicators):
+                    matched = pattern
+                    break
+
+        if matched:
+            matched.update(is_fp=True, is_tp=False)
+            self._cache[matched.pattern_id] = matched
+            self.store.upsert_fp_pattern(matched.to_db_row())
+            if self._redis_repo:
+                await self._redis_repo.upsert_pattern(matched)
+            if self._mesh_sync:
+                await self._mesh_sync.publish(matched.to_db_row())
+            return matched
+        else:
+            pattern = FPPattern.create(
+                category=category,
+                status_codes={status_code} if status_code else set(),
+                body_indicators=[body_indicator[:100]] if body_indicator else [],
+            )
+            pattern.update(is_fp=True, is_tp=False)
+            self._cache[pattern.pattern_id] = pattern
+            self.store.upsert_fp_pattern(pattern.to_db_row())
+            if self._redis_repo:
+                await self._redis_repo.upsert_pattern(pattern)
+            if self._mesh_sync:
+                await self._mesh_sync.publish(pattern.to_db_row())
+            return pattern
+
     def _match_pattern(
         self,
         status_code: int,
