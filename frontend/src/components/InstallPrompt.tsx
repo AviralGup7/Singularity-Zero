@@ -10,21 +10,30 @@ export function InstallPrompt() {
   if (isInstalled || dismissed || !isInstallable) return null;
 
   return (
-   
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:max-w-sm z-[8000] bg-[var(--panel)] border border-[var(--accent)] p-4 shadow-lg">
+    <div
+      className="fixed bottom-4 left-4 right-4 sm:left-auto sm:max-w-sm z-[8000] p-4 shadow-lg animate-fade-in-up"
+      style={{
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
+        border: '1px solid var(--glass-border)',
+        borderRadius: 'var(--radius-lg)',
+      }}
+      role="dialog"
+      aria-label="Install application"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-mono text-[var(--accent)] text-sm font-bold uppercase tracking-wider">
+          <h3 style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)', fontSize: 'var(--text-small)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Install App
           </h3>
-          <p className="text-[var(--muted)] text-xs mt-1">
+          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-small)', marginTop: '4px' }}>
             Install CyberPipeline for quick access and offline support.
           </p>
         </div>
         <button
           onClick={() => setDismissed(true)}
-   
-          className="text-[var(--muted)] hover:text-[var(--text)] text-lg leading-none"
+          className="modal-close"
           aria-label="Dismiss install prompt"
         >
           ×

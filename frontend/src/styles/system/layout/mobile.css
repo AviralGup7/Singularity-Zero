@@ -65,27 +65,48 @@
     right: 0;
     bottom: 0;
     z-index: 30;
-    background: rgba(12, 15, 20, 0.92);
-    border-top: 1px solid var(--border);
-    backdrop-filter: blur(8px);
+    background: var(--glass-bg);
+    border-top: 1px solid var(--glass-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
   .mobile-dock-item {
-    padding: var(--space-2);
+    padding: var(--space-2) var(--space-1);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 2px;
     font-size: 10px;
     color: var(--text-tertiary);
+    transition: color var(--motion-fast) var(--easing-out), transform var(--motion-instant) var(--easing-out);
+    position: relative;
+  }
+
+  .mobile-dock-item:active {
+    transform: scale(0.92);
   }
 
   .mobile-dock-item--active {
     color: var(--accent);
   }
 
+  .mobile-dock-item--active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+
   .app-main-content {
     padding: var(--space-4);
-    padding-bottom: 72px;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 }
