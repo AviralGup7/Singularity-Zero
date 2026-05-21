@@ -238,10 +238,80 @@ class DashboardQueryService:
         }
 
     def detection_gap_summary(self, target_name: str | None = None) -> dict[str, object]:
+        """Aggregate real telemetry across runs to compute coverage and gaps."""
+        # Normalize special target names
+        if target_name in ("all", ""):
+            target_name = None
+
+        targets_to_process = []
+        if target_name:
+            target_dir = self.output_root / target_name
+            if target_dir.exists() and target_dir.is_dir():
+                targets_to_process.append(target_name)
+        else:
+            # List all target directories
+            if self.output_root.exists():
+                for entry in self.output_root.iterdir():
+                    if entry.is_dir() and not entry.name.startswith("_"):
+                        targets_to_process.append(entry.name)
+
+        active_modules = set()
+        empty_modules = set()
+        coverage_by_category = {}
+        has_runs = False
+
+        for target in targets_to_process:
+            target_dir = self.output_root / target
+            run_dirs = sorted(
+                [d for d in target_dir.iterdir() if d.is_dir() and (d / "run_summary.json").exists()],
+                key=lambda x: x.name,
+                reverse=True,
+            )
+            if not run_dirs:
+                continue
+
+            has_runs = True
+            latest_run_dir = run_dirs[0]
+            summary_path = latest_run_dir / "run_summary.json"
+            try:
+                summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                coverage = summary.get("detection_coverage") or {}
+                
+                run_active = coverage.get("active_modules") or []
+                run_empty = coverage.get("empty_modules") or []
+                run_cat_counts = coverage.get("coverage_by_category") or {}
+
+                # Fallback to counts if detection_coverage is missing
+                if not run_active and not run_empty:
+                    counts = summary.get("counts") or {}
+                    for k, v in counts.items():
+                        if k not in {
+                            "scope_entries", "subdomains", "live_hosts", "urls", 
+                            "parameters", "priority_urls", "screenshots", 
+                            "attack_campaigns", "validation_results", "validated_leads", 
+                            "vrt_direct", "vrt_signal_only", "vrt_disabled", "vrt_unsupported"
+                        }:
+                            if isinstance(v, int) and v > 0:
+                                run_active.append(k)
+                            else:
+                                run_empty.append(k)
+
+                active_modules.update(run_active)
+                empty_modules.update(run_empty)
+
+                for cat, count in run_cat_counts.items():
+                    coverage_by_category[cat] = coverage_by_category.get(cat, 0) + count
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.debug("Failed to read run_summary.json for %s: %s", target, exc)
+                continue
+
+        # Standardize modules by removing active modules from empty modules list
+        final_empty = sorted(list(empty_modules - active_modules))
+
         return {
-            "coverage_percent": 0,
-            "untested_endpoints": 0,
-            "missed_check_types": [],
+            "active_modules": sorted(list(active_modules)),
+            "empty_modules": final_empty,
+            "coverage_by_category": coverage_by_category,
         }
 
     def list_targets(self) -> list[dict[str, Any]]:

@@ -583,6 +583,7 @@ class GapAnalysisEntry(BaseModel):
     missing_checks: int
     coverage_percent: int
     status: str
+    missing_check_details: list[str] = Field(default_factory=list)
 
 
 class DetectionGapResponse(BaseModel):

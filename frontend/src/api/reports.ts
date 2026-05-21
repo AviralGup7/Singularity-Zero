@@ -5,8 +5,18 @@ export async function getHealth(signal?: AbortSignal, ttl?: number): Promise<Hea
   return cachedGet<HealthStatus>('/api/health', { signal, ttl });
 }
 
-export async function getGapAnalysis(signal?: AbortSignal): Promise<DetectionGapResponse> {
-  return cachedGet<DetectionGapResponse>('/api/gap-analysis', { signal });
+export async function getGapAnalysis(target?: string | null, signal?: AbortSignal): Promise<DetectionGapResponse> {
+  let targetStr: string | undefined = undefined;
+  let abortSignal: AbortSignal | undefined = signal;
+  
+  if (typeof target === 'string') {
+    targetStr = target;
+  } else if (target instanceof AbortSignal || (target && 'aborted' in target)) {
+    abortSignal = target as AbortSignal;
+  }
+  
+  const params = targetStr ? { target: targetStr } : undefined;
+  return cachedGet<DetectionGapResponse>('/api/gap-analysis', { signal: abortSignal, params });
 }
 
 export async function refreshGapAnalysis(signal?: AbortSignal): Promise<{ status: string }> {
