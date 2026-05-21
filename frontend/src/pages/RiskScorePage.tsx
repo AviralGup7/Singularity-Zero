@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { scaleLinear } from 'd3-scale';
 import {
@@ -14,7 +14,110 @@ import {
   YAxis,
 } from 'recharts';
 import { Activity, Crosshair, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Html, Line as DreiLine } from '@react-three/drei';
 import { buildRiskDateColumns, useRiskHistory, useTargets } from '@/hooks';
+
+import type { ComponentType } from 'react';
+
+interface ThreeProps {
+  [key: string]: unknown;
+}
+
+const ThreeMesh = 'mesh' as unknown as ComponentType<ThreeProps>;
+const ThreeSphereGeometry = 'sphereGeometry' as unknown as ComponentType<ThreeProps>;
+const ThreeMeshStandardMaterial = 'meshStandardMaterial' as unknown as ComponentType<ThreeProps>;
+const ThreeAmbientLight = 'ambientLight' as unknown as ComponentType<ThreeProps>;
+const ThreePointLight = 'pointLight' as unknown as ComponentType<ThreeProps>;
+const ThreeGroup = 'group' as unknown as ComponentType<ThreeProps>;
+
+interface NodeData {
+  name: string;
+  value: number;
+  weight: number;
+  position: [number, number, number];
+  color: string;
+}
+
+function RiskGraphNode({ name, value, weight, position, color, isCenter }: NodeData & { isCenter?: boolean }) {
+  const [hovered, setHovered] = useState(false);
+
+  const baseRadius = isCenter ? 0.45 : 0.35;
+  const scale = hovered ? 1.25 : 1.0;
+  const radius = baseRadius * (0.6 + (value / 10) * 0.7) * scale;
+
+  return (
+    <ThreeGroup position={position}>
+      <ThreeMesh
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
+        <ThreeSphereGeometry args={[radius, 32, 32]} />
+        <ThreeMeshStandardMaterial
+          color={hovered ? '#FF9A3D' : color}
+          roughness={0.15}
+          metalness={0.8}
+          emissive={color}
+          emissiveIntensity={hovered ? 0.7 : 0.3}
+        />
+      </ThreeMesh>
+      <Html distanceFactor={6} position={[0, isCenter ? 0.8 : 0.6, 0]} center>
+        <div className={`px-2 py-1 rounded border font-mono text-[9px] pointer-events-none select-none transition-all duration-200 whitespace-nowrap ${
+          hovered 
+            ? 'bg-[var(--accent)] text-[var(--bg)] border-[var(--accent)] scale-110 shadow-lg' 
+            : 'bg-[#0B1728]/95 text-[var(--text)] border-[#2D5676] shadow-md'
+        }`}>
+          <div className="font-bold">{name}</div>
+          <div>Score: {value.toFixed(1)}</div>
+          {!isCenter && <div className="text-[7px] opacity-80">Weight: {weight}%</div>}
+        </div>
+      </Html>
+    </ThreeGroup>
+  );
+}
+
+function Risk3DGraph({ centerNode, factorNodes }: { centerNode: NodeData; factorNodes: NodeData[] }) {
+  return (
+    <div className="w-full h-[260px] bg-[#070e17] rounded border border-[#2D5676]/30 overflow-hidden relative">
+      <Canvas camera={{ position: [0, 0, 4.5], fov: 60 }}>
+        <ThreeAmbientLight intensity={0.5} />
+        <ThreePointLight position={[10, 10, 10]} intensity={1.5} />
+        <ThreePointLight position={[-10, -10, -10]} intensity={0.6} />
+        
+        <Suspense fallback={null}>
+          <ThreeGroup>
+            <RiskGraphNode {...centerNode} isCenter />
+
+            {factorNodes.map((fn, idx) => (
+              <RiskGraphNode key={idx} {...fn} />
+            ))}
+
+            {factorNodes.map((fn, idx) => (
+              <DreiLine
+                key={`line-${idx}`}
+                points={[[0, 0, 0], fn.position]}
+                color="#2FD8F8"
+                lineWidth={1.5}
+                opacity={0.4}
+                transparent
+              />
+            ))}
+          </ThreeGroup>
+          <OrbitControls 
+            enableZoom={true} 
+            maxDistance={8} 
+            minDistance={2} 
+            autoRotate={true}
+            autoRotateSpeed={0.8}
+          />
+        </Suspense>
+      </Canvas>
+      <div className="absolute bottom-2 left-2 text-[10px] font-mono text-[var(--muted)] pointer-events-none select-none bg-[#0B1728]/85 px-2 py-1 rounded border border-[#2D5676]/20">
+        Drag to rotate • Scroll to zoom
+      </div>
+    </div>
+  );
+}
 import type { RiskHistoryEntry } from '@/types/extended';
 
    
@@ -55,6 +158,7 @@ export function RiskScorePage() {
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
    
   const [selectedPoint, setSelectedPoint] = useState<RiskHistoryEntry | null>(null);
+  const [viewMode3D, setViewMode3D] = useState(false);
 
   const days = daysBetween(startDate, endDate);
   const { data: targetsData } = useTargets();
@@ -271,20 +375,67 @@ export function RiskScorePage() {
 
             <div className="card risk-chart-card">
               <div className="risk-section-head">
-                <div>
-                  <h3>Risk Factors</h3>
-                  <p>{selectedPoint ? `${selectedPoint.target} on ${selectedPoint.timestamp.slice(0, 10)}` : 'Select a heatmap cell'}</p>
+                <div className="flex justify-between items-center w-full">
+                  <div>
+                    <h3>Risk Factors</h3>
+                    <p>{selectedPoint ? `${selectedPoint.target} on ${selectedPoint.timestamp.slice(0, 10)}` : 'Select a heatmap cell'}</p>
+                  </div>
+                  <div className="flex items-center gap-1 bg-[var(--bg)] border border-[var(--line)] rounded p-0.5" style={{ height: 'fit-content' }}>
+                    <button
+                      type="button"
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${!viewMode3D ? 'bg-[var(--accent)] text-[var(--bg)] font-semibold' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}
+                      onClick={() => setViewMode3D(false)}
+                    >
+                      2D
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-2 py-0.5 rounded text-xs transition-colors ${viewMode3D ? 'bg-[var(--accent)] text-[var(--bg)] font-semibold' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}
+                      onClick={() => setViewMode3D(true)}
+                    >
+                      3D
+                    </button>
+                  </div>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
-                  <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
-                  <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
-                  <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              
+              {viewMode3D && selectedPoint ? (
+                <div className="p-4">
+                  <Risk3DGraph 
+                    centerNode={{
+                      name: 'CSI Score',
+                      value: selectedPoint.csi_value,
+                      weight: 100,
+                      position: [0, 0, 0],
+                      color: heatColor(selectedPoint.csi_value),
+                    }}
+                    factorNodes={factorData.map((fd, idx) => {
+                      const angle = (idx * 2 + 1) * (Math.PI / 4);
+                      const R = 2.1;
+                      const x = Math.cos(angle) * R;
+                      const y = Math.sin(angle) * R;
+                      return {
+                        name: fd.label,
+                        value: fd.value,
+                        weight: fd.weight,
+                        position: [x, y, 0],
+                        color: '#2FD8F8',
+                      };
+                    })}
+                  />
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
+                    <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
+                    <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
+                    <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
+                    <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              
               <div className="risk-factor-details space-y-3 px-4 pb-4">
                 {factors?.factors.map((f) => (
                   <div key={f.key} className="text-xs">

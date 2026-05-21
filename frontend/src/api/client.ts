@@ -13,7 +13,7 @@ export async function getDashboardStats(signal?: AbortSignal, ttl?: number): Pro
   return cachedGet<DashboardStats>('/api/dashboard', { signal, ttl });
 }
 
-export { getTargets, getDefaults, deleteTarget } from './targets';
+export { getTargets, getDefaults, deleteTarget, compareTargets } from './targets';
 export { getJobs, getJob, getJobLogs, getJobTraceLink, getJobRemediation, startJob, stopJob, restartJob, getHistoricalDurations } from './jobs';
 export type { StartJobPayload, HistoricalDurationEntry } from './jobs';
 export { getFindingsSummary, getFindings, getFindingRemediation, deleteFinding, updateFinding, bulkUpdateFindings } from './findings';
@@ -31,7 +31,7 @@ export { getHealth, getGapAnalysis, exportFindings, refreshGapAnalysis } from '.
 export { getReadiness, getLiveness } from './health';
 export { getNotes, createNote, updateNote, deleteNote } from './notes';
 export type { Note, NoteListResponse, NoteCreateRequest, NoteUpdateRequest } from '@/types/extended';
-export { getCacheStats, triggerCacheCleanup, invalidateCacheNamespace } from './cacheMgmt';
+export { getCacheStats, triggerCacheCleanup, invalidateCacheNamespace, reconcileBloomFilter } from './cacheMgmt';
 export type { CacheStats, CacheCleanupResponse } from '@/types/extended';
 export { getTargetRiskScore, getTargetHistoricalScores, getTargetTimeline, getJobTimeline } from './analysis';
 export type { RiskScore, HistoricalScoreResponse, TimelineResponse, TimelineEntry } from '@/types/extended';

@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Target } from '../types/api';
 import { useTargets } from '../hooks';
+import { compareTargets } from '@/api/client';
 
 interface TargetComparisonProps {
   targets?: Target[];
@@ -9,20 +10,44 @@ interface TargetComparisonProps {
 export function TargetComparison({ targets: propTargets }: TargetComparisonProps) {
    
   const [targetA, setTargetA] = useState('');
-   
   const [targetB, setTargetB] = useState('');
+  const [comparisonData, setComparisonData] = useState<{ target_a: Target; target_b: Target } | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   // Fetch targets if not provided via props
   const { data: fetchedTargets } = useTargets();
   const safeTargets = useMemo(() => {
     return Array.isArray(propTargets) ? propTargets : (fetchedTargets?.targets ?? []);
-   
   }, [propTargets, fetchedTargets?.targets]);
 
-   
-  const selectedA = useMemo(() => safeTargets.find(t => t.name === targetA), [safeTargets, targetA]);
-   
-  const selectedB = useMemo(() => safeTargets.find(t => t.name === targetB), [safeTargets, targetB]);
+  useEffect(() => {
+    if (!targetA || !targetB) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    compareTargets(targetA, targetB, controller.signal)
+      .then((data) => {
+        setComparisonData(data);
+      })
+      .catch((err: { message?: string; name?: string }) => {
+        if (err.name !== 'AbortError') {
+          setCompareError(err.message || 'Failed to fetch comparison data');
+        }
+      })
+      .finally(() => {
+        setCompareLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [targetA, targetB]);
+
+  const selectedA = comparisonData?.target_a;
+  const selectedB = comparisonData?.target_b;
 
   const severityTotals = useMemo(() => {
     const calc = (t: Target) => {
@@ -65,7 +90,18 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
             id="target-comparison-a"
             className="form-select target-comparison-select"
             value={targetA}
-            onChange={e => setTargetA(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              setTargetA(val);
+              if (val && targetB) {
+                setCompareLoading(true);
+                setCompareError(null);
+              } else {
+                setComparisonData(null);
+                setCompareError(null);
+                setCompareLoading(false);
+              }
+            }}
           >
             <option value="">Select target...</option>
             {safeTargets.map(t => (
@@ -79,7 +115,18 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
             id="target-comparison-b"
             className="form-select target-comparison-select"
             value={targetB}
-            onChange={e => setTargetB(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              setTargetB(val);
+              if (targetA && val) {
+                setCompareLoading(true);
+                setCompareError(null);
+              } else {
+                setComparisonData(null);
+                setCompareError(null);
+                setCompareLoading(false);
+              }
+            }}
           >
             <option value="">Select target...</option>
             {safeTargets.map(t => (
@@ -89,7 +136,20 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
         </div>
       </div>
 
-      {selectedA && selectedB ? (
+      {compareLoading && (
+        <div className="card empty flex flex-col justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)] mb-3" />
+          <p className="text-sm text-[var(--muted)]">Comparing security postures...</p>
+        </div>
+      )}
+
+      {compareError && (
+        <div className="banner error py-4 my-2 text-center text-sm" role="status">
+          <span>{compareError}</span>
+        </div>
+      )}
+
+      {!compareLoading && !compareError && selectedA && selectedB ? (
         <div className="target-comparison-grid">
           <div className="target-comparison-column">
             <h3 className="target-comparison-col-title">{selectedA.name}</h3>
@@ -197,11 +257,13 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
             </div>
           </div>
         </div>
-      ) : (
+      ) : null}
+
+      {!compareLoading && !compareError && (!selectedA || !selectedB) ? (
         <div className="card empty">
           <p>Select two targets to compare their security posture side by side.</p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

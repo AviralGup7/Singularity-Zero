@@ -20,6 +20,7 @@ import {
   getCachePerformanceHistory,
   getCacheStatus,
   triggerCacheCleanup,
+  reconcileBloomFilter,
 } from '@/api/cacheMgmt';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -346,6 +347,20 @@ export function CacheManagementPage() {
     }
   }
 
+  async function handleReconcileBloom() {
+    setActionLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await reconcileBloomFilter();
+      setMessage('Bloom filter mesh successfully reconciled across online nodes.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Bloom filter reconciliation failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   if (loading && !status) {
    
     return <div className="p-8 text-[var(--muted)]">Loading cache telemetry...</div>;
@@ -371,6 +386,10 @@ export function CacheManagementPage() {
           <Button variant="secondary" onClick={handleCleanup} loading={actionLoading}>
             <Zap size={15} aria-hidden="true" />
             Cleanup
+          </Button>
+          <Button variant="secondary" onClick={handleReconcileBloom} loading={actionLoading}>
+            <Activity size={15} aria-hidden="true" />
+            Reconcile Bloom
           </Button>
           <Button variant="danger" onClick={() => setConfirmClear(true)} disabled={actionLoading}>
             <Trash2 size={15} aria-hidden="true" />
