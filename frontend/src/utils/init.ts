@@ -1,7 +1,14 @@
 import { dispatchToast } from '@/lib/toastDispatcher';
 import { showErrorOverlay } from '@/utils/errorOverlay';
+import { synchronizeTime } from './time';
 
 let errorTrackingSetup = false;
+
+export function initTimeSync(): void {
+  void synchronizeTime().catch(error => {
+    console.warn('[TimeSync] Failed to initialize time sync:', error);
+  });
+}
 
 export async function clearLegacyServiceWorkers(): Promise<void> {
   if ('serviceWorker' in navigator) {

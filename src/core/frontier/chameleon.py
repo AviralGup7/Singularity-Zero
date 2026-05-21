@@ -62,9 +62,18 @@ class RequestChameleon:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Brave/1.65.0",
     ]
 
+    # JA3 Signatures for TLS fingerprinting (Chrome, Firefox, Safari on various OSs)
+    # Format: SSLVersion,Cipher,Extensions,EllipticCurves,EllipticCurveFormats
+    _JA3_SIGNATURES: list[str] = [
+        "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513,29-23-24,0",
+        "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49201-49172-49202-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-21,29-23-24,0",
+        "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49161-49162-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27,29-23-24,0",
+    ]
+
     def __init__(self) -> None:
         # Instance copy so subclasses can override without touching class variable
         self._user_agents = list(self._USER_AGENTS)
+        self._ja3_signatures = list(self._JA3_SIGNATURES)
 
     def mutate_headers(self, base_headers: dict[str, str]) -> dict[str, str]:
         """
@@ -112,6 +121,9 @@ class RequestChameleon:
             "follow_redirects": True,
             "timeout": secrets.choice(timeout_choices),
             "verify": True,  # GEMINI.md mandate: Default to True for security
+            # 🛸 Sprint 1: Inject JA3 signature for downstream TLS fingerprinting
+            "ja3_signature": secrets.choice(self._ja3_signatures),
+            "http2": secrets.randbelow(10) > 2,  # 80% chance of HTTP/2
         }
 
 

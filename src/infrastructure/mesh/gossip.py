@@ -121,6 +121,7 @@ class GossipEngine:
             asyncio.create_task(self._gossip_loop(), name="mesh-gossip-loop"),
             asyncio.create_task(self._heartbeat_loop(), name="mesh-heartbeat-loop"),
             asyncio.create_task(self._dead_node_gc_loop(), name="mesh-dead-node-gc-loop"),
+            asyncio.create_task(self._telemetry_loop(), name="mesh-telemetry-loop"),
         ]
 
     async def stop(self) -> None:
@@ -359,6 +360,33 @@ class GossipEngine:
             for node_id, node in list(self._dead_nodes.items()):
                 if node.last_seen < cutoff:
                     del self._dead_nodes[node_id]
+
+    async def _telemetry_loop(self) -> None:
+        """Periodically refresh local hardware telemetry."""
+        try:
+            import psutil
+        except ImportError:
+            psutil = None
+
+        # Prime the CPU counter
+        if psutil:
+            psutil.cpu_percent(interval=None)
+
+        while self._running:
+            if psutil:
+                try:
+                    # Non-blocking CPU check
+                    self.local_node.cpu_usage = psutil.cpu_percent(interval=None)
+                    
+                    mem = psutil.virtual_memory()
+                    self.local_node.ram_available_mb = round(mem.available / (1024 * 1024), 2)
+                    
+                    # Update local seen timestamp
+                    self.local_node.last_seen = time.time()
+                except Exception as e:
+                    logger.debug("Mesh telemetry collection failed: %s", e)
+            
+            await asyncio.sleep(5.0)
 
     def _handle_ack(self, payload: dict[str, Any]) -> None:
         ack_for = str(payload.get("ack_for", ""))
