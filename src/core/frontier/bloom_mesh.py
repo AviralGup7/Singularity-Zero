@@ -12,9 +12,9 @@ from typing import Any
 
 import msgspec
 
+from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.state import LWWset, VectorClock
-from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 
 logger = logging.getLogger(__name__)
 

@@ -454,7 +454,7 @@ async def get_target_compliance(
     if findings_path.exists():
         try:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     return build_compliance_report(findings)

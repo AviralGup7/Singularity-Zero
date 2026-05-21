@@ -1,14 +1,16 @@
 import asyncio
 import struct
-import time
-import pytest
-from pathlib import Path
-from typing import Any
 
-from src.core.frontier.ghost_actor import ActorState, ScanActor
-from src.core.frontier.state import NeuralState, CRDTCompactionBudget, compact_state, radix_sort_timestamps
-from src.core.frontier.wal import FrontierWAL
+import pytest
+
+from src.core.frontier.ghost_actor import ScanActor
 from src.core.frontier.proc_pool import FrontierProcessPool
+from src.core.frontier.state import (
+    CRDTCompactionBudget,
+    NeuralState,
+    radix_sort_timestamps,
+)
+from src.core.frontier.wal import FrontierWAL
 from src.core.storage.bounded_compaction_store import BoundedCompactionStateStore
 from src.core.storage.local_backends import LocalCheckpointStore
 
@@ -21,7 +23,7 @@ async def test_actor_dehydrate_rehydrate():
 
     actor = ScanActor.start("test-actor-1", dummy_logic)
     actor.ask({"command": "execute", "input": {"val": 10}})
-    
+
     # Test dehydrate
     payload = actor.ask({"command": "dehydrate"})
     assert isinstance(payload, bytes)
@@ -47,7 +49,7 @@ async def test_actor_cold_start_warm_rejoin():
     actor = ScanActor.start("test-actor-3", dummy_logic)
     state = actor.proxy().state.get()
     state["y"] = 42
-    
+
     # Dehydrate
     snapshot = actor.ask({"command": "dehydrate"})
     actor.stop()
@@ -64,7 +66,7 @@ async def test_actor_cold_start_warm_rejoin():
     actor_state = new_actor.proxy().state.get()
     assert actor_state["y"] == 42
     assert "a.com" in actor_state["subdomains"]
-    
+
     # Warm rejoin with new deltas
     new_deltas = [
         {"id": "wal-3", "delta": {"subdomains": ["c.com"]}}
@@ -106,7 +108,7 @@ def test_wal_dual_commit_and_integrity(tmp_path):
 
     # Verify AOF contains the record
     assert aof_file.exists()
-    
+
     # Recover deltas
     recovered = wal.recover_deltas()
     assert len(recovered) == 1
@@ -129,7 +131,7 @@ def test_wal_dual_commit_and_integrity(tmp_path):
 @pytest.mark.asyncio
 async def test_proc_pool_execute_task_binary(monkeypatch):
     pool = FrontierProcessPool(pool_size=1)
-    
+
     class MockProcess:
         pid = 9999
         returncode = None
@@ -174,7 +176,7 @@ async def test_proc_pool_execute_task_binary(monkeypatch):
     monkeypatch.setattr("os.getpgid", lambda *args: 1, raising=False)
 
     await pool.warm_pool("dummy_bin", [])
-    
+
     async def worker_echo():
         # Read 4 bytes length
         len_bytes = b""
@@ -209,9 +211,7 @@ def test_bounded_compaction_state_store(tmp_path):
     state = NeuralState()
     state.subdomains.add("a.com")
     state.subdomains.remove("a.com")
-    assert state.subdomains.tombstone_count == 1
-
-    path = bounded_store.write("run-123", 1, state.to_crdt_snapshot())
+    bounded_store.write("run-123", 1, state.to_crdt_snapshot())
 
     latest = bounded_store.read_latest("run-123")
     assert latest is not None

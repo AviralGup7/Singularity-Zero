@@ -39,21 +39,10 @@ class ValidationLayerInterfaceTests(unittest.TestCase):
             self.assertIsInstance(strategy, ValidationStrategy)
 
     def test_dynamic_validation_strategy_adapter(self) -> None:
-        from src.execution.validators.engine._runner import DynamicValidationStrategy
-        from src.core.plugins.sdk import PluginManifest
-        from pathlib import Path
         from unittest.mock import MagicMock
-        from src.execution.validators.engine._base import ValidationContext
 
-        manifest = PluginManifest(
-            id="demo.dynamic_check",
-            name="Demo Dynamic Check",
-            version="1.0.0",
-            kind="validator",
-            description="Demo validator",
-            entrypoint="run",
-            sandbox="process",
-        )
+        from src.execution.validators.engine._base import ValidationContext
+        from src.execution.validators.engine._runner import DynamicValidationStrategy
 
         def mock_sandbox_callable(payload: dict) -> dict:
             return {"ok": True, "url": payload["target"]["url"]}

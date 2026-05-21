@@ -17,8 +17,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-logger = logging.getLogger(__name__)
-
 from src.core.logging.audit import AuditEventType, get_audit_logger
 from src.infrastructure.security.encryption import (
     Argon2idAESGCM,
@@ -28,6 +26,8 @@ from src.infrastructure.security.encryption import (
     sealed_bundle_encrypt,
     secure_wipe,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class _AuditSink(Protocol):

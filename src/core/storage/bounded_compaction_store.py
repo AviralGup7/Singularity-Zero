@@ -10,13 +10,13 @@ from src.core.storage.interfaces import CheckpointStore
 
 class BoundedCompactionStateStore:
     """
-    Transparent CheckpointStore wrapper that enforces compaction budgets 
+    Transparent CheckpointStore wrapper that enforces compaction budgets
     at the persistence layer before writing checkpoints.
     """
 
     def __init__(
-        self, 
-        backend: CheckpointStore, 
+        self,
+        backend: CheckpointStore,
         budget: CRDTCompactionBudget | None = None,
         max_tombstone_age_seconds: float = 3600.0
     ) -> None:
