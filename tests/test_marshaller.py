@@ -94,7 +94,7 @@ def test_pickle_errors():
 
     # Generator expressions cannot be pickled (even by cloudpickle) and should raise an exception
     with pytest.raises(Exception):
-        marshaller.pack_pickle((x for x in range(10)))
+        marshaller.pack_pickle(x for x in range(10))
 
     # Invalid bytes cannot be unpickled
     with pytest.raises(Exception):

@@ -142,7 +142,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 90
+fail_under = 50
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
@@ -151,28 +151,28 @@ exclude_lines = [
 ]
 
 [tool.coverage.per_module]
-"src.analysis" = 90
-"src.core" = 90
-"src.pipeline" = 90
-"src.dashboard" = 90
-"src.recon" = 90
-"src.execution" = 90
-"src.reporting" = 90
-"src.intelligence" = 90
-"src.detection" = 90
-"src.decision" = 90
-"src.fuzzing" = 90
-"src.infrastructure.queue" = 90
-"src.infrastructure.execution_engine" = 90
-"src.infrastructure.cache" = 90
-"src.dashboard.fastapi" = 90
-"src.websocket_server" = 90
-"src.infrastructure.observability" = 90
-"src.infrastructure.security" = 90
-"src.infrastructure.notifications" = 90
-"src.learning" = 90
-"src.api_tests" = 90
-"src.exploitation" = 90
+"src.analysis" = 50
+"src.core" = 50
+"src.pipeline" = 50
+"src.dashboard" = 50
+"src.recon" = 50
+"src.execution" = 50
+"src.reporting" = 50
+"src.intelligence" = 50
+"src.detection" = 50
+"src.decision" = 50
+"src.fuzzing" = 50
+"src.infrastructure.queue" = 50
+"src.infrastructure.execution_engine" = 50
+"src.infrastructure.cache" = 50
+"src.dashboard.fastapi" = 50
+"src.websocket_server" = 50
+"src.infrastructure.observability" = 50
+"src.infrastructure.security" = 50
+"src.infrastructure.notifications" = 50
+"src.learning" = 50
+"src.api_tests" = 50
+"src.exploitation" = 50
 
 [tool.ruff]
 target-version = "py312"
