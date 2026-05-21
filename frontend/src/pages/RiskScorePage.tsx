@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, Suspense } from 'react';
+import { useMemo, useState, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { Float, Html, OrbitControls, Sphere } from '@react-three/drei';
 import * as THREE from 'three';
 import { scaleLinear } from 'd3-scale';
@@ -17,113 +17,10 @@ import {
   YAxis,
 } from 'recharts';
 import { Activity, Crosshair, RefreshCw, ShieldAlert } from 'lucide-react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Html, Line as DreiLine } from '@react-three/drei';
 import { buildRiskDateColumns, useRiskHistory, useTargets } from '@/hooks';
 
-import type { ComponentType } from 'react';
-
-interface ThreeProps {
-  [key: string]: unknown;
-}
-
-const ThreeMesh = 'mesh' as unknown as ComponentType<ThreeProps>;
-const ThreeSphereGeometry = 'sphereGeometry' as unknown as ComponentType<ThreeProps>;
-const ThreeMeshStandardMaterial = 'meshStandardMaterial' as unknown as ComponentType<ThreeProps>;
-const ThreeAmbientLight = 'ambientLight' as unknown as ComponentType<ThreeProps>;
-const ThreePointLight = 'pointLight' as unknown as ComponentType<ThreeProps>;
-const ThreeGroup = 'group' as unknown as ComponentType<ThreeProps>;
-
-interface NodeData {
-  name: string;
-  value: number;
-  weight: number;
-  position: [number, number, number];
-  color: string;
-}
-
-function RiskGraphNode({ name, value, weight, position, color, isCenter }: NodeData & { isCenter?: boolean }) {
-  const [hovered, setHovered] = useState(false);
-
-  const baseRadius = isCenter ? 0.45 : 0.35;
-  const scale = hovered ? 1.25 : 1.0;
-  const radius = baseRadius * (0.6 + (value / 10) * 0.7) * scale;
-
-  return (
-    <ThreeGroup position={position}>
-      <ThreeMesh
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-      >
-        <ThreeSphereGeometry args={[radius, 32, 32]} />
-        <ThreeMeshStandardMaterial
-          color={hovered ? '#FF9A3D' : color}
-          roughness={0.15}
-          metalness={0.8}
-          emissive={color}
-          emissiveIntensity={hovered ? 0.7 : 0.3}
-        />
-      </ThreeMesh>
-      <Html distanceFactor={6} position={[0, isCenter ? 0.8 : 0.6, 0]} center>
-        <div className={`px-2 py-1 rounded border font-mono text-[9px] pointer-events-none select-none transition-all duration-200 whitespace-nowrap ${
-          hovered 
-            ? 'bg-[var(--accent)] text-[var(--bg)] border-[var(--accent)] scale-110 shadow-lg' 
-            : 'bg-[#0B1728]/95 text-[var(--text)] border-[#2D5676] shadow-md'
-        }`}>
-          <div className="font-bold">{name}</div>
-          <div>Score: {value.toFixed(1)}</div>
-          {!isCenter && <div className="text-[7px] opacity-80">Weight: {weight}%</div>}
-        </div>
-      </Html>
-    </ThreeGroup>
-  );
-}
-
-function Risk3DGraph({ centerNode, factorNodes }: { centerNode: NodeData; factorNodes: NodeData[] }) {
-  return (
-    <div className="w-full h-[260px] bg-[#070e17] rounded border border-[#2D5676]/30 overflow-hidden relative">
-      <Canvas camera={{ position: [0, 0, 4.5], fov: 60 }}>
-        <ThreeAmbientLight intensity={0.5} />
-        <ThreePointLight position={[10, 10, 10]} intensity={1.5} />
-        <ThreePointLight position={[-10, -10, -10]} intensity={0.6} />
-        
-        <Suspense fallback={null}>
-          <ThreeGroup>
-            <RiskGraphNode {...centerNode} isCenter />
-
-            {factorNodes.map((fn, idx) => (
-              <RiskGraphNode key={idx} {...fn} />
-            ))}
-
-            {factorNodes.map((fn, idx) => (
-              <DreiLine
-                key={`line-${idx}`}
-                points={[[0, 0, 0], fn.position]}
-                color="#2FD8F8"
-                lineWidth={1.5}
-                opacity={0.4}
-                transparent
-              />
-            ))}
-          </ThreeGroup>
-          <OrbitControls 
-            enableZoom={true} 
-            maxDistance={8} 
-            minDistance={2} 
-            autoRotate={true}
-            autoRotateSpeed={0.8}
-          />
-        </Suspense>
-      </Canvas>
-      <div className="absolute bottom-2 left-2 text-[10px] font-mono text-[var(--muted)] pointer-events-none select-none bg-[#0B1728]/85 px-2 py-1 rounded border border-[#2D5676]/20">
-        Drag to rotate • Scroll to zoom
-      </div>
-    </div>
-  );
-}
 import type { RiskHistoryEntry } from '@/types/extended';
 
-   
 const TARGET_COLORS = ['#2FD8F8', '#FF9A3D', '#2ECC71', '#A55CFF', '#F2C94C', '#4FA3FF'];
 
 function formatDateInput(date: Date): string {
@@ -153,15 +50,6 @@ function RiskNode({ position, label, value, color, size = 1, isMain = false }: {
   size?: number;
   isMain?: boolean;
 }) {
-  const meshRef = useMemo(() => new THREE.Mesh(), []);
-  
-  useFrame((state) => {
-    if (meshRef) {
-      const t = state.clock.getElapsedTime();
-      meshRef.position.y = position[1] + Math.sin(t * 1.5 + position[0]) * 0.1;
-    }
-  });
-
   return (
     <group position={position}>
       <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
@@ -175,7 +63,7 @@ function RiskNode({ position, label, value, color, size = 1, isMain = false }: {
           />
         </Sphere>
       </Float>
-      <Html distanceFactor={10} position={[0, size * 0.6, 0]}>
+      <Html distanceFactor={10} position={[0, size * 0.6, 0]} center>
         <div className="risk-3d-label" style={{
           background: 'rgba(11, 23, 40, 0.8)',
           backdropFilter: 'blur(4px)',
@@ -229,7 +117,8 @@ function RiskGraph({ data, factors }: { data: RiskHistoryEntry | null, factors: 
         isMain
       />
       {factorDefinitions.map((f, i) => {
-        const val = data.factors?.[f.key] ?? 0;
+        const factorKey = f.key as keyof typeof data.factors;
+        const val = data.factors?.[factorKey] ?? 0;
         const pos = factorPositions[i % factorPositions.length];
         return (
           <group key={f.key}>
@@ -257,16 +146,12 @@ export function RiskScorePage() {
     const start = new Date(today);
     start.setDate(start.getDate() - 29);
     return start;
-   
   }, [today]);
-   
+
   const [startDate, setStartDate] = useState(formatDateInput(defaultStart));
-   
   const [endDate, setEndDate] = useState(formatDateInput(today));
-   
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
-   
-  const [selectedPoint, setSelectedPoint] = useState<RiskHistoryEntry | null>(null);
+  const [selectedPointState, setSelectedPoint] = useState<RiskHistoryEntry | null>(null);
   const [viewMode3D, setViewMode3D] = useState(false);
 
   const days = daysBetween(startDate, endDate);
@@ -283,8 +168,8 @@ export function RiskScorePage() {
     for (const target of targetsData?.targets ?? []) names.add(target.name);
     for (const entry of history) names.add(entry.target_id);
     return Array.from(names).sort();
-   
   }, [history, targetsData?.targets]);
+
   const visibleTargets = selectedTargets.length > 0 ? selectedTargets : allTargets;
   const columns = useMemo(() => {
     try {
@@ -292,15 +177,12 @@ export function RiskScorePage() {
     } catch {
       return [];
     }
-   
   }, [history]);
 
   const heatColor = useMemo(
     () => scaleLinear<string>()
-   
       .domain([0, 3, 6.5, 10])
-   
-      .range(['#0B1728', '#10b981', '#f59e0b', '#ff0055']) // Use theme-consistent hexes
+      .range(['#0B1728', '#10b981', '#f59e0b', '#ff0055'])
       .clamp(true),
     [],
   );
@@ -313,35 +195,27 @@ export function RiskScorePage() {
       }
     }
     return map;
-   
   }, [history]);
 
   const hottestPoint = useMemo(
     () => {
       if (!history.length) return null;
-   
       return [...history].sort((a, b) => (b.csi_value || 0) - (a.csi_value || 0) || (b.timestamp || '').localeCompare(a.timestamp || ''))[0];
     },
-   
     [history],
   );
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!selectedPoint && hottestPoint) setSelectedPoint(hottestPoint);
-    if (selectedPoint && !history.some((entry) => entry.target_id === selectedPoint.target_id && entry.timestamp === selectedPoint.timestamp)) {
-      setSelectedPoint(hottestPoint);
+  const selectedPoint = useMemo(() => {
+    if (selectedPointState && history.some(p => p.target === selectedPointState.target && p.timestamp === selectedPointState.timestamp)) {
+      return selectedPointState;
     }
-   
-  }, [selectedPoint, history, hottestPoint]);
+    return hottestPoint;
+  }, [selectedPointState, history, hottestPoint]);
 
   const lineData = useMemo(() => columns.map((day) => {
     const row: Record<string, string | number> = { day: day.slice(5) };
-    for (const target of visibleTargets) {
-      Reflect.set(row, target, heatmapByTargetDay.get(`${target}:${day}`)?.csi_value ?? 0);
-    }
+    for (const target of visibleTargets) row[target] = heatmapByTargetDay.get(`${target}:${day}`)?.csi_value ?? 0;
     return row;
-   
   }), [columns, heatmapByTargetDay, visibleTargets]);
 
   const factorData = useMemo(() => {
@@ -353,12 +227,9 @@ export function RiskScorePage() {
     ];
     return definitions.map((definition) => ({
       label: definition.label,
-   
-      value: selectedPoint?.factors?.[definition.key] ?? 0,
-   
-      weight: Math.round((factors?.weights?.[definition.key] ?? 0) * 100),
+      value: selectedPoint?.factors?.[definition.key as keyof typeof selectedPoint.factors] ?? 0,
+      weight: Math.round((factors?.weights?.[definition.key as keyof typeof factors.weights] ?? 0) * 100),
     }));
-   
   }, [factors, selectedPoint]);
 
   return (
@@ -465,123 +336,76 @@ export function RiskScorePage() {
           </section>
 
           <section className="risk-analysis-grid">
-        <div className="card risk-chart-card">
-          <div className="risk-section-head">
-            <div>
-              <h3>CSI Trend</h3>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className={`btn btn-xs ${!viewMode3D ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setViewMode3D(false)}
-              >
-                2D
-              </button>
-              <button
-                type="button"
-                className={`btn btn-xs ${viewMode3D ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setViewMode3D(true)}
-              >
-                3D
-              </button>
-            </div>
-          </div>
-          <div className="h-[320px] w-full">
-            {viewMode3D ? (
-              <div className="h-full w-full bg-[var(--surface-1)] rounded-lg overflow-hidden border border-[var(--border)]">
-                <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
-                  <Suspense fallback={null}>
-                    <RiskGraph data={selectedPoint} factors={factors} />
-                  </Suspense>
-                </Canvas>
+            <div className="card risk-chart-card">
+              <div className="risk-section-head">
+                <div>
+                  <h3>CSI Trend</h3>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`btn btn-xs ${!viewMode3D ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setViewMode3D(false)}
+                  >
+                    2D
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-xs ${viewMode3D ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setViewMode3D(true)}
+                  >
+                    3D
+                  </button>
+                </div>
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={lineData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
-                  <XAxis dataKey="day" stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
-                  <Legend />
-                  {visibleTargets.slice(0, 6).map((target, index) => (
-                    <Line key={target} type="monotone" dataKey={target} stroke={TARGET_COLORS[index % TARGET_COLORS.length]} strokeWidth={2} dot={false} />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
+              <div className="h-[320px] w-full">
+                {viewMode3D ? (
+                  <div className="h-full w-full bg-[var(--surface-1)] rounded-lg overflow-hidden border border-[var(--border)]">
+                    <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
+                      <Suspense fallback={null}>
+                        <RiskGraph data={selectedPoint} factors={factors} />
+                      </Suspense>
+                    </Canvas>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={lineData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+                      <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
+                      <XAxis dataKey="day" stroke="#8FA3B8" tick={{ fontSize: 11 }} />
+                      <YAxis domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
+                      <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
+                      <Legend />
+                      {visibleTargets.slice(0, 6).map((target, index) => (
+                        <Line key={target} type="monotone" dataKey={target} stroke={TARGET_COLORS[index % TARGET_COLORS.length]} strokeWidth={2} dot={false} />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
 
             <div className="card risk-chart-card">
               <div className="risk-section-head">
-                <div className="flex justify-between items-center w-full">
-                  <div>
-                    <h3>Risk Factors</h3>
-                    <p>{selectedPoint ? `${selectedPoint.target} on ${selectedPoint.timestamp.slice(0, 10)}` : 'Select a heatmap cell'}</p>
-                  </div>
-                  <div className="flex items-center gap-1 bg-[var(--bg)] border border-[var(--line)] rounded p-0.5" style={{ height: 'fit-content' }}>
-                    <button
-                      type="button"
-                      className={`px-2 py-0.5 rounded text-xs transition-colors ${!viewMode3D ? 'bg-[var(--accent)] text-[var(--bg)] font-semibold' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}
-                      onClick={() => setViewMode3D(false)}
-                    >
-                      2D
-                    </button>
-                    <button
-                      type="button"
-                      className={`px-2 py-0.5 rounded text-xs transition-colors ${viewMode3D ? 'bg-[var(--accent)] text-[var(--bg)] font-semibold' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}
-                      onClick={() => setViewMode3D(true)}
-                    >
-                      3D
-                    </button>
-                  </div>
+                <div>
+                  <h3>Risk Factors</h3>
+                  <p>{selectedPoint ? `${selectedPoint.target} on ${selectedPoint.timestamp.slice(0, 10)}` : 'Select a heatmap cell'}</p>
                 </div>
               </div>
-              
-              {viewMode3D && selectedPoint ? (
-                <div className="p-4">
-                  <Risk3DGraph 
-                    centerNode={{
-                      name: 'CSI Score',
-                      value: selectedPoint.csi_value,
-                      weight: 100,
-                      position: [0, 0, 0],
-                      color: heatColor(selectedPoint.csi_value),
-                    }}
-                    factorNodes={factorData.map((fd, idx) => {
-                      const angle = (idx * 2 + 1) * (Math.PI / 4);
-                      const R = 2.1;
-                      const x = Math.cos(angle) * R;
-                      const y = Math.sin(angle) * R;
-                      return {
-                        name: fd.label,
-                        value: fd.value,
-                        weight: fd.weight,
-                        position: [x, y, 0],
-                        color: '#2FD8F8',
-                      };
-                    })}
-                  />
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
-                    <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
-                    <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
-                    <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-              
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
+                  <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
+                  <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
+                  <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
               <div className="risk-factor-details space-y-3 px-4 pb-4">
                 {factors?.factors.map((f) => (
                   <div key={f.key} className="text-xs">
                     <div className="flex justify-between items-center mb-1">
                       <strong className="text-accent">{f.label}</strong>
-                      <span className="text-muted font-mono">{Math.round((factors?.weights?.[f.key] ?? 0) * 100)}% Weight</span>
+                      <span className="text-muted font-mono">{Math.round((factors?.weights?.[f.key as keyof typeof factors.weights] ?? 0) * 100)}% Weight</span>
                     </div>
                     <p className="text-muted/70 leading-relaxed italic">{f.description}</p>
                   </div>

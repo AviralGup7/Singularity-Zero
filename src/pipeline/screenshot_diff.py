@@ -118,7 +118,7 @@ def _compute_ssim(img_a: Image.Image, img_b: Image.Image, window_size: int = 11)
 
 def _count_diff_pixels(diff: Image.Image, threshold: int = 0) -> int:
     count = 0
-    for pixel in diff.getdata():
+    for pixel in list(diff.getdata()):
         if isinstance(pixel, int):
             if pixel > threshold:
                 count += 1
