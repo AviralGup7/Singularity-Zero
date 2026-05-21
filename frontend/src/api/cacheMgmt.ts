@@ -52,6 +52,11 @@ export async function triggerCacheCleanup(signal?: AbortSignal): Promise<CacheCl
   return data;
 }
 
+export async function reconcileBloomFilter(signal?: AbortSignal): Promise<{ status: string; redis_enabled: boolean }> {
+  const { data } = await apiClient.post<{ status: string; redis_enabled: boolean }>('/api/bloom/reconcile', undefined, { signal });
+  return data;
+}
+
 export async function clearAllCaches(signal?: AbortSignal): Promise<CacheNamespaceResponse> {
   const { data } = await apiClient.post<CacheNamespaceResponse>('/api/cache/clear', undefined, { signal });
   apiCache.invalidateAll();

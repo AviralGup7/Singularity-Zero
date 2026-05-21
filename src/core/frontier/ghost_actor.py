@@ -231,7 +231,10 @@ class GhostMeshCoordinator:
                 except (pykka.Timeout, Exception):
                     return False
 
-            actor_id = f"actor:{task_metadata.get('actor_id', 'unknown')}"
+            try:
+                actor_id = str(cast(Any, actor_ref.proxy()).actor_id.get(timeout=0.5))
+            except Exception:
+                actor_id = f"actor:{task_metadata.get('actor_id', 'unknown')}"
             logger.info(
                 "Ghost-Coordinator: Initiating proactive migration for [%s] due to node pressure",
                 actor_id,
@@ -249,12 +252,15 @@ class GhostMeshCoordinator:
                 )
 
                 # 1. Snapshot and Stop the actor
-                actor_ref.ask({"command": "migrate"}, block=True)
+                packed_state = actor_ref.ask({"command": "migrate"}, block=True)
 
-                # 2. Update Registry
+                # 2. Store the serialized state in the registry for transmission
+                await self.registry.store_actor_state(actor_id, packed_state)
+
+                # 3. Update Registry
                 await self.registry.register_actor(actor_id, target_node_id)
 
-                # 3. Emit Migration Event for Observability
+                # 4. Emit Migration Event for Observability
                 from src.core.events import EventType, get_event_bus  # pylint: disable=C0415
 
                 get_event_bus().emit(
@@ -268,7 +274,7 @@ class GhostMeshCoordinator:
                     },
                 )
 
-                # 4. In a real system, we would now signal the remote node to spawn the actor.
+                # 5. In a real system, we would now signal the remote node to spawn the actor.
                 # For this implementation, we assume the registry update is the 'handoff'.
                 return True
 
@@ -276,6 +282,36 @@ class GhostMeshCoordinator:
         except Exception as e:  # pylint: disable=W0718
             logger.error("Ghost-Coordinator: Migration failed: %s", e)
             return False
+
+    async def spawn_or_rehydrate_actor(
+        self, actor_id: str, logic_fn: Callable[[dict[str, Any], dict[str, Any]], Any]
+    ) -> pykka.ActorRef:
+        """Spawn a new actor instance, automatically re-hydrating from registry if state exists."""
+        # 1. Start a fresh actor instance
+        actor_ref = ScanActor.start(actor_id, logic_fn)
+
+        # 2. Check if a migrated state exists in the registry
+        packed_state = await self.registry.retrieve_actor_state(actor_id)
+        if packed_state:
+            try:
+                # 3. Unpack and restore state
+                unpacked = ActorState.unpack(packed_state)
+                # Assign state dictionary to the actor
+                actor_ref.proxy().state = unpacked.data
+                logger.info(
+                    "Ghost-Coordinator: Successfully re-hydrated actor [%s] with state checkpoints",
+                    actor_id,
+                )
+                # 4. Clean up state from registry to save storage footprint
+                await self.registry.clear_actor_state(actor_id)
+            except Exception as e:
+                logger.error(
+                    "Ghost-Coordinator: Failed to re-hydrate actor [%s] from state: %s",
+                    actor_id,
+                    e,
+                )
+
+        return actor_ref
 
 
 class GhostMeshRegistry:
@@ -287,6 +323,7 @@ class GhostMeshRegistry:
     def __init__(self, redis_client: Any, run_id: str = "default") -> None:
         self._redis = redis_client
         self._registry_key = f"cyber:ghost:registry:{run_id}"
+        self._state_key = f"cyber:ghost:state:{run_id}"
 
     async def register_actor(self, actor_id: str, node_id: str) -> None:
         """Map an actor to its current host node."""
@@ -300,3 +337,16 @@ class GhostMeshRegistry:
 
     async def unregister_actor(self, actor_id: str) -> None:
         await self._redis.hdel(self._registry_key, actor_id)
+
+    async def store_actor_state(self, actor_id: str, state_bytes: bytes) -> None:
+        """Store the packed actor state in Redis."""
+        await self._redis.hset(self._state_key, actor_id, state_bytes)
+        await self._redis.expire(self._state_key, 86400)
+
+    async def retrieve_actor_state(self, actor_id: str) -> bytes | None:
+        """Retrieve the packed actor state from Redis."""
+        return cast(bytes | None, await self._redis.hget(self._state_key, actor_id))
+
+    async def clear_actor_state(self, actor_id: str) -> None:
+        """Remove the packed actor state from Redis."""
+        await self._redis.hdel(self._state_key, actor_id)
