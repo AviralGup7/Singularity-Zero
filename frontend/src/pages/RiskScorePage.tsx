@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import { Link } from 'react-router-dom';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Float, Html, OrbitControls, Sphere } from '@react-three/drei';
+import * as THREE from 'three';
 import { scaleLinear } from 'd3-scale';
 import {
   Bar,
@@ -140,6 +143,112 @@ function scoreLabel(score: number): string {
   if (score >= 4) return 'Medium';
   if (score >= 2) return 'Low';
   return 'Minimal';
+}
+
+function RiskNode({ position, label, value, color, size = 1, isMain = false }: {
+  position: [number, number, number];
+  label: string;
+  value: number;
+  color: string;
+  size?: number;
+  isMain?: boolean;
+}) {
+  const meshRef = useMemo(() => new THREE.Mesh(), []);
+  
+  useFrame((state) => {
+    if (meshRef) {
+      const t = state.clock.getElapsedTime();
+      meshRef.position.y = position[1] + Math.sin(t * 1.5 + position[0]) * 0.1;
+    }
+  });
+
+  return (
+    <group position={position}>
+      <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
+        <Sphere args={[size * 0.4, 32, 32]}>
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={isMain ? 0.5 : 0.2}
+            roughness={0.2}
+            metalness={0.8}
+          />
+        </Sphere>
+      </Float>
+      <Html distanceFactor={10} position={[0, size * 0.6, 0]}>
+        <div className="risk-3d-label" style={{
+          background: 'rgba(11, 23, 40, 0.8)',
+          backdropFilter: 'blur(4px)',
+          border: `1px solid ${color}`,
+          padding: '2px 8px',
+          borderRadius: '4px',
+          color: 'white',
+          fontSize: isMain ? '14px' : '10px',
+          fontWeight: 'bold',
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none'
+        }}>
+          {label}: {value.toFixed(1)}
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+function ConnectionLine({ start, end, color }: { start: [number, number, number], end: [number, number, number], color: string }) {
+  const points = useMemo(() => [new THREE.Vector3(...start), new THREE.Vector3(...end)], [start, end]);
+  const lineGeometry = useMemo(() => new THREE.BufferGeometry().setFromPoints(points), [points]);
+
+  return (
+    <line geometry={lineGeometry}>
+      <lineBasicMaterial color={color} transparent opacity={0.4} />
+    </line>
+  );
+}
+
+function RiskGraph({ data, factors }: { data: RiskHistoryEntry | null, factors: { factors: { key: string; label: string }[] } | null }) {
+  if (!data) return null;
+
+  const factorPositions: [number, number, number][] = [
+    [2.5, 1.5, 0],   // Top Right
+    [2.5, -1.5, 0],  // Bottom Right
+    [-2.5, 1.5, 0],  // Top Left
+    [-2.5, -1.5, 0], // Bottom Left
+  ];
+
+  const factorDefinitions = factors?.factors ?? [];
+
+  return (
+    <group>
+      <RiskNode
+        position={[0, 0, 0]}
+        label="CSI"
+        value={data.csi_value}
+        color={data.csi_value >= 6.5 ? '#ff0055' : data.csi_value >= 4 ? '#f59e0b' : '#10b981'}
+        size={1.5}
+        isMain
+      />
+      {factorDefinitions.map((f, i) => {
+        const val = data.factors?.[f.key] ?? 0;
+        const pos = factorPositions[i % factorPositions.length];
+        return (
+          <group key={f.key}>
+            <RiskNode
+              position={pos}
+              label={f.label}
+              value={val}
+              color="#2FD8F8"
+              size={0.8}
+            />
+            <ConnectionLine start={[0, 0, 0]} end={pos} color="#2FD8F8" />
+          </group>
+        );
+      })}
+      <OrbitControls enableZoom={false} autoRotate autoRotateSpeed={0.5} />
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} intensity={1} />
+    </group>
+  );
 }
 
 export function RiskScorePage() {
@@ -356,9 +465,39 @@ export function RiskScorePage() {
           </section>
 
           <section className="risk-analysis-grid">
-            <div className="card risk-chart-card">
-              <div className="risk-section-head"><h3>CSI Trend</h3></div>
-              <ResponsiveContainer width="100%" height={320}>
+        <div className="card risk-chart-card">
+          <div className="risk-section-head">
+            <div>
+              <h3>CSI Trend</h3>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={`btn btn-xs ${!viewMode3D ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setViewMode3D(false)}
+              >
+                2D
+              </button>
+              <button
+                type="button"
+                className={`btn btn-xs ${viewMode3D ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setViewMode3D(true)}
+              >
+                3D
+              </button>
+            </div>
+          </div>
+          <div className="h-[320px] w-full">
+            {viewMode3D ? (
+              <div className="h-full w-full bg-[var(--surface-1)] rounded-lg overflow-hidden border border-[var(--border)]">
+                <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
+                  <Suspense fallback={null}>
+                    <RiskGraph data={selectedPoint} factors={factors} />
+                  </Suspense>
+                </Canvas>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={lineData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
                   <XAxis dataKey="day" stroke="#8FA3B8" tick={{ fontSize: 11 }} />
@@ -366,12 +505,13 @@ export function RiskScorePage() {
                   <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
                   <Legend />
                   {visibleTargets.slice(0, 6).map((target, index) => (
-   
                     <Line key={target} type="monotone" dataKey={target} stroke={TARGET_COLORS[index % TARGET_COLORS.length]} strokeWidth={2} dot={false} />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+            )}
+          </div>
+        </div>
 
             <div className="card risk-chart-card">
               <div className="risk-section-head">

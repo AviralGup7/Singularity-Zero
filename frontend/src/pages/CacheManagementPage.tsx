@@ -221,6 +221,7 @@ export function CacheManagementPage() {
   const [message, setMessage] = useState<string | null>(null);
    
   const [confirmClear, setConfirmClear] = useState(false);
+  const [bloomReconciling, setBloomReconciling] = useState(false);
 
   const refreshOverview = useCallback(async (signal?: AbortSignal) => {
    
@@ -332,37 +333,33 @@ export function CacheManagementPage() {
       setActionLoading(false);
     }
   }
+async function handleCleanup() {
+  setActionLoading(true);
+  try {
+    const res = await triggerCacheCleanup();
+    setMessage(`Cleaned ${res.cleaned} expired entries in ${res.duration_seconds.toFixed(2)}s.`);
 
-  async function handleCleanup() {
-    setActionLoading(true);
-    try {
-      const res = await triggerCacheCleanup();
-      setMessage(`Cleaned ${res.cleaned} expired entries in ${res.duration_seconds.toFixed(2)}s.`);
-   
-      await Promise.all([refreshOverview(), refreshKeys(pattern)]);
-    } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : 'Cleanup failed.');
-    } finally {
-      setActionLoading(false);
-    }
+    await Promise.all([refreshOverview(), refreshKeys(pattern)]);
+  } catch (err: unknown) {
+    setMessage(err instanceof Error ? err.message : 'Cleanup failed.');
+  } finally {
+    setActionLoading(false);
   }
+}
 
   async function handleReconcileBloom() {
-    setActionLoading(true);
-    setError(null);
-    setMessage(null);
+    setBloomReconciling(true);
     try {
-      await reconcileBloomFilter();
-      setMessage('Bloom filter mesh successfully reconciled across online nodes.');
+      const res = await (await import('@/api/cacheMgmt')).reconcileBloomFilter();
+      setMessage(`Bloom reconciliation triggered: ${res.status}. Redis: ${res.redis_enabled ? 'Active' : 'N/A'}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Bloom filter reconciliation failed.');
+      setMessage(err instanceof Error ? err.message : 'Bloom reconciliation failed.');
     } finally {
-      setActionLoading(false);
+      setBloomReconciling(false);
     }
   }
 
   if (loading && !status) {
-   
     return <div className="p-8 text-[var(--muted)]">Loading cache telemetry...</div>;
   }
 
