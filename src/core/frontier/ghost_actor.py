@@ -229,7 +229,7 @@ class GhostMeshCoordinator:
                     health = cast(dict[str, Any], actor_ref.ask({"command": "health_check"}, timeout=0.5))
                     if not health.get("evacuation_recommended"):
                         return False
-                except (pykka.TimeoutError, Exception):
+                except (pykka.Timeout, Exception):
                     return False
 
             actor_id = f"actor:{task_metadata.get('actor_id', 'unknown')}"
