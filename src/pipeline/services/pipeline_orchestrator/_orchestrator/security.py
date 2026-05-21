@@ -17,6 +17,8 @@ from src.core.models.stage_result import PipelineContext, StageResult
 from src.core.utils import normalize_scope_entry
 from src.pipeline.services.output_store import PipelineOutputStore
 
+from .._constants import STAGE_ORDER
+
 logger = get_pipeline_logger(__name__)
 
 
@@ -44,7 +46,6 @@ async def run_secured(
     cache_enabled = getattr(o, "cache_enabled")
     emit_progress = getattr(o, "emit_progress")
     load_adaptive_config = getattr(o, "load_adaptive_config")
-    STAGE_ORDER = getattr(o, "STAGE_ORDER")
     read_scope = getattr(o, "read_scope")
     build_tool_status = getattr(o, "build_tool_status")
     preloaded_scope_entries = getattr(args, "_loaded_scope_entries", None)
@@ -61,7 +62,7 @@ async def run_secured(
         print(
             json.dumps({"scope_entries": scope_entries, "tool_status": tool_status}, indent=2)
         )
-        return await orchestrator._finalize_run(0)
+        return cast(int, await orchestrator._finalize_run(0))
 
     started_at = time.time()
     output_store = PipelineOutputStore.create(
@@ -271,11 +272,11 @@ async def run_secured(
         handled_by_parallel=handled_by_parallel,
     )
     if stage_execution_exit is not None:
-        return await orchestrator._finalize_run(stage_execution_exit, ctx=ctx, config=config)
+        return cast(int, await orchestrator._finalize_run(stage_execution_exit, ctx=ctx, config=config))
 
     exit_code = orchestrator._resolve_pipeline_exit_code(
         ctx=ctx,
         config=config,
         started_at=started_at,
     )
-    return await orchestrator._finalize_run(exit_code, ctx=ctx, config=config)
+    return cast(int, await orchestrator._finalize_run(exit_code, ctx=ctx, config=config))
