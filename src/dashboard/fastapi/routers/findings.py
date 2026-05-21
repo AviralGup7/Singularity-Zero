@@ -461,6 +461,39 @@ async def update_finding(
         logger.error("Failed to save updated finding: %s", e)
         raise HTTPException(status_code=500, detail="Failed to persist finding update")
 
+    # Hook into False Positive Learning Integration Mesh-Wide Sync
+    is_fp_triage = (
+        finding_payload.get("decision") == "DROP"
+        or finding_payload.get("status") == "false_positive"
+        or finding_payload.get("lifecycle_state") == "FALSE_POSITIVE"
+    )
+    if is_fp_triage:
+        try:
+            from src.learning.integration import LearningIntegration
+            learning = LearningIntegration.get_or_create()
+            if learning and learning.config.enabled:
+                response_status = finding_payload.get("response_status") or finding_payload.get("status_code")
+                body = finding_payload.get("evidence") or finding_payload.get("body") or finding_payload.get("description", "")
+                category = finding_payload.get("category", "general")
+                # Schedule the async manual FP registration
+                import asyncio
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(learning._fp_tracker.add_manual_fp(
+                        category=category,
+                        status_code=int(response_status) if response_status else None,
+                        body_indicator=body,
+                    ))
+                except RuntimeError:
+                    # In a synchronous context or no running event loop, execute synchronously
+                    asyncio.run(learning._fp_tracker.add_manual_fp(
+                        category=category,
+                        status_code=int(response_status) if response_status else None,
+                        body_indicator=body,
+                    ))
+        except Exception as e:
+            logger.warning("Mesh FP Sync: Failed to propagate manual FP: %s", e)
+
     return _normalize_finding_payload(
         finding_payload, target_name=target_name, run_name=run_name, index=target_finding_idx + 1
     )

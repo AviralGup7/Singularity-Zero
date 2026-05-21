@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -235,3 +236,122 @@ async def test_automatic_actor_migration_and_rehydration(monkeypatch: pytest.Mon
     finally:
         if actor_ref.is_alive():
             actor_ref.stop()
+
+
+@pytest.mark.asyncio
+async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 1. Setup Mock Gossip Mesh with real _send_reliable mock
+    node_a = MeshNode(
+        id="node-a", host="127.0.0.1", port=9001, cpu_usage=95.0, ram_available_mb=100.0
+    )
+    node_b = MeshNode(
+        id="node-b", host="127.0.0.1", port=9002, cpu_usage=10.0, ram_available_mb=8000.0
+    )
+
+    gossip_sender = MagicMock(spec=GossipEngine)
+    gossip_sender.mesh_nodes.return_value = [node_a, node_b]
+    gossip_sender.local_node = node_a
+    gossip_sender.peers = {"node-b": node_b}
+
+    # Store sent messages to verify
+    sent_reliable_calls = []
+    async def mock_send_reliable(peer: MeshNode, message_type: str, payload: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+        sent_reliable_calls.append((peer, message_type, payload))
+        return True, {}
+
+    monkeypatch.setattr(gossip_sender, "_send_reliable", mock_send_reliable, raising=False)
+
+    # 2. Mock psutil for node-a (simulating high load to trigger migration)
+    mock_psutil = MagicMock()
+    mock_psutil.cpu_percent.return_value = 95.0
+    mock_psutil.virtual_memory.return_value.percent = 98.0
+    monkeypatch.setattr("src.core.frontier.ghost_actor.psutil", mock_psutil)
+
+    # 3. Setup Registry and Coordinator
+    redis = MockRedis()
+    registry = GhostMeshRegistry(redis, run_id="test-run-udp")
+    coordinator_sender = GhostMeshCoordinator(registry, gossip_sender)
+
+    # 4. Start Actor on Node-A
+    actor_id = "actor-udp-123"
+    await registry.register_actor(actor_id, "node-a")
+
+    # Define a registered stateful logic
+    def udp_logic(task_input: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+        state["data"] = task_input.get("val", "")
+        return {"ok": True}
+
+    actor_ref = await coordinator_sender.spawn_or_rehydrate_actor(actor_id, udp_logic)
+
+    try:
+        # Run some execution to establish state
+        res = cast(dict[str, Any], actor_ref.ask({"command": "execute", "input": {"val": "network-state"}}))
+        assert res["status"] == "success"
+
+        # Mock the balancer to select Node-B for migration
+        monkeypatch.setattr(
+            coordinator_sender.balancer, "select_best_node_from_gossip", lambda g, m: "node-b"
+        )
+
+        # 5. Migrate actor (this should trigger reliable UDP send)
+        success = await coordinator_sender.migrate_if_needed(actor_ref, {"actor_id": actor_id})
+        assert success is True
+
+        # Verify UDP send was triggered with correct arguments
+        assert len(sent_reliable_calls) == 1
+        peer, message_type, payload = sent_reliable_calls[0]
+        assert peer.id == "node-b"
+        assert message_type == "ghost_actor_spawn"
+        assert payload["actor_id"] == actor_id
+        assert payload["logic_fn_name"] == "udp_logic"
+
+        # 6. Simulate receiving side (Node B)
+        gossip_receiver = GossipEngine(node_b, "test-secret")
+        coordinator_receiver = MagicMock(spec=GhostMeshCoordinator)
+
+        spawned_future: asyncio.Future[tuple[str, Any]] = asyncio.Future()
+        async def mock_spawn(aid: str, logic: Any) -> Any:
+            spawned_future.set_result((aid, logic))
+            return MagicMock()
+
+        coordinator_receiver.spawn_or_rehydrate_actor = mock_spawn
+        gossip_receiver._coordinator = coordinator_receiver
+
+        from src.infrastructure.mesh.gossip import GossipProtocol
+        protocol = GossipProtocol(gossip_receiver)
+
+        from src.core.frontier.ghost_actor import _LOGIC_REGISTRY
+        assert "udp_logic" in _LOGIC_REGISTRY
+
+        envelope = {
+            "body": {
+                "type": "ghost_actor_spawn",
+                "msg_id": "test-msg-123",
+                "source": {
+                    "id": "node-a",
+                    "host": "127.0.0.1",
+                    "port": 9001,
+                    "status": "alive"
+                },
+                "payload": {
+                    "actor_id": actor_id,
+                    "logic_fn_name": "udp_logic"
+                }
+            },
+            "sig": "valid-sig"
+        }
+
+        monkeypatch.setattr(gossip_receiver, "_verify", lambda d, s: True)
+
+        import json
+        raw_data = json.dumps(envelope).encode("utf-8")
+        protocol.datagram_received(raw_data, ("127.0.0.1", 9001))
+
+        aid, logic = await asyncio.wait_for(spawned_future, timeout=2.0)
+        assert aid == actor_id
+        assert logic == udp_logic
+
+    finally:
+        if actor_ref.is_alive():
+            actor_ref.stop()
+
