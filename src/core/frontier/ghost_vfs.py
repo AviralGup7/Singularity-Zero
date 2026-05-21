@@ -67,31 +67,32 @@ class GhostVFS:
         logger.info("Ghost-VFS: Initiating temporal key rotation...")
         start_ts = time.monotonic()
 
-        # Fix CORR-1: Pre-decrypt everything first to ensure we don't lose data
-        # if a single file fails re-encryption after the key has already swapped.
+        # Phase 1: Pre-decrypt all files to ensure we don't lose data on any failure
         decrypted_data: dict[str, bytes] = {}
         for path in list(self._files.keys()):
             try:
                 decrypted_data[path] = self.read_file(path)
             except Exception as e:
                 logger.error("Ghost-VFS: Failed to decrypt %s during rotation prep: %s", path, e)
+                raise RuntimeError(f"Key rotation aborted: failed to decrypt {path}") from e
 
         old_key = self._key
         new_key = AESGCM.generate_key(bit_length=256)
         new_aesgcm = AESGCM(new_key)
 
-        # Re-encrypt everything with the new key
-        file_count = 0
+        # Phase 2: Re-encrypt everything with the new key into a temporary dict
+        new_files: dict[str, bytes] = {}
         for path, data in decrypted_data.items():
             try:
                 new_nonce = os.urandom(12)
                 new_encrypted = new_aesgcm.encrypt(new_nonce, data, None)
-                self._files[path] = new_nonce + new_encrypted
-                file_count += 1
+                new_files[path] = new_nonce + new_encrypted
             except Exception as e:
                 logger.error("Ghost-VFS: Failed to re-encrypt %s during rotation: %s", path, e)
+                raise RuntimeError(f"Key rotation aborted: failed to encrypt {path}") from e
 
-        # Update state
+        # Phase 3: Update state (Atomic swap)
+        self._files = new_files
         self._key = new_key
         self._aesgcm = new_aesgcm
         self._last_rotation = time.time()
@@ -101,7 +102,7 @@ class GhostVFS:
 
         duration = time.monotonic() - start_ts
         logger.info(
-            "Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs", file_count, duration
+            "Ghost-VFS: Key rotation complete. %d files re-encrypted in %.3fs", len(new_files), duration
         )
 
     def _secure_wipe_bytes(self, b: bytes) -> None:
