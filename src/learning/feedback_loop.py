@@ -36,6 +36,7 @@ class ScanAdaptation:
     payload_strategy_updates: dict[str, dict] = field(default_factory=dict)
     threshold_adjustments: dict[str, float] = field(default_factory=dict)
     nuclei_template_boosts: dict[str, float] = field(default_factory=dict)
+    nuclei_adaptive_tags_override: dict[str, list[str]] = field(default_factory=dict)
     active_exploit_queue: list[ExploitTarget] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -48,6 +49,7 @@ class ScanAdaptation:
             "payload_strategy_updates": self.payload_strategy_updates,
             "threshold_adjustments": self.threshold_adjustments,
             "nuclei_template_boosts": self.nuclei_template_boosts,
+            "nuclei_adaptive_tags_override": self.nuclei_adaptive_tags_override,
             "active_exploit_queue": [
                 {
                     "endpoint": t.endpoint,

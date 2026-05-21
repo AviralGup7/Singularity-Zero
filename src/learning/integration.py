@@ -35,6 +35,7 @@ from src.learning.config import LearningConfig
 from src.learning.feedback_loop import FeedbackLoopEngine
 from src.learning.fp_tracker import FPTracker
 from src.learning.metrics import MetricsCollector, PipelineKPIs
+from src.learning.nuclei_tag_optimizer import NucleiTagOptimizer
 from src.learning.repositories.redis_fp_repo import RedisFPRepository
 from src.learning.telemetry_store import TelemetryStore
 from src.learning.threshold_tuner import ThresholdConfig, ThresholdTuner
@@ -74,6 +75,7 @@ class LearningIntegration:
 
         self._fp_tracker = FPTracker(store, mesh_sync=self._mesh_sync, redis_repo=self._redis_repo)
         self._metrics = MetricsCollector(store)
+        self._nuclei_optimizer = NucleiTagOptimizer(store)
         self._threshold_tuner = ThresholdTuner(
             store,
             ThresholdConfig(
@@ -188,16 +190,34 @@ class LearningIntegration:
             lookback_runs=lookback,
         )
 
+        # 🛸 Frontier Upgrade: Nuclei Tag Optimization (Phase 5.1)
+        # Extract current adaptive_tags from context to compute optimizations
+        nuclei_cfg = ctx.get("nuclei", {})
+        current_adaptive_tags = nuclei_cfg.get("adaptive_tags", {})
+
+        if current_adaptive_tags:
+            optimized = self._nuclei_optimizer.optimize_adaptive_tags(
+                current_adaptive_tags=current_adaptive_tags,
+                lookback_runs=lookback,
+            )
+            # Only include if there's an actual change detected based on feedback
+            if optimized != current_adaptive_tags:
+                from src.learning.feedback_loop import ScanAdaptation
+
+                if isinstance(adaptations, ScanAdaptation):
+                    adaptations.nuclei_adaptive_tags_override = optimized
+
         return adaptations.to_dict()
 
     def apply_adaptations(
         self,
         ctx: dict[str, Any],
         adaptations: dict[str, Any],
+        config: Any | None = None,
     ) -> None:
-        """Apply computed adaptations to the pipeline context.
+        """Apply computed adaptations to the pipeline context and configuration.
 
-        Modifies ctx in-place to apply learning-driven changes.
+        Modifies ctx and optional config in-place to apply learning-driven changes.
         """
         if not adaptations:
             return
@@ -207,28 +227,48 @@ class LearningIntegration:
             scoring = ctx.setdefault("scoring", {})
             scoring["target_boosts"] = adaptations["target_boosts"]
             scoring["target_suppressions"] = adaptations.get("target_suppressions", {})
+            if config and hasattr(config, "scoring"):
+                config.scoring["target_boosts"] = adaptations["target_boosts"]
+                config.scoring["target_suppressions"] = adaptations.get("target_suppressions", {})
 
         # Apply plugin overrides
         if "plugin_enabled_overrides" in adaptations:
             analysis = ctx.setdefault("analysis", {})
             analysis["plugin_overrides"] = adaptations["plugin_enabled_overrides"]
+            if config and hasattr(config, "analysis"):
+                config.analysis["plugin_overrides"] = adaptations["plugin_enabled_overrides"]
 
         if "plugin_intensity_overrides" in adaptations:
             analysis = ctx.setdefault("analysis", {})
             analysis["plugin_intensity"] = adaptations["plugin_intensity_overrides"]
+            if config and hasattr(config, "analysis"):
+                config.analysis["plugin_intensity"] = adaptations["plugin_intensity_overrides"]
 
         # Apply threshold adjustments
         if "threshold_adjustments" in adaptations:
             decision = ctx.setdefault("decision", {})
             decision["threshold_deltas"] = adaptations["threshold_adjustments"]
+            if config and hasattr(config, "decision"):
+                config.decision["threshold_deltas"] = adaptations["threshold_adjustments"]
 
         # Apply nuclei template boosts
         if "nuclei_template_boosts" in adaptations:
             ctx["nuclei_template_boosts"] = adaptations["nuclei_template_boosts"]
+            if config and hasattr(config, "nuclei"):
+                config.nuclei["template_boosts"] = adaptations["nuclei_template_boosts"]
+
+        # Apply nuclei adaptive tags override
+        if "nuclei_adaptive_tags_override" in adaptations:
+            nuclei = ctx.setdefault("nuclei", {})
+            nuclei["adaptive_tags"] = adaptations["nuclei_adaptive_tags_override"]
+            if config and hasattr(config, "nuclei"):
+                config.nuclei["adaptive_tags"] = adaptations["nuclei_adaptive_tags_override"]
 
         # Queue active exploitation targets
         if "active_exploit_queue" in adaptations:
             ctx["active_exploit_queue"] = adaptations["active_exploit_queue"]
+            if config:
+                setattr(config, "active_exploit_queue", adaptations["active_exploit_queue"])
 
         logger.info(
             "Applied learning adaptations: %d target boosts, %d plugin overrides, "
@@ -402,6 +442,9 @@ class LearningIntegration:
             logger.debug("Failed to compute KPIs", exc_info=True)
             result["kpis"] = {}
 
+        # Phase 7: Persist adaptive config for next run (Phase 5.2)
+        await self._persist_adaptive_config(ctx)
+
         logger.info(
             "Learning update complete for run %s: %d events, %d FP patterns, converged=%s",
             run_id,
@@ -411,6 +454,37 @@ class LearningIntegration:
         )
 
         return result
+
+    async def _persist_adaptive_config(self, ctx: dict[str, Any]) -> None:
+        """Persist the next-run adaptations to config.adaptive.json (Phase 5.2)."""
+        output_store = ctx.get("output_store")
+        if not output_store:
+            return
+
+        # Compute what the adaptations WOULD be for the next run of this same target
+        adaptations = self.compute_adaptations(ctx)
+        if adaptations:
+            try:
+                # We need to reach into the output_store to write the adaptive config
+                # The output_store was already enhanced with write_adaptive_config()
+                if hasattr(output_store, "write_adaptive_config"):
+                    output_store.write_adaptive_config(adaptations)
+
+                    # Phase 5.2: Write ledger for human audit
+                    ledger_entry = {
+                        "run_id": ctx.get("run_id"),
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "adaptations": adaptations,
+                        "kpis": results.get("kpis", {})
+                    }
+                    output_store.write_json_artifact("config.adaptive.ledger.json", ledger_entry)
+
+                    logger.info(
+                        "LearningIntegration: Persisted adaptive config for next run of %s",
+                        ctx.get("target_name"),
+                    )
+            except Exception as e:
+                logger.error("LearningIntegration: Failed to persist adaptive config: %s", e)
 
     def _record_plugin_stats(self, ctx: dict[str, Any]) -> None:
         """Record plugin execution statistics."""

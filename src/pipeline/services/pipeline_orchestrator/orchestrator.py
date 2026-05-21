@@ -36,6 +36,7 @@ from src.pipeline.retry import RetryMetrics, RetryPolicy
 from src.pipeline.runner_support import (
     build_tool_status,
     emit_progress,
+    load_adaptive_config,
 )
 from src.pipeline.services.output_store import PipelineOutputStore
 from src.pipeline.services.pipeline_flow import pipeline_flow_manifest
@@ -399,6 +400,13 @@ class PipelineOrchestrator:
             run_id=run_id,
         )
 
+        # 🛸 Frontier Upgrade: Load adaptive config (Phase 5.2)
+        adaptive_config = load_adaptive_config(Path(config.output_dir), config.target_name)
+        if adaptive_config:
+            ctx_dict = ctx.to_dict()
+            self._learning_integration.apply_adaptations(ctx_dict, adaptive_config, config=config)
+            logger.info("Pre-applied adaptive configuration for target: %s", config.target_name)
+
         checkpoint_mgr = create_checkpoint_manager(
             Path(config.output_dir),
             config.target_name,
@@ -538,10 +546,11 @@ class PipelineOrchestrator:
         try:
             from src.learning.integration import LearningIntegration
 
-            learning = LearningIntegration.get_or_create(ctx.to_dict())
-            adaptations = learning.compute_adaptations(ctx.to_dict())
+            ctx_dict = ctx.to_dict()
+            learning = LearningIntegration.get_or_create(ctx_dict)
+            adaptations = learning.compute_adaptations(ctx_dict)
             if adaptations:
-                learning.apply_adaptations(ctx.to_dict(), adaptations)
+                learning.apply_adaptations(ctx_dict, adaptations, config=config)
                 ctx.result.module_metrics.setdefault("learning", {})["feedback_applied"] = True
                 logger.info("Applied %d learning adaptations from previous runs", len(adaptations))
         except Exception as exc:

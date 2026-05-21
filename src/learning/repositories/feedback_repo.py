@@ -54,6 +54,15 @@ class FeedbackRepo(BaseRepo):
             )
             return [dict(r) for r in cur.fetchall()]
 
+    def get_feedback_events(self, limit: int = 1000) -> list[dict]:
+        """Get the most recent feedback events across all runs."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT * FROM feedback_events ORDER BY timestamp DESC LIMIT ?",
+                (limit,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
     def get_feedback_events_for_endpoint(
         self, endpoint: str, host: str, limit: int = 50
     ) -> list[dict]:

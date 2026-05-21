@@ -147,6 +147,20 @@ class PipelineOutputStore:
             self.write_text(alias_name, content)
         return key
 
+    def write_adaptive_config(self, adaptations: dict[str, Any]) -> str:
+        """Write the adaptive config to the target root for the next run (Phase 5.2)."""
+        filename = "config.adaptive.json"
+        content = format_json(adaptations)
+
+        # Standard physical path in target root (not run dir)
+        local_path = self.target_root / filename
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_text(content, encoding="utf-8")
+
+        # Also put it in the artifact store
+        key = f"{self.target_name}/{filename}"
+        return self._store.put(key, content.encode("utf-8"))
+
     def upload_file(self, local_path: Path, filename: str | None = None) -> str:
         """Upload an existing local file to the artifact store."""
         if not local_path.exists():

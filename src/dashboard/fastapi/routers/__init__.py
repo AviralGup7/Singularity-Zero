@@ -13,6 +13,7 @@ from .findings import router as findings_router
 from .gap_analysis import router as gap_analysis_router
 from .health import router as health_router
 from .jobs import router as jobs_router
+from .learning import router as learning_router
 from .mesh import router as mesh_router
 from .notes import router as notes_router
 from .registry import router as registry_router
@@ -39,6 +40,7 @@ api_router.include_router(audit_router, tags=["Audit"])
 api_router.include_router(bloom_router, tags=["Bloom"])
 api_router.include_router(cockpit_router, tags=["Cockpit"])
 api_router.include_router(jobs_router, tags=["Jobs"])
+api_router.include_router(learning_router, tags=["Learning"])
 api_router.include_router(mesh_router, tags=["Mesh"])
 api_router.include_router(targets_router, tags=["Targets"])
 api_router.include_router(findings_router, tags=["Findings"])
