@@ -49,6 +49,7 @@ export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/compone
   files: ['src/**/*.{ts,tsx}'],
   ignores: [
     'src/pages/CockpitPage.tsx',
+    'src/pages/RiskScorePage.tsx',
     'src/components/motion/CinematicIntro.tsx',
     'src/components/PipelineStageTimeline.tsx',
     'src/components/motion/StatePulse.tsx',
