@@ -1,3 +1,17 @@
+"""Neural-Mesh DAG execution entry-point.
+
+Orchestrates the tier-by-tier execution of pipeline stages using the
+Neural-Mesh DAG engine.  Concrete helpers live in the ``_orchestrator``
+sub-package:
+
+* Fatal failure detection → ``_orchestrator.fatal_detection``
+* Recon output validation  → ``_orchestrator.recon_validator``
+* Stage error collection   → ``_orchestrator.error_reporting``
+* Stage retry execution    → ``_orchestrator.retry``
+"""
+
+from __future__ import annotations
+
 import argparse
 import asyncio
 import time
@@ -8,34 +22,13 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
 
 from ._constants import PIPELINE_STAGES
+from ._orchestrator import (
+    metrics_indicate_fatal_failure,
+    validate_recon_outputs,
+)
 from .dag_engine import build_neural_mesh_dag
 
 logger = get_pipeline_logger(__name__)
-
-
-def _is_truthy_fatal(val: Any) -> bool:
-    if isinstance(val, bool):
-        return val
-    if isinstance(val, str):
-        return val.lower() in ("true", "1", "yes", "fatal")
-    return bool(val)
-
-
-def _metrics_indicate_fatal_failure(metrics: Any) -> bool:
-    if not isinstance(metrics, dict):
-        return False
-
-    # If status is ok/completed, it's not a failure
-    status = str(metrics.get("status", "")).lower()
-    if status in ("ok", "success", "completed"):
-        return False
-
-    fatal_marker = metrics.get("fatal")
-    if fatal_marker is None:
-        # If it's a failure (not ok) but fatal is missing, treat as fatal for recon safety
-        return status in ("failed", "error", "timeout")
-
-    return _is_truthy_fatal(fatal_marker)
 
 
 async def execute_remaining_stages(
@@ -113,7 +106,7 @@ async def execute_remaining_stages(
         completed_stages.update(active_tier)
 
         if "urls" in active_tier:
-            _validate_recon_outputs(ctx)
+            validate_recon_outputs(ctx)
             if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
                 logger.error("Recon validation failed: no discoverable URLs found.")
                 error_emitter("recon_validation", "Recon validation failed: no discoverable URLs found.")
@@ -212,10 +205,7 @@ async def _execute_single_stage(
             # Fail fast check for recon
             if stage_name in {"subdomains", "live_hosts", "urls"}:
                 stage_metrics = ctx.result.module_metrics.get(stage_name, {})
-                indicate_fatal = _metrics_indicate_fatal_failure(stage_metrics)
-                print(
-                    f"DEBUG: stage={stage_name}, metrics={stage_metrics}, indicate_fatal={indicate_fatal}"
-                )
+                indicate_fatal = metrics_indicate_fatal_failure(stage_metrics)
                 if indicate_fatal:
                     progress_emitter(
                         stage_name,
@@ -268,34 +258,3 @@ def resolve_pipeline_exit_code(
         details={"duration_seconds": round(duration, 2), "findings": findings_count},
     )
     return 0
-
-
-def _validate_recon_outputs(ctx: PipelineContext) -> None:
-    """Validate that recon produced actionable outputs."""
-    # print(f"DEBUG: urls={ctx.result.urls}, status={ctx.result.stage_status.get('urls')}")
-    # If urls are empty but recon stages are COMPLETED, we failed to find anything.
-    if not ctx.result.urls and ctx.result.stage_status.get("urls") == StageStatus.COMPLETED.value:
-        ctx.result.stage_status["recon_validation"] = StageStatus.FAILED.value
-        ctx.result.module_metrics["recon_validation"] = {
-            "status": "failed",
-            "reason": "Pipeline finished recon without discoverable URLs.",
-            "fatal": True,
-        }
-
-
-def _collect_failed_stages(ctx: PipelineContext) -> list[tuple[str, str]]:
-    """Gather all fatal stage failures for reporting."""
-    failed_stages = []
-    for stage_name, status in ctx.result.stage_status.items():
-        if status == StageStatus.FAILED.value:
-            metrics = ctx.result.module_metrics.get(stage_name, {})
-            # Only report if it's considered fatal
-            if metrics.get("fatal", True):
-                reason = (
-                    metrics.get("failure_reason")
-                    or metrics.get("reason")
-                    or metrics.get("error")
-                    or f"Stage {stage_name} failed"
-                )
-                failed_stages.append((stage_name, reason))
-    return failed_stages

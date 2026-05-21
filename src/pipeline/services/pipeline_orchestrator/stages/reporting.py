@@ -176,6 +176,14 @@ async def run_reporting(
             target_name=config.target_name,
             run_name=ctx.output_store.run_dir.name,
         )
+
+        # 🛸 Frontier Upgrade: Store summary in context for event subscribers (Phase 6)
+        if hasattr(ctx.result, "summary"):
+            ctx.result.summary = summary
+        else:
+            # Fallback if property not defined yet
+            ctx.result.__dict__["summary"] = summary
+
         ctx.output_store.persist_outputs(
             summary,
             diff_summary,

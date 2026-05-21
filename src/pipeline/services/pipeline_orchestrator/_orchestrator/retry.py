@@ -1,5 +1,10 @@
+"""Stage retry execution module with backoff and error classification."""
+
+from __future__ import annotations
+
 import argparse
 import asyncio
+import inspect
 import time
 from typing import Any
 
@@ -77,8 +82,6 @@ async def run_stage_with_retry(
             },
             previous_deltas=previous_deltas,
         )
-
-        import inspect
 
         tracer = get_tracing_manager()
         with tracer.start_stage_span(stage_name, args, config, isolated_ctx) as span:

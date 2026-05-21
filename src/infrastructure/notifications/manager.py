@@ -341,6 +341,42 @@ class NotificationManager:
             correlation_id=correlation_id,
         )
 
+    async def send_compliance_alert(
+        self,
+        framework: str,
+        control_id: str,
+        maturity: str,
+        recommendation: str,
+        target: str,
+        correlation_id: str | None = None,
+    ) -> list[NotificationResult]:
+        """Send an alert for a compliance control failure or risk (Phase 6.2)."""
+        priority_map = {
+            "FAIL": NotificationPriority.CRITICAL,
+            "AT_RISK": NotificationPriority.HIGH,
+            "PARTIAL": NotificationPriority.MEDIUM,
+        }
+        priority = priority_map.get(maturity, NotificationPriority.LOW)
+
+        title = f"Compliance {maturity}: {framework} {control_id}"
+        message = f"Compliance control {control_id} in {framework} for target {target} reached maturity: {maturity}.\n\nRecommendation: {recommendation}"
+
+        metadata = {
+            "framework": framework,
+            "control_id": control_id,
+            "maturity": maturity,
+            "target": target,
+        }
+
+        return await self.send(
+            event=NotificationEvent.COMPLIANCE_VIOLATION,
+            priority=priority,
+            title=title,
+            message=message,
+            metadata=metadata,
+            correlation_id=correlation_id,
+        )
+
     def get_channel(self, name: str) -> BaseNotifier | None:
         return self._channel_map.get(name)
 

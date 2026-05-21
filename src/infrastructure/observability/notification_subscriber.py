@@ -72,6 +72,23 @@ class NotificationSubscriber:
                     correlation_id=event.correlation_id,
                 )
 
+                # 🔐 Phase 6: Compliance Alerts
+                compliance = event.data.get("compliance")
+                if compliance:
+                    target = event.data.get("target", "Unknown")
+                    for framework, controls in compliance.get("framework_coverage", {}).items():
+                        for control_id, data in controls.items():
+                            maturity = data.get("maturity", "UNKNOWN")
+                            if maturity in ("FAIL", "AT_RISK"):
+                                await self._manager.send_compliance_alert(
+                                    framework=framework,
+                                    control_id=control_id,
+                                    maturity=maturity,
+                                    recommendation=data.get("recommendation", ""),
+                                    target=target,
+                                    correlation_id=event.correlation_id,
+                                )
+
             elif event.event_type == EventType.PIPELINE_ERROR:
                 await self._manager.send_scan_status(
                     status="failed",
