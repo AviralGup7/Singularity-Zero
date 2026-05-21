@@ -161,3 +161,93 @@
   background: var(--surface-hover);
   color: var(--text-primary);
 }
+
+/* ── Log Lines ────────────────────────────────────────────────── */
+.log-line {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  line-height: 1.6;
+  padding: 1px var(--space-3);
+  border-left: 2px solid transparent;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-line-error {
+  border-left-color: var(--bad);
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 5%, transparent);
+}
+
+.log-line-warn {
+  border-left-color: var(--warn);
+  color: var(--warn);
+}
+
+.log-line-success {
+  border-left-color: var(--ok);
+  color: var(--ok);
+}
+
+.log-line-info {
+  border-left-color: var(--info);
+  color: var(--text-primary);
+}
+
+/* ── Tooltip ──────────────────────────────────────────────────── */
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: var(--text-micro);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--easing-out);
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+}
+
+/* ── Skeleton Loading ─────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+  height: 14px;
+  margin-bottom: 8px;
+}
+
+.skeleton-title {
+  height: 20px;
+  width: 60%;
+  margin-bottom: 12px;
+}
+
+.skeleton-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+}
