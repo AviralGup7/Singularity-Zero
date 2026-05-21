@@ -64,5 +64,37 @@ def test_actor_recovery_from_snapshot():
     actual_state = new_actor.on_receive({"command": "snapshot"}).get().data
     assert actual_state["progress"] == 50
     assert actual_state["discovered"] == ["a", "b"]
-    
+
     new_actor.stop()
+
+
+def test_actor_migration_command_rejection():
+    actor = ScanActor.start(actor_id="actor-migrating-test", logic_fn=mock_logic).proxy()
+
+    # Verify commands work initially
+    res1 = actor.on_receive({"command": "execute", "input": {"step": "recon"}}).get()
+    assert res1["status"] == "success"
+
+    # Set migrating to True
+    actor.is_migrating = True
+
+    # Verify execute command is blocked
+    res2 = actor.on_receive({"command": "execute", "input": {"step": "exploit"}}).get()
+    assert res2["status"] == "error"
+    assert "currently migrating" in res2["error"]
+
+    # Verify recover command is blocked
+    res3 = actor.on_receive({"command": "recover", "deltas": []}).get()
+    assert res3["status"] == "error"
+    assert "currently migrating" in res3["error"]
+
+    # Verify health_check command is NOT blocked (health check should always be readable)
+    res_health = actor.on_receive({"command": "health_check"}).get()
+    assert res_health["actor_id"] == "actor-migrating-test"
+
+    # Verify migrate command is blocked when already migrating
+    res_mig = actor.on_receive({"command": "migrate"}).get()
+    assert res_mig["status"] == "error"
+    assert "currently migrating" in res_mig["error"]
+
+    actor.stop()
