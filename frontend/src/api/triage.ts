@@ -19,6 +19,7 @@ export interface TriageComment {
   author: string;
   text: string;
   mentions: string[];
+  parent_id?: string | null;
   timestamp: string;
   updated_at?: string;
 }
@@ -98,4 +99,3 @@ export function triageWebSocketUrl(runId: string, analyst: { analyst_id: string;
   url.searchParams.set('analyst_name', analyst.analyst_name);
   return url.toString();
 }
-
