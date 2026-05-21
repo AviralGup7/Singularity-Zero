@@ -489,6 +489,7 @@ async def _try_probe(
     probe_fn: Any,
     *args: Any,
     timeout_seconds: float | None = None,
+    error_accumulator: list[dict[str, Any]] | None = None,
     **kwargs: Any,
 ) -> tuple[str, list[dict[str, Any]], bool]:
     """Run a probe, return (name, findings, success)."""
@@ -513,10 +514,16 @@ async def _try_probe(
         )
         return name, findings, True
     except TimeoutError:
-        logger.warning("Probe '%s' timed out after %.1fs", name, float(timeout_seconds or 0.0))
+        msg = f"Probe '{name}' timed out after {timeout_seconds}s"
+        logger.warning(msg)
+        if error_accumulator is not None:
+            error_accumulator.append({"probe": name, "reason": "timeout", "message": msg})
         return name, [], False
-    except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
-        logger.warning("Probe '%s' failed: %s", name, exc)
+    except Exception as exc:
+        msg = f"Probe '{name}' failed: {exc}"
+        logger.warning(msg)
+        if error_accumulator is not None:
+            error_accumulator.append({"probe": name, "reason": "error", "message": msg})
         return name, [], False
 
 
@@ -649,12 +656,15 @@ async def run_active_scanning(
             state_delta={},
         )
 
+    probe_errors: list[dict[str, Any]] = []
+
     def _run_probe(name: str, probe_fn: Any, *probe_args: Any, **kwargs: Any) -> Any:
         return _try_probe(
             name,
             probe_fn,
             *probe_args,
             timeout_seconds=probe_timeout_seconds,
+            error_accumulator=probe_errors,
             **kwargs,
         )
 
@@ -858,6 +868,7 @@ async def run_active_scanning(
         "probes_failed": probes_failed,
         "findings_count": len(all_findings),
         "parallel_groups": 3,
+        "degraded_probes": probe_errors,
     }
 
     logger.info(

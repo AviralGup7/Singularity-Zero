@@ -229,8 +229,11 @@ async def run_active_scanning_adaptive(
             continue
         if isinstance(r, tuple):
             _, findings, ok = r
-            if ok and findings:
-                all_findings.extend(findings)
+            if ok:
+                if findings:
+                    all_findings.extend(findings)
+            else:
+                host_probe_errors.append(f"{probe_name}: probe failed or timed out")
 
     # 4. Adaptive Endpoint Probes
     analysis_settings = getattr(config, "analysis", {}) if config is not None else {}
