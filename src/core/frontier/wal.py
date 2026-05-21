@@ -328,8 +328,8 @@ class FrontierWAL:
         """Purge the stream and AOF after successful scan completion."""
         if self._active:
             try:
-                self._client.delete(self._stream_key)
                 if hasattr(self._client, "delete"):
+                    self._client.delete(self._stream_key)
                     self._client.delete(self._snapshot_key)
             except Exception as exc:
                 logger.warning("WAL cleanup failed for run %s: %s", self._run_id, exc)
