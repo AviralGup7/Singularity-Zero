@@ -133,7 +133,8 @@ export function getPIIAuditLog(): PIIAuditEntry[] {
   try {
     const raw = sessionStorage.getItem(PII_AUDIT_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch {
+  } catch (error) {
+    console.error('Failed to retrieve PII audit log from sessionStorage:', error);
     return [];
   }
 }
@@ -141,7 +142,8 @@ export function getPIIAuditLog(): PIIAuditEntry[] {
 export function isPIIVisible(): boolean {
   try {
     return sessionStorage.getItem(PII_VISIBILITY_KEY) === 'true';
-  } catch {
+  } catch (error) {
+    console.error('Failed to check PII visibility in sessionStorage:', error);
     return false;
   }
 }

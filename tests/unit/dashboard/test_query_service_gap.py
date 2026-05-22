@@ -3,6 +3,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+
 from src.dashboard.services.query_service import DashboardQueryService
 
 
@@ -72,7 +73,7 @@ class QueryServiceGapTests(unittest.TestCase):
             target = "fallback.org"
             run_dir = output_root / target / "20260522-120000"
             run_dir.mkdir(parents=True)
-            
+
             # run_summary.json lacks "detection_coverage" but has "counts"
             run_summary = {
                 "generated_at_utc": "2026-05-22T12:00:00Z",

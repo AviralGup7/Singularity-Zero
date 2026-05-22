@@ -149,6 +149,12 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
     if auth_header.startswith("Bearer "):
         return cast(Principal | None, authenticate_jwt_token(auth_header[7:]))
 
+    query_token = request.query_params.get("token")
+    if query_token:
+        principal = authenticate_jwt_token(query_token)
+        if principal:
+            return cast(Principal | None, principal)
+
     header_key = api_key or request.headers.get("X-API-Key")
     if header_key:
         return cast(Principal | None, store.authenticate_key(header_key))

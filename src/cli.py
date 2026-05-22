@@ -262,10 +262,10 @@ def handle_doctor() -> int:
     # ── Check 3: Redis connectivity ──────────────────────────────
     redis_detail = ""
     try:
-        import redis as _redis
+        import redis
 
         redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-        r = _redis.from_url(redis_url)
+        r = redis.from_url(redis_url)
         r.ping(timeout=3)
         redis_detail = f"Connected to {r.connection_pool.connection_kwargs['host']}"
         checks.append(("Redis Connectivity", "[success]PASS[/success]", redis_detail))

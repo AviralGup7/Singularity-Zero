@@ -1,6 +1,6 @@
 """Custom middleware for the FastAPI dashboard."""
 
-import json as _audit_json
+import json
 import logging
 import time
 
@@ -136,8 +136,8 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                 logger.debug("Failed to record backend audit log: %s", exc)
 
         if response.status_code >= 400:
-            logger.warning("Audit: Request failed: %s", _audit_json.dumps(log_data))
+            logger.warning("Audit: Request failed: %s", json.dumps(log_data))
         else:
-            logger.info("Audit: Request success: %s", _audit_json.dumps(log_data))
+            logger.info("Audit: Request success: %s", json.dumps(log_data))
 
         return response

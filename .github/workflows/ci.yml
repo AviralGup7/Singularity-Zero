@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 env:
   PIP_CACHE_DIR: ${{ github.workspace }}/.cache/pip
   NPM_CACHE_DIR: ${{ github.workspace }}/.cache/npm
@@ -193,13 +196,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Run Checkov on Kubernetes manifests
-        uses: bridgecrewio/checkov-action@master
+        uses: bridgecrewio/checkov-action@v12.2882.0
         with:
           directory: deploy/kubernetes/
           framework: kubernetes
           soft_fail: true
       - name: Run Checkov on Docker Compose
-        uses: bridgecrewio/checkov-action@master
+        uses: bridgecrewio/checkov-action@v12.2882.0
         with:
           directory: .
           file: docker-compose.optimized.yml

@@ -2,11 +2,10 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
+import { Color, Object3D, Vector3 } from 'three';
 import * as THREE from 'three';
 import { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CockpitEdge, CockpitNode } from '@/api/cockpit';
-
-const { Color, Object3D, Vector3 } = THREE as any;
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#ff2d55',
@@ -175,7 +174,7 @@ function GraphNodes({
     <>
       <instancedMesh
         ref={pulseRef}
-        args={[null as any, null as any, Math.max(1, nodes.length)]}
+        args={[new THREE.BufferGeometry(), new THREE.Material(), Math.max(1, nodes.length)]}
         frustumCulled={true}
       >
         <sphereGeometry args={[0.5, sphereSegments, sphereSegments]} />
@@ -183,7 +182,7 @@ function GraphNodes({
       </instancedMesh>
       <instancedMesh
         ref={meshRef}
-        args={[null as any, null as any, Math.max(1, nodes.length)]}
+        args={[new THREE.BufferGeometry(), new THREE.Material(), Math.max(1, nodes.length)]}
         onClick={(event: ThreeEvent<MouseEvent>) => {
           event.stopPropagation();
           const id = event.instanceId === undefined ? null : nodes[event.instanceId]?.id;

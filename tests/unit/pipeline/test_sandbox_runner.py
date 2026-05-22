@@ -14,9 +14,9 @@ def test_docker_sandbox_command_is_restricted() -> None:
         )
     )
 
-    command = runner.build_command("sample.plugin", "run", {"target": "example.com"})
+    command = runner.build_command("sample.plugin", "run")
 
-    assert command[:5] == ["docker", "run", "--rm", "--network", "none"]
+    assert command[:6] == ["docker", "run", "--rm", "-i", "--network", "none"]
     assert "--memory" in command
     assert "256m" in command
     assert "--cpus" in command
