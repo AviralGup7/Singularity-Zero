@@ -165,7 +165,7 @@ class WebSocketHandler:
         """
         client = websocket.client
         client_ip = client.host if client else "unknown"
-        connection_id = uuid.uuid4().hex[:12]
+        connection_id = uuid.uuid4().hex  # Fix SEC-12: Full UUID
 
         try:
             auth = await authenticate_websocket(
@@ -258,6 +258,10 @@ class WebSocketHandler:
             info: ConnectionInfo for the client.
             user_id: Authenticated user ID.
         """
+        import time
+        last_msg_time = 0.0
+        msg_allowance = 100.0
+
         while True:
             try:
                 raw = await info.websocket.receive_text()
@@ -267,6 +271,23 @@ class WebSocketHandler:
                 # Fix Audit #86: Log inbound error
                 logger.debug("Inbound WebSocket error for %s: %s", info.connection_id, e)
                 break
+            
+            # SEC-8 / SEC-10: Cap inbound message size and implement token bucket rate limiting
+            if len(raw) > 131072:  # 128 KB limit
+                await info.websocket.close(code=1009, reason="Message too large")
+                break
+            
+            now = time.monotonic()
+            elapsed = now - last_msg_time
+            last_msg_time = now
+            msg_allowance = min(100.0, msg_allowance + elapsed * 20.0)  # 20 msg/sec
+            
+            if msg_allowance < 1.0:
+                # Rate limited
+                await asyncio.sleep(0.1)
+                continue
+            
+            msg_allowance -= 1.0
 
             info.touch()
 

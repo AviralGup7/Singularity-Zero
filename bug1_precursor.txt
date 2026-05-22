@@ -1,0 +1,554 @@
+=== BUG1 precursor: .get(key) without default (only no-or, no-str) ===
+551 hits
+  analysis\active\auth_bypass\privilege_escalation.py:63: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\auth_bypass\session_fixation.py:78: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\auth_bypass\token_manipulation.py:65: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\brute_force\cookie_manipulation.py:111: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\brute_force\cookie_manipulation.py:145: if not cookie_attrs.get("secure"):
+  analysis\active\brute_force\cookie_manipulation.py:155: if not cookie_attrs.get("httponly"):
+  analysis\active\brute_force\cookie_manipulation.py:165: if not cookie_attrs.get("samesite"):
+  analysis\active\brute_force\cookie_manipulation.py:276: if not rc["attrs"].get("secure"):
+  analysis\active\cloud_metadata.py:126: "accessible_count": len([f for f in findings if f.get("status_code") == 200]),
+  analysis\active\cloud_metadata.py:224: "accessible_count": len([f for f in findings if f.get("status_code") == 200]),
+  analysis\active\cloud_metadata.py:375: "accessible_count": len([f for f in findings if f.get("status_code") == 200]),
+  analysis\active\http_methods.py:101: "status_code": response.get("status_code"),
+  analysis\active\http_methods.py:149: "status_code": response.get("status_code"),
+  analysis\active\http_methods.py:181: if get_response.get("status_code") != head_response.get("status_code"):
+  analysis\active\http_methods.py:183: if not head_response.get("headers"):
+  analysis\active\http_methods.py:207: "get_status": get_response.get("status_code"),
+  analysis\active\http_methods.py:208: "head_status": head_response.get("status_code"),
+  analysis\active\http_methods.py:326: "status_code": response.get("status_code"),
+  analysis\active\http_smuggling.py:261: elif headers.get("alt-svc"):
+  analysis\active\http_smuggling.py:263: h2_details.append({"type": h2_test["name"], "alt_svc": headers.get("alt-svc")})
+  analysis\active\injection\_context_detector.py:117: attribute_name=attr_info.get("name"),
+  analysis\active\injection\_context_detector.py:118: attribute_value_before_marker=attr_info.get("value_before"),
+  analysis\active\injection\_context_detector.py:119: quote_style=attr_info.get("quote"),  # type: ignore[arg-type]
+  analysis\active\injection\_waf_detector.py:173: page_pattern = signature.get("page")
+  analysis\active\injection\_waf_detector.py:174: code_pattern = signature.get("code")
+  analysis\active\injection\_waf_detector.py:175: headers_pattern = signature.get("headers")
+  analysis\active\injection\csrf.py:122: if isinstance(headers.get("set-cookie"), list):
+  analysis\active\injection\csrf.py:124: elif isinstance(headers.get("set-cookie"), str):
+  analysis\active\injection\csrf.py:242: if not original_resp or original_resp.get("status") in (404, 405, 410, 503):
+  analysis\active\injection\grafana_ssrf.py:242: if not grafana_info.get("is_grafana"):
+  analysis\active\injection\jwt_manipulation.py:206: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\injection\jwt_manipulation.py:275: if isinstance(header, dict) and header.get("alg") == "RS256":
+  analysis\active\injection\oauth_testing.py:131: if config.get("config"):
+  analysis\active\injection\parameter_pollution.py:152: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\injection\websocket_hijacking.py:139: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\injection\websocket_hijacking.py:190: if resp_headers.get("access-control-allow-origin") == "*":
+  analysis\active\injection\xss_reflect_probe.py:282: "response_status": response.get("status_code"),
+  analysis\active\injection\xss_reflect_probe.py:366: "response_status": response.get("status_code"),
+  analysis\active\jwt_attacks\__init__.py:45: vulnerable_attacks = [name for name, result in attacks.items() if result.get("vulnerable")]
+  analysis\active\jwt_attacks\__init__.py:61: if result.get("vulnerable"):
+  analysis\active\jwt_attacks\__init__.py:67: "status_code": detail.get("status_code"),
+  analysis\active\jwt_attacks\__init__.py:68: "original_status": detail.get("original_status"),
+  analysis\active\jwt_attacks\__init__.py:69: "auth_header": detail.get("auth_header"),
+  analysis\active\jwt_attacks\key_confusion.py:33: if not isinstance(header, dict) or header.get("alg") != "RS256":
+  analysis\active\race_condition\_helpers.py:172: latency = resp.get("latency_seconds")
+  analysis\active\tenant_isolation\probes.py:119: if iso_result.get("vulnerable"):
+  analysis\active\tenant_isolation\probes.py:139: status_code=iso_result.get("original_status"),
+  analysis\active\tenant_isolation\probes.py:146: if vert_result.get("vulnerable"):
+  analysis\active\tenant_isolation\probes.py:166: status_code=vert_result.get("original_status"),
+  analysis\active\tenant_isolation\probes.py:173: if cross_result.get("vulnerable"):
+  analysis\active\tenant_isolation\probes.py:193: status_code=cross_result.get("original_status"),
+  analysis\active\tenant_isolation\tests.py:195: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\tenant_isolation\tests.py:335: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\active\tenant_isolation\tests.py:34: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\analyzer_results.py:35: resolved_status = response.get("status_code")
+  analysis\automation\manual_queue.py:112: if task.get("kind") == "replay_variant_inherit":
+  analysis\automation\manual_queue.py:114: elif task.get("kind") == "replay_variant_anonymous":
+  analysis\automation\manual_queue.py:26: item.get("endpoint_type")
+  analysis\automation\manual_queue.py:27: or item.get("evidence", {}).get("endpoint_type")
+  analysis\automation\manual_queue.py:75: if proof_bundle.get("curl"):
+  analysis\automation\manual_queue.py:83: if proof_bundle.get("python"):
+  analysis\behavior\analysis_build.py:60: if item.get("endpoint_key")
+  analysis\behavior\analysis_support.py:143: if result.get("confirmed"):
+  analysis\behavior\analysis_support.py:206: "status_code": response.get("status_code"),
+  analysis\behavior\analysis_support.py:69: and previous.get("meaningful_difference")
+  analysis\behavior\analysis_support.py:70: and item.get("meaningful_difference")
+  analysis\behavior\analysis_support.py:71: and previous_diff.get("status_changed") == current_diff.get("status_changed")
+  analysis\behavior\analysis_support.py:72: and previous_diff.get("redirect_changed") == current_diff.get("redirect_changed")
+  analysis\behavior\analysis_support.py:73: and previous.get("trust_boundary_shift") == item.get("trust_boundary_shift")
+  analysis\behavior\analysis_support.py:84: reproducible and repeat_count >= 2 and item.get("impact_level") in {"high", "medium"}
+  analysis\behavior\analysis_support.py:88: if item.get("meaningful_difference"):
+  analysis\behavior\analysis_support.py:90: if item.get("trust_boundary_shift"):
+  analysis\behavior\flow_prober.py:120: "description": f"The terminal step of the '{flow.get('label')}' flow was reachable without required state tokens from earlier steps.",
+  analysis\behavior\flow_prober.py:123: "flow": flow.get("label"),
+  analysis\behavior\flow_prober.py:125: "status_code": res.get("status_code"),
+  analysis\behavior\flow_prober.py:162: "status_code": f_res.get("status_code"),
+  analysis\behavior\flow_prober.py:169: logger.debug("FlowProber: Integrity check failed for %s: %s", flow.get("host"), e)
+  analysis\behavior\service.py:29: {record.get("url", "") for record in live_records if record.get("url")},
+  analysis\behavior\service_findings.py:113: "port": item.get("port"),
+  analysis\behavior\service_findings.py:220: if tls.get("self_signed"):
+  analysis\behavior\service_findings.py:279: "port": item.get("port"),
+  analysis\behavior\service_findings.py:374: "status_code": response.get("status_code"),
+  analysis\behavior\service_runtime.py:256: not_after = cert.get("notAfter")
+  analysis\behavior\service_runtime.py:305: host_val = record.get("host")
+  analysis\behavior\service_runtime.py:313: port_val = record.get("port")
+  analysis\behavior\service_runtime.py:69: port_val = record.get("port")
+  analysis\checks\active\_impl.py:130: status_code=response.get("status_code"),
+  analysis\checks\active\_impl.py:178: status_code=(response or {}).get("status_code"),
+  analysis\checks\active\_impl.py:228: status_code=(response or {}).get("status_code"),
+  analysis\checks\active\_impl.py:291: status_code=(response or {}).get("status_code"),
+  analysis\checks\active\_impl.py:53: status_code=response.get("status_code"),
+  analysis\checks\active\_impl.py:64: _scan_json_for_xss(data, url, response.get("status_code"), findings, seen)
+  analysis\checks\active\auth_bypass_check.py:122: "original_status": probe.get("original_status"),
+  analysis\checks\active\auth_bypass_check.py:125: probe.get("status"),
+  analysis\checks\active\auth_bypass_check.py:129: status_code=probe.get("stripped_status", probe.get("status")),
+  analysis\checks\active\cache_deception\__init__.py:191: original_resp = endpoint.get("response")
+  analysis\checks\active\cache_deception\__init__.py:232: status_code=no_auth_result.get("status"),
+  analysis\checks\active\cache_deception\__init__.py:242: "original_status": original_resp.get("status_code"),
+  analysis\checks\active\cache_deception\__init__.py:243: "no_auth_status": no_auth_result.get("status"),
+  analysis\checks\active\cache_deception\__init__.py:65: original_resp = endpoint.get("response")
+  analysis\checks\active\clickjacking_test.py:186: xfo = headers.get("x-frame-options")
+  analysis\checks\active\clickjacking_test.py:242: header_val = headers.get("x-permitted-cross-domain-policies")
+  analysis\checks\active\clickjacking_test.py:325: status_code = resp.get("status_code")
+  analysis\checks\active\clickjacking_test.py:376: if xpcd_result.get("issues"):
+  analysis\checks\active\clickjacking_test.py:401: f"is overly permissive: {csp_result.get('value')}. "
+  analysis\checks\active\clickjacking_test.py:438: if not probe_result.get("success"):
+  analysis\checks\active\clickjacking_test.py:457: if probe_xfo.get("issues"):
+  analysis\checks\active\clickjacking_test.py:459: if probe_csp.get("issues"):
+  analysis\checks\active\clickjacking_test.py:467: "original_response_status": resp.get("status_code"),
+  analysis\checks\active\deserialization_probe\__init__.py:175: "probe_status": probe.get("status"),
+  analysis\checks\active\deserialization_probe\__init__.py:176: "probe_elapsed": probe.get("elapsed"),
+  analysis\checks\active\deserialization_probe\__init__.py:183: f"Status: {probe.get('status')}, "
+  analysis\checks\active\deserialization_probe\__init__.py:186: status_code=probe.get("status"),
+  analysis\checks\active\deserialization_probe\__init__.py:203: "probe_status": probe.get("status"),
+  analysis\checks\active\deserialization_probe\__init__.py:204: "probe_elapsed": probe.get("elapsed"),
+  analysis\checks\active\deserialization_probe\__init__.py:215: status_code=probe.get("status"),
+  analysis\checks\active\deserialization_probe\__init__.py:90: base_status = base_resp.get("status_code")
+  analysis\checks\active\email_header_injection.py:392: resp_headers = _normalize_headers(probe_resp.get("headers"))
+  analysis\checks\active\email_header_injection.py:419: if resp_headers.get("x-injected-header") == "true":
+  analysis\checks\active\email_header_injection.py:424: resp_headers.get("set-cookie")
+  analysis\checks\active\file_upload_probe.py:309: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\checks\active\graphql_check.py:197: if depth_result.get("dos_vulnerable"):
+  analysis\checks\active\graphql_check.py:219: if batch_result.get("batch_accepted"):
+  analysis\checks\active\graphql_check.py:239: if batch_result.get("alias_abuse_accepted"):
+  analysis\checks\active\graphql_check.py:260: if mutation_result.get("mutations_exposed") and not introspection.get(
+  analysis\checks\active\idor_probe.py:276: if not original_resp or original_resp.get("status") in (404, 410, 503):
+  analysis\checks\active\jwt\attacks.py:154: if not isinstance(header, dict) or header.get("alg") != "RS256":
+  analysis\checks\active\jwt\jwt_check.py:235: vulnerable_attacks = [name for name, result in attacks.items() if result.get("vulnerable")]
+  analysis\checks\active\jwt\jwt_check.py:304: if not resp or resp.get("status") in (404, 410, 503):
+  analysis\checks\active\jwt\jwt_check.py:338: if not result.get("findings"):
+  analysis\checks\active\jwt\validator.py:36: if result.get("vulnerable"):
+  analysis\checks\active\jwt\validator.py:42: "status_code": detail.get("status_code"),
+  analysis\checks\active\jwt\validator.py:43: "original_status": detail.get("original_status"),
+  analysis\checks\active\jwt\validator.py:44: "auth_header": detail.get("auth_header"),
+  analysis\checks\active\mass_assignment.py:296: original_resp = endpoint.get("response")
+  analysis\checks\active\ssrf_oob_validator\__init__.py:106: base_status = base_resp.get("status_code")
+  analysis\checks\active\ssrf_oob_validator\__init__.py:309: "probe_status": probe.get("status"),
+  analysis\checks\active\ssrf_oob_validator\__init__.py:310: "probe_elapsed": probe.get("elapsed"),
+  analysis\checks\active\ssrf_oob_validator\__init__.py:319: status_code=probe.get("status"),
+  analysis\checks\active\ssrf_oob_validator\__init__.py:75: base_status = base_resp.get("status_code")
+  analysis\checks\active\tenant_isolation_check.py:114: status_code=probe.get("status_code"),
+  analysis\checks\active\xml_bomb_detector\__init__.py:159: normalize_headers(probe_resp.get("headers"))
+  analysis\checks\active\xml_bomb_detector\__init__.py:90: baseline_headers = normalize_headers(baseline_resp.get("headers"))
+  analysis\checks\exposure\_impl.py:179: findings.append(record(url, status_code=response.get("status_code"), issues=issues))
+  analysis\checks\exposure\_impl.py:205: record(url, status_code=response.get("status_code"), issues=issues, csp=csp[:300])
+  analysis\checks\exposure\_impl.py:220: status_code=response.get("status_code"),
+  analysis\checks\exposure\_impl.py:247: record(url, status_code=response.get("status_code"), issues=issues, hsts=hsts)
+  analysis\checks\exposure\_impl.py:268: status_code=response.get("status_code"),
+  analysis\checks\exposure\_impl.py:293: status_code=response.get("status_code"),
+  analysis\checks\exposure\_impl.py:329: status_code=response.get("status_code"),
+  analysis\checks\exposure\_impl.py:358: findings.append(record(url, status_code=response.get("status_code"), issues=issues))
+  analysis\checks\exposure\_impl.py:389: status_code=response.get("status_code"),
+  analysis\checks\exposure\_impl.py:427: record(url, status_code=response.get("status_code"), issues=sorted(set(issues)))
+  analysis\checks\exposure\_impl.py:738: status_code=response.get("status_code"),
+  analysis\checks\exposure\_impl.py:783: status_code=response.get("status_code"),
+  analysis\checks\exposure\cloud_metadata_check.py:197: status_code = resp.get("status_code")
+  analysis\checks\exposure\dns_record_analyzer.py:161: if not findings and resolution.get("resolves"):
+  analysis\checks\exposure\dns_record_analyzer.py:176: if not resolution.get("resolves"):
+  analysis\checks\exposure\dns_record_analyzer.py:305: status_code = resp.get("status_code")
+  analysis\checks\exposure\dns_record_analyzer.py:478: if not resolution.get("resolves") and resolution.get("error"):
+  analysis\checks\passive\_impl.py:429: "status_code": response.get("status_code"),
+  analysis\checks\passive\header_analyzer.py:100: elif config.get("expected_pattern"):
+  analysis\checks\passive\ldap_injection.py:385: status_code = resp.get("status_code")
+  analysis\checks\passive\ldap_injection.py:499: status_code=resp.get("status_code"),
+  analysis\checks\passive\token_lifetime_analyzer\__init__.py:113: status_code = response.get("status_code")
+  analysis\checks\passive\token_lifetime_analyzer\_analyzers.py:44: exp = payload.get("exp")
+  analysis\checks\passive\token_lifetime_analyzer\_analyzers.py:61: iat = payload.get("iat")
+  analysis\checks\passive\token_lifetime_analyzer\_analyzers.py:66: nbf = payload.get("nbf")
+  analysis\helpers\_classification.py:186: item.get("endpoint_key")
+  analysis\helpers\_classification.py:187: or item.get("endpoint_base_key")
+  analysis\helpers\_utils.py:78: if details.get("validation_state") == "active_ready":
+  analysis\helpers\_utils.py:82: if details.get("comparison"):
+  analysis\intelligence\cvss_scoring.py:615: if scope_changed or evidence.get("trust_boundary_shift"):
+  analysis\intelligence\cvss_scoring.py:619: if confidence >= 0.8 and evidence.get("reproducible"):
+  analysis\intelligence\cvss_scoring.py:639: evidence.get("auth_bypass_variant")
+  analysis\intelligence\cvss_scoring.py:695: user_interaction=bool(finding.get("evidence", {}).get("user_interaction")),
+  analysis\intelligence\cvss_scoring.py:696: scope_changed=bool(finding.get("evidence", {}).get("trust_boundary_shift")),
+  analysis\intelligence\decision_engine.py:102: if diff.get("content_changed"):
+  analysis\intelligence\decision_engine.py:104: body_similarity = diff.get("body_similarity")
+  analysis\intelligence\decision_engine.py:123: evidence = item.get("evidence", {}) if isinstance(item.get("evidence"), dict) else {}
+  analysis\intelligence\decision_engine.py:124: diff = evidence.get("diff", {}) if isinstance(evidence.get("diff"), dict) else {}
+  analysis\intelligence\decision_engine.py:143: evidence.get("reproducible")
+  analysis\intelligence\decision_engine.py:144: or evidence.get("confirmed")
+  analysis\intelligence\decision_engine.py:145: or evidence.get("intra_run_confirmed")
+  analysis\intelligence\decision_engine.py:146: or evidence.get("cross_run_reproducible")
+  analysis\intelligence\decision_engine.py:147: or evidence.get("trust_boundary_shift")
+  analysis\intelligence\decision_engine.py:211: "severity": classification.get("severity", modeled.get("severity")),
+  analysis\intelligence\decision_engine.py:55: if target_profile.get("api_heavy"):
+  analysis\intelligence\decision_engine.py:64: historical_precision = target_profile.get("historical_precision")
+  analysis\intelligence\decision_engine.py:86: diff = evidence.get("diff", {}) if isinstance(evidence.get("diff"), dict) else {}
+  analysis\intelligence\decision_engine.py:89: if diff.get("status_changed"):
+  analysis\intelligence\decision_engine.py:99: if diff.get("redirect_changed"):
+  analysis\intelligence\endpoint\endpoint_intelligence\__init__.py:122: if item.get("trust_boundary") and record["trust_boundary"] != "cross-host":
+  analysis\intelligence\endpoint\endpoint_intelligence\_scoring.py:285: if v.get("validation_state")
+  analysis\intelligence\endpoint\endpoint_intelligence\_scoring.py:391: if record.get("endpoint_type") == "AUTH":
+  analysis\intelligence\endpoint\endpoint_intelligence\_scoring.py:403: "public" if record.get("endpoint_type") in {"GENERAL", "STATIC"} else "authenticated"
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:109: if item.get("changed"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:111: if item.get("status_changed"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:113: if item.get("redirect_changed"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:115: if item.get("content_changed"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:117: if item.get("result_stable"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:156: item.get("body_similarity") is not None
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:160: if item.get("mutated_status") and item.get("original_status") != item.get(
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:194: if item.get("providers"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:197: if item.get("payment_parameters"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:201: if item.get("hint_message"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:231: if item.get("trust_boundary_shift"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:234: if item.get("confirmed"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:236: if item.get("reproducible"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:238: if item.get("intra_run_confirmed"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:240: if item.get("cross_run_reproducible"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:242: if item.get("flow_transition", {}).get("changed"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:284: if item.get("token_fields"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:286: if item.get("admin_scope_hint"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:295: if "role" in item.get("role_contexts", []) or item.get("response_diff_strength") == "high":
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:304: if item.get("accessible_after_role_change"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:44: if item.get("hint_message"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:54: {"redirect", "auth"} if item.get("auth_flow_endpoint") else {"redirect"}
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:91: if item.get("id_like"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:92: markers.append(f"id_field:{item.get('field_name')}")
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:93: if item.get("role_like"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:94: markers.append(f"role_field:{item.get('field_name')}")
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:95: if item.get("sensitive_like"):
+  analysis\intelligence\endpoint\endpoint_intelligence\_signal_collection.py:96: markers.append(f"sensitive_field:{item.get('field_name')}")
+  analysis\intelligence\endpoint_attack_graph.py:231: if left.get("resource_group") and left.get("resource_group") == right.get("resource_group"):
+  analysis\intelligence\endpoint_attack_graph.py:271: 0.57 + (0.16 if bool(item.get("propagation_risk")) else 0.0),
+  analysis\intelligence\endpoint_attack_graph.py:299: 0.54 + (0.2 if bool(item.get("state_mismatch")) else 0.0),
+  analysis\intelligence\endpoint_attack_graph.py:87: endpoint_item.get("resource_group")
+  analysis\intelligence\endpoint_attack_graph.py:88: or endpoint_item.get("endpoint_base_key")
+  analysis\intelligence\endpoint_graphs.py:140: if item.get("resource_group"):
+  analysis\intelligence\endpoint_graphs.py:33: if left.get("resource_group") and left.get("resource_group") == right.get("resource_group"):
+  analysis\intelligence\endpoint_graphs.py:41: if left.get("endpoint_type") == right.get("endpoint_type"):
+  analysis\intelligence\endpoint_graphs.py:62: if left.get("resource_group") == right.get("resource_group")
+  analysis\intelligence\endpoint_graphs.py:96: if item.get("resource_group"):
+  analysis\intelligence\endpoint_scoring.py:18: if diff.get("status_changed"):
+  analysis\intelligence\endpoint_scoring.py:289: if peer.get("decision") == "HIGH":
+  analysis\intelligence\endpoint_scoring.py:30: if diff.get("redirect_changed"):
+  analysis\intelligence\endpoint_scoring.py:33: if diff.get("classification") == "include":
+  analysis\intelligence\endpoint_scoring.py:35: if diff.get("content_changed"):
+  analysis\intelligence\endpoint_scoring.py:44: if diff.get("changed"):
+  analysis\intelligence\endpoint_scoring.py:47: if diff.get("structured_diff_available"):
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:152: if evidence.get("method_override_detected"):
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:161: if evidence.get("auth_bypass_variant"):
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:184: if evidence.get("session_still_valid"):
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:20: if comparison.get("multi_strategy_confirmed"):
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:259: elif evidence.get("severity") == "high":
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:279: if evidence.get("cross_host"):
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:284: if evidence.get("boundary_changed"):
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:307: if evidence.get("confirmed"):
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:36: if evidence.get("object_family") and evidence["object_family"] != "generic_object":
+  analysis\intelligence\findings\intelligence_findings\_explanations.py:81: if evidence.get("auth_flow_endpoint"):
+  analysis\intelligence\findings\intelligence_findings\_history.py:28: (finding.get("evidence", {}) or {}).get("endpoint_base_key")
+  analysis\intelligence\findings\intelligence_findings\_history.py:29: or (finding.get("evidence", {}) or {}).get("endpoint_key")
+  analysis\intelligence\findings\intelligence_findings\_history.py:93: (item.get("evidence", {}) or {}).get("endpoint_base_key")
+  analysis\intelligence\findings\intelligence_findings\_history.py:94: or (item.get("evidence", {}) or {}).get("endpoint_key")
+  analysis\intelligence\findings\intelligence_findings\_merge.py:51: if evidence.get("comparison"):
+  analysis\intelligence\findings\intelligence_findings\_merge.py:53: if evidence.get("location") == "referer_risk":
+  analysis\intelligence\findings\intelligence_findings\_merge.py:55: if evidence.get("validation_state") == "active_ready":
+  analysis\intelligence\findings\intelligence_findings\_merge_behavior.py:14: if item.get("meaningful_difference"):
+  analysis\intelligence\findings\intelligence_findings\_merge_behavior.py:23: if item.get("confirmed")
+  analysis\intelligence\findings\intelligence_findings\_merge_idor.py:23: severity = "high" if item.get("comparison") else "medium"
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:100: or source_evidence.get("confirmed")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:101: or source_evidence.get("validation_confirmed")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:108: target.get("exploit_verified")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:109: or target_evidence.get("confirmed")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:110: or source.get("exploit_verified")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:111: or source_evidence.get("confirmed")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:128: evidence.get("endpoint_key")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:129: or evidence.get("endpoint_base_key")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:192: severity_match = 1.0 if a.get("severity") == b.get("severity") else 0.5
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:203: title_sim = 1.0 if a.get("title") == b.get("title") else 0.5
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:224: item.get("evidence", {}).get("endpoint_base_key")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:92: target.get("verified")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:93: or target.get("exploit_verified")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:94: or target_evidence.get("confirmed")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:95: or target_evidence.get("validation_confirmed")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:98: source.get("verified")
+  analysis\intelligence\findings\intelligence_findings\_merge_orchestrator.py:99: or source.get("exploit_verified")
+  analysis\intelligence\findings\intelligence_findings\_merge_payment.py:17: if item.get("payment_stage") in {"checkout", "billing", "subscription", "refund"}
+  analysis\intelligence\findings\intelligence_findings\_merge_redirect.py:24: or item.get("validation_state") == "active_ready"
+  analysis\intelligence\findings\intelligence_findings\_merge_redirect.py:27: category = "oauth_flow" if item.get("auth_flow_endpoint") else "open_redirect"
+  analysis\intelligence\findings\intelligence_findings\_merge_redirect.py:30: if item.get("auth_flow_endpoint")
+  analysis\intelligence\findings\intelligence_findings\_merge_sensitive_data.py:17: severity = "critical" if item.get("indicator") == "private_key_block" else "high"
+  analysis\intelligence\findings\intelligence_findings\_merge_sensitive_data.py:37: field.get("classification") in {"api_key", "credential", "ssn"}
+  analysis\intelligence\findings\intelligence_findings\_merge_ssrf.py:25: if item.get("validation_state") == "active_ready" or item.get("score", 0) >= 7
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:100: return 0.85 if evidence.get("spec_accessible") else 0.68
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:130: if evidence.get("comparison"):
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:132: if comparison.get("multi_strategy_confirmed"):
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:139: if evidence.get("validation_state") == "active_ready":
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:143: evidence.get("auth_flow_endpoint")
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:152: if evidence.get("location") in {"response_body", "referer_risk"}:
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:18: 0.9 if evidence.get("location") in {"response_body", "referer_risk"} else 0.78
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:25: return 0.81 if evidence.get("xss_signals") else 0.7
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:34: if comparison.get("multi_strategy_confirmed"):
+  analysis\intelligence\findings\intelligence_findings\_scoring.py:98: return 0.88 if evidence.get("schema_exposed") else 0.72
+  analysis\intelligence\findings\intelligence_findings\specs\ai_surface.py:10: model_enum_path = item.get("model_enumeration_path")
+  analysis\intelligence\findings\intelligence_findings\specs\ai_surface.py:9: provider_key_indicators = item.get("provider_key_indicators")
+  analysis\intelligence\findings\intelligence_findings\specs\auth_boundary_redirect.py:9: return "medium" if item.get("boundary_changed") else "low"
+  analysis\intelligence\findings\intelligence_findings\specs\auth_header_tampering.py:9: return "high" if item.get("auth_bypass_variant") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\cross_tenant_pii.py:9: return "high" if item.get("collection_like") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\error_inference.py:9: return "medium" if item.get("inferred_fields") else "low"
+  analysis\intelligence\findings\intelligence_findings\specs\flow_integrity.py:9: return "medium" if item.get("step_skipping_possible") else "low"
+  analysis\intelligence\findings\intelligence_findings\specs\graphql_active.py:9: return "high" if item.get("introspection_result", {}).get("schema_exposed") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\http_method_override.py:9: return "high" if item.get("method_override_detected") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\logout_invalidation.py:9: return "high" if item.get("session_still_valid") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\multi_step_flow.py:9: return "high" if item.get("step_skip_possible") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\origin_reflection.py:9: return "high" if item.get("allow_credentials") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\pagination_walker.py:9: return "medium" if item.get("mutated_status") == item.get("original_status") else "low"
+  analysis\intelligence\findings\intelligence_findings\specs\parameter_pollution_exploit.py:9: return "high" if item.get("status_changed") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\privilege_escalation.py:9: return "high" if item.get("accessible_after_role_change") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\redirect_chain.py:9: return "medium" if item.get("cross_host") else "low"
+  analysis\intelligence\findings\intelligence_findings\specs\referer_propagation.py:9: return "medium" if item.get("propagation_risk") else "low"
+  analysis\intelligence\findings\intelligence_findings\specs\response_structure.py:9: return "high" if item.get("severity") == "high" else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\role_based_endpoint.py:9: return "high" if item.get("response_diff_strength") == "high" else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\session_reuse.py:9: return "high" if item.get("cross_flow_reuse") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\sqli_safe.py:9: return "high" if item.get("probes") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\state_transition.py:9: return "high" if item.get("state_mismatch") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\token_scope.py:9: return "high" if item.get("admin_scope_hint") else "medium"
+  analysis\intelligence\findings\intelligence_findings\specs\unauth_access.py:9: return "high" if item.get("same_status") and item.get("json_accessible") else "medium"
+  analysis\intelligence\findings_dedup.py:100: or target_evidence.get("validation_confirmed")
+  analysis\intelligence\findings_dedup.py:103: source.get("verified")
+  analysis\intelligence\findings_dedup.py:104: or source.get("exploit_verified")
+  analysis\intelligence\findings_dedup.py:105: or source_evidence.get("confirmed")
+  analysis\intelligence\findings_dedup.py:106: or source_evidence.get("validation_confirmed")
+  analysis\intelligence\findings_dedup.py:113: target.get("exploit_verified")
+  analysis\intelligence\findings_dedup.py:114: or target_evidence.get("confirmed")
+  analysis\intelligence\findings_dedup.py:115: or source.get("exploit_verified")
+  analysis\intelligence\findings_dedup.py:116: or source_evidence.get("confirmed")
+  analysis\intelligence\findings_dedup.py:129: evidence.get("endpoint_key")
+  analysis\intelligence\findings_dedup.py:130: or evidence.get("endpoint_base_key")
+  analysis\intelligence\findings_dedup.py:146: evidence.get("endpoint_key")
+  analysis\intelligence\findings_dedup.py:147: or evidence.get("endpoint_base_key")
+  analysis\intelligence\findings_dedup.py:317: evidence.get("endpoint_key")
+  analysis\intelligence\findings_dedup.py:318: or evidence.get("endpoint_base_key")
+  analysis\intelligence\findings_dedup.py:373: evidence.get("endpoint_key")
+  analysis\intelligence\findings_dedup.py:374: or evidence.get("endpoint_base_key")
+  analysis\intelligence\findings_dedup.py:407: if chain["severity"] == "critical" and item.get("severity") != "critical":
+  analysis\intelligence\findings_dedup.py:97: target.get("verified")
+  analysis\intelligence\findings_dedup.py:98: or target.get("exploit_verified")
+  analysis\intelligence\findings_dedup.py:99: or target_evidence.get("confirmed")
+  analysis\intelligence\insights.py:257: if bool(target_profile.get("api_heavy")):
+  analysis\intelligence\insights.py:313: if item.get("category") not in MANUAL_QUEUE_CATEGORIES:
+  analysis\intelligence\insights.py:405: entry.get("category") not in preferred_categories,
+  analysis\intelligence\insights.py:406: entry.get("endpoint_type") in {"AUTH", "STATIC"},
+  analysis\intelligence\insights.py:45: if finding.get("combined_signal"):
+  analysis\json\_core\json_analysis\_parsing.py:127: "status_code": response.get("status_code"),
+  analysis\json\_core\json_analysis\_parsing.py:168: "status_code": response.get("status_code"),
+  analysis\json\_core\json_analysis\_parsing.py:213: "status_code": response.get("status_code"),
+  analysis\json\_core\json_analysis\_parsing.py:30: "status_code": response.get("status_code"),
+  analysis\json\_core\json_analysis\_role_diff.py:61: if original.get("status_code") == candidate.get("status_code"):
+  analysis\json\_core\json_analysis\_role_diff.py:78: if original.get("status_code") == candidate.get("status_code") and similarity >= 0.98:
+  analysis\json\_core\json_analysis\_role_diff.py:87: "status_pair": [original.get("status_code"), candidate.get("status_code")],
+  analysis\json\active_probes.py:118: if original.get("status_code") != mutated.get("status_code") or similarity < 0.97:
+  analysis\json\active_probes.py:124: "mutated_status": mutated.get("status_code"),
+  analysis\json\active_probes.py:206: original.get("status_code") != mutated.get("status_code")
+  analysis\json\active_probes.py:219: "original_status": original.get("status_code"),
+  analysis\json\active_probes.py:220: "mutated_status": mutated.get("status_code"),
+  analysis\json\active_probes.py:270: status_changed = original.get("status_code") != mutated.get("status_code")
+  analysis\json\active_probes.py:272: original.get("status_code") == mutated.get("status_code")
+  analysis\json\active_probes.py:323: "original_status": original.get("status_code"),
+  analysis\json\active_probes.py:324: "mutated_status": mutated.get("status_code"),
+  analysis\json\active_probes.py:68: status_changed = original.get("status_code") != mutated.get("status_code")
+  analysis\json\active_probes.py:80: "original_status": original.get("status_code"),
+  analysis\json\active_probes.py:81: "mutated_status": mutated.get("status_code"),
+  analysis\json\auth.py:145: "baseline_status": baseline.get("status_code"),
+  analysis\json\auth.py:146: "post_logout_status": post_logout.get("status_code"),
+  analysis\json\auth.py:230: if original.get("status_code") in {401, 403, 405}:
+  analysis\json\auth.py:271: status_code_raw: Any = unauth.get("status_code")
+  analysis\json\auth.py:322: if original.get("status_code") == unauth.get("status_code") and similarity >= 0.9
+  analysis\json\auth.py:331: "original_status": original.get("status_code"),
+  analysis\json\auth.py:332: "unauth_status": unauth.get("status_code"),
+  analysis\json\auth.py:333: "same_status": original.get("status_code") == unauth.get("status_code"),
+  analysis\json\graphql\schema_parser.py:148: schema = introspection_result.get("schema")
+  analysis\json\graphql\schema_parser.py:153: "query_type": introspection_result.get("query_type"),
+  analysis\json\graphql\schema_parser.py:154: "mutation_type": introspection_result.get("mutation_type"),
+  analysis\json\graphql\schema_parser.py:155: "subscription_type": introspection_result.get("subscription_type"),
+  analysis\json\graphql\schema_parser.py:167: "name": t.get("name"),
+  analysis\json\graphql\schema_parser.py:168: "description": t.get("description"),
+  analysis\json\graphql\vulnerability_checker.py:104: if not batch_result.get("batch_accepted"):
+  analysis\json\graphql\vulnerability_checker.py:120: if not batch_result.get("alias_abuse_accepted"):
+  analysis\json\graphql\vulnerability_checker.py:163: 1 for e in endpoint_results if e.get("introspection", {}).get("introspection_enabled")
+  analysis\json\graphql\vulnerability_checker.py:166: 1 for e in endpoint_results if e.get("batch_aliasing", {}).get("batch_accepted")
+  analysis\json\graphql\vulnerability_checker.py:169: 1 for e in endpoint_results if e.get("depth_test", {}).get("dos_vulnerable")
+  analysis\json\graphql\vulnerability_checker.py:42: if not introspection_result.get("introspection_enabled"):
+  analysis\json\graphql\vulnerability_checker.py:88: if not depth_result.get("dos_vulnerable"):
+  analysis\json\graphql_introspection.py:376: result["query_type"] = schema.get("queryType", {}).get("name")
+  analysis\json\graphql_introspection.py:377: result["mutation_type"] = schema.get("mutationType", {}).get("name")
+  analysis\json\graphql_introspection.py:378: result["subscription_type"] = schema.get("subscriptionType", {}).get("name")
+  analysis\json\graphql_introspection.py:382: if t.get("kind") == "OBJECT" and t.get("name", "").lower() == "mutation":
+  analysis\json\graphql_introspection.py:392: result["query_type"] = type_info.get("name")
+  analysis\json\graphql_introspection.py:648: if introspection.get("mutations"):
+  analysis\json\graphql_introspection.py:671: if depth_result.get("dos_vulnerable"):
+  analysis\json\graphql_introspection.py:687: if batch_result.get("batch_accepted"):
+  analysis\json\graphql_introspection.py:700: if batch_result.get("alias_abuse_accepted"):
+  analysis\json\graphql_introspection.py:721: 1 for e in endpoint_results if e.get("introspection", {}).get("introspection_enabled")
+  analysis\json\graphql_introspection.py:724: 1 for e in endpoint_results if e.get("batch_aliasing", {}).get("batch_accepted")
+  analysis\json\graphql_introspection.py:727: 1 for e in endpoint_results if e.get("depth_test", {}).get("dos_vulnerable")
+  analysis\json\rate_limit.py:138: "retry_after_seconds": headers.get("retry-after"),
+  analysis\json\token_scope.py:149: "status_code": response.get("status_code"),
+  analysis\json\version_diff.py:49: if original.get("status_code") == alternative.get("status_code") and similarity >= 0.98:
+  analysis\json\version_diff.py:57: "status_pair": [original.get("status_code"), alternative.get("status_code")],
+  analysis\passive\detectors\detector_business_logic.py:272: status_code=response.get("status_code") if response else None,
+  analysis\passive\detectors\detector_idor.py:228: original_status = original_response.get("status_code")
+  analysis\passive\detectors\detector_idor.py:253: "mutated_status": mutated_response.get("status_code"),
+  analysis\passive\detectors\detector_idor.py:262: mutated_status = mutated_response.get("status_code")
+  analysis\passive\detectors\detector_idor.py:306: results, key=lambda r: r.get("body_similarity", 0) if r.get("confirmed") else 0
+  analysis\passive\detectors\detector_ssti.py:273: status_code=response.get("status_code"),
+  analysis\passive\detectors\detector_ssti.py:408: status_code=url_findings[0].get("status_code"),
+  analysis\passive\detectors\detector_token.py:194: "status_code": response.get("status_code"),
+  analysis\passive\detectors\detector_token.py:219: "status_code": response.get("status_code"),
+  analysis\passive\detectors\detector_token.py:241: status_code=group.get("status_code"),
+  analysis\passive\detectors\detector_upload.py:348: status_code=response.get("status_code") if response else None,
+  analysis\passive\extended_shared.py:343: status_code=response.get("status_code"),
+  analysis\passive\extended_shared.py:383: status_code=response.get("status_code"),
+  analysis\plugin_runtime\_runner.py:227: row.get("url"),
+  analysis\probe_template.py:101: content=d.get("content"),
+  analysis\probe_template.py:102: params=d.get("params"),
+  analysis\response\_core\response_analysis\_classification.py:20: if finding.get("status_changed"):
+  analysis\response\_core\response_analysis\_classification.py:31: if finding.get("content_changed"):
+  analysis\response\_core\response_analysis\_classification.py:37: if finding.get("redirect_changed"):
+  analysis\response\_core\response_analysis\_classification.py:43: sim = finding.get("body_similarity")
+  analysis\response\_core\response_analysis\_classification.py:47: if len(signals) >= 3 or finding.get("status_changed"):
+  analysis\response\_core\response_analysis\_classification.py:89: obs.get("status_changed")
+  analysis\response\_core\response_analysis\_classification.py:90: or obs.get("content_changed")
+  analysis\response\_core\response_analysis\_diff_engine.py:68: repeated_mutated.get("status_code") == mutated.get("status_code")
+  analysis\response\_core\response_analysis\_diff_utils.py:28: original_status = original.get("status_code")
+  analysis\response\_core\response_analysis\_diff_utils.py:29: mutated_status = mutated.get("status_code")
+  analysis\response\_core\response_analysis\_flow_detection.py:63: "status_code": direct.get("status_code"),
+  analysis\response\_core\response_analysis\_http_method_override.py:128: if any(o.get("header") == "_method_query_param" for o in observations)
+  analysis\response\_core\response_analysis\_snapshot.py:46: "status_code": response.get("status_code"),
+  analysis\response\mutations\http_methods.py:134: "status_code": direct.get("status_code"),
+  analysis\response\mutations\http_methods.py:239: if any(o.get("header") == "_method_query_param" for o in obs)
+  learning\feedback_loop.py:142: if event.get("was_validated") and not event.get("was_false_positive"):
+  learning\feedback_loop.py:144: if event.get("was_false_positive"):
+  learning\feedback_loop.py:221: if event.get("was_validated") and not event.get("was_false_positive"):
+  learning\feedback_loop.py:251: if event.get("was_false_positive"):
+  learning\feedback_loop.py:278: if event.get("was_validated") and not event.get("was_false_positive"):
+  learning\fp_tracker.py:155: response_status = finding.get("response_status")
+  learning\fp_tracker.py:159: is_fp = finding.get("decision") == "DROP"
+  learning\fp_tracker.py:160: is_tp = finding.get("lifecycle_state") in ("VALIDATED", "EXPLOITABLE")
+  learning\integration.py:391: 1 for f in findings if f.get("lifecycle_state") in ("VALIDATED", "EXPLOITABLE")
+  learning\integration.py:393: fps = sum(1 for f in findings if f.get("decision") == "DROP")
+  learning\integration.py:396: start = ctx.get("start_time")
+  learning\integration.py:397: end = ctx.get("end_time")
+  learning\integration.py:475: kpis = self._metrics.compute_kpis(target=ctx.get("target_name"))
+  learning\integration.py:507: output_store = ctx.get("output_store")
+  learning\integration.py:523: kpis_obj = self._metrics.compute_kpis(target=ctx.get("target_name"))
+  learning\integration.py:529: "run_id": ctx.get("run_id"),
+  learning\integration.py:538: ctx.get("target_name"),
+  learning\integration.py:560: f for f in ctx.get("reportable_findings", []) if f.get("module") == plugin_name
+  learning\integration.py:565: if f.get("lifecycle_state") in ("VALIDATED", "EXPLOITABLE")
+  learning\integration.py:567: fp = sum(1 for f in plugin_findings if f.get("decision") == "DROP")
+  learning\integration.py:73: redis_url = os.environ.get("REDIS_URL")
+  learning\metrics.py:290: if run.get("start_time") and run.get("end_time"):
+  learning\metrics.py:348: completed = sum(1 for r in runs if r.get("status") == "completed")
+  learning\metrics.py:376: if report_data.get("run_id"):
+  learning\models\feedback_event.py:90: parameter_type=finding.get("parameter_type"),
+  learning\models\feedback_event.py:93: validation_method=finding.get("validation_method"),
+  learning\models\feedback_event.py:95: endpoint_type=finding.get("endpoint_type"),
+  learning\models\fp_pattern.py:127: if row.get("status_code_pattern")
+  learning\models\fp_pattern.py:129: body_indicators=json.loads(row["body_pattern"]) if row.get("body_pattern") else [],
+  learning\models\fp_pattern.py:131: if row.get("header_pattern")
+  learning\models\fp_pattern.py:141: first_seen=datetime.fromisoformat(row["first_seen"]) if row.get("first_seen") else None,
+  learning\models\fp_pattern.py:142: last_seen=datetime.fromisoformat(row["last_seen"]) if row.get("last_seen") else None,
+  learning\models\fp_pattern.py:144: if row.get("created_at")
+  learning\models\fp_pattern.py:147: if row.get("updated_at")
+  learning\models\graph_node.py:129: properties=json.loads(row["properties"]) if row.get("properties") else {},
+  learning\models\graph_node.py:131: if row.get("created_at")
+  learning\models\graph_node.py:78: properties=json.loads(row["properties"]) if row.get("properties") else {},
+  learning\models\graph_node.py:79: run_id=row.get("run_id"),
+  learning\models\graph_node.py:81: if row.get("created_at")
+  learning\models\graph_node.py:84: if row.get("updated_at")
+  learning\nuclei_tag_optimizer.py:127: was_validated = bool(event.get("was_validated"))
+  learning\nuclei_tag_optimizer.py:128: was_fp = bool(event.get("was_false_positive"))
+  learning\nuclei_tag_optimizer.py:201: run_ids = [r["run_id"] for r in recent_runs if r.get("run_id")]
+  learning\nuclei_tag_optimizer.py:239: was_validated = bool(ev.get("was_validated"))
+  learning\nuclei_tag_optimizer.py:240: was_fp = bool(ev.get("was_false_positive"))
+  learning\signal_quality.py:117: evidence.get("body_snippet"),
+  learning\signal_quality.py:118: evidence.get("response"),
+  learning\signal_quality.py:119: evidence.get("match"),
+  learning\signal_quality.py:120: item.get("description"),
+  learning\signal_quality.py:121: item.get("title"),
+  learning\signal_quality.py:131: item.get("response_status")
+  learning\signal_quality.py:132: or evidence.get("response_status")
+  learning\signal_quality.py:133: or diff.get("mutated_status")
+  learning\signal_quality.py:188: probability = _numeric(pattern.get("fp_probability"), 0.75)
+  learning\signal_quality.py:208: model_tp = _clamp(_numeric(item.get("true_positive_probability"), confidence))
+  learning\signal_quality.py:209: model_fp = _clamp(_numeric(item.get("false_positive_probability"), 1.0 - model_tp))
+  learning\signal_quality.py:230: if diff.get("status_changed"):
+  learning\signal_quality.py:233: if diff.get("content_changed"):
+  learning\signal_quality.py:236: if diff.get("redirect_changed"):
+  learning\signal_quality.py:239: if _numeric(diff.get("body_similarity"), 1.0) < 0.45:
+  learning\signal_quality.py:245: if evidence.get("intra_run_confirmed"):
+  learning\signal_quality.py:248: if evidence.get("cross_run_reproducible"):
+  learning\signal_quality.py:268: evidence.get("reproducible")
+  learning\signal_quality.py:269: or evidence.get("confirmed")
+  learning\signal_quality.py:270: or evidence.get("cross_run_reproducible")
+  learning\signal_quality.py:271: or evidence.get("trust_boundary_shift")
+  learning\signal_quality.py:328: real = [record for record in records if record.get("label") == "true_positive"]
+  learning\signal_quality.py:329: false = [record for record in records if record.get("label") == "false_positive"]
+  learning\signal_quality.py:331: kept_false = [record for record in kept if record.get("label") == "false_positive"]
+  learning\signal_quality.py:332: kept_real = [record for record in kept if record.get("label") == "true_positive"]
+  learning\signal_quality.py:94: evidence = item.get("evidence")
+  learning\signal_quality.py:99: diff = _evidence(item).get("diff")
+  learning\threshold_tuner.py:336: is_fp = finding.get("is_false_positive", finding.get("is_fp"))
+  recon\collectors\providers\external\otx.py:43: url_val = item.get("url")
+  recon\collectors\providers\external\otx.py:51: url_val = item.get("url")
+  recon\collectors\providers\external\urlscan.py:48: url_val = v.get("url")
+  recon\collectors\providers\external\urlscan.py:56: item_url = item.get("url") if isinstance(item, dict) else None
+  recon\collectors\providers\external\urlscan.py:67: entry_url = v.get("url")
+  recon\dns_enumerator.py:255: if record.get("security_relevant"):
+  recon\dns_enumerator.py:263: "details": record.get("details"),
+  recon\fp_watchlist.py:104: finding.get("false_positive_reason")
+  recon\fp_watchlist.py:105: or finding.get("fp_reason")
+  recon\fp_watchlist.py:106: or finding.get("suppress_reason")
+  recon\fp_watchlist.py:107: or finding.get("reason")
+  recon\fp_watchlist.py:149: if watchlist_entry.get("status") in _REMEDIATED_STATUSES:
+  recon\fp_watchlist.py:442: and e.get("url_pattern")
+  recon\fp_watchlist.py:47: is_fp = finding.get("is_false_positive")
+  recon\live_hosts.py:102: "status_code": cached.get("status_code"),
+  recon\live_hosts.py:156: status_code = record.get("status_code")
+  recon\live_hosts.py:236: if record.get("url"):
+  recon\live_hosts.py:278: if config.tools.get("httpx") and projectdiscovery_httpx_available():
+  recon\live_hosts.py:527: if result and result.get("url"):
+  recon\live_hosts.py:73: if force_recheck or os.environ.get("RECON_FLUSH_CACHE"):
+  recon\live_hosts.py:91: alive = bool(cached.get("alive"))
+  recon\ranking_support.py:367: item.get("flow_group")
+  recon\ranking_support.py:368: or item.get("cluster_key")
+  recon\ranking_support.py:369: or item.get("canonical_key")
+  recon\ranking_support.py:370: or item.get("url")
+  recon\ranking_support.py:376: entry[1][0].get("decision_override") != "HIGH",
+  recon\scoring.py:435: if trust_boundary.get("level") == "cross-host":
+  recon\scoring.py:437: elif trust_boundary.get("level") == "restricted-path":
+  recon\scoring.py:450: decision_override = "HIGH" if trust_boundary.get("level") == "cross-host" else ""
+  recon\scoring.py:471: "flow_stage": flow_meta.get("flow_stage"),
+  recon\scoring.py:488: or item.get("trust_boundary") == "cross-host"
+  recon\scoring.py:504: item.get("decision_override") != "HIGH",
+  recon\scoring.py:74: value = value.get("default")
+  recon\scoring.py:86: selected = configured.get("api_heavy")
+  recon\scoring.py:88: selected = configured.get("small_target")
+  recon\sources\virustotal.py:49: api_key = api_key or os.environ.get("VT_API_KEY")
+  recon\sources\virustotal.py:94: cursor = data.get("meta", {}).get("cursor")
+  recon\subdomains.py:136: if reg.metadata.get("type") == "command":
+  recon\urls.py:105: if meta.get("type") == "phase_complete":
+  recon\urls.py:106: phase_name = meta.get("phase")
+  recon\urls.py:172: gau_available = config.tools.get("gau") and tool_available("gau")
+  recon\urls.py:173: wayback_available = config.tools.get("waybackurls") and tool_available("waybackurls")
+  recon\urls.py:213: if reg.metadata.get("type") != "archive_command":
+  recon\urls.py:272: "configured_timeout_seconds": meta.get("configured_timeout_seconds"),
+  recon\urls.py:273: "effective_timeout_seconds": meta.get("effective_timeout_seconds"),
+  recon\urls.py:315: elif config.tools.get("katana") and tool_available("katana") and "katana" in collectors:
+=== DONE ===

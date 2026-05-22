@@ -197,8 +197,7 @@ export function useLiveTerminal(options: {
   const connectSSE = useCallback((id: string) => {
     if (esRef.current) esRef.current.close();
     
-    const token = sessionStorage.getItem('auth_token');
-    const url = `/api/jobs/${id}/logs/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const url = `/api/jobs/${id}/logs/stream`;
     const es = new EventSource(url);
     esRef.current = es;
 
