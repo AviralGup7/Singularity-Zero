@@ -148,18 +148,43 @@ class PipelineOutputStore:
         return key
 
     def write_adaptive_config(self, adaptations: dict[str, Any]) -> str:
-        """Write the adaptive config to the target root for the next run (Phase 5.2)."""
+        """Write the adaptive config to the output root for the next run (Phase 5.2).
+
+        Writes both to disk at ``<output_root>/config.adaptive.json`` and into
+        the artifact store so the file is available in every retrieval path.
+        """
         filename = "config.adaptive.json"
         content = format_json(adaptations)
 
-        # Standard physical path in target root (not run dir)
-        local_path = self.target_root / filename
+        # Write to the *output* root (not the per-run target sub-dir) so that
+        # PipelineOutputStore.read_adaptive_config(output_root) can find it.
+        local_path = self.target_root.parent / filename
         local_path.parent.mkdir(parents=True, exist_ok=True)
         local_path.write_text(content, encoding="utf-8")
 
         # Also put it in the artifact store
         key = f"{self.target_name}/{filename}"
         return self._store.put(key, content.encode("utf-8"))
+
+    @classmethod
+    def read_adaptive_config(cls, output_root: Path) -> dict[str, Any] | None:
+        """Read the adaptive config from the output root (Phase 5.2).
+
+        Returns the parsed adaptations dict, or None if the file does not exist
+        or cannot be parsed.
+
+        Args:
+            output_root: The base output directory that contains the
+                ``config.adaptive.json`` file written by ``write_adaptive_config``.
+        """
+        path = Path(output_root) / "config.adaptive.json"
+        if not path.exists():
+            return None
+        try:
+            text = path.read_text(encoding="utf-8")
+            return json.loads(text)
+        except (json.JSONDecodeError, OSError):
+            return None
 
     def upload_file(self, local_path: Path, filename: str | None = None) -> str:
         """Upload an existing local file to the artifact store."""

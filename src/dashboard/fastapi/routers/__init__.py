@@ -27,6 +27,7 @@ from .self_healing import router as self_healing_router
 from .targets import router as targets_router
 from .tracing import router as tracing_router
 from .triage import router as triage_router
+from .evasion import router as evasion_router
 
 imports_router: Any = None
 try:
@@ -64,3 +65,4 @@ api_router.include_router(security_router, tags=["Security"])
 api_router.include_router(launcher_router, tags=["Launcher"])
 api_router.include_router(tracing_router, tags=["Tracing"])
 api_router.include_router(triage_router, tags=["Triage Collaboration"])
+api_router.include_router(evasion_router, tags=["Evasion Telemetry"])

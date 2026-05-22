@@ -62,7 +62,11 @@ def build_attack_graph(
     relationships (redirects, shared identifiers, state transitions, etc.),
     propagates confidence scores, and searches for attack chains.
     """
-    analysis_results = analysis_results or {}
+    if isinstance(analysis_results, list):
+        endpoint_intelligence = list(endpoint_intelligence) + list(analysis_results)
+        analysis_results = {}
+    else:
+        analysis_results = analysis_results or {}
     endpoint_by_url = {
         str(item.get("url", "")).strip(): item
         for item in endpoint_intelligence

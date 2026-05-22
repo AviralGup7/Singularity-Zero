@@ -14,8 +14,12 @@ import time
 from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, TYPE_CHECKING
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from src.core.frontier.bloom import NeuralBloomFilter
+    from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
 
 from src.infrastructure.cache.backends import (
     FileBackend,
@@ -79,12 +83,29 @@ class CacheManager:
         self._l1: MemoryBackend | None = None
         self._l2: SQLiteBackend | RedisBackend | None = None
         self._l3: FileBackend | None = None
+        self._bloom_synchronizer: BloomMeshSynchronizer | None = None
+        self._bloom_filter: NeuralBloomFilter | None = None
         self._lock_redis_client: Any = None
         self._initialized = False
         self._init_backends()
         if self._config.warm_on_init:
             self._warm_cache()
         self._initialized = True
+
+    def set_bloom_synchronizer(self, synchronizer: BloomMeshSynchronizer) -> None:
+        """Register the active Bloom mesh synchronizer."""
+        self._bloom_synchronizer = synchronizer
+
+    def set_bloom_filter(self, bloom_filter: NeuralBloomFilter) -> None:
+        """Register a direct Bloom filter."""
+        self._bloom_filter = bloom_filter
+
+    @property
+    def bloom_filter(self) -> NeuralBloomFilter | None:
+        """Resolve the active Bloom filter."""
+        if self._bloom_synchronizer is not None:
+            return self._bloom_synchronizer.filter
+        return self._bloom_filter
 
     def _init_backends(self) -> None:
         """Initialize enabled cache backends."""
@@ -374,6 +395,14 @@ class CacheManager:
                         logger.debug("L1 HIT: %s", full_key)
                     return value
 
+            bf = self.bloom_filter
+            if bf is not None and full_key not in bf:
+                elapsed = (time.monotonic() - start) * 1000
+                self._metrics.record_miss(elapsed)
+                if self._config.log_cache_ops:
+                    logger.debug("BLOOM BYPASS MISS: %s", full_key)
+                return default
+
             if self._l2 is not None:
                 value = self._l2.get(full_key)
                 if value is not None:
@@ -448,6 +477,10 @@ class CacheManager:
         full_key = self._make_key(key, namespace)
 
         try:
+            bf = self.bloom_filter
+            if bf is not None:
+                bf.add(full_key)
+
             if self._l1 is not None:
                 self._l1.set(full_key, value, ttl=ttl)
 
@@ -519,6 +552,12 @@ class CacheManager:
         """
         full_key = self._make_key(key, namespace)
         try:
+            bf = self.bloom_filter
+            if bf is not None and full_key not in bf:
+                if self._config.log_cache_ops:
+                    logger.debug("BLOOM BYPASS EXISTS FALSE: %s", full_key)
+                return False
+
             if self._l1 is not None and self._l1.exists(full_key):
                 return True
             if self._l2 is not None and self._l2.exists(full_key):

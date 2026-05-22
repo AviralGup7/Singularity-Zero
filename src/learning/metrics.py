@@ -60,6 +60,7 @@ class PipelineKPIs:
     # Detection quality
     detection_rate: float = 0.0
     precision: float = 0.0
+    recall: float = 0.0
     f1_score: float = 0.0
     fp_rate: float = 0.0
     fn_rate: float = 0.0
@@ -100,6 +101,7 @@ class PipelineKPIs:
         return {
             "detection_rate": self.detection_rate,
             "precision": self.precision,
+            "recall": self.recall,
             "f1_score": self.f1_score,
             "fp_rate": self.fp_rate,
             "fn_rate": self.fn_rate,
@@ -173,6 +175,7 @@ class MetricsCollector:
         total_fn = sum(r.false_negatives for r in run_metrics)
 
         detection_rate = total_tp / max(1, total_tp + total_fn)
+        recall = detection_rate
         precision = total_tp / max(1, total_tp + total_fp)
         f1 = 2 * precision * detection_rate / max(0.001, precision + detection_rate)
         fp_rate = total_fp / max(1, total_tp + total_fp)
@@ -220,6 +223,7 @@ class MetricsCollector:
         return PipelineKPIs(
             detection_rate=round(detection_rate, 4),
             precision=round(precision, 4),
+            recall=round(recall, 4),
             f1_score=round(f1, 4),
             fp_rate=round(fp_rate, 4),
             fn_rate=round(fn_rate, 4),

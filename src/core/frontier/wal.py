@@ -115,6 +115,12 @@ class FrontierWAL:
                 }
                 with open(self._aof_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(aof_entry) + "\n")
+                    f.flush()
+                    import os
+                    try:
+                        os.fsync(f.fileno())
+                    except OSError as e:
+                        logger.debug("WAL AOF fsync failed (might be virtual/mocked drive): %s", e)
             except Exception as exc:
                 logger.error("WAL AOF append failed for stage '%s': %s", stage_name, exc)
 

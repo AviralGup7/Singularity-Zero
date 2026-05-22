@@ -96,3 +96,54 @@ This document provides a realistic, high-fidelity overview of the functional, ar
 *   **Gaps**:
     *   Pydantic v2 schemas use `ConfigDict(strict=False)` by default across critical models, letting unvalidated fields bypass data validation.
     *   Bare `except Exception: pass` blocks in `ghost_vfs.py` and `vault.py` have been audited and resolved; all logging fallbacks emit detailed warning diagnostics, and key-wiping procedures are rigorously contained in standard `try-finally` blocks without silently swallowing critical errors.
+
+---
+
+## 📊 5. Compliance & Reporting Gaps
+
+### 5.1 Compliance Report Generator (Phase 6.1)
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   `build_compliance_report` in `src/reporting/pipeline.py` is invoked at the end of the reporting stage.
+    *   Compliance JSON artifacts are streamed to `<output>/compliance/<YYYY-MM-DD>_<target>.json`.
+
+### 5.2 Pass/Fail Control Maturity Scoring (Phase 6.2)
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   `ControlMaturity` enum defined in `src/reporting/compliance_maturity.py`.
+    *   `compliance_maturity.json` is produced alongside the coverage artifact.
+    *   FAIL and AT_RISK items are wired into the notification system.
+
+### 5.3 SOC 2 / PCI-DSS Attestation PDF Export (Phase 6.3)
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   `src/reporting/compliance_pdf.py` generates a two-part compliance PDF using reportlab.
+    *   `GET /api/reports/compliance/pdf?target=<name>` endpoint returns the attestation PDF for the latest run.
+
+---
+
+## 🔁 6. Closed-Loop Remediation Gaps
+
+### 6.1 Remediation Re-Scan Firewall (Phase 9.1)
+*   **Status**: **NOT STARTED**
+*   **Gaps**:
+    *   No API endpoint or scanner exists for re-verifying previously-verified findings.
+
+### 6.2 Recurring False-Positive Re-Evaluation Watchlist (Phase 9.2)
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   `src/recon/fp_watchlist.py` provides `FPWatchlistManager` for serializing FALSE_POSITIVE findings.
+    *   Watchlist is written to `<output>/regression-watchlist.json` on run completion.
+    *   `check_reemergence()` detects re-emergence and notifies via `NotificationManager`.
+    *   `get_watchlist_urls()` returns de-duplicated URLs for elevated-confidence re-injection.
+
+---
+
+## 📡 7. Developer Experience Gaps
+
+### 7.1 Local Dev Self-Check (Phase 10.3)
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   `cyber system doctor` subcommand validates Python version (≥3.14), system binaries (nuclei, httpx, subfinder), Redis connectivity, `.env` file presence/validity, and config integrity.
+    *   Exit codes: `0` (all pass), `2` (missing system dep), `3` (misconfigured env), `4` (unreachable service), `5` (invalid config).
+    *   Rich color-coded table output with pass/fail status for each check.

@@ -8,14 +8,19 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 import pykka
 
 from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
-from src.core.frontier.marshaller import mesh_marshal, mesh_unmarshal
-from src.core.frontier.state import stable_digest
+from src.core.frontier.marshaller import (
+    mesh_marshal,
+    mesh_unmarshal,
+    mesh_marshal_pickle,
+    mesh_unmarshal_pickle,
+)
+from src.core.frontier.state import stable_digest, CRDTCompactionBudget
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
@@ -37,10 +42,13 @@ class ActorState:
     checkpoint_ts: float
     evacuation_recommended: bool = False
     logic_fn_name: str = ""
-    snapshot_format: str = "ghost-actor-snapshot-v2"
+    snapshot_format: str = "ghost-actor-snapshot-v3"
     last_wal_id: str | None = None
     migration_id: str = ""
     state_digest: str = ""
+    applied_wal_ids: list[str] = field(default_factory=list)
+    compaction_budget: dict[str, Any] = field(default_factory=dict)
+    serialized_logic_fn: bytes | None = None
 
     def pack(self) -> bytes:
         """Binary serialization via MessagePack."""
@@ -56,6 +64,9 @@ class ActorState:
                 "last_wal_id": self.last_wal_id,
                 "migration_id": self.migration_id,
                 "state_digest": self.state_digest or stable_digest(self.data),
+                "applied_wal_ids": self.applied_wal_ids,
+                "compaction_budget": self.compaction_budget,
+                "serialized_logic_fn": self.serialized_logic_fn,
             }
         )
 
@@ -67,7 +78,12 @@ class ActorState:
         data.setdefault("last_wal_id", None)
         data.setdefault("migration_id", "")
         data.setdefault("state_digest", stable_digest(data.get("data", {})))
-        return cls(**data)
+        data.setdefault("applied_wal_ids", [])
+        data.setdefault("compaction_budget", {})
+        data.setdefault("serialized_logic_fn", None)
+        valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered = {k: v for k, v in data.items() if k in valid_keys}
+        return cls(**filtered)
 
     def dehydrate(self) -> bytes:
         """Serialize actor state into a binary format."""
@@ -85,10 +101,13 @@ class ActorState:
             payload.setdefault("checkpoint_ts", 0.0)
             payload.setdefault("evacuation_recommended", False)
             payload.setdefault("logic_fn_name", "")
-            payload.setdefault("snapshot_format", "ghost-actor-snapshot-v2")
+            payload.setdefault("snapshot_format", "ghost-actor-snapshot-v3")
             payload.setdefault("last_wal_id", None)
             payload.setdefault("migration_id", "")
             payload.setdefault("state_digest", "")
+            payload.setdefault("applied_wal_ids", [])
+            payload.setdefault("compaction_budget", {})
+            payload.setdefault("serialized_logic_fn", None)
             valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
             filtered = {k: v for k, v in payload.items() if k in valid_keys}
             return cls(**filtered)
@@ -117,6 +136,7 @@ class ScanActor(pykka.ThreadingActor):
         self.is_migrating = False
         self._last_health_check = 0.0
         self._evacuation_recommended = False
+        self.compaction_budget = CRDTCompactionBudget()
         # Register logic function name for mesh-wide serialization & network rehydration
         if hasattr(logic_fn, "__name__"):
             _LOGIC_REGISTRY[logic_fn.__name__] = logic_fn
@@ -125,6 +145,20 @@ class ScanActor(pykka.ThreadingActor):
         """Freeze actor mutating work and dehydrate its state to packed bytes."""
         self.is_migrating = True
         state_data = dict(self.state)
+        
+        compaction_budget_data = {
+            "budget_ms": getattr(self.compaction_budget, "budget_ms", 50.0),
+            "min_budget_ms": getattr(self.compaction_budget, "min_budget_ms", 5.0),
+            "max_budget_ms": getattr(self.compaction_budget, "max_budget_ms", 500.0),
+            "target_elapsed_ms": getattr(self.compaction_budget, "target_elapsed_ms", 30.0),
+        }
+        
+        try:
+            serialized_logic = mesh_marshal_pickle(self.logic_fn)
+        except Exception as e:
+            logger.warning("Ghost-Actor [%s]: Failed to serialize logic_fn: %s", self.actor_id, e)
+            serialized_logic = None
+
         actor_state = ActorState(
             actor_id=self.actor_id,
             stage=self.state.get("current_stage", "init"),
@@ -135,6 +169,9 @@ class ScanActor(pykka.ThreadingActor):
             last_wal_id=self.state.get("_last_wal_id"),
             state_digest=stable_digest(state_data),
             migration_id=migration_id,
+            applied_wal_ids=list(self._applied_wal_ids),
+            compaction_budget=compaction_budget_data,
+            serialized_logic_fn=serialized_logic,
         )
         return actor_state.dehydrate()
 
@@ -143,9 +180,33 @@ class ScanActor(pykka.ThreadingActor):
         unpacked = ActorState.rehydrate(payload)
         self.state = unpacked.data
         self._applied_wal_ids = set(unpacked.data.get("_applied_wal_ids", []))
+        if unpacked.applied_wal_ids:
+            self._applied_wal_ids.update(unpacked.applied_wal_ids)
         if unpacked.last_wal_id:
             self._applied_wal_ids.add(unpacked.last_wal_id)
             self.state["_last_wal_id"] = unpacked.last_wal_id
+
+        if unpacked.compaction_budget:
+            self.compaction_budget.budget_ms = unpacked.compaction_budget.get("budget_ms", 50.0)
+            self.compaction_budget.min_budget_ms = unpacked.compaction_budget.get("min_budget_ms", 5.0)
+            self.compaction_budget.max_budget_ms = unpacked.compaction_budget.get("max_budget_ms", 500.0)
+            self.compaction_budget.target_elapsed_ms = unpacked.compaction_budget.get("target_elapsed_ms", 30.0)
+
+        restored_logic = None
+        if unpacked.serialized_logic_fn:
+            try:
+                restored_logic = mesh_unmarshal_pickle(unpacked.serialized_logic_fn)
+            except Exception as e:
+                logger.error("Ghost-Actor [%s]: Failed to deserialize logic_fn: %s", self.actor_id, e)
+        
+        if restored_logic:
+            self.logic_fn = restored_logic
+            if hasattr(restored_logic, "__name__"):
+                _LOGIC_REGISTRY[restored_logic.__name__] = restored_logic
+        elif unpacked.logic_fn_name:
+            reg_logic = _LOGIC_REGISTRY.get(unpacked.logic_fn_name)
+            if reg_logic:
+                self.logic_fn = reg_logic
 
     def cold_start(self, snapshot_bytes: bytes, wal_deltas: list[dict[str, Any]]) -> None:
         """Completely reconstruct state from a cold-start checkpoint snapshot plus trailing WAL."""

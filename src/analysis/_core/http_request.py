@@ -28,10 +28,12 @@ def _safe_request(
     Returns:
         Dict with keys: status, headers, body, body_length, success, error (optional).
     """
+    from src.core.frontier.chameleon import wrap_polymorphic_request, _chameleon
+    from urllib.parse import urlparse
+
     req_headers = dict(headers or {})
-    req_headers.setdefault(
-        "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecurityPipeline/1.0"
-    )
+    chameleon_config = wrap_polymorphic_request(req_headers)
+    req_headers = chameleon_config["headers"]
     req_headers.setdefault("Accept", "application/json, text/html, */*")
 
     if not is_safe_url(url):
@@ -45,16 +47,47 @@ def _safe_request(
         }
 
     try:
+        parsed = urlparse(url)
+        target = parsed.netloc or parsed.path.split("/")[0] or "unknown"
+    except Exception:
+        target = "unknown"
+
+    session_id = req_headers.get("X-Session-Token") or req_headers.get("X-Trace-ID") or "default"
+
+    try:
         resp = requests.request(
-            method, url, headers=req_headers, data=body, timeout=timeout, verify=True
+            method,
+            url,
+            headers=req_headers,
+            data=body,
+            timeout=chameleon_config.get("timeout", timeout),
+            verify=chameleon_config.get("verify", True),
         )
         resp_body = resp.text or ""
+        resp_headers = dict(resp.headers)
+
+        # Telemetry / feedback loop update
+        detected_waf = None
+        try:
+            cookies = {cookie.name: cookie.value for cookie in resp.cookies} if hasattr(resp, "cookies") else None
+            detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
+            _chameleon._evasion_engine.update_observation(
+                response_status=resp.status_code,
+                body=resp_body,
+                session_id=session_id,
+                target=target,
+                detected_waf=detected_waf,
+            )
+        except Exception:
+            pass
+
         return {
             "status": getattr(resp, "status_code", 0),
-            "headers": dict(resp.headers),
+            "headers": resp_headers,
             "body": resp_body[:max_body_length],
             "body_length": len(resp_body),
             "success": resp.status_code < 400,
+            "detected_waf": detected_waf,
         }
     except requests.RequestException as e:
         resp_body = ""
