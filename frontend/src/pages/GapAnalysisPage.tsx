@@ -245,28 +245,31 @@ export function GapAnalysisPage() {
   const filtered = useMemo(() => {
     if (!data || !data.results) return [];
    
-    let result = [...data.results];
+    let result = [...data.results].filter(
+      r => r && typeof r === 'object' && typeof r.module === 'string' && typeof r.status === 'string'
+    );
     
     if (statusFilter !== 'all') {
-      result = result.filter(r => r && r.status === statusFilter);
+      result = result.filter(r => r.status === statusFilter);
     }
     
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => 
-        r && (
-          (r.module || '').toLowerCase().includes(q) || 
-          (r.category || '').toLowerCase().includes(q)
-        )
+        (r.module || '').toLowerCase().includes(q) || 
+        (r.category || '').toLowerCase().includes(q)
       );
     }
 
     result.sort((a, b) => {
-      if (!a || !b) return 0;
       let cmp = 0;
       if (sortKey === 'module') cmp = (a.module || '').localeCompare(b.module || '');
       else if (sortKey === 'coverage_percent') cmp = (a.coverage_percent || 0) - (b.coverage_percent || 0);
-      else if (sortKey === 'status') cmp = (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3);
+      else if (sortKey === 'status') {
+        const orderA = STATUS_ORDER[a.status as keyof typeof STATUS_ORDER] ?? 3;
+        const orderB = STATUS_ORDER[b.status as keyof typeof STATUS_ORDER] ?? 3;
+        cmp = orderA - orderB;
+      }
       return sortDir === 'asc' ? cmp : -cmp;
     });
     
@@ -300,7 +303,7 @@ export function GapAnalysisPage() {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 focus-within:border-accent/50 transition-colors">
-            <span className="text-[10px] text-muted font-bold uppercase tracking-wider whitespace-nowrap">Target Target:</span>
+            <span className="text-[10px] text-muted font-bold uppercase tracking-wider whitespace-nowrap">Select Target:</span>
             <select
               value={selectedTarget}
               onChange={e => setSelectedTarget(e.target.value)}
@@ -333,9 +336,18 @@ export function GapAnalysisPage() {
       </header>
 
       {error && (
-        <div className="p-4 bg-bad/10 border border-bad/20 rounded-lg text-bad text-sm flex items-center gap-3">
-          <Icon name="alertTriangle" size={18} />
-          {error}
+        <div className="p-4 bg-bad/10 border border-bad/20 rounded-xl text-bad text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg backdrop-blur-md animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <Icon name="alertTriangle" size={18} className="text-bad animate-bounce" />
+            <span className="font-medium">{error}</span>
+          </div>
+          <button
+            onClick={() => loadData()}
+            className="btn btn-secondary px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-bad/10 hover:bg-bad/20 text-bad border border-bad/25 hover:border-bad/40 rounded-lg transition-all duration-200 flex items-center gap-1.5 self-end sm:self-auto"
+          >
+            <Icon name="refresh" size={12} />
+            Try Again
+          </button>
         </div>
       )}
 
@@ -498,7 +510,7 @@ export function GapAnalysisPage() {
             </tbody>
           </table>
           
-          {filtered.length === 0 && (
+          {filtered.length === 0 && !error && (
             <div className="py-20">
               <EmptyState 
                 title="No modules found" 

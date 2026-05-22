@@ -37,22 +37,24 @@
 .hero-stat,
 .quick-link-card,
 .stage-progress-item,
-.job-stage-card {
+.job-stage-card,
+.card {
   transition:
-    transform var(--motion-base) ease,
-    border-color var(--motion-base) ease,
-    background-color var(--motion-base) ease,
-    box-shadow var(--motion-base) ease;
+    transform var(--motion-base) var(--easing-out),
+    border-color var(--motion-base) var(--easing-out),
+    background-color var(--motion-base) var(--easing-out),
+    box-shadow var(--motion-base) var(--easing-out);
 }
 
 .pipeline-timeline-node:hover,
 .hero-stat:hover,
 .quick-link-card:hover,
 .stage-progress-item:hover,
-.job-stage-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--line-strong);
-  box-shadow: var(--shadow-glow-sm);
+.job-stage-card:hover,
+.card:hover {
+  transform: translateY(-2px) scale(1.005);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border));
+  box-shadow: 0 12px 32px -5px rgba(0, 0, 0, 0.5), 0 0 20px -3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .stage-theater-node--error .stage-theater-node-label {
