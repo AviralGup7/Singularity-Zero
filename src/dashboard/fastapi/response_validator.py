@@ -30,7 +30,7 @@ def _is_json_response(response: Response) -> bool:
     """Check if the response is a JSON response."""
     content_type = response.headers.get("content-type", "")
     return (
-        "application/json" in content_type or content_type.startswith("text/event-stream") is False
+        "application/json" in content_type or not content_type.startswith("text/event-stream")
     ) and not any(
         response.url.path.startswith(p)
         for p in NON_JSON_PATHS

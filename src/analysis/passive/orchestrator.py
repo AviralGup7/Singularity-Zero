@@ -43,7 +43,7 @@ def run_passive_scanners(
         context dict with urls and responses for downstream use).
     """
     analysis_config = config.analysis or {}
-    if analysis_config.get("enabled", True) is False:
+    if not analysis_config.get("enabled", True):
         return {name: [] for name in PASSIVE_CHECK_NAMES}, {"urls": [], "responses": []}
 
     timeout_seconds = int(analysis_config.get("timeout_seconds", config.http_timeout_seconds))

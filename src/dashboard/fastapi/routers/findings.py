@@ -418,6 +418,24 @@ async def get_findings_timeline(
 
 
 @router.get(
+    "/{finding_id}",
+    response_model=dict[str, Any],
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    summary="Get individual finding details",
+)
+async def get_finding_detail(
+    finding_id: str,
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> dict[str, Any]:
+    """Retrieve full details for a specific finding by ID."""
+    finding = _find_finding_by_id(services.query.output_root, finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    return finding
+
+
+@router.get(
     "/{finding_id}/remediation",
     response_model=dict[str, Any],
     responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},

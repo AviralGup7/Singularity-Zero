@@ -40,11 +40,13 @@ export {
   getFPPatterns,
   getLearningKPIs,
   getLearningDbStats,
+  getFeedbackEvents,
 } from './learning';
 export type {
   ThresholdHistoryEntry,
   FPPattern,
   LearningKPIs,
+  FeedbackEventEntry,
 } from './learning';
 export { exportTargetFindings, exportLatestFindings } from './export';
 export {

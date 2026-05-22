@@ -105,12 +105,30 @@ export function CockpitPage() {
   const target = searchParams.get('target') || '';
   const run = searchParams.get('run') || undefined;
   const jobId = searchParams.get('job_id') || undefined;
+  const focusFindingId = searchParams.get('focus') || '';
 
   const [nodes, setNodes] = useState<CockpitNode[]>([]);
   const [edges, setEdges] = useState<CockpitEdge[]>([]);
   const [chains, setChains] = useState<AttackChain[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (focusFindingId && nodes.length > 0) {
+      // Find the node that matches this finding ID
+      // Finding nodes often have IDs like "finding:HASH"
+      const targetNode = nodes.find(n => 
+        n.id === focusFindingId || 
+        n.id === `finding:${focusFindingId}` ||
+        n.metadata?.finding_id === focusFindingId
+      );
+      if (targetNode) {
+        setSelectedNodeId(targetNode.id);
+        setSidebarOpen(true);
+        setSidebarTab('intel');
+      }
+    }
+  }, [focusFindingId, nodes]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'intel' | 'chains' | 'forensics'>('intel');
@@ -708,10 +726,28 @@ export function CockpitPage() {
                     <h5 className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Collaboration</h5>
                     <div className="mb-6 space-y-3">
                       {notes.map((note) => (
-                        <div key={note.id} className="rounded border border-white/5 bg-white/5 p-4">
+                        <div key={note.id} className="rounded border border-white/5 bg-white/5 p-4 group">
                           <div className="mb-2 flex items-center justify-between font-mono text-[9px] uppercase opacity-40">
                             <span className="text-accent">{note.author}</span>
-                            <span>{new Date(note.created_at).toLocaleDateString()}</span>
+                            <div className="flex items-center gap-2">
+                               <span>{new Date(note.created_at).toLocaleDateString()}</span>
+                               <button 
+                                 className="text-bad opacity-0 group-hover:opacity-100 transition-opacity"
+                                 onClick={async () => {
+                                   if (!target) return;
+                                   try {
+                                     const { deleteNote } = await import('@/api/notes');
+                                     await deleteNote(target, note.id);
+                                     getNotes(target).then((res) => setNotes(res.notes));
+                                     toast.success('Note removed');
+                                   } catch {
+                                     toast.error('Failed to remove note');
+                                   }
+                                 }}
+                               >
+                                 <Icon name="x" size={10} />
+                               </button>
+                            </div>
                           </div>
                           <p className="text-xs leading-relaxed text-text/80">{note.note}</p>
                         </div>

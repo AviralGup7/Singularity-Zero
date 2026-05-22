@@ -350,8 +350,8 @@ class GhostVFS:
                     if os.path.exists(temp_file_path):
                         try:
                             os.remove(temp_file_path)
-                        except Exception:  # noqa: S110
-                            pass
+                        except Exception as e:
+                            logger.debug("Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, e)
                     raise
 
                 count += 1
@@ -448,8 +448,9 @@ class GhostVFS:
             if os.path.exists(temp_file_path):
                 try:
                     os.remove(temp_file_path)
-                except Exception:  # noqa: S110
-                    pass
+                except Exception as e:
+                    logger.debug("Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, e)
+
             raise
 
         logger.info(

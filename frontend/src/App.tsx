@@ -92,6 +92,8 @@ export default function App() {
           <Route path="/reports" element={<RouteGuard><ReportLibraryPage /></RouteGuard>} />
           <Route path="/access-logs" element={<RouteGuard><AccessLogsPage /></RouteGuard>} />
           <Route path="/evidence-custody/:evidenceId" element={<RouteGuard><EvidenceCustodyViewerWrapper /></RouteGuard>} />
+          <Route path="/self-healing" element={<RouteGuard><SelfHealingPage /></RouteGuard>} />
+          <Route path="/evasion" element={<RouteGuard><EvasionMetricsPage /></RouteGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppLayout>

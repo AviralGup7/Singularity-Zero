@@ -541,6 +541,15 @@ export function TargetsPage() {
                           <Link to={`/cockpit?target=${target.name}`} className="btn btn-small btn-accent-outline" title="View 3D Threat Graph">
                             Cockpit
                           </Link>
+                          <a 
+                            href={`/api/reports/compliance/pdf?target=${encodeURIComponent(target.name)}&token=${sessionStorage.getItem('auth_token') || ''}`} 
+                            className="btn btn-small btn-secondary" 
+                            title="Download SOC 2 / PCI-DSS Attestation"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Compliance
+                          </a>
                           <button 
                             className="btn btn-small btn-secondary" 
                             title="Export CSV Findings"

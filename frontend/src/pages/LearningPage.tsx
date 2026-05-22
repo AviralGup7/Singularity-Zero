@@ -23,11 +23,13 @@ import {
   getFPPatterns,
   getLearningKPIs,
   getThresholdHistory,
+  getFeedbackEvents,
 } from '@/api/client';
 import type {
   FPPattern,
   LearningKPIs,
   ThresholdHistoryEntry,
+  FeedbackEventEntry,
 } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 
@@ -35,20 +37,23 @@ export function LearningPage() {
   const [kpis, setKpis] = useState<LearningKPIs | null>(null);
   const [thresholds, setThresholds] = useState<ThresholdHistoryEntry[]>([]);
   const [fpPatterns, setFpPatterns] = useState<FPPattern[]>([]);
+  const [feedbackEvents, setFeedbackEvents] = useState<FeedbackEventEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
-      const [kpiRes, thRes, fpRes] = await Promise.all([
+      const [kpiRes, thRes, fpRes, feedbackRes] = await Promise.all([
         getLearningKPIs(undefined, signal),
         getThresholdHistory(signal),
         getFPPatterns(true, signal),
+        getFeedbackEvents(50, undefined, signal),
       ]);
       setKpis(kpiRes);
       setThresholds(thRes.reverse()); // Chronological for chart
       setFpPatterns(fpRes);
+      setFeedbackEvents(feedbackRes);
       setError(null);
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== 'AbortError') {
@@ -203,6 +208,61 @@ export function LearningPage() {
                 </div>
               ))
             )}
+          </div>
+        </div>
+
+        {/* Recent Feedback Events */}
+        <div className="lg:col-span-3 card p-6 space-y-4">
+          <h3 className="text-sm font-bold flex items-center gap-2">
+            <Database size={16} /> Recent Neural Feedback Events
+          </h3>
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase tracking-widest text-[9px]">
+                  <th className="py-2">Time</th>
+                  <th className="py-2">Category</th>
+                  <th className="py-2">Source</th>
+                  <th className="py-2">Signal ID</th>
+                  <th className="py-2">Status Code</th>
+                  <th className="py-2">True Pos Prob</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feedbackEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[var(--muted)] italic">
+                      No feedback events recorded recently.
+                    </td>
+                  </tr>
+                ) : (
+                  feedbackEvents.map((event) => (
+                    <tr key={event.feedback_id} className="border-b border-[var(--border)] hover:bg-white/5 transition-colors">
+                      <td className="py-2 text-[10px] text-[var(--muted)] whitespace-nowrap">
+                        {new Date(event.recorded_at).toLocaleString()}
+                      </td>
+                      <td className="py-2 font-mono text-[10px] text-[var(--text)]">
+                        {event.category}
+                      </td>
+                      <td className="py-2 text-[10px]">
+                        <span className={`px-2 py-0.5 rounded ${event.source === 'manual_triage' ? 'bg-[var(--accent)]/10 text-[var(--accent)]' : 'bg-white/5 text-[var(--muted)]'}`}>
+                          {event.source}
+                        </span>
+                      </td>
+                      <td className="py-2 font-mono text-[9px] text-[var(--muted)] truncate max-w-[120px]" title={event.signal_id || ''}>
+                        {event.signal_id || 'N/A'}
+                      </td>
+                      <td className="py-2">
+                        {event.status_code || '-'}
+                      </td>
+                      <td className="py-2 font-mono text-[10px]">
+                        {event.true_positive_probability != null ? `${(event.true_positive_probability * 100).toFixed(1)}%` : '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

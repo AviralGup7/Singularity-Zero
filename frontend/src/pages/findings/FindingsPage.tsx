@@ -45,9 +45,29 @@ export function FindingsPage() {
         }
       });
     }
+
+    const fid = searchParams.get('finding');
+    if (fid) {
+      // Check if we already have it in the list
+      const existing = findingsData?.findings.find(f => f.id === fid);
+      if (existing) {
+        setDetailFinding(existing);
+      } else {
+        // Fetch from the new singular endpoint
+        import('../../api/client').then(async ({ apiClient }) => {
+          try {
+            const { data: finding } = await apiClient.get<Finding>(`/api/findings/${fid}`);
+            if (mounted) setDetailFinding(finding);
+          } catch {
+            console.error('Failed to deep-link to finding:', fid);
+          }
+        });
+      }
+    }
+
     return () => { mounted = false; };
    
-  }, [searchParams]);
+  }, [searchParams, findingsData?.findings]);
 
   // --- Overhaul: Off-Main-Thread Processing ---
    

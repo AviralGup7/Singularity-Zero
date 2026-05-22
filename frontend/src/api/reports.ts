@@ -55,6 +55,13 @@ export async function getReportLibrary(signal?: AbortSignal): Promise<ReportLibr
   return cachedGet<ReportLibraryResponse>('/api/reports/library', { signal, bypassCache: true });
 }
 
+export function getCompliancePdfUrl(target: string): string {
+  const params = new URLSearchParams({ target });
+  const token = sessionStorage.getItem('auth_token');
+  if (token) params.set('token', token);
+  return `/api/reports/compliance/pdf?${params.toString()}`;
+}
+
 export async function exportFindings(options: { format: 'csv' | 'json'; signal?: AbortSignal; target?: string }): Promise<Blob> {
   const target = options.target || 'all';
   const { data } = await apiClient.get(`/api/export/findings/${target}`, {

@@ -43,12 +43,14 @@ function useNavSections(): NavSection[] {
         { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
         { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
         { path: '/learning', label: 'Autonomous Learning', icon: 'zap' },
+        { path: '/evasion', label: 'Evasion Metrics', icon: 'shield' },
       ],
     },
     {
       label: t('navigation.system'),
       items: [
         { path: '/mesh', label: 'Mesh Command', icon: 'server' },
+        { path: '/self-healing', label: 'Self-Healing', icon: 'zap' },
         { path: '/tracing', label: 'Tracing', icon: 'activity' },
         { path: '/cache-management', label: 'Cache', icon: 'database' },
         { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
