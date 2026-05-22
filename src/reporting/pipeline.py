@@ -196,6 +196,7 @@ def build_summary(
         "counts": counts,
         "scan_quality": scan_quality,
         "compliance": compliance_report,
+        "findings": merged_findings,
         "high_value_endpoints": ranked_priority_urls[:20],
         "prioritized_endpoints": endpoint_intelligence[:20],
         "attack_graph": build_attack_graph(

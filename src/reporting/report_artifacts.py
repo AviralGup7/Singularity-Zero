@@ -39,6 +39,7 @@ SIGNED_FILENAMES = [
     "report.json",
     "sbom.cdx.json",
     "compliance_coverage.json",
+    "compliance_maturity.json",
     "attestation.html",
     "attestation.pdf",
 ]
@@ -216,6 +217,10 @@ def _load_or_create_private_key(key_dir: Path) -> Ed25519PrivateKey:
             NoEncryption(),
         )
     )
+    try:
+        os.chmod(key_path, 0o600)
+    except Exception:
+        pass
     return private_key
 
 
@@ -237,7 +242,14 @@ def _previous_manifest_hash(run_dir: Path) -> str:
 
 
 def _pdf_escape(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    return (
+        text.replace("\\", "\\\\")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+    )
 
 
 def _write_simple_pdf(path: Path, lines: list[str]) -> None:
@@ -337,9 +349,17 @@ def write_report_package(
         compliance_report=summary.get("compliance", {}),
     )
     (run_dir / "attestation.html").write_text(attestation_html, encoding="utf-8")
-    _write_simple_pdf(
-        run_dir / "attestation.pdf", _attestation_pdf_lines(target_name, run_id, report)
-    )
+    pdf_path = None
+    try:
+        from src.reporting.compliance_pdf import generate_compliance_pdf
+        pdf_path = generate_compliance_pdf(summary=summary, run_dir=run_dir)
+    except Exception:
+        pass
+
+    if pdf_path is None or not pdf_path.exists():
+        _write_simple_pdf(
+            run_dir / "attestation.pdf", _attestation_pdf_lines(target_name, run_id, report)
+        )
 
     private_key = _load_or_create_private_key(run_dir.parent)
     public_key = private_key.public_key()
