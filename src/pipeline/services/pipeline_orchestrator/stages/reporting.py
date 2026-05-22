@@ -192,6 +192,47 @@ async def run_reporting(
             ctx.merged_findings,
         )
 
+        # Wire FPWatchlistManager and Compliance GRC Alerts (Phase 9.2 & Phase 6.2)
+        try:
+            from src.recon.fp_watchlist import FPWatchlistManager
+            from src.infrastructure.notifications.manager import NotificationManager, ManagerConfig
+
+            watchlist_dir = ctx.output_store.run_dir.parent
+            watchlist_path = watchlist_dir / "regression-watchlist.json"
+
+            fp_manager = FPWatchlistManager(watchlist_path=watchlist_path)
+            
+            # Initialize a NotificationManager for dispatching
+            notification_manager = NotificationManager(ManagerConfig())
+            await notification_manager.initialize()
+
+            # Check for false-positive re-emergence and alert
+            fp_manager.check_reemergence(ctx.reportable_findings, notification_manager)
+
+            # Serialize new false positives to watchlist in the target subdirectory
+            fp_manager.serialize_from_findings(ctx.reportable_findings, watchlist_dir)
+
+            # GRC Compliance alerts
+            compliance = summary.get("compliance", {})
+            framework_coverage = compliance.get("framework_coverage", {})
+            for framework, controls in framework_coverage.items():
+                for control_id, data in controls.items():
+                    maturity = data.get("maturity", "PASS")
+                    if maturity in ("FAIL", "AT_RISK", "PARTIAL"):
+                        rec = data.get("recommendation", "No recommendation recorded.")
+                        await notification_manager.send_compliance_alert(
+                            framework=framework,
+                            control_id=control_id,
+                            maturity=maturity,
+                            recommendation=rec,
+                            target=config.target_name,
+                            correlation_id=ctx.run_id,
+                        )
+
+            await notification_manager.close()
+        except Exception as exc:
+            logger.warning("Failed to run false-positive watchlist manager check or GRC alerts: %s", exc)
+
         await asyncio.to_thread(
             generate_run_report,
             ctx.output_store.run_dir,
@@ -206,6 +247,8 @@ async def run_reporting(
             "report.html",
             "report.json",
             "sbom.cdx.json",
+            "compliance_coverage.json",
+            "compliance_maturity.json",
             "attestation.html",
             "attestation.pdf",
             "report_manifest.json",

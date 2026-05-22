@@ -238,48 +238,73 @@ class LearningIntegration:
             scoring = ctx.setdefault("scoring", {})
             scoring["target_boosts"] = adaptations["target_boosts"]
             scoring["target_suppressions"] = adaptations.get("target_suppressions", {})
-            if config and hasattr(config, "scoring"):
-                config.scoring["target_boosts"] = adaptations["target_boosts"]
-                config.scoring["target_suppressions"] = adaptations.get("target_suppressions", {})
 
         # Apply plugin overrides
         if "plugin_enabled_overrides" in adaptations:
             analysis = ctx.setdefault("analysis", {})
             analysis["plugin_overrides"] = adaptations["plugin_enabled_overrides"]
-            if config and hasattr(config, "analysis"):
-                config.analysis["plugin_overrides"] = adaptations["plugin_enabled_overrides"]
 
         if "plugin_intensity_overrides" in adaptations:
             analysis = ctx.setdefault("analysis", {})
             analysis["plugin_intensity"] = adaptations["plugin_intensity_overrides"]
-            if config and hasattr(config, "analysis"):
-                config.analysis["plugin_intensity"] = adaptations["plugin_intensity_overrides"]
 
         # Apply threshold adjustments
         if "threshold_adjustments" in adaptations:
             decision = ctx.setdefault("decision", {})
             decision["threshold_deltas"] = adaptations["threshold_adjustments"]
-            if config and hasattr(config, "decision"):
-                config.decision["threshold_deltas"] = adaptations["threshold_adjustments"]
 
         # Apply nuclei template boosts
         if "nuclei_template_boosts" in adaptations:
             ctx["nuclei_template_boosts"] = adaptations["nuclei_template_boosts"]
-            if config and hasattr(config, "nuclei"):
-                config.nuclei["template_boosts"] = adaptations["nuclei_template_boosts"]
 
         # Apply nuclei adaptive tags override
         if "nuclei_adaptive_tags_override" in adaptations:
             nuclei = ctx.setdefault("nuclei", {})
             nuclei["adaptive_tags"] = adaptations["nuclei_adaptive_tags_override"]
-            if config and hasattr(config, "nuclei"):
-                config.nuclei["adaptive_tags"] = adaptations["nuclei_adaptive_tags_override"]
 
         # Queue active exploitation targets
         if "active_exploit_queue" in adaptations:
             ctx["active_exploit_queue"] = adaptations["active_exploit_queue"]
-            if config:
-                setattr(config, "active_exploit_queue", adaptations["active_exploit_queue"])
+
+        if config:
+            from src.core.config.loader import apply_adaptive_overrides
+            # Construct nested adaptive_dict for merge logic
+            adaptive_dict: dict[str, Any] = {}
+
+            scoring_overrides = {}
+            if "target_boosts" in adaptations:
+                scoring_overrides["target_boosts"] = adaptations["target_boosts"]
+            if "target_suppressions" in adaptations:
+                scoring_overrides["target_suppressions"] = adaptations["target_suppressions"]
+            if scoring_overrides:
+                adaptive_dict["scoring"] = scoring_overrides
+
+            analysis_overrides = {}
+            if "plugin_enabled_overrides" in adaptations:
+                analysis_overrides["plugin_overrides"] = adaptations["plugin_enabled_overrides"]
+            if "plugin_intensity_overrides" in adaptations:
+                analysis_overrides["plugin_intensity"] = adaptations["plugin_intensity_overrides"]
+            if analysis_overrides:
+                adaptive_dict["analysis"] = analysis_overrides
+
+            decision_overrides = {}
+            if "threshold_adjustments" in adaptations:
+                decision_overrides["threshold_deltas"] = adaptations["threshold_adjustments"]
+            if decision_overrides:
+                adaptive_dict["decision"] = decision_overrides
+
+            nuclei_overrides = {}
+            if "nuclei_template_boosts" in adaptations:
+                nuclei_overrides["template_boosts"] = adaptations["nuclei_template_boosts"]
+            if "nuclei_adaptive_tags_override" in adaptations:
+                nuclei_overrides["adaptive_tags"] = adaptations["nuclei_adaptive_tags_override"]
+            if nuclei_overrides:
+                adaptive_dict["nuclei"] = nuclei_overrides
+
+            if "active_exploit_queue" in adaptations:
+                adaptive_dict["active_exploit_queue"] = adaptations["active_exploit_queue"]
+
+            apply_adaptive_overrides(config, adaptive_dict)
 
         logger.info(
             "Applied learning adaptations: %d target boosts, %d plugin overrides, "

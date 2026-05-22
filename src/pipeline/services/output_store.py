@@ -148,17 +148,17 @@ class PipelineOutputStore:
         return key
 
     def write_adaptive_config(self, adaptations: dict[str, Any]) -> str:
-        """Write the adaptive config to the output root for the next run (Phase 5.2).
+        """Write the adaptive config to the target subdirectory for the next run (Phase 5.2).
 
-        Writes both to disk at ``<output_root>/config.adaptive.json`` and into
+        Writes both to disk at ``<target_root>/config.adaptive.json`` and into
         the artifact store so the file is available in every retrieval path.
         """
         filename = "config.adaptive.json"
         content = format_json(adaptations)
 
-        # Write to the *output* root (not the per-run target sub-dir) so that
-        # PipelineOutputStore.read_adaptive_config(output_root) can find it.
-        local_path = self.target_root.parent / filename
+        # Write to the target root subdirectory so that
+        # load_adaptive_config(output_dir, target_name) can find it.
+        local_path = self.target_root / filename
         local_path.parent.mkdir(parents=True, exist_ok=True)
         local_path.write_text(content, encoding="utf-8")
 

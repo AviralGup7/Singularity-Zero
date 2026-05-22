@@ -28,16 +28,17 @@ async def get_remediation_plan(
     try:
         # 1. Fetch all findings across all targets
         # Note: In a production mesh, this might be a distributed query.
-        # For now, we aggregate from the local finding store/targets.
-        output_root = services.query.output_root
+        # For now, we aggregate from the target service layer.
+        targets = services.list_targets()
         all_findings = []
+        output_root = services.query.output_root
 
-        if output_root.exists():
-            for entry in sorted(output_root.iterdir(), key=lambda x: x.name.lower()):
-                if not entry.is_dir() or entry.name.startswith("_"):
-                    continue
-
-                target_name = entry.name
+        for target in targets:
+            target_name = target.get("name")
+            if not target_name:
+                continue
+            entry = output_root / target_name
+            if entry.exists():
                 # Look for findings in all run directories
                 run_dirs = [d for d in entry.iterdir() if d.is_dir() and (d / "run_summary.json").exists()]
                 if not run_dirs:

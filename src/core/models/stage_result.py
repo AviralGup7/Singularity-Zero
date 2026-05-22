@@ -153,6 +153,9 @@ class StageResult:
     #: Artifact diff summary comparing current vs previous run results
     diff_summary: dict[str, Any] = field(default_factory=dict)
 
+    #: Run summary dictionary
+    summary: dict[str, Any] = field(default_factory=dict)
+
     # ------------------------------------------------------------------
     # Nuclei scan results
     # ------------------------------------------------------------------
