@@ -42,7 +42,12 @@ class ReconSubdomainTests(unittest.TestCase):
             "http_timeout_seconds": 1,
         }
 
-        with patch("src.recon.subdomains.fetch_crtsh_subdomains", return_value=set()):
+        class FakeResponse:
+            @property
+            def text(self) -> str:
+                return "[]"
+
+        with patch("src.recon.subdomains.requests.get", return_value=FakeResponse()):
             result = enumerate_subdomains(["*.example.com"], config, False)
 
         self.assertEqual(result, {"example.com"})

@@ -72,6 +72,16 @@ def safe_request(
     final_timeout = chameleon_config.get("timeout", DEFAULT_TIMEOUT) if timeout is None else timeout
 
     try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        target = parsed.netloc or parsed.path.split("/")[0] or "unknown"
+    except Exception:
+        target = "unknown"
+
+    input_headers_lower = {k.lower(): v for k, v in (headers or {}).items()}
+    session_id = input_headers_lower.get("x-session-token") or input_headers_lower.get("x-trace-id") or "default"
+
+    try:
         start_time = time.monotonic()
         resp = _SYNC_SESSION.request(
             method=method,
@@ -84,16 +94,56 @@ def safe_request(
         duration_ms = (time.monotonic() - start_time) * 1000
 
         resp_body = resp.text or ""
+        resp_headers = dict(resp.headers)
+        
+        # Real-time evasion telemetry update
+        detected_waf = None
+        try:
+            from src.core.frontier.chameleon import _chameleon
+            cookies = {cookie.name: cookie.value for cookie in resp.cookies} if hasattr(resp, "cookies") else None
+            detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
+            _chameleon._evasion_engine.update_observation(
+                response_status=resp.status_code,
+                body=resp_body,
+                session_id=session_id,
+                target=target,
+                detected_waf=detected_waf,
+            )
+        except Exception as te:
+            logger.debug("Telemetry/Evasion observation feed failed: %s", te)
+
         return {
             "status": resp.status_code,
-            "headers": dict(resp.headers),
+            "headers": resp_headers,
             "body": resp_body[:max_body_length],
             "body_length": len(resp_body),
             "duration_ms": round(duration_ms, 2),
             "success": resp.status_code < 400,
             "url": url,
+            "detected_waf": detected_waf,
         }
     except requests.RequestException as e:
+        # Feed error as potentially a WAF block / failure
+        try:
+            from src.core.frontier.chameleon import _chameleon
+            # Check if there is an error response we can extract
+            err_status = 0
+            err_body = ""
+            err_headers = {}
+            if hasattr(e, "response") and e.response is not None:
+                err_status = getattr(e.response, "status_code", 0)
+                err_body = getattr(e.response, "text", "")
+                err_headers = dict(getattr(e.response, "headers", {}))
+            
+            _chameleon._evasion_engine.update_observation(
+                response_status=err_status or 403,  # default to block if request failed on evasion state
+                body=err_body,
+                session_id=session_id,
+                target=target,
+                detected_waf=None,
+            )
+        except Exception:
+            pass
         return _error_response(str(e), url=url, exc=e)
     except Exception as e:
         return _error_response(str(e), url=url, exc=e)
@@ -141,6 +191,16 @@ async def async_safe_request(
     )
 
     try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        target = parsed.netloc or parsed.path.split("/")[0] or "unknown"
+    except Exception:
+        target = "unknown"
+
+    input_headers_lower = {k.lower(): v for k, v in (headers or {}).items()}
+    session_id = input_headers_lower.get("x-session-token") or input_headers_lower.get("x-trace-id") or "default"
+
+    try:
         start_time = time.monotonic()
         client = _get_async_client(final_verify, final_follow)
         resp = await client.request(
@@ -153,16 +213,55 @@ async def async_safe_request(
         duration_ms = (time.monotonic() - start_time) * 1000
 
         resp_body = resp.text or ""
+        resp_headers = dict(resp.headers)
+
+        # Real-time evasion telemetry update
+        detected_waf = None
+        try:
+            from src.core.frontier.chameleon import _chameleon
+            cookies = {cookie.name: cookie.value for cookie in resp.cookies} if hasattr(resp, "cookies") else None
+            detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
+            _chameleon._evasion_engine.update_observation(
+                response_status=resp.status_code,
+                body=resp_body,
+                session_id=session_id,
+                target=target,
+                detected_waf=detected_waf,
+            )
+        except Exception as te:
+            logger.debug("Telemetry/Evasion observation feed failed: %s", te)
+
         return {
             "status": resp.status_code,
-            "headers": dict(resp.headers),
+            "headers": resp_headers,
             "body": resp_body[:max_body_length],
             "body_length": len(resp_body),
             "duration_ms": round(duration_ms, 2),
             "success": resp.status_code < 400,
             "url": url,
+            "detected_waf": detected_waf,
         }
     except httpx.HTTPError as e:
+        # Feed error as potentially a WAF block / failure
+        try:
+            from src.core.frontier.chameleon import _chameleon
+            err_status = 0
+            err_body = ""
+            err_headers = {}
+            if hasattr(e, "response") and e.response is not None:
+                err_status = getattr(e.response, "status_code", 0)
+                err_body = getattr(e.response, "text", "")
+                err_headers = dict(getattr(e.response, "headers", {}))
+            
+            _chameleon._evasion_engine.update_observation(
+                response_status=err_status or 403,
+                body=err_body,
+                session_id=session_id,
+                target=target,
+                detected_waf=None,
+            )
+        except Exception:
+            pass
         return _error_response(str(e), url=url, exc=e)
     except Exception as e:
         return _error_response(str(e), url=url, exc=e)

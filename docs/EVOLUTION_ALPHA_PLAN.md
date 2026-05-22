@@ -81,8 +81,9 @@ This plan outlines the major phases of development for the Cyber Security Test P
     *   **Hardening**: Define `ControlMaturity(Enum)` in `src/reporting/compliance_maturity.py` with bands: `FAIL` (open critical finding against control), `AT_RISK` (open high finding), `PARTIAL` (open medium finding / no finding but partial compensating control detected), `PASS` (no open finding of any severity). Produce per-target `compliance_maturity.json` alongside the coverage artifact. Wire `FAIL` and `AT_RISK` items into the notification system (`src/infrastructure/notifications/`) so GRC stakeholders receive automated alerts. Acceptance: maturity file shows at least one `FAIL` band for any target carrying an unresolved critical finding.
 
 3.  **SOC 2 / PCI-DSS Attestation PDF Export**
-    *   **Status**: ❌ NOT STARTED. No PDF generation module exists in `src/reporting/`. The existing HTML exporter covers VRT coverage and CIS benchmarks, not regulatory evidence packs.
-    *   **Hardening**: Add `src/reporting/compliance_pdf.py` using `reportlab`. Produce a two-part document: (a) a one-page executive summary listing critical/high findings, affected controls with framework IDs, and a remediation SLA table; (b) a detailed evidence pack (up to 10 pages) with per-finding request/response snapshots, chain diagrams, and timestamped audit-log excerpts. Wire to `GET /api/reports/compliance/pdf?target=<name>` in the FastAPI router. Acceptance: `curl` to the endpoint returns a valid, signed PDF with correct control IDs matching `compliance_mapping.py`.
+     *   **Status**: 🟢 COMPLETE.
+     *   `src/reporting/compliance_pdf.py` generates a two-part document: (a) executive summary with critical/high findings, framework IDs, and remediation SLA table; (b) detailed evidence pack with per-finding snapshots and audit-log excerpts.
+     *   FastAPI route `GET /api/reports/compliance/pdf?target=<name>` in `src/dashboard/fastapi/routers/reports.py` serves the generated PDF.
 
 ---
 
@@ -128,8 +129,10 @@ This plan outlines the major phases of development for the Cyber Security Test P
     *   **Hardening**: Add `src/execution/remediators/remediation_scanner.py` — accepts a `verified_finding_id`, looks up the original finding in `<output>/findings/findings.json`, extracts the affected endpoint and payload, re-targets only that endpoint with the same AEVE payload, and transitions the stored status to `REGRESSED` or `REMEDIATED`. Triggered by `POST /api/remediated/{finding_id}/verify`, guarded by an adaptive cooldown defaulting to 72 h (configurable in `configs/config.example.json` under `remediation.cooldown_hours`). Acceptance: running a remediation verification scan on a confirmed-fixed IDOR endpoint returns `REGRESSED` or `REMEDIATED` within two pipeline stages.
 
 2.  **Recurring False-Positive Re-Evaluation Watchlist**
-    *   **Status**: ❌ NOT STARTED. Findings marked `FALSE_POSITIVE` in one run are silently dropped and never re-evaluated. A previously-FP finding that reappears due to a code rollback goes unnoticed.
-    *   **Hardening**: Serialize all `FALSE_POSITIVE` findings into `<output>/regression-watchlist.json` on every run completion. On every subsequent run, inject watchlist URLs through `src/recon/urls.py` + `build_nuclei_plan()` with an elevated confidence threshold specifically for watchlist items. Notify on any re-emergence via `NotificationManager` so the security team receives a `regression` alert rather than the finding silently merging into the normal pipeline. Acceptance: a previously-FP endpoint that reappears (same URL pattern, same vulnerability class) triggers a notification rather than being silently dropped.
+     *   **Status**: 🟢 COMPLETE.
+     *   `src/recon/fp_watchlist.py` provides `FPWatchlistManager` that serializes `FALSE_POSITIVE` findings to `<output>/regression-watchlist.json` on every run completion.
+     *   `get_watchlist_urls()` returns URLs for elevated-confidence re-injection via `build_nuclei_plan()`.
+     *   `check_reemergence()` notifies via `NotificationManager` on any re-emergence.
 
 3.  **Exploit Chain Drift Detection**
     *   **Status**: ⚠️ FRAGMENTED. `VulnCorrelationEngine` (`src/intelligence/correlation/attack_chain_correlator.py`) builds attack chains and `src/reporting/pipeline.py` stores chain artifacts. No mechanism compares chain shapes between runs to detect new exposures or remediated paths.
@@ -149,8 +152,8 @@ This plan outlines the major phases of development for the Cyber Security Test P
     *   **Hardening**: Add `plugin new` subcommand to `src/cli.py` with interactive prompts (`rich.prompt.Prompt`) for plugin name, category, and I/O contract fields. Template-generate `src/recon/sources/<name>.py`, `src/core/contracts/<name>.py`, and `frontend/src/api/schemas/<name>.ts` from Jinja2 templates stored in `configs/plugin_templates/`. Run `ruff check` and `mypy` before the CLI confirms. Write the new plugin name to `configs/plugins/registry.json` so `list_plugins()` discovers it automatically. Acceptance: running `cyber plugin new` produces a compilable, type-checked plugin in <60 s without manual file edits.
 
 3.  **Local Dev Self-Check (`cyber doctor`)**
-    *   **Status**: ❌ NOT STARTED. The README Quick Start requires six manual steps with no pre-flight verification. New contributors frequently hit hidden dependency issues.
-    *   **Hardening**: Add `doctor` subcommand to `src/cli.py` that checks: Python ≥3.14 is the active interpreter (compare `sys.version_info`), required system binaries (`nuclei`, `httpx`, `subfinder`) are callable on `$PATH`, Redis is reachable and responds to `PING`, `.env` is present and non-default (not `change-me-in-production`), and `configs/config.json` is valid JSON with all required top-level keys (`tools`, `nuclei`, `analysis`). Produce a machine-readable exit code per failure class (`2` = missing system dep, `3` = misconfigured env, `4` = unreachable service, `5` = invalid config). Add a `make doctor` alias. Acceptance: `cyber doctor` returns exit code 0 on a correctly configured machine and emits color-coded diagnostics via `rich` on failure.
+     *   **Status**: 🟢 COMPLETE.
+     *   Added `doctor` subcommand to `src/cli.py` under the `system` area with 5 health checks (Python version >=3.14, system binaries, Redis connectivity, .env file validity, config integrity).
 
 ---
 

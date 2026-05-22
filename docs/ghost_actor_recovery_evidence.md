@@ -8,28 +8,37 @@ The frontier recovery path now uses a single durable rule: every resumed actor s
 
 ## Snapshot Format
 
-`NeuralState.to_crdt_snapshot()` emits `neural-state-crdt-v2`:
+`NeuralState.to_crdt_snapshot()` emits `neural-state-crdt-v2`. Meanwhile, `ActorState` implements **`ghost-actor-snapshot-v3`** to guarantee absolute recovery/migration consistency for workers:
 
-- Full LWW element maps for `subdomains`, `urls`, and `findings`, including tombstones.
-- `last_wal_id` and `applied_wal_ids` so cold-start replay begins after the last consistent cursor.
-- Metadata and creation time for auditability.
-- A stable SHA-256 digest when persisted by `FrontierWAL.persist_snapshot()`.
+- **State Envelope**: Encapsulates target data, applied WAL list (`applied_wal_ids`), and the logical clock cursor.
+- **Compaction Budget Preservation**: Retains active AIMD parameters (`budget_ms`, `min_budget_ms`, `max_budget_ms`, `target_elapsed_ms`) across cluster nodes to prevent runtime reset cycles.
+- **Dynamic Logic Serialization**: Leverages `cloudpickle` (via `mesh_marshal_pickle`) to serialize the custom scan logic function itself (`serialized_logic_fn`), allowing dynamic, runtime worker migration across system boundaries.
+- **Resilient Rehydration**: Unpacking populates fallback values for legacy schemas and dynamically deserializes `serialized_logic_fn`. If deserialization fails or is absent, it seamlessly resolves the logic function via `_LOGIC_REGISTRY` by name.
 
 Legacy value-only snapshots are still accepted by `NeuralState.from_crdt_snapshot()` and `StageResult.restore()`.
 
 ## CRDT Compaction Gating & Radix Sort
 
 To prevent event velocity issues from degrading performance:
-- **AIMD Compaction Budgeting**: A new `CRDTCompactionBudget` class implements Additive Increase / Multiplicative Decrease (AIMD) logic to dynamically adjust the allowed time budget (in milliseconds) based on actual processing latency against target bounds.
-- **Fast-Path Radix Sort**: An $O(N)$ LSD integer-based radix sort `radix_sort_timestamps` is introduced to rapidly sort tombstone elements by their floating-point timestamps without standard comparison-sort overhead.
+- **AIMD Compaction Budgeting**: A `CRDTCompactionBudget` class implements Additive Increase / Multiplicative Decrease (AIMD) logic to dynamically adjust the allowed time budget (in milliseconds) based on actual processing latency against target bounds.
+- **High-Speed Cython Radix Sort**: An $O(N)$ Least Significant Digit (LSD) radix sort is implemented in compiled C-level Cython (`_state_cython.pyx`). It converts timestamps to non-negative integer representation relative to a base and employs an ultra-fast base-256 (byte-level shifting and masking) sorting pass to optimize performance.
+- **Resilient Fallback Import**: Designed a robust multi-level import path to catch compilation / binary loading failures (such as a missing MSVC compiler on Windows nodes) and automatically fall back to the optimized pure-Python `radix_sort_timestamps` algorithm, guaranteeing zero service downtime.
 - **Compaction Gating**: `compact_state()` transparently gates tombstone pruning under the budget, ensuring the system remains responsive.
 
 ## WAL Dual-Commit & CRC64 Integrity
 
 A high-reliability write-ahead logging (WAL) architecture has been deployed:
 - **Dual-Commit Protocol**: `FrontierWAL` performs concurrent appends to both Redis Streams (`xadd`) and a local Append-Only File (AOF) (`local_wal_{run_id}.aof`).
+- **Disk-Level fsync Durability**: Extends the local AOF logging path to perform an explicit buffer flush (`f.flush()`) and OS physical disk commit (`os.fsync(f.fileno())`) on every transaction delta, guaranteeing zero data loss during physical machine crashes. Sync calls are wrapped in robust handlers to gracefully ignore `OSError` on mock/virtual drives.
 - **CRC64 Integrity Checks**: Every log entry payload is stamped with a precomputed CRC64 checksum (with standard pure-Python lookup-table fallback) for rolling data integrity.
 - **Fault-Tolerant Replica Recovery**: During `recover_deltas()`, corrupted entries are detected via CRC64 mismatch. If corruption is found in Redis, the system automatically falls back to reading the local AOF replica (and vice versa), maintaining consistent and clean state transitions.
+
+## Bloom-Aware Smart Cache Routing
+
+To eliminate latency overheads on cache misses across high-velocity scans:
+- **Bypassing Read Operations**: In `CacheManager.get` and `CacheManager.exists`, the manager first checks the active `NeuralBloomFilter` / `BloomMeshSynchronizer`.
+- **Zero-Latency Exit**: If a qualified key is not present in the Bloom filter, the manager immediately records a cache miss and returns the default/False value, completely bypassing slow database operations on L2 (SQLite/Redis) and archival L3 (File) backend disk tiers.
+- **Automatic Populating**: When writing values via `CacheManager.set`, keys are automatically added to the Bloom filter to prevent subsequent false-negative routing.
 
 ## Process Pool ResourceWatchdog & Binary IPC
 

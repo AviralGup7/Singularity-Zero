@@ -2,6 +2,10 @@
 
 Parses JSON configuration files into typed Config dataclass instances
 with validation and default value handling.
+
+Also provides adaptive-config helpers for Phase 5.2: loading persisted
+learning adaptations from ``config.adaptive.json`` and shallow-merging them
+on top of the base configuration object.
 """
 
 import json
@@ -14,6 +18,12 @@ from src.core.contracts.pipeline import CONFIG_DEFAULTS
 from src.core.models import Config
 
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::([^}]*))?\}")
+
+# Config fields whose values are themselves dicts — adaptive overrides for
+# these fields are merged key-by-key rather than replacing the whole sub-dict.
+_NESTED_MERGE_FIELDS: frozenset[str] = frozenset(
+    {"scoring", "analysis", "nuclei"}
+)
 
 
 def _interpolate_env_vars(value: str) -> str:
@@ -121,3 +131,61 @@ def _positive_int(value: object, name: str) -> int:
     if parsed <= 0:
         raise ValueError(f"Configuration field '{name}' must be greater than zero.")
     return parsed
+
+
+def _merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Shallow-merge *override* keys into a copy of *base*.
+
+    Only top-level keys from *override* are applied; sub-values are
+    replaced entirely rather than recursively merged.
+
+    Args:
+        base: The base dictionary to merge into.
+        override: The dictionary whose keys take precedence.
+
+    Returns:
+        A new dictionary with merged contents.
+    """
+    return {**base, **override}
+
+
+def apply_adaptive_overrides(config: Config, adaptive_dict: dict[str, Any]) -> Config:
+    """Shallow-merge adaptive-learning overrides into an existing *config*.
+
+    For the three nested-section fields ``scoring``, ``analysis``, and
+    ``nuclei`` the adaptive dict values are merged on a per-key basis
+    so individual sub-settings can be adjusted without wiping the rest
+    of the section.  All other fields are replaced directly.
+
+    The original *config* object is modified **in place** and also
+    returned for convenience.
+
+    Args:
+        config: The ``Config`` dataclass instance produced by
+            :func:`load_config`.
+        adaptive_dict: The deserialised ``config.adaptive.json`` payload,
+            typically the dict returned by
+            ``PipelineOutputStore.read_adaptive_config()``.
+
+    Returns:
+        The same *config* instance with adaptive overrides applied.
+    """
+    if not adaptive_dict:
+        return config
+
+    for field_name in adaptive_dict:
+        value = adaptive_dict[field_name]
+        if field_name in _NESTED_MERGE_FIELDS:
+            current = getattr(config, field_name, {})
+            if not isinstance(current, dict):
+                current = {}
+            if isinstance(value, dict):
+                merged = _merge_dict(current, value)
+                setattr(config, field_name, merged)
+            else:
+                # Non-dict override on a nested field — replace outright.
+                setattr(config, field_name, value)
+        elif hasattr(config, field_name):
+            setattr(config, field_name, value)
+
+    return config

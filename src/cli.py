@@ -9,7 +9,10 @@ pipeline execution, and system maintenance.
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -104,6 +107,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sys_sub = sys_area.add_subparsers(dest="cmd", required=True)
 
     sys_sub.add_parser("status", help="Check infrastructure health (Redis, DB, Workers).")
+    sys_sub.add_parser("doctor", help="Run environment and configuration health checks.")
     cleanup = sys_sub.add_parser("cleanup", help="Purge old artifacts and checkpoints.")
     cleanup.add_argument("--days", type=int, default=7, help="Retention period in days")
 
@@ -163,7 +167,7 @@ def handle_scan(args: argparse.Namespace) -> int:
     if args.dry_run:
         argv.append("--dry-run")
 
-    return run_pipeline(argv)
+    return run_pipeline(argv)  # type: ignore[no-any-return]
 
 
 def handle_status() -> None:
@@ -203,6 +207,175 @@ def handle_status() -> None:
     console.print(table)
 
 
+def handle_doctor() -> int:
+    """Run environment and configuration health checks."""
+    root = Path.cwd()
+    checks: list[tuple[str, str, str]] = []  # (label, status_markup, detail)
+    exit_code: int = 0
+
+    # ── Check 1: Python version ──────────────────────────────────
+    py_tag = "[success]PASS[/success]"
+    py_detail = f"v{sys.version.split()[0]}"
+    if sys.version_info < (3, 14):
+        py_tag = "[error]FAIL[/error]"
+        py_detail = (
+            f"Python >= 3.14 required, found {sys.version.split()[0]}"
+        )
+        if exit_code == 0:
+            exit_code = 2
+    checks.append(("Python Version", py_tag, py_detail))
+
+    # ── Check 2: System binaries ─────────────────────────────────
+    required_bins = ["nuclei", "httpx", "subfinder"]
+    missing_bins: list[str] = []
+    for binary in required_bins:
+        bin_path = shutil.which(binary)
+        if bin_path is None:
+            missing_bins.append(binary)
+    if missing_bins:
+        detail = f"{', '.join(missing_bins)} not found on PATH"
+        checks.append(("System Binaries", "[error]FAIL[/error]", detail))
+        if exit_code == 0:
+            exit_code = 2
+    else:
+        version_parts: list[str] = []
+        for binary in required_bins:
+            try:
+                _args: list[str] = [binary, "--version"]
+                result = subprocess.run(  # noqa: S603
+                    _args,
+                    capture_output=True,
+                    text=True,
+                    shell=False,
+                    timeout=5,
+                )
+                ver = " ".join(
+                    (result.stdout or result.stderr).strip().splitlines()
+                )
+                version_parts.append(f"{binary} {ver.split()[0] if ver else '?'}")
+            except Exception:
+                version_parts.append(f"{binary} ?")
+        checks.append(
+            ("System Binaries", "[success]PASS[/success]", "; ".join(version_parts))
+        )
+
+    # ── Check 3: Redis connectivity ──────────────────────────────
+    redis_detail = ""
+    try:
+        import redis as _redis
+
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        r = _redis.from_url(redis_url)
+        r.ping(timeout=3)
+        redis_detail = f"Connected to {r.connection_pool.connection_kwargs['host']}"
+        checks.append(("Redis Connectivity", "[success]PASS[/success]", redis_detail))
+    except Exception as exc:
+        redis_detail = f"Redis not reachable: {exc}"
+        checks.append(("Redis Connectivity", "[error]FAIL[/error]", redis_detail))
+        if exit_code == 0:
+            exit_code = 4
+
+    # ── Check 4: .env file ────────────────────────────────────────
+    env_path = root / ".env"
+    env_detail = ""
+    if not env_path.exists() or not env_path.is_file():
+        env_detail = f".env file not found at {env_path}"
+        checks.append((".env File", "[error]FAIL[/error]", env_detail))
+        if exit_code == 0:
+            exit_code = 3
+    else:
+        try:
+            content = env_path.read_text(encoding="utf-8", errors="replace")
+            bad_defaults = [
+                "change-me-in-production",
+                "REPLACE_WITH_SECURE_USERNAME",
+                "REPLACE_WITH_SECURE_PASSWORD",
+            ]
+            found_bad = [
+                line
+                for line in content.splitlines()
+                if any(placeholder in line for placeholder in bad_defaults)
+            ]
+            if found_bad:
+                env_detail = ".env contains default/placeholder values"
+                checks.append(
+                    (".env File", "[error]FAIL[/error]", env_detail)
+                )
+                if exit_code == 0:
+                    exit_code = 3
+            else:
+                env_detail = f"Present and non-default ({env_path})"
+                checks.append(
+                    (".env File", "[success]PASS[/success]", env_detail)
+                )
+        except OSError as exc:
+            env_detail = f".env file not readable: {exc}"
+            checks.append((".env File", "[error]FAIL[/error]", env_detail))
+            if exit_code == 0:
+                exit_code = 3
+
+    # ── Check 5: Config integrity ────────────────────────────────
+    cfg_path = root / "configs" / "config.json"
+    cfg_detail = ""
+    if not cfg_path.exists() or not cfg_path.is_file():
+        cfg_detail = f"configs/config.json not found at {cfg_path}"
+        checks.append(("Config Integrity", "[error]FAIL[/error]", cfg_detail))
+        if exit_code == 0:
+            exit_code = 5
+    else:
+        try:
+            cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            cfg_detail = f"configs/config.json is not valid JSON: {exc}"
+            checks.append(("Config Integrity", "[error]FAIL[/error]", cfg_detail))
+            if exit_code == 0:
+                exit_code = 5
+        else:
+            required_keys = [
+                "target_name",
+                "output_dir",
+                "tools",
+                "http_timeout_seconds",
+                "nuclei",
+            ]
+            missing_keys = [k for k in required_keys if k not in cfg_data]
+            if missing_keys:
+                cfg_detail = (
+                    f"configs/config.json missing required keys: {', '.join(missing_keys)}"
+                )
+                checks.append(
+                    ("Config Integrity", "[error]FAIL[/error]", cfg_detail)
+                )
+                if exit_code == 0:
+                    exit_code = 5
+            else:
+                cfg_detail = "Valid JSON with all required keys"
+                checks.append(
+                    ("Config Integrity", "[success]PASS[/success]", cfg_detail)
+                )
+
+    # ── Print results table ──────────────────────────────────────
+    table = Table(title="Cyber Doctor Health Report")
+    table.add_column("Check", style="cyan")
+    table.add_column("Status", justify="center")
+    table.add_column("Detail", style="dim")
+    for label, status, detail in checks:
+        table.add_row(label, status, detail)
+    console.print(table)
+
+    if exit_code == 0:
+        console.print("[success]PASS[/success] All doctor checks passed.")
+    else:
+        console.print(
+            Panel(
+                "[error]FAIL[/error] One or more doctor checks failed.",
+                title="Doctor Summary",
+            )
+        )
+
+    return exit_code
+
+
 def main() -> int:
     _ensure_repo_root()
     _print_banner()
@@ -229,6 +402,8 @@ def main() -> int:
             if args.cmd == "status":
                 handle_status()
                 return 0
+            elif args.cmd == "doctor":
+                return handle_doctor()
             elif args.cmd == "cleanup":
                 console.print(
                     "[warning]Cleanup logic not yet fully migrated to unified CLI.[/warning]"

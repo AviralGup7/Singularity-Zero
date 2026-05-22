@@ -844,3 +844,36 @@ class TestCacheManager(CacheTestBase):
         assert manager.get("root", namespace="deps") is None
         assert manager.get("child", namespace="deps") is None
         manager.close()
+
+    def test_bloom_aware_routing(self) -> None:
+        from src.core.frontier.bloom import NeuralBloomFilter
+        config = CacheConfig(
+            enabled=True,
+            enable_l1=True,
+            enable_l2=True,
+            enable_l3=False,
+            l2_backend="sqlite",
+            sqlite_db_path=str(self.tmp_path / "cache.db"),
+            cache_dir=str(self.tmp_path / "cache_files"),
+            warm_on_init=False,
+            log_cache_ops=False,
+        )
+        manager = CacheManager(config)
+        
+        bf = NeuralBloomFilter(capacity=1000, error_rate=0.01)
+        manager.set_bloom_filter(bf)
+        
+        assert manager.bloom_filter is bf
+        
+        assert manager.get("non_existent", namespace="test") is None
+        
+        manager.set("k1", "v1", namespace="test")
+        full_key = manager._make_key("k1", "test")
+        assert full_key in bf
+        
+        assert manager.get("k1", namespace="test") == "v1"
+        
+        assert manager.exists("non_existent", namespace="test") is False
+        assert manager.exists("k1", namespace="test") is True
+        
+        manager.close()

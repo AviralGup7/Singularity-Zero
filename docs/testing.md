@@ -48,6 +48,11 @@ Testing should provide fast, reliable feedback to developers and CI. Favor many 
 - Use HTTP-level recording tools (VCR, `httpx_mock`) for external HTTP services to make tests repeatable.
 - Prefer test doubles and fixtures over running real third-party tools in CI to avoid flakiness and long runtimes.
 
+### 🔒 Hermetic Unit Testing & Plugin Mocking Policy
+When writing unit tests for modules that register dynamic plugins (such as subdomain enumeration or passive collectors under `src.recon.subdomains`), follow these critical guidelines:
+- **Avoid high-level patches**: Do not patch high-level module functions (like `fetch_crtsh_subdomains`) if they are registered into a global plugin registry loop at module import time. The registry will retain a reference to the original unpatched function object, causing the tests to bypass the mock and execute live HTTP requests.
+- **Intercept the concrete low-level interface**: Always patch the underlying low-level interface library or function. For instance, patch `requests.get` inside the plugin's namespace (e.g., `"src.recon.subdomains.requests.get"`) to return a mock response. This guarantees that all execution paths are safely intercepted, preventing accidental external network traffic and keeping the unit test suite extremely fast and 100% hermetic.
+
 ## How To Test Without Real Binaries
 
 - Create small fake executables in a test `bin/` directory and prepend that directory to `PATH` in a fixture.

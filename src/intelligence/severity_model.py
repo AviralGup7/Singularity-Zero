@@ -420,10 +420,12 @@ class CalibratedSeverityModel:
             ),
             self._smoothed_rate(self.param_rates.get(parameter_type, (0, 0)), strength=0.22),
         ]
-        support = _clamp(sum(rate[1] for rate in rates) / 80.0)
-        historical_tp = sum(rate[0] * rate[1] for rate in rates) / max(
-            1e-9, sum(rate[1] for rate in rates)
-        )
+        total_support = sum(rate[1] for rate in rates)
+        support = _clamp(total_support / 80.0)
+        if total_support > 0:
+            historical_tp = sum(rate[0] * rate[1] for rate in rates) / total_support
+        else:
+            historical_tp = self.global_tp_rate
         blend = _clamp(0.52 + support * 0.30)
         calibrated = _clamp(raw_probability * blend + historical_tp * (1.0 - blend), 0.01, 0.99)
         return calibrated, {
