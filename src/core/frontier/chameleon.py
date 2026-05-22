@@ -9,6 +9,11 @@ import secrets
 import uuid
 from typing import Any
 
+from src.core.frontier.chameleon_evasion import (
+    ChameleonEvasionEngine,
+    JA3FingerprintModel,
+    TimingPermutator,
+)
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.execution.active_manifest import ActiveCapability, query_active_manifests
 
@@ -75,6 +80,9 @@ class RequestChameleon:
         # Instance copy so subclasses can override without touching class variable
         self._user_agents = list(self._USER_AGENTS)
         self._ja3_signatures = list(self._JA3_SIGNATURES)
+        self._evasion_engine = ChameleonEvasionEngine()
+        self._timing = TimingPermutator()
+        self._ja3 = JA3FingerprintModel()
 
     def mutate_headers(self, base_headers: dict[str, str]) -> dict[str, str]:
         """
@@ -149,13 +157,12 @@ class RequestChameleon:
     def get_stealth_options(self) -> dict[str, Any]:
         """Return advanced stealth parameters for httpx/requests.
         Dynamically adapts based on active False Positive mesh patterns.
+        Enhanced with HMM-driven timing and JA3 fingerprinting.
         """
-        # Default options
         timeout_choices = [10.0, 12.0, 14.0, 15.0, 16.0, 18.0, 20.0]
         timeout = secrets.choice(timeout_choices)
-        http2_chance = 8  # 80% default
+        http2_chance = 8
 
-        # Query Learning Integration if enabled to see if we are dealing with high-WAF or rate-limiting blockages
         try:
             from src.learning.integration import LearningIntegration
 
@@ -163,12 +170,10 @@ class RequestChameleon:
             if learning and learning.config.enabled:
                 import asyncio
 
-                # Load patterns from local store/cache or Redis
                 try:
                     loop = asyncio.get_running_loop()
                     active_patterns = loop.run_until_complete(learning.get_active_fp_patterns())
                 except RuntimeError:
-                    # In a context without running loop or when we can't block, try local cache directly
                     active_patterns = [
                         p.to_db_row() for p in learning._fp_tracker._cache.values() if p.is_active
                     ]
@@ -177,23 +182,22 @@ class RequestChameleon:
                 has_rate_limit = any(p.get("category") == "rate_limit" for p in active_patterns)
 
                 if has_waf_block or has_rate_limit:
-                    # Double timeouts to prevent timing fingerprinting & bypass CDN/WAF rate limits
                     timeout *= 2.0
-                    # Limit to safe ceiling
                     timeout = min(timeout, 40.0)
-                    # Force HTTP/2 usage (100% chance) to blend in with modern browser fingerprints
                     http2_chance = 10
         except Exception as e:
-            # Absolute fallback to safe defaults if anything fails (no event loop, import error, etc.)
             logger.debug("Chameleon stealth options adaptation skipped: %s", e)
+
+        evasion_config = self._evasion_engine.get_evasion_config()
 
         return {
             "follow_redirects": True,
             "timeout": timeout,
-            "verify": True,  # GEMINI.md mandate: Default to True for security
-            # 🛸 Sprint 1: Inject JA3 signature for downstream TLS fingerprinting
-            "ja3_signature": secrets.choice(self._ja3_signatures),
+            "verify": True,
+            "ja3_signature": evasion_config.get("ja3_signature", secrets.choice(self._ja3_signatures)),
             "http2": secrets.randbelow(10) < http2_chance,
+            "evasion_state": evasion_config.get("state", "unknown"),
+            "timing_delay": evasion_config.get("timing_delay", 0.1),
         }
 
     def active_checks_requiring_network(self) -> list[dict[str, Any]]:

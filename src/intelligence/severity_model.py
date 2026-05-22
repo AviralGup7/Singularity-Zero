@@ -14,11 +14,14 @@ import json
 import math
 import os
 import sqlite3
+import time
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
+
+from src.intelligence.ml import ModelVersion, ModelVersionRegistry, XGBoostSeverityPipeline
 
 SEVERITY_LABELS = ("info", "low", "medium", "high", "critical")
 SEVERITY_TO_IMPACT = {
@@ -200,6 +203,11 @@ class CalibratedSeverityModel:
         self.category_rates: dict[str, tuple[int, int]] = {}
         self.plugin_rates: dict[str, tuple[int, int]] = {}
         self.param_rates: dict[str, tuple[int, int]] = {}
+        
+        # Initialize thread-safe registry and pipeline
+        self.registry = ModelVersionRegistry()
+        self.pipeline = XGBoostSeverityPipeline()
+        
         self._train()
 
     @classmethod
@@ -207,10 +215,20 @@ class CalibratedSeverityModel:
         return get_default_severity_model()
 
     def predict(self, finding: dict[str, Any]) -> SeverityPrediction:
-        features = _feature_vector(finding)
-        raw_probability = self._sigmoid(
-            sum(self.weights.get(k, 0.0) * v for k, v in features.items())
-        )
+        # Check for active pipeline registered in registry
+        pipeline = self.pipeline
+        active_ver = MODEL_VERSION
+        if hasattr(self, "registry") and self.registry:
+            active_pipeline = self.registry._pipelines.get("severity_model")
+            if active_pipeline:
+                pipeline = active_pipeline
+            active_model = self.registry._active.get("severity_model")
+            if active_model:
+                active_ver = active_model.version
+                
+        # Get raw probability from the pipeline
+        raw_probability = pipeline.predict_probability(finding)
+        
         calibrated_tp, calibration = self._calibrate(raw_probability, finding)
         input_impact = (
             score_from_severity(finding.get("severity") or finding.get("finding_severity")) / 10.0
@@ -226,13 +244,14 @@ class CalibratedSeverityModel:
             ),
             3,
         )
+        features = _feature_vector(finding)
         return SeverityPrediction(
             score=score,
             severity=severity,
             true_positive_probability=round(calibrated_tp, 4),
             false_positive_probability=round(1.0 - calibrated_tp, 4),
             confidence=confidence,
-            model_version=MODEL_VERSION,
+            model_version=active_ver,
             training_samples=self.training_samples,
             calibration=calibration,
             top_features=self._top_features(features),
@@ -290,6 +309,25 @@ class CalibratedSeverityModel:
                     current = self.weights.get(key, 0.0)
                     self.weights[key] = current + learning_rate * (error * value - l2 * current)
             learning_rate *= 0.86
+
+        # Train new XGBoost/fallback pipeline
+        try:
+            findings_list = [ex.finding for ex in examples]
+            labels_list = [ex.label for ex in examples]
+            success = self.pipeline.fit(findings_list, labels_list)
+            if success and self.pipeline.is_trained:
+                new_version = f"severity-xgboost-v{int(time.time())}"
+                mv = ModelVersion(
+                    name="severity_model",
+                    version=new_version,
+                    metadata={
+                        "samples": len(examples),
+                        "retrained_at": time.time(),
+                    }
+                )
+                self.registry.register(mv, activate=True, pipeline=self.pipeline)
+        except Exception:
+            pass
 
     def _load_training_examples(self) -> list[_TrainingExample]:
         if not self.db_path.exists():

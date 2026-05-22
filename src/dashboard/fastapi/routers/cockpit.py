@@ -69,15 +69,23 @@ async def get_attack_chains(
 
     formatted: list[dict[str, Any]] = []
     for chain in raw_chains:
-        # Map [a1.id, f1.id, a2.id, f2.id] -> AttackChainSchema
+        if len(chain) >= 6:
+            asset1_id, finding1_id, severity1, asset2_id, finding2_id, severity2 = chain[:6]
+        elif len(chain) >= 4:
+            asset1_id, finding1_id, asset2_id, finding2_id = chain[:4]
+            severity1 = "high"
+            severity2 = "critical"
+        else:
+            continue
+
         entry: dict[str, Any] = {
             "id": f"chain-{hash(str(chain))}",
             "steps": [
-                {"asset_id": str(chain[0]), "finding_id": str(chain[1]), "severity": "high"},
-                {"asset_id": str(chain[2]), "finding_id": str(chain[3]), "severity": "critical"},
+                {"asset_id": str(asset1_id), "finding_id": str(finding1_id), "severity": str(severity1 or "high").lower()},
+                {"asset_id": str(asset2_id), "finding_id": str(finding2_id), "severity": str(severity2 or "critical").lower()},
             ],
-            "confidence": 0.9,
-            "description": f"Potential lateral movement from {chain[0]} to {chain[2]} via {chain[1]}",
+            "confidence": 0.9 if str(severity2).lower() == "critical" else 0.78,
+            "description": f"Potential lateral movement from {asset1_id} to {asset2_id} via {finding1_id}",
         }
         formatted.append(entry)
 

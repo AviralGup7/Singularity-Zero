@@ -36,6 +36,8 @@ UI and interaction:
 Data and charts:
 - D3 primitives (`d3-scale`, `d3-shape`, `d3-array`)
 - Recharts
+- Three.js (`three` - reserved for 3D attack-chain visualization)
+- React Three Fiber (`@react-three/fiber` - 3D pipeline graph rendering)
 
 Testing:
 - Vitest + Testing Library (unit/component)
@@ -541,6 +543,7 @@ Data layer:
 Ops visuals:
 - `frontend/src/components/ops/StageTheater.tsx`
 - `frontend/src/components/ops/ThroughputStrip.tsx`
+- `frontend/src/components/charts/AttackChainGraph3D.tsx` (3D instanced-rendered R3F graph)
 
 Style and motion:
 - `frontend/src/styles/index.css`
@@ -554,6 +557,7 @@ Core pages:
 - `frontend/src/pages/PipelineOverviewPage.tsx`
 - `frontend/src/pages/findings/FindingsPage.tsx`
 - `frontend/src/pages/SettingsPage.tsx`
+- `frontend/src/pages/CockpitPage.tsx` (3D Attack-Chain Cockpit with Pipeline Control Deck)
 
 ---
 

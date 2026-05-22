@@ -9,9 +9,10 @@ import { cockpitApi } from '@/api/cockpit';
 import type { CockpitEdge, CockpitNode, ForensicExchange } from '@/api/cockpit';
 import { createNote, getNotes } from '@/api/notes';
 import type { Note } from '@/api/notes';
-import type { AttackChain, MeshHealth } from '@/types/api';
+import type { AttackChain, MeshHealth, Job } from '@/types/api';
 import { useSSEProgress } from '@/hooks/useSSEProgress';
 import { useToast } from '@/hooks/useToast';
+import { startJob, stopJob, restartJob, getJob } from '@/api/jobs';
 
 interface MigrationEvent {
   id: string;
@@ -121,6 +122,106 @@ export function CockpitPage() {
   const [activeJobId, setActiveJobId] = useState<string | undefined>(jobId);
   const [meshHealth, setMeshHealth] = useState<MeshHealth | null>(null);
   const [migrations, setMigrations] = useState<MigrationEvent[]>([]);
+
+  const [activeJob, setActiveJob] = useState<Job | null>(null);
+  const [isDeckOpen, setIsDeckOpen] = useState(true);
+  const [scanMode, setScanMode] = useState<'quick' | 'deep'>('quick');
+  const [selectedModules, setSelectedModules] = useState<string[]>([
+    'subdomain_enum',
+    'url_discovery',
+    'port_scan',
+    'httpx',
+    'nuclei',
+  ]);
+  const [launchingScan, setLaunchingScan] = useState(false);
+  const [stoppingScan, setStoppingScan] = useState(false);
+  const [restartingScan, setRestartingScan] = useState(false);
+  const [inputTarget, setInputTarget] = useState(target);
+
+  useEffect(() => {
+    if (target) {
+      setInputTarget(target);
+    }
+  }, [target]);
+
+  useEffect(() => {
+    if (!activeJobId) {
+      setActiveJob(null);
+      return;
+    }
+    let isMounted = true;
+    const fetchJobStatus = async () => {
+      try {
+        const jobData = await getJob(activeJobId);
+        if (isMounted) {
+          setActiveJob(jobData);
+        }
+      } catch (error) {
+        console.error('Error fetching job details:', error);
+      }
+    };
+    fetchJobStatus();
+    const interval = setInterval(fetchJobStatus, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeJobId]);
+
+  const handleStartScan = async () => {
+    if (!inputTarget.trim()) {
+      toast.error('Please enter a target URL/host');
+      return;
+    }
+    try {
+      setLaunchingScan(true);
+      const newJob = await startJob({
+        base_url: inputTarget,
+        mode: scanMode,
+        modules: selectedModules,
+      });
+      setActiveJobId(newJob.id);
+      setActiveJob(newJob);
+      const params = new URLSearchParams(window.location.search);
+      params.set('target', inputTarget);
+      params.set('job_id', newJob.id);
+      navigate({ search: params.toString() });
+      toast.success('Multi-stage cyber pipeline successfully launched');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to initiate cyber pipeline');
+    } finally {
+      setLaunchingScan(false);
+    }
+  };
+
+  const handleStopScan = async () => {
+    if (!activeJobId) return;
+    try {
+      setStoppingScan(true);
+      await stopJob(activeJobId);
+      toast.success('Pipeline scan termination requested');
+    } catch (error) {
+      console.error(error);
+      toast.error('Termination request failed');
+    } finally {
+      setStoppingScan(false);
+    }
+  };
+
+  const handleRestartScan = async () => {
+    if (!activeJobId) return;
+    try {
+      setRestartingScan(true);
+      await restartJob(activeJobId);
+      toast.success('Safe restart initiated');
+    } catch (error) {
+      console.error(error);
+      toast.error('Safe restart failed');
+    } finally {
+      setRestartingScan(false);
+    }
+  };
 
   const applyGraph = useCallback((data: { nodes: CockpitNode[]; edges: CockpitEdge[] }) => {
     setNodes(data.nodes);
@@ -270,6 +371,214 @@ export function CockpitPage() {
             <Icon name="target" size={12} />
             {target || 'Grid Standby'}
           </div>
+        </div>
+
+        {/* Floating Scan Control Deck */}
+        <div className="absolute left-8 top-28 z-30 w-80 max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-none rounded-xl border border-white/10 bg-black/80 p-5 shadow-[0_4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all">
+          <div className="mb-4 flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex h-2 w-2">
+                <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${
+                  activeJob?.status === 'running' ? 'bg-amber-400' :
+                  activeJob?.status === 'completed' ? 'bg-green-400' :
+                  activeJob?.status === 'failed' ? 'bg-red-400' :
+                  activeJob?.status === 'stopped' ? 'bg-rose-500' : 'bg-slate-400'
+                }`} />
+                <span className={`relative inline-flex h-2 w-2 rounded-full ${
+                  activeJob?.status === 'running' ? 'bg-amber-400 animate-pulse' :
+                  activeJob?.status === 'completed' ? 'bg-green-400 animate-pulse' :
+                  activeJob?.status === 'failed' ? 'bg-red-400 animate-pulse' :
+                  activeJob?.status === 'stopped' ? 'bg-rose-500' : 'bg-slate-400'
+                }`} />
+              </div>
+              <h3 className="font-sans text-[11px] font-black uppercase tracking-[0.2em] text-white">Pipeline Control Deck</h3>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => setIsDeckOpen(!isDeckOpen)}
+              className="text-[10px] font-mono uppercase tracking-widest text-accent hover:text-white transition-colors"
+            >
+              {isDeckOpen ? '[ Collapse ]' : '[ Expand ]'}
+            </button>
+          </div>
+
+          {isDeckOpen && (
+            <div className="space-y-4">
+              {!activeJobId || !activeJob ? (
+                // Setup & Launch Screen
+                <>
+                  <div className="space-y-1">
+                    <label className="block space-y-1">
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted">Scope Target</span>
+                      <input
+                        type="text"
+                        value={inputTarget}
+                        onChange={(e) => setInputTarget(e.target.value)}
+                        placeholder="e.g. https://example.com"
+                        className="w-full rounded border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-text placeholder-white/20 outline-none focus:border-accent/40 transition-colors"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Scan Mode Preset</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('quick')}
+                        className={`rounded border py-2 text-center text-[10px] font-black uppercase tracking-widest transition-all ${
+                          scanMode === 'quick'
+                            ? 'border-accent bg-accent/15 text-accent shadow-[0_0_10px_rgba(0,255,244,0.15)]'
+                            : 'border-white/5 bg-white/5 text-muted hover:bg-white/10'
+                        }`}
+                      >
+                        Quick Mode
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScanMode('deep')}
+                        className={`rounded border py-2 text-center text-[10px] font-black uppercase tracking-widest transition-all ${
+                          scanMode === 'deep'
+                            ? 'border-accent bg-accent/15 text-accent shadow-[0_0_10px_rgba(0,255,244,0.15)]'
+                            : 'border-white/5 bg-white/5 text-muted hover:bg-white/10'
+                        }`}
+                      >
+                        Deep Mode
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Execution Modules</div>
+                    <div className="space-y-1 rounded border border-white/5 bg-black/40 p-2.5">
+                      {[
+                        { id: 'subdomain_enum', label: 'Subdomain Recon' },
+                        { id: 'url_discovery', label: 'URL Discovery' },
+                        { id: 'port_scan', label: 'Port Scanning' },
+                        { id: 'httpx', label: 'HTTP Prober' },
+                        { id: 'nuclei', label: 'Vulnerability (Nuclei)' },
+                      ].map((mod) => {
+                        const active = selectedModules.includes(mod.id);
+                        return (
+                          <label
+                            key={mod.id}
+                            className="flex cursor-pointer items-center justify-between py-1 transition-colors hover:text-white"
+                          >
+                            <span className="font-mono text-[10px] text-muted-foreground">{mod.label}</span>
+                            <input
+                              type="checkbox"
+                              checked={active}
+                              onChange={() => {
+                                if (active) {
+                                  setSelectedModules(selectedModules.filter((m) => m !== mod.id));
+                                } else {
+                                  setSelectedModules([...selectedModules, mod.id]);
+                                }
+                              }}
+                              className="h-3 w-3 rounded border-white/10 bg-black/40 text-accent outline-none accent-accent focus:ring-0"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleStartScan}
+                    disabled={launchingScan || !inputTarget.trim()}
+                    className="w-full rounded bg-accent py-2.5 text-center text-[10px] font-black uppercase tracking-[0.2em] text-black shadow-[0_0_15px_rgba(0,255,244,0.25)] transition-all hover:bg-white disabled:opacity-40 disabled:shadow-none"
+                  >
+                    {launchingScan ? 'ENGAGING ENGINE...' : 'ENGAGE SCAN ENGINE'}
+                  </button>
+                </>
+              ) : (
+                // Active Telemetry Monitor
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Active Pipeline</div>
+                      <div className="font-mono text-[11px] font-bold text-text truncate max-w-[140px]">{activeJob.base_url}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Engine State</div>
+                      <div className="font-mono text-[10px] font-bold uppercase text-accent">{activeJob.status}</div>
+                    </div>
+                  </div>
+
+                  {activeJob.stage_label && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between font-mono text-[9px]">
+                        <span className="uppercase text-muted">Current Stage</span>
+                        <span className="font-bold text-text">{activeJob.stage_label}</span>
+                      </div>
+                      
+                      {/* Interactive Neon Progress Bar */}
+                      <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/10">
+                        <motion.div
+                          className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 shadow-[0_0_10px_rgba(0,255,244,0.4)]"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${activeJob.progress_percent || 0}%` }}
+                          transition={{ duration: 0.5, ease: 'easeOut' }}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between font-mono text-[8px] text-muted">
+                        <span>PROGRESS</span>
+                        <span>{Math.round(activeJob.progress_percent || 0)}%</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeJob.status_message && (
+                    <div className="rounded border border-cyan-500/10 bg-cyan-950/20 p-2.5 font-mono text-[9px] leading-relaxed text-cyan-200/90 max-h-24 overflow-y-auto">
+                      <div className="font-bold text-cyan-400 mb-0.5">STATUS MESSAGE:</div>
+                      {activeJob.status_message}
+                    </div>
+                  )}
+
+                  {/* Operational Controls */}
+                  <div className="space-y-2 border-t border-white/5 pt-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleRestartScan}
+                        disabled={restartingScan || activeJob.status !== 'running'}
+                        className="flex items-center justify-center gap-1.5 rounded border border-accent/20 bg-accent/5 py-2 text-[9px] font-bold uppercase tracking-wider text-accent transition-all hover:bg-accent/15 disabled:opacity-40"
+                      >
+                        <Icon name="activity" size={10} />
+                        {restartingScan ? 'RESTARTING...' : 'RESTART SAFE'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleStopScan}
+                        disabled={stoppingScan || !['running', 'pending'].includes(activeJob.status)}
+                        className="flex items-center justify-center gap-1.5 rounded border border-rose-500/20 bg-rose-950/20 py-2 text-[9px] font-bold uppercase tracking-wider text-rose-400 transition-all hover:bg-rose-900/30 disabled:opacity-40"
+                      >
+                        <Icon name="x" size={10} />
+                        {stoppingScan ? 'STOPPING...' : 'TERMINATE SCAN'}
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveJobId(undefined);
+                        setActiveJob(null);
+                        const params = new URLSearchParams(window.location.search);
+                        params.delete('job_id');
+                        navigate({ search: params.toString() });
+                      }}
+                      className="w-full rounded border border-white/10 bg-white/5 py-2 text-center text-[9px] font-bold uppercase tracking-widest text-muted hover:text-white transition-colors"
+                    >
+                      Clear / New Scan
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <AnimatePresence>
