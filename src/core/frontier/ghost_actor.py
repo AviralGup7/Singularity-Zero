@@ -744,7 +744,8 @@ class GhostMeshRegistry:
             return None
         try:
             return cast(dict[str, Any], mesh_unmarshal(payload))
-        except Exception:
+        except Exception as e:
+            logger.debug("Ghost-Registry: Failed to unpack migration for %s: %s", actor_id, e)
             return None
 
     async def clear_migration(self, actor_id: str) -> None:

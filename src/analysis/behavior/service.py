@@ -23,7 +23,7 @@ def run_service_enrichment(
     runtime_budget_seconds: int | None = None,
 ) -> tuple[list[dict[str, Any]], set[str], dict[str, list[dict[str, Any]]]]:
     settings = config.analysis or {}
-    if settings.get("service_enrichment", True) is False:
+    if not settings.get("service_enrichment", True):
         return (
             live_records,
             {record.get("url", "") for record in live_records if record.get("url")},

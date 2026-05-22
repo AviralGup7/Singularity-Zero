@@ -268,12 +268,10 @@ class ToolExecutionService:
         return [path for path in candidates if path.exists()]
 
     def resolve_tool_path(self, name: str) -> str | None:
-        for candidate in self.candidate_paths(name):
-            return str(candidate)
-        direct = shutil.which(name)
-        if direct:
-            return direct
-        return None
+        candidates = self.candidate_paths(name)
+        if candidates:
+            return str(candidates[0])
+        return shutil.which(name)
 
     def tool_available(self, name: str) -> bool:
         return self.resolve_tool_path(name) is not None

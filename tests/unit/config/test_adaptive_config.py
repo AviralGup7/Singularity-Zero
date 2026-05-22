@@ -116,7 +116,7 @@ class TestReadAdaptiveConfig:
         )
         store.write_adaptive_config({})
 
-        result = PipelineOutputStore.read_adaptive_config(adaptive_dir)
+        result = PipelineOutputStore.read_adaptive_config(store.target_root)
         assert result == {}
 
     def test_roundtrip_adaptations(self, adaptive_dir: Path) -> None:
@@ -131,7 +131,7 @@ class TestReadAdaptiveConfig:
         )
         store.write_adaptive_config(adaptations)
 
-        result = PipelineOutputStore.read_adaptive_config(adaptive_dir)
+        result = PipelineOutputStore.read_adaptive_config(store.target_root)
         assert result == adaptations
 
     def test_adaptations_are_persisted_as_json(self, adaptive_dir: Path) -> None:
@@ -142,7 +142,7 @@ class TestReadAdaptiveConfig:
         )
         store.write_adaptive_config(adaptations)
 
-        path = adaptive_dir / "config.adaptive.json"
+        path = store.target_root / "config.adaptive.json"
         assert path.exists()
         raw = json.loads(path.read_text(encoding="utf-8"))
         assert raw == adaptations
@@ -337,6 +337,6 @@ class TestAdaptiveConfigOverwrite:
         store.write_adaptive_config({"v1": "first"})
         store.write_adaptive_config({"v2": "second"})
 
-        result = PipelineOutputStore.read_adaptive_config(adaptive_dir)
+        result = PipelineOutputStore.read_adaptive_config(store.target_root)
         assert "v1" not in result
         assert result["v2"] == "second"

@@ -55,7 +55,7 @@ TAKEOVER_PATTERNS: list[dict[str, Any]] = [
         "http_indicators": ["Sorry, this shop is closed"],
     },
     {
-        "service": "Tumbler",
+        "service": "Tumblr",
         "cname_pattern": ".tumblr.com",
         "http_indicators": ["There's nothing here"],
     },

@@ -365,7 +365,8 @@ class CorrelationPriorityQueue:
             if not finding_url:
                 continue
             self._boost_related_urls(finding_url, finding, factor, boosted)
-            self._total_findings += 1
+            with self._lock:
+                self._total_findings += 1
 
         if boosted:
             with self._lock:

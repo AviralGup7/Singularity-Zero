@@ -39,6 +39,28 @@ export interface LearningKPIs {
   learning_efficiency_index: number;
 }
 
+export interface FeedbackEventEntry {
+  feedback_id: string;
+  run_id: string;
+  category: string;
+  signal_id: string | null;
+  status_code: number | null;
+  body_indicator: string | null;
+  true_positive_probability: number | null;
+  false_positive_probability: number | null;
+  is_true_positive: boolean | null;
+  source: string;
+  recorded_at: string;
+}
+
+export async function getFeedbackEvents(limit = 100, runId?: string, signal?: AbortSignal): Promise<FeedbackEventEntry[]> {
+  const { data } = await apiClient.get<FeedbackEventEntry[]>('/api/learning/feedback', {
+    params: { limit, run_id: runId },
+    signal,
+  });
+  return data;
+}
+
 export async function getThresholdHistory(signal?: AbortSignal): Promise<ThresholdHistoryEntry[]> {
   const { data } = await apiClient.get<ThresholdHistoryEntry[]>('/api/learning/thresholds', { signal });
   return data;

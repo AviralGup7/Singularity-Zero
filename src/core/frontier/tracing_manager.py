@@ -20,7 +20,8 @@ from pathlib import Path
 from typing import Any, cast
 from urllib import error, request
 
-DEFAULT_OTLP_ENDPOINT = "http://localhost:4318/v1/traces"
+# DEFAULT_OTLP_ENDPOINT should use HTTPS in production.
+DEFAULT_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
 DEFAULT_TRACE_DB = Path("output") / "traces.db"
 
 

@@ -38,26 +38,37 @@ async def get_remediation_plan(
             if not target_name:
                 continue
             entry = output_root / target_name
-            if entry.exists():
+            if entry.exists() and entry.is_dir():
                 # Look for findings in all run directories
                 run_dirs = [d for d in entry.iterdir() if d.is_dir() and (d / "run_summary.json").exists()]
                 if not run_dirs:
-                    # Fallback to check all subdirs
-                    run_dirs = [d for d in entry.iterdir() if d.is_dir() and d.name != "checkpoints"]
+                    # Fallback to check all subdirs excluding internal ones
+                    run_dirs = [d for d in entry.iterdir() if d.is_dir() and d.name not in ("checkpoints", "forensics", "logs")]
 
                 for run_dir in run_dirs:
                     findings_path = run_dir / "findings.json"
                     if findings_path.exists():
                         try:
-                            findings = json.loads(findings_path.read_text(encoding="utf-8"))
+                            content = findings_path.read_text(encoding="utf-8")
+                            if not content.strip():
+                                continue
+                            findings = json.loads(content)
+                            if isinstance(findings, dict):
+                                findings = findings.get("findings", [])
+                            
                             if isinstance(findings, list):
                                 for f in findings:
                                     if isinstance(f, dict):
                                         f_copy = dict(f)
                                         f_copy["target"] = target_name
+                                        f_copy["run_id"] = run_dir.name
                                         all_findings.append(f_copy)
-                        except Exception:  # noqa: S110
-                            pass
+                        except (json.JSONDecodeError, OSError) as exc:
+                            logger.debug("Failed to load findings from %s: %s", findings_path, exc)
+                            continue
+                        except Exception as exc:
+                            logger.warning("Unexpected error loading findings from %s: %s", findings_path, exc)
+                            continue
 
         # 2. Group findings by category (Tactical Fix Units)
         groups: dict[str, dict[str, Any]] = {}
