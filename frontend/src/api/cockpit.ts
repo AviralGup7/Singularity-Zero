@@ -85,8 +85,6 @@ export const cockpitApi = {
     const params = new URLSearchParams({ target });
     if (run) params.set('run', run);
     if (jobId) params.set('job_id', jobId);
-    const token = sessionStorage.getItem('auth_token');
-    if (token) params.set('token', token);
     return `/api/cockpit/graph/stream?${params.toString()}`;
   },
 

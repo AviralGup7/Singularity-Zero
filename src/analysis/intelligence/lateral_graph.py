@@ -6,6 +6,8 @@ Links findings and assets into attack chains using the Kuzu graph database.
 from __future__ import annotations
 
 import os
+import re
+import hashlib
 from typing import Any, cast
 
 try:
@@ -22,8 +24,13 @@ logger = get_pipeline_logger(__name__)
 
 
 def _cypher_string(value: object) -> str:
-    """Return a single-quoted Cypher literal for simple scalar values."""
-    return str(value).replace("\\", "\\\\").replace("'", "\\'")
+    """Strictly sanitize identifiers for Cypher injection prevention."""
+    val_str = str(value)
+    # SEC-6: Apply strict regex allowlist to prevent Cypher injection
+    if not re.match(r"^[a-zA-Z0-9._:-]+$", val_str):
+        # Fallback to hashed value if it contains bad chars
+        return "safe_" + hashlib.md5(val_str.encode()).hexdigest()
+    return val_str
 
 
 class LateralGraph:
