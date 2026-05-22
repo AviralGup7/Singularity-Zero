@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 import time
+from typing import Any
 
 from src.intelligence.ml.registry import ModelVersion, ModelVersionRegistry
 from src.intelligence.ml.xgboost_pipeline import XGBoostSeverityPipeline
@@ -22,14 +22,14 @@ class ActiveLearningController:
     def retrain_from_telemetry(self, db_path: str, run_id: str) -> dict[str, Any]:
         """Extract labeled finding outcomes from the SQLite database and fit a new pipeline version."""
         import sqlite3
-        
+
         findings: list[dict[str, Any]] = []
         labels: list[float] = []
-        
+
         try:
             with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
                 conn.row_factory = sqlite3.Row
-                
+
                 # 1. Fetch triaged feedback events
                 try:
                     rows = conn.execute(
@@ -41,7 +41,7 @@ class ActiveLearningController:
                         was_fp = bool(item.get("was_false_positive"))
                         if not was_tp and not was_fp:
                             continue
-                        
+
                         finding = {
                             "category": item.get("finding_category"),
                             "severity": item.get("finding_severity"),
@@ -59,11 +59,11 @@ class ActiveLearningController:
                         labels.append(1.0 if was_tp else 0.0)
                 except sqlite3.Error as e:
                     logger.debug("ActiveLearning: feedback_events table read skipped: %s", e)
-                
+
                 # 2. Fetch validated findings
                 try:
                     rows = conn.execute(
-                        """SELECT * FROM findings 
+                        """SELECT * FROM findings
                            WHERE lifecycle_state IN ('VALIDATED', 'EXPLOITABLE', 'REPORTABLE')
                               OR decision = 'DROP'
                            ORDER BY created_at DESC LIMIT 2000"""
@@ -72,11 +72,11 @@ class ActiveLearningController:
                         item = dict(row)
                         lifecycle = str(item.get("lifecycle_state") or "").lower()
                         decision = str(item.get("decision") or "").lower()
-                        
+
                         label = 1.0 if lifecycle in {"validated", "exploitable", "reportable"} else 0.0
                         if decision == "drop":
                             label = 0.0
-                            
+
                         # Safely parse JSON evidence
                         import json
                         evidence = item.get("evidence")
@@ -87,12 +87,12 @@ class ActiveLearningController:
                                 item["evidence"] = {}
                         elif not isinstance(evidence, dict):
                             item["evidence"] = {}
-                            
+
                         findings.append(item)
                         labels.append(label)
                 except sqlite3.Error as e:
                     logger.debug("ActiveLearning: findings table read skipped: %s", e)
-                    
+
         except Exception as e:
             logger.error("ActiveLearning: Database extraction failed: %s", e)
             return {"status": "failed", "reason": "db_error"}
@@ -122,22 +122,22 @@ class ActiveLearningController:
             "samples": len(findings),
             "retrained_at": time.time(),
         }
-        
+
         mv = ModelVersion(
             name="severity_model",
             version=new_version,
             metadata=model_meta,
         )
-        
+
         self.registry.register(mv, activate=True, pipeline=new_pipeline)
         self.pipeline = new_pipeline
-        
+
         logger.info(
             "ActiveLearning: Successfully registered and activated new ML severity model version %s (Accuracy: %.2f%%)",
             new_version,
             accuracy * 100.0,
         )
-        
+
         return {
             "status": "success",
             "activated_version": new_version,

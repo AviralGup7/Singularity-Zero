@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -181,7 +179,7 @@ class TestSubdomainTakeover:
                 raise RuntimeError("DNS resolve failed completely")
             return [{"subdomain": sd, "service": "GitHub Pages", "cname": "gh.github.io", "vulnerable": False}]
 
-        mock_check_single.side_effect = mock_run_single = AsyncMock(side_effect=mock_check)
+        mock_check_single.side_effect = AsyncMock(side_effect=mock_check)
 
         subdomains = {"bad.example.com", "good.example.com"}
         findings = await detect_takeover(subdomains)

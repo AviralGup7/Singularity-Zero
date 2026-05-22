@@ -36,12 +36,12 @@ class ModelVersionRegistry:
         pipe_history = self._pipeline_history.setdefault(model.name, [])
         current = self._active.get(model.name)
         current_pipe = self._pipelines.get(model.name)
-        
+
         if current is not None and current.version != model.version:
             history.append(current)
             if current_pipe is not None:
                 pipe_history.append(current_pipe)
-                
+
         if activate:
             self._active[model.name] = model
             if pipeline is not None:
@@ -113,7 +113,7 @@ class ModelVersionRegistry:
 
         previous = history.pop()
         self._active[current.name] = previous
-        
+
         # Rollback actual pipeline too
         pipe_history = self._pipeline_history.get(current.name, [])
         if pipe_history:

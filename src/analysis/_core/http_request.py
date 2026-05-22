@@ -28,8 +28,9 @@ def _safe_request(
     Returns:
         Dict with keys: status, headers, body, body_length, success, error (optional).
     """
-    from src.core.frontier.chameleon import wrap_polymorphic_request, _chameleon
     from urllib.parse import urlparse
+
+    from src.core.frontier.chameleon import _chameleon, wrap_polymorphic_request
 
     req_headers = dict(headers or {})
     chameleon_config = wrap_polymorphic_request(req_headers)
@@ -69,7 +70,15 @@ def _safe_request(
         # Telemetry / feedback loop update
         detected_waf = None
         try:
-            cookies = {cookie.name: cookie.value for cookie in resp.cookies} if hasattr(resp, "cookies") else None
+            cookies = None
+            if hasattr(resp, "cookies") and resp.cookies is not None:
+                if hasattr(resp.cookies, "items"):
+                    cookies = {str(k): str(v) for k, v in resp.cookies.items()}
+                else:
+                    try:
+                        cookies = {str(c.name): str(c.value) for c in resp.cookies}
+                    except Exception:  # noqa: S110
+                        cookies = {}
             detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
             _chameleon._evasion_engine.update_observation(
                 response_status=resp.status_code,
@@ -78,7 +87,7 @@ def _safe_request(
                 target=target,
                 detected_waf=detected_waf,
             )
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         return {

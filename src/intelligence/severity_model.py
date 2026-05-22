@@ -203,11 +203,11 @@ class CalibratedSeverityModel:
         self.category_rates: dict[str, tuple[int, int]] = {}
         self.plugin_rates: dict[str, tuple[int, int]] = {}
         self.param_rates: dict[str, tuple[int, int]] = {}
-        
+
         # Initialize thread-safe registry and pipeline
         self.registry = ModelVersionRegistry()
         self.pipeline = XGBoostSeverityPipeline()
-        
+
         self._train()
 
     @classmethod
@@ -225,10 +225,10 @@ class CalibratedSeverityModel:
             active_model = self.registry._active.get("severity_model")
             if active_model:
                 active_ver = active_model.version
-                
+
         # Get raw probability from the pipeline
         raw_probability = pipeline.predict_probability(finding)
-        
+
         calibrated_tp, calibration = self._calibrate(raw_probability, finding)
         input_impact = (
             score_from_severity(finding.get("severity") or finding.get("finding_severity")) / 10.0
@@ -326,7 +326,7 @@ class CalibratedSeverityModel:
                     }
                 )
                 self.registry.register(mv, activate=True, pipeline=self.pipeline)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def _load_training_examples(self) -> list[_TrainingExample]:

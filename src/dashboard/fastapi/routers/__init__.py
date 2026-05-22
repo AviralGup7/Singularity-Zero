@@ -8,6 +8,7 @@ from .audit import router as audit_router
 from .bloom import router as bloom_router
 from .cache import router as cache_router
 from .cockpit import router as cockpit_router
+from .evasion import router as evasion_router
 from .export import router as export_router
 from .findings import router as findings_router
 from .gap_analysis import router as gap_analysis_router
@@ -27,7 +28,6 @@ from .self_healing import router as self_healing_router
 from .targets import router as targets_router
 from .tracing import router as tracing_router
 from .triage import router as triage_router
-from .evasion import router as evasion_router
 
 imports_router: Any = None
 try:

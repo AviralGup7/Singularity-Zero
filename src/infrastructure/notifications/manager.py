@@ -119,7 +119,7 @@ class NotificationManager:
                 if isinstance(ann, str):
                     module = sys.modules.get(notifier_cls.__module__)
                     if module and hasattr(module, ann):
-                        return getattr(module, ann)
+                        return cast(type, getattr(module, ann))
                 else:
                     return cast(type, ann)
 
