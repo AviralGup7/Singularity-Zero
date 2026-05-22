@@ -49,6 +49,34 @@ function deduplicateRequest<T>(key: string, fn: () => Promise<T>, signal?: Abort
   return promise;
 }
 
+function isDeepEqual(obj1: unknown, obj2: unknown): boolean {
+  if (obj1 === obj2) return true;
+  if (obj1 === null || obj2 === null || typeof obj1 !== 'object' || typeof obj2 !== 'object') {
+    return false;
+  }
+  
+  if (Array.isArray(obj1)) {
+    if (!Array.isArray(obj2) || obj1.length !== obj2.length) return false;
+    for (let i = 0; i < obj1.length; i++) {
+      if (!isDeepEqual(obj1[i], obj2[i])) return false;
+    }
+    return true;
+  }
+  
+  if (Array.isArray(obj2)) return false;
+
+  const keys1 = Object.keys(obj1 as Record<string, unknown>);
+  const keys2 = Object.keys(obj2 as Record<string, unknown>);
+  if (keys1.length !== keys2.length) return false;
+
+  for (const key of keys1) {
+    if (!Object.prototype.hasOwnProperty.call(obj2, key) || !isDeepEqual((obj1 as Record<string, unknown>)[key], (obj2 as Record<string, unknown>)[key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function useApi<T>(
   url: string | null,
   options?: UseApiOptions<T>
@@ -63,13 +91,17 @@ export function useApi<T>(
     refetchInterval,
   } = options ?? {};
 
-   
+  /* eslint-disable react-hooks/refs */
+  const paramsRef = useRef<Record<string, unknown> | undefined>(undefined);
+  if (!isDeepEqual(params, paramsRef.current)) {
+    paramsRef.current = params;
+  }
+  const stableParams = paramsRef.current;
+  /* eslint-enable react-hooks/refs */
+
   const [data, setData] = useState<T | null>(null);
-   
   const [loading, setLoading] = useState<boolean>(enabled && !!url);
-   
   const [error, setError] = useState<UseApiError | null>(null);
-   
   const [refetchKey, setRefetchKey] = useState<number>(0);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -81,7 +113,6 @@ export function useApi<T>(
   useEffect(() => {
     onSuccessRef.current = onSuccess;
     onErrorRef.current = onError;
-   
   }, [onSuccess, onError]);
 
   const schema = options?.schema;
@@ -99,7 +130,7 @@ export function useApi<T>(
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const cacheKey = apiCache.generateKey(url, params);
+    const cacheKey = apiCache.generateKey(url, stableParams);
 
     if (!forceRefetch && !bypassCache) {
       const cached = apiCache.get<T>(cacheKey);
@@ -121,15 +152,19 @@ export function useApi<T>(
       if (controller.signal.aborted) return;
 
       const requestFn = (): Promise<T> =>
-        api.get<T>(url, { signal: controller.signal, params, schema } as AxiosRequestConfig).then((res) => res.data);
+        api.get<T>(url, { signal: controller.signal, params: stableParams, schema } as AxiosRequestConfig).then((res) => res.data);
 
       const result = await deduplicateRequest<T>(`${cacheKey}:${refetchKey}`, requestFn, controller.signal);
 
       if (mountedRef.current) {
         setData(result);
         setLoading(false);
-        if (ttl) {
-          apiCache.set(cacheKey, result, ttl);
+        if (ttl !== undefined) {
+          if (ttl > 0) {
+            apiCache.set(cacheKey, result, ttl);
+          }
+        } else {
+          apiCache.set(cacheKey, result);
         }
         onSuccessRef.current?.(result);
       }
@@ -148,8 +183,7 @@ export function useApi<T>(
         onErrorRef.current?.(lastError);
       }
     }
-   
-  }, [url, enabled, bypassCache, params, refetchKey, schema, ttl]);
+  }, [url, enabled, bypassCache, stableParams, refetchKey, schema, ttl]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -188,14 +222,13 @@ export function useApi<T>(
         clearInterval(interval);
       }
     };
-   
   }, [fetchData, refetchInterval, enabled, url]);
 
   const refetch = useCallback(async (): Promise<void> => {
     setRefetchKey((k) => k + 1);
   }, []);
 
-  const isStale = url ? apiCache.isStale(apiCache.generateKey(url, params)) : false;
+  const isStale = url ? apiCache.isStale(apiCache.generateKey(url, stableParams)) : false;
 
   return { data, loading, error, refetch, isStale };
 }

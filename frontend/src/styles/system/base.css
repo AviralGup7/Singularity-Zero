@@ -19,12 +19,39 @@ body {
   font-family: var(--font-body);
   font-size: var(--text-body);
   color: var(--text-primary);
-  background: var(--app-bg);
+  background: 
+    linear-gradient(rgba(255, 255, 255, 0.005) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.005) 1px, transparent 1px),
+    radial-gradient(circle at 80% 20%, hsla(271, 91%, 65%, 0.12) 0%, transparent 55%),
+    radial-gradient(circle at 20% 80%, hsla(187, 92%, 53%, 0.12) 0%, transparent 55%),
+    radial-gradient(circle at 50% 50%, hsla(329, 86%, 60%, 0.06) 0%, transparent 60%),
+    var(--app-bg);
+  background-size: 32px 32px, 32px 32px, 100% 100%, 100% 100%, 100% 100%;
+  background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat;
+  animation: morphing-glow 30s ease-in-out infinite;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   line-height: 1.5;
   overflow-x: hidden;
+}
+
+@keyframes morphing-glow {
+  0% {
+    background-position: 0 0, 0 0, 0% 0%, 0% 0%;
+  }
+  25% {
+    background-position: 0 0, 0 0, 30% 20%, -20% 30%;
+  }
+  50% {
+    background-position: 0 0, 0 0, -20% 50%, 40% -20%;
+  }
+  75% {
+    background-position: 0 0, 0 0, 40% -20%, -30% 40%;
+  }
+  100% {
+    background-position: 0 0, 0 0, 0% 0%, 0% 0%;
+  }
 }
 
 /* ── Selection ────────────────────────────────────────────────── */

@@ -58,18 +58,22 @@
 }
 
 .kanban-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: var(--border-width) solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
   cursor: pointer;
   transition: border-color var(--motion-fast) var(--easing-out),
-              box-shadow var(--motion-fast) var(--easing-out);
+              box-shadow var(--motion-fast) var(--easing-out),
+              transform var(--motion-fast) var(--easing-out);
 }
 
 .kanban-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border));
+  box-shadow: 0 8px 24px -5px rgba(0, 0, 0, 0.4), 0 0 16px -3px color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: translateY(-2px) scale(1.01);
 }
 
 .kanban-card-header {

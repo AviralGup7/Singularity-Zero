@@ -35,15 +35,23 @@
   --accent-soft:  rgba(59, 130, 246, 0.12);
   --accent-muted: rgba(59, 130, 246, 0.08);
 
+  /* ── Neon Cyber Highlights ────────────────────────────────── */
+  --neon-blue:    hsl(217, 91%, 60%);
+  --neon-purple:  hsl(271, 91%, 65%);
+  --neon-cyan:    hsl(187, 92%, 53%);
+  --neon-pink:    hsl(329, 86%, 60%);
+  --neon-emerald: hsl(150, 84%, 55%);
+  --neon-amber:   hsl(38, 92%, 56%);
+
   /* ── Semantic Colors ──────────────────────────────────────── */
-  --blue:    #3B82F6;
-  --green:   #10B981;
-  --purple:  #8B5CF6;
-  --orange:  #F59E0B;
+  --blue:    var(--neon-blue);
+  --green:   var(--neon-emerald);
+  --purple:  var(--neon-purple);
+  --orange:  var(--neon-amber);
   --yellow:  #EAB308;
-  --red:     #EF4444;
-  --cyan:    #06B6D4;
-  --pink:    #EC4899;
+  --red:     var(--neon-pink);
+  --cyan:    var(--neon-cyan);
+  --pink:    var(--neon-pink);
   --idle-gray: #64748B;
 
   /* ── Status Mapping ───────────────────────────────────────── */
@@ -52,20 +60,21 @@
   --bad:  var(--red);
   --info: var(--blue);
   
-  --modal-overlay: rgba(0, 0, 0, 0.7);
+  --modal-overlay: rgba(0, 0, 0, 0.75);
   --shadow: var(--shadow-lg);
   --hover-bg: var(--surface-hover);
 
   /* ── Glassmorphism ──────────────────────────────────────────── */
-  --glass-bg:     rgba(18, 22, 30, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-blur:   12px;
+  --glass-bg:     rgba(10, 14, 20, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-blur:   24px;
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 
   /* ── Glow Effects ──────────────────────────────────────────── */
-  --glow-accent:  0 0 12px rgba(59, 130, 246, 0.25);
-  --glow-ok:      0 0 12px rgba(16, 185, 129, 0.25);
-  --glow-bad:     0 0 12px rgba(239, 68, 68, 0.25);
-  --glow-warn:    0 0 12px rgba(245, 158, 11, 0.25);
+  --glow-accent:  0 0 12px hsla(217, 91%, 60%, 0.4), 0 0 32px hsla(217, 91%, 60%, 0.15);
+  --glow-ok:      0 0 12px hsla(150, 84%, 55%, 0.35), 0 0 32px hsla(150, 84%, 55%, 0.12);
+  --glow-bad:     0 0 12px hsla(329, 86%, 60%, 0.4), 0 0 32px hsla(329, 86%, 60%, 0.15);
+  --glow-warn:    0 0 12px hsla(38, 92%, 56%, 0.35), 0 0 32px hsla(38, 92%, 56%, 0.12);
 
   /* ── Severity Scale (CVSS-aligned) ────────────────────────── */
   --severity-critical: #DC2626;

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -28,17 +29,34 @@ async def get_remediation_plan(
         # 1. Fetch all findings across all targets
         # Note: In a production mesh, this might be a distributed query.
         # For now, we aggregate from the local finding store/targets.
-        targets_res = services.get_targets()
+        output_root = services.query.output_root
         all_findings = []
 
-        for target in targets_res.get("targets", []):
-            target_name = target.get("name")
-            if target_name:
-                findings_res = services.get_findings(target_name)
-                findings = findings_res.get("findings", [])
-                for f in findings:
-                    f["target"] = target_name
-                all_findings.extend(findings)
+        if output_root.exists():
+            for entry in sorted(output_root.iterdir(), key=lambda x: x.name.lower()):
+                if not entry.is_dir() or entry.name.startswith("_"):
+                    continue
+
+                target_name = entry.name
+                # Look for findings in all run directories
+                run_dirs = [d for d in entry.iterdir() if d.is_dir() and (d / "run_summary.json").exists()]
+                if not run_dirs:
+                    # Fallback to check all subdirs
+                    run_dirs = [d for d in entry.iterdir() if d.is_dir() and d.name != "checkpoints"]
+
+                for run_dir in run_dirs:
+                    findings_path = run_dir / "findings.json"
+                    if findings_path.exists():
+                        try:
+                            findings = json.loads(findings_path.read_text(encoding="utf-8"))
+                            if isinstance(findings, list):
+                                for f in findings:
+                                    if isinstance(f, dict):
+                                        f_copy = dict(f)
+                                        f_copy["target"] = target_name
+                                        all_findings.append(f_copy)
+                        except Exception:  # noqa: S110
+                            pass
 
         # 2. Group findings by category (Tactical Fix Units)
         groups: dict[str, dict[str, Any]] = {}

@@ -1,5 +1,4 @@
-// Breadcrumbs adapter — preserves the array-based items API but uses Radix breadcrumb underneath.
-// 0 consumers currently. Kept for backward compatibility.
+import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
@@ -41,18 +40,20 @@ export function Breadcrumbs({ items, className, homeHref = '/', showHome = true 
     <Breadcrumb className={cn('font-mono text-[length:var(--text-sm)]', className)}>
       <BreadcrumbList>
         {allItems.map((item, i) => (
-          <BreadcrumbItem key={i}>
-            {i === lastIndex || item.isCurrent ? (
-              <BreadcrumbPage>{item.label}</BreadcrumbPage>
-            ) : item.href ? (
-              <BreadcrumbLink asChild>
-                <Link to={item.href}>{item.label}</Link>
-              </BreadcrumbLink>
-            ) : (
-              <BreadcrumbLink>{item.label}</BreadcrumbLink>
-            )}
+          <Fragment key={i}>
+            <BreadcrumbItem>
+              {i === lastIndex || item.isCurrent ? (
+                <BreadcrumbPage>{item.label}</BreadcrumbPage>
+              ) : item.href ? (
+                <BreadcrumbLink asChild>
+                  <Link to={item.href}>{item.label}</Link>
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbLink>{item.label}</BreadcrumbLink>
+              )}
+            </BreadcrumbItem>
             {i < lastIndex && <BreadcrumbSeparator />}
-          </BreadcrumbItem>
+          </Fragment>
         ))}
       </BreadcrumbList>
     </Breadcrumb>

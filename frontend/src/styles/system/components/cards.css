@@ -1,16 +1,19 @@
 /* ── Cards ──────────────────────────────────────────────────── */
 .card, .ops-card, .job-card, .job-stage-card, .pipeline-stat-card, .info-item, .fix-command-item, .finding-min-card {
-  background: var(--surface);
-  border: var(--border-width) solid var(--border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: var(--border-width) solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out);
+  box-shadow: var(--glass-shadow);
+  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out), transform var(--motion-fast) var(--easing-out);
 }
 
-.card:hover, .job-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md);
+.card:hover, .ops-card:hover, .job-card:hover, .job-stage-card:hover, .pipeline-stat-card:hover, .info-item:hover, .fix-command-item:hover, .finding-min-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--glass-border));
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.6), 0 0 24px -4px color-mix(in srgb, var(--accent) 22%, transparent);
+  transform: translateY(-3px) scale(1.008);
 }
 
 .card--glass {
