@@ -182,7 +182,10 @@ class PipelineOutputStore:
             return None
         try:
             text = path.read_text(encoding="utf-8")
-            return json.loads(text)
+            res = json.loads(text)
+            if isinstance(res, dict):
+                return res
+            return None
         except (json.JSONDecodeError, OSError):
             return None
 

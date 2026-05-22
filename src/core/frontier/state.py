@@ -13,10 +13,10 @@ from types import MappingProxyType
 from typing import Any, TypeVar
 
 try:
-    from src.core.frontier import _state_cython
+    from src.core.frontier import _state_cython  # type: ignore
 except ImportError:
     try:
-        import _state_cython
+        import _state_cython  # type: ignore
     except ImportError:
         _state_cython = None
 

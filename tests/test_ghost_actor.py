@@ -180,7 +180,7 @@ def test_actor_logic_fn_serialization():
     res = new_actor.on_receive({"command": "execute", "input": {"x": 21}}).get()
     assert res["status"] == "success"
     assert res["output"] == {"result": 42}
-    
+
     # Check that state was updated by the dynamic logic function
     snapshot = new_actor.on_receive({"command": "snapshot"}).get()
     assert snapshot.data.get("dynamic_ran") is True

@@ -73,12 +73,12 @@ class TimingPermutator:
         Select delay profile based on activity and detected WAF.
         """
         profiles = {
-            "browse": (200, 100),
-            "type": (150, 80),
-            "think": (1000, 300),
-            "scroll": (50, 30),
+            "browse": (200.0, 100.0),
+            "type": (150.0, 80.0),
+            "think": (1000.0, 300.0),
+            "scroll": (50.0, 30.0),
         }
-        base, variance = profiles.get(activity, (200, 100))
+        base, variance = profiles.get(activity, (200.0, 100.0))
 
         if waf_detected:
             base *= 1.5
@@ -140,7 +140,7 @@ class JA3FingerprintModel:
         },
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._profile_keys = list(self.BROWSER_PROFILES.keys())
         self._rng = secrets.SystemRandom()
 
@@ -191,7 +191,7 @@ class HMMEvasionModel:
     OBS_BLOCK = 2
     OBS_RATE_LIMIT = 3
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._current_state = self.STATE_UNDETECTED
         self._state_history: list[int] = [self.STATE_UNDETECTED]
         self._rng = secrets.SystemRandom()
@@ -319,7 +319,7 @@ class ChameleonEvasionEngine:
     and timing permutation for comprehensive WAF evasion.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.hmm = HMMEvasionModel()
         self.ja3 = JA3FingerprintModel()
         self.timing = TimingPermutator()

@@ -165,7 +165,7 @@ class NucleiTagOptimizer:
 
             if all(isinstance(e, str) for e in raw_entries):
                 # Caller passed plain str tags → preserve that shape.
-                output_value = [e.name for e in optimised_entries]
+                output_value: list[Any] = [e.name for e in optimised_entries]
             else:
                 # Caller passed structured dict entries.
                 output_value = [
@@ -183,9 +183,8 @@ class NucleiTagOptimizer:
             return TagEntry(name=raw, intensity_multiplier=1.0)
         if isinstance(raw, dict):
             return TagEntry(
-                name=str(raw.get("tag", raw.get("name", ""))),
-                intensity_multiplier=float(raw.get("intensity_multiplier",
-                                                  raw.get("multiplier", 1.0))),
+                name=str(raw.get("tag") or raw.get("name") or ""),
+                intensity_multiplier=float(raw.get("intensity_multiplier") or raw.get("multiplier") or 1.0),
             )
         return TagEntry(name=str(raw))
 

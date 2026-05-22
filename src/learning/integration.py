@@ -31,6 +31,8 @@ from pathlib import Path
 from typing import Any
 
 from src.infrastructure.mesh.sync import MeshSync
+from src.intelligence.ml import ActiveLearningController
+from src.intelligence.severity_model import get_default_severity_model
 from src.learning.config import LearningConfig
 from src.learning.feedback_loop import FeedbackLoopEngine
 from src.learning.fp_tracker import FPTracker
@@ -39,8 +41,6 @@ from src.learning.nuclei_tag_optimizer import NucleiTagOptimizer
 from src.learning.repositories.redis_fp_repo import RedisFPRepository
 from src.learning.telemetry_store import TelemetryStore
 from src.learning.threshold_tuner import ThresholdConfig, ThresholdTuner
-from src.intelligence.severity_model import get_default_severity_model
-from src.intelligence.ml import ActiveLearningController
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,7 @@ class LearningIntegration:
         )
 
         # Wire active learning retraining loops
+        self._active_learning: ActiveLearningController | None = None
         try:
             severity_model = get_default_severity_model(self.store.db_path)
             self._active_learning = ActiveLearningController(severity_model.registry)
@@ -456,7 +457,7 @@ class LearningIntegration:
         await self._persist_adaptive_config(ctx)
 
         # Phase 8: Active Learning Retraining
-        if run_id and getattr(self, "_active_learning", None):
+        if run_id and self._active_learning is not None:
             try:
                 retrain_res = self._active_learning.retrain_from_telemetry(
                     str(self.store.db_path), run_id

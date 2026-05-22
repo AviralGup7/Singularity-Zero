@@ -1,17 +1,14 @@
 import pytest
-from src.recon.target_index import (
-    parse_ipv4_fast,
-    format_ipv4_fast,
-    ParsedUrl,
-    TargetIndex
-)
+
+from src.recon.target_index import ParsedUrl, TargetIndex, format_ipv4_fast, parse_ipv4_fast
+
 
 class TestIPv4Fast:
     @pytest.mark.parametrize("ip_str, expected_success, expected_int", [
         ("127.0.0.1", True, 0x7F000001),
         ("192.168.1.1", True, 0xC0A80101),
         ("255.255.255.255", True, 0xFFFFFFFF),
-        ("0.0.0.0", True, 0x00000000),
+        ("0.0.0.0", True, 0x00000000),  # noqa: S104
         ("10.0.0.255", True, 0x0A0000FF),
         # Invalid IPs
         ("256.0.0.1", False, 0),
@@ -34,7 +31,7 @@ class TestIPv4Fast:
         (0x7F000001, "127.0.0.1"),
         (0xC0A80101, "192.168.1.1"),
         (0xFFFFFFFF, "255.255.255.255"),
-        (0x00000000, "0.0.0.0"),
+        (0x00000000, "0.0.0.0"),  # noqa: S104
     ])
     def test_format_ipv4_fast(self, ip_int, expected_str):
         assert format_ipv4_fast(ip_int) == expected_str

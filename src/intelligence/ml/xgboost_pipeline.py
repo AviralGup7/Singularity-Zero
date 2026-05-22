@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+
 import numpy as np
+
+from src.intelligence.ml.feature_vector import FeatureVector
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +23,6 @@ except ImportError:
         "ML Libraries (xgboost, scikit-learn) could not be loaded. Running on fallback model mode."
     )
 
-from src.intelligence.ml.feature_vector import FeatureVector
-
 
 class XGBoostSeverityPipeline:
     """Wrapper that manages feature vectorization and XGBoost/scikit-learn training."""
@@ -31,7 +32,7 @@ class XGBoostSeverityPipeline:
         self.hasher = None
         self.model = None
         self.is_trained = False
-        
+
         if HAS_ML_LIBS:
             self.hasher = FeatureHasher(n_features=self.n_features, input_type="pair")
             # Set up XGBoost Classifier with max depth to prevent overfitting on security metrics
@@ -83,12 +84,12 @@ class XGBoostSeverityPipeline:
 
         try:
             vectors = [FeatureVector.from_finding(f) for f in findings]
-            X = self._vectorize(vectors)
+            x = self._vectorize(vectors)
             y = np.array(labels, dtype=np.float32)
 
             # Fit the underlying estimator
             if hasattr(self.model, "fit"):
-                self.model.fit(X, y)
+                self.model.fit(x, y)
                 self.is_trained = True
                 logger.info("XGBoostSeverityPipeline: Successfully fitted model on %d samples.", len(findings))
                 return True
@@ -106,9 +107,9 @@ class XGBoostSeverityPipeline:
 
         try:
             vec = FeatureVector.from_finding(finding)
-            X = self._vectorize([vec])
+            x = self._vectorize([vec])
             if hasattr(self.model, "predict_proba"):
-                probs = self.model.predict_proba(X)
+                probs = self.model.predict_proba(x)
                 return float(probs[0][1])
         except Exception as e:
             logger.warning("ML Inference error: %s. Falling back to default sigmoid coefficients.", e)
@@ -119,7 +120,7 @@ class XGBoostSeverityPipeline:
         """Pure NumPy fallback algorithm to maintain functionality if compilation fails."""
         vec = FeatureVector.from_finding(finding)
         feats = vec.to_features_dict()
-        
+
         # Exact default weights from calibrated hand-rolled logreg model
         default_weights = {
             "bias": -0.85,
@@ -129,11 +130,11 @@ class XGBoostSeverityPipeline:
             "cvss": 0.5,
             "diff_score": 0.8,
         }
-        
+
         feature_sum = sum(default_weights.get(k, 0.0) * v for k, v in feats.items())
-        
+
         # Clean Sigmoid implementation
         if feature_sum >= 0:
-            return 1.0 / (1.0 + np.exp(-feature_sum))
+            return float(1.0 / (1.0 + np.exp(-feature_sum)))
         z = np.exp(feature_sum)
-        return z / (1.0 + z)
+        return float(z / (1.0 + z))
