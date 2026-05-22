@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 import uuid
+import threading
 from collections import OrderedDict
 from typing import Any
 
@@ -64,6 +65,7 @@ class Broadcaster:
         # Fix #363: Use OrderedDict for FIFO dedup window eviction.
         # set.pop() removes an arbitrary element, not the oldest.
         self._seen_ids: OrderedDict[str, None] = OrderedDict()
+        self._seen_ids_lock = threading.Lock()
         self._broadcast_count: int = 0
         self._drop_count: int = 0
         self._lock = asyncio.Lock()
@@ -82,13 +84,14 @@ class Broadcaster:
     def _is_duplicate(self, message_id: str, scope: str = "") -> bool:
         """Check if a message has already been processed."""
         dedup_key = self._dedup_key(message_id, scope)
-        if dedup_key in self._seen_ids:
-            return True
+        with self._seen_ids_lock:
+            if dedup_key in self._seen_ids:
+                return True
 
-        self._seen_ids[dedup_key] = None
-        # Fix #363: FIFO eviction — remove oldest entries when window is exceeded.
-        while len(self._seen_ids) > self.dedup_window:
-            self._seen_ids.popitem(last=False)  # Remove oldest (FIFO)
+            self._seen_ids[dedup_key] = None
+            # Fix #363: FIFO eviction — remove oldest entries when window is exceeded.
+            while len(self._seen_ids) > self.dedup_window:
+                self._seen_ids.popitem(last=False)  # Remove oldest (FIFO)
 
         return False
 

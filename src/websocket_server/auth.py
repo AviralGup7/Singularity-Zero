@@ -63,6 +63,7 @@ async def authenticate_websocket(
     jwt_algorithms: list[str] | None = None,
     api_keys: dict[str, str] | None = None,
     required_roles: set[str] | None = None,
+    allowed_origins: set[str] | None = None,
 ) -> AuthCredentials:
     """Authenticate a WebSocket connection.
 
@@ -77,6 +78,7 @@ async def authenticate_websocket(
         jwt_algorithms: Allowed JWT algorithms (default: ``["HS256"]``).
         api_keys: Dict mapping API key strings to user IDs. If None, API key auth is skipped.
         required_roles: If set, the authenticated user must have at least one of these roles.
+        allowed_origins: Set of allowed origin URIs to mitigate CSWSH.
 
     Returns:
         AuthCredentials if authentication succeeds.
@@ -84,7 +86,21 @@ async def authenticate_websocket(
     Raises:
         AuthenticationError: If authentication fails.
     """
+    import os
     algorithms = jwt_algorithms or ["HS256"]
+
+    # SEC-9: Origin validation against CSWSH
+    origin = websocket.headers.get("origin")
+    allowed = allowed_origins or set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
+    allowed = {o.strip() for o in allowed if o.strip()}
+    if origin and allowed and "*" not in allowed:
+        if origin not in allowed:
+            logger.warning("WebSocket CSWSH blocked: invalid origin %s", origin)
+            raise AuthenticationError(
+                code="auth_invalid_origin",
+                detail="Origin not allowed",
+                status_code=4003,
+            )
 
     subprotocols = websocket.headers.get("sec-websocket-protocol", "")
     for protocol in subprotocols.split(","):
@@ -104,6 +120,12 @@ async def authenticate_websocket(
     # Keep WebSocket behavior consistent with HTTP endpoints in development:
     # when no auth backend is configured, allow anonymous access.
     if jwt_secret is None and not api_keys:
+        if os.environ.get("ALLOW_ANONYMOUS_WS", "1") != "1":
+            raise AuthenticationError(
+                code="auth_missing_credentials",
+                detail="Authentication is required",
+                status_code=4001,
+            )
         anonymous_roles = {"anonymous"}
         if required_roles and not anonymous_roles.intersection(required_roles):
             raise AuthenticationError(
