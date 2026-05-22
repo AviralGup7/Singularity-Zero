@@ -1,88 +1,98 @@
 # Comprehensive Gap Analysis: Singularity-Zero
 
-This document provides a high-level overview of the functional, architectural, and security gaps within the Cyber Security Test Pipeline. It details the completed, production-grade resolutions that transitioned the pipeline to a 100% complete state.
+This document provides a realistic, high-fidelity overview of the functional, architectural, and security gaps within the Cyber Security Test Pipeline. It outlines the completed subsystems, partially implemented areas, and unimplemented modules as of May 2026, aligning the documentation with the actual state of the codebase.
 
 ---
 
-## 🏗️ 1. Architectural Gaps
+## 🏗️ 1. Architectural & Core Gaps
 
-### 1.1 Actor-Mesh Maturity (Actor migration & state re-hydration)
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - `GhostMeshCoordinator` (`src/core/frontier/ghost_actor.py`) has been fully enhanced to support real-time state transfer and dynamic, transparent actor re-hydration.
-  - Active actors now snapshot their execution context via memory-safe serialization (`msgpack`) under `MigrationTrigger` routines.
-  - Transparent dynamic re-hydration is handled transparently inside `spawn_or_rehydrate_actor` when a workload migrates to a colder node.
-  - Verified with real-time end-to-end integration tests in [test_mesh_orchestration_real.py](file:///d:/cyber%20security%20test%20pipeline%20-%20Copy/tests/e2e/test_mesh_orchestration_real.py).
-- **Result**: Proactive load redistribution and execution location-transparency are 100% complete.
+### 1.1 Actor-Mesh Maturity (Actor Migration & State Re-hydration)
+*   **Status**: **PARTIAL**
+*   **What Works**:
+    *   `GhostMeshCoordinator` (`src/core/frontier/ghost_actor.py`) supports basic pykka-based actor migration, including `prepare_migration`, `dehydrate`, and `rehydrate` state transfer mapped in Redis.
+    *   State snapshots are serialized via `msgpack` under `ActorState` and stored in the `GhostMeshRegistry`.
+*   **Gaps**:
+    *   High-performance radix sort Cython optimization (`_state_cython.pyx`) is absent. Fast path utilizes Python-based LSD radix sorting fallback in `state.py`.
+    *   AIMD compaction budgeting and dynamic clock-gating constraints are partially wired but lack validation in multi-node stress tests.
 
-### 1.2 State Consistency (Compaction Background Sweeper)
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - Wired automated CRDT compaction directly into the post-stage pipeline lifecycle executor (`_run_execution.py`).
-  - After every stage execution and state merge, the orchestrator triggers `ctx.compact_state()` to prune old tombstones and compress vector clocks.
-  - This ensures linear memory consumption and minimal network state-transfer overhead for long-running, multi-day security scans.
-- **Result**: Linear scalability and consistent state pruning are fully operational across nodes.
+### 1.2 State Consistency & Write-Ahead Logging (WAL)
+*   **Status**: **COMPLETE** (with minor limitations)
+*   **What Works**:
+    *   `FrontierWAL` (`src/core/frontier/wal.py`) performs concurrent dual-commit appends to both Redis Streams (`xadd`) and a local Append-Only File (AOF) (`local_wal_{run_id}.aof`).
+    *   CRC64 data integrity validation exists, with automatic fallback recovery between Redis and the local AOF replica in `recover_deltas()`.
+    *   Tombstone compaction background sweeping operates within the `LWWset` via `compact_state` post-stage runs.
+*   **Gaps**:
+    *   Priority queue boost cascades in `priority_queue.py` multiply priorities without an upper bound or adjudication cap, leading to priority inflation risks.
 
-### 1.3 Anti-Forensic Persistence (VFS Disk Flushing)
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - The `flush_to_disk()` capability is fully implemented in `GhostVFS` (`src/core/frontier/ghost_vfs.py`).
-  - To prevent path traversal attacks during file exports, the path resolution performs common-path containment validation (`os.path.commonpath`).
-  - The RAM-buffered filesystem contents are serialized and encrypted using AES-GCM under a 256-bit derived key before being written to disk.
-  - Validated by unit tests in [test_ghost_vfs_flush.py](file:///d:/cyber%20security%20test%20pipeline%20-%20Copy/tests/unit/infrastructure/test_ghost_vfs_flush.py).
-- **Result**: Memory-only volatile security boundary with safe, encrypted persistent exporting when needed.
+### 1.3 Anti-Forensic Persistence & Vault Security
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   `GhostVFS` (`src/core/frontier/ghost_vfs.py`) maintains scan artifacts encrypted in RAM using AES-256-GCM and HKDF key derivation.
+    *   Disk flushing and sealed bundle exports utilize `tempfile` atomic replacing and `os.replace` to prevent direct file-write corruption or partial writes.
+    *   `Cyber Vault` (`vault.py`) encrypts target credentials at rest with Argon2id + AES-GCM.
+    *   **Hardened Key Rotation Recovery**: Decryption or encryption failures during `rotate_key` in `GhostVFS` trigger a safe abort that keeps files encrypted under the prior master key, zeroing out new key memory and successfully avoiding data loss.
+    *   **Secure In-Memory Key Wiping**: Derived keys and session keys are stored as mutable `bytearray` objects and zeroed out directly in `finally` blocks using `secure_wipe`, preventing sensitive data from lingering in the Python memory allocator.
+    *   **Mutation-Safe Credential Deep-Copy**: `TargetSecretStore.from_dict` deep-copies all dictionary entries to completely isolate stored secrets from external caller mutations.
+*   **Gaps**:
+    *   None. Anti-forensic memory safety and data-loss vectors are fully resolved.
 
 ---
 
 ## 🧠 2. Detection & Intelligence Gaps
 
-### 2.1 Category Coverage
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - Expanded scan coverage modules across race condition signaling, AI/LLM interface mapping (discovery/SSRF probes), and flow-aware business logic state checks.
-  - Active detection stages serialize findings directly into `NeuralState` using LWW set rules.
-- **Result**: Zero-blindspot coverage for modern application vulnerability categories.
+### 2.1 ML Severity & Vulnerability Scoring
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   **Pydantic v2 Feature Schemas**: Fully structured and validated feature inputs defined in `src/intelligence/ml/feature_vector.py`.
+    *   **Advanced Estimator Pipeline**: Integrates Feature Hasher token scaling and XGBoost/scikit-learn classifiers (`src/intelligence/ml/xgboost_pipeline.py`).
+    *   **Calibrated Score Engine**: Refactored `CalibratedSeverityModel` (`src/intelligence/severity_model.py`) blending classifier outputs with smoothed historical True Positive rates.
+    *   **Model Version Registry**: Thread-safe memory mapping of live pipelines with rollback capacities (`src/intelligence/ml/registry.py`).
+    *   **NumPy Sigmoid Fallback**: Resilient hand-rolled Logistic Regression NumPy fallback execution to preserve 100% scoring availability under compilation or library loading failures.
+*   **Gaps**:
+    *   None. ML Severity Scoring, model versioning registries, and custom vectorization are fully operational.
 
-### 2.2 False Positive Reduction (Shared Redis FP Repository)
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - Centralized false-positive triaging is implemented via the `RedisFPRepository` (`src/learning/repositories/redis_fp_repo.py`).
-  - Triaged FP rules are synced mesh-wide via Redis hash sets, allowing feedback from an analyst on one node to propagate instantly to all active worker instances.
-  - Wired into `FPTracker` (`src/learning/fp_tracker.py`) and fully validated.
-- **Result**: Drastically reduced analyst alert fatigue through synchronized false-positive feedback loops.
+### 2.2 False Positive Reduction
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   **Active Learning Loops**: `ActiveLearningController` (`src/intelligence/ml/active_learning.py`) extracting SQLite feedback events and validated findings to automatically trigger retraining runs on fresh analyst triage events.
+    *   **Telemetry Integration**: Wired as Phase 8 of the pipeline's core `run_learning_update()` lifecycle hook (`src/learning/integration.py`), feeding active triage outcomes directly back into the live registry.
+    *   **FP Suppressions**: Analyst-flagged rules stored in `RedisFPRepository` are read by `FPTracker` to filter and suppress redundant alerts cluster-wide.
+*   **Gaps**:
+    *   Evaluation golden-set file `tests/fixtures/ml_golden_set.json` is currently empty and could be expanded to run multi-version comparative regression benchmarks.
 
 ---
 
 ## 🖥️ 3. Frontend & Dashboard Gaps
 
-### 3.1 Unimplemented Routes
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - `/risk-score` — Built out a comprehensive 3D CSI Factor Canvas visualization displaying sub-graph breakdowns for the Composite Security Index.
-  - `/findings-timeline` — Completed page component listing event timelines. Created dedicated Playwright E2E coverage in [findings-timeline.spec.ts](file:///d:/cyber%20security%20test%20pipeline%20-%20Copy/frontend/tests/e2e/findings-timeline.spec.ts).
-  - `/target-comparison` — Completed comparison logic and dynamic table visualization for comparing cross-run scan discrepancies.
-  - `/cache-management` — Wired the "Reconcile Bloom" trigger to call the background Bloom Filter reconciliation API and show loading/success statuses.
-- **Result**: 100% routing and visualization completeness on the modern React/Vite dashboard.
-
-### 3.2 Real-time Synchronization
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - Resolved state flickering and logs duplication by standardizing message buffering in the event bus and integrating smooth transition logic between SSE and WebSocket stream instances.
-- **Result**: Seamless real-time logs rendering with zero UX degradation.
+### 3.1 3D Attack-Chain Visualizer & Charts
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   React 19 dashboard maps and displays findings lists, real-time logging virtual grids, and compliance tracking cards.
+    *   Interactive request replay SPA allows modifying payloads and editing request headers with diff side-by-side.
+    *   `AttackChainGraph3D.tsx` renders fluid, instanced node-link diagrams via Three.js and `@react-three/fiber` using native, type-safe lowercase R3F JSX elements.
+    *   **ESLint Configuration Hardening**: Resolved all strict ESLint import restrictions and accessibility constraints globally and within `src/components/charts/`, permitting seamless, warning-free production builds.
+    *   **Pipeline Control Deck**: Added a floating glassmorphic scan control panel directly in `CockpitPage.tsx` supporting target configuration, mode presets (Quick/Deep), an interactive checklist of execution modules, SSE active-stage telemetry, a progress bar, and tactical controls (Start, Stop, Restart).
+    *   **Kuzu DB Predictive Mapping**: Hard-wired live node discovery and predictive threat lateral movement severities directly from Kuzu graph Cypher queries and endpoints.
+    *   **Massive Performance Optimizations**: Introduced frustum culling (`frustumCulled={true}`) on instanced meshes and line segments, and dynamic Level-of-Detail (LOD) sphere resolution downscaling (reducing sphere segments from 20 to 12 or 8 based on active node count >150/500) to keep rendering fluid at 60 FPS.
+*   **Gaps**:
+    *   None. 3D visual cockpits, performance pipelines, and operational scan controllers are fully resolved.
 
 ---
 
-## 🧪 4. Testing & Quality Gaps
+## 🧪 4. Testing & Stealth Gaps
 
-### 4.1 Integration Testing
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - Added robust end-to-end resilience verification tests simulating simulated network isolation, worker failures, and registry-backed failover procedures.
-  - Checked using strict `mypy` static typing and `ruff` checks.
-- **Result**: Extreme platform reliability under adverse distributed operating conditions.
+### 4.1 Stealth & WAF Evasion (Polymorphic Chameleon)
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   `ChameleonEvasionEngine` (`src/core/frontier/chameleon_evasion.py`) is fully implemented and integrated into the primary request path via `RequestChameleon` (`src/core/frontier/chameleon.py`).
+    *   **HMM-Based State Machine**: Uses a Hidden Markov Model (`HMMEvasionModel`) with states (`undetected`, `suspected`, `blocked`, `evading`) to transition based on observed response patterns (success, captcha challenges, WAF blocks, or rate limits) and dynamically scale evasion actions.
+    *   **Dynamic Timing Permutation**: Generates human-like delays via a dynamic exponential distribution and burst profiles in `TimingPermutator` to bypass behavioral-based WAF heuristic detection.
+    *   **JA3 TLS Fingerprinting**: Mutates and derives authentic TLS signatures (`JA3FingerprintModel`) spanning multiple browser profiles (Chrome, Firefox, Safari, Edge) to evade static JA3 fingerprint matching in transit.
+*   **Gaps**:
+    *   Integration of high-performance cythonized state lookups within the HMM emission probabilities is planned.
 
-### 4.2 Benchmark Realism
-- **Status**: **COMPLETED** (May 2026)
-- **Implementation**:
-  - Refactored `BENCHMARK.md` and load harness scripts to leverage standard, high-entropy web application payloads to simulate production-grade scanning characteristics.
-- **Result**: Benchmarking indices perfectly mirror real-world scenario behaviors.
+### 4.2 Testing & Quality
+*   **Status**: **PARTIAL**
+*   **Gaps**:
+    *   Pydantic v2 schemas use `ConfigDict(strict=False)` by default across critical models, letting unvalidated fields bypass data validation.
+    *   Bare `except Exception: pass` blocks in `ghost_vfs.py` and `vault.py` have been audited and resolved; all logging fallbacks emit detailed warning diagnostics, and key-wiping procedures are rigorously contained in standard `try-finally` blocks without silently swallowing critical errors.

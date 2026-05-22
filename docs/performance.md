@@ -49,6 +49,10 @@ vfs_overhead: 1.25 # Multiplier when Ghost-VFS anti-forensics is ACTIVE
 
 - **Metric**: `mesh_cpu_avg` > 85% -> **Action**: Nodes lower their task bids; Actor migration triggered.
 - **Metric**: `url_filter_time` > 5s -> **Action**: Automatically scale up NumPy vectorization chunk sizes.
-- **Metric**: `waf_block_rate` > 2% -> **Action**: Polymorphic Chameleon increases mutation jitter.
+- **Metric**: `waf_block_rate` > 2% -> **Action**: Polymorphic Chameleon feeds WAF block/rate-limit signals into the Hidden Markov Model (HMM), triggering transitions to `STATE_BLOCKED` or `STATE_EVADING`. This automatically increases timing delays (using exponential distributions up to 3.0s), mutates TLS JA3 fingerprints (Fisher-Yates shuffling of browser profiles), and doubles request timeouts.
 - **Metric**: `bloom_false_positive_probability` > 0.1% -> **Action**: Increase Bloom capacity or lower `BLOOM_ERROR_RATE`.
 - **Metric**: `bloom_last_sync_age` > `3 * BLOOM_SYNC_INTERVAL_SEC` -> **Action**: Trigger `/api/bloom/reconcile` from an admin session.
+- **Metric**: `ml_inference_latency` > 150ms -> **Action**: The Model Registry bypasses complex estimators and triggers fallback execution, downgrading scoring to a high-fidelity, thread-safe, pure-NumPy sigmoid logistic regression fallback to guarantee real-time throughput.
+- **Metric**: `feedback_triage_count` >= 15 -> **Action**: The Active Learning Controller schedules an asynchronous, background retraining cycle, updating the XGBoost severity model using analyst feedback and telemetry logs extracted from the SQLite database.
+- **Metric**: `render_framerate` < 30 FPS -> **Action**: Trigger dynamic Level-of-Detail (LOD) downscaling (scaling down sphere segments from 20 to 12 or 8 based on active node count > 150/500) and enforce frustum culling (`frustumCulled={true}`) on instanced meshes and line segments to maintain 60 FPS visual theater fluidly.
+

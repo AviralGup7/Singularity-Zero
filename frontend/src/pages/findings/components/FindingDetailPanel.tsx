@@ -8,8 +8,7 @@ import { EvidenceDisplay } from '../../../components/EvidenceDisplay';
 import { AttackChainVisualizer } from '../../../components/AttackChainVisualizer';
 import { FindingComments } from '../../../components/FindingComments';
 import { RequestResponseViewer } from '../../../components/RequestResponseViewer';
-import { recordTriageAction } from '@/api/triage';
-import { getTriageAnalyst } from '@/hooks/useTriageCollaboration';
+import { useTriageCollaboration } from '@/hooks/useTriageCollaboration';
 
 export type DetailTab = 'cvss' | 'csi' | 'evidence' | 'simulation' | 'request' | 'logic' | 'comments';
 
@@ -79,6 +78,22 @@ export function FindingDetailPanel({
     || detailFinding.target
     || 'global'
   );
+  const triage = useTriageCollaboration(runId, detailFinding.id);
+  const triageStatus = triage.state?.status || detailFinding.lifecycle_state || 'open';
+
+  const recordWorkflowAction = async (
+    action: 'finding_escalated' | 'finding_closed' | 'finding_reopened' | 'finding_false_positive',
+    payload: Record<string, unknown>,
+    successMessage: string,
+    errorMessage: string,
+  ) => {
+    try {
+      await triage.sendAction(action, payload);
+      toast.success(successMessage);
+    } catch {
+      toast.error(errorMessage);
+    }
+  };
 
   const chainSimulation: AttackChain | null = (detailFinding.metadata?.chain_simulation as AttackChain) || 
                                               evidence?.chain_simulation || 
@@ -145,7 +160,7 @@ export function FindingDetailPanel({
               </div>
               <div className="glass-panel p-4 rounded-xl">
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">State</div>
-                 <div className="text-sm font-black text-text uppercase mt-2">{detailFinding.lifecycle_state}</div>
+                 <div className="text-sm font-black text-text uppercase mt-2">{triageStatus}</div>
               </div>
               <div className="glass-panel p-4 rounded-xl">
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Severity</div>
@@ -291,25 +306,64 @@ export function FindingDetailPanel({
               </button>
               <button
                 className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
-                onClick={async () => {
-                  try {
-                    await recordTriageAction(
-                      runId,
-                      detailFinding.id,
-                      'finding_false_positive',
-                      {
-                        category: String(detailFinding.metadata?.category || detailFinding.type || detailFinding.metadata?.module || 'manual_triage'),
-                        status_code: detailFinding.metadata?.response_status || detailFinding.metadata?.status_code,
-                        description: detailFinding.description,
-                        evidence: JSON.stringify(detailFinding.evidence || {}),
-                      },
-                      getTriageAnalyst(),
-                    );
-                    toast.success('False-positive pattern shared with the mesh');
-                  } catch {
-                    toast.error('Unable to record false-positive triage');
-                  }
-                }}
+                onClick={() => recordWorkflowAction(
+                  'finding_escalated',
+                  {
+                    severity: detailFinding.severity,
+                    confidence: detailFinding.confidence,
+                    reason: 'Manual analyst escalation',
+                  },
+                  'Finding escalated for review',
+                  'Unable to escalate finding',
+                )}
+                disabled={triageStatus === 'escalated'}
+              >
+                Escalate
+              </button>
+              <button
+                className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
+                onClick={() => recordWorkflowAction(
+                  'finding_closed',
+                  {
+                    resolution: 'Manual analyst closure',
+                    previous_state: triageStatus,
+                  },
+                  'Finding closed for the team',
+                  'Unable to close finding',
+                )}
+                disabled={triageStatus === 'closed'}
+              >
+                Close
+              </button>
+              <button
+                className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
+                onClick={() => recordWorkflowAction(
+                  'finding_reopened',
+                  {
+                    previous_state: triageStatus,
+                    reason: 'Manual analyst reopen',
+                  },
+                  'Finding reopened',
+                  'Unable to reopen finding',
+                )}
+                disabled={triageStatus === 'open'}
+              >
+                Reopen
+              </button>
+              <button
+                className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
+                onClick={() => recordWorkflowAction(
+                  'finding_false_positive',
+                  {
+                    category: String(detailFinding.metadata?.category || detailFinding.type || detailFinding.metadata?.module || 'manual_triage'),
+                    status_code: detailFinding.metadata?.response_status || detailFinding.metadata?.status_code,
+                    description: detailFinding.description,
+                    evidence: JSON.stringify(detailFinding.evidence || {}),
+                  },
+                  'False-positive pattern shared with the mesh',
+                  'Unable to record false-positive triage',
+                )}
+                disabled={triageStatus === 'false_positive'}
               >
                 Flag False Positive
               </button>

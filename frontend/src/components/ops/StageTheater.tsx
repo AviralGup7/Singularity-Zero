@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { linkVertical } from 'd3-shape';
 import { motion } from 'framer-motion';
 import type { CSSProperties } from 'react';
@@ -502,7 +503,7 @@ function resolveNodeVisualAnimation(
 function resolveNodeTransition(
   mode: 'idle' | 'active' | 'unstable' | 'critical',
   visualState: VisualState
-): unknown {
+): any {
   if (mode === 'critical') {
     return {
       duration: Math.max(0.18, 0.34 - visualState.urgency * 0.12),

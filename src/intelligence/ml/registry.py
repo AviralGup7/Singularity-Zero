@@ -27,17 +27,29 @@ class ModelVersionRegistry:
         self.max_latency_ms = max_latency_ms
         self._active: dict[str, ModelVersion] = {}
         self._history: dict[str, list[ModelVersion]] = {}
+        self._pipelines: dict[str, Any] = {}
+        self._pipeline_history: dict[str, list[Any]] = {}
         self._rollback_log: list[dict[str, Any]] = []
 
-    def register(self, model: ModelVersion, *, activate: bool = True) -> None:
+    def register(self, model: ModelVersion, *, activate: bool = True, pipeline: Any = None) -> None:
         history = self._history.setdefault(model.name, [])
+        pipe_history = self._pipeline_history.setdefault(model.name, [])
         current = self._active.get(model.name)
+        current_pipe = self._pipelines.get(model.name)
+        
         if current is not None and current.version != model.version:
             history.append(current)
+            if current_pipe is not None:
+                pipe_history.append(current_pipe)
+                
         if activate:
             self._active[model.name] = model
+            if pipeline is not None:
+                self._pipelines[model.name] = pipeline
         else:
             history.append(model)
+            if pipeline is not None:
+                pipe_history.append(pipeline)
 
     def record_health(
         self,
@@ -101,6 +113,14 @@ class ModelVersionRegistry:
 
         previous = history.pop()
         self._active[current.name] = previous
+        
+        # Rollback actual pipeline too
+        pipe_history = self._pipeline_history.get(current.name, [])
+        if pipe_history:
+            self._pipelines[current.name] = pipe_history.pop()
+        else:
+            self._pipelines.pop(current.name, None)
+
         event = {
             "rolled_back": True,
             "model_name": current.name,

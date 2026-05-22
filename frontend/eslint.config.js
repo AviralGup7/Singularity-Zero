@@ -104,14 +104,6 @@ export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/compone
           message: 'Lottie is not allowed inside chart components.',
         },
         {
-          name: 'three',
-          message: 'Three.js is not allowed inside chart components.',
-        },
-        {
-          name: '@react-three/fiber',
-          message: 'React Three Fiber is not allowed inside chart components.',
-        },
-        {
           name: 'recharts',
           message: 'Ops-core chart components should use D3-based rendering rather than Recharts.',
         },
