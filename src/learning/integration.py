@@ -39,6 +39,8 @@ from src.learning.nuclei_tag_optimizer import NucleiTagOptimizer
 from src.learning.repositories.redis_fp_repo import RedisFPRepository
 from src.learning.telemetry_store import TelemetryStore
 from src.learning.threshold_tuner import ThresholdConfig, ThresholdTuner
+from src.intelligence.severity_model import get_default_severity_model
+from src.intelligence.ml import ActiveLearningController
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,14 @@ class LearningIntegration:
                 convergence_threshold=self.config.threshold_tuning.convergence_threshold,
             ),
         )
+
+        # Wire active learning retraining loops
+        try:
+            severity_model = get_default_severity_model(self.store.db_path)
+            self._active_learning = ActiveLearningController(severity_model.registry)
+        except Exception as e:
+            logger.warning("Active learning controller initialization failed: %s", e)
+            self._active_learning = None
 
     @classmethod
     def get_or_create(
@@ -444,6 +454,17 @@ class LearningIntegration:
 
         # Phase 7: Persist adaptive config for next run (Phase 5.2)
         await self._persist_adaptive_config(ctx)
+
+        # Phase 8: Active Learning Retraining
+        if run_id and getattr(self, "_active_learning", None):
+            try:
+                retrain_res = self._active_learning.retrain_from_telemetry(
+                    str(self.store.db_path), run_id
+                )
+                result["active_learning_retrain"] = retrain_res
+                logger.info("Active learning retrain outcome: %s", retrain_res)
+            except Exception as e:
+                logger.error("Failed to execute active learning retraining: %s", e)
 
         logger.info(
             "Learning update complete for run %s: %d events, %d FP patterns, converged=%s",

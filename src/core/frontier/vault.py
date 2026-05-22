@@ -134,15 +134,16 @@ class CyberVault:
     ) -> str:
         """Encrypt plaintext and return an Argon2id/AES-GCM envelope."""
         version = key_version or self._key_version
-        raw = data if isinstance(data, bytes) else data.encode("utf-8")
+        raw_bytes = data if isinstance(data, bytes) else data.encode("utf-8")
+        raw = bytearray(raw_bytes)
         try:
             encrypted = self._envelope().encrypt(
-                raw, self._aad(purpose, version), info=purpose.encode("utf-8")
+                bytes(raw), self._aad(purpose, version), info=purpose.encode("utf-8")
             )
             self._audit("store", secret_id=purpose, key_version=version)
             return encrypted
         finally:
-            secure_wipe(bytearray(raw))
+            secure_wipe(raw)
 
     def decrypt_lease(self, encrypted_payload: str, *, purpose: str = "secret") -> SecretLease:
         """Decrypt into a lease that wipes the plaintext buffer when released."""
@@ -236,5 +237,6 @@ class TargetSecretStore:
     @classmethod
     def from_dict(cls, vault: CyberVault, data: dict[str, str]) -> TargetSecretStore:
         store = cls(vault)
-        store._secrets = dict(data)
+        # Deep-copy dictionary items to completely isolate against external mutations
+        store._secrets = {str(k): str(v) for k, v in data.items()}
         return store

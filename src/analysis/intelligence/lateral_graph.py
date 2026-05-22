@@ -197,7 +197,7 @@ class LateralGraph:
             Any,
             self._conn.execute(
                 "MATCH (a1:Asset)-[:HAS_VULN]->(f1:Finding)-[:PIVOTS_TO]->(a2:Asset)-[:HAS_VULN]->(f2:Finding) "
-                "RETURN a1.id, f1.id, a2.id, f2.id"
+                "RETURN a1.id, f1.id, f1.severity, a2.id, f2.id, f2.severity"
             ),
         )
         chains: list[list[str]] = []

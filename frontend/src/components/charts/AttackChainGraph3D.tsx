@@ -1,25 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { OrbitControls as ThreeOrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { CockpitEdge, CockpitNode } from '@/api/cockpit';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const { Color, InstancedMesh, Object3D, Vector3 } = THREE as any;
-type InstancedMesh = any;
-type ThreePointerEvent = any;
-const ThreeInstancedMesh = 'instancedMesh' as any;
-const ThreeSphereGeometry = 'sphereGeometry' as any;
-const ThreeMeshStandardMaterial = 'meshStandardMaterial' as any;
-const ThreeMeshBasicMaterial = 'meshBasicMaterial' as any;
-const ThreeLineSegments = 'lineSegments' as any;
-const ThreeBufferGeometry = 'bufferGeometry' as any;
-const ThreeBufferAttribute = 'bufferAttribute' as any;
-const ThreeLineBasicMaterial = 'lineBasicMaterial' as any;
-const ThreeColor = 'color' as any;
-const ThreeFog = 'fog' as any;
-const ThreePerspectiveCamera = 'perspectiveCamera' as any;
-/* eslint-enable @typescript-eslint/no-explicit-any */
+const { Color, Object3D, Vector3 } = THREE as any;
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#ff2d55',
@@ -94,12 +81,12 @@ function GraphEdges({ edges, nodes }: { edges: CockpitEdge[]; nodes: PositionedN
   if (positions.length === 0) return null;
 
   return (
-    <ThreeLineSegments>
-      <ThreeBufferGeometry>
-        <ThreeBufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </ThreeBufferGeometry>
-      <ThreeLineBasicMaterial color="#35506b" transparent opacity={0.38} />
-    </ThreeLineSegments>
+    <lineSegments frustumCulled={true}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <lineBasicMaterial color="#35506b" transparent opacity={0.38} />
+    </lineSegments>
   );
 }
 
@@ -112,12 +99,12 @@ function LaneGuides() {
   ]), []);
 
   return (
-    <ThreeLineSegments>
-      <ThreeBufferGeometry>
-        <ThreeBufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </ThreeBufferGeometry>
-      <ThreeLineBasicMaterial color="#25435a" transparent opacity={0.45} />
-    </ThreeLineSegments>
+    <lineSegments frustumCulled={true}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <lineBasicMaterial color="#25435a" transparent opacity={0.45} />
+    </lineSegments>
   );
 }
 
@@ -132,9 +119,13 @@ function GraphNodes({
   onSelectNode: (id: string) => void;
   onHoverNode: (id: string | null) => void;
 }) {
-  const meshRef = useRef<InstancedMesh>(null);
-  const pulseRef = useRef<InstancedMesh>(null);
+  const meshRef = useRef<any>(null);
+  const pulseRef = useRef<any>(null);
   const temp = useMemo(() => new Object3D(), []);
+
+  const sphereSegments = useMemo(() => {
+    return nodes.length > 500 ? 8 : nodes.length > 150 ? 12 : 20;
+  }, [nodes.length]);
 
   useEffect(() => {
     if (!meshRef.current || !pulseRef.current) return;
@@ -182,31 +173,33 @@ function GraphNodes({
 
   return (
     <>
-      <ThreeInstancedMesh
+      <instancedMesh
         ref={pulseRef}
-        args={[undefined, undefined, Math.max(1, nodes.length)]}
+        args={[null as any, null as any, Math.max(1, nodes.length)]}
+        frustumCulled={true}
       >
-        <ThreeSphereGeometry args={[0.5, 18, 18]} />
-        <ThreeMeshBasicMaterial transparent opacity={0.18} toneMapped={false} />
-      </ThreeInstancedMesh>
-      <ThreeInstancedMesh
+        <sphereGeometry args={[0.5, sphereSegments, sphereSegments]} />
+        <meshBasicMaterial transparent opacity={0.18} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh
         ref={meshRef}
-        args={[undefined, undefined, Math.max(1, nodes.length)]}
-        onClick={(event: ThreePointerEvent) => {
+        args={[null as any, null as any, Math.max(1, nodes.length)]}
+        onClick={(event: ThreeEvent<MouseEvent>) => {
           event.stopPropagation();
           const id = event.instanceId === undefined ? null : nodes[event.instanceId]?.id;
           if (id) onSelectNode(id);
         }}
-        onPointerMove={(event: ThreePointerEvent) => {
+        onPointerMove={(event: ThreeEvent<PointerEvent>) => {
           event.stopPropagation();
           const id = event.instanceId === undefined ? null : nodes[event.instanceId]?.id;
           onHoverNode(id);
         }}
         onPointerOut={() => onHoverNode(null)}
+        frustumCulled={true}
       >
-        <ThreeSphereGeometry args={[0.5, 24, 24]} />
-        <ThreeMeshStandardMaterial emissiveIntensity={0.9} metalness={0.55} roughness={0.28} />
-      </ThreeInstancedMesh>
+        <sphereGeometry args={[0.5, sphereSegments, sphereSegments]} />
+        <meshStandardMaterial emissiveIntensity={0.9} metalness={0.55} roughness={0.28} />
+      </instancedMesh>
     </>
   );
 }
@@ -225,7 +218,6 @@ function CameraRig({ selected }: { selected?: PositionedNode }) {
 
 function OrbitRig() {
   const { camera, gl } = useThree();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
 
   useEffect(() => {
@@ -261,8 +253,8 @@ function Scene({
 
   return (
     <>
-      <ThreeColor attach="background" args={['#05070b']} />
-      <ThreeFog attach="fog" args={['#05070b', 30, 82]} />
+      <color attach="background" args={['#05070b']} />
+      <fog attach="fog" args={['#05070b', 30, 82]} />
       <ambientLight intensity={0.35} />
       <pointLight position={[12, 15, 14]} intensity={2.2} color="#7dd3fc" />
       <pointLight position={[-18, -10, -18]} intensity={1.1} color="#ff6b35" />
@@ -270,7 +262,7 @@ function Scene({
       <GraphEdges edges={edges} nodes={nodes} />
       <GraphNodes nodes={nodes} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} onHoverNode={onHoverNode} />
       <CameraRig selected={selected} />
-      <ThreePerspectiveCamera makeDefault position={[0, 0, 42]} fov={48} />
+      <perspectiveCamera makeDefault position={[0, 0, 42]} fov={48} />
       <OrbitRig />
     </>
   );
