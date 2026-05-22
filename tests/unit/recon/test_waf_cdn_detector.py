@@ -1,12 +1,15 @@
-import pytest
+from unittest.mock import patch
+
 import httpx
-from unittest.mock import AsyncMock, patch, MagicMock
+import pytest
+
 from src.recon.waf_cdn_detector import (
+    CDN_WAF_PATTERNS,
     _analyze_response,
-    detect_waf_cdn,
     build_waf_cdn_report,
-    CDN_WAF_PATTERNS
+    detect_waf_cdn,
 )
+
 
 class TestWafCdnDetector:
     def test_analyze_response_cloudflare_headers(self):
@@ -14,7 +17,7 @@ class TestWafCdnDetector:
         headers = {"CF-Ray": "12345", "Server": "cloudflare"}
         resp = httpx.Response(200, headers=headers, content=b"Hello", request=httpx.Request("GET", url))
         findings = _analyze_response(url, resp)
-        
+
         assert len(findings) > 0
         cf_finding = next(f for f in findings if f["provider"] == "Cloudflare")
         assert cf_finding["detection_method"] == "headers"
@@ -26,7 +29,7 @@ class TestWafCdnDetector:
         headers = {"Set-Cookie": "abck=val; Domain=example.com"}
         resp = httpx.Response(200, headers=headers, content=b"Hello", request=httpx.Request("GET", url))
         findings = _analyze_response(url, resp)
-        
+
         assert len(findings) > 0
         akamai_finding = next(f for f in findings if f["provider"] == "Akamai")
         assert akamai_finding["detection_method"] == "cookies"
@@ -36,7 +39,7 @@ class TestWafCdnDetector:
         url = "https://example.com"
         resp = httpx.Response(403, content=b"blocked by AWS WAF", request=httpx.Request("GET", url))
         findings = _analyze_response(url, resp)
-        
+
         assert len(findings) > 0
         aws_finding = next(f for f in findings if f["provider"] == "AWS WAF")
         assert aws_finding["detection_method"] == "body"
@@ -49,7 +52,7 @@ class TestWafCdnDetector:
         headers["Set-Cookie"] = "CloudFront-Policy=xyz"
         resp = httpx.Response(200, headers=headers, content=b"Hello", request=httpx.Request("GET", url))
         findings = _analyze_response(url, resp)
-        
+
         cf_finding = next(f for f in findings if f["provider"] == "AWS CloudFront")
         assert cf_finding["detection_method"] == "headers+cookies"
         assert cf_finding["confidence"] == 1.0
@@ -58,15 +61,15 @@ class TestWafCdnDetector:
     async def test_detect_waf_cdn_orchestration(self):
         url1 = "https://site1.com"
         url2 = "https://site2.com"
-        
+
         mock_resp1 = httpx.Response(200, headers={"CF-Ray": "ray1"}, request=httpx.Request("GET", url1))
         mock_resp2 = httpx.Response(200, headers={"X-Served-By": "fastly"}, request=httpx.Request("GET", url2))
-        
+
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = [mock_resp1, mock_resp2]
-            
+
             results = await detect_waf_cdn([url1, url2])
-            
+
             assert len(results) == 2
             providers = [r["provider"] for r in results]
             assert "Cloudflare" in providers
@@ -79,10 +82,10 @@ class TestWafCdnDetector:
     @pytest.mark.asyncio
     async def test_detect_waf_cdn_request_error(self):
         url = "https://fail.com"
-        
+
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = httpx.RequestError("fail")
-            
+
             results = await detect_waf_cdn([url])
             assert len(results) == 0
 
@@ -92,7 +95,7 @@ class TestWafCdnDetector:
             {"url": "site2.com", "provider": "Cloudflare", "confidence": 0.9},
             {"url": "site3.com", "provider": "Akamai", "confidence": 0.8},
         ]
-        
+
         report = build_waf_cdn_report(findings)
         assert report["total_urls_tested"] == 3
         assert report["urls_protected"] == 3

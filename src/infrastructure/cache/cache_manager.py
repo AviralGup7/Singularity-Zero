@@ -14,7 +14,7 @@ import time
 from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 if TYPE_CHECKING:

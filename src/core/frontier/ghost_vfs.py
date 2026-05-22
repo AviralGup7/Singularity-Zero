@@ -6,7 +6,6 @@ RAM-only Volatile Virtual File System for anti-forensic scan artifacts.
 from __future__ import annotations
 
 import os
-import secrets
 import tempfile
 import time
 from collections.abc import Iterator
@@ -431,7 +430,7 @@ class GhostVFS:
         bundle = sealed_bundle_encrypt(
             name, records, master_key, aad=b"csp:ghost-vfs:sealed-bundle"
         )
-        
+
         target_dir = os.path.dirname(os.path.abspath(output_path))
         os.makedirs(target_dir, exist_ok=True)
         fd, temp_file_path = tempfile.mkstemp(
@@ -449,7 +448,7 @@ class GhostVFS:
             if os.path.exists(temp_file_path):
                 try:
                     os.remove(temp_file_path)
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
             raise
 
@@ -489,5 +488,5 @@ class GhostVFS:
         """Wipe all data and keys from RAM securely."""
         self._files.clear()
         self._secure_wipe_bytes(self._key)
-        self._key = b""
+        self._key = bytearray()
         logger.warning("Ghost-VFS: Data plane PURGED")

@@ -95,12 +95,20 @@ def safe_request(
 
         resp_body = resp.text or ""
         resp_headers = dict(resp.headers)
-        
+
         # Real-time evasion telemetry update
         detected_waf = None
         try:
             from src.core.frontier.chameleon import _chameleon
-            cookies = {cookie.name: cookie.value for cookie in resp.cookies} if hasattr(resp, "cookies") else None
+            cookies = None
+            if hasattr(resp, "cookies") and resp.cookies is not None:
+                if hasattr(resp.cookies, "items"):
+                    cookies = {str(k): str(v) for k, v in resp.cookies.items()}
+                else:
+                    try:
+                        cookies = {str(c.name): str(c.value) for c in resp.cookies}
+                    except Exception:  # noqa: S110
+                        cookies = {}
             detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
             _chameleon._evasion_engine.update_observation(
                 response_status=resp.status_code,
@@ -129,20 +137,18 @@ def safe_request(
             # Check if there is an error response we can extract
             err_status = 0
             err_body = ""
-            err_headers = {}
             if hasattr(e, "response") and e.response is not None:
                 err_status = getattr(e.response, "status_code", 0)
                 err_body = getattr(e.response, "text", "")
-                err_headers = dict(getattr(e.response, "headers", {}))
-            
+
             _chameleon._evasion_engine.update_observation(
-                response_status=err_status or 403,  # default to block if request failed on evasion state
+                response_status=err_status or 403,  # default to WAF block / generic failure
                 body=err_body,
                 session_id=session_id,
                 target=target,
                 detected_waf=None,
             )
-        except Exception:
+        except Exception:  # noqa: S110
             pass
         return _error_response(str(e), url=url, exc=e)
     except Exception as e:
@@ -219,7 +225,15 @@ async def async_safe_request(
         detected_waf = None
         try:
             from src.core.frontier.chameleon import _chameleon
-            cookies = {cookie.name: cookie.value for cookie in resp.cookies} if hasattr(resp, "cookies") else None
+            cookies = None
+            if hasattr(resp, "cookies") and resp.cookies is not None:
+                if hasattr(resp.cookies, "items"):
+                    cookies = {str(k): str(v) for k, v in resp.cookies.items()}
+                else:
+                    try:
+                        cookies = {str(c.name): str(c.value) for c in resp.cookies}  # type: ignore[attr-defined]
+                    except Exception:  # noqa: S110
+                        cookies = {}
             detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
             _chameleon._evasion_engine.update_observation(
                 response_status=resp.status_code,
@@ -247,12 +261,10 @@ async def async_safe_request(
             from src.core.frontier.chameleon import _chameleon
             err_status = 0
             err_body = ""
-            err_headers = {}
             if hasattr(e, "response") and e.response is not None:
                 err_status = getattr(e.response, "status_code", 0)
                 err_body = getattr(e.response, "text", "")
-                err_headers = dict(getattr(e.response, "headers", {}))
-            
+
             _chameleon._evasion_engine.update_observation(
                 response_status=err_status or 403,
                 body=err_body,
@@ -260,7 +272,7 @@ async def async_safe_request(
                 target=target,
                 detected_waf=None,
             )
-        except Exception:
+        except Exception:  # noqa: S110
             pass
         return _error_response(str(e), url=url, exc=e)
     except Exception as e:

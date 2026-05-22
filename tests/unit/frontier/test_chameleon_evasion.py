@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 from src.core.frontier.chameleon_evasion import (
     ChameleonEvasionEngine,
     HMMEvasionModel,

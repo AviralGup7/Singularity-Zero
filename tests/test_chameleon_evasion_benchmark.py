@@ -1,11 +1,11 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-import time
-from unittest.mock import patch, MagicMock
 
 from src.core.frontier.chameleon import RequestChameleon, _chameleon
-from src.core.frontier.chameleon_evasion import ChameleonEvasionEngine, HMMEvasionModel
-from src.core.http_utils import safe_request, async_safe_request
-from src.analysis._core.http_request import _safe_request
+from src.core.frontier.chameleon_evasion import ChameleonEvasionEngine
+from src.core.http_utils import async_safe_request, safe_request
+
 
 def test_chameleon_evasion_engine_telemetry():
     engine = ChameleonEvasionEngine()
@@ -62,7 +62,7 @@ def test_chameleon_evasion_engine_telemetry():
 
 def test_waf_signature_detection():
     chameleon = RequestChameleon()
-    
+
     # Cloudflare detection
     headers = {"CF-Ray": "12345", "Server": "cloudflare"}
     body = "Checking your browser..."
@@ -100,7 +100,7 @@ def test_safe_request_evasion_feedback(mock_request):
         "http://test-evasion.local/path",
         headers={"X-Session-Token": "session-test"}
     )
-    
+
     assert res["status"] == 200
     metrics = _chameleon.get_metrics()
     key = "session-test:test-evasion.local"
@@ -118,7 +118,7 @@ async def test_async_safe_request_evasion_feedback(mock_get_client):
     mock_resp.text = "Access denied"
     mock_resp.headers = {"X-Amzn-Waf-Blocked": "true"}
     mock_resp.cookies = []
-    
+
     # We must support async requests on the mock client
     async def mock_async_req(*args, **kwargs):
         return mock_resp

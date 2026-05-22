@@ -7,17 +7,15 @@ reportlab.  Called from the reporting stage wire at
 
 from __future__ import annotations
 
-import hashlib
-import json
-import time
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-logger = None  # module-level, set lazily to avoid circular import issues
+logger: logging.Logger | None = None  # module-level, set lazily to avoid circular import issues
 
 
-def _get_logger():
+def _get_logger() -> logging.Logger:
     global logger
     if logger is None:
         from src.core.logging.trace_logging import get_pipeline_logger
@@ -30,7 +28,7 @@ def _get_output_dir(summary: dict[str, Any] | None, run_dir: Path | None) -> Pat
     if run_dir:
         return run_dir
     if summary and "generated_at_ist" in summary:
-        target = summary.get("target_name", "unknown")
+        target = str(summary.get("target_name") or "unknown")
         stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         return Path.cwd() / "output" / target / stamp
     return Path.cwd()
@@ -58,19 +56,16 @@ def generate_compliance_pdf(
     try:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import cm
         from reportlab.platypus import (
             HRFlowable,
-            ListFlowable,
-            ListItem,
             Paragraph,
             SimpleDocTemplate,
             Spacer,
             Table,
             TableStyle,
         )
-        from reportlab.platypus.flowables import KeepTogether
     except ImportError:
         _get_logger().warning(
             "reportlab is not installed — compliance PDF export skipped."
@@ -107,12 +102,6 @@ def generate_compliance_pdf(
         textColor=colors.HexColor("#16213e"),
     )
     body_style = styles["Normal"]
-    warn_style = ParagraphStyle(
-        "Warn",
-        parent=styles["Normal"],
-        textColor=colors.HexColor("#c0392b"),
-        fontSize=9,
-    )
 
     story: list[Any] = []
 

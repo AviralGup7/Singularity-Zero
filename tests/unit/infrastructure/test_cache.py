@@ -859,21 +859,21 @@ class TestCacheManager(CacheTestBase):
             log_cache_ops=False,
         )
         manager = CacheManager(config)
-        
+
         bf = NeuralBloomFilter(capacity=1000, error_rate=0.01)
         manager.set_bloom_filter(bf)
-        
+
         assert manager.bloom_filter is bf
-        
+
         assert manager.get("non_existent", namespace="test") is None
-        
+
         manager.set("k1", "v1", namespace="test")
         full_key = manager._make_key("k1", "test")
         assert full_key in bf
-        
+
         assert manager.get("k1", namespace="test") == "v1"
-        
+
         assert manager.exists("non_existent", namespace="test") is False
         assert manager.exists("k1", namespace="test") is True
-        
+
         manager.close()

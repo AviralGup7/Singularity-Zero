@@ -1,9 +1,11 @@
 """FastAPI router for real-time Chameleon Evasion Telemetry."""
 
 from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
-from src.dashboard.fastapi.dependencies import require_auth
+
 from src.core.frontier.chameleon import _chameleon
+from src.dashboard.fastapi.dependencies import require_auth
 
 router = APIRouter(prefix="/api/evasion", tags=["Evasion Telemetry"])
 
@@ -23,13 +25,12 @@ async def get_evasion_metrics(_auth: Any = Depends(require_auth)) -> dict[str, A
         for key, entry in raw_metrics.items():
             total = entry.get("total_requests", 0)
             successes = entry.get("successes", 0)
-            evaded = entry.get("evaded_requests", 0)
-            
+
             # calculate dynamic evasion success rate
             success_rate = 0.0
             if total > 0:
                 success_rate = round(((successes) / total) * 100.0, 2)
-            
+
             processed[key] = {
                 **entry,
                 "evasion_success_rate": success_rate,

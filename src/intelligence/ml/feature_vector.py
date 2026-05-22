@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 from urllib.parse import urlparse
+
 from pydantic import BaseModel, Field
 
 
@@ -53,14 +54,14 @@ def _tokens_from_finding(finding: dict[str, Any]) -> list[str]:
 
 def score_from_severity(severity: object) -> float:
     """Return the impact prior for a legacy/input severity label."""
-    SEVERITY_TO_IMPACT = {
+    severity_to_impact = {
         "info": 0.10,
         "low": 0.28,
         "medium": 0.52,
         "high": 0.78,
         "critical": 1.00,
     }
-    return SEVERITY_TO_IMPACT.get(str(severity or "info").strip().lower(), 0.35) * 10.0
+    return severity_to_impact.get(str(severity or "info").strip().lower(), 0.35) * 10.0
 
 
 class FeatureVector(BaseModel):
@@ -92,7 +93,7 @@ class FeatureVector(BaseModel):
             if isinstance(evidence.get("diff"), dict)
             else {}
         )
-        
+
         # Safe extraction of numerical features
         confidence = _clamp(
             _numeric(finding.get("confidence", finding.get("finding_confidence", 0.5)), 0.5)
@@ -111,7 +112,7 @@ class FeatureVector(BaseModel):
         diff_score = _clamp(
             _numeric(finding.get("diff_score") or evidence.get("diff_score"), 0.0) / 8.0
         )
-        
+
         # Categorical token parsing
         tokens = _tokens_from_finding(finding)
 

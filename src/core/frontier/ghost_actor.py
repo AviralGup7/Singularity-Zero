@@ -16,11 +16,11 @@ import pykka
 from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 from src.core.frontier.marshaller import (
     mesh_marshal,
-    mesh_unmarshal,
     mesh_marshal_pickle,
+    mesh_unmarshal,
     mesh_unmarshal_pickle,
 )
-from src.core.frontier.state import stable_digest, CRDTCompactionBudget
+from src.core.frontier.state import CRDTCompactionBudget, stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
@@ -145,14 +145,14 @@ class ScanActor(pykka.ThreadingActor):
         """Freeze actor mutating work and dehydrate its state to packed bytes."""
         self.is_migrating = True
         state_data = dict(self.state)
-        
+
         compaction_budget_data = {
             "budget_ms": getattr(self.compaction_budget, "budget_ms", 50.0),
             "min_budget_ms": getattr(self.compaction_budget, "min_budget_ms", 5.0),
             "max_budget_ms": getattr(self.compaction_budget, "max_budget_ms", 500.0),
             "target_elapsed_ms": getattr(self.compaction_budget, "target_elapsed_ms", 30.0),
         }
-        
+
         try:
             serialized_logic = mesh_marshal_pickle(self.logic_fn)
         except Exception as e:
@@ -198,7 +198,7 @@ class ScanActor(pykka.ThreadingActor):
                 restored_logic = mesh_unmarshal_pickle(unpacked.serialized_logic_fn)
             except Exception as e:
                 logger.error("Ghost-Actor [%s]: Failed to deserialize logic_fn: %s", self.actor_id, e)
-        
+
         if restored_logic:
             self.logic_fn = restored_logic
             if hasattr(restored_logic, "__name__"):

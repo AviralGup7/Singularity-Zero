@@ -13,9 +13,9 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
 from src.core.frontier.waf_patterns import CDN_WAF_PATTERNS
+
+logger = logging.getLogger(__name__)
 
 
 async def detect_waf_cdn(
