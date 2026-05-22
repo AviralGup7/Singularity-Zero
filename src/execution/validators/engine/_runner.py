@@ -17,6 +17,7 @@ RUNTIME_SCHEMA_VERSION = VALIDATION_RUNTIME_SCHEMA_VERSION
 
 class DynamicValidationStrategy(BaseValidator):
     def __init__(self, name: str, result_key: str, sandbox_callable: Any) -> None:
+        super().__init__()
         self.name = name
         self.result_key = result_key
         self.category = name

@@ -76,7 +76,8 @@ function loadNotifications(): Notification[] {
     const parsed: Notification[] = JSON.parse(raw);
     const now = Date.now();
     return parsed.filter(n => (now - n.timestamp) < NOTIF_TTL_MS);
-  } catch {
+  } catch (error) {
+    console.error('Failed to load notifications from localStorage:', error);
     return [];
   }
 }
@@ -84,8 +85,8 @@ function loadNotifications(): Notification[] {
 function saveNotifications(notifs: Notification[]) {
   try {
     localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifs));
-  } catch {
-    // ignore write failures
+  } catch (error) {
+    console.error('Failed to save notifications to localStorage:', error);
   }
 }
 

@@ -541,15 +541,36 @@ export function TargetsPage() {
                           <Link to={`/cockpit?target=${target.name}`} className="btn btn-small btn-accent-outline" title="View 3D Threat Graph">
                             Cockpit
                           </Link>
-                          <a 
-                            href={`/api/reports/compliance/pdf?target=${encodeURIComponent(target.name)}&token=${sessionStorage.getItem('auth_token') || ''}`} 
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const token = sessionStorage.getItem('auth_token');
+                                const headers: Record<string, string> = {};
+                                if (token) {
+                                  headers['Authorization'] = `Bearer ${token}`;
+                                }
+                                const response = await fetch(`/api/reports/compliance/pdf?target=${encodeURIComponent(target.name!)}`, { headers });
+                                if (!response.ok) {
+                                  throw new Error('Compliance download failed');
+                                }
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `${target.name}-compliance.pdf`;
+                                link.click();
+                                window.URL.revokeObjectURL(url);
+                              } catch (err) {
+                                console.error('Failed to download compliance report:', err);
+                                toast.error('Failed to download compliance report');
+                              }
+                            }}
                             className="btn btn-small btn-secondary" 
                             title="Download SOC 2 / PCI-DSS Attestation"
-                            target="_blank"
-                            rel="noopener noreferrer"
                           >
                             Compliance
-                          </a>
+                          </button>
                           <button 
                             className="btn btn-small btn-secondary" 
                             title="Export CSV Findings"

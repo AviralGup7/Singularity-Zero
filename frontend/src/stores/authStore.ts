@@ -115,7 +115,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     verifyUnlockPassword: (password: string) => {
       const state = get();
       if (!state.user) return false;
-      return state.user.unlockPassword === password || password === 'admin123';
+      return state.user.unlockPassword === password;
     },
   };
 });

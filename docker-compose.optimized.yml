@@ -8,7 +8,7 @@ x-common-env: &common-env
   REDIS_HOST: redis
   REDIS_PORT: 6379
   REDIS_DB: 0
-  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-prodpassword_please_change}
   REDIS_MAX_CONNECTIONS: 50
   CACHE_BACKEND: redis
   CACHE_TTL: 3600
@@ -39,7 +39,7 @@ x-common-deploy: &common-deploy
     window: 120s
 
 x-healthcheck-redis: &healthcheck-redis
-  test: ["CMD", "redis-cli", "ping"]
+  test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD:-prodpassword_please_change}\" ping | grep PONG"]
   interval: 10s
   timeout: 5s
   retries: 3
@@ -53,7 +53,7 @@ x-healthcheck-dashboard: &healthcheck-dashboard
   start_period: 30s
 
 x-healthcheck-worker: &healthcheck-worker
-  test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD:-}'); r.ping()"]
+  test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD:-prodpassword_please_change}'); r.ping()"]
   interval: 30s
   timeout: 10s
   retries: 3
@@ -96,10 +96,10 @@ services:
       --save 900 1
       --save 300 10
       --save 60 10000
-      --requirepass ${REDIS_PASSWORD:-}
+      --requirepass ${REDIS_PASSWORD:-prodpassword_please_change}
       --bind 0.0.0.0
     ports:
-      - "${REDIS_EXTERNAL_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_EXTERNAL_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     networks:
@@ -229,7 +229,7 @@ services:
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
     ports:
-      - "${PROMETHEUS_EXTERNAL_PORT:-9090}:9090"
+      - "127.0.0.1:${PROMETHEUS_EXTERNAL_PORT:-9090}:9090"
     volumes:
       - ./configs/prometheus-docker.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -260,12 +260,12 @@ services:
     container_name: cyber-pipeline-grafana
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-in-production-grafana}
       GF_USERS_ALLOW_SIGN_UP: false
       GF_SERVER_ROOT_URL: http://localhost:3000
       GF_AUTH_ANONYMOUS_ENABLED: false
     ports:
-      - "${GRAFANA_EXTERNAL_PORT:-3000}:3000"
+      - "127.0.0.1:${GRAFANA_EXTERNAL_PORT:-3000}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -301,10 +301,10 @@ services:
       COLLECTOR_OTLP_ENABLED: "true"
       LOG_LEVEL: info
     ports:
-      - "${JAEGER_UI_PORT:-16686}:16686"
-      - "4317:4317"
-      - "4318:4318"
-      - "9411:9411"
+      - "127.0.0.1:${JAEGER_UI_PORT:-16686}:16686"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:9411:9411"
     volumes:
       - jaeger-data:/badger
     networks:
@@ -334,9 +334,9 @@ services:
     container_name: cyber-pipeline-redis-exporter
     environment:
       REDIS_ADDR: redis://redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-prodpassword_please_change}
     ports:
-      - "9121:9121"
+      - "127.0.0.1:9121:9121"
     depends_on:
       redis:
         condition: service_healthy

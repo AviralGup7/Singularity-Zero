@@ -3,8 +3,8 @@ Cyber Security Test Pipeline - Frontier Binary Marshaller
 Implements high-speed, zero-allocation binary serialization for distributed state.
 """
 
-import hmac
 import hashlib
+import hmac
 import os
 from typing import Any, cast
 
@@ -33,23 +33,23 @@ def _sign_payload(payload: bytes) -> bytes:
 
 def _verify_payload(signed_payload: bytes) -> bytes:
     """Verify the HMAC signature and return the original payload.
-    
+
     Raises:
         ValueError: If signature verification fails.
     """
     if len(signed_payload) < 48:  # 16 (salt) + 32 (sha256)
         raise ValueError("Invalid signed payload: too short")
-    
+
     salt = signed_payload[:16]
     signature = signed_payload[16:48]
     payload = signed_payload[48:]
-    
+
     key = _derive_integrity_key(salt)
     expected_signature = hmac.new(key, payload, hashlib.sha256).digest()
-    
+
     if not hmac.compare_digest(signature, expected_signature):
         raise ValueError("Payload integrity check failed: signature mismatch")
-    
+
     return payload
 
 

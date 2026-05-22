@@ -6,6 +6,15 @@ interface CinematicIntroProps {
   children: React.ReactNode;
 }
 
+interface GsapTimeline {
+  kill: () => void;
+  fromTo: (target: any, fromVars: object, toVars: object, position?: any) => GsapTimeline;
+}
+
+interface GsapInstance {
+  timeline: (config?: { defaults?: { ease?: string } }) => GsapTimeline;
+}
+
 export function CinematicIntro({ className, children }: CinematicIntroProps) {
   const { policy, strategy } = useMotionPolicy('hero');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -20,8 +29,9 @@ export function CinematicIntro({ className, children }: CinematicIntroProps) {
     void import('gsap')
       .then((mod) => {
         if (!containerRef.current || cancelled) return;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const gsap = (mod as any).gsap ?? (mod as any).default;
+        const typedMod = mod as unknown as { gsap?: unknown; default?: unknown };
+        const gsap = (typedMod.gsap ?? typedMod.default) as GsapInstance | undefined;
+        if (!gsap) return;
         const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
         tl.fromTo(
    

@@ -2,7 +2,7 @@ import { useMemo, useState, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { Float, Html, OrbitControls, Sphere } from '@react-three/drei';
-import * as THREE from 'three';
+import { Vector3, BufferGeometry } from 'three';
 import { scaleLinear } from 'd3-scale';
 import {
   Bar,
@@ -23,11 +23,15 @@ import type { RiskHistoryEntry } from '@/types/extended';
 
 const TARGET_COLORS = ['#2FD8F8', '#FF9A3D', '#2ECC71', '#A55CFF', '#F2C94C', '#4FA3FF'];
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const { Vector3, BufferGeometry } = THREE as any;
-const ThreeGroup = 'group' as any;
-const ThreeLine = 'line' as any;
-/* eslint-enable @typescript-eslint/no-explicit-any */
+const ThreeGroup = 'group' as unknown as React.ComponentType<{
+  position?: [number, number, number];
+  children?: React.ReactNode;
+}>;
+
+const ThreeLine = 'line' as unknown as React.ComponentType<{
+  geometry?: BufferGeometry;
+  children?: React.ReactNode;
+}>;
 
 function formatDateInput(date: Date): string {
   return date.toISOString().slice(0, 10);

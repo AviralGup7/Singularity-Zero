@@ -7,9 +7,7 @@ The checked-in benchmark suite is offline-only and does not call external servic
 
 ## Profiling Workflow
 
-The performance of `src/core/frontier/bloom.py` is validated by the existing unit and e2e
-test suite. The following commands run those suites; they also exercise the Bloom code path
-indirectly through pipeline stages:
+The performance of `src/core/frontier/bloom.py` is exercised and verified indirectly via bloom-adjacent unit and integration tests (such as Cache Routing in `test_cache.py` and Self-Healing in `test_self_healing.py`), as there are no dedicated `test_bloom` unit test files in the repository. The following commands run the test suites:
 
 ```powershell
 # Run the full backend test suite (includes bloom-adjacent e2e tests)

@@ -15,8 +15,9 @@ interface LottieComponentProps {
 }
 
 const LottiePlayer =
-  ((RawLottiePlayer as unknown as { default?: ComponentType<LottieComponentProps> }).default ??
-    (RawLottiePlayer as unknown as ComponentType<LottieComponentProps>));
+  ('default' in RawLottiePlayer && typeof (RawLottiePlayer as { default: unknown }).default === 'function'
+    ? (RawLottiePlayer as { default: ComponentType<LottieComponentProps> }).default
+    : (RawLottiePlayer as ComponentType<LottieComponentProps>));
 
 const baseAnimation = {
   v: '5.7.6',

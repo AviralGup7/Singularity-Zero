@@ -285,9 +285,9 @@ def dns_record_analyzer(
     target_domains: set[str] = set()
     for url in urls:
         try:
-            from urllib.parse import urlparse as _up
+            from urllib.parse import urlparse
 
-            host = _up(url).netloc.lower()
+            host = urlparse(url).netloc.lower()
             if host:
                 target_domains.add(host.lstrip("www."))
         except Exception:  # noqa: S112
@@ -436,9 +436,9 @@ def dns_record_analyzer(
 
     for url in sorted(urls):
         try:
-            from urllib.parse import urlparse as _up
+            from urllib.parse import urlparse
 
-            host = _up(url).netloc.lower()
+            host = urlparse(url).netloc.lower()
         except Exception:  # noqa: S112
             continue
         if not host:

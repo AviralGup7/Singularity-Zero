@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { RefreshCw, ShieldAlert, Trash2 } from 'lucide-react';
 import { getEvasionMetrics, resetEvasionMetrics, type EvasionMetricsResponse } from '@/api/evasion';
 import { useToast } from '@/hooks/useToast';

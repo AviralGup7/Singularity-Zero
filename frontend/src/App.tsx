@@ -33,6 +33,8 @@ const ComplianceDashboard = lazy(() => import('@/pages/ComplianceDashboard').the
 const ReportLibraryPage = lazy(() => import('@/pages/ReportLibraryPage').then(m => ({ default: m.ReportLibraryPage })));
 const AccessLogsPage = lazy(() => import('@/components/ComplianceLogViewer').then(m => ({ default: m.ComplianceLogViewer })));
 const EvidenceCustodyViewer = lazy(() => import('@/components/common/EvidenceCustodyViewer').then(m => ({ default: m.EvidenceCustodyViewer })));
+const SelfHealingPage = lazy(() => import('@/pages/SelfHealingPage').then(m => ({ default: m.SelfHealingPage })));
+const EvasionMetricsPage = lazy(() => import('@/pages/EvasionMetricsPage').then(m => ({ default: m.EvasionMetricsPage })));
 
 function RouteWatcher() {
   const location = useLocation();

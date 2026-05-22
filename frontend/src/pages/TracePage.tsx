@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Activity, Clock, Cpu, Search, ChevronRight, ChevronDown, Terminal, Shield, Network } from 'lucide-react';
 import { getTraces, getTrace, getTracingConfig, type TraceSummary, type TraceSpan, type TracingConfig } from '@/api/tracing';
 import { useToast } from '@/hooks/useToast';
@@ -74,7 +74,7 @@ function SpanRow({ span, depth, startTime }: { span: TraceSpan; depth: number; s
                       {span.events.map((e, i) => (
                         <div key={i} className="text-[10px] bg-white/5 p-2 rounded border border-white/5">
                            <div className="font-bold text-accent mb-1">{String(e.name)}</div>
-                           {e.attributes && Object.entries(e.attributes as any).map(([k, v]) => (
+                           {e.attributes && Object.entries(e.attributes).map(([k, v]) => (
                              <div key={k} className="flex gap-2 opacity-60">
                                 <span>{k}:</span>
                                 <span>{String(v)}</span>
@@ -111,7 +111,8 @@ export function TracePage() {
       ]);
       setTraces(tracesRes);
       setConfig(configRes);
-    } catch {
+    } catch (error) {
+      console.error('Failed to load tracing telemetry:', error);
       toast.error('Failed to load tracing telemetry');
     } finally {
       setLoading(false);
@@ -128,7 +129,8 @@ export function TracePage() {
     try {
       const detail = await getTrace(id);
       setTraceDetail(detail.spans || []);
-    } catch {
+    } catch (error) {
+      console.error('Failed to fetch trace waterfall:', error);
       toast.error('Failed to fetch trace waterfall');
     } finally {
       setLoadingDetail(false);

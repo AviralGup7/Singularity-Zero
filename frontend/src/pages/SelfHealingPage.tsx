@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { RefreshCw, Zap, AlertTriangle, Play, Settings } from 'lucide-react';
 import { getSelfHealingSnapshot, evaluateSelfHealing, type SelfHealingSnapshot } from '@/api/selfHealing';
 import { useToast } from '@/hooks/useToast';
@@ -14,7 +14,8 @@ export function SelfHealingPage() {
     try {
       const data = await getSelfHealingSnapshot();
       setSnapshot(data);
-    } catch {
+    } catch (error) {
+      console.error('Failed to load self-healing snapshot:', error);
       toast.error('Failed to load self-healing snapshot');
     } finally {
       setLoading(false);
@@ -31,7 +32,8 @@ export function SelfHealingPage() {
       const data = await evaluateSelfHealing();
       setSnapshot(data);
       toast.success('Self-healing evaluation triggered');
-    } catch {
+    } catch (error) {
+      console.error('Failed to trigger evaluation:', error);
       toast.error('Failed to trigger evaluation');
     } finally {
       setEvaluating(false);

@@ -12,7 +12,7 @@ import logging
 from typing import Any, cast
 
 # Re-export for backward compatibility
-from src.analysis.intelligence.findings_dedup import finding_key as _finding_key_internal
+from src.analysis.intelligence.findings_dedup import finding_key as finding_key_internal
 
 from ._categories import MITRE_ATTACK_MAPPING
 from ._history import annotate_finding_history
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def _finding_key(item: dict[str, Any]) -> str:  # noqa
-    return _finding_key_internal(item)
+    return finding_key_internal(item)
 
 
 def correlate_validation_findings(

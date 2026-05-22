@@ -20,6 +20,12 @@ export interface TraceSummary {
   span_count: number;
 }
 
+export interface TraceEvent {
+  name: string;
+  timestamp_unix_nano?: number;
+  attributes?: Record<string, unknown>;
+}
+
 export interface TraceSpan {
   trace_id: string;
   span_id: string;
@@ -32,7 +38,7 @@ export interface TraceSpan {
   duration_ms: number;
   status: 'OK' | 'ERROR' | string;
   attributes: Record<string, unknown>;
-  events: Array<Record<string, unknown>>;
+  events: TraceEvent[];
 }
 
 export interface TraceDetail {

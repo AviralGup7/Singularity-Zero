@@ -11,6 +11,7 @@ recon and reporting paths.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import sqlite3
@@ -22,6 +23,8 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 from src.intelligence.ml import ModelVersion, ModelVersionRegistry, XGBoostSeverityPipeline
+
+logger = logging.getLogger(__name__)
 
 SEVERITY_LABELS = ("info", "low", "medium", "high", "critical")
 SEVERITY_TO_IMPACT = {

@@ -6,13 +6,26 @@ import { cn } from "@/lib/utils"
 // Sanitize CSS values derived from runtime config to prevent CSS/style injection
 const sanitizeCssValue = (v: unknown) => {
   if (v === null || v === undefined) return ""
-  const s = String(v)
-  // remove script/style tags and angle brackets, and strip comment tokens
+  const s = String(v).trim()
+  
+  // 1. Strictly forbid dangerous words: expression, javascript, url, import, eval
+  if (/(?:expression|javascript|url|import|eval)/i.test(s)) {
+    return ""
+  }
+  
+  // 2. A safe CSS color should not contain semicolons, backslashes, quotes, or curly braces
+  if (/[;\\'"{}<>]/g.test(s)) {
+    return ""
+  }
+  
+  // 3. For extra safety, ensure parentheses are only used for rgb/rgba/hsl/hsla/var
+  if (s.includes('(')) {
+    if (!/^(?:rgba?|hsla?|var)\([^)]*\)$/i.test(s)) {
+      return ""
+    }
+  }
+  
   return s
-    .replace(/<\/?(?:script|style)[^>]*>/gi, "")
-    .replace(/<|>/g, "")
-    .replace(/\/\*/g, "")
-    .replace(/\*\//g, "")
 }
 
 const THEMES = { light: "", dark: ".dark" } as const
