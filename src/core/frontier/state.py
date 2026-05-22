@@ -13,9 +13,12 @@ from types import MappingProxyType
 from typing import Any, TypeVar
 
 try:
-    import _state_cython
+    from src.core.frontier import _state_cython
 except ImportError:
-    _state_cython = None
+    try:
+        import _state_cython
+    except ImportError:
+        _state_cython = None
 
 T = TypeVar("T")
 

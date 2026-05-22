@@ -27,6 +27,7 @@ EVENT_TYPES = {
     "mesh_health_update",
     "migration_event",
     "telemetry_event",
+    "evasion_telemetry",
 }
 
 
@@ -370,3 +371,7 @@ class SSEEventEmitter:
     def telemetry_event(self, telemetry: dict[str, Any]) -> str:
         """Emit a single replayable pipeline telemetry event."""
         return self.emit("telemetry_event", telemetry)
+
+    def evasion_telemetry(self, data: dict[str, Any]) -> str:
+        """Emit evasion effectiveness telemetry data."""
+        return self.emit("evasion_telemetry", data)

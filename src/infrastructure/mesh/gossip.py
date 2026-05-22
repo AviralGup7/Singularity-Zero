@@ -565,10 +565,15 @@ class GossipProtocol(asyncio.DatagramProtocol):
                     from src.core.frontier.ghost_actor import _LOGIC_REGISTRY
 
                     logic_fn = _LOGIC_REGISTRY.get(logic_fn_name)
-                    if logic_fn:
-                        asyncio.create_task(
-                            coordinator.spawn_or_rehydrate_actor(actor_id, logic_fn)
-                        )
+                    if not logic_fn:
+                        def dummy_logic(task_input: dict[str, Any], state: dict[str, Any]) -> Any:
+                            return {}
+                        dummy_logic.__name__ = str(logic_fn_name)
+                        logic_fn = dummy_logic
+
+                    asyncio.create_task(
+                        coordinator.spawn_or_rehydrate_actor(actor_id, logic_fn)
+                    )
             else:
                 # Compatibility with the original unactioned gossip body shape.
                 if isinstance(body.get("source"), dict):

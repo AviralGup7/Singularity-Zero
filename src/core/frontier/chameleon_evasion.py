@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import secrets
+import threading
 import time
 from typing import Any
 
@@ -323,10 +324,22 @@ class ChameleonEvasionEngine:
         self.ja3 = JA3FingerprintModel()
         self.timing = TimingPermutator()
         self._waf_detected = False
+        self.metrics: dict[str, dict[str, Any]] = {}
+        self._lock = threading.Lock()
 
-    def update_observation(self, response_status: int, body: str | None = None) -> None:
-        """Update HMM based on HTTP response."""
-        if response_status == 200:
+    def update_observation(
+        self,
+        response_status: int,
+        body: str | None = None,
+        session_id: str | None = None,
+        target: str | None = None,
+        detected_waf: str | None = None,
+    ) -> None:
+        """Update HMM based on HTTP response and record telemetry metrics."""
+        if "captcha" in (body or "").lower() or "challenge" in (body or "").lower():
+            self._waf_detected = True
+            obs = HMMEvasionModel.OBS_CHALLENGE
+        elif response_status == 200:
             obs = HMMEvasionModel.OBS_SUCCESS
         elif response_status in (403, 406, 418, 429, 503):
             self._waf_detected = True
@@ -334,13 +347,58 @@ class ChameleonEvasionEngine:
                 obs = HMMEvasionModel.OBS_RATE_LIMIT
             else:
                 obs = HMMEvasionModel.OBS_BLOCK
-        elif "captcha" in (body or "").lower() or "challenge" in (body or "").lower():
-            self._waf_detected = True
-            obs = HMMEvasionModel.OBS_CHALLENGE
         else:
             obs = HMMEvasionModel.OBS_SUCCESS
 
         self.hmm.observe(obs)
+
+        # Telemetry / metrics tracking logic
+        s_id = session_id or "default"
+        t_id = target or "unknown"
+        metric_key = f"{s_id}:{t_id}"
+
+        with self._lock:
+            if metric_key not in self.metrics:
+                self.metrics[metric_key] = {
+                    "session_id": s_id,
+                    "target": t_id,
+                    "total_requests": 0,
+                    "successes": 0,
+                    "blocks": 0,
+                    "challenges": 0,
+                    "evaded_requests": 0,
+                    "detected_waf": None,
+                    "current_state": "undetected",
+                    "last_updated": 0.0,
+                }
+
+            entry = self.metrics[metric_key]
+            entry["total_requests"] += 1
+            entry["last_updated"] = time.time()
+            entry["current_state"] = self.hmm.get_state_name()
+
+            if detected_waf:
+                entry["detected_waf"] = detected_waf
+
+            if obs == HMMEvasionModel.OBS_SUCCESS:
+                entry["successes"] += 1
+                if self.hmm.get_current_state() == HMMEvasionModel.STATE_EVADING:
+                    entry["evaded_requests"] += 1
+            elif obs in (HMMEvasionModel.OBS_BLOCK, HMMEvasionModel.OBS_RATE_LIMIT):
+                entry["blocks"] += 1
+            elif obs == HMMEvasionModel.OBS_CHALLENGE:
+                entry["challenges"] += 1
+
+    def get_metrics(self) -> dict[str, Any]:
+        """Thread-safe getter for evasion metrics."""
+        with self._lock:
+            import copy
+            return copy.deepcopy(self.metrics)
+
+    def reset_metrics(self) -> None:
+        """Thread-safe reset for evasion metrics."""
+        with self._lock:
+            self.metrics.clear()
 
     def get_evasion_config(self) -> dict[str, Any]:
         """Get current evasion configuration based on HMM state."""

@@ -84,6 +84,61 @@ class RequestChameleon:
         self._timing = TimingPermutator()
         self._ja3 = JA3FingerprintModel()
 
+    def get_metrics(self) -> dict[str, Any]:
+        """Query current metrics from the evasion engine."""
+        return self._evasion_engine.get_metrics()
+
+    def reset_metrics(self) -> None:
+        """Reset metrics in the evasion engine."""
+        self._evasion_engine.reset_metrics()
+
+    def detect_waf(
+        self,
+        headers: dict[str, str],
+        body: str,
+        cookies: dict[str, str] | None = None,
+    ) -> str | None:
+        """
+        Identify active WAF based on response headers, cookies, and body patterns.
+        Utilizes CDN_WAF_PATTERNS.
+        """
+        try:
+            from src.core.frontier.waf_patterns import CDN_WAF_PATTERNS
+        except ImportError:
+            return None
+
+        headers_lower = {k.lower(): str(v).lower() for k, v in headers.items()}
+        cookies_lower = {k.lower(): str(v).lower() for k, v in (cookies or {}).items()}
+        body_lower = (body or "").lower()
+
+        best_provider = None
+        best_score = 0
+
+        for provider, patterns in CDN_WAF_PATTERNS.items():
+            score = 0
+            # Check headers
+            for pattern in patterns.get("headers", []):
+                pattern_lower = pattern.lower()
+                for k, v in headers_lower.items():
+                    if pattern_lower in k or pattern_lower in v:
+                        score += 1
+
+            # Check cookies
+            for pattern in patterns.get("cookies", []):
+                if pattern.lower() in cookies_lower:
+                    score += 1
+
+            # Check body
+            for pattern in patterns.get("body", []):
+                if pattern.lower() in body_lower:
+                    score += 1
+
+            if score > best_score:
+                best_score = score
+                best_provider = provider
+
+        return best_provider
+
     def mutate_headers(self, base_headers: dict[str, str]) -> dict[str, str]:
         """
         Create a polymorphic header set with randomized order and correct casing.

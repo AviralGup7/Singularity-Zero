@@ -158,3 +158,32 @@ def test_actor_migration_command_rejection():
     assert "currently migrating" in res_mig["error"]
 
     actor.stop()
+
+
+def test_actor_logic_fn_serialization():
+    # Define a dynamic logic function
+    def dynamic_logic(task_input, state):
+        state["dynamic_ran"] = True
+        return {"result": task_input.get("x", 0) * 2}
+
+    actor = ScanActor.start(actor_id="actor-dynamic", logic_fn=dynamic_logic).proxy()
+
+    # Dehydrate actor state
+    packed = actor.on_receive({"command": "dehydrate"}).get()
+    assert isinstance(packed, bytes)
+
+    # Spawn new actor and rehydrate it
+    new_actor = ScanActor.start(actor_id="actor-dynamic-recovered", logic_fn=mock_logic).proxy()
+    new_actor.on_receive({"command": "rehydrate", "payload": packed}).get()
+
+    # Execute dynamic logic on the rehydrated actor to verify function was successfully pickle-transferred
+    res = new_actor.on_receive({"command": "execute", "input": {"x": 21}}).get()
+    assert res["status"] == "success"
+    assert res["output"] == {"result": 42}
+    
+    # Check that state was updated by the dynamic logic function
+    snapshot = new_actor.on_receive({"command": "snapshot"}).get()
+    assert snapshot.data.get("dynamic_ran") is True
+
+    actor.stop()
+    new_actor.stop()

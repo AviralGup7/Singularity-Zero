@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.dashboard.fastapi.dependencies import get_learning_integration
 from src.learning.integration import LearningIntegration
@@ -44,6 +44,21 @@ async def get_learning_kpis(
         return kpis.to_dict()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to compute KPIs: {exc}")
+
+
+@router.get("/feedback")
+async def get_feedback_events(
+    limit: int = Query(100, ge=1, le=10000),
+    run_id: str | None = None,
+    learning: LearningIntegration = Depends(get_learning_integration),
+) -> list[dict[str, Any]]:
+    """Get feedback events for analysis and inspection (Phase 5.3)."""
+    try:
+        if run_id:
+            return learning.store.get_feedback_events_for_run(run_id)
+        return learning.store.get_feedback_events(limit=limit)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve feedback events: {exc}")
 
 
 @router.get("/db-stats")
