@@ -63,6 +63,15 @@ function resolveStageOrder(jobs: Job[]): string[] {
   return order;
 }
 
+interface GsapTimeline {
+  kill: () => void;
+  fromTo: (target: any, fromVars: object, toVars: object, position?: any) => GsapTimeline;
+}
+
+interface GsapInstance {
+  timeline: (config?: { defaults?: { ease?: string } }) => GsapTimeline;
+}
+
 interface PipelineStageTimelineProps {
   jobs: Job[];
 }
@@ -74,7 +83,9 @@ export function PipelineStageTimeline({ jobs }: PipelineStageTimelineProps) {
   const stageData = useMemo(() => {
     const stageOrder = resolveStageOrder(jobs);
     return stageOrder.map(stage => {
-      const active = jobs.filter(job => normalizeStageName(job.stage) === stage).length;
+      const active = jobs.filter(job =>
+        (job.stage_progress ?? []).some(entry => normalizeStageName(entry.stage) === stage && entry.status === 'running')
+      ).length;
       const completed = jobs.filter(job =>
         (job.stage_progress ?? []).some(entry => normalizeStageName(entry.stage) === stage && entry.status === 'completed')
       ).length;
@@ -94,8 +105,8 @@ export function PipelineStageTimeline({ jobs }: PipelineStageTimelineProps) {
     void import('gsap')
       .then((mod) => {
         if (!rootRef.current || cancelled) return;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const gsap = (mod as any).gsap ?? (mod as any).default;
+        const typedMod = mod as unknown as { gsap?: unknown; default?: unknown };
+        const gsap = (typedMod.gsap ?? typedMod.default) as GsapInstance | undefined;
         if (!gsap) return;
         const nodes = rootRef.current.querySelectorAll('.pipeline-timeline-node');
         const bars = rootRef.current.querySelectorAll('.pipeline-timeline-fill');

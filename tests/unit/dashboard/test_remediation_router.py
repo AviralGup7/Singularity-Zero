@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 from src.dashboard.fastapi.routers.remediation import get_remediation_plan
 

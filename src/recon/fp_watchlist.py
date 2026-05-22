@@ -164,14 +164,14 @@ def fnmatch_url(url: str, pattern: str) -> bool:
     |fnmatch| underneath so patterns like ``*.example.com`` continue to work
     in the watchlist schema after future migrations.
     """
-    import fnmatch as _fnmatch
+    import fnmatch
 
     norm_url = url.strip().lower()
     norm_pattern = pattern.strip().lower()
     # Anchor pattern to avoid partial substring matches when no wildcard is present
     if "*" not in norm_pattern and "?" not in norm_pattern:
         return norm_url == norm_pattern
-    return _fnmatch.fnmatch(norm_url, norm_pattern)
+    return fnmatch.fnmatch(norm_url, norm_pattern)
 
 
 class FPWatchlistManager:

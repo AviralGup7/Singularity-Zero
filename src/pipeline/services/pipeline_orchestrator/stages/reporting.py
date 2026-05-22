@@ -72,7 +72,7 @@ async def run_reporting(
         screenshots_raw, diff_summary_raw = await asyncio.gather(
             screenshots_task, diff_task, return_exceptions=True
         )
-        
+
         # Handle potential exceptions in the gathered tasks
         if isinstance(screenshots_raw, Exception):
             logger.error("Screenshot capture failed: %s", screenshots_raw)
@@ -208,14 +208,14 @@ async def run_reporting(
 
         # Wire FPWatchlistManager and Compliance GRC Alerts (Phase 9.2 & Phase 6.2)
         try:
+            from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
             from src.recon.fp_watchlist import FPWatchlistManager
-            from src.infrastructure.notifications.manager import NotificationManager, ManagerConfig
 
             watchlist_dir = ctx.output_store.run_dir.parent
             watchlist_path = watchlist_dir / "regression-watchlist.json"
 
             fp_manager = FPWatchlistManager(watchlist_path=watchlist_path)
-            
+
             # Initialize a NotificationManager for dispatching
             notification_manager = NotificationManager(ManagerConfig())
             await notification_manager.initialize()

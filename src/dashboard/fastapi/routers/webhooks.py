@@ -56,7 +56,7 @@ async def test_webhook(
 
             if results and results[0].success:
                 return {"status": "success", "message": "Test notification sent successfully"}
-            
+
             error = results[0].error if results else "Unknown error"
             raise HTTPException(status_code=502, detail=f"Webhook test failed: {error}")
 
@@ -98,7 +98,7 @@ async def test_slack(
 
             if results and results[0].success:
                 return {"status": "success", "message": "Slack test message sent successfully"}
-            
+
             error = results[0].error if results else "Unknown error"
             raise HTTPException(status_code=502, detail=f"Slack test failed: {error}")
 

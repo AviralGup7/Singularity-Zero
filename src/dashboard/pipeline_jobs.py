@@ -183,9 +183,7 @@ def run_pipeline_job(
             consumer.join(timeout=10)
 
     # Small delay to ensure file handles are fully flushed
-    import time as _time
-
-    _time.sleep(0.5)
+    time.sleep(0.5)
 
     # Capture process output for status/error reporting
     stdout_content = ""

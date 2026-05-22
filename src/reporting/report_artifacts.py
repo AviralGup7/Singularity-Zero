@@ -219,7 +219,7 @@ def _load_or_create_private_key(key_dir: Path) -> Ed25519PrivateKey:
     )
     try:
         os.chmod(key_path, 0o600)
-    except Exception:
+    except Exception:  # noqa: S110
         pass
     return private_key
 
@@ -353,7 +353,7 @@ def write_report_package(
     try:
         from src.reporting.compliance_pdf import generate_compliance_pdf
         pdf_path = generate_compliance_pdf(summary=summary, run_dir=run_dir)
-    except Exception:
+    except Exception:  # noqa: S110
         pass
 
     if pdf_path is None or not pdf_path.exists():

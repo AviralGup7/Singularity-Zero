@@ -101,11 +101,11 @@ class WebhookNotifier(BaseNotifier):
         context["timestamp_iso"] = payload.timestamp.isoformat()
 
         result: dict[str, Any] = {}
-        import json as _json
+        import json
 
         try:
-            result = _json.loads(str(template))
-        except _json.JSONDecodeError:
+            result = json.loads(str(template))
+        except json.JSONDecodeError:
             result = {"message": str(template)}
 
         def _replace_placeholders(obj: Any) -> Any:

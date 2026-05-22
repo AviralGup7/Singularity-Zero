@@ -23,6 +23,7 @@ class _ThreadLocalConnections(threading.local):
     """Thread-local storage for SQLite connections."""
 
     def __init__(self) -> None:
+        super().__init__()
         self.conn: sqlite3.Connection | None = None
 
 

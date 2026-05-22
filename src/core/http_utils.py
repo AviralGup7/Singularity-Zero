@@ -7,6 +7,7 @@ and standardized response normalization.
 
 from __future__ import annotations
 
+import atexit
 import time
 from typing import Any
 
@@ -22,6 +23,7 @@ logger = get_pipeline_logger(__name__)
 DEFAULT_TIMEOUT = 10.0
 MAX_BODY_LENGTH = 120_000
 _SYNC_SESSION = requests.Session()
+atexit.register(_SYNC_SESSION.close)
 _ASYNC_CLIENTS: dict[tuple[bool, bool], httpx.AsyncClient] = {}
 
 

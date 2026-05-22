@@ -55,7 +55,7 @@ async def get_remediation_plan(
                             findings = json.loads(content)
                             if isinstance(findings, dict):
                                 findings = findings.get("findings", [])
-                            
+
                             if isinstance(findings, list):
                                 for f in findings:
                                     if isinstance(f, dict):

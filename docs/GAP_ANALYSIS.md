@@ -34,7 +34,7 @@ This document provides a realistic, high-fidelity overview of the functional, ar
     *   **Secure In-Memory Key Wiping**: Derived keys and session keys are stored as mutable `bytearray` objects and zeroed out directly in `finally` blocks using `secure_wipe`, preventing sensitive data from lingering in the Python memory allocator.
     *   **Mutation-Safe Credential Deep-Copy**: `TargetSecretStore.from_dict` deep-copies all dictionary entries to completely isolate stored secrets from external caller mutations.
 *   **Gaps**:
-    *   None. Anti-forensic memory safety and data-loss vectors are fully resolved.
+    *   Minor code-hygiene tasks (e.g. replacing remaining bare exceptions with strict diagnostic guards and standardizing all failure logging for key wiping) are actively tracked in quality pipelines.
 
 ---
 
@@ -49,7 +49,7 @@ This document provides a realistic, high-fidelity overview of the functional, ar
     *   **Model Version Registry**: Thread-safe memory mapping of live pipelines with rollback capacities (`src/intelligence/ml/registry.py`).
     *   **NumPy Sigmoid Fallback**: Resilient hand-rolled Logistic Regression NumPy fallback execution to preserve 100% scoring availability under compilation or library loading failures.
 *   **Gaps**:
-    *   None. ML Severity Scoring, model versioning registries, and custom vectorization are fully operational.
+    *   Automated regression-testing coverage for the NumPy logistic fallback is currently lacking due to the absence of `tests/fixtures/ml_golden_set.json`.
 
 ### 2.2 False Positive Reduction
 *   **Status**: **COMPLETE**
