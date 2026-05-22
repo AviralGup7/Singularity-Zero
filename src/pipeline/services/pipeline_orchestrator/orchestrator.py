@@ -237,9 +237,12 @@ class PipelineOrchestrator:
             event_data["target"] = str(getattr(config, "target_name", "unknown"))
         if ctx:
             event_data["run_id"] = ctx.run_id
+            event_data["ctx"] = ctx.to_dict()
             summary = getattr(ctx.result, "summary", ctx.result.__dict__.get("summary"))
-            if summary and "compliance" in summary:
-                event_data["compliance"] = summary["compliance"]
+            if summary:
+                event_data["ctx"]["summary"] = summary
+                if "compliance" in summary:
+                    event_data["compliance"] = summary["compliance"]
 
         self._emit_event(
             EventType.PIPELINE_COMPLETE,

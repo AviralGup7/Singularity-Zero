@@ -137,6 +137,9 @@ class DashboardServices:
     def list_targets(self) -> list[dict[str, Any]]:
         return self.query.list_targets()
 
+    def get_targets(self) -> list[dict[str, Any]]:
+        return self.list_targets()
+
     def list_jobs(self) -> list[dict[str, Any]]:
         return self.query.list_jobs()
 

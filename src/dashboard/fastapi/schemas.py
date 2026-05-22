@@ -719,3 +719,111 @@ class CSPReportResponse(BaseModel):
     client_ip: str | None = None
     user_agent: str = ""
     report: dict[str, Any] = Field(default_factory=dict)
+
+
+class ThresholdHistoryEntry(BaseModel):
+    """Threshold history entry."""
+
+    history_id: str
+    run_id: str
+    category: str
+    low_threshold: float
+    medium_threshold: float
+    high_threshold: float
+    observed_fp_rate: float
+    target_fp_rate: float
+    error: float
+    adjustment: float
+    is_converged: bool | int
+    recorded_at: str
+
+
+class FpPatternEntry(BaseModel):
+    """Learned false positive pattern entry."""
+
+    pattern_id: str
+    category: str
+    status_code_pattern: str | None = None
+    body_pattern: str | None = None
+    header_pattern: str | None = None
+    response_similarity: float | None = None
+    first_seen: str
+    last_seen: str
+    occurrence_count: int
+    confirmed_fp_count: int
+    confirmed_tp_count: int
+    fp_probability: float
+    confidence: float
+    is_active: bool | int
+    suppression_action: str
+    created_at: str
+    updated_at: str
+
+
+class TelemetryKpis(BaseModel):
+    """FastAPI response schema for learning subsystem KPIs."""
+
+    # Detection quality
+    detection_rate: float = 0.0
+    precision: float = 0.0
+    recall: float = 0.0
+    f1_score: float = 0.0
+    fp_rate: float = 0.0
+    fn_rate: float = 0.0
+
+    # Learning progress
+    learning_velocity_precision: float = 0.0
+    learning_velocity_recall: float = 0.0
+    threshold_convergence: bool = False
+    fp_pattern_count: int = 0
+    active_suppression_rules: int = 0
+
+    # Efficiency
+    findings_per_scan_hour: float = 0.0
+    scan_duration_minutes: float = 0.0
+    urls_per_minute: float = 0.0
+    active_exploits_per_run: int = 0
+    validation_success_rate: float = 0.0
+
+    # Coverage
+    endpoint_coverage: float = 0.0
+    parameter_coverage: float = 0.0
+    category_coverage: float = 0.0
+    attack_chain_coverage: float = 0.0
+
+    # ROI
+    validated_findings_ratio: float = 0.0
+    mean_time_to_detect_minutes: float = 0.0
+    mean_time_to_validate_minutes: float = 0.0
+    auto_validated_ratio: float = 0.0
+
+    # Reliability
+    pipeline_uptime: float = 1.0
+    regression_count: int = 0
+    safety_violations: int = 0
+
+
+class FeedbackEventEntry(BaseModel):
+    """FastAPI response schema for feedback events."""
+
+    event_id: str
+    run_id: str
+    timestamp: str
+    target_host: str
+    target_endpoint: str
+    finding_category: str
+    finding_severity: str
+    finding_confidence: float
+    finding_decision: str
+    plugin_name: str
+    parameter_name: str | None = None
+    parameter_type: str | None = None
+    was_validated: bool | int
+    was_false_positive: bool | int
+    validation_method: str | None = None
+    response_delta_score: float
+    endpoint_type: str
+    tech_stack: str | None = None
+    scan_mode: str
+    feedback_weight: float
+

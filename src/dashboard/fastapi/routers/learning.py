@@ -7,12 +7,18 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.dashboard.fastapi.dependencies import get_learning_integration
+from src.dashboard.fastapi.schemas import (
+    FeedbackEventEntry,
+    FpPatternEntry,
+    TelemetryKpis,
+    ThresholdHistoryEntry,
+)
 from src.learning.integration import LearningIntegration
 
 router = APIRouter(prefix="/api/learning", tags=["learning"])
 
 
-@router.get("/thresholds")
+@router.get("/thresholds", response_model=list[ThresholdHistoryEntry])
 async def get_threshold_history(
     run_id: str | None = None,
     category: str | None = None,
@@ -23,7 +29,7 @@ async def get_threshold_history(
     return learning.store.get_threshold_history(run_id=run_id, category=category)[:limit]
 
 
-@router.get("/fp-patterns")
+@router.get("/fp-patterns", response_model=list[FpPatternEntry])
 async def get_fp_patterns(
     category: str | None = None,
     active_only: bool = True,
@@ -33,7 +39,7 @@ async def get_fp_patterns(
     return learning.store.get_fp_patterns(category=category, active_only=active_only)
 
 
-@router.get("/kpis")
+@router.get("/kpis", response_model=TelemetryKpis)
 async def get_learning_kpis(
     target: str | None = None,
     learning: LearningIntegration = Depends(get_learning_integration),
@@ -46,7 +52,7 @@ async def get_learning_kpis(
         raise HTTPException(status_code=500, detail=f"Failed to compute KPIs: {exc}")
 
 
-@router.get("/feedback")
+@router.get("/feedback", response_model=list[FeedbackEventEntry])
 async def get_feedback_events(
     limit: int = Query(100, ge=1, le=10000),
     run_id: str | None = None,
@@ -61,9 +67,10 @@ async def get_feedback_events(
         raise HTTPException(status_code=500, detail=f"Failed to retrieve feedback events: {exc}")
 
 
-@router.get("/db-stats")
+@router.get("/db-stats", response_model=dict[str, int])
 async def get_learning_db_stats(
     learning: LearningIntegration = Depends(get_learning_integration),
 ) -> dict[str, int]:
     """Get statistics about the telemetry database (Phase 5.3)."""
     return learning.get_db_size()
+
