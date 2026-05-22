@@ -15,7 +15,8 @@ def _coverage_by_key(coverage: dict[str, Any]) -> dict[tuple[str, str, str], dic
 
 class VrtCoverageMatrixTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.config = load_config(Path("configs/config.example.json"))
+        workspace_root = Path(__file__).resolve().parents[2]
+        self.config = load_config(workspace_root / "configs" / "config.example.json")
 
     def test_summary_counts_match_expected_catalog_breakdown(self) -> None:
         summary = build_p1_vrt_coverage(self.config)["summary"]

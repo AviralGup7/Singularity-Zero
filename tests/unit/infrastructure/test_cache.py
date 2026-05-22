@@ -84,7 +84,7 @@ class TestCacheEntry(unittest.TestCase):
 
     def test_entry_age_seconds(self) -> None:
         entry = CacheEntry(key="k1", value="v1")
-        time.sleep(0.01)
+        time.sleep(0.1)
         assert entry.age_seconds > 0
 
     def test_entry_ttl_remaining(self) -> None:
@@ -99,7 +99,7 @@ class TestCacheEntry(unittest.TestCase):
     def test_entry_touch(self) -> None:
         entry = CacheEntry(key="k1", value="v1")
         old_access = entry.last_accessed
-        time.sleep(0.01)
+        time.sleep(0.1)
         entry.touch()
         assert entry.last_accessed > old_access
         assert entry.access_count == 1
@@ -227,14 +227,14 @@ class TestMemoryBackend(unittest.TestCase):
     def test_ttl_expiry(self) -> None:
         backend = MemoryBackend()
         backend.set("k1", "v1", ttl=0)
-        time.sleep(0.01)
+        time.sleep(0.1)
         assert backend.get("k1") is None
 
     def test_cleanup_expired(self) -> None:
         backend = MemoryBackend()
         backend.set("k1", "v1", ttl=0)
         backend.set("k2", "v2", ttl=3600)
-        time.sleep(0.01)
+        time.sleep(0.1)
         removed = backend.cleanup_expired()
         assert removed == 1
         assert backend.get("k2") == "v2"
@@ -323,7 +323,7 @@ class TestSQLiteBackend(CacheTestBase):
     def test_ttl_expiry(self) -> None:
         backend = SQLiteBackend(db_path=str(self.tmp_path / "test.db"))
         backend.set("k1", "v1", ttl=0)
-        time.sleep(0.01)
+        time.sleep(0.1)
         assert backend.get("k1") is None
         backend.close()
 
@@ -331,7 +331,7 @@ class TestSQLiteBackend(CacheTestBase):
         backend = SQLiteBackend(db_path=str(self.tmp_path / "test.db"))
         backend.set("k1", "v1", ttl=0)
         backend.set("k2", "v2", ttl=3600)
-        time.sleep(0.01)
+        time.sleep(0.1)
         removed = backend.cleanup_expired()
         assert removed == 1
         backend.close()
@@ -410,7 +410,7 @@ class TestFileBackend(CacheTestBase):
     def test_ttl_expiry(self) -> None:
         backend = FileBackend(cache_dir=str(self.tmp_path))
         backend.set("k1", "v1", ttl=0)
-        time.sleep(0.01)
+        time.sleep(0.1)
         assert backend.get("k1") is None
         backend.close()
 
@@ -418,7 +418,7 @@ class TestFileBackend(CacheTestBase):
         backend = FileBackend(cache_dir=str(self.tmp_path))
         backend.set("k1", "v1", ttl=0)
         backend.set("k2", "v2", ttl=3600)
-        time.sleep(0.01)
+        time.sleep(0.1)
         removed = backend.cleanup_expired()
         assert removed == 1
         backend.close()
@@ -792,7 +792,7 @@ class TestCacheManager(CacheTestBase):
         )
         manager = CacheManager(config)
         manager.set("k1", "v1", namespace="test", ttl=0)
-        time.sleep(0.01)
+        time.sleep(0.1)
         removed = manager.cleanup_expired()
         assert removed >= 0
         manager.close()

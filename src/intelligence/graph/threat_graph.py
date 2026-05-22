@@ -41,9 +41,9 @@ def build_threat_graph(
     """
     from src.analysis.intelligence.endpoint_attack_graph import build_attack_graph
 
-    # FIXME: endpoints is a list but build_attack_graph expects a dict for analysis_results.
-    # Casting to Any for now to maintain existing behavior.
-    graph = cast(dict[str, Any], build_attack_graph(findings, cast(Any, endpoints or [])))
+    # endpoints is a list of endpoint intelligence, build_attack_graph expects that as first arg.
+    # findings are finding dicts, which are often used as analysis results in this context.
+    graph = cast(dict[str, Any], build_attack_graph(endpoints or [], {"findings": findings}))
 
     # Enrich with threat intelligence markers
     cve_count = 0

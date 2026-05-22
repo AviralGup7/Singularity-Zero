@@ -326,8 +326,8 @@ class CalibratedSeverityModel:
                     }
                 )
                 self.registry.register(mv, activate=True, pipeline=self.pipeline)
-        except Exception:  # noqa: S110
-            pass
+        except Exception as e:
+            logger.warning("SeverityModel: Pipeline retraining failed: %s", e)
 
     def _load_training_examples(self) -> list[_TrainingExample]:
         if not self.db_path.exists():

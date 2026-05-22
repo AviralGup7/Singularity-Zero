@@ -727,14 +727,14 @@ class ThresholdHistoryEntry(BaseModel):
     history_id: str
     run_id: str
     category: str
-    low_threshold: float
-    medium_threshold: float
-    high_threshold: float
-    observed_fp_rate: float
-    target_fp_rate: float
-    error: float
-    adjustment: float
-    is_converged: bool | int
+    low_threshold: float | None = None
+    medium_threshold: float | None = None
+    high_threshold: float | None = None
+    observed_fp_rate: float | None = None
+    target_fp_rate: float | None = None
+    error: float | None = None
+    adjustment: float | None = None
+    is_converged: bool | int | None = None
     recorded_at: str
 
 
@@ -749,13 +749,13 @@ class FpPatternEntry(BaseModel):
     response_similarity: float | None = None
     first_seen: str
     last_seen: str
-    occurrence_count: int
-    confirmed_fp_count: int
-    confirmed_tp_count: int
-    fp_probability: float
-    confidence: float
-    is_active: bool | int
-    suppression_action: str
+    occurrence_count: int | None = None
+    confirmed_fp_count: int | None = None
+    confirmed_tp_count: int | None = None
+    fp_probability: float | None = None
+    confidence: float | None = None
+    is_active: bool | int | None = None
+    suppression_action: str | None = None
     created_at: str
     updated_at: str
 
@@ -812,18 +812,19 @@ class FeedbackEventEntry(BaseModel):
     target_host: str
     target_endpoint: str
     finding_category: str
-    finding_severity: str
-    finding_confidence: float
-    finding_decision: str
-    plugin_name: str
+    finding_severity: str | None = None
+    finding_confidence: float | None = None
+    finding_decision: str | None = None
+    plugin_name: str | None = None
     parameter_name: str | None = None
     parameter_type: str | None = None
-    was_validated: bool | int
-    was_false_positive: bool | int
+    was_validated: bool | int | None = None
+    was_false_positive: bool | int | None = None
     validation_method: str | None = None
-    response_delta_score: float
-    endpoint_type: str
+    response_delta_score: float | None = None
+    endpoint_type: str | None = None
     tech_stack: str | None = None
-    scan_mode: str
-    feedback_weight: float
+    scan_mode: str | None = None
+    feedback_weight: float | None = None
+
 

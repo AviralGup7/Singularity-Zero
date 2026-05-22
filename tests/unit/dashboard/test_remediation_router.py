@@ -11,7 +11,12 @@ from src.dashboard.fastapi.routers.remediation import get_remediation_plan
 class RemediationRouterTests(unittest.TestCase):
     @staticmethod
     def _services(output_root: Path) -> SimpleNamespace:
-        return SimpleNamespace(query=SimpleNamespace(output_root=output_root))
+        def list_targets() -> list[dict[str, Any]]:
+            return [{"name": d.name} for d in output_root.iterdir() if d.is_dir() and not d.name.startswith("_")]
+        return SimpleNamespace(
+            query=SimpleNamespace(output_root=output_root),
+            list_targets=list_targets,
+        )
 
     def test_get_remediation_plan_aggregates_findings_successfully(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

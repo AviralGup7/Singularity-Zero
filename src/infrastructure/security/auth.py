@@ -11,24 +11,25 @@ See auth/ package for the modular implementation:
     auth/manager.py     - AuthManager composition orchestrator
 """
 
-from src.infrastructure.security.auth import *  # noqa: F401, F403
-from src.infrastructure.security.auth import (
-    APIKey,
-    APIKeyStore,
-    AuthManager,
-    PasswordHash,
-    Role,
-    Session,
-    TokenPayload,
+from src.infrastructure.security.auth.api_keys import APIKeyStore, generate_api_key, hash_api_key
+from src.infrastructure.security.auth.jwt_handler import (
     create_access_token,
     create_refresh_token,
     decode_jwt,
     encode_jwt,
-    generate_api_key,
-    hash_api_key,
+    validate_token,
+)
+from src.infrastructure.security.auth.manager import AuthManager
+from src.infrastructure.security.auth.models import (
+    APIKey,
+    PasswordHash,
+    Role,
+    Session,
+    TokenPayload,
+)
+from src.infrastructure.security.auth.passwords import (
     hash_password,
     validate_password_strength,
-    validate_token,
     verify_password,
 )
 

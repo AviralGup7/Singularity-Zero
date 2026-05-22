@@ -8,6 +8,7 @@ from .audit import router as audit_router
 from .bloom import router as bloom_router
 from .cache import router as cache_router
 from .cockpit import router as cockpit_router
+from .defaults import router as defaults_router
 from .evasion import router as evasion_router
 from .export import router as export_router
 from .findings import router as findings_router
@@ -28,6 +29,7 @@ from .self_healing import router as self_healing_router
 from .targets import router as targets_router
 from .tracing import router as tracing_router
 from .triage import router as triage_router
+from .webhooks import router as webhooks_router
 
 imports_router: Any = None
 try:
@@ -51,6 +53,7 @@ api_router.include_router(mesh_router, tags=["Mesh"])
 api_router.include_router(targets_router, tags=["Targets"])
 api_router.include_router(findings_router, tags=["Findings"])
 api_router.include_router(cache_router, tags=["Cache"])
+api_router.include_router(defaults_router, tags=["Defaults"])
 api_router.include_router(notes_router, tags=["Notes"])
 api_router.include_router(export_router, tags=["Export"])
 api_router.include_router(replay_router, tags=["Replay"])
@@ -58,6 +61,7 @@ api_router.include_router(risk_router, tags=["Risk"])
 api_router.include_router(remediation_router, tags=["Remediation"])
 api_router.include_router(reports_router, tags=["Reports"])
 api_router.include_router(registry_router, tags=["Registry"])
+api_router.include_router(webhooks_router, tags=["Webhooks"])
 if imports_router is not None:
     api_router.include_router(imports_router, tags=["Imports"])
 api_router.include_router(gap_analysis_router, tags=["Gap Analysis"])

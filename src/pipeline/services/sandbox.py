@@ -65,23 +65,23 @@ class DockerSandboxRunner:
                 f"Callable '{callable_clean}' is not allowlisted for sandbox execution"
             )
 
-    def build_command(self, module: str, callable_name: str, payload: dict[str, Any]) -> list[str]:
+    def build_command(self, module: str, callable_name: str) -> list[str]:
         self._validate_target(module, callable_name)
         if self.config.network not in self.config.allowed_networks:
             raise ValueError(
                 f"Docker network '{self.config.network}' is not allowlisted for sandbox execution"
             )
-        encoded_payload = json.dumps(payload, separators=(",", ":"))
         code = (
-            "import importlib,json;"
+            "import importlib,json,sys;"
             f"mod=importlib.import_module({module!r});"
             f"fn=getattr(mod,{callable_name!r});"
-            f"print(json.dumps(fn(json.loads({encoded_payload!r}))))"
+            "print(json.dumps(fn(json.load(sys.stdin))))"
         )
         return [
             "docker",
             "run",
             "--rm",
+            "-i",  # Keep stdin open for the payload
             "--network",
             self.config.network,
             "--memory",
@@ -99,9 +99,11 @@ class DockerSandboxRunner:
         ]
 
     def run(self, module: str, callable_name: str, payload: dict[str, Any]) -> Any:
-        command = self.build_command(module, callable_name, payload)
-        completed = subprocess.run(  # noqa: S603 - command is an argument list built by this runner.
+        command = self.build_command(module, callable_name)
+        encoded_payload = json.dumps(payload, separators=(",", ":"))
+        completed = subprocess.run(  # noqa: S603 - command is built safely.
             command,
+            input=encoded_payload,
             check=True,
             capture_output=True,
             text=True,

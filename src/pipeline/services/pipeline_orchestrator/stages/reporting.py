@@ -69,8 +69,22 @@ async def run_reporting(
                 ctx.output_store.run_dir,
             )
         )
-        screenshots, diff_summary_raw = await asyncio.gather(screenshots_task, diff_task)
-        diff_summary = diff_summary_raw or {}
+        screenshots_raw, diff_summary_raw = await asyncio.gather(
+            screenshots_task, diff_task, return_exceptions=True
+        )
+        
+        # Handle potential exceptions in the gathered tasks
+        if isinstance(screenshots_raw, Exception):
+            logger.error("Screenshot capture failed: %s", screenshots_raw)
+            screenshots = []
+        else:
+            screenshots = screenshots_raw
+
+        if isinstance(diff_summary_raw, Exception):
+            logger.error("Artifact diff generation failed: %s", diff_summary_raw)
+            diff_summary = {}
+        else:
+            diff_summary = diff_summary_raw or {}
         module_metrics["screenshots"] = {
             "status": "ok",
             "duration_seconds": round(time.monotonic() - post_started, 2),
