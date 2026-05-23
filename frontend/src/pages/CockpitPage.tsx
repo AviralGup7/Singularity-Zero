@@ -143,13 +143,13 @@ export function CockpitPage() {
 
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [isDeckOpen, setIsDeckOpen] = useState(true);
-  const [scanMode, setScanMode] = useState<'quick' | 'deep'>('quick');
+  const [scanMode, setScanMode] = useState<'safe' | 'aggressive'>('safe');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModules, setSelectedModules] = useState<string[]>([
     'subdomain_enum',
     'url_discovery',
     'port_scan',
     'httpx',
-    'nuclei',
   ]);
   const [launchingScan, setLaunchingScan] = useState(false);
   const [stoppingScan, setStoppingScan] = useState(false);
@@ -428,7 +428,7 @@ export function CockpitPage() {
                 <>
                   <div className="space-y-1">
                     <label className="block space-y-1">
-                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted">Scope Target</span>
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted">Enter your website URL to scan.</span>
                       <input
                         type="text"
                         value={inputTarget}
@@ -439,67 +439,85 @@ export function CockpitPage() {
                     </label>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Scan Mode Preset</div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-2">
                       <button
                         type="button"
-                        onClick={() => setScanMode('quick')}
-                        className={`rounded border py-2 text-center text-[10px] font-black uppercase tracking-widest transition-all ${
-                          scanMode === 'quick'
-                            ? 'border-accent bg-accent/15 text-accent shadow-[0_0_10px_rgba(0,255,244,0.15)]'
-                            : 'border-white/5 bg-white/5 text-muted hover:bg-white/10'
+                        onClick={() => {
+                          setScanMode('safe');
+                          setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx']);
+                        }}
+                        className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
+                          scanMode === 'safe'
+                            ? 'border-accent bg-accent/10 text-text shadow-[0_0_15px_rgba(0,255,244,0.15)]'
+                            : 'border-white/5 bg-white/5 text-muted hover:bg-white/10 hover:border-white/10'
                         }`}
                       >
-                        Quick Mode
+                        <span className="text-xs font-black uppercase tracking-wider text-white">Quick Health Check</span>
+                        <span className="mt-0.5 text-[9px] font-medium leading-relaxed opacity-60">safe, non-intrusive metadata audit</span>
                       </button>
+                      
                       <button
                         type="button"
-                        onClick={() => setScanMode('deep')}
-                        className={`rounded border py-2 text-center text-[10px] font-black uppercase tracking-widest transition-all ${
-                          scanMode === 'deep'
-                            ? 'border-accent bg-accent/15 text-accent shadow-[0_0_10px_rgba(0,255,244,0.15)]'
-                            : 'border-white/5 bg-white/5 text-muted hover:bg-white/10'
+                        onClick={() => {
+                          setScanMode('aggressive');
+                          setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx', 'nuclei']);
+                        }}
+                        className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
+                          scanMode === 'aggressive'
+                            ? 'border-accent bg-accent/10 text-text shadow-[0_0_15px_rgba(0,255,244,0.15)]'
+                            : 'border-white/5 bg-white/5 text-muted hover:bg-white/10 hover:border-white/10'
                         }`}
                       >
-                        Deep Mode
+                        <span className="text-xs font-black uppercase tracking-wider text-white">Deep Security Clean-Up</span>
+                        <span className="mt-0.5 text-[9px] font-medium leading-relaxed opacity-60">full active fuzzer checks</span>
                       </button>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Execution Modules</div>
-                    <div className="space-y-1 rounded border border-white/5 bg-black/40 p-2.5">
-                      {[
-                        { id: 'subdomain_enum', label: 'Subdomain Recon' },
-                        { id: 'url_discovery', label: 'URL Discovery' },
-                        { id: 'port_scan', label: 'Port Scanning' },
-                        { id: 'httpx', label: 'HTTP Prober' },
-                        { id: 'nuclei', label: 'Vulnerability (Nuclei)' },
-                      ].map((mod) => {
-                        const active = selectedModules.includes(mod.id);
-                        return (
-                          <label
-                            key={mod.id}
-                            className="flex cursor-pointer items-center justify-between py-1 transition-colors hover:text-white"
-                          >
-                            <span className="font-mono text-[10px] text-muted-foreground">{mod.label}</span>
-                            <input
-                              type="checkbox"
-                              checked={active}
-                              onChange={() => {
-                                if (active) {
-                                  setSelectedModules(selectedModules.filter((m) => m !== mod.id));
-                                } else {
-                                  setSelectedModules([...selectedModules, mod.id]);
-                                }
-                              }}
-                              className="h-3 w-3 rounded border-white/10 bg-black/40 text-accent outline-none accent-accent focus:ring-0"
-                            />
-                          </label>
-                        );
-                      })}
-                    </div>
+                  <div className="space-y-2 border-t border-white/5 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                      className="flex w-full items-center justify-between font-mono text-[9px] uppercase tracking-wider text-muted hover:text-accent transition-colors"
+                    >
+                      <span>{showAdvanced ? '─ Hide Advanced Options' : '┼ Show Advanced Options'}</span>
+                    </button>
+
+                    {showAdvanced && (
+                      <div className="space-y-1 rounded border border-white/5 bg-black/40 p-2.5 mt-2 animate-fadeIn">
+                        {[
+                          { id: 'subdomain_enum', label: 'Subdomain Recon' },
+                          { id: 'url_discovery', label: 'URL Discovery' },
+                          { id: 'port_scan', label: 'Port Scanning' },
+                          { id: 'httpx', label: 'HTTP Prober' },
+                          { id: 'nuclei', label: 'Vulnerability (Nuclei)' },
+                        ].map((mod) => {
+                          const active = selectedModules.includes(mod.id);
+                          return (
+                            <label
+                              key={mod.id}
+                              className="flex cursor-pointer items-center justify-between py-1 transition-colors hover:text-white"
+                            >
+                              <span className="font-mono text-[10px] text-muted-foreground">{mod.label}</span>
+                              <input
+                                type="checkbox"
+                                checked={active}
+                                onChange={() => {
+                                  if (active) {
+                                    setSelectedModules(selectedModules.filter((m) => m !== mod.id));
+                                  } else {
+                                    setSelectedModules([...selectedModules, mod.id]);
+                                  }
+                                }}
+                                className="h-3 w-3 rounded border-white/10 bg-black/40 text-accent outline-none accent-accent focus:ring-0"
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <button

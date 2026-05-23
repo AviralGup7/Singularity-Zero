@@ -454,6 +454,32 @@ async def get_finding_remediation(
     return {"finding_id": finding_id, "suggestions": suggest_for_finding(finding)}
 
 
+@router.get(
+    "/{finding_id}/explain",
+    response_model=dict[str, Any],
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    summary="Get ML explainability analysis (SHAP) for a finding",
+)
+async def explain_finding_severity(
+    finding_id: str,
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> dict[str, Any]:
+    from src.intelligence.ml.shap_explainer import SHAPExplainer
+
+    finding = _find_finding_by_id(services.query.output_root, finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    
+    try:
+        explainer = SHAPExplainer()
+        explanation = explainer.explain(finding)
+        return explanation
+    except Exception as exc:
+        logger.exception("Failed to generate explainability analysis: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to generate explainability analysis: {exc}")
+
+
 @router.put(
     "/bulk",
     response_model=list[dict[str, Any]],
