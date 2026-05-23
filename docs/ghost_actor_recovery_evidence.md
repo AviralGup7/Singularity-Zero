@@ -56,7 +56,7 @@ To enforce compaction during persistence:
 
 Actor migration now has a prepare/commit handoff:
 
-1. Source actor receives `prepare_migration`, freezes mutating work, and returns a stable `ghost-actor-snapshot-v2` envelope with `migration_id`, `last_wal_id`, and `state_digest`.
+1. Source actor receives `prepare_migration`, freezes mutating work, and returns a stable `ghost-actor-snapshot-v3` envelope with `migration_id`, `last_wal_id`, and `state_digest`.
 2. Coordinator stores the packed actor state, records a prepared marker in `GhostMeshRegistry`, updates placement, and commits the marker.
 3. The source actor is stopped only after the committed marker and actor snapshot are durable.
 4. The target node rehydrates from registry state and clears both the actor state and migration marker.

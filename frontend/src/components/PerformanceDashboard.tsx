@@ -55,11 +55,17 @@ export function PerformanceDashboard() {
 
       try {
         observer.observe({ type: 'largest-contentful-paint', buffered: true });
-      } catch (_e) { /* not supported */ }
+      } catch (e) {
+        console.debug('LCP observation not supported:', e);
+      }
       try {
         observer.observe({ type: 'layout-shift', buffered: true });
-      } catch (_e) { /* not supported */ }
-    } catch (_e) { /* not supported */ }
+      } catch (e) {
+        console.debug('CLS observation not supported:', e);
+      }
+    } catch (e) {
+      console.debug('PerformanceObserver not supported:', e);
+    }
   }, []);
 
   const formatMs = (ms: number): string => {

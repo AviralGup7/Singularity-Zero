@@ -66,7 +66,7 @@ When validator engines (such as IDOR, CSRF, XSS, or API key candidate validators
     *   Platform-specific wheel loading errors (e.g. `orjson` or `wasmtime` mismatch).
 *   **Remediation**:
     *   Check plugin registry imports in `src/execution/validators/runtime.py`.
-    *   Validate your Python interpreter version (`3.12` mandated) to ensure no silent library loading issues.
+    *   Validate your Python interpreter version (`3.14` mandated) to ensure no silent library loading issues.
 
 ---
 

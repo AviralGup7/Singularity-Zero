@@ -20,7 +20,7 @@ import json  # Fix #372: Move to top-level
 import time
 import uuid
 from enum import StrEnum
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +62,8 @@ class BaseMessage(BaseModel):
     sequence: int = Field(default=0, ge=0)
     timestamp: float = Field(default_factory=time.time)
 
+    MAX_MESSAGE_SIZE: ClassVar[int] = 131072  # 128 KB
+
     def to_json(self) -> str:
         """Serialize the message to a JSON string.
 
@@ -83,8 +85,16 @@ class BaseMessage(BaseModel):
         Raises:
             ValueError: If the JSON is invalid or missing required fields.
         """
+        if len(data) > cls.MAX_MESSAGE_SIZE:
+            raise ValueError(
+                f"Message size {len(data)} exceeds maximum allowed size of {cls.MAX_MESSAGE_SIZE} bytes"
+            )
+
         # Fix #372: Moved json import to top level
-        raw = json.loads(data)
+        try:
+            raw = json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON payload: {exc}") from exc
         msg_type = raw.get("type")
         if msg_type is None:
             raise ValueError("Message missing 'type' field")

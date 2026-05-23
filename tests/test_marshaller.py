@@ -43,21 +43,15 @@ def test_compress_decompress_bytes():
 
 
 def test_zlib_compression_fallback(monkeypatch):
-    # Temporarily remove zstandard and force reload of marshaller
-    monkeypatch.setitem(sys.modules, "zstandard", None)
+    # Temporarily force zlib compression instead of mutating sys.modules
     import src.core.frontier.marshaller as marshaller_mod
+    monkeypatch.setattr(marshaller_mod, "_FORCE_ZLIB", True)
 
-    importlib.reload(marshaller_mod)
-    try:
-        payload = b"test payload for fallback compression"
-        compressed = marshaller_mod.compress_bytes(payload)
-        assert isinstance(compressed, bytes)
-        decompressed = marshaller_mod.decompress_bytes(compressed)
-        assert decompressed == payload
-    finally:
-        # Restore the original zstandard and reload marshaller normally
-        monkeypatch.undo()
-        importlib.reload(marshaller_mod)
+    payload = b"test payload for fallback compression"
+    compressed = marshaller_mod.compress_bytes(payload)
+    assert isinstance(compressed, bytes)
+    decompressed = marshaller_mod.decompress_bytes(compressed)
+    assert decompressed == payload
 
 
 def test_pack_unpack_errors():
