@@ -82,7 +82,7 @@ async def run_reporting(
 
         if isinstance(diff_summary_raw, Exception):
             logger.error("Artifact diff generation failed: %s", diff_summary_raw)
-            diff_summary = {}
+            diff_summary: dict[str, Any] = {}
         else:
             diff_summary = diff_summary_raw or {}
         module_metrics["screenshots"] = {

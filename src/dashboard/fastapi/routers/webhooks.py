@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from src.dashboard.fastapi.dependencies import require_auth
 from src.infrastructure.notifications.base import NotificationEvent, NotificationPriority
-from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
+from src.infrastructure.notifications.manager import ChannelEntry, ManagerConfig, NotificationManager
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 
@@ -34,14 +34,14 @@ async def test_webhook(
     try:
         config = ManagerConfig(
             channels=[
-                {
-                    "name": "webhook",
-                    "enabled": True,
-                    "config": {
+                ChannelEntry(
+                    name="webhook",
+                    enabled=True,
+                    config={
                         "url": payload.url,
                         "secret": payload.secret,
                     },
-                }
+                )
             ]
         )
 
@@ -76,14 +76,14 @@ async def test_slack(
     try:
         config = ManagerConfig(
             channels=[
-                {
-                    "name": "slack",
-                    "enabled": True,
-                    "config": {
+                ChannelEntry(
+                    name="slack",
+                    enabled=True,
+                    config={
                         "webhook_url": payload.url,
                         "channel": payload.channel,
                     },
-                }
+                )
             ]
         )
 

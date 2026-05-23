@@ -15,9 +15,9 @@ vi.mock('../../api/client', () => ({
 // Mock Framer Motion to prevent animation timers in tests
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    div: ({ children, ...props }: Record<string, unknown>) => <div {...props}>{children as React.ReactNode}</div>,
   },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 const mockGapData = {
@@ -75,7 +75,7 @@ describe('GapAnalysisPage Component', () => {
 
   it('renders loading skeleton on mount', async () => {
     // Delay resolution to capture loading skeleton
-    let resolveGap: any;
+    let resolveGap: (value: unknown) => void;
     const promise = new Promise((resolve) => {
       resolveGap = resolve;
     });

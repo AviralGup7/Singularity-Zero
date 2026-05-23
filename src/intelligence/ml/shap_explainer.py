@@ -143,7 +143,7 @@ class SHAPExplainer:
         final_prob = sigmoid(total_logit)
 
         # Calculate marginal probability impact for each contributor
-        feature_impacts = []
+        feature_impacts: list[dict[str, Any]] = []
         for key, logit_c in logit_contributions.items():
             # Probability without this feature's contribution
             prob_without = sigmoid(total_logit - logit_c)
@@ -166,14 +166,14 @@ class SHAPExplainer:
             )
 
         # Sort feature impacts by magnitude of contribution
-        feature_impacts.sort(key=lambda x: abs(x["logit_contribution"]), reverse=True)
+        feature_impacts.sort(key=lambda x: abs(float(x["logit_contribution"])), reverse=True)
 
         # Generate human-readable diagnostics summary
         positive_influences = [
-            f.get("label", "") for f in feature_impacts if f.get("logit_contribution", 0.0) > 0.1
+            str(f.get("label", "")) for f in feature_impacts if float(f.get("logit_contribution", 0.0)) > 0.1
         ][:3]
         negative_influences = [
-            f.get("label", "") for f in feature_impacts if f.get("logit_contribution", 0.0) < -0.1
+            str(f.get("label", "")) for f in feature_impacts if float(f.get("logit_contribution", 0.0)) < -0.1
         ][:2]
 
         summary_parts = []
