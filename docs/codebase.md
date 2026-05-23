@@ -114,6 +114,7 @@ src/
 │   ├── graph/
 │   ├── ml/
 │   └── scoring/
+├── api_tests/           # Automated API vulnerability testing and fuzzing workflows
 ├── reporting/          # HTML PDF, VRT, triage, and compliance report generators
 ├── pipeline/           # DAG Orchestrator and service runners
 ├── websocket_server/   # WebSocket log streaming and real-time event relay

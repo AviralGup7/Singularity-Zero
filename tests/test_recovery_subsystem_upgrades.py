@@ -216,3 +216,71 @@ def test_bounded_compaction_state_store(tmp_path):
 
     recovered_state = NeuralState.from_crdt_snapshot(latest)
     assert recovered_state.subdomains.tombstone_count == 0
+
+
+def test_wal_dual_commit_redis_and_aof_fallback(tmp_path, monkeypatch):
+    import base64
+    import msgpack
+    from unittest.mock import MagicMock
+    from src.core.frontier.wal import compute_crc64
+
+    # 1. Create a fully functional MockRedis store
+    mock_redis = MagicMock()
+    mock_redis.ping.return_value = True
+    
+    redis_stream = []
+    
+    def mock_xadd(name, fields, maxlen=None):
+        entry_id = f"17790000-0"
+        redis_stream.append((entry_id.encode(), fields))
+        return entry_id.encode()
+        
+    def mock_xrange(name, min="-", max="+", count=None):
+        return redis_stream
+
+    mock_redis.xadd.side_effect = mock_xadd
+    mock_redis.xrange.side_effect = mock_xrange
+    monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
+
+    # 2. Instantiate FrontierWAL in active mode
+    run_id = "test-run-dual-commit"
+    wal = FrontierWAL("redis://localhost:6379", run_id)
+    assert wal._active is True
+    
+    # Point AOF to safe tmp_path
+    aof_file = tmp_path / f"local_wal_{run_id}.aof"
+    wal._aof_path = aof_file
+
+    # 3. Log a state delta (Dual Commit)
+    stage = "vulnerability_enrichment"
+    delta = {"findings": [{"id": "F_TEST", "severity": "HIGH", "category": "SSRF"}]}
+    
+    tx_id = wal.log_delta(stage, delta)
+    assert tx_id == "17790000-0"
+
+    # Assert dual commit: both local AOF and Redis stream have the records
+    assert aof_file.exists()
+    assert len(redis_stream) == 1
+
+    # 4. Introduce corruption in the Redis stream to test fallback
+    # Change the stored CRC64 to trigger verification failure
+    corrupt_item = dict(redis_stream[0][1])
+    corrupt_item[b"crc64"] = b"0000000000000000"
+    redis_stream[0] = (redis_stream[0][0], corrupt_item)
+
+    # 5. Run recovery - should detect Redis corruption and fallback to AOF
+    recovered = wal.recover_deltas()
+    assert len(recovered) == 1
+    assert recovered[0]["stage"] == stage
+    assert recovered[0]["delta"]["findings"][0]["id"] == "F_TEST"
+
+    # 6. Verify full NeuralState restoration
+    restored_state = wal.recover_state()
+    assert restored_state is not None
+    findings = restored_state.findings.values()
+    assert len(findings) == 1
+    assert findings[0]["id"] == "F_TEST"
+    assert findings[0]["severity"] == "HIGH"
+
+    wal.cleanup()
+    assert not aof_file.exists()

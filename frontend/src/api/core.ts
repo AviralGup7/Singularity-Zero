@@ -76,12 +76,11 @@ apiClient.interceptors.response.use(
     if (schema) {
       const result = schema.safeParse(response.data);
       if (!result.success) {
-   
-        console.error(`[API CONTRACT VIOLATION] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
-          errors: result.error.format(),
-          received: response.data
-        });
         if (import.meta.env.DEV) {
+          console.error(`[API CONTRACT VIOLATION] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
+            errors: result.error.format(),
+            received: response.data
+          });
           dispatchToast('API Contract Violation Detected (check console)', 'warning');
         }
       }
