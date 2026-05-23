@@ -65,7 +65,7 @@ function resolveStageOrder(jobs: Job[]): string[] {
 
 interface GsapTimeline {
   kill: () => void;
-  fromTo: (target: any, fromVars: object, toVars: object, position?: any) => GsapTimeline;
+  fromTo: (target: unknown, fromVars: object, toVars: object, position?: unknown) => GsapTimeline;
 }
 
 interface GsapInstance {

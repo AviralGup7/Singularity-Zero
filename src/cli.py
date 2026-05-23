@@ -214,7 +214,7 @@ def handle_launch(args: argparse.Namespace) -> None:
         console.print("[success]Static frontend assets verified.[/success]")
 
     # 2. Daemon thread to run the worker
-    def run_worker_thread():
+    def run_worker_thread() -> None:
         from src.infrastructure.queue.job_queue import JobQueue
         from src.infrastructure.queue.redis_client import RedisClient
         from src.infrastructure.queue.worker import Worker
@@ -231,7 +231,7 @@ def handle_launch(args: argparse.Namespace) -> None:
             concurrency=args.concurrency,
         )
 
-        async def _run():
+        async def _run() -> None:
             try:
                 await worker.start()
             except Exception as e:

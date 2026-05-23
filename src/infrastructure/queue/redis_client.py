@@ -197,7 +197,7 @@ class RedisClient:
             deleted = cursor.rowcount
             conn.commit()
             conn.close()
-            return deleted
+            return int(deleted)
         except Exception as exc:
             logger.error("SQLite fallback del error for key '%s': %s", key, exc)
             return 0
