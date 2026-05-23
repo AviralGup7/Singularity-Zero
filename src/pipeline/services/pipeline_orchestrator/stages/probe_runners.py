@@ -46,7 +46,7 @@ def _run_jwt_attack_suite(
 ) -> list[dict[str, Any]]:
     try:
         import requests
-    except (ImportError, TypeError, ValueError, AttributeError):
+    except ImportError, TypeError, ValueError, AttributeError:
         return []
 
     findings: list[dict[str, Any]] = []

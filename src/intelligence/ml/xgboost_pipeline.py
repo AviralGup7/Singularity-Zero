@@ -16,6 +16,7 @@ try:
     import xgboost as xgb
     from sklearn.feature_extraction import FeatureHasher
     from sklearn.linear_model import LogisticRegression
+
     HAS_ML_LIBS = True
 except ImportError:
     HAS_ML_LIBS = False
@@ -46,8 +47,13 @@ class XGBoostSeverityPipeline:
                     random_state=42,
                 )
             except Exception as e:
-                logger.warning("Could not initialize XGBoost Classifier: %s. Using LogisticRegression instead.", e)
-                self.model = LogisticRegression(C=1.0, penalty="l2", solver="lbfgs", random_state=42)
+                logger.warning(
+                    "Could not initialize XGBoost Classifier: %s. Using LogisticRegression instead.",
+                    e,
+                )
+                self.model = LogisticRegression(
+                    C=1.0, penalty="l2", solver="lbfgs", random_state=42
+                )
 
     def _vectorize(self, vectors: list[FeatureVector]) -> np.ndarray:
         """Transform high-dimensional sparse tokens and numerical features into dense NumPy arrays."""
@@ -59,21 +65,24 @@ class XGBoostSeverityPipeline:
         sparse_tokens = self.hasher.transform(token_pairs).toarray()
 
         # Compile numeric tabular arrays
-        numeric = np.array([
+        numeric = np.array(
             [
-                vec.confidence,
-                vec.legacy_impact,
-                vec.cvss,
-                vec.score_hint,
-                vec.response_delta,
-                vec.diff_score,
-                vec.status_changed,
-                vec.content_changed,
-                vec.redirect_changed,
-                vec.reproducible,
-            ]
-            for vec in vectors
-        ], dtype=np.float32)
+                [
+                    vec.confidence,
+                    vec.legacy_impact,
+                    vec.cvss,
+                    vec.score_hint,
+                    vec.response_delta,
+                    vec.diff_score,
+                    vec.status_changed,
+                    vec.content_changed,
+                    vec.redirect_changed,
+                    vec.reproducible,
+                ]
+                for vec in vectors
+            ],
+            dtype=np.float32,
+        )
 
         return np.hstack([numeric, sparse_tokens])
 
@@ -91,7 +100,10 @@ class XGBoostSeverityPipeline:
             if hasattr(self.model, "fit"):
                 self.model.fit(x, y)
                 self.is_trained = True
-                logger.info("XGBoostSeverityPipeline: Successfully fitted model on %d samples.", len(findings))
+                logger.info(
+                    "XGBoostSeverityPipeline: Successfully fitted model on %d samples.",
+                    len(findings),
+                )
                 return True
         except Exception as e:
             logger.error("XGBoostSeverityPipeline: Failed to fit model: %s", e)
@@ -112,7 +124,9 @@ class XGBoostSeverityPipeline:
                 probs = self.model.predict_proba(x)
                 return float(probs[0][1])
         except Exception as e:
-            logger.warning("ML Inference error: %s. Falling back to default sigmoid coefficients.", e)
+            logger.warning(
+                "ML Inference error: %s. Falling back to default sigmoid coefficients.", e
+            )
 
         return self._fallback_inference(finding)
 

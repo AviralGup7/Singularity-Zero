@@ -219,22 +219,19 @@ def test_bounded_compaction_state_store(tmp_path):
 
 
 def test_wal_dual_commit_redis_and_aof_fallback(tmp_path, monkeypatch):
-    import base64
-    import msgpack
     from unittest.mock import MagicMock
-    from src.core.frontier.wal import compute_crc64
 
     # 1. Create a fully functional MockRedis store
     mock_redis = MagicMock()
     mock_redis.ping.return_value = True
-    
+
     redis_stream = []
-    
+
     def mock_xadd(name, fields, maxlen=None):
-        entry_id = f"17790000-0"
+        entry_id = "17790000-0"
         redis_stream.append((entry_id.encode(), fields))
         return entry_id.encode()
-        
+
     def mock_xrange(name, min="-", max="+", count=None):
         return redis_stream
 
@@ -246,7 +243,7 @@ def test_wal_dual_commit_redis_and_aof_fallback(tmp_path, monkeypatch):
     run_id = "test-run-dual-commit"
     wal = FrontierWAL("redis://localhost:6379", run_id)
     assert wal._active is True
-    
+
     # Point AOF to safe tmp_path
     aof_file = tmp_path / f"local_wal_{run_id}.aof"
     wal._aof_path = aof_file
@@ -254,7 +251,7 @@ def test_wal_dual_commit_redis_and_aof_fallback(tmp_path, monkeypatch):
     # 3. Log a state delta (Dual Commit)
     stage = "vulnerability_enrichment"
     delta = {"findings": [{"id": "F_TEST", "severity": "HIGH", "category": "SSRF"}]}
-    
+
     tx_id = wal.log_delta(stage, delta)
     assert tx_id == "17790000-0"
 

@@ -31,8 +31,8 @@ class QueryServiceGapTests(unittest.TestCase):
                 "detection_coverage": {
                     "active_modules": ["ssrf_candidate_finder", "reflected_xss_probe"],
                     "empty_modules": ["idor_validation"],
-                    "coverage_by_category": {"ssrf": 1, "xss": 1}
-                }
+                    "coverage_by_category": {"ssrf": 1, "xss": 1},
+                },
             }
             (run_a1 / "run_summary.json").write_text(json.dumps(run_summary_a), encoding="utf-8")
 
@@ -45,8 +45,8 @@ class QueryServiceGapTests(unittest.TestCase):
                 "detection_coverage": {
                     "active_modules": ["idor_validation"],
                     "empty_modules": ["token_leak"],
-                    "coverage_by_category": {"idor": 1, "token_leak": 0}
-                }
+                    "coverage_by_category": {"idor": 1, "token_leak": 0},
+                },
             }
             (run_b1 / "run_summary.json").write_text(json.dumps(run_summary_b), encoding="utf-8")
 
@@ -54,15 +54,23 @@ class QueryServiceGapTests(unittest.TestCase):
 
             # Test aggregating all targets
             all_summary = service.detection_gap_summary()
-            self.assertEqual(all_summary["active_modules"], ["idor_validation", "reflected_xss_probe", "ssrf_candidate_finder"])
+            self.assertEqual(
+                all_summary["active_modules"],
+                ["idor_validation", "reflected_xss_probe", "ssrf_candidate_finder"],
+            )
             # idor_validation is active in B, so it should be removed from empty modules (which had it in A)
             # empty_modules = sorted(empty_modules - active_modules) = ["token_leak"]
             self.assertEqual(all_summary["empty_modules"], ["token_leak"])
-            self.assertEqual(all_summary["coverage_by_category"], {"ssrf": 1, "xss": 1, "idor": 1, "token_leak": 0})
+            self.assertEqual(
+                all_summary["coverage_by_category"],
+                {"ssrf": 1, "xss": 1, "idor": 1, "token_leak": 0},
+            )
 
             # Test querying a single target A
             a_summary = service.detection_gap_summary("target-a.com")
-            self.assertEqual(a_summary["active_modules"], ["reflected_xss_probe", "ssrf_candidate_finder"])
+            self.assertEqual(
+                a_summary["active_modules"], ["reflected_xss_probe", "ssrf_candidate_finder"]
+            )
             self.assertEqual(a_summary["empty_modules"], ["idor_validation"])
             self.assertEqual(a_summary["coverage_by_category"], {"ssrf": 1, "xss": 1})
 
@@ -79,18 +87,20 @@ class QueryServiceGapTests(unittest.TestCase):
                 "generated_at_utc": "2026-05-22T12:00:00Z",
                 "counts": {
                     "scope_entries": 10,  # should be ignored
-                    "live_hosts": 5,       # should be ignored
+                    "live_hosts": 5,  # should be ignored
                     "ssrf_candidate_finder": 2,  # >0 -> active
-                    "reflected_xss_probe": 0,     # <=0 -> empty
-                    "idor_validation": 1          # >0 -> active
-                }
+                    "reflected_xss_probe": 0,  # <=0 -> empty
+                    "idor_validation": 1,  # >0 -> active
+                },
             }
             (run_dir / "run_summary.json").write_text(json.dumps(run_summary), encoding="utf-8")
 
             service = self._service(output_root)
             summary = service.detection_gap_summary(target)
 
-            self.assertEqual(summary["active_modules"], ["idor_validation", "ssrf_candidate_finder"])
+            self.assertEqual(
+                summary["active_modules"], ["idor_validation", "ssrf_candidate_finder"]
+            )
             self.assertEqual(summary["empty_modules"], ["reflected_xss_probe"])
 
     def test_detection_gap_summary_graceful_error_handling(self) -> None:
@@ -112,10 +122,12 @@ class QueryServiceGapTests(unittest.TestCase):
                 "detection_coverage": {
                     "active_modules": ["ssrf_candidate_finder"],
                     "empty_modules": [],
-                    "coverage_by_category": {}
-                }
+                    "coverage_by_category": {},
+                },
             }
-            (run_dir_ok / "run_summary.json").write_text(json.dumps(run_summary_ok), encoding="utf-8")
+            (run_dir_ok / "run_summary.json").write_text(
+                json.dumps(run_summary_ok), encoding="utf-8"
+            )
 
             service = self._service(output_root)
             summary = service.detection_gap_summary()

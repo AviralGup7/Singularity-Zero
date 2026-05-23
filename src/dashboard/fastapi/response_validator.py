@@ -137,7 +137,7 @@ class ResponseValidationMiddleware(BaseHTTPMiddleware):
             # Parse existing JSON
             try:
                 body = json.loads(body_bytes.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError, UnicodeDecodeError:
                 # Invalid JSON - return error response
                 logger.error("Invalid JSON response for %s", path)
                 return JSONResponse(

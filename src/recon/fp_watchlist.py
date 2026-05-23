@@ -40,7 +40,11 @@ def _is_false_positive(finding: dict[str, Any]) -> bool:
     lifecycle_state = str(finding.get("lifecycle_state", "")).strip().lower()
     decision = str(finding.get("decision", "")).strip().lower()
     fp_reason = finding.get("false_positive_reason") or finding.get("fp_reason")
-    if status in _FP_STATUSES or lifecycle_state in _FP_LIFECYCLE_STATES or decision in _FP_DECISIONS:
+    if (
+        status in _FP_STATUSES
+        or lifecycle_state in _FP_LIFECYCLE_STATES
+        or decision in _FP_DECISIONS
+    ):
         return True
     if fp_reason:
         return True
@@ -88,7 +92,12 @@ def _build_url_pattern(url: str) -> str:
 
 def _extract_vulnerability_class(finding: dict[str, Any]) -> str:
     """Return the vulnerability category / class string."""
-    cls = finding.get("category") or finding.get("type") or finding.get("vulnerability_class") or "unknown"
+    cls = (
+        finding.get("category")
+        or finding.get("type")
+        or finding.get("vulnerability_class")
+        or "unknown"
+    )
     return str(cls).strip().lower()
 
 
@@ -226,9 +235,13 @@ class FPWatchlistManager:
         if target_path.exists():
             existing = self._load_raw(target_path)
 
-        existing_ids: set[str] = {str(e.get("finding_id", "")) for e in existing if e.get("finding_id")}
+        existing_ids: set[str] = {
+            str(e.get("finding_id", "")) for e in existing if e.get("finding_id")
+        }
         existing_by_pattern: dict[str, dict[str, Any]] = {
-            str(e.get("url_pattern", "")).strip().lower(): e for e in existing if e.get("url_pattern")
+            str(e.get("url_pattern", "")).strip().lower(): e
+            for e in existing
+            if e.get("url_pattern")
         }
 
         appended = 0

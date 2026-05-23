@@ -81,8 +81,16 @@ async def get_attack_chains(
         entry: dict[str, Any] = {
             "id": f"chain-{hash(str(chain))}",
             "steps": [
-                {"asset_id": str(asset1_id), "finding_id": str(finding1_id), "severity": str(severity1 or "high").lower()},
-                {"asset_id": str(asset2_id), "finding_id": str(finding2_id), "severity": str(severity2 or "critical").lower()},
+                {
+                    "asset_id": str(asset1_id),
+                    "finding_id": str(finding1_id),
+                    "severity": str(severity1 or "high").lower(),
+                },
+                {
+                    "asset_id": str(asset2_id),
+                    "finding_id": str(finding2_id),
+                    "severity": str(severity2 or "critical").lower(),
+                },
             ],
             "confidence": 0.9 if str(severity2).lower() == "critical" else 0.78,
             "description": f"Potential lateral movement from {asset1_id} to {asset2_id} via {finding1_id}",

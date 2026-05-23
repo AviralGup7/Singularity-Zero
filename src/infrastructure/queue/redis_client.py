@@ -151,12 +151,12 @@ class RedisClient:
             conn.close()
             if row is None:
                 return None, None
-            
+
             val_type = row["type"]
             val_raw = row["value"]
             if val_raw is None:
                 return val_type, None
-            
+
             data = json.loads(val_raw)
             if val_type == "set":
                 return val_type, set(data)
@@ -420,7 +420,7 @@ class RedisClient:
                     current = current.decode("utf-8")
                 try:
                     current_int = int(current)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     current_int = 0
                 new_value = current_int + amount
                 data[field] = str(new_value)
@@ -487,9 +487,7 @@ class RedisClient:
 
                 all_keys = self._db_scan()
                 keys = [
-                    key.encode("utf-8")
-                    for key in all_keys
-                    if fnmatch.fnmatch(str(key), pattern)
+                    key.encode("utf-8") for key in all_keys if fnmatch.fnmatch(str(key), pattern)
                 ]
                 return 0, keys
 
@@ -823,7 +821,7 @@ class RedisClient:
                 bid_raw = self.execute_command("HGET", job_key, "bid_score")
                 try:
                     queue_score = float(_as_str(bid_raw)) if bid_raw is not None else retry_at
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     queue_score = retry_at
                 self.execute_command(
                     "HSET",
@@ -882,7 +880,7 @@ class RedisClient:
             bid_raw = self.execute_command("HGET", job_key, "bid_score")
             try:
                 queue_score = float(_as_str(bid_raw)) if bid_raw is not None else 0.0
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 queue_score = 0.0
             self.execute_command("ZADD", queue_key, queue_score, job_key)
             return [1]

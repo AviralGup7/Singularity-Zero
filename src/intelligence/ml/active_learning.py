@@ -37,7 +37,9 @@ class ActiveLearningController:
                     ).fetchall()
                     for row in rows:
                         item = dict(row)
-                        was_tp = bool(item.get("was_validated")) and not bool(item.get("was_false_positive"))
+                        was_tp = bool(item.get("was_validated")) and not bool(
+                            item.get("was_false_positive")
+                        )
                         was_fp = bool(item.get("was_false_positive"))
                         if not was_tp and not was_fp:
                             continue
@@ -73,12 +75,15 @@ class ActiveLearningController:
                         lifecycle = str(item.get("lifecycle_state") or "").lower()
                         decision = str(item.get("decision") or "").lower()
 
-                        label = 1.0 if lifecycle in {"validated", "exploitable", "reportable"} else 0.0
+                        label = (
+                            1.0 if lifecycle in {"validated", "exploitable", "reportable"} else 0.0
+                        )
                         if decision == "drop":
                             label = 0.0
 
                         # Safely parse JSON evidence
                         import json
+
                         evidence = item.get("evidence")
                         if isinstance(evidence, str) and evidence:
                             try:
@@ -98,7 +103,10 @@ class ActiveLearningController:
             return {"status": "failed", "reason": "db_error"}
 
         if len(findings) < 15:
-            logger.info("ActiveLearning: Insufficient labeled samples (%d/15) to train a new model version.", len(findings))
+            logger.info(
+                "ActiveLearning: Insufficient labeled samples (%d/15) to train a new model version.",
+                len(findings),
+            )
             return {"status": "insufficient_data", "samples": len(findings)}
 
         # Fit model pipeline
@@ -110,7 +118,8 @@ class ActiveLearningController:
         # Validate accuracy on training partition
         predictions = [new_pipeline.predict_probability(f) for f in findings]
         correct = sum(
-            1 for p, y in zip(predictions, labels)
+            1
+            for p, y in zip(predictions, labels)
             if (p >= 0.5 and y >= 0.5) or (p < 0.5 and y < 0.5)
         )
         accuracy = correct / len(findings)

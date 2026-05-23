@@ -27,7 +27,7 @@ class ProgressQueue:
                 self._queue.get_nowait()
                 self._queue.put(event, block=False)
                 return True
-            except (Full, Empty):
+            except Full, Empty:
                 return False
 
     def get(self, timeout: float = 1.0) -> dict[str, Any] | None:

@@ -30,7 +30,9 @@ class TestLiveHosts:
         hosts = ["host1.com", "host2.com"]
         _cache_update("host1.com", alive=True, url="https://host1.com", status_code=200)
 
-        to_probe, records, live_hosts, skipped = _cache_lookup(hosts, ttl_seconds=600, force_recheck=False)
+        to_probe, records, live_hosts, skipped = _cache_lookup(
+            hosts, ttl_seconds=600, force_recheck=False
+        )
 
         assert to_probe == ["host2.com"]
         assert len(records) == 1
@@ -58,6 +60,7 @@ class TestLiveHosts:
         mock_get_pool.return_value = mock_pool
 
         import urllib3
+
         mock_pool.request.side_effect = urllib3.exceptions.HTTPError("fail")
 
         result = probe_host_without_httpx("example.com", timeout_seconds=5)

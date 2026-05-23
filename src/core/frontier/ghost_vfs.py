@@ -351,7 +351,9 @@ class GhostVFS:
                         try:
                             os.remove(temp_file_path)
                         except Exception as e:
-                            logger.debug("Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, e)
+                            logger.debug(
+                                "Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, e
+                            )
                     raise
 
                 count += 1
@@ -433,9 +435,7 @@ class GhostVFS:
 
         target_dir = os.path.dirname(os.path.abspath(output_path))
         os.makedirs(target_dir, exist_ok=True)
-        fd, temp_file_path = tempfile.mkstemp(
-            dir=target_dir, prefix=".bundle_tmp_", suffix=".tmp"
-        )
+        fd, temp_file_path = tempfile.mkstemp(dir=target_dir, prefix=".bundle_tmp_", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(bundle)

@@ -31,9 +31,9 @@ class TestScoring:
         ]
         profile = infer_target_profile(urls)
         assert profile["api_heavy"] is True  # 2/10 = 0.2
-        assert profile["auth_heavy"] is True # 2/10 = 0.2 >= 0.12
-        assert profile["parameter_heavy"] is True # 6/10 = 0.6 >= 0.25
-        assert profile["file_heavy"] is True # 1/10 = 0.1 >= 0.08
+        assert profile["auth_heavy"] is True  # 2/10 = 0.2 >= 0.12
+        assert profile["parameter_heavy"] is True  # 6/10 = 0.6 >= 0.25
+        assert profile["file_heavy"] is True  # 1/10 = 0.1 >= 0.08
         assert profile["total_urls"] == 10
 
     def test_query_parameter_names(self):
@@ -63,7 +63,7 @@ class TestScoring:
                 "idor": {
                     "param_bonus": 10,
                     "parameter_keywords": ["id", "user"],
-                    "path_keywords": ["account"]
+                    "path_keywords": ["account"],
                 }
             }
         }
@@ -78,29 +78,23 @@ class TestScoring:
             assert score_mode_bonus(url_none, scoring, "idor") == 0
 
     def test_score_context_bonus(self):
-        scoring = {
-            "contexts": {
-                "api_heavy": {"bonus": 5, "keywords": ["api", "v1"]}
-            }
-        }
+        scoring = {"contexts": {"api_heavy": {"bonus": 5, "keywords": ["api", "v1"]}}}
         profile = {"api_heavy": True}
         assert score_context_bonus("https://example.com/api/test", scoring, profile) == 5
         assert score_context_bonus("https://example.com/home", scoring, profile) == 0
 
     def test_score_url(self):
-        scoring = {
-            "weights": {"admin": 10, "param": 5},
-            "custom_keyword_bonus": 2
-        }
+        scoring = {"weights": {"admin": 10, "param": 5}, "custom_keyword_bonus": 2}
         filters = {"priority_keywords": ["secret"]}
 
-        with patch("src.recon.scoring.classify_endpoint") as mock_classify, \
-             patch("src.recon.scoring.is_auth_flow_endpoint") as mock_auth, \
-             patch("src.recon.scoring.has_meaningful_parameters") as mock_meaningful, \
-             patch("src.recon.scoring.is_low_value_endpoint") as mock_low_val, \
-             patch("src.recon.scoring.query_parameter_names") as mock_qpn, \
-             patch("src.recon.scoring.parameter_weight") as mock_pw:
-
+        with (
+            patch("src.recon.scoring.classify_endpoint") as mock_classify,
+            patch("src.recon.scoring.is_auth_flow_endpoint") as mock_auth,
+            patch("src.recon.scoring.has_meaningful_parameters") as mock_meaningful,
+            patch("src.recon.scoring.is_low_value_endpoint") as mock_low_val,
+            patch("src.recon.scoring.query_parameter_names") as mock_qpn,
+            patch("src.recon.scoring.parameter_weight") as mock_pw,
+        ):
             mock_classify.return_value = "API"
             mock_auth.return_value = False
             mock_meaningful.return_value = True
@@ -118,7 +112,7 @@ class TestScoring:
         custom_priority_keywords = ["admin"]
 
         with patch("src.recon.scoring.parameter_weight") as mock_pw:
-            mock_pw.return_value = 2 # id weight
+            mock_pw.return_value = 2  # id weight
 
             score = score_url_precomputed(
                 lowered="https://example.com/api/admin",
@@ -132,15 +126,17 @@ class TestScoring:
                 keyword_weights=keyword_weights,
                 custom_priority_keywords=custom_priority_keywords,
                 custom_keyword_bonus=2,
-                scoring=scoring
+                scoring=scoring,
             )
             # api(5) + param_presence(5) + id_weight(2-1=1) + admin_custom(2) + API_bonus(2) + auth_bonus(3) = 18
             assert score == 18
 
     def test_flow_score(self):
         url = "https://example.com/oauth/callback?code=123&state=abc"
-        with patch("src.recon.scoring.query_parameter_names") as mock_qpn, \
-             patch("src.recon.scoring.is_auth_flow_endpoint") as mock_auth:
+        with (
+            patch("src.recon.scoring.query_parameter_names") as mock_qpn,
+            patch("src.recon.scoring.is_auth_flow_endpoint") as mock_auth,
+        ):
             mock_qpn.return_value = ["code", "state"]
             mock_auth.return_value = True
 
@@ -151,20 +147,21 @@ class TestScoring:
         urls = [
             "https://example.com/api/v1/users?id=1",
             "https://example.com/login",
-            "https://example.com/static/js/main.js"
+            "https://example.com/static/js/main.js",
         ]
         filters = {"ignore_extensions": [".js"], "priority_limit": 10}
         scoring = {"weights": {"api": 5}, "custom_keyword_bonus": 2}
 
-        with patch("src.recon.scoring.build_flow_graph") as mock_flow_graph, \
-             patch("src.recon.scoring.derive_url_signals") as mock_signals, \
-             patch("src.recon.scoring.detect_trust_boundary") as mock_trust, \
-             patch("src.recon.scoring.normalize_ranked_scores") as mock_norm:
-
+        with (
+            patch("src.recon.scoring.build_flow_graph") as mock_flow_graph,
+            patch("src.recon.scoring.derive_url_signals") as mock_signals,
+            patch("src.recon.scoring.detect_trust_boundary") as mock_trust,
+            patch("src.recon.scoring.normalize_ranked_scores") as mock_norm,
+        ):
             mock_flow_graph.return_value = {"per_url": {}}
             mock_signals.side_effect = [{"api"}, set(), set()]
             mock_trust.return_value = {"level": "same-host", "score": 0}
-            mock_norm.side_effect = lambda x: x # just return as is
+            mock_norm.side_effect = lambda x: x  # just return as is
 
             ranked = rank_urls(urls, filters, scoring, "default")
 
@@ -182,9 +179,9 @@ class TestScoring:
             mock_enrich.return_value = findings
             report = compute_aggregate_risk_score(findings, run_summary)
 
-            assert report["aggregate_score"] == 14.0 # 9.5 + 4.5
+            assert report["aggregate_score"] == 14.0  # 9.5 + 4.5
             assert report["max_severity"] == "critical"
-            assert report["score_label"] == "critical" # max_model_score 9.5 >= 8.8
+            assert report["score_label"] == "critical"  # max_model_score 9.5 >= 8.8
 
     def test_compute_historical_score(self):
         endpoint = "https://example.com/api"
@@ -198,4 +195,4 @@ class TestScoring:
         assert result["endpoint"] == endpoint
         assert result["trend_direction"] == "increasing"
         assert result["risk_delta"] > 0
-        assert result["finding_frequency"] == 0.5 # 1 out of 2 past runs
+        assert result["finding_frequency"] == 0.5  # 1 out of 2 past runs

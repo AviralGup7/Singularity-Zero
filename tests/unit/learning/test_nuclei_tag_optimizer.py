@@ -69,6 +69,7 @@ def _inject_scan_run(store: TelemetryStore, run_id: str) -> None:
     INSERT OR REPLACE silently overwriting an earlier run.
     """
     import hashlib
+
     # Map run_id → a deterministic minute slot in [00, 59]
     digest = hashlib.sha256(run_id.encode()).hexdigest()
     minute = int(digest[:2], 16) % 60
@@ -131,18 +132,33 @@ def _make_optimizer_and_tags(store: TelemetryStore):
         )
 
     good_tag_events = [
-        _e("boosting_env", "good_tag", was_validated=True,
-           was_false_positive=False, finding_confidence=0.9)
+        _e(
+            "boosting_env",
+            "good_tag",
+            was_validated=True,
+            was_false_positive=False,
+            finding_confidence=0.9,
+        )
         for _ in range(8)
     ] + [
-        _e("boosting_env", "good_tag", was_validated=False,
-           was_false_positive=True, finding_confidence=0.3)
+        _e(
+            "boosting_env",
+            "good_tag",
+            was_validated=False,
+            was_false_positive=True,
+            finding_confidence=0.3,
+        )
         for _ in range(2)
     ]
 
     bad_tag_events = [
-        _e("noisy_env", "bad_tag", was_validated=False,
-           was_false_positive=True, finding_confidence=0.3)
+        _e(
+            "noisy_env",
+            "bad_tag",
+            was_validated=False,
+            was_false_positive=True,
+            finding_confidence=0.3,
+        )
         for _ in range(8)
     ]
 
@@ -206,10 +222,7 @@ class TestOptimizeAdaptiveTagsF1BasedAdjustment:
         result = optimizer.optimize_adaptive_tags(adaptive_tags, lookback_runs=1)
 
         boost_env = result["boosting_env"]
-        good_entry = next(
-            e for e in boost_env
-            if isinstance(e, dict) and e["tag"] == "good_tag"
-        )
+        good_entry = next(e for e in boost_env if isinstance(e, dict) and e["tag"] == "good_tag")
         assert good_entry["intensity_multiplier"] == pytest.approx(1.25), (
             f"Expected boosted multiplier 1.25, got {good_entry['intensity_multiplier']}"
         )
@@ -223,16 +236,10 @@ class TestOptimizeAdaptiveTagsF1BasedAdjustment:
 
         for env in ("boosting_env", "noisy_env"):
             entries = result[env]
-            neutral = next(
-                e for e in entries
-                if isinstance(e, dict) and e["tag"] == "neutral_tag"
-            )
+            neutral = next(e for e in entries if isinstance(e, dict) and e["tag"] == "neutral_tag")
             assert neutral["intensity_multiplier"] == pytest.approx(
                 1.0,
-            ), (
-                f"neutral_tag in {env} should be untouched "
-                f"(got {neutral['intensity_multiplier']})"
-            )
+            ), f"neutral_tag in {env} should be untouched (got {neutral['intensity_multiplier']})"
 
     # -- identity on no data ----------------------------------------------
 
@@ -269,42 +276,40 @@ class TestComputeF1Ratio:
 
     def test_all_tp_one_hundred_pct(self):
         # "nuclei:vuln_tag" → ev_tag = "vuln_tag"
-        events = [
-            _make_event("r", was_validated=True, was_false_positive=False)
-        ] * 5
+        events = [_make_event("r", was_validated=True, was_false_positive=False)] * 5
         self._assert_ratio(events, "vuln_tag", f1=1.0, count=5)
 
     def test_all_fp_zero_f1(self):
-        events = [
-            _make_event("r", was_validated=False, was_false_positive=True)
-        ] * 5
+        events = [_make_event("r", was_validated=False, was_false_positive=True)] * 5
         self._assert_ratio(events, "vuln_tag", f1=0.0 / 5, count=5)
 
     def test_mixed_tp_fp(self):
         # 8 TP + 2 FP → F1 = 8 / 10 = 0.80
-        events = (
-            [_make_event("r", was_validated=True,  was_false_positive=False)] * 8
-            + [_make_event("r", was_validated=False, was_false_positive=True)]  * 2
-        )
+        events = [_make_event("r", was_validated=True, was_false_positive=False)] * 8 + [
+            _make_event("r", was_validated=False, was_false_positive=True)
+        ] * 2
         self._assert_ratio(events, "vuln_tag", f1=0.8, count=10)
 
     def test_mixed_tp_fn(self):
         # 5 TP + 3 FN (not validated, not FP) → F1 = 5 / 8 = 0.625
-        events = (
-            [_make_event("r", was_validated=True,  was_false_positive=False)] * 5
-            + [_make_event("r", was_validated=False, was_false_positive=False)] * 3
-        )
+        events = [_make_event("r", was_validated=True, was_false_positive=False)] * 5 + [
+            _make_event("r", was_validated=False, was_false_positive=False)
+        ] * 3
         self._assert_ratio(events, "vuln_tag", f1=5 / 8, count=8)
 
     def test_different_tag_excluded(self):
         """Events with a tag that does not equal the query tag are ignored."""
         events = [
             _make_event(
-                "r", plugin_name="nuclei:sqli", was_validated=True,
+                "r",
+                plugin_name="nuclei:sqli",
+                was_validated=True,
                 was_false_positive=False,
             ),
             _make_event(
-                "r", plugin_name="nuclei:sqli", was_validated=False,
+                "r",
+                plugin_name="nuclei:sqli",
+                was_validated=False,
                 was_false_positive=True,
             ),
         ]
@@ -315,9 +320,7 @@ class TestComputeF1Ratio:
     def _assert_ratio(events: list[dict], tag: str, *, f1: float, count: int) -> None:
         optimizer = NucleiTagOptimizer.__new__(NucleiTagOptimizer)
         got_f1, got_count = optimizer._compute_f1_ratio(events, tag)
-        assert pytest.approx(got_f1, abs=1e-9) == f1, (
-            f"Expected F1={f1}, got {got_f1}"
-        )
+        assert pytest.approx(got_f1, abs=1e-9) == f1, f"Expected F1={f1}, got {got_f1}"
         assert got_count == count
 
 
@@ -334,10 +337,7 @@ class TestGetRecentFeedback:
         run_id = "feedback-run-200"
         _inject_scan_run(store, run_id)
 
-        events = [
-            _make_event(run_id, endpoint_type="api")
-            for _ in range(3)
-        ]
+        events = [_make_event(run_id, endpoint_type="api") for _ in range(3)]
         for ev in events:
             store.insert_feedback_event(ev)
 

@@ -20,7 +20,10 @@ class TestUrls:
     @patch("src.recon.urls.tool_available")
     def test_collect_urls_basic(self, mock_tool_avail, mock_run_archive, mock_list_plugins):
         mock_tool_avail.return_value = True
-        mock_run_archive.return_value = ({"https://arch1.com"}, {"gau": {"status": "ok", "duration_seconds": 1, "new_urls": 1}})
+        mock_run_archive.return_value = (
+            {"https://arch1.com"},
+            {"gau": {"status": "ok", "duration_seconds": 1, "new_urls": 1}},
+        )
 
         # Mock plugins
         mock_reg_gau = MagicMock()
@@ -38,7 +41,7 @@ class TestUrls:
         urls = collect_urls(live_hosts, [], config)
 
         assert "https://arch1.com" in urls
-        assert "https://host1.com" in urls # live hosts added at the end
+        assert "https://host1.com" in urls  # live hosts added at the end
 
     @patch("src.recon.urls.extract_parameters")
     def test_extract_parameters_wrapper(self, mock_extract):

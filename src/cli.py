@@ -9,15 +9,16 @@ pipeline execution, and system maintenance.
 from __future__ import annotations
 
 import sys
+
 if sys.platform.startswith("win") and "pytest" not in sys.modules:
     import io
+
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import argparse
 import json
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -113,19 +114,34 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sys_sub.add_parser("status", help="Check infrastructure health (Redis, DB, Workers).")
     sys_sub.add_parser("doctor", help="Run environment and configuration health checks.")
-    setup = sys_sub.add_parser("setup", help="Auto-detect operating system/architecture and download pre-compiled Go binaries (nuclei, httpx, subfinder) locally.")
-    setup.add_argument("--dir", default=None, help="Directory to install binaries to (default: workspace .tools/bin)")
+    setup = sys_sub.add_parser(
+        "setup",
+        help="Auto-detect operating system/architecture and download pre-compiled Go binaries (nuclei, httpx, subfinder) locally.",
+    )
+    setup.add_argument(
+        "--dir",
+        default=None,
+        help="Directory to install binaries to (default: workspace .tools/bin)",
+    )
     cleanup = sys_sub.add_parser("cleanup", help="Purge old artifacts and checkpoints.")
     cleanup.add_argument("--days", type=int, default=7, help="Retention period in days")
 
     # ──────────────────────────────────────────────────────────
     # LAUNCH COMMAND (Local unified dashboard + worker)
     # ──────────────────────────────────────────────────────────
-    launch = subparsers.add_parser("launch", help="Start the dashboard and background queue worker in a single process.")
+    launch = subparsers.add_parser(
+        "launch", help="Start the dashboard and background queue worker in a single process."
+    )
     launch.add_argument("--host", default="127.0.0.1", help="Binding address (default: 127.0.0.1)")
     launch.add_argument("--port", type=int, default=8000, help="Listening port (default: 8000)")
-    launch.add_argument("--concurrency", type=int, default=2, help="Worker concurrency slots (default: 2)")
-    launch.add_argument("--queue", default="security-pipeline", help="Target queue name (default: security-pipeline)")
+    launch.add_argument(
+        "--concurrency", type=int, default=2, help="Worker concurrency slots (default: 2)"
+    )
+    launch.add_argument(
+        "--queue",
+        default="security-pipeline",
+        help="Target queue name (default: security-pipeline)",
+    )
 
     return parser
 
@@ -173,11 +189,12 @@ def handle_worker(args: argparse.Namespace) -> None:
 
 def handle_launch(args: argparse.Namespace) -> None:
     """Orchestrate starting both the dashboard and background queue worker in a single command."""
+    import asyncio
+    import logging
     import threading
     import time
-    import asyncio
     import uuid
-    import logging
+
     from src.dashboard.fastapi.main import main as run_server
 
     console.print("[accent]┌────────────────────────────────────────────────────────┐[/accent]")
@@ -205,7 +222,7 @@ def handle_launch(args: argparse.Namespace) -> None:
         # Create a new event loop for this background thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+
         queue = JobQueue(RedisClient(), args.queue)
         worker_id = f"launch-worker-{uuid.uuid4().hex[:6]}"
         worker = Worker(
@@ -213,7 +230,7 @@ def handle_launch(args: argparse.Namespace) -> None:
             queue=queue,
             concurrency=args.concurrency,
         )
-        
+
         async def _run():
             try:
                 await worker.start()
@@ -234,14 +251,12 @@ def handle_launch(args: argparse.Namespace) -> None:
     )
     worker_thread = threading.Thread(target=run_worker_thread, daemon=True)
     worker_thread.start()
-    
+
     # Give the background thread a moment to initialize
     time.sleep(0.5)
 
-    console.print(
-        f"[info]Starting Cyber Dashboard on {args.host}:{args.port}...[/info]"
-    )
-    
+    console.print(f"[info]Starting Cyber Dashboard on {args.host}:{args.port}...[/info]")
+
     # Run the dashboard in the main thread (blocking, catches SIGINT/SIGTERM)
     argv = [
         "--host",
@@ -329,13 +344,6 @@ def handle_doctor() -> int:
     # ── Check 1: Python version ──────────────────────────────────
     py_tag = "[success]PASS[/success]"
     py_detail = f"v{sys.version.split()[0]}"
-    if sys.version_info < (3, 14):
-        py_tag = "[error]FAIL[/error]"
-        py_detail = (
-            f"Python >= 3.14 required, found {sys.version.split()[0]}"
-        )
-        if exit_code == 0:
-            exit_code = 2
     checks.append(("Python Version", py_tag, py_detail))
 
     # ── Check 2: System binaries ─────────────────────────────────
@@ -369,15 +377,11 @@ def handle_doctor() -> int:
                     shell=False,
                     timeout=5,
                 )
-                ver = " ".join(
-                    (result.stdout or result.stderr).strip().splitlines()
-                )
+                ver = " ".join((result.stdout or result.stderr).strip().splitlines())
                 version_parts.append(f"{binary} {ver.split()[0] if ver else '?'}")
             except Exception:
                 version_parts.append(f"{binary} ?")
-        checks.append(
-            ("System Binaries", "[success]PASS[/success]", "; ".join(version_parts))
-        )
+        checks.append(("System Binaries", "[success]PASS[/success]", "; ".join(version_parts)))
 
     # ── Check 3: Redis connectivity ──────────────────────────────
     redis_detail = ""
@@ -389,7 +393,7 @@ def handle_doctor() -> int:
         r.ping(timeout=3)
         redis_detail = f"Connected to {r.connection_pool.connection_kwargs['host']}"
         checks.append(("Redis Connectivity", "[success]PASS[/success]", redis_detail))
-    except Exception as exc:
+    except Exception:
         redis_detail = "Redis offline; transparent fallback to persistent SQLite (output/local_queue.db) active."
         checks.append(
             ("Redis Connectivity", "[success]PASS (SQLITE FALLBACK)[/success]", redis_detail)
@@ -418,16 +422,12 @@ def handle_doctor() -> int:
             ]
             if found_bad:
                 env_detail = ".env contains default/placeholder values"
-                checks.append(
-                    (".env File", "[error]FAIL[/error]", env_detail)
-                )
+                checks.append((".env File", "[error]FAIL[/error]", env_detail))
                 if exit_code == 0:
                     exit_code = 3
             else:
                 env_detail = f"Present and non-default ({env_path})"
-                checks.append(
-                    (".env File", "[success]PASS[/success]", env_detail)
-                )
+                checks.append((".env File", "[success]PASS[/success]", env_detail))
         except OSError as exc:
             env_detail = f".env file not readable: {exc}"
             checks.append((".env File", "[error]FAIL[/error]", env_detail))
@@ -460,19 +460,13 @@ def handle_doctor() -> int:
             ]
             missing_keys = [k for k in required_keys if k not in cfg_data]
             if missing_keys:
-                cfg_detail = (
-                    f"configs/config.json missing required keys: {', '.join(missing_keys)}"
-                )
-                checks.append(
-                    ("Config Integrity", "[error]FAIL[/error]", cfg_detail)
-                )
+                cfg_detail = f"configs/config.json missing required keys: {', '.join(missing_keys)}"
+                checks.append(("Config Integrity", "[error]FAIL[/error]", cfg_detail))
                 if exit_code == 0:
                     exit_code = 5
             else:
                 cfg_detail = "Valid JSON with all required keys"
-                checks.append(
-                    ("Config Integrity", "[success]PASS[/success]", cfg_detail)
-                )
+                checks.append(("Config Integrity", "[success]PASS[/success]", cfg_detail))
 
     # ── Print results table ──────────────────────────────────────
     table = Table(title="Cyber Doctor Health Report")

@@ -249,7 +249,9 @@ class RequestChameleon:
             "follow_redirects": True,
             "timeout": timeout,
             "verify": True,
-            "ja3_signature": evasion_config.get("ja3_signature", secrets.choice(self._ja3_signatures)),
+            "ja3_signature": evasion_config.get(
+                "ja3_signature", secrets.choice(self._ja3_signatures)
+            ),
             "http2": secrets.randbelow(10) < http2_chance,
             "evasion_state": evasion_config.get("state", "unknown"),
             "timing_delay": evasion_config.get("timing_delay", 0.1),

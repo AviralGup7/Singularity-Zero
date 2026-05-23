@@ -73,4 +73,3 @@ async def get_learning_db_stats(
 ) -> dict[str, int]:
     """Get statistics about the telemetry database (Phase 5.3)."""
     return learning.get_db_size()
-

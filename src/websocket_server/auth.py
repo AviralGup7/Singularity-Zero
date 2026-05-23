@@ -87,6 +87,7 @@ async def authenticate_websocket(
         AuthenticationError: If authentication fails.
     """
     import os
+
     algorithms = jwt_algorithms or ["HS256"]
 
     # SEC-9: Origin validation against CSWSH
@@ -94,6 +95,7 @@ async def authenticate_websocket(
     allowed = allowed_origins
     if allowed is None:
         import os
+
         allowed = set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
     allowed = {o.strip() for o in allowed if o.strip()}
     if allowed and "*" not in allowed:

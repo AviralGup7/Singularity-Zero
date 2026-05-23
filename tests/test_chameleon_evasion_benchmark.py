@@ -18,7 +18,7 @@ def test_chameleon_evasion_engine_telemetry():
         body="OK",
         session_id="session123",
         target="target.local",
-        detected_waf=None
+        detected_waf=None,
     )
 
     metrics = engine.get_metrics()
@@ -35,7 +35,7 @@ def test_chameleon_evasion_engine_telemetry():
         body="solve this captcha to proceed",
         session_id="session123",
         target="target.local",
-        detected_waf="Cloudflare"
+        detected_waf="Cloudflare",
     )
 
     metrics = engine.get_metrics()
@@ -50,7 +50,7 @@ def test_chameleon_evasion_engine_telemetry():
         body="Blocked by firewall",
         session_id="session123",
         target="target.local",
-        detected_waf="Cloudflare"
+        detected_waf="Cloudflare",
     )
 
     metrics = engine.get_metrics()
@@ -97,8 +97,7 @@ def test_safe_request_evasion_feedback(mock_request):
 
     # Call safe_request
     res = safe_request(
-        "http://test-evasion.local/path",
-        headers={"X-Session-Token": "session-test"}
+        "http://test-evasion.local/path", headers={"X-Session-Token": "session-test"}
     )
 
     assert res["status"] == 200
@@ -129,8 +128,7 @@ async def test_async_safe_request_evasion_feedback(mock_get_client):
     _chameleon.reset_metrics()
 
     res = await async_safe_request(
-        "http://test-async-evasion.local/",
-        headers={"X-Trace-ID": "async-session"}
+        "http://test-async-evasion.local/", headers={"X-Trace-ID": "async-session"}
     )
 
     assert res["status"] == 403

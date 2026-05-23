@@ -11,10 +11,10 @@ import os
 import platform
 import shutil
 import sys
+import tarfile
 import tempfile
 import urllib.request
 import zipfile
-import tarfile
 from pathlib import Path
 
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -129,12 +129,15 @@ def download_and_extract_tool(
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_archive_path = Path(tmpdir) / f"archive.zip"
-            
-            if console_print:
-                print(f"  └─ Downloading from GitHub...")
+            tmp_archive_path = Path(tmpdir) / "archive.zip"
 
-            with urllib.request.urlopen(req, timeout=60) as response, open(tmp_archive_path, "wb") as out_file:
+            if console_print:
+                print("  └─ Downloading from GitHub...")
+
+            with (
+                urllib.request.urlopen(req, timeout=60) as response,
+                open(tmp_archive_path, "wb") as out_file,
+            ):
                 shutil.copyfileobj(response, out_file)
 
             if console_print:
@@ -162,10 +165,14 @@ def download_and_extract_tool(
                                         shutil.copyfileobj(extracted_file, target)
                                     break
                 except Exception as exc:
-                    raise ValueError("Downloaded archive is not a valid zip or tar.gz file.") from exc
+                    raise ValueError(
+                        "Downloaded archive is not a valid zip or tar.gz file."
+                    ) from exc
 
             if not dest_path.exists():
-                raise FileNotFoundError(f"Binary '{bin_name}' was not found in the downloaded archive.")
+                raise FileNotFoundError(
+                    f"Binary '{bin_name}' was not found in the downloaded archive."
+                )
 
             # Set executable permissions on Unix systems
             if os_name != "windows":
@@ -186,7 +193,9 @@ def download_and_extract_tool(
         return None
 
 
-def setup_all_tools(dest_dir: Path | None = None, console_print: bool = False) -> dict[str, Path | None]:
+def setup_all_tools(
+    dest_dir: Path | None = None, console_print: bool = False
+) -> dict[str, Path | None]:
     """Auto-detect host and install all required ProjectDiscovery tools.
 
     Args:

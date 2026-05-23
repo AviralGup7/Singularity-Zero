@@ -109,7 +109,7 @@ def _resolve_a(domain: str) -> list[str]:
     """Resolve A records."""
     try:
         return [str(addr[4][0]) for addr in socket.getaddrinfo(domain, None, socket.AF_INET)]
-    except (socket.gaierror, socket.herror, OSError):
+    except socket.gaierror, socket.herror, OSError:
         return []
 
 
@@ -117,7 +117,7 @@ def _resolve_aaaa(domain: str) -> list[str]:
     """Resolve AAAA records."""
     try:
         return [str(addr[4][0]) for addr in socket.getaddrinfo(domain, None, socket.AF_INET6)]
-    except (socket.gaierror, socket.herror, OSError):
+    except socket.gaierror, socket.herror, OSError:
         return []
 
 

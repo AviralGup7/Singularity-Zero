@@ -288,7 +288,9 @@ class WebSocketHandler:
             now = time.monotonic()
             elapsed = now - info.last_rate_limit_time
             info.last_rate_limit_time = now
-            info.rate_limit_tokens = min(100.0, info.rate_limit_tokens + elapsed * 50.0)  # 50 msg/sec
+            info.rate_limit_tokens = min(
+                100.0, info.rate_limit_tokens + elapsed * 50.0
+            )  # 50 msg/sec
 
             if info.rate_limit_tokens < 1.0:
                 error = ErrorMessage(
@@ -394,7 +396,8 @@ class WebSocketHandler:
                     await info.message_queue.put(msg_json)
                 except asyncio.QueueFull:
                     logger.warning(
-                        "Reconnection replay failed: queue full for connection %s", info.connection_id
+                        "Reconnection replay failed: queue full for connection %s",
+                        info.connection_id,
                     )
                     try:
                         await info.websocket.close(
