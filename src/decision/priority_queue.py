@@ -136,16 +136,22 @@ class ScanTarget:
         return self.bid
 
     def apply_boost(self, factor: float, reason: str, max_boosts: int = 3) -> None:
-        """Boost target priority while enforcing a cap of 5.0 * base_priority (min ceiling 50.0)."""
+        """Boost target priority while enforcing a cap of 5.0 * base_priority (min ceiling 50.0, global limit 1000.0)."""
         if len(self.boost_factors) >= max_boosts:
             return
+        
+        # Adjudication: limit individual boost intensity
+        adjudicated_factor = max(0.1, min(factor, 5.0))
         old_priority = self.current_priority
+        
         # Calculate new potential priority
-        new_priority = self.current_priority * factor
-        # Cap the boosted priority at 5x base_priority or a minimum ceiling of 50.0
-        cap = max(5.0 * self.base_priority, 50.0)
+        new_priority = self.current_priority * adjudicated_factor
+        
+        # Cap the boosted priority at 5x base_priority (min 50.0) and enforce global hard limit of 1000.0
+        cap = min(max(5.0 * self.base_priority, 50.0), 1000.0)
         if new_priority > cap:
             new_priority = cap
+            
         self.current_priority = new_priority
         if reason:
             self.boost_factors.append(reason)

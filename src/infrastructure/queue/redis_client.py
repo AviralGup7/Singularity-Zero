@@ -8,6 +8,8 @@ unavailable, and support for Lua script execution.
 from __future__ import annotations
 
 import json
+import os
+import sqlite3
 import threading
 import time
 from typing import Any, cast
@@ -66,6 +68,11 @@ class RedisClient:
         self._use_fallback = False
         self._scripts: dict[str, Any] = {}
 
+        db_dir = os.path.join("output")
+        os.makedirs(db_dir, exist_ok=True)
+        self._db_path = os.path.join(db_dir, "local_queue.db")
+        self._init_sqlite()
+
         if not url:
             logger.info("No Redis URL provided, using in-memory fallback")
             self._use_fallback = True
@@ -105,6 +112,108 @@ class RedisClient:
         except Exception as exc:
             logger.warning("Redis initialization error: %s, using in-memory fallback", exc)
             self._use_fallback = True
+
+    def _init_sqlite(self) -> None:
+        """Initialize the SQLite fallback database schema."""
+        try:
+            conn = sqlite3.connect(self._db_path, timeout=30.0)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS fallback_store (
+                    key TEXT PRIMARY KEY,
+                    type TEXT,
+                    value TEXT
+                )
+                """
+            )
+            conn.commit()
+            conn.close()
+        except Exception as exc:
+            logger.error("Failed to initialize SQLite fallback database: %s", exc)
+
+    def _get_sqlite_conn(self) -> Any:
+        conn = sqlite3.connect(self._db_path, timeout=30.0)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
+        return conn
+
+    def _db_get(self, key: str) -> tuple[str | None, Any]:
+        """Get key type and raw Python data from SQLite."""
+        try:
+            conn = self._get_sqlite_conn()
+            cursor = conn.cursor()
+            cursor.execute("SELECT type, value FROM fallback_store WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            conn.close()
+            if row is None:
+                return None, None
+            
+            val_type = row["type"]
+            val_raw = row["value"]
+            if val_raw is None:
+                return val_type, None
+            
+            data = json.loads(val_raw)
+            if val_type == "set":
+                return val_type, set(data)
+            return val_type, data
+        except Exception as exc:
+            logger.error("SQLite fallback get error for key '%s': %s", key, exc)
+            return None, None
+
+    def _db_set(self, key: str, val_type: str, data: Any) -> None:
+        """Save key type and raw Python data to SQLite."""
+        try:
+            if val_type == "set":
+                data = list(data)
+            val_raw = json.dumps(data)
+            conn = self._get_sqlite_conn()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO fallback_store (key, type, value)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    type=excluded.type,
+                    value=excluded.value
+                """,
+                (key, val_type, val_raw),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as exc:
+            logger.error("SQLite fallback set error for key '%s': %s", key, exc)
+
+    def _db_del(self, key: str) -> int:
+        """Delete key from SQLite."""
+        try:
+            conn = self._get_sqlite_conn()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM fallback_store WHERE key = ?", (key,))
+            deleted = cursor.rowcount
+            conn.commit()
+            conn.close()
+            return deleted
+        except Exception as exc:
+            logger.error("SQLite fallback del error for key '%s': %s", key, exc)
+            return 0
+
+    def _db_scan(self) -> list[str]:
+        """Get all keys in fallback store."""
+        try:
+            conn = self._get_sqlite_conn()
+            cursor = conn.cursor()
+            cursor.execute("SELECT key FROM fallback_store")
+            rows = cursor.fetchall()
+            conn.close()
+            return [row["key"] for row in rows]
+        except Exception as exc:
+            logger.error("SQLite fallback scan error: %s", exc)
+            return []
 
     def _check_health(self) -> bool:
         """Perform a health check on the Redis connection.
@@ -190,7 +299,7 @@ class RedisClient:
             return self._fallback_command(command, *args, **kwargs)
 
     def _fallback_command(self, command: str, *args: Any, **kwargs: Any) -> Any:
-        """Execute a command against the in-memory fallback store.
+        """Execute a command against the SQLite fallback store.
 
         Args:
             command: Command name to emulate.
@@ -207,28 +316,32 @@ class RedisClient:
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                return self._fallback.get(key)
+                _, data = self._db_get(key)
+                return data
 
             if cmd == "SET":
                 key = args[0] if args else ""
                 value = args[1] if len(args) > 1 else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                self._fallback[key] = value
+                if isinstance(value, bytes):
+                    value = value.decode("utf-8")
+                self._db_set(key, "string", value)
                 return True
 
             if cmd == "DELETE" or cmd == "DEL":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                return int(self._fallback.pop(key, None) is not None)
+                return self._db_del(key)
 
             if cmd == "HSET":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                if key not in self._fallback:
-                    self._fallback[key] = {}
+                t, data = self._db_get(key)
+                if t != "hash" or not isinstance(data, dict):
+                    data = {}
                 mapping = kwargs.get("mapping", {})
                 if args[1:]:
                     rest = list(args[1:])
@@ -244,15 +357,16 @@ class RedisClient:
                     for field, value in mapping.items():
                         f = field.decode("utf-8") if isinstance(field, bytes) else field
                         v = value.decode("utf-8") if isinstance(value, bytes) else value
-                        self._fallback[key][f] = v
+                        data[f] = v
+                self._db_set(key, "hash", data)
                 return len(mapping)
 
             if cmd == "HGETALL":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, {})
-                if isinstance(data, dict):
+                t, data = self._db_get(key)
+                if t == "hash" and isinstance(data, dict):
                     return {
                         k.encode("utf-8") if isinstance(k, str) else k: v.encode("utf-8")
                         if isinstance(v, str)
@@ -268,8 +382,8 @@ class RedisClient:
                     key = key.decode("utf-8")
                 if isinstance(field, bytes):
                     field = field.decode("utf-8")
-                data = self._fallback.get(key, {})
-                if isinstance(data, dict):
+                t, data = self._db_get(key)
+                if t == "hash" and isinstance(data, dict):
                     val = data.get(field)
                     return val.encode("utf-8") if isinstance(val, str) else val
                 return None
@@ -278,14 +392,15 @@ class RedisClient:
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, {})
-                if isinstance(data, dict):
+                t, data = self._db_get(key)
+                if t == "hash" and isinstance(data, dict):
                     count = 0
                     for field in args[1:]:
                         f = field.decode("utf-8") if isinstance(field, bytes) else field
                         if f in data:
                             del data[f]
                             count += 1
+                    self._db_set(key, "hash", data)
                     return count
                 return 0
 
@@ -297,9 +412,10 @@ class RedisClient:
                     key = key.decode("utf-8")
                 if isinstance(field, bytes):
                     field = field.decode("utf-8")
-                if key not in self._fallback or not isinstance(self._fallback[key], dict):
-                    self._fallback[key] = {}
-                current = self._fallback[key].get(field, 0)
+                t, data = self._db_get(key)
+                if t != "hash" or not isinstance(data, dict):
+                    data = {}
+                current = data.get(field, 0)
                 if isinstance(current, bytes):
                     current = current.decode("utf-8")
                 try:
@@ -307,14 +423,16 @@ class RedisClient:
                 except (TypeError, ValueError):
                     current_int = 0
                 new_value = current_int + amount
-                self._fallback[key][field] = str(new_value)
+                data[field] = str(new_value)
+                self._db_set(key, "hash", data)
                 return new_value
 
             if cmd == "EXISTS":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                return int(key in self._fallback)
+                t, _ = self._db_get(key)
+                return int(t is not None)
 
             if cmd == "EXPIRE":
                 return True
@@ -323,22 +441,24 @@ class RedisClient:
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                if key not in self._fallback or not isinstance(self._fallback[key], set):
-                    self._fallback[key] = set()
+                t, data = self._db_get(key)
+                if t != "set" or not isinstance(data, set):
+                    data = set()
                 added = 0
                 for member in args[1:]:
                     m = member.decode("utf-8") if isinstance(member, bytes) else member
-                    if m not in self._fallback[key]:
-                        self._fallback[key].add(m)
+                    if m not in data:
+                        data.add(m)
                         added += 1
+                self._db_set(key, "set", data)
                 return added
 
             if cmd == "SREM":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, set())
-                if not isinstance(data, set):
+                t, data = self._db_get(key)
+                if t != "set" or not isinstance(data, set):
                     return 0
                 removed = 0
                 for member in args[1:]:
@@ -346,14 +466,15 @@ class RedisClient:
                     if m in data:
                         data.remove(m)
                         removed += 1
+                self._db_set(key, "set", data)
                 return removed
 
             if cmd == "SMEMBERS":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, set())
-                if isinstance(data, set):
+                t, data = self._db_get(key)
+                if t == "set" and isinstance(data, set):
                     return [m.encode("utf-8") if isinstance(m, str) else m for m in data]
                 return []
 
@@ -364,9 +485,10 @@ class RedisClient:
                     pattern = str(args[upper_args.index("MATCH") + 1])
                 import fnmatch
 
+                all_keys = self._db_scan()
                 keys = [
                     key.encode("utf-8")
-                    for key in self._fallback
+                    for key in all_keys
                     if fnmatch.fnmatch(str(key), pattern)
                 ]
                 return 0, keys
@@ -375,28 +497,31 @@ class RedisClient:
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                if key not in self._fallback:
-                    self._fallback[key] = {}
+                t, data = self._db_get(key)
+                if t != "zset" or not isinstance(data, dict):
+                    data = {}
                 if len(args) >= 3:
                     score = float(args[1])
                     member = args[2]
                     if isinstance(member, bytes):
                         member = member.decode("utf-8")
-                    self._fallback[key][member] = score
+                    data[member] = score
+                self._db_set(key, "zset", data)
                 return 1
 
             if cmd == "ZREM":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, {})
-                if isinstance(data, dict):
+                t, data = self._db_get(key)
+                if t == "zset" and isinstance(data, dict):
                     count = 0
                     for member in args[1:]:
                         m = member.decode("utf-8") if isinstance(member, bytes) else member
                         if m in data:
                             del data[m]
                             count += 1
+                    self._db_set(key, "zset", data)
                     return count
                 return 0
 
@@ -404,12 +529,16 @@ class RedisClient:
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, {})
-                if isinstance(data, dict):
+                t, data = self._db_get(key)
+                if t == "zset" and isinstance(data, dict):
                     items = list(data.items())
                     if cmd == "ZRANGEBYSCORE" and len(args) >= 3:
                         min_raw = args[1]
                         max_raw = args[2]
+                        if isinstance(min_raw, bytes):
+                            min_raw = min_raw.decode("utf-8")
+                        if isinstance(max_raw, bytes):
+                            max_raw = max_raw.decode("utf-8")
                         min_score = float(min_raw) if min_raw != "-inf" else float("-inf")
                         max_score = float(max_raw) if max_raw != "+inf" else float("inf")
                         reverse = min_score > max_score
@@ -430,6 +559,7 @@ class RedisClient:
                     else:
                         items.sort(key=lambda x: x[1])
                     return [m.encode("utf-8") if isinstance(m, str) else m for m, _ in items]
+                return []
 
             if cmd == "ZREVRANGE":
                 key = args[0] if args else ""
@@ -437,8 +567,8 @@ class RedisClient:
                     key = key.decode("utf-8")
                 start = int(args[1]) if len(args) > 1 else 0
                 end = int(args[2]) if len(args) > 2 else -1
-                data = self._fallback.get(key, {})
-                if isinstance(data, dict):
+                t, data = self._db_get(key)
+                if t == "zset" and isinstance(data, dict):
                     items = sorted(data.items(), key=lambda x: x[1], reverse=True)
                     slice_end = None if end == -1 else end + 1
                     items = items[start:slice_end]
@@ -449,8 +579,8 @@ class RedisClient:
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, {})
-                return len(data) if isinstance(data, dict) else 0
+                t, data = self._db_get(key)
+                return len(data) if t == "zset" and isinstance(data, dict) else 0
 
             if cmd == "ZSCORE":
                 key = args[0] if args else ""
@@ -459,8 +589,8 @@ class RedisClient:
                     key = key.decode("utf-8")
                 if isinstance(member, bytes):
                     member = member.decode("utf-8")
-                data = self._fallback.get(key, {})
-                if isinstance(data, dict) and member in data:
+                t, data = self._db_get(key)
+                if t == "zset" and isinstance(data, dict) and member in data:
                     return str(data[member]).encode("utf-8")
                 return None
 
@@ -468,28 +598,32 @@ class RedisClient:
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                if key not in self._fallback:
-                    self._fallback[key] = []
+                t, data = self._db_get(key)
+                if t != "list" or not isinstance(data, list):
+                    data = []
                 for val in args[1:]:
                     v = val.decode("utf-8") if isinstance(val, bytes) else val
-                    self._fallback[key].insert(0, v)
-                return len(self._fallback[key])
+                    data.insert(0, v)
+                self._db_set(key, "list", data)
+                return len(data)
 
             if cmd == "RPOP":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, [])
-                if isinstance(data, list) and data:
-                    return data.pop()
+                t, data = self._db_get(key)
+                if t == "list" and isinstance(data, list) and data:
+                    val = data.pop()
+                    self._db_set(key, "list", data)
+                    return val.encode("utf-8") if isinstance(val, str) else val
                 return None
 
             if cmd == "LLEN":
                 key = args[0] if args else ""
                 if isinstance(key, bytes):
                     key = key.decode("utf-8")
-                data = self._fallback.get(key, [])
-                return len(data) if isinstance(data, list) else 0
+                t, data = self._db_get(key)
+                return len(data) if t == "list" and isinstance(data, list) else 0
 
             if cmd == "EVALSHA":
                 return []

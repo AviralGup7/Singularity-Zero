@@ -1,0 +1,158 @@
+[
+  {
+    "id": "finding-1",
+    "title": "SQL Injection in User Search Parameter",
+    "category": "injection",
+    "severity": "critical",
+    "confidence": 0.95,
+    "cvss_score": 9.8,
+    "score": 95.0,
+    "url": "http://example.com/api/v1/search?query=test",
+    "endpoint_type": "api",
+    "parameter_type": "query",
+    "decision": "candidate",
+    "response_delta_score": 8.5,
+    "diff_score": 7.0,
+    "evidence": {
+      "reproducible": true,
+      "confirmed": true,
+      "diff": {
+        "status_changed": true,
+        "content_changed": true,
+        "redirect_changed": false
+      },
+      "signals": ["syntax_error", "timing_delay"]
+    },
+    "feedback": "tp"
+  },
+  {
+    "id": "finding-2",
+    "title": "Bypassed Access Control on Admin Panel",
+    "category": "idor",
+    "severity": "high",
+    "confidence": 0.85,
+    "cvss_score": 8.5,
+    "score": 85.0,
+    "url": "http://example.com/admin/dashboard",
+    "endpoint_type": "admin",
+    "parameter_type": "none",
+    "decision": "candidate",
+    "response_delta_score": 7.0,
+    "diff_score": 6.0,
+    "evidence": {
+      "reproducible": true,
+      "confirmed": true,
+      "diff": {
+        "status_changed": true,
+        "content_changed": true,
+        "redirect_changed": false
+      },
+      "signals": ["unauthorized_access"]
+    },
+    "feedback": "tp"
+  },
+  {
+    "id": "finding-3",
+    "title": "Server-Side Request Forgery in Image Loader",
+    "category": "ssrf",
+    "severity": "high",
+    "confidence": 0.9,
+    "cvss_score": 8.2,
+    "score": 82.0,
+    "url": "http://example.com/api/image?url=http://169.254.169.254/latest/meta-data/",
+    "endpoint_type": "api",
+    "parameter_type": "query",
+    "decision": "candidate",
+    "response_delta_score": 8.0,
+    "diff_score": 6.5,
+    "evidence": {
+      "reproducible": true,
+      "confirmed": true,
+      "diff": {
+        "status_changed": false,
+        "content_changed": true,
+        "redirect_changed": false
+      },
+      "signals": ["metadata_leak"]
+    },
+    "feedback": "tp"
+  },
+  {
+    "id": "finding-4",
+    "title": "Reflected Cross-Site Scripting on Contact Page",
+    "category": "xss",
+    "severity": "medium",
+    "confidence": 0.75,
+    "cvss_score": 6.1,
+    "score": 60.0,
+    "url": "http://example.com/contact?name=%3Cscript%3Ealert(1)%3C/script%3E",
+    "endpoint_type": "web",
+    "parameter_type": "query",
+    "decision": "candidate",
+    "response_delta_score": 5.0,
+    "diff_score": 4.0,
+    "evidence": {
+      "reproducible": true,
+      "confirmed": false,
+      "diff": {
+        "status_changed": false,
+        "content_changed": true,
+        "redirect_changed": false
+      },
+      "signals": ["reflection"]
+    },
+    "feedback": "tp"
+  },
+  {
+    "id": "finding-5",
+    "title": "Potential Info Leakage on Swagger Docs",
+    "category": "info_disclosure",
+    "severity": "low",
+    "confidence": 0.6,
+    "cvss_score": 3.0,
+    "score": 30.0,
+    "url": "http://example.com/swagger-ui.html",
+    "endpoint_type": "docs",
+    "parameter_type": "none",
+    "decision": "candidate",
+    "response_delta_score": 2.0,
+    "diff_score": 1.5,
+    "evidence": {
+      "reproducible": false,
+      "confirmed": false,
+      "diff": {
+        "status_changed": false,
+        "content_changed": false,
+        "redirect_changed": false
+      },
+      "signals": ["api_docs"]
+    },
+    "feedback": "fp"
+  },
+  {
+    "id": "finding-6",
+    "title": "WAF False Positive Block Event",
+    "category": "xss",
+    "severity": "medium",
+    "confidence": 0.2,
+    "cvss_score": 5.0,
+    "score": 10.0,
+    "url": "http://example.com/search?q=select+1",
+    "endpoint_type": "web",
+    "parameter_type": "query",
+    "decision": "candidate",
+    "response_delta_score": 1.0,
+    "diff_score": 0.5,
+    "evidence": {
+      "reproducible": false,
+      "confirmed": false,
+      "diff": {
+        "status_changed": true,
+        "content_changed": false,
+        "redirect_changed": false
+      },
+      "signals": ["rate_limit_block"]
+    },
+    "feedback": "fp"
+  }
+]
