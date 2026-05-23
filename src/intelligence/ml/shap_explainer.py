@@ -170,10 +170,14 @@ class SHAPExplainer:
 
         # Generate human-readable diagnostics summary
         positive_influences = [
-            str(f.get("label", "")) for f in feature_impacts if float(f.get("logit_contribution", 0.0)) > 0.1
+            str(f.get("label", ""))
+            for f in feature_impacts
+            if float(f.get("logit_contribution", 0.0)) > 0.1
         ][:3]
         negative_influences = [
-            str(f.get("label", "")) for f in feature_impacts if float(f.get("logit_contribution", 0.0)) < -0.1
+            str(f.get("label", ""))
+            for f in feature_impacts
+            if float(f.get("logit_contribution", 0.0)) < -0.1
         ][:2]
 
         summary_parts = []

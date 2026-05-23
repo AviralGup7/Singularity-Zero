@@ -8,7 +8,11 @@ from pydantic import BaseModel, Field
 
 from src.dashboard.fastapi.dependencies import require_auth
 from src.infrastructure.notifications.base import NotificationEvent, NotificationPriority
-from src.infrastructure.notifications.manager import ChannelEntry, ManagerConfig, NotificationManager
+from src.infrastructure.notifications.manager import (
+    ChannelEntry,
+    ManagerConfig,
+    NotificationManager,
+)
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 
