@@ -24,7 +24,11 @@ export function BloomMeshHealthPanel() {
     const refresh = () => {
       getBloomHealth(controller.signal)
         .then(setHealth)
-        .catch(() => {});
+        .catch((err) => {
+          if (err?.name !== 'AbortError') {
+            console.warn("Failed to fetch Bloom health telemetry:", err);
+          }
+        });
     };
     refresh();
     const interval = window.setInterval(refresh, 5000);

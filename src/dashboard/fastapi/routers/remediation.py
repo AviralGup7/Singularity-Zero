@@ -70,6 +70,21 @@ async def get_remediation_plan(
                             logger.warning("Unexpected error loading findings from %s: %s", findings_path, exc)
                             continue
 
+        # Query feedback events for category-specific false positive counts
+        false_positive_counts: dict[str, int] = {}
+        try:
+            from src.learning.integration import LearningIntegration
+            integration = LearningIntegration.get_or_create()
+            feedback_events = integration.store.get_feedback_events(limit=2000)
+            for event in feedback_events:
+                if event.get("was_false_positive") in (1, True):
+                    cat = event.get("finding_category")
+                    if cat:
+                        cat_key = cat.strip().lower()
+                        false_positive_counts[cat_key] = false_positive_counts.get(cat_key, 0) + 1
+        except Exception as exc:
+            logger.warning("Failed to query feedback events for false positive metrics: %s", exc)
+
         # 2. Group findings by category (Tactical Fix Units)
         groups: dict[str, dict[str, Any]] = {}
 
@@ -87,6 +102,7 @@ async def get_remediation_plan(
                     "severity": finding.get("severity", "low"),
                     "total_count": 0,
                     "targets": set(),
+                    "false_positive_count": false_positive_counts.get(category, 0),
                 }
 
             groups[category]["findings"].append(finding)
@@ -111,9 +127,9 @@ async def get_remediation_plan(
             del data["findings"]
             plan_units.append(data)
 
-        # Sort by severity
+        # Sort by severity, and sub-sort by false positive count (ascending to push noisy findings to the bottom)
         severity_map = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-        plan_units.sort(key=lambda x: severity_map.get(x["severity"], 5))
+        plan_units.sort(key=lambda x: (severity_map.get(x["severity"], 5), x.get("false_positive_count", 0)))
 
         return {
             "status": "ok",

@@ -125,11 +125,11 @@ def _patch_runtime_environment(
         AsyncMock(return_value=None),
     )
 
-    learning_module = ModuleType("src.learning.integration")
-    learning_module.LearningIntegration = SimpleNamespace(
-        get_or_create=lambda *_args, **_kwargs: _DummyLearning()
+    monkeypatch.setattr(
+        orch_mod,
+        "LearningIntegration",
+        SimpleNamespace(get_or_create=lambda *_args, **_kwargs: _DummyLearning()),
     )
-    monkeypatch.setitem(sys.modules, "src.learning.integration", learning_module)
 
 
 def test_stage_checkpoint_guard_preserves_explicit_failure_state(tmp_path: Path) -> None:

@@ -196,7 +196,7 @@ class WSServices:
         """
         job_sent = await self.broadcaster.broadcast_to_group(f"job:{job_id}", message)
         global_sent = await self.broadcaster.broadcast_to_group("global", message, exclude=set())
-        return max(job_sent, global_sent)
+        return job_sent + global_sent
 
     async def start_cleanup_loop(self, interval: float = 60.0) -> None:
         """Start a background task that periodically cleans up stale connections.
@@ -256,6 +256,7 @@ def setup_websocket_routes(
     cleanup_interval: float = 60.0,
     redis_url: str | None = None,
     redis_channel: str = "ws:broadcasts",
+    allowed_origins: set[str] | None = None,
 ) -> WSServices:
     """Set up WebSocket routes on a FastAPI application.
 
@@ -276,6 +277,7 @@ def setup_websocket_routes(
         heartbeat_timeout: Seconds of inactivity before disconnecting.
         reconnect_window: Seconds a reconnection token remains valid.
         cleanup_interval: Seconds between stale connection cleanup runs.
+        allowed_origins: Set of allowed origin URIs to mitigate CSWSH.
 
     Returns:
         WSServices instance for emitting events programmatically.
@@ -310,6 +312,7 @@ def setup_websocket_routes(
         jwt_secret=jwt_secret,
         api_keys=api_keys,
         required_roles=required_roles,
+        allowed_origins=allowed_origins,
     )
 
     services = WSServices(

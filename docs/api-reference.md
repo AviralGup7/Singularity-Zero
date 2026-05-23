@@ -133,7 +133,7 @@ paths:
     get:
       summary: SSE progress stream
       x-ai-stream: true
-      x-ai-event-types: [stage_started, stage_completed, finding_detected, progress_update, pipeline_error]
+      x-ai-event-types: [stage_started, stage_change, progress_update, iteration_change, finding_batch, completed, error, log, heartbeat]
       x-ai-reconnect-strategy: {backoff: exponential, max_retries: 5}
       responses:
         '200': {description: Event stream}

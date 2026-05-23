@@ -58,25 +58,30 @@ try:
 except ImportError:
     import pickle as cloudpickle  # type: ignore
 
+_FORCE_ZLIB = False
+
 try:
     import zstandard as zstd
 
     _zstd_compressor = zstd.ZstdCompressor(level=3)
     _zstd_decompressor = zstd.ZstdDecompressor()
-
-    def compress_bytes(data: bytes) -> bytes:
-        return cast(bytes, _zstd_compressor.compress(data))
-
-    def decompress_bytes(data: bytes) -> bytes:
-        return cast(bytes, _zstd_decompressor.decompress(data))
+    _HAS_ZSTD = True
 except ImportError:
+    _HAS_ZSTD = False
+
+
+def compress_bytes(data: bytes) -> bytes:
+    if _HAS_ZSTD and not _FORCE_ZLIB:
+        return cast(bytes, _zstd_compressor.compress(data))
     import zlib
+    return zlib.compress(data)
 
-    def compress_bytes(data: bytes) -> bytes:
-        return zlib.compress(data)
 
-    def decompress_bytes(data: bytes) -> bytes:
-        return zlib.decompress(data)
+def decompress_bytes(data: bytes) -> bytes:
+    if _HAS_ZSTD and not _FORCE_ZLIB:
+        return cast(bytes, _zstd_decompressor.decompress(data))
+    import zlib
+    return zlib.decompress(data)
 
 
 class FrontierMarshaller:

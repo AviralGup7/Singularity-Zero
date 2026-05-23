@@ -48,17 +48,11 @@ This document provides a realistic, high-fidelity overview of the functional, ar
     *   **Calibrated Score Engine**: Refactored `CalibratedSeverityModel` (`src/intelligence/severity_model.py`) blending classifier outputs with smoothed historical True Positive rates.
     *   **Model Version Registry**: Thread-safe memory mapping of live pipelines with rollback capacities (`src/intelligence/ml/registry.py`).
     *   **NumPy Sigmoid Fallback**: Resilient hand-rolled Logistic Regression NumPy fallback execution to preserve 100% scoring availability under compilation or library loading failures.
+    *   **Active Learning Loops**: `ActiveLearningController` (`src/intelligence/ml/active_learning.py`) extracting SQLite feedback events and validated findings to automatically trigger retraining runs on fresh analyst triage events (`src/learning/integration.py` → `run_learning_update()` lifecycle hook).
+    *   **FP Suppressions**: Analyst-flagged rules stored in `RedisFPRepository` are read by `FPTracker` to filter and suppress redundant alerts cluster-wide. Network-level sync via `mesh.learning.fp_patterns` Redis Pub/Sub channel.
 *   **Gaps**:
-    *   Automated regression-testing coverage for the NumPy logistic fallback is currently lacking due to the absence of `tests/fixtures/ml_golden_set.json`.
-
-### 2.2 False Positive Reduction
-*   **Status**: **COMPLETE**
-*   **What Works**:
-    *   **Active Learning Loops**: `ActiveLearningController` (`src/intelligence/ml/active_learning.py`) extracting SQLite feedback events and validated findings to automatically trigger retraining runs on fresh analyst triage events.
-    *   **Telemetry Integration**: Wired as Phase 8 of the pipeline's core `run_learning_update()` lifecycle hook (`src/learning/integration.py`), feeding active triage outcomes directly back into the live registry.
-    *   **FP Suppressions**: Analyst-flagged rules stored in `RedisFPRepository` are read by `FPTracker` to filter and suppress redundant alerts cluster-wide.
-*   **Gaps**:
-    *   Evaluation golden-set file `tests/fixtures/ml_golden_set.json` is currently empty and could be expanded to run multi-version comparative regression benchmarks.
+    *   Automated regression-testing coverage for the NumPy logistic fallback is currently lacking due to `tests/fixtures/ml_golden_set.json` being absent.
+    *   Priority queue boost cascades in `src/decision/priority_queue.py` multiply priorities without an upper bound or adjudication cap, leading to priority inflation risks.
 
 ---
 
@@ -99,7 +93,30 @@ This document provides a realistic, high-fidelity overview of the functional, ar
 
 ---
 
-## 📊 5. Compliance & Reporting Gaps
+### 2.2 Nuclei Tag Optimisation & Adaptive Scanning
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   **`NucleiTagOptimizer`** (`src/learning/nuclei_tag_optimizer.py`) computes per-tag TP/FP/F1 scores from `FeedbackEvent` rows and produces a live `adaptive_tags` override dict.
+    *   Wired into `LearningIntegration.compute_adaptations()` (line 207–219 of `src/learning/integration.py`) so the override is applied to `ctx["nuclei"]["adaptive_tags"]` on every run.
+    *   The orchestrator passes the live override directly to `build_nuclei_plan()` (`src/pipeline/services/pipeline_orchestrator/stages/nuclei.py`, line 83).
+    *   Full unit-test suite: `tests/unit/learning/test_nuclei_tag_optimizer.py` (369 lines, 13+ tests).
+*   **Gaps**:
+    *   The golden-set ML-regression baseline (`tests/fixtures/ml_golden_set.json`) is absent, preventing automated multi-version benchmark comparison.
+    *   Priority queue boost cascades in `src/decision/priority_queue.py` remain a known operational risk — they have no per-step adjudication cap.
+
+### 2.3 False Positive Reduction (Closed-Loop)
+*   **Status**: **COMPLETE**
+*   **What Works**:
+    *   **Closed-Loop Feedback**: `FeedbackLoopEngine` (`src/learning/feedback_loop.py`) extracts triage signals from `TelemetryStore` and re-weights `XGBoostSeverityPipeline` trees between runs.
+    *   **Adaptive Config Persistence**: `LearningIntegration._persist_adaptive_config()` writes `config.adaptive.json` + `config.adaptive.ledger.json` to the run output directory after every scan; `runner_support.load_adaptive_config()` re-reads them on the next run.
+    *   **FP Suppressions**: `FPTracker` / `RedisFPRepository` reads analyst-flagged FP rules and broadcasts them cluster-wide via `mesh.learning.fp_patterns` Redis Pub/Sub.
+    *   **Watchlist Re-emergence**: `FPWatchlistManager` (`src/recon/fp_watchlist.py`) serialises FALSE_POSITIVE findings to `regression-watchlist.json` and notifies on re-emergence.
+*   **Gaps**:
+    *   `tests/fixtures/ml_golden_set.json` is absent, limiting automated regression-quality enforcement.
+
+---
+
+## 🏗️ 3. Compliance & Reporting
 
 ### 5.1 Compliance Report Generator (Phase 6.1)
 *   **Status**: **COMPLETE**
