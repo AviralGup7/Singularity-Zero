@@ -23,7 +23,7 @@ jobs:
       - name: Configure git as Aviral Gupta
         run: |
           git config --global user.name "Aviral Gupta"
-          git config --global user.email "aviral@users.noreply.github.com"
+          git config --global user.email "f20240294@pilani.bits-pilani.ac.in"
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
