@@ -95,6 +95,7 @@ attack_surfaces/
 *.sqlite3
 dump.rdb
 appendonly.aof
+*.aof
 *.rdb
 
 # Backup files

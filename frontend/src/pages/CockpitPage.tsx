@@ -252,7 +252,7 @@ export function CockpitPage() {
         .then((res) => {
           if (res.data.length > 0) setActiveJobId(res.data[0].id);
         })
-        .catch(() => {});
+        .catch((err) => console.error('API Error:', err));
     }
   }, [jobId, target]);
 
@@ -321,8 +321,8 @@ export function CockpitPage() {
 
   useEffect(() => {
     if (target && sidebarOpen) {
-      getNotes(target).then((res) => setNotes(res.notes)).catch(() => {});
-      cockpitApi.listExchanges(target).then((res) => setExchanges(res.data.exchanges)).catch(() => {});
+      getNotes(target).then((res) => setNotes(res.notes)).catch((err) => console.error('API Error:', err));
+      cockpitApi.listExchanges(target).then((res) => setExchanges(res.data.exchanges)).catch((err) => console.error('API Error:', err));
     }
   }, [target, sidebarOpen]);
 
