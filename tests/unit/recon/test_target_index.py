@@ -4,37 +4,44 @@ from src.recon.target_index import ParsedUrl, TargetIndex, format_ipv4_fast, par
 
 
 class TestIPv4Fast:
-    @pytest.mark.parametrize("ip_str, expected_success, expected_int", [
-        ("127.0.0.1", True, 0x7F000001),
-        ("192.168.1.1", True, 0xC0A80101),
-        ("255.255.255.255", True, 0xFFFFFFFF),
-        ("0.0.0.0", True, 0x00000000),  # noqa: S104
-        ("10.0.0.255", True, 0x0A0000FF),
-        # Invalid IPs
-        ("256.0.0.1", False, 0),
-        ("127.0.0", False, 0),
-        ("127.0.0.1.1", False, 0),
-        ("127.0.a.1", False, 0),
-        ("...", False, 0),
-        ("1.2.3.4.", False, 0),
-        (".1.2.3.4", False, 0),
-        ("127..0.1", False, 0),
-        ("", False, 0),
-        ("999.999.999.999", False, 0),
-    ])
+    @pytest.mark.parametrize(
+        "ip_str, expected_success, expected_int",
+        [
+            ("127.0.0.1", True, 0x7F000001),
+            ("192.168.1.1", True, 0xC0A80101),
+            ("255.255.255.255", True, 0xFFFFFFFF),
+            ("0.0.0.0", True, 0x00000000),  # noqa: S104
+            ("10.0.0.255", True, 0x0A0000FF),
+            # Invalid IPs
+            ("256.0.0.1", False, 0),
+            ("127.0.0", False, 0),
+            ("127.0.0.1.1", False, 0),
+            ("127.0.a.1", False, 0),
+            ("...", False, 0),
+            ("1.2.3.4.", False, 0),
+            (".1.2.3.4", False, 0),
+            ("127..0.1", False, 0),
+            ("", False, 0),
+            ("999.999.999.999", False, 0),
+        ],
+    )
     def test_parse_ipv4_fast(self, ip_str, expected_success, expected_int):
         success, ip_int = parse_ipv4_fast(ip_str)
         assert success == expected_success
         assert ip_int == expected_int
 
-    @pytest.mark.parametrize("ip_int, expected_str", [
-        (0x7F000001, "127.0.0.1"),
-        (0xC0A80101, "192.168.1.1"),
-        (0xFFFFFFFF, "255.255.255.255"),
-        (0x00000000, "0.0.0.0"),  # noqa: S104
-    ])
+    @pytest.mark.parametrize(
+        "ip_int, expected_str",
+        [
+            (0x7F000001, "127.0.0.1"),
+            (0xC0A80101, "192.168.1.1"),
+            (0xFFFFFFFF, "255.255.255.255"),
+            (0x00000000, "0.0.0.0"),  # noqa: S104
+        ],
+    )
     def test_format_ipv4_fast(self, ip_int, expected_str):
         assert format_ipv4_fast(ip_int) == expected_str
+
 
 class TestParsedUrl:
     def test_parse_basic_url(self):
@@ -58,13 +65,13 @@ class TestParsedUrl:
         assert p.hostname_ip == 0x01020304
         assert p.is_ipv4() is True
         assert "admin" in p.path_segments
-        assert p.risk_score >= 4.0 # admin boost
+        assert p.risk_score >= 4.0  # admin boost
 
     def test_parse_url_param(self):
         url = "https://example.com/redirect?dest=https://evil.com"
         p = ParsedUrl.parse(url)
         assert p.has_url_param is True
-        assert p.risk_score >= 3.0 # url param boost
+        assert p.risk_score >= 3.0  # url param boost
 
     def test_parse_invalid_url(self):
         # urlparse doesn't easily fail, but we can try something weird
@@ -86,6 +93,7 @@ class TestParsedUrl:
         # Upload/File(1.5) + Segments(0.5) = 2.0
         assert p.risk_score >= 2.0
 
+
 class TestTargetIndex:
     @pytest.fixture
     def sample_urls(self):
@@ -94,15 +102,15 @@ class TestTargetIndex:
             "https://example.com/api/v1",
             "http://192.168.1.1/admin",
             "https://test.local/debug",
-            "https://example.com/login?redirect=/dashboard"
+            "https://example.com/login?redirect=/dashboard",
         ]
 
     def test_build_index(self, sample_urls):
         index = TargetIndex.build(sample_urls)
         assert len(index.urls) == 5
         assert len(index.parsed) == 5
-        assert len(index.ipv4_targets) == 2 # 127.0.0.1, 192.168.1.1
-        assert len(index.hostname_targets) == 3 # example.com (x2), test.local
+        assert len(index.ipv4_targets) == 2  # 127.0.0.1, 192.168.1.1
+        assert len(index.hostname_targets) == 3  # example.com (x2), test.local
 
     def test_get_fast_paths(self, sample_urls):
         index = TargetIndex.build(sample_urls)

@@ -158,7 +158,7 @@ class ETAEngine:
         try:
             with open(summary_path, encoding="utf-8") as f:
                 summary = json.load(f)
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             logger.debug("Cannot read summary: %s", summary_path)
             return
 

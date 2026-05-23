@@ -98,8 +98,7 @@ class NucleiTagOptimizer:
 
         # Filter for 'nuclei:*' plugin findings (tag key = value before the colon)
         nuclei_filtered = [
-            e for e in feedback_events
-            if e.get("plugin_name", "").startswith("nuclei")
+            e for e in feedback_events if e.get("plugin_name", "").startswith("nuclei")
         ]
 
         if not nuclei_filtered:
@@ -184,7 +183,9 @@ class NucleiTagOptimizer:
         if isinstance(raw, dict):
             return TagEntry(
                 name=str(raw.get("tag") or raw.get("name") or ""),
-                intensity_multiplier=float(raw.get("intensity_multiplier") or raw.get("multiplier") or 1.0),
+                intensity_multiplier=float(
+                    raw.get("intensity_multiplier") or raw.get("multiplier") or 1.0
+                ),
             )
         return TagEntry(name=str(raw))
 
@@ -205,8 +206,7 @@ class NucleiTagOptimizer:
             return all_events
         except Exception:  # noqa: BLE001
             logger.warning(
-                "_get_recent_feedback: failed to read scan runs, "
-                "falling back to all events",
+                "_get_recent_feedback: failed to read scan runs, falling back to all events",
                 exc_info=True,
             )
             return self.store.get_feedback_events(limit=2000)

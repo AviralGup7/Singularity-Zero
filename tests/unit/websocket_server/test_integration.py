@@ -60,14 +60,18 @@ def test_websocket_origin_validation() -> None:
 
         # Test unauthorized Origin header: should be rejected
         try:
-            with client.websocket_connect("/ws/scan-progress", headers={"Origin": "https://evil.com"}) as websocket:
+            with client.websocket_connect(
+                "/ws/scan-progress", headers={"Origin": "https://evil.com"}
+            ) as websocket:
                 _ = websocket.receive_json()
                 assert False, "Should have been closed/rejected due to unauthorized Origin"
         except Exception:
             pass
 
         # Test authorized Origin header: should succeed
-        with client.websocket_connect("/ws/scan-progress", headers={"Origin": "https://trusted.com"}) as websocket:
+        with client.websocket_connect(
+            "/ws/scan-progress", headers={"Origin": "https://trusted.com"}
+        ) as websocket:
             message = websocket.receive_json()
             assert message["type"] == "ack"
             assert message["ack_id"] == "connect"
@@ -116,11 +120,10 @@ def test_websocket_rate_limiting() -> None:
 
             # Send messages rapidly to trigger the rate-limiting token-bucket allowance (max 100 burst)
             import json
-            subscribe_payload = json.dumps({
-                "type": "subscribe",
-                "channel": "global",
-                "id": "test-sub"
-            })
+
+            subscribe_payload = json.dumps(
+                {"type": "subscribe", "channel": "global", "id": "test-sub"}
+            )
 
             exceeded = False
             for _ in range(120):
@@ -141,10 +144,13 @@ def test_websocket_rate_limiting() -> None:
             assert exceeded is True
 
 
+from unittest.mock import MagicMock
+
 import pytest
 from starlette.websockets import WebSocketState
-from unittest.mock import MagicMock
+
 from src.websocket_server.protocol import StatusMessage
+
 
 @pytest.mark.asyncio
 async def test_websocket_broadcast_metrics() -> None:
@@ -182,4 +188,3 @@ async def test_websocket_broadcast_metrics() -> None:
     )
     result = await services._broadcast_to_job_and_global(msg2, "job_id")
     assert result == 2
-

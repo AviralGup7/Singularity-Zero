@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def _env_int(name: str, default: int, minimum: int = 1) -> int:
     try:
         return max(minimum, int(os.getenv(name, str(default))))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         logger.warning("Invalid %s value; using %d", name, default)
         return default
 
@@ -566,14 +566,14 @@ class GossipProtocol(asyncio.DatagramProtocol):
 
                     logic_fn = _LOGIC_REGISTRY.get(logic_fn_name)
                     if not logic_fn:
+
                         def dummy_logic(task_input: dict[str, Any], state: dict[str, Any]) -> Any:
                             return {}
+
                         dummy_logic.__name__ = str(logic_fn_name)
                         logic_fn = dummy_logic
 
-                    asyncio.create_task(
-                        coordinator.spawn_or_rehydrate_actor(actor_id, logic_fn)
-                    )
+                    asyncio.create_task(coordinator.spawn_or_rehydrate_actor(actor_id, logic_fn))
             else:
                 # Compatibility with the original unactioned gossip body shape.
                 if isinstance(body.get("source"), dict):

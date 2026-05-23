@@ -334,7 +334,7 @@ def generate_run_report(
             loaded_findings = json.loads(findings_path.read_text(encoding="utf-8"))
             if isinstance(loaded_findings, list):
                 findings = [item for item in loaded_findings if isinstance(item, dict)]
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             pass
     write_report_package(
         run_dir=run_dir,

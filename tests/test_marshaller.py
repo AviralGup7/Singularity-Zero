@@ -1,6 +1,3 @@
-import importlib
-import sys
-
 import pytest
 
 from src.core.frontier.marshaller import (
@@ -45,6 +42,7 @@ def test_compress_decompress_bytes():
 def test_zlib_compression_fallback(monkeypatch):
     # Temporarily force zlib compression instead of mutating sys.modules
     import src.core.frontier.marshaller as marshaller_mod
+
     monkeypatch.setattr(marshaller_mod, "_FORCE_ZLIB", True)
 
     payload = b"test payload for fallback compression"

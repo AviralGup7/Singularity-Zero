@@ -847,6 +847,7 @@ class TestCacheManager(CacheTestBase):
 
     def test_bloom_aware_routing(self) -> None:
         from src.core.frontier.bloom import NeuralBloomFilter
+
         config = CacheConfig(
             enabled=True,
             enable_l1=True,

@@ -38,11 +38,7 @@ class SHAPExplainer:
         model = self.pipeline.model if hasattr(self.pipeline, "model") else None
 
         # 1. Extract parameters from fitted model if available
-        if (
-            hasattr(self.pipeline, "is_trained")
-            and self.pipeline.is_trained
-            and model is not None
-        ):
+        if hasattr(self.pipeline, "is_trained") and self.pipeline.is_trained and model is not None:
             try:
                 # If scikit-learn LogisticRegression
                 if hasattr(model, "coef_") and hasattr(model, "intercept_"):
@@ -77,7 +73,10 @@ class SHAPExplainer:
                                 slot_idx = 10 + idx
                                 if slot_idx < len(coef):
                                     # Aggregate all active tokens into a generic token weight
-                                    weights["token_categorizations"] = weights.get("token_categorizations", 0.0) + float(coef[slot_idx]) * val
+                                    weights["token_categorizations"] = (
+                                        weights.get("token_categorizations", 0.0)
+                                        + float(coef[slot_idx]) * val
+                                    )
                     is_fallback = False
                 # If XGBoost Classifier, calculate gain-based feature contributions
                 elif hasattr(model, "feature_importances_"):
@@ -101,7 +100,10 @@ class SHAPExplainer:
                             weights[key] = float(importances[idx]) * 3.5  # scale factor
                     is_fallback = False
             except Exception as e:
-                logger.warning("Failed to extract SHAP weights from trained model: %s. Using fallback weights.", e)
+                logger.warning(
+                    "Failed to extract SHAP weights from trained model: %s. Using fallback weights.",
+                    e,
+                )
 
         # 2. Revert to fallback default calibrated logreg weights
         if is_fallback:
@@ -146,36 +148,44 @@ class SHAPExplainer:
             # Probability without this feature's contribution
             prob_without = sigmoid(total_logit - logit_c)
             prob_delta = final_prob - prob_without
-            
+
             sign = "+" if prob_delta >= 0 else ""
             desc = f"{sign}{prob_delta * 100:.1f}% severity impact"
-            
+
             clean_name = key.replace("token:", "token_").replace("_", " ").title()
 
-            feature_impacts.append({
-                "feature": key,
-                "label": clean_name,
-                "value": float(feats.get(key, 1.0)),
-                "logit_contribution": logit_c,
-                "probability_impact": round(prob_delta, 4),
-                "description": desc
-            })
+            feature_impacts.append(
+                {
+                    "feature": key,
+                    "label": clean_name,
+                    "value": float(feats.get(key, 1.0)),
+                    "logit_contribution": logit_c,
+                    "probability_impact": round(prob_delta, 4),
+                    "description": desc,
+                }
+            )
 
         # Sort feature impacts by magnitude of contribution
         feature_impacts.sort(key=lambda x: abs(x["logit_contribution"]), reverse=True)
 
         # Generate human-readable diagnostics summary
-        positive_influences = [f.get("label", "") for f in feature_impacts if f.get("logit_contribution", 0.0) > 0.1][:3]
-        negative_influences = [f.get("label", "") for f in feature_impacts if f.get("logit_contribution", 0.0) < -0.1][:2]
+        positive_influences = [
+            f.get("label", "") for f in feature_impacts if f.get("logit_contribution", 0.0) > 0.1
+        ][:3]
+        negative_influences = [
+            f.get("label", "") for f in feature_impacts if f.get("logit_contribution", 0.0) < -0.1
+        ][:2]
 
         summary_parts = []
         if positive_influences:
             summary_parts.append(f"Severity is highly driven by: {', '.join(positive_influences)}.")
         if negative_influences:
-            summary_parts.append(f"Auto-suppressive metrics include: {', '.join(negative_influences)}.")
+            summary_parts.append(
+                f"Auto-suppressive metrics include: {', '.join(negative_influences)}."
+            )
         if not summary_parts:
             summary_parts.append("Severity score aligns with the global prior baseline.")
-        
+
         diagnostic_summary = " ".join(summary_parts)
 
         return {
@@ -187,5 +197,5 @@ class SHAPExplainer:
             "final_logit": round(total_logit, 4),
             "is_fallback_model": is_fallback,
             "contributions": feature_impacts,
-            "diagnostic_summary": diagnostic_summary
+            "diagnostic_summary": diagnostic_summary,
         }

@@ -117,6 +117,7 @@ class FrontierWAL:
                     f.write(json.dumps(aof_entry) + "\n")
                     f.flush()
                     import os
+
                     try:
                         os.fsync(f.fileno())
                     except OSError as e:

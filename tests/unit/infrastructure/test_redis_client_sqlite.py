@@ -1,7 +1,6 @@
 """Unit tests for the persistent SQLite fallback backend of RedisClient."""
 
 import os
-import shutil
 import unittest
 from pathlib import Path
 
@@ -17,7 +16,7 @@ class TestRedisClientSqlite(unittest.TestCase):
         self.output_dir = Path("output")
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.output_dir / "local_queue.db"
-        
+
         # Clean existing test DB if present
         if self.db_path.exists():
             try:
@@ -69,11 +68,11 @@ class TestRedisClientSqlite(unittest.TestCase):
         """Verify hash operations (HSET, HGET, HGETALL, HDEL, HINCRBY)."""
         # HSET mapping
         self.client.execute_command("HSET", "myhash", mapping={"field1": "val1", "field2": "val2"})
-        
+
         # HGET
         f1 = self.client.execute_command("HGET", "myhash", "field1")
         self.assertEqual(f1, b"val1")  # Decodes to bytes just like standard redis client wrapper
-        
+
         # HGETALL
         all_data = self.client.execute_command("HGETALL", "myhash")
         self.assertEqual(all_data, {b"field1": b"val1", b"field2": b"val2"})
@@ -106,7 +105,7 @@ class TestRedisClientSqlite(unittest.TestCase):
         # SREM
         removed = self.client.execute_command("SREM", "myset", "member1")
         self.assertEqual(removed, 1)
-        
+
         members_after = self.client.execute_command("SMEMBERS", "myset")
         self.assertEqual(members_after, [b"member2"])
 
@@ -151,7 +150,7 @@ class TestRedisClientSqlite(unittest.TestCase):
 
         # Instantiate a completely fresh client loading the same SQLite file
         new_client = RedisClient(url=None)
-        
+
         # Verify strings are loaded correctly
         val = new_client.execute_command("GET", "persist_key")
         self.assertEqual(val, "persisted_value")

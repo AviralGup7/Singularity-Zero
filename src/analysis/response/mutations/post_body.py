@@ -19,7 +19,7 @@ def _infer_body_fields(body_text: str) -> list[tuple[str, str]]:
     """Infer JSON body fields from response text."""
     try:
         data = json.loads(body_text)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return []
     if not isinstance(data, dict):
         return []

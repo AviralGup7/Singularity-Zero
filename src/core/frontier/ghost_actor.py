@@ -188,16 +188,24 @@ class ScanActor(pykka.ThreadingActor):
 
         if unpacked.compaction_budget:
             self.compaction_budget.budget_ms = unpacked.compaction_budget.get("budget_ms", 50.0)
-            self.compaction_budget.min_budget_ms = unpacked.compaction_budget.get("min_budget_ms", 5.0)
-            self.compaction_budget.max_budget_ms = unpacked.compaction_budget.get("max_budget_ms", 500.0)
-            self.compaction_budget.target_elapsed_ms = unpacked.compaction_budget.get("target_elapsed_ms", 30.0)
+            self.compaction_budget.min_budget_ms = unpacked.compaction_budget.get(
+                "min_budget_ms", 5.0
+            )
+            self.compaction_budget.max_budget_ms = unpacked.compaction_budget.get(
+                "max_budget_ms", 500.0
+            )
+            self.compaction_budget.target_elapsed_ms = unpacked.compaction_budget.get(
+                "target_elapsed_ms", 30.0
+            )
 
         restored_logic = None
         if unpacked.serialized_logic_fn:
             try:
                 restored_logic = mesh_unmarshal_pickle(unpacked.serialized_logic_fn)
             except Exception as e:
-                logger.error("Ghost-Actor [%s]: Failed to deserialize logic_fn: %s", self.actor_id, e)
+                logger.error(
+                    "Ghost-Actor [%s]: Failed to deserialize logic_fn: %s", self.actor_id, e
+                )
 
         if restored_logic:
             self.logic_fn = restored_logic
@@ -476,7 +484,7 @@ class GhostMeshCoordinator:
                     )
                     if not health.get("evacuation_recommended"):
                         return False
-                except (pykka.Timeout, Exception):
+                except pykka.Timeout, Exception:
                     return False
 
             try:

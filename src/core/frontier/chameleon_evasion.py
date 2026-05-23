@@ -393,6 +393,7 @@ class ChameleonEvasionEngine:
         """Thread-safe getter for evasion metrics."""
         with self._lock:
             import copy
+
             return copy.deepcopy(self.metrics)
 
     def reset_metrics(self) -> None:

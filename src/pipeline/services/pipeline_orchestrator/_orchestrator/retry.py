@@ -88,7 +88,7 @@ async def run_stage_with_retry(
             try:
                 sig = inspect.signature(method)
                 accepts_stage_input = "stage_input" in sig.parameters
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 accepts_stage_input = True
             if stage_name == "nuclei":
                 if accepts_stage_input:

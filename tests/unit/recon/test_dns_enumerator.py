@@ -73,15 +73,29 @@ class TestDnsEnumerator:
     @pytest.mark.asyncio
     async def test_query_dns_generic(self):
         with patch("src.recon.dns_enumerator._run_nslookup", new_callable=AsyncMock) as mock_run:
-            mock_run.return_value = MagicMock(ok=True, timed_out=False, stdout='example.com nameserver = ns1.com\n')
+            mock_run.return_value = MagicMock(
+                ok=True, timed_out=False, stdout="example.com nameserver = ns1.com\n"
+            )
 
             res = await _query_dns("example.com", "NS", 5.0)
             assert "ns1.com" in res
 
     def test_build_dns_report(self):
         records = [
-            {"domain": "example.com", "record_type": "MX", "value": "10 mail.com", "security_relevant": True, "details": {"record": "MX"}},
-            {"domain": "example.com", "record_type": "TXT", "value": "v=spf1...", "security_relevant": True, "details": {"record": "SPF"}}
+            {
+                "domain": "example.com",
+                "record_type": "MX",
+                "value": "10 mail.com",
+                "security_relevant": True,
+                "details": {"record": "MX"},
+            },
+            {
+                "domain": "example.com",
+                "record_type": "TXT",
+                "value": "v=spf1...",
+                "security_relevant": True,
+                "details": {"record": "SPF"},
+            },
         ]
 
         with patch("src.recon.dns_enumerator.enrich_findings_with_model_severity") as mock_enrich:
@@ -97,7 +111,7 @@ class TestDnsEnumerator:
         by_domain = {
             "example.com": [
                 {"record_type": "MX", "value": "10 mail.com", "details": {}},
-                {"record_type": "TXT", "value": "other", "details": {"record": "OTHER"}}
+                {"record_type": "TXT", "value": "other", "details": {"record": "OTHER"}},
             ]
         }
 

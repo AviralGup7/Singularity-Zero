@@ -15,11 +15,11 @@ PRIVATE_NETWORKS = [
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("169.254.0.0/16"),
     ipaddress.ip_network("100.64.0.0/10"),  # CGNAT
-    ipaddress.ip_network("224.0.0.0/4"),    # Multicast
+    ipaddress.ip_network("224.0.0.0/4"),  # Multicast
     ipaddress.ip_network("::1/128"),
     ipaddress.ip_network("fe80::/10"),
     ipaddress.ip_network("fc00::/7"),
-    ipaddress.ip_network("ff00::/8"),       # IPv6 Multicast
+    ipaddress.ip_network("ff00::/8"),  # IPv6 Multicast
 ]
 
 
@@ -55,7 +55,7 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
                     return False
             except ValueError:
                 continue
-    except (TimeoutError, socket.gaierror, OSError):
+    except TimeoutError, socket.gaierror, OSError:
         return False
     return True
 
@@ -101,7 +101,7 @@ def detect_dns_rebinding(hostname: str, *, rounds: int = 8, timeout: float = 2.0
                 ips_this_round.append(ip_str)
                 all_ips.add(ip_str)
             ip_history.append(ips_this_round if ips_this_round else [])
-        except (socket.gaierror, TimeoutError, OSError):
+        except socket.gaierror, TimeoutError, OSError:
             ip_history.append([])
         time.sleep(0.1)
 
