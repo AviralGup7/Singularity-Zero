@@ -7,8 +7,8 @@ backpressure handling, and per-connection async message queues.
 import asyncio
 import json
 import os
-import uuid
 import threading
+import uuid
 from collections import OrderedDict
 from typing import Any
 
@@ -527,10 +527,12 @@ class Broadcaster:
         Returns:
             Dict with broadcast and drop counts.
         """
+        with self._seen_ids_lock:
+            dedup_size = len(self._seen_ids)
         return {
             "broadcast_count": self._broadcast_count,
             "drop_count": self._drop_count,
-            "dedup_window_size": len(self._seen_ids),
+            "dedup_window_size": dedup_size,
             "redis_enabled": self._redis_enabled,
             "redis_channel": self._redis_channel,
         }

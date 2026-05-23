@@ -52,6 +52,8 @@ class ConnectionInfo:
     _sequence_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     max_queue_size: int = field(default=256)
     closed: bool = field(default=False)
+    rate_limit_tokens: float = field(default=100.0)
+    last_rate_limit_time: float = field(default_factory=time.monotonic)
 
     @property
     def message_queue(self) -> asyncio.Queue[str]:

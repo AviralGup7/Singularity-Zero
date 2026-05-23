@@ -91,14 +91,17 @@ async def authenticate_websocket(
 
     # SEC-9: Origin validation against CSWSH
     origin = websocket.headers.get("origin")
-    allowed = allowed_origins or set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
+    allowed = allowed_origins
+    if allowed is None:
+        import os
+        allowed = set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
     allowed = {o.strip() for o in allowed if o.strip()}
-    if origin and allowed and "*" not in allowed:
-        if origin not in allowed:
-            logger.warning("WebSocket CSWSH blocked: invalid origin %s", origin)
+    if allowed and "*" not in allowed:
+        if not origin or origin not in allowed:
+            logger.warning("WebSocket CSWSH blocked: invalid or missing origin %s", origin)
             raise AuthenticationError(
                 code="auth_invalid_origin",
-                detail="Origin not allowed",
+                detail="Origin not allowed or missing",
                 status_code=4003,
             )
 

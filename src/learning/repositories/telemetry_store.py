@@ -20,6 +20,35 @@ from .thresholds_repo import ThresholdsRepo
 
 logger = logging.getLogger(__name__)
 
+_KNOWN_TABLES = {
+    "scan_runs",
+    "findings",
+    "feedback_events",
+    "parameter_profiles",
+    "fp_patterns",
+    "risk_scores",
+    "graph_nodes",
+    "graph_edges",
+    "threshold_history",
+    "plugin_stats",
+    "performance_metrics",
+    "session_states",
+    "attack_chains",
+    "confidence_models",
+}
+_KNOWN_TIME_COLUMNS = {"created_at", "updated_at", "timestamp", "last_seen"}
+
+_DELETE_QUERIES = {
+    (t, c): f"DELETE FROM {t} WHERE {c} < ?"  # noqa: S608
+    for t in _KNOWN_TABLES
+    for c in _KNOWN_TIME_COLUMNS
+}
+
+_COUNT_QUERIES = {
+    t: f"SELECT COUNT(*) FROM {t}"  # noqa: S608
+    for t in _KNOWN_TABLES
+}
+
 
 class TelemetryStore:
     """Thread-safe SQLite-backed telemetry persistence.
@@ -301,23 +330,10 @@ class TelemetryStore:
         """Find findings on other targets with matching tech stack and category."""
         return self.findings.find_cross_target_findings(tech_stack, category, exclude_target, limit)
 
-    _KNOWN_TABLES = {
-        "scan_runs",
-        "findings",
-        "feedback_events",
-        "parameter_profiles",
-        "fp_patterns",
-        "risk_scores",
-        "graph_nodes",
-        "graph_edges",
-        "threshold_history",
-        "plugin_stats",
-        "performance_metrics",
-        "session_states",
-        "attack_chains",
-        "confidence_models",
-    }
-    _KNOWN_TIME_COLUMNS = {"created_at", "updated_at", "timestamp", "last_seen"}
+    _KNOWN_TABLES = _KNOWN_TABLES
+    _KNOWN_TIME_COLUMNS = _KNOWN_TIME_COLUMNS
+    _DELETE_QUERIES = _DELETE_QUERIES
+    _COUNT_QUERIES = _COUNT_QUERIES
 
     @staticmethod
     def _validate_schema(table: str, column: str) -> None:
@@ -328,10 +344,11 @@ class TelemetryStore:
 
     def delete_expired_records(self, table: str, cutoff: str, column: str = "created_at") -> int:
         """Delete records older than cutoff. Returns count deleted."""
-        self._validate_schema(table, column)
+        query = self._DELETE_QUERIES.get((table, column))
+        if not query:
+            raise ValueError(f"Invalid table or column for expiration check: {table}.{column}")
         conn = self._get_conn()
         cur = conn.cursor()
-        query = f"DELETE FROM {table} WHERE {column} < ?"  # nosec B608 # noqa: S608
         cur.execute(
             query,
             (cutoff,),
@@ -361,9 +378,10 @@ class TelemetryStore:
         ]
         sizes = {}
         for table in tables:
-            if table not in self._KNOWN_TABLES:
+            query = self._COUNT_QUERIES.get(table)
+            if not query:
                 raise ValueError(f"Invalid table name: {table}")
-            cur.execute("SELECT COUNT(*) FROM " + table)  # nosec B608 # noqa: S608
+            cur.execute(query)
             sizes[table] = int(cur.fetchone()[0])
         return sizes
 

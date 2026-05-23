@@ -258,7 +258,16 @@ export function useLiveTerminal(options: {
       }, pollInterval);
       return () => {
         clearInterval(interval);
+        if (esRef.current) {
+          esRef.current.close();
+          esRef.current = null;
+        }
       };
+    } else {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
     }
    
   }, [isRunning, currentJobId, connectSSE, pollInterval, addLinesToBuffer]);

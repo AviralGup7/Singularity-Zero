@@ -17,13 +17,13 @@ jobs:
   dast:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Start application
         run: docker compose -f docker-compose.yml up -d
       - name: Wait for application
         run: sleep 30
       - name: Run OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@2b5fc7f98d837319798ab7f128ea50b7d40563b6 # v0.14.0
         with:
           target: ${{ github.event.inputs.target_url || 'http://localhost:8000' }}
           rules_file_name: ".zap/rules.tsv"
@@ -31,7 +31,7 @@ jobs:
           allow_issue_writing: false
         continue-on-error: true
       - name: Upload ZAP report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: zap-report
           path: zap_report.json

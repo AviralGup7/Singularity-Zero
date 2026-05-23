@@ -4,11 +4,11 @@
 x-common-env: &common-env
   APP_ENV: production
   APP_DEBUG: false
-  APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me-in-production}
+  APP_SECRET_KEY: ${APP_SECRET_KEY}
   REDIS_HOST: redis
   REDIS_PORT: 6379
   REDIS_DB: 0
-  REDIS_PASSWORD: ${REDIS_PASSWORD:-prodpassword_please_change}
+  REDIS_PASSWORD: ${REDIS_PASSWORD}
   REDIS_MAX_CONNECTIONS: 50
   CACHE_BACKEND: redis
   CACHE_TTL: 3600
@@ -39,7 +39,7 @@ x-common-deploy: &common-deploy
     window: 120s
 
 x-healthcheck-redis: &healthcheck-redis
-  test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD:-prodpassword_please_change}\" ping | grep PONG"]
+  test: ["CMD-SHELL", "redis-cli -a \"${REDIS_PASSWORD}\" ping | grep PONG"]
   interval: 10s
   timeout: 5s
   retries: 3
@@ -53,7 +53,7 @@ x-healthcheck-dashboard: &healthcheck-dashboard
   start_period: 30s
 
 x-healthcheck-worker: &healthcheck-worker
-  test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD:-prodpassword_please_change}'); r.ping()"]
+  test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD}'); r.ping()"]
   interval: 30s
   timeout: 10s
   retries: 3
@@ -96,7 +96,7 @@ services:
       --save 900 1
       --save 300 10
       --save 60 10000
-      --requirepass ${REDIS_PASSWORD:-prodpassword_please_change}
+      --requirepass ${REDIS_PASSWORD}
       --bind 0.0.0.0
     ports:
       - "127.0.0.1:${REDIS_EXTERNAL_PORT:-6379}:6379"
@@ -129,7 +129,7 @@ services:
       context: .
       dockerfile: Dockerfile.optimized
       args:
-        - APP_SECRET_KEY=${APP_SECRET_KEY:-change-me-in-production}
+        - APP_SECRET_KEY=${APP_SECRET_KEY}
     container_name: cyber-pipeline-dashboard
     command: >
       uvicorn src.dashboard.fastapi.main:app
@@ -259,8 +259,8 @@ services:
     image: grafana/grafana:12.4.2
     container_name: cyber-pipeline-grafana
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-in-production-grafana}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: false
       GF_SERVER_ROOT_URL: http://localhost:3000
       GF_AUTH_ANONYMOUS_ENABLED: false
@@ -334,7 +334,7 @@ services:
     container_name: cyber-pipeline-redis-exporter
     environment:
       REDIS_ADDR: redis://redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-prodpassword_please_change}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "127.0.0.1:9121:9121"
     depends_on:

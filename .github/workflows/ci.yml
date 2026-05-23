@@ -16,15 +16,17 @@ env:
 jobs:
   lint:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.14"
           cache: "pip"
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.PIP_CACHE_DIR }}
           key: pip-lint-${{ hashFiles('pyproject.toml') }}
@@ -44,7 +46,7 @@ jobs:
       - name: Run bandit
         run: bandit -r src/ -ll -f json -o bandit-report.json
       - name: Upload bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bandit-report
           path: bandit-report.json
@@ -53,14 +55,14 @@ jobs:
   type-safety:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.14"
           cache: "pip"
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "24"
           cache: "npm"
@@ -84,14 +86,14 @@ jobs:
       matrix:
         python-version: ["3.14"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.PIP_CACHE_DIR }}
           key: pip-test-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
@@ -103,7 +105,7 @@ jobs:
       - name: Run tests with coverage
         run: pytest --cov=. --cov-report=xml --cov-report=term-missing -v
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
         with:
           file: ./coverage.xml
 
@@ -113,15 +115,15 @@ jobs:
       run:
         working-directory: ./frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "24"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
       - name: Cache npm dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.NPM_CACHE_DIR }}
           key: npm-frontend-${{ hashFiles('frontend/package-lock.json') }}
@@ -138,16 +140,16 @@ jobs:
   security:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.14"
           cache: "pip"
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.PIP_CACHE_DIR }}
           key: pip-security-${{ hashFiles('pyproject.toml') }}
@@ -161,7 +163,7 @@ jobs:
       - name: Run safety check
         run: safety check
       - name: Run Semgrep
-        uses: semgrep/semgrep-action@v1
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
         with:
           config: auto
           auditOn: push
@@ -181,28 +183,28 @@ jobs:
           pip install cyclonedx-bom
           python -m cyclonedx_py environment --output-file sbom.json --output-format json
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sbom
           path: sbom.json
         if: always()
       - name: Run GitLeaks secrets scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   iac-scan:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Run Checkov on Kubernetes manifests
-        uses: bridgecrewio/checkov-action@v12.2882.0
+        uses: bridgecrewio/checkov-action@241876ea3d5fabb323aa396efc2bd215c7553820 # v12.2882.0
         with:
           directory: deploy/kubernetes/
           framework: kubernetes
           soft_fail: true
       - name: Run Checkov on Docker Compose
-        uses: bridgecrewio/checkov-action@v12.2882.0
+        uses: bridgecrewio/checkov-action@241876ea3d5fabb323aa396efc2bd215c7553820 # v12.2882.0
         with:
           directory: .
           file: docker-compose.optimized.yml

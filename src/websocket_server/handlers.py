@@ -59,6 +59,7 @@ class WebSocketHandler:
         jwt_secret: str | None = None,
         api_keys: dict[str, str] | None = None,
         required_roles: set[str] | None = None,
+        allowed_origins: set[str] | None = None,
     ) -> None:
         """Initialize the WebSocket handler.
 
@@ -70,6 +71,7 @@ class WebSocketHandler:
             jwt_secret: JWT secret for authentication.
             api_keys: Valid API keys dict.
             required_roles: Required roles for access.
+            allowed_origins: Set of allowed origin URIs to mitigate CSWSH.
         """
         self.manager = manager
         self.broadcaster = broadcaster
@@ -78,6 +80,13 @@ class WebSocketHandler:
         self.jwt_secret = jwt_secret
         self.api_keys = api_keys
         self.required_roles = required_roles
+        self.allowed_origins = allowed_origins
+
+        if not jwt_secret and not api_keys:
+            logger.warning(
+                "WebSocket security alert: Neither jwt_secret nor api_keys are configured. "
+                "Anonymous WebSocket access will be permitted if ALLOW_ANONYMOUS_WS is enabled."
+            )
 
     async def handle_scan_progress(self, websocket: WebSocket) -> None:
         """Handle WebSocket connection for real-time scan progress.
@@ -173,6 +182,7 @@ class WebSocketHandler:
                 jwt_secret=self.jwt_secret,
                 api_keys=self.api_keys,
                 required_roles=self.required_roles,
+                allowed_origins=self.allowed_origins,
             )
         except AuthenticationError as exc:
             logger.warning("Auth failed for %s on /ws/%s: %s", client_ip, endpoint, exc.detail)
@@ -259,8 +269,6 @@ class WebSocketHandler:
             user_id: Authenticated user ID.
         """
         import time
-        last_msg_time = 0.0
-        msg_allowance = 100.0
 
         while True:
             try:
@@ -271,23 +279,32 @@ class WebSocketHandler:
                 # Fix Audit #86: Log inbound error
                 logger.debug("Inbound WebSocket error for %s: %s", info.connection_id, e)
                 break
-            
-            # SEC-8 / SEC-10: Cap inbound message size and implement token bucket rate limiting
+
+            # SEC-8 / SEC-10: Cap inbound message size
             if len(raw) > 131072:  # 128 KB limit
                 await info.websocket.close(code=1009, reason="Message too large")
                 break
-            
+
             now = time.monotonic()
-            elapsed = now - last_msg_time
-            last_msg_time = now
-            msg_allowance = min(100.0, msg_allowance + elapsed * 20.0)  # 20 msg/sec
-            
-            if msg_allowance < 1.0:
-                # Rate limited
-                await asyncio.sleep(0.1)
+            elapsed = now - info.last_rate_limit_time
+            info.last_rate_limit_time = now
+            info.rate_limit_tokens = min(100.0, info.rate_limit_tokens + elapsed * 50.0)  # 50 msg/sec
+
+            if info.rate_limit_tokens < 1.0:
+                error = ErrorMessage(
+                    code="rate_limit_exceeded",
+                    message="Message rate limit exceeded",
+                    recoverable=True,
+                )
+                try:
+                    await info.websocket.send_text(error.to_json())
+                except Exception as e:
+                    logger.debug("Failed to send rate limit error to %s: %s", info.connection_id, e)
+                    break
+                await asyncio.sleep(0.05)  # Backpressure
                 continue
-            
-            msg_allowance -= 1.0
+
+            info.rate_limit_tokens -= 1.0
 
             info.touch()
 
@@ -376,7 +393,15 @@ class WebSocketHandler:
                 try:
                     await info.message_queue.put(msg_json)
                 except asyncio.QueueFull:
-                    # Already warned about queue full
+                    logger.warning(
+                        "Reconnection replay failed: queue full for connection %s", info.connection_id
+                    )
+                    try:
+                        await info.websocket.close(
+                            code=1008, reason="Reconnection replay buffer overflow"
+                        )
+                    except Exception:  # noqa: S110
+                        pass
                     break
 
         logger.info(
