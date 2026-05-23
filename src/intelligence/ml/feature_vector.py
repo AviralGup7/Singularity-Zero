@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def _numeric(value: Any, default: float = 0.0) -> float:
@@ -66,6 +66,8 @@ def score_from_severity(severity: object) -> float:
 
 class FeatureVector(BaseModel):
     """Pydantic validated tabular representation of finding characteristics."""
+
+    model_config = ConfigDict(strict=True)
 
     bias: float = 1.0
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)

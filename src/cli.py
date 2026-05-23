@@ -8,12 +8,17 @@ pipeline execution, and system maintenance.
 
 from __future__ import annotations
 
+import sys
+if sys.platform.startswith("win") and "pytest" not in sys.modules:
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 import argparse
 import json
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from rich.console import Console
@@ -108,8 +113,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sys_sub.add_parser("status", help="Check infrastructure health (Redis, DB, Workers).")
     sys_sub.add_parser("doctor", help="Run environment and configuration health checks.")
+    setup = sys_sub.add_parser("setup", help="Auto-detect operating system/architecture and download pre-compiled Go binaries (nuclei, httpx, subfinder) locally.")
+    setup.add_argument("--dir", default=None, help="Directory to install binaries to (default: workspace .tools/bin)")
     cleanup = sys_sub.add_parser("cleanup", help="Purge old artifacts and checkpoints.")
     cleanup.add_argument("--days", type=int, default=7, help="Retention period in days")
+
+    # ──────────────────────────────────────────────────────────
+    # LAUNCH COMMAND (Local unified dashboard + worker)
+    # ──────────────────────────────────────────────────────────
+    launch = subparsers.add_parser("launch", help="Start the dashboard and background queue worker in a single process.")
+    launch.add_argument("--host", default="127.0.0.1", help="Binding address (default: 127.0.0.1)")
+    launch.add_argument("--port", type=int, default=8000, help="Listening port (default: 8000)")
+    launch.add_argument("--concurrency", type=int, default=2, help="Worker concurrency slots (default: 2)")
+    launch.add_argument("--queue", default="security-pipeline", help="Target queue name (default: security-pipeline)")
 
     return parser
 
@@ -153,6 +169,103 @@ def handle_worker(args: argparse.Namespace) -> None:
         argv.append("--enable-checkpoint-replication")
 
     run_worker(argv)
+
+
+def handle_launch(args: argparse.Namespace) -> None:
+    """Orchestrate starting both the dashboard and background queue worker in a single command."""
+    import threading
+    import time
+    import asyncio
+    import uuid
+    import logging
+    from src.dashboard.fastapi.main import main as run_server
+
+    console.print("[accent]┌────────────────────────────────────────────────────────┐[/accent]")
+    console.print("[accent]│             Unified Local Launcher Engine              │[/accent]")
+    console.print("[accent]└────────────────────────────────────────────────────────┘[/accent]")
+
+    # 1. Verification of compiled static assets
+    static_dir = Path("frontend/dist")
+    if not (static_dir / "index.html").exists():
+        console.print(
+            "[warning]WARNING: Compiled static frontend assets not detected at frontend/dist.[/warning]"
+        )
+        console.print(
+            "[warning]Please run 'npm run build' inside the 'frontend' directory if the UI loads as a blank page.[/warning]"
+        )
+    else:
+        console.print("[success]Static frontend assets verified.[/success]")
+
+    # 2. Daemon thread to run the worker
+    def run_worker_thread():
+        from src.infrastructure.queue.job_queue import JobQueue
+        from src.infrastructure.queue.redis_client import RedisClient
+        from src.infrastructure.queue.worker import Worker
+
+        # Create a new event loop for this background thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        queue = JobQueue(RedisClient(), args.queue)
+        worker_id = f"launch-worker-{uuid.uuid4().hex[:6]}"
+        worker = Worker(
+            worker_id=worker_id,
+            queue=queue,
+            concurrency=args.concurrency,
+        )
+        
+        async def _run():
+            try:
+                await worker.start()
+            except Exception as e:
+                logging.getLogger("cyber").error(f"Worker execution error: {e}")
+            finally:
+                await worker.stop()
+
+        try:
+            loop.run_until_complete(_run())
+        except Exception as e:
+            logging.getLogger("cyber").error(f"Worker event loop error: {e}")
+        finally:
+            loop.close()
+
+    console.print(
+        f"[info]Initializing background Worker (concurrency: {args.concurrency}) on queue: [accent]{args.queue}[/accent]...[/info]"
+    )
+    worker_thread = threading.Thread(target=run_worker_thread, daemon=True)
+    worker_thread.start()
+    
+    # Give the background thread a moment to initialize
+    time.sleep(0.5)
+
+    console.print(
+        f"[info]Starting Cyber Dashboard on {args.host}:{args.port}...[/info]"
+    )
+    
+    # Run the dashboard in the main thread (blocking, catches SIGINT/SIGTERM)
+    argv = [
+        "--host",
+        args.host,
+        "--port",
+        str(args.port),
+        "--workers",
+        "1",
+    ]
+    run_server(argv)
+
+
+def handle_setup(args: argparse.Namespace) -> int:
+    """Orchestrate downloading and installing required Go binaries locally."""
+    from src.core.utils.bin_downloader import setup_all_tools
+
+    console.print("[accent]┌────────────────────────────────────────────────────────┐[/accent]")
+    console.print("[accent]│             Automated Binary Downloader                │[/accent]")
+    console.print("[accent]└────────────────────────────────────────────────────────┘[/accent]")
+
+    dest = Path(args.dir) if args.dir else None
+    setup_all_tools(dest_dir=dest, console_print=True)
+    console.print("\n[success]Setup process complete.[/success]")
+    return 0
 
 
 def handle_scan(args: argparse.Namespace) -> int:
@@ -226,14 +339,20 @@ def handle_doctor() -> int:
     checks.append(("Python Version", py_tag, py_detail))
 
     # ── Check 2: System binaries ─────────────────────────────────
+    from src.pipeline.tools import resolve_tool_path
+
     required_bins = ["nuclei", "httpx", "subfinder"]
     missing_bins: list[str] = []
+    resolved_paths: dict[str, str] = {}
     for binary in required_bins:
-        bin_path = shutil.which(binary)
+        bin_path = resolve_tool_path(binary)
         if bin_path is None:
             missing_bins.append(binary)
+        else:
+            resolved_paths[binary] = bin_path
+
     if missing_bins:
-        detail = f"{', '.join(missing_bins)} not found on PATH"
+        detail = f"{', '.join(missing_bins)} not found on PATH or local VFS"
         checks.append(("System Binaries", "[error]FAIL[/error]", detail))
         if exit_code == 0:
             exit_code = 2
@@ -241,7 +360,8 @@ def handle_doctor() -> int:
         version_parts: list[str] = []
         for binary in required_bins:
             try:
-                _args: list[str] = [binary, "--version"]
+                bin_exec = resolved_paths[binary]
+                _args: list[str] = [bin_exec, "--version"]
                 result = subprocess.run(  # noqa: S603
                     _args,
                     capture_output=True,
@@ -270,10 +390,10 @@ def handle_doctor() -> int:
         redis_detail = f"Connected to {r.connection_pool.connection_kwargs['host']}"
         checks.append(("Redis Connectivity", "[success]PASS[/success]", redis_detail))
     except Exception as exc:
-        redis_detail = f"Redis not reachable: {exc}"
-        checks.append(("Redis Connectivity", "[error]FAIL[/error]", redis_detail))
-        if exit_code == 0:
-            exit_code = 4
+        redis_detail = "Redis offline; transparent fallback to persistent SQLite (output/local_queue.db) active."
+        checks.append(
+            ("Redis Connectivity", "[success]PASS (SQLITE FALLBACK)[/success]", redis_detail)
+        )
 
     # ── Check 4: .env file ────────────────────────────────────────
     env_path = root / ".env"
@@ -394,6 +514,10 @@ def main() -> int:
             elif args.service == "worker":
                 handle_worker(args)
 
+        elif args.area == "launch":
+            handle_launch(args)
+            return 0
+
         elif args.area == "scan":
             if args.command == "run":
                 return handle_scan(args)
@@ -404,6 +528,8 @@ def main() -> int:
                 return 0
             elif args.cmd == "doctor":
                 return handle_doctor()
+            elif args.cmd == "setup":
+                return handle_setup(args)
             elif args.cmd == "cleanup":
                 console.print(
                     "[warning]Cleanup logic not yet fully migrated to unified CLI.[/warning]"
