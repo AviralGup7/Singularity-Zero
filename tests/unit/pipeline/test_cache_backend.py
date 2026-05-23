@@ -91,10 +91,12 @@ class TestPersistentCacheTTL(unittest.TestCase):
         self.assertEqual(result, "value")
 
     def test_get_after_ttl_expires(self) -> None:
-        self.cache.set("key1", "value", ttl=1)
-        time.sleep(1.1)
-        result = self.cache.get("key1")
-        self.assertIsNone(result)
+        current_time = 1000.0
+        with patch("time.time", side_effect=lambda: current_time):
+            self.cache.set("key1", "value", ttl=1)
+            current_time += 1.1
+            result = self.cache.get("key1")
+            self.assertIsNone(result)
 
     def test_set_without_ttl_persists_indefinitely(self) -> None:
         self.cache.set("key1", "value")
@@ -102,17 +104,22 @@ class TestPersistentCacheTTL(unittest.TestCase):
         self.assertEqual(result, "value")
 
     def test_expired_key_deleted_from_db(self) -> None:
-        self.cache.set("key1", "value", ttl=1)
-        time.sleep(1.1)
-        self.cache.get("key1")
-        self.assertEqual(self.cache.size(), 0)
+        current_time = 1000.0
+        with patch("time.time", side_effect=lambda: current_time):
+            self.cache.set("key1", "value", ttl=1)
+            current_time += 1.1
+            self.cache.get("key1")
+            self.assertEqual(self.cache.size(), 0)
 
     def test_update_ttl_on_overwrite(self) -> None:
-        self.cache.set("key1", "value1", ttl=1)
-        time.sleep(0.5)
-        self.cache.set("key1", "value2", ttl=60)
-        result = self.cache.get("key1")
-        self.assertEqual(result, "value2")
+        current_time = 1000.0
+        with patch("time.time", side_effect=lambda: current_time):
+            self.cache.set("key1", "value1", ttl=1)
+            current_time += 0.5
+            self.cache.set("key1", "value2", ttl=60)
+            current_time += 0.6  # total 1.1 since first set, but key1 should be fresh
+            result = self.cache.get("key1")
+            self.assertEqual(result, "value2")
 
 
 @pytest.mark.unit
@@ -198,13 +205,15 @@ class TestPersistentCacheCleanupExpired(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_cleanup_expired_entries(self) -> None:
-        self.cache.set("key1", "value1", ttl=1)
-        self.cache.set("key2", "value2", ttl=60)
-        time.sleep(1.1)
-        removed = self.cache.cleanup_expired()
-        self.assertEqual(removed, 1)
-        self.assertIsNone(self.cache.get("key1"))
-        self.assertEqual(self.cache.get("key2"), "value2")
+        current_time = 1000.0
+        with patch("time.time", side_effect=lambda: current_time):
+            self.cache.set("key1", "value1", ttl=1)
+            self.cache.set("key2", "value2", ttl=60)
+            current_time += 1.1
+            removed = self.cache.cleanup_expired()
+            self.assertEqual(removed, 1)
+            self.assertIsNone(self.cache.get("key1"))
+            self.assertEqual(self.cache.get("key2"), "value2")
 
     def test_cleanup_no_expired(self) -> None:
         self.cache.set("key1", "value1", ttl=60)

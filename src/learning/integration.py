@@ -467,6 +467,65 @@ class LearningIntegration:
             result["thresholds"] = new_thresholds
             result["thresholds_converged"] = self._threshold_tuner.is_converged
 
+        # Phase 4.5: Active Learning Weight Update
+        if run_id:
+            try:
+                import json
+                db_findings = self.store.get_findings_for_run(run_id)
+                ctx_findings = ctx.get("reportable_findings", [])
+                
+                findings_to_process = []
+                seen_ids = set()
+                
+                for f in db_findings:
+                    fid = f.get("finding_id") or f.get("id")
+                    if fid:
+                        seen_ids.add(fid)
+                    findings_to_process.append(f)
+                    
+                for f in ctx_findings:
+                    fid = f.get("finding_id") or f.get("id")
+                    if fid not in seen_ids:
+                        findings_to_process.append(f)
+                        
+                labeled_findings = []
+                for f in findings_to_process:
+                    evidence_raw = f.get("evidence")
+                    evidence = {}
+                    if isinstance(evidence_raw, str):
+                        try:
+                            evidence = json.loads(evidence_raw)
+                        except Exception:
+                            evidence = {"raw": evidence_raw}
+                    elif isinstance(evidence_raw, dict):
+                        evidence = evidence_raw
+                        
+                    lifecycle = f.get("lifecycle_state", "")
+                    decision = f.get("decision", "")
+                    
+                    if decision == "DROP":
+                        label = "fp"
+                    elif lifecycle in ("VALIDATED", "EXPLOITABLE", "REPORTABLE"):
+                        label = "tp"
+                    else:
+                        label = "tp"
+                        
+                    labeled_findings.append({
+                        "evidence": evidence,
+                        "confidence": float(f.get("confidence", 0.5)),
+                        "true_positive_probability": float(f.get("true_positive_probability", f.get("confidence", 0.5))),
+                        "false_positive_probability": float(f.get("false_positive_probability", 1.0 - float(f.get("confidence", 0.5)))),
+                        "response_status": f.get("response_status"),
+                        "feedback": label,
+                        "label": label,
+                    })
+                
+                if labeled_findings:
+                    updated_weights = self._threshold_tuner.active_learning_weight_update(labeled_findings)
+                    result["active_learning_weights"] = updated_weights
+            except Exception as e:
+                logger.error("Failed to run active learning weight update: %s", e, exc_info=True)
+
         # Phase 5: Record plugin stats
         self._record_plugin_stats(ctx)
 
