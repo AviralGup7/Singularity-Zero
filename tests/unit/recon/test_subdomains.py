@@ -8,10 +8,12 @@ class TestSubdomains:
     @patch("requests.get")
     def test_fetch_crtsh_subdomains_success(self, mock_get):
         mock_resp = MagicMock()
-        mock_resp.text = json.dumps([
-            {"name_value": "test1.example.com\ntest2.example.com"},
-            {"name_value": "*.wildcard.example.com"}
-        ])
+        mock_resp.text = json.dumps(
+            [
+                {"name_value": "test1.example.com\ntest2.example.com"},
+                {"name_value": "*.wildcard.example.com"},
+            ]
+        )
         mock_get.return_value = mock_resp
 
         subs = fetch_crtsh_subdomains("example.com", timeout_seconds=5)
@@ -23,7 +25,8 @@ class TestSubdomains:
     @patch("src.recon.subdomains.sleep_before_retry")
     def test_fetch_crtsh_subdomains_retry(self, mock_sleep, mock_get):
         import requests
-        mock_get.side_effect = [requests.RequestException("fail"), MagicMock(text='[]')]
+
+        mock_get.side_effect = [requests.RequestException("fail"), MagicMock(text="[]")]
 
         retry_policy = MagicMock()
         retry_policy.max_attempts = 2
@@ -53,14 +56,11 @@ class TestSubdomains:
 
         mock_list_plugins.return_value = [mock_reg_crtsh, mock_reg_subfinder]
 
-        config = {
-            "tools": {"crtsh": True, "subfinder": True},
-            "http_timeout_seconds": 30
-        }
+        config = {"tools": {"crtsh": True, "subfinder": True}, "http_timeout_seconds": 30}
 
         subs = enumerate_subdomains(["example.com"], config, skip_crtsh=False)
 
         assert "crtsh1.example.com" in subs
         assert "sub1.example.com" in subs
         assert "sub2.example.com" in subs
-        assert "example.com" in subs # Root domain always added
+        assert "example.com" in subs  # Root domain always added

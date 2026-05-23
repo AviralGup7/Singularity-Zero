@@ -26,13 +26,9 @@ def test_shap_explainer_computes_contributions_and_marginal_impacts() -> None:
         "evidence": {
             "reproducible": True,
             "confirmed": True,
-            "diff": {
-                "status_changed": True,
-                "content_changed": True,
-                "redirect_changed": False
-            },
-            "signals": ["syntax_error"]
-        }
+            "diff": {"status_changed": True, "content_changed": True, "redirect_changed": False},
+            "signals": ["syntax_error"],
+        },
     }
 
     explanation = explainer.explain(finding)
@@ -69,4 +65,7 @@ def test_shap_explainer_computes_contributions_and_marginal_impacts() -> None:
 
     # Ensure diagnostic summary contains some text
     assert len(explanation["diagnostic_summary"]) > 0
-    assert "reproducible" in explanation["diagnostic_summary"].lower() or "severity is highly driven by" in explanation["diagnostic_summary"].lower()
+    assert (
+        "reproducible" in explanation["diagnostic_summary"].lower()
+        or "severity is highly driven by" in explanation["diagnostic_summary"].lower()
+    )

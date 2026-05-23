@@ -21,9 +21,7 @@ _ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::([^}]*))?\}")
 
 # Config fields whose values are themselves dicts — adaptive overrides for
 # these fields are merged key-by-key rather than replacing the whole sub-dict.
-_NESTED_MERGE_FIELDS: frozenset[str] = frozenset(
-    {"scoring", "analysis", "nuclei"}
-)
+_NESTED_MERGE_FIELDS: frozenset[str] = frozenset({"scoring", "analysis", "nuclei"})
 
 
 def _interpolate_env_vars(value: str) -> str:

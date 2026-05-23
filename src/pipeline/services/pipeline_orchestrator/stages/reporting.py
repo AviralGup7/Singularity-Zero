@@ -245,7 +245,9 @@ async def run_reporting(
 
             await notification_manager.close()
         except Exception as exc:
-            logger.warning("Failed to run false-positive watchlist manager check or GRC alerts: %s", exc)
+            logger.warning(
+                "Failed to run false-positive watchlist manager check or GRC alerts: %s", exc
+            )
 
         await asyncio.to_thread(
             generate_run_report,

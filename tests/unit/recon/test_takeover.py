@@ -159,7 +159,12 @@ class TestSubdomainTakeover:
     async def test_detect_takeover_orchestration(self, mock_check_single: AsyncMock) -> None:
         """Verify detect_takeover coordinates multiple subdomains concurrently and aggregates results."""
         mock_check_single.side_effect = lambda sd, patterns: [
-            {"subdomain": sd, "service": "GitHub Pages", "cname": "gh.github.io", "vulnerable": True}
+            {
+                "subdomain": sd,
+                "service": "GitHub Pages",
+                "cname": "gh.github.io",
+                "vulnerable": True,
+            }
         ]
 
         subdomains = {"sub1.example.com", "sub2.example.com"}
@@ -174,10 +179,18 @@ class TestSubdomainTakeover:
     @patch("src.recon.takeover._check_single_subdomain", new_callable=AsyncMock)
     async def test_detect_takeover_exception_resilience(self, mock_check_single: AsyncMock) -> None:
         """Verify detect_takeover continues processing other subdomains when one throws an exception."""
+
         def mock_check(sd, patterns):
             if sd == "bad.example.com":
                 raise RuntimeError("DNS resolve failed completely")
-            return [{"subdomain": sd, "service": "GitHub Pages", "cname": "gh.github.io", "vulnerable": False}]
+            return [
+                {
+                    "subdomain": sd,
+                    "service": "GitHub Pages",
+                    "cname": "gh.github.io",
+                    "vulnerable": False,
+                }
+            ]
 
         mock_check_single.side_effect = AsyncMock(side_effect=mock_check)
 

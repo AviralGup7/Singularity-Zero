@@ -74,6 +74,7 @@ def compress_bytes(data: bytes) -> bytes:
     if _HAS_ZSTD and not _FORCE_ZLIB:
         return cast(bytes, _zstd_compressor.compress(data))
     import zlib
+
     return zlib.compress(data)
 
 
@@ -81,6 +82,7 @@ def decompress_bytes(data: bytes) -> bytes:
     if _HAS_ZSTD and not _FORCE_ZLIB:
         return cast(bytes, _zstd_decompressor.decompress(data))
     import zlib
+
     return zlib.decompress(data)
 
 

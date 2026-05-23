@@ -67,9 +67,7 @@ def generate_compliance_pdf(
             TableStyle,
         )
     except ImportError:
-        _get_logger().warning(
-            "reportlab is not installed — compliance PDF export skipped."
-        )
+        _get_logger().warning("reportlab is not installed — compliance PDF export skipped.")
         return None
 
     out = _get_output_dir(summary, run_dir)
@@ -134,7 +132,9 @@ def generate_compliance_pdf(
     # Critical / High findings table
     merged_findings: list[dict[str, Any]] = []
     if summary and isinstance(summary.get("findings"), list):
-        merged_findings = [f for f in summary["findings"] if f.get("severity", "").lower() in ("critical", "high")]
+        merged_findings = [
+            f for f in summary["findings"] if f.get("severity", "").lower() in ("critical", "high")
+        ]
 
     if merged_findings:
         story.append(
@@ -161,7 +161,9 @@ def generate_compliance_pdf(
                         "sev",
                         parent=styles["Normal"],
                         fontSize=8,
-                        textColor=colors.HexColor("#c0392b") if sev == "CRITICAL" else colors.HexColor("#d35400"),
+                        textColor=colors.HexColor("#c0392b")
+                        if sev == "CRITICAL"
+                        else colors.HexColor("#d35400"),
                     ),
                 ),
                 Paragraph((f.get("category", "") or "").replace("_", " ").title(), body_style),
@@ -177,7 +179,12 @@ def generate_compliance_pdf(
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#bdc3c7")),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [colors.HexColor("#f8f9fa"), colors.white],
+                    ),
                 ]
             )
         )

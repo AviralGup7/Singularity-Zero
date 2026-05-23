@@ -75,7 +75,7 @@ class Argon2idParameters:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Argon2idParameters":
+    def from_dict(cls, data: dict[str, Any]) -> Argon2idParameters:
         return cls(
             time_cost=int(data.get("time_cost", 3)),
             memory_cost=int(data.get("memory_cost", 65536)),
@@ -129,7 +129,7 @@ class SecretLease:
         secure_wipe(self._buffer)
         self._released = True
 
-    def __enter__(self) -> "SecretLease":
+    def __enter__(self) -> SecretLease:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

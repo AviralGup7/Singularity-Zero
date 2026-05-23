@@ -826,5 +826,3 @@ class FeedbackEventEntry(BaseModel):
     tech_stack: str | None = None
     scan_mode: str | None = None
     feedback_weight: float | None = None
-
-

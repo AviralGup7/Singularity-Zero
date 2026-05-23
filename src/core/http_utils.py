@@ -75,13 +75,18 @@ def safe_request(
 
     try:
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         target = parsed.netloc or parsed.path.split("/")[0] or "unknown"
     except Exception:
         target = "unknown"
 
     input_headers_lower = {k.lower(): v for k, v in (headers or {}).items()}
-    session_id = input_headers_lower.get("x-session-token") or input_headers_lower.get("x-trace-id") or "default"
+    session_id = (
+        input_headers_lower.get("x-session-token")
+        or input_headers_lower.get("x-trace-id")
+        or "default"
+    )
 
     try:
         start_time = time.monotonic()
@@ -102,6 +107,7 @@ def safe_request(
         detected_waf = None
         try:
             from src.core.frontier.chameleon import _chameleon
+
             cookies = None
             if hasattr(resp, "cookies") and resp.cookies is not None:
                 if hasattr(resp.cookies, "items"):
@@ -136,6 +142,7 @@ def safe_request(
         # Feed error as potentially a WAF block / failure
         try:
             from src.core.frontier.chameleon import _chameleon
+
             # Check if there is an error response we can extract
             err_status = 0
             err_body = ""
@@ -200,13 +207,18 @@ async def async_safe_request(
 
     try:
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         target = parsed.netloc or parsed.path.split("/")[0] or "unknown"
     except Exception:
         target = "unknown"
 
     input_headers_lower = {k.lower(): v for k, v in (headers or {}).items()}
-    session_id = input_headers_lower.get("x-session-token") or input_headers_lower.get("x-trace-id") or "default"
+    session_id = (
+        input_headers_lower.get("x-session-token")
+        or input_headers_lower.get("x-trace-id")
+        or "default"
+    )
 
     try:
         start_time = time.monotonic()
@@ -227,6 +239,7 @@ async def async_safe_request(
         detected_waf = None
         try:
             from src.core.frontier.chameleon import _chameleon
+
             cookies = None
             if hasattr(resp, "cookies") and resp.cookies is not None:
                 if hasattr(resp.cookies, "items"):
@@ -261,6 +274,7 @@ async def async_safe_request(
         # Feed error as potentially a WAF block / failure
         try:
             from src.core.frontier.chameleon import _chameleon
+
             err_status = 0
             err_body = ""
             if hasattr(e, "response") and e.response is not None:

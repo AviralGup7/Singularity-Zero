@@ -40,10 +40,16 @@ async def get_remediation_plan(
             entry = output_root / target_name
             if entry.exists() and entry.is_dir():
                 # Look for findings in all run directories
-                run_dirs = [d for d in entry.iterdir() if d.is_dir() and (d / "run_summary.json").exists()]
+                run_dirs = [
+                    d for d in entry.iterdir() if d.is_dir() and (d / "run_summary.json").exists()
+                ]
                 if not run_dirs:
                     # Fallback to check all subdirs excluding internal ones
-                    run_dirs = [d for d in entry.iterdir() if d.is_dir() and d.name not in ("checkpoints", "forensics", "logs")]
+                    run_dirs = [
+                        d
+                        for d in entry.iterdir()
+                        if d.is_dir() and d.name not in ("checkpoints", "forensics", "logs")
+                    ]
 
                 for run_dir in run_dirs:
                     findings_path = run_dir / "findings.json"
@@ -67,13 +73,16 @@ async def get_remediation_plan(
                             logger.debug("Failed to load findings from %s: %s", findings_path, exc)
                             continue
                         except Exception as exc:
-                            logger.warning("Unexpected error loading findings from %s: %s", findings_path, exc)
+                            logger.warning(
+                                "Unexpected error loading findings from %s: %s", findings_path, exc
+                            )
                             continue
 
         # Query feedback events for category-specific false positive counts
         false_positive_counts: dict[str, int] = {}
         try:
             from src.learning.integration import LearningIntegration
+
             integration = LearningIntegration.get_or_create()
             feedback_events = integration.store.get_feedback_events(limit=2000)
             for event in feedback_events:
@@ -129,7 +138,9 @@ async def get_remediation_plan(
 
         # Sort by severity, and sub-sort by false positive count (ascending to push noisy findings to the bottom)
         severity_map = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-        plan_units.sort(key=lambda x: (severity_map.get(x["severity"], 5), x.get("false_positive_count", 0)))
+        plan_units.sort(
+            key=lambda x: (severity_map.get(x["severity"], 5), x.get("false_positive_count", 0))
+        )
 
         return {
             "status": "ok",

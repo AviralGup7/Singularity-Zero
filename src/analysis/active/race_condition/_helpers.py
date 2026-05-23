@@ -29,7 +29,7 @@ def compute_body_hash(body: str) -> str:
 def extract_json_value(body: str, *keys: str) -> str | int | float | None:
     try:
         data = json.loads(body)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return None
     current: Any = data
     for key in keys:

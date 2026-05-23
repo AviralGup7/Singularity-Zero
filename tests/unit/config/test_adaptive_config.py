@@ -107,13 +107,9 @@ class TestReadAdaptiveConfig:
         result = PipelineOutputStore.read_adaptive_config(adaptive_dir)
         assert result is None
 
-    def test_empty_adaptations_writes_and_reads_empty_dict(
-        self, adaptive_dir: Path
-    ) -> None:
+    def test_empty_adaptations_writes_and_reads_empty_dict(self, adaptive_dir: Path) -> None:
         """Writing an empty adaptations dict should produce a valid ``{}`` file."""
-        store = PipelineOutputStore.create(
-            adaptive_dir, "example.com"
-        )
+        store = PipelineOutputStore.create(adaptive_dir, "example.com")
         store.write_adaptive_config({})
 
         result = PipelineOutputStore.read_adaptive_config(store.target_root)
@@ -126,9 +122,7 @@ class TestReadAdaptiveConfig:
             "plugin_overrides": {"nuclei": True},
             "threshold_deltas": {"min_conf": 0.55},
         }
-        store = PipelineOutputStore.create(
-            adaptive_dir, "example.com"
-        )
+        store = PipelineOutputStore.create(adaptive_dir, "example.com")
         store.write_adaptive_config(adaptations)
 
         result = PipelineOutputStore.read_adaptive_config(store.target_root)
@@ -137,9 +131,7 @@ class TestReadAdaptiveConfig:
     def test_adaptations_are_persisted_as_json(self, adaptive_dir: Path) -> None:
         """The file on disk must be valid and round-trip-parseable JSON."""
         adaptations = {"nuclei_template_boosts": {"cve-2024-0001": 1.8}}
-        store = PipelineOutputStore.create(
-            adaptive_dir, "example.com"
-        )
+        store = PipelineOutputStore.create(adaptive_dir, "example.com")
         store.write_adaptive_config(adaptations)
 
         path = store.target_root / "config.adaptive.json"
@@ -232,9 +224,7 @@ class TestApplyAdaptiveOverrides:
     def test_top_level_scoring_replacement(self, full_section_config: Config) -> None:
         """Providing the ‘http_timeout_seconds’ top-level key replaces it directly."""
         new_timeout = 42
-        apply_adaptive_overrides(
-            full_section_config, {"http_timeout_seconds": new_timeout}
-        )
+        apply_adaptive_overrides(full_section_config, {"http_timeout_seconds": new_timeout})
         assert full_section_config.http_timeout_seconds == new_timeout
 
     def test_top_level_mode_replacement(self, full_section_config: Config) -> None:
@@ -271,9 +261,7 @@ class TestApplyAdaptiveOverrides:
         # standard fields are set
         assert empty_section_config.http_timeout_seconds == 7
 
-    def test_nested_merge_with_both_fields_missing(
-        self, empty_section_config: Config
-    ) -> None:
+    def test_nested_merge_with_both_fields_missing(self, empty_section_config: Config) -> None:
         """Create nested-section dicts from scratch when they are initially empty."""
         adaptive = {
             "scoring": {"a": 1, "b": 2},
@@ -306,8 +294,7 @@ class TestLedgerUnchanged:
 
         source = inspect.getsource(LearningIntegration._persist_adaptive_config)
         assert "config.adaptive.ledger.json" in source, (
-            "_persist_adaptive_config must still write the ledger file "
-            "as required by Phase 5.2."
+            "_persist_adaptive_config must still write the ledger file as required by Phase 5.2."
         )
 
     def test_adaptive_config_still_integration_hook(self) -> None:
@@ -331,9 +318,7 @@ class TestAdaptiveConfigOverwrite:
     """Writing a second adaptive config replaces the first."""
 
     def test_second_write_overwrites_first(self, adaptive_dir: Path) -> None:
-        store = PipelineOutputStore.create(
-            adaptive_dir, "example.com"
-        )
+        store = PipelineOutputStore.create(adaptive_dir, "example.com")
         store.write_adaptive_config({"v1": "first"})
         store.write_adaptive_config({"v2": "second"})
 

@@ -1,7 +1,6 @@
 import argparse
-import sys
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 

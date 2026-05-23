@@ -15,7 +15,9 @@ class TestWafCdnDetector:
     def test_analyze_response_cloudflare_headers(self):
         url = "https://example.com"
         headers = {"CF-Ray": "12345", "Server": "cloudflare"}
-        resp = httpx.Response(200, headers=headers, content=b"Hello", request=httpx.Request("GET", url))
+        resp = httpx.Response(
+            200, headers=headers, content=b"Hello", request=httpx.Request("GET", url)
+        )
         findings = _analyze_response(url, resp)
 
         assert len(findings) > 0
@@ -27,7 +29,9 @@ class TestWafCdnDetector:
         url = "https://example.com"
         # Akamai uses 'abck' cookie
         headers = {"Set-Cookie": "abck=val; Domain=example.com"}
-        resp = httpx.Response(200, headers=headers, content=b"Hello", request=httpx.Request("GET", url))
+        resp = httpx.Response(
+            200, headers=headers, content=b"Hello", request=httpx.Request("GET", url)
+        )
         findings = _analyze_response(url, resp)
 
         assert len(findings) > 0
@@ -50,7 +54,9 @@ class TestWafCdnDetector:
         headers = {"X-Amz-Cf-Id": "req-id"}
         # Cloudfront uses cookies too
         headers["Set-Cookie"] = "CloudFront-Policy=xyz"
-        resp = httpx.Response(200, headers=headers, content=b"Hello", request=httpx.Request("GET", url))
+        resp = httpx.Response(
+            200, headers=headers, content=b"Hello", request=httpx.Request("GET", url)
+        )
         findings = _analyze_response(url, resp)
 
         cf_finding = next(f for f in findings if f["provider"] == "AWS CloudFront")
@@ -62,8 +68,12 @@ class TestWafCdnDetector:
         url1 = "https://site1.com"
         url2 = "https://site2.com"
 
-        mock_resp1 = httpx.Response(200, headers={"CF-Ray": "ray1"}, request=httpx.Request("GET", url1))
-        mock_resp2 = httpx.Response(200, headers={"X-Served-By": "fastly"}, request=httpx.Request("GET", url2))
+        mock_resp1 = httpx.Response(
+            200, headers={"CF-Ray": "ray1"}, request=httpx.Request("GET", url1)
+        )
+        mock_resp2 = httpx.Response(
+            200, headers={"X-Served-By": "fastly"}, request=httpx.Request("GET", url2)
+        )
 
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = [mock_resp1, mock_resp2]

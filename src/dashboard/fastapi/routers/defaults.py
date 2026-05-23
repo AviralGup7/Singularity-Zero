@@ -12,9 +12,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/defaults", tags=["Defaults"])
 
+
 class ApiDefaults(BaseModel):
     default_mode: str
     form_defaults: dict[str, str]
+
 
 @router.get(
     "",
@@ -30,5 +32,5 @@ async def get_defaults(_auth: Any = Depends(require_auth)) -> ApiDefaults:
             "threads": "10",
             "timeout": "300",
             "retries": "3",
-        }
+        },
     )
