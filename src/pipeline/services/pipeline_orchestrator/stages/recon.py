@@ -284,6 +284,61 @@ async def run_url_collection(
             return cast(StageOutput, stage_output)
 
         urls = set(stage_output.state_delta.get("urls", []))
+
+        # ──────────────────────────────────────────────────────────
+        # Category 2: Advanced Reconnaissance & Asset Discovery Integrations
+        # ──────────────────────────────────────────────────────────
+        try:
+            import json
+            from pathlib import Path
+            target_name = config.target_name
+            target_root = ctx.output_store.target_root if ctx.output_store else Path(config.output_dir) / target_name
+            target_root.mkdir(parents=True, exist_ok=True)
+
+            logger.info("Initializing Category 2 Advanced Recon integrations for target %s", target_name)
+
+            # 1. Cloud Bucket & Asset Enumeration (Multi-Cloud Recon)
+            from src.recon.cloud_recon import CloudBucketScanner
+            bucket_scanner = CloudBucketScanner()
+            emit_progress("urls", "Scanning Cloud storage buckets", 70)
+            bucket_findings = bucket_scanner.run_scan_sync(target_name)
+            logger.info("Cloud bucket scan found %d exposed/secure containers", len(bucket_findings))
+
+            with open(target_root / "cloud_buckets.json", "w", encoding="utf-8") as f:
+                json.dump(bucket_findings, f, indent=2, ensure_ascii=False)
+
+            # 2. Automatic API Schema Reconstruction
+            from src.recon.api_reconstructor import ApiSchemaReconstructor
+            reconstructor = ApiSchemaReconstructor(target_root)
+            reconstructor.reconstruct_spec(target_name, urls)
+            logger.info("OpenAPI 3.0 specification successfully compiled inside %s", target_root)
+
+            # 3. Continuous Discovery & Drift Detection
+            from src.recon.drift_detection import DriftDetector
+            detector = DriftDetector(target_root)
+
+            # Gather current recon metrics
+            current_snapshot = {
+                "subdomains": sorted(list(ctx.result.subdomains)),
+                "live_hosts": sorted(list(ctx.result.live_hosts)),
+                "open_ports": sorted(list({
+                    f"{r.get('hostname') or r.get('ip') or ''}:{r.get('port') or ''}"
+                    for r in ctx.result.live_records
+                    if r.get("port")
+                })),
+                "urls": sorted(list(urls))
+            }
+            drift_report = detector.compute_drift(target_name, current_snapshot)
+            if drift_report.get("has_drift", False):
+                logger.warning("Recon asset drift detected!")
+                summary = detector.render_cli_summary(drift_report)
+                print(summary)
+            else:
+                logger.info("No recon asset drift detected. Core profile matches historical snapshot.")
+
+        except Exception as exc:
+            logger.exception("Category 2 Advanced Recon integrations failed: %s", exc)
+
         emit_progress(
             "urls",
             f"Collected {len(urls)} URLs",
