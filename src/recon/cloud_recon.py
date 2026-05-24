@@ -86,7 +86,9 @@ class CloudBucketScanner:
 
         return sorted(list(candidates))
 
-    async def check_aws_bucket(self, session: aiohttp.ClientSession, bucket: str) -> dict[str, Any] | None:
+    async def check_aws_bucket(
+        self, session: aiohttp.ClientSession, bucket: str
+    ) -> dict[str, Any] | None:
         """Check AWS S3 bucket status."""
         url = f"https://{bucket}.s3.amazonaws.com"
         try:
@@ -114,7 +116,9 @@ class CloudBucketScanner:
             pass
         return None
 
-    async def check_gcp_bucket(self, session: aiohttp.ClientSession, bucket: str) -> dict[str, Any] | None:
+    async def check_gcp_bucket(
+        self, session: aiohttp.ClientSession, bucket: str
+    ) -> dict[str, Any] | None:
         """Check Google Cloud Storage bucket status."""
         url = f"https://storage.googleapis.com/{bucket}"
         try:
@@ -142,7 +146,9 @@ class CloudBucketScanner:
             pass
         return None
 
-    async def check_azure_bucket(self, session: aiohttp.ClientSession, bucket: str) -> dict[str, Any] | None:
+    async def check_azure_bucket(
+        self, session: aiohttp.ClientSession, bucket: str
+    ) -> dict[str, Any] | None:
         """Check Azure Blob Storage account status."""
         # Azure storage accounts must be 3-24 characters, numbers and lowercase letters only
         sanitized_bucket = "".join(c for c in bucket if c.isalnum()).lower()
@@ -176,7 +182,9 @@ class CloudBucketScanner:
             pass
         return None
 
-    async def scan_bucket(self, session: aiohttp.ClientSession, bucket: str) -> list[dict[str, Any]]:
+    async def scan_bucket(
+        self, session: aiohttp.ClientSession, bucket: str
+    ) -> list[dict[str, Any]]:
         """Run checks across all platforms for a single bucket name."""
         results = []
         aws = await self.check_aws_bucket(session, bucket)
@@ -218,6 +226,7 @@ class CloudBucketScanner:
         if loop.is_running():
             # If already running inside an active loop (e.g. uvicorn), run via a future
             import nest_asyncio
+
             nest_asyncio.apply()
 
         return loop.run_until_complete(self.scan_all_candidates(target))

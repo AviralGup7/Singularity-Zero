@@ -131,7 +131,7 @@ def _extract_script_urls_from_html(
 _TEMPLATE_LITERAL_RE = re.compile(r"`([^`\n]*?\$\{[^`\n]+?\}[^`\n]*?)`")
 _AXIOS_FETCH_RE = re.compile(
     r"(?:\b(?:axios(?:\.get|\.post|\.put|\.delete|\.patch)?|fetch)|\$\.ajax|\$\.get|\$\.post)\(\s*['\"`]([^'\"`\s)]+)['\"`]",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 _CONCAT_ROUTE_RE = re.compile(
     r"['\"](/[a-zA-Z0-9_\-/]+)['\"]\s*\+\s*[a-zA-Z0-9_]+(?:[a-zA-Z0-9_\-\s+]*['\"]([a-zA-Z0-9_\-/]*)['\"])?"
@@ -210,4 +210,3 @@ def _extract_js_candidate_urls(
             discovered.add(restored)
 
     return discovered
-

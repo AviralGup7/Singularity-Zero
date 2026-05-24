@@ -56,13 +56,17 @@ class DriftDetector:
         hist_subdomains = set(historical.get("subdomains", []))
         curr_subdomains = set(current_data.get("subdomains", []))
         new_subdomains = sorted(list(curr_subdomains - hist_subdomains)) if not is_first_run else []
-        removed_subdomains = sorted(list(hist_subdomains - curr_subdomains)) if not is_first_run else []
+        removed_subdomains = (
+            sorted(list(hist_subdomains - curr_subdomains)) if not is_first_run else []
+        )
 
         # 2. Compare Live Hosts
         hist_live_hosts = set(historical.get("live_hosts", []))
         curr_live_hosts = set(current_data.get("live_hosts", []))
         new_live_hosts = sorted(list(curr_live_hosts - hist_live_hosts)) if not is_first_run else []
-        removed_live_hosts = sorted(list(hist_live_hosts - curr_live_hosts)) if not is_first_run else []
+        removed_live_hosts = (
+            sorted(list(hist_live_hosts - curr_live_hosts)) if not is_first_run else []
+        )
 
         # 3. Compare Open Ports
         hist_ports = set(historical.get("open_ports", []))
@@ -78,7 +82,19 @@ class DriftDetector:
 
         drift_report = {
             "target": target,
-            "has_drift": bool(not is_first_run and (new_subdomains or removed_subdomains or new_live_hosts or removed_live_hosts or new_ports or removed_ports or new_urls or removed_urls)),
+            "has_drift": bool(
+                not is_first_run
+                and (
+                    new_subdomains
+                    or removed_subdomains
+                    or new_live_hosts
+                    or removed_live_hosts
+                    or new_ports
+                    or removed_ports
+                    or new_urls
+                    or removed_urls
+                )
+            ),
             "deltas": {
                 "subdomains": {
                     "added": new_subdomains,
@@ -103,8 +119,8 @@ class DriftDetector:
                     "removed": removed_urls,
                     "added_count": len(new_urls),
                     "removed_count": len(removed_urls),
-                }
-            }
+                },
+            },
         }
 
         # Save the current data as the new baseline snapshot
