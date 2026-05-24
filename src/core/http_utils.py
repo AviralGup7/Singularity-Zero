@@ -7,6 +7,7 @@ and standardized response normalization.
 
 from __future__ import annotations
 
+import asyncio
 import atexit
 import time
 from typing import Any
@@ -16,9 +17,12 @@ import requests
 
 from src.core.frontier.chameleon import wrap_polymorphic_request
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.core.pid_limiter import PIDRateLimiter
 from src.core.utils.url_validation import is_safe_url
 
 logger = get_pipeline_logger(__name__)
+
+_PID_LIMITERS: dict[str, PIDRateLimiter] = {}
 
 DEFAULT_TIMEOUT = 10.0
 MAX_BODY_LENGTH = 120_000
@@ -88,6 +92,10 @@ def safe_request(
         or "default"
     )
 
+    limiter = _PID_LIMITERS.setdefault(target, PIDRateLimiter())
+    if limiter.current_delay > 0.0:
+        time.sleep(limiter.current_delay)
+
     try:
         start_time = time.monotonic()
         resp = _SYNC_SESSION.request(
@@ -99,6 +107,8 @@ def safe_request(
             verify=final_verify,
         )
         duration_ms = (time.monotonic() - start_time) * 1000
+        is_blocked = resp.status_code in {429, 503}
+        limiter.update(duration_ms / 1000.0, is_blocked=is_blocked)
 
         resp_body = resp.text or ""
         resp_headers = dict(resp.headers)
@@ -140,14 +150,21 @@ def safe_request(
         }
     except requests.RequestException as e:
         # Feed error as potentially a WAF block / failure
+        err_status = 0
+        if hasattr(e, "response") and e.response is not None:
+            try:
+                err_status = getattr(e.response, "status_code", 0)
+            except Exception:  # noqa: S110
+                pass
+        is_blocked = err_status in {429, 503}
+        limiter.update(0.0, is_blocked=is_blocked)
+
         try:
             from src.core.frontier.chameleon import _chameleon
 
             # Check if there is an error response we can extract
-            err_status = 0
             err_body = ""
             if hasattr(e, "response") and e.response is not None:
-                err_status = getattr(e.response, "status_code", 0)
                 err_body = getattr(e.response, "text", "")
 
             _chameleon._evasion_engine.update_observation(
@@ -220,6 +237,10 @@ async def async_safe_request(
         or "default"
     )
 
+    limiter = _PID_LIMITERS.setdefault(target, PIDRateLimiter())
+    if limiter.current_delay > 0.0:
+        await asyncio.sleep(limiter.current_delay)
+
     try:
         start_time = time.monotonic()
         client = _get_async_client(final_verify, final_follow)
@@ -231,6 +252,8 @@ async def async_safe_request(
             timeout=final_timeout,
         )
         duration_ms = (time.monotonic() - start_time) * 1000
+        is_blocked = resp.status_code in {429, 503}
+        limiter.update(duration_ms / 1000.0, is_blocked=is_blocked)
 
         resp_body = resp.text or ""
         resp_headers = dict(resp.headers)
@@ -272,13 +295,20 @@ async def async_safe_request(
         }
     except httpx.HTTPError as e:
         # Feed error as potentially a WAF block / failure
+        err_status = 0
+        if hasattr(e, "response") and e.response is not None:
+            try:
+                err_status = getattr(e.response, "status_code", 0)
+            except Exception:  # noqa: S110
+                pass
+        is_blocked = err_status in {429, 503}
+        limiter.update(0.0, is_blocked=is_blocked)
+
         try:
             from src.core.frontier.chameleon import _chameleon
 
-            err_status = 0
             err_body = ""
             if hasattr(e, "response") and e.response is not None:
-                err_status = getattr(e.response, "status_code", 0)
                 err_body = getattr(e.response, "text", "")
 
             _chameleon._evasion_engine.update_observation(

@@ -198,6 +198,17 @@ async def run_reporting(
             # Fallback if property not defined yet
             ctx.result.__dict__["summary"] = summary
 
+        # ──────────────────────────────────────────────────────────
+        # Remediation Patch Generator Integration
+        # ──────────────────────────────────────────────────────────
+        try:
+            from src.reporting.remediation_patches import RemediationPatchGenerator
+            patch_gen = RemediationPatchGenerator(ctx.output_store.run_dir)
+            patches = patch_gen.generate_patches(config.target_name, ctx.reportable_findings)
+            logger.info("Successfully compiled %d actionable remediation patches", len(patches))
+        except Exception as exc:
+            logger.warning("Failed to generate remediation patches: %s", exc)
+
         ctx.output_store.persist_outputs(
             summary,
             diff_summary,

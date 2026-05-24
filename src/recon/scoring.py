@@ -437,6 +437,11 @@ def rank_urls(
         elif trust_boundary.get("level") == "restricted-path":
             correlation_boost += 5
 
+        # Integrate CVPS (Contextual Vulnerability Priority Scoring)
+        from src.recon.cvps import compute_cvps_score
+        parsed_port = urlparse(url).port or 443
+        cvps_boost = compute_cvps_score(url, parsed_port, active_profile)
+
         composite_score = (
             score
             + flow
@@ -444,6 +449,7 @@ def rank_urls(
             + int(trust_boundary.get("score", 0))
             + history_bonus
             + correlation_boost
+            + cvps_boost
         )
         if composite_score <= 0:
             continue
