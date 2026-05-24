@@ -202,12 +202,12 @@ jobs:
         with:
           directory: deploy/kubernetes/
           framework: kubernetes
-          soft_fail: true
+          soft_fail: false
       - name: Run Checkov on Docker Compose
         uses: bridgecrewio/checkov-action@241876ea3d5fabb323aa396efc2bd215c7553820 # v12.2882.0
         with:
           directory: .
           file: docker-compose.optimized.yml
           framework: dockerfile
-          soft_fail: true
+          soft_fail: false
         continue-on-error: true

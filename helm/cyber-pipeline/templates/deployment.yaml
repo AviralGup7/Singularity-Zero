@@ -28,12 +28,12 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
-           livenessProbe:
-             httpGet:
-               path: /api/health/live
-               port: http
-             initialDelaySeconds: 30
-             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /health
@@ -43,6 +43,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "cyber-pipeline.fullname" . }}-config
+          env:
+            - name: APP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cyber-pipeline.fullname" . }}-secrets
+                  key: app-secret-key
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
         - name: worker
@@ -52,5 +58,11 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "cyber-pipeline.fullname" . }}-config
+          env:
+            - name: APP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cyber-pipeline.fullname" . }}-secrets
+                  key: app-secret-key
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
