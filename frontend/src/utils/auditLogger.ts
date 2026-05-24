@@ -49,7 +49,7 @@ export function getAuditLog(): AuditEntry[] {
 }
 
 export function clearAuditLog(): void {
-  sessionStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 export function useAuditLogger(user = 'anonymous') {

@@ -8,6 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function safeGet<V>(obj: Record<string, V>, key: string): V | undefined;
 export function safeGet<V>(obj: Record<string, V>, key: string, fallback: V): V;
 export function safeGet<V>(obj: Record<string, V>, key: string, fallback?: V): V | undefined {
+  if (typeof obj !== 'object' || obj === null) return fallback;
   return Object.prototype.hasOwnProperty.call(obj, key) ? Reflect.get(obj, key) : fallback;
 }
 
@@ -126,8 +127,18 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
         return { valid: false, error: `Only http:// and https:// protocols are allowed (got: ${trimmed})` };
       }
       const hostname = parsed.hostname.toLowerCase();
-      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '0.0.0.0' ||
+        hostname === '::1' ||
+        hostname === '[::1]' ||
+        hostname.includes('::1')
+      ) {
         return { valid: false, error: 'Localhost and loopback addresses are not allowed' };
+      }
+      if (/^169\.254\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+        return { valid: false, error: 'Link-local addresses (169.254.x.x) are not allowed' };
       }
       if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
         return { valid: false, error: 'Private IP ranges (10.x.x.x) are not allowed' };

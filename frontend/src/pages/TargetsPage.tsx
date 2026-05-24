@@ -58,7 +58,7 @@ function hasActiveFilters(f: TargetFilters): boolean {
 function targetHasSeverity(t: Target, severities: Set<string>): boolean {
   if (severities.size === 0) return true;
   for (const sev of severities) {
-    if (((Reflect.get(t.severity_counts || {}, sev) as number | undefined) || 0) > 0) return true;
+    if (Number(Reflect.get(t.severity_counts || {}, sev) ?? 0) > 0) return true;
   }
   return false;
 }
