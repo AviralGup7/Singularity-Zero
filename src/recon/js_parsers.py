@@ -127,6 +127,50 @@ def _extract_script_urls_from_html(
     return urls
 
 
+# Patterns for AST-like extraction of dynamic and parameterized routes
+_TEMPLATE_LITERAL_RE = re.compile(r"`([^`\n]*?\$\{[^`\n]+?\}[^`\n]*?)`")
+_AXIOS_FETCH_RE = re.compile(
+    r"(?:\b(?:axios(?:\.get|\.post|\.put|\.delete|\.patch)?|fetch)|\$\.ajax|\$\.get|\$\.post)\(\s*['\"`]([^'\"`\s)]+)['\"`]",
+    re.IGNORECASE
+)
+_CONCAT_ROUTE_RE = re.compile(
+    r"['\"](/[a-zA-Z0-9_\-/]+)['\"]\s*\+\s*[a-zA-Z0-9_]+(?:[a-zA-Z0-9_\-\s+]*['\"]([a-zA-Z0-9_\-/]*)['\"])?"
+)
+
+
+def _extract_js_ast_endpoints(content: str) -> set[str]:
+    """Identify template literals and Axios/Fetch patterns to extract parameterized/dynamic routes.
+
+    Args:
+        content: Raw JavaScript content.
+
+    Returns:
+        Set of relative or absolute candidate routes.
+    """
+    candidates: set[str] = set()
+
+    # 1. Parse template literals and replace `${var}` placeholders with `{param}`
+    for match in _TEMPLATE_LITERAL_RE.finditer(content):
+        raw_literal = match.group(1)
+        normalized = re.sub(r"\$\{[^}]+\}", "{param}", raw_literal)
+        candidates.add(normalized)
+
+    # 2. Capture routes inside axios/fetch/ajax invocations
+    for match in _AXIOS_FETCH_RE.finditer(content):
+        raw_route = match.group(1)
+        normalized = re.sub(r"\$\{[^}]+\}", "{param}", raw_route)
+        candidates.add(normalized)
+
+    # 3. Handle simple string concatenations like '/api/v1/' + userId
+    for match in _CONCAT_ROUTE_RE.finditer(content):
+        prefix = match.group(1).rstrip("/")
+        suffix = match.group(2) or ""
+        normalized = f"{prefix}/{{param}}{suffix}"
+        candidates.add(normalized)
+
+    return candidates
+
+
 def _extract_js_candidate_urls(
     content: str,
     base_url: str,
@@ -152,4 +196,18 @@ def _extract_js_candidate_urls(
         absolute = _candidate_to_absolute_url(raw, base_url)
         if absolute and _is_in_scope_url(absolute, scope_roots):
             discovered.add(absolute)
+
+    # Deep AST/Dynamic patterns extraction
+    ast_candidates = _extract_js_ast_endpoints(content)
+    for raw in ast_candidates:
+        # Replace '{param}' with a valid alphanumeric placeholder to bypass standard filters
+        safe_placeholder = "PARAMPLACEHOLDER"
+        safe_raw = raw.replace("{param}", safe_placeholder)
+        absolute = _candidate_to_absolute_url(safe_raw, base_url)
+        if absolute and _is_in_scope_url(absolute, scope_roots):
+            # Restore the `{param}` syntax in the resolved absolute URL
+            restored = absolute.replace(safe_placeholder, "{param}")
+            discovered.add(restored)
+
     return discovered
+
