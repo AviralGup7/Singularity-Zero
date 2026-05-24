@@ -21,6 +21,7 @@ export const LogLine = memo(function LogLine({ line, index, style }: LogLineProp
 });
 
 function classifyLogLine(line: string): string {
+  if (typeof line !== 'string') return 'log-line';
   const lower = line.toLowerCase();
   if (
     lower.includes('error') ||

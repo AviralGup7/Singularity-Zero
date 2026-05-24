@@ -156,8 +156,8 @@ class NotificationDigest {
     };
 
     for (const item of items) {
-      if (item.severity && Object.prototype.hasOwnProperty.call(counts, item.severity)) {
-        Reflect.set(counts, item.severity, (Reflect.get(counts, item.severity) as number) + 1);
+      if (item.severity && item.severity in counts) {
+        counts[item.severity] += 1;
       }
     }
 
@@ -174,7 +174,8 @@ class NotificationDigest {
     ];
 
     for (const level of priority) {
-      if ((Reflect.get(counts, level) as number) > 0) {
+      // eslint-disable-next-line security/detect-object-injection
+      if (counts[level] > 0) {
         return level;
       }
     }
