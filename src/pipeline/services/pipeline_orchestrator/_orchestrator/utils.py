@@ -509,7 +509,7 @@ async def record_stage_post_run(
         if getrusage is not None and rusage_self is not None:
             mem_usage = getrusage(rusage_self).ru_maxrss / 1024
             ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
-    except ImportError, AttributeError:
+    except (ImportError, AttributeError):
         pass
 
     try:

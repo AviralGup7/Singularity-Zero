@@ -466,7 +466,7 @@ def build_report_library(output_root: Path) -> dict[str, Any]:
                 continue
             try:
                 summary = json.loads(summary_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError, OSError:
+            except (json.JSONDecodeError, OSError):
                 summary = {}
             manifest_path = run_dir / "report_manifest.json"
             manifest = {}
