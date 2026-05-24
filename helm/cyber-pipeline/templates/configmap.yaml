@@ -5,7 +5,6 @@ metadata:
   labels:
     {{- include "cyber-pipeline.labels" . | nindent 4 }}
 data:
-  APP_SECRET_KEY: {{ .Values.config.appSecretKey | quote }}
   APP_ENV: {{ .Values.config.appEnv | quote }}
   APP_DEBUG: {{ .Values.config.appDebug | quote }}
   CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
