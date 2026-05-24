@@ -163,3 +163,6 @@ src/dashboard/output/_launcher/
 !src/dashboard/output/_launcher/70771cc8/**
 !src/dashboard/output/_launcher/a0b71b8e/
 !src/dashboard/output/_launcher/a0b71b8e/**
+
+# Generated Cython C source files
+src/core/frontier/_state_cython.c
