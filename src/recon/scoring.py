@@ -439,6 +439,7 @@ def rank_urls(
 
         # Integrate CVPS (Contextual Vulnerability Priority Scoring)
         from src.recon.cvps import compute_cvps_score
+
         parsed_port = urlparse(url).port or 443
         cvps_boost = compute_cvps_score(url, parsed_port, active_profile)
 

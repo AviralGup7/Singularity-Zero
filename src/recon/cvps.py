@@ -13,11 +13,13 @@ from urllib.parse import urlparse
 # Parameters containing highly sensitive or critical data vectors
 _SENSITIVE_PARAM_RE = re.compile(
     r"(?:\b|_)(?:ssn|card|credit|pass|pwd|secret|token|auth|key|admin|priv|salary|billing|invoice|api_key|uuid)(?:\b|_)",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
 
-def compute_cvps_score(url: str, port: int = 443, context_profile: dict[str, Any] | None = None) -> float:
+def compute_cvps_score(
+    url: str, port: int = 443, context_profile: dict[str, Any] | None = None
+) -> float:
     """Calculate the Contextual Vulnerability Priority Score (CVPS) for a URL.
 
     Args:
@@ -46,11 +48,17 @@ def compute_cvps_score(url: str, port: int = 443, context_profile: dict[str, Any
             score_boost += 2.5
 
     # 3. Target profile heavy alignment bonuses
-    if profile.get("api_heavy", False) and any(t in path for t in {"/api/", "/v1/", "/v2/", "/v3/"}):
+    if profile.get("api_heavy", False) and any(
+        t in path for t in {"/api/", "/v1/", "/v2/", "/v3/"}
+    ):
         score_boost += 3.5
-    if profile.get("auth_heavy", False) and any(t in path for t in {"login", "auth", "token", "session"}):
+    if profile.get("auth_heavy", False) and any(
+        t in path for t in {"login", "auth", "token", "session"}
+    ):
         score_boost += 4.5
-    if profile.get("file_heavy", False) and any(t in path for t in {"upload", "download", "file", "export"}):
+    if profile.get("file_heavy", False) and any(
+        t in path for t in {"upload", "download", "file", "export"}
+    ):
         score_boost += 3.0
 
     return round(score_boost, 2)

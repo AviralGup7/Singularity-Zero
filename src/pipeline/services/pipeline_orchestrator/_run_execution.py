@@ -72,9 +72,12 @@ async def execute_remaining_stages(
         # ──────────────────────────────────────────────────────────
         try:
             from src.core.hot_reload import HotReloadManager
+
             reload_mgr = HotReloadManager(config.output_dir)
             if active_tier and reload_mgr.check_suspend_trigger(config.target_name, active_tier[0]):
-                logger.warning("Pipeline paused cleanly via suspend trigger. Exiting stage execution loop.")
+                logger.warning(
+                    "Pipeline paused cleanly via suspend trigger. Exiting stage execution loop."
+                )
                 return 0  # Exits cleanly with status 0, ready to recover from checkpoints
         except Exception as exc:
             logger.warning("Failed to check suspend trigger: %s", exc)
