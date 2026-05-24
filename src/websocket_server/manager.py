@@ -6,6 +6,7 @@ stale connections, and configurable connection limits.
 """
 
 import asyncio
+import itertools
 import threading
 import time
 from dataclasses import dataclass, field
@@ -47,7 +48,7 @@ class ConnectionInfo:
     groups: set[str] = field(default_factory=set)
     _message_queue: asyncio.Queue[str] | None = field(default=None, repr=False)  # Fix #309
     sequence_generator: Any = field(
-        default_factory=lambda: __import__("itertools").count()
+        default_factory=itertools.count
     )  # Fix #310
     _sequence_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     max_queue_size: int = field(default=256)

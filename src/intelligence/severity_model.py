@@ -97,7 +97,7 @@ def score_from_severity(severity: object) -> float:
 def _numeric(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default
 
 

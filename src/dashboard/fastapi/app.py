@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import sys
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -562,7 +563,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         return {
             "version": "2.0.0",
             "build": os.getenv("BUILD_SHA", "dev"),
-            "python": f"{__import__('sys').version_info.major}.{__import__('sys').version_info.minor}.{__import__('sys').version_info.micro}",
+            "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "boot_time": _START_TIME,
             "uptime_seconds": round(time.time() - (_START_TIME or time.time()), 1),
         }

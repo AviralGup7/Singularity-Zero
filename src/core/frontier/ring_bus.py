@@ -115,6 +115,35 @@ class FrontierRingBus:
             # Tiny yield to allow event producers to catch up
             await asyncio.sleep(0)
 
+        # Process any remaining events in the buffer after running is set to False
+        while True:
+            with self._lock:
+                if not self._buffer:
+                    break
+                batch_size = min(len(self._buffer), 100)
+                events = [self._buffer.popleft() for _ in range(batch_size)]
+
+            for event in events:
+                specific = self._subscribers.get(event.type, [])
+                wildcard = self._subscribers.get("*", [])
+                handlers = list(specific) + list(wildcard)
+
+                for handler in handlers:
+                    try:
+                        if asyncio.iscoroutinefunction(handler):
+                            task = asyncio.create_task(handler(event))
+                            self._pending_tasks.add(task)
+                            task.add_done_callback(self._pending_tasks.discard)
+                            task.add_done_callback(self._handle_task_result)
+                        else:
+                            handler(event)
+                    except Exception as e:
+                        logger.error("Bus handler failure in shutdown: %s", e)
+
+        # Wait for all pending async task handlers to finish
+        if self._pending_tasks:
+            await asyncio.gather(*self._pending_tasks, return_exceptions=True)
+
     def _handle_task_result(self, task: asyncio.Task) -> None:
         """Handle exceptions in fire-and-forget tasks."""
         try:

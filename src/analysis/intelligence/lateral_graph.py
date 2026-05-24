@@ -29,7 +29,7 @@ def _cypher_string(value: object) -> str:
     # SEC-6: Apply strict regex allowlist to prevent Cypher injection
     if not re.match(r"^[a-zA-Z0-9._:-]+$", val_str):
         # Fallback to hashed value if it contains bad chars
-        return "safe_" + hashlib.md5(val_str.encode()).hexdigest()
+        return "safe_" + hashlib.md5(val_str.encode()).hexdigest()  # nosec B324  # noqa: S324
     return val_str
 
 
@@ -80,7 +80,7 @@ class LateralGraph:
         """Ingest an asset and its finding into the graph."""
         if not self._conn:
             return
-        fid = _cypher_string(finding["id"])
+        fid = _cypher_string(finding.get("id", "unknown"))
         asset = _cypher_string(asset_id)
         severity = _cypher_string(finding.get("severity", "info"))
         finding_type = str(finding.get("type", "")).lower()

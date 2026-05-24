@@ -484,7 +484,7 @@ class GhostMeshCoordinator:
                     )
                     if not health.get("evacuation_recommended"):
                         return False
-                except pykka.Timeout, Exception:
+                except (pykka.Timeout, Exception):
                     return False
 
             try:
