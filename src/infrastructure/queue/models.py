@@ -6,6 +6,7 @@ QueueConfig with full type safety and validation.
 
 from __future__ import annotations
 
+import platform
 import time
 import uuid
 from enum import StrEnum
@@ -52,8 +53,8 @@ class ResourceProfile(BaseModel):
     disk_gb_free: float = Field(
         default_factory=lambda: psutil.disk_usage("/").free / (1024**3) if psutil else 0.0
     )
-    platform: str = Field(default_factory=lambda: __import__("platform").system())
-    python_version: str = Field(default_factory=lambda: __import__("platform").python_version())
+    platform: str = Field(default_factory=platform.system)
+    python_version: str = Field(default_factory=platform.python_version)
 
     @classmethod
     def detect(cls) -> ResourceProfile:

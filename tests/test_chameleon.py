@@ -19,7 +19,12 @@ def test_wrap_polymorphic_request():
     assert req["timeout"] >= 10.0
 
 
-def test_chameleon_diverse_noise_headers():
+def test_chameleon_diverse_noise_headers(monkeypatch):
+    # Mock secrets.randbelow to ensure noise_chance is exceeded (e.g. returns 8 > 6)
+    # and choice is deterministic
+    import secrets
+    monkeypatch.setattr(secrets, "randbelow", lambda n: n - 1)  # always returns max possible, which is > 6
+
     chameleon = RequestChameleon()
     base_headers = {"Host": "example.com"}
 
@@ -34,18 +39,13 @@ def test_chameleon_diverse_noise_headers():
         "X-Telemetry-ID",
     }
 
+    mutated = chameleon.mutate_headers(base_headers)
     found_any = False
-    # Run multiple times to trigger the 30% random noise injection
-    for _ in range(50):
-        mutated = chameleon.mutate_headers(base_headers)
-        # Find any keys that look like <prefix>-<num>
-        for key in mutated.keys():
-            if "-" in key:
-                prefix = key.rsplit("-", 1)[0]
-                if prefix in noise_prefixes:
-                    found_any = True
-                    break
-        if found_any:
-            break
+    for key in mutated.keys():
+        if "-" in key:
+            prefix = key.rsplit("-", 1)[0]
+            if prefix in noise_prefixes:
+                found_any = True
+                break
 
     assert found_any, "Did not inject any polymorphic noise headers from the diverse pool"

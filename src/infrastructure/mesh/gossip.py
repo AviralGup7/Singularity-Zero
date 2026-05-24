@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def _env_int(name: str, default: int, minimum: int = 1) -> int:
     try:
         return max(minimum, int(os.getenv(name, str(default))))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         logger.warning("Invalid %s value; using %d", name, default)
         return default
 

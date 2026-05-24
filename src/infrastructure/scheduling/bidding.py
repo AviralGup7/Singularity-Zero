@@ -23,7 +23,7 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         if value is None or value == "":
             return default
         return float(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default
 
 

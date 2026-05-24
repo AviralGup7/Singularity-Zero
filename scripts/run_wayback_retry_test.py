@@ -26,15 +26,25 @@ def fake_get(url: str, params: Any = None, timeout: Any = None, **kwargs: Any) -
     return _MockResp(payload)
 
 
-# Monkeypatch requests.get
-requests.get = cast(Any, fake_get)
+def _run() -> None:
+    # Save original requests.get
+    orig_get = requests.get
+    # Monkeypatch requests.get
+    requests.get = cast(Any, fake_get)
+    try:
+        urls, meta = wayback.collect_for_hosts(
+            ["example.com"], timeout_seconds=5, per_host_limit=10, max_workers=1
+        )
 
-urls, meta = wayback.collect_for_hosts(
-    ["example.com"], timeout_seconds=5, per_host_limit=10, max_workers=1
-)
+        print("calls=", calls["n"])
+        print("meta=", meta)
+        print("sample_urls=", list(urls)[:5])
 
-print("calls=", calls["n"])
-print("meta=", meta)
-print("sample_urls=", list(urls)[:5])
+        sys.exit(0 if meta.get("status") == "ok" else 2)
+    finally:
+        # Safely restore original requests.get
+        requests.get = orig_get
 
-sys.exit(0 if meta.get("status") == "ok" else 2)
+
+if __name__ == "__main__":
+    _run()
