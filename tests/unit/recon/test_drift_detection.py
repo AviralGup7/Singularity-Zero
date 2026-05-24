@@ -19,7 +19,7 @@ def test_drift_detector_snapshots_and_deltas():
             "subdomains": ["admin.test-target.com", "www.test-target.com"],
             "live_hosts": ["www.test-target.com"],
             "open_ports": ["www.test-target.com:443"],
-            "urls": ["https://www.test-target.com/index.html"]
+            "urls": ["https://www.test-target.com/index.html"],
         }
 
         drift1 = detector.compute_drift(target, baseline)
@@ -31,10 +31,13 @@ def test_drift_detector_snapshots_and_deltas():
 
         # 2. Second run (introducing drift: added and removed elements)
         current = {
-            "subdomains": ["api.test-target.com", "www.test-target.com"],  # admin removed, api added
-            "live_hosts": ["www.test-target.com", "api.test-target.com"],   # api added
+            "subdomains": [
+                "api.test-target.com",
+                "www.test-target.com",
+            ],  # admin removed, api added
+            "live_hosts": ["www.test-target.com", "api.test-target.com"],  # api added
             "open_ports": ["www.test-target.com:443", "api.test-target.com:80"],  # api:80 added
-            "urls": []  # URL removed
+            "urls": [],  # URL removed
         }
 
         drift2 = detector.compute_drift(target, current)

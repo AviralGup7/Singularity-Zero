@@ -18,12 +18,16 @@ def test_parameterize_path():
     assert params1 == ["id1"]
 
     # Test 2: UUID parameterization
-    path2, params2 = reconstructor.parameterize_path("/api/v2/items/a8e0f54b-d72e-4b68-80f5-51523ccdf2a1")
+    path2, params2 = reconstructor.parameterize_path(
+        "/api/v2/items/a8e0f54b-d72e-4b68-80f5-51523ccdf2a1"
+    )
     assert path2 == "/api/v2/items/{uuid1}"
     assert params2 == ["uuid1"]
 
     # Test 3: Mixed parameterization
-    path3, params3 = reconstructor.parameterize_path("/api/v1/users/456/photos/e8b0f54b-1234-5678-abcd-1234567890ab")
+    path3, params3 = reconstructor.parameterize_path(
+        "/api/v1/users/456/photos/e8b0f54b-1234-5678-abcd-1234567890ab"
+    )
     assert path3 == "/api/v1/users/{id1}/photos/{uuid2}"
     assert params3 == ["id1", "uuid2"]
 
