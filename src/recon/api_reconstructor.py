@@ -104,27 +104,33 @@ class ApiSchemaReconstructor:
 
                 # Construct path parameter schema
                 for param in path_params:
-                    paths_dict[parameterized]["parameters"].append({
-                        "name": param,
-                        "in": "path",
-                        "required": True,
-                        "schema": {"type": "string"},
-                        "description": f"Extracted dynamic {param} parameter",
-                    })
+                    paths_dict[parameterized]["parameters"].append(
+                        {
+                            "name": param,
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                            "description": f"Extracted dynamic {param} parameter",
+                        }
+                    )
 
             # Process query parameters
             query_params = parse_qsl(parsed.query)
             for key, _ in query_params:
                 # Avoid duplicate query parameters
-                existing = [p["name"] for p in paths_dict[parameterized]["parameters"] if p["in"] == "query"]
+                existing = [
+                    p["name"] for p in paths_dict[parameterized]["parameters"] if p["in"] == "query"
+                ]
                 if key not in existing:
-                    paths_dict[parameterized]["parameters"].append({
-                        "name": key,
-                        "in": "query",
-                        "required": False,
-                        "schema": {"type": "string"},
-                        "description": "Extracted dynamic query parameter",
-                    })
+                    paths_dict[parameterized]["parameters"].append(
+                        {
+                            "name": key,
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "string"},
+                            "description": "Extracted dynamic query parameter",
+                        }
+                    )
 
         # Format inside the final OpenAPI Paths property
         for path_route, details in paths_dict.items():
