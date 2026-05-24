@@ -27,8 +27,8 @@ class RemediationPatchGenerator:
                 "description": "Ensure all database inputs are parameterized instead of using dynamic string concatenation.",
                 "remediation_code": (
                     "# Python DB-API Parameterized Query Patch Example\n"
-                    "cursor.execute(\"SELECT * FROM users WHERE username = %s AND role = %s\", (user_input, role))"
-                )
+                    'cursor.execute("SELECT * FROM users WHERE username = %s AND role = %s", (user_input, role))'
+                ),
             }
         elif "xss" in cat_lower or "cross_site_scripting" in cat_lower:
             return {
@@ -37,7 +37,7 @@ class RemediationPatchGenerator:
                 "remediation_code": (
                     "<!-- HTML Output Escaping Patch Example -->\n"
                     "<div><%= html_escape(user_input) %></div>"
-                )
+                ),
             }
         elif "cors" in cat_lower or "cross_origin" in cat_lower:
             return {
@@ -47,7 +47,7 @@ class RemediationPatchGenerator:
                     "# Secure Web Server Header Configuration Patch Example\n"
                     "Access-Control-Allow-Origin: https://trusted-origin.example.com\n"
                     "Access-Control-Allow-Credentials: true"
-                )
+                ),
             }
         elif "csrf" in cat_lower:
             return {
@@ -56,7 +56,7 @@ class RemediationPatchGenerator:
                 "remediation_code": (
                     "# Secure Cookie Headers Patch Example\n"
                     "Set-Cookie: session_id=abc123; Secure; HttpOnly; SameSite=Strict"
-                )
+                ),
             }
 
         # Default fallback
@@ -67,7 +67,7 @@ class RemediationPatchGenerator:
                 "# Secure Parameter Input Validator\n"
                 "if not is_valid_input(user_input):\n"
                 "    raise ValueError('Insecure characters detected')"
-            )
+            ),
         }
 
     def generate_patches(self, target: str, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -86,15 +86,17 @@ class RemediationPatchGenerator:
             seen_categories.add(cat_key)
 
             template = self.get_patch_template(category)
-            patches.append({
-                "target": target,
-                "category": category,
-                "title": template["title"],
-                "description": template["description"],
-                "vulnerability": finding.get("title", "Detected vulnerability"),
-                "severity": finding.get("severity", "medium"),
-                "remediation_code": template["remediation_code"]
-            })
+            patches.append(
+                {
+                    "target": target,
+                    "category": category,
+                    "title": template["title"],
+                    "description": template["description"],
+                    "vulnerability": finding.get("title", "Detected vulnerability"),
+                    "severity": finding.get("severity", "medium"),
+                    "remediation_code": template["remediation_code"],
+                }
+            )
 
         # Write patch spec output file
         patches_path = self.output_dir / "remediation_patches.json"

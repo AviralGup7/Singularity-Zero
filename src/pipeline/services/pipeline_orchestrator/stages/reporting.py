@@ -203,6 +203,7 @@ async def run_reporting(
         # ──────────────────────────────────────────────────────────
         try:
             from src.reporting.remediation_patches import RemediationPatchGenerator
+
             patch_gen = RemediationPatchGenerator(ctx.output_store.run_dir)
             patches = patch_gen.generate_patches(config.target_name, ctx.reportable_findings)
             logger.info("Successfully compiled %d actionable remediation patches", len(patches))
