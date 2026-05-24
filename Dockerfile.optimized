@@ -4,7 +4,19 @@
 # ──────────────────────────────────────────────────────────────────────
 
 # ──────────────────────────────────────────────────────────────────────
-# Stage 1: Build dependencies
+# Stage 1: Build Frontend
+# ──────────────────────────────────────────────────────────────────────
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /app/frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+# ──────────────────────────────────────────────────────────────────────
+# Stage 2: Build Python dependencies
 # ──────────────────────────────────────────────────────────────────────
 FROM python:3.14-slim-bookworm AS builder
 
@@ -35,7 +47,7 @@ RUN pip install --upgrade pip && \
     pip install .
 
 # ──────────────────────────────────────────────────────────────────────
-# Stage 2: Production runtime
+# Stage 3: Production runtime
 # ──────────────────────────────────────────────────────────────────────
 FROM python:3.14-slim-bookworm AS production
 
@@ -83,38 +95,18 @@ WORKDIR ${APP_HOME}
 RUN mkdir -p ${APP_HOME}/output ${APP_HOME}/data ${APP_HOME}/logs ${APP_HOME}/nuclei-templates && \
     chown -R ${APP_USER}:${APP_GROUP} ${APP_HOME}
 
-# Copy application code (after dependencies for better caching)
-COPY --chown=${APP_USER}:${APP_GROUP} . ${APP_HOME}/
+# Copy application code securely (only copy required source folders, never copy local secrets)
+COPY --chown=${APP_USER}:${APP_GROUP} src/ ${APP_HOME}/src/
+COPY --chown=${APP_USER}:${APP_GROUP} configs/ ${APP_HOME}/configs/
+COPY --chown=${APP_USER}:${APP_GROUP} alembic/ ${APP_HOME}/alembic/
+COPY --chown=${APP_USER}:${APP_GROUP} alembic.ini pyproject.toml README.md ${APP_HOME}/
 
-# Remove unnecessary files
-RUN rm -rf \
-    .git \
-    .github \
-    .kilo \
-    .venv \
-    .venv312 \
-    .venv314 \
-    .mypy_cache \
-    .pytest_cache \
-    .ruff_cache \
-    .hypothesis \
-    .tools \
-    tests \
-    __pycache__ \
-    .secrets.baseline \
-    mutmut_config.ini \
-    pyrightconfig.json \
-    .dockerignore \
-    .gitignore \
-    .pre-commit-config.yaml \
-    || true
+# Copy built frontend assets from builder stage
+COPY --from=frontend-builder --chown=${APP_USER}:${APP_GROUP} /app/frontend/dist ${APP_HOME}/frontend/dist
 
-# Find and remove all __pycache__ directories and .pyc files
+# Find and remove all __pycache__ directories and .pyc files (just in case)
 RUN find ${APP_HOME} -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 RUN find ${APP_HOME} -type f -name "*.pyc" -delete 2>/dev/null || true
-
-# Set ownership
-RUN chown -R ${APP_USER}:${APP_GROUP} ${APP_HOME}
 
 # Switch to non-root user
 USER ${APP_USER}

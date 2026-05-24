@@ -58,6 +58,11 @@ spec:
       containers:
         - name: dashboard
           image: cyber-pipeline:2.0.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           imagePullPolicy: Always
           command:
             - "uvicorn"

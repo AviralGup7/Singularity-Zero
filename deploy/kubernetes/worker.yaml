@@ -40,6 +40,11 @@ spec:
       containers:
         - name: worker
           image: cyber-pipeline:2.0.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           imagePullPolicy: Always
           command:
             - "python"

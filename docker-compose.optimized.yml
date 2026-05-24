@@ -128,8 +128,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.optimized
-      args:
-        - APP_SECRET_KEY=${APP_SECRET_KEY}
     container_name: cyber-pipeline-dashboard
     command: >
       uvicorn src.dashboard.fastapi.main:app
