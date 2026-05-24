@@ -185,6 +185,12 @@ export function UrlCollectionSystem() {
         continue;
       }
 
+      const postValidation = validateUrl(normalized);
+      if (!postValidation.valid) {
+        invalid.push(`${candidate} (Normalized validation failed: ${postValidation.error || 'Invalid URL'})`);
+        continue;
+      }
+
       if (existing.has(normalized) || seenInBatch.has(normalized)) {
         duplicates += 1;
         continue;

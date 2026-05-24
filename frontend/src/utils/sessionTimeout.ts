@@ -160,6 +160,9 @@ export function getSessionManager(): SessionManager | null {
 }
 
 export function isSessionLocked(): boolean {
+  if (sessionManagerInstance) {
+    return sessionManagerInstance.isSessionLocked();
+  }
   return localStorage.getItem(`${SESSION_STORAGE_KEY}:locked`) === 'true';
 }
 

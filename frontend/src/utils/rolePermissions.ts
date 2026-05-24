@@ -62,8 +62,17 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
 const STORAGE_KEY = 'cyber-pipeline-user-role';
 const STORAGE_INTEGRITY_KEY = 'cyber-pipeline-user-role-integrity';
 
+function getSessionSalt(): string {
+  let salt = sessionStorage.getItem('cyber-pipeline-role-salt');
+  if (!salt) {
+    salt = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+    sessionStorage.setItem('cyber-pipeline-role-salt', salt);
+  }
+  return salt;
+}
+
 function computeIntegrityHash(role: string): string {
-  return btoa(role + '-cyber-pipeline-secret-2024');
+  return btoa(role + '-' + getSessionSalt());
 }
 
 export function getCurrentRole(): UserRole {
