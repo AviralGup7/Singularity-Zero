@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFindingsSummary } from '../api/client';
 import type { FindingsSummary } from '@/types/api';
@@ -78,11 +78,11 @@ export default function FindingsOverview() {
           role="button"
           tabIndex={0}
         >
-          <Shield className="absolute -right-4 -bottom-4 w-24 h-24 text-white/5 group-hover:text-white/10 transition-all" />
+          <Shield className="absolute -right-4 -bottom-4 w-24 h-24 text-[var(--text-primary)]/5 group-hover:text-[var(--text-primary)]/10 transition-all" />
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
             <Zap size={12} className="text-accent" /> Findings
           </div>
-          <div className="text-3xl font-black text-white">{metrics.total}</div>
+          <div className="text-3xl font-black text-[var(--text-primary)]">{metrics.total}</div>
           <div className="text-[10px] text-muted mt-1 uppercase tracking-tighter">Verified intelligence points</div>
         </div>
 
@@ -94,11 +94,11 @@ export default function FindingsOverview() {
           role="button"
           tabIndex={0}
         >
-          <Target className="absolute -right-4 -bottom-4 w-24 h-24 text-white/5 group-hover:text-white/10 transition-all" />
+          <Target className="absolute -right-4 -bottom-4 w-24 h-24 text-[var(--text-primary)]/5 group-hover:text-[var(--text-primary)]/10 transition-all" />
           <div className="flex items-center gap-2 text-muted text-[10px] font-black uppercase tracking-widest mb-1">
             <Activity size={12} className="text-accent" /> Scan Coverage
           </div>
-          <div className="text-3xl font-black text-white">{metrics.coverage}</div>
+          <div className="text-3xl font-black text-[var(--text-primary)]">{metrics.coverage}</div>
           <div className="text-[10px] text-muted mt-1 uppercase tracking-tighter">Targets with active findings</div>
         </div>
 
@@ -163,12 +163,12 @@ export default function FindingsOverview() {
                 <div className="relative w-full flex flex-col justify-end h-full">
                   <div className={`w-full rounded-t-lg transition-all duration-700 group-hover:scale-x-110 ${Reflect.get(colors, sev)}`} 
                        style={{ height: `${Math.max(5, height)}%` }}>
-                    <div className="opacity-0 group-hover:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-white transition-opacity">
+                    <div className="opacity-0 group-hover:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-[var(--text-primary)] transition-opacity">
                       {count}
                     </div>
                   </div>
                 </div>
-                <span className="text-[9px] font-black text-muted uppercase tracking-widest group-hover:text-white transition-colors">{sev}</span>
+                <span className="text-[9px] font-black text-muted uppercase tracking-widest group-hover:text-[var(--text-primary)] transition-colors">{sev}</span>
               </div>
             );
           })}

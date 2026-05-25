@@ -110,16 +110,20 @@ function LaneGuides() {
 function GraphNodes({
   nodes,
   selectedNodeId,
+  hoveredNodeId,
   onSelectNode,
   onHoverNode,
 }: {
   nodes: PositionedNode[];
   selectedNodeId: string | null;
+  hoveredNodeId: string | null;
   onSelectNode: (id: string) => void;
   onHoverNode: (id: string | null) => void;
 }) {
   const meshRef = useRef<any>(null);
   const pulseRef = useRef<any>(null);
+  const healthRef = useRef<any>(null);
+  const healthBgRef = useRef<any>(null);
   const temp = useMemo(() => new Object3D(), []);
 
   const sphereSegments = useMemo(() => {
@@ -127,22 +131,54 @@ function GraphNodes({
   }, [nodes.length]);
 
   useEffect(() => {
-    if (!meshRef.current || !pulseRef.current) return;
+    if (!meshRef.current || !pulseRef.current || !healthRef.current || !healthBgRef.current) return;
     nodes.forEach((node, index) => {
       const [x, y, z] = node.position;
-      const baseSize = node.type === 'finding' ? 0.78 : node.type === 'subdomain' ? 0.64 : 0.52;
+      const severityScale = node.severity === 'critical' ? 1.6
+        : node.severity === 'high' ? 1.3
+        : node.severity === 'medium' ? 1.05
+        : node.severity === 'low' ? 0.85
+        : 0.7;
+      const baseSize = (node.type === 'finding' ? 0.78 : node.type === 'subdomain' ? 0.64 : 0.52) * severityScale;
       const selected = node.id === selectedNodeId;
-      temp.position.set(x, y, z);
-      temp.scale.setScalar(selected ? baseSize * 1.45 : baseSize);
+      const hovered = node.id === hoveredNodeId;
+
+      // Pulse hover lifts: lift slightly in Y when hovered
+      const posY = hovered ? y + 0.8 : y;
+      const finalScale = selected ? baseSize * 1.45 : hovered ? baseSize * 1.3 : baseSize;
+
+      temp.position.set(x, posY, z);
+      temp.scale.setScalar(finalScale);
       temp.updateMatrix();
       meshRef.current?.setMatrixAt(index, temp.matrix);
       meshRef.current?.setColorAt(index, new Color(SEVERITY_COLORS[node.severity] || SEVERITY_COLORS.info));
 
+      // Selected pulse ring
       temp.scale.setScalar(selected ? baseSize * 2.2 : 0.001);
       temp.updateMatrix();
       pulseRef.current?.setMatrixAt(index, temp.matrix);
       pulseRef.current?.setColorAt(index, new Color('#d8f3ff'));
+
+      // Health bar background track
+      const barY = posY + finalScale + 0.35;
+      const healthVal = nodeHealth(node);
+      
+      temp.position.set(x, barY, z);
+      temp.scale.set(1.2 * finalScale, 1, 1);
+      temp.updateMatrix();
+      healthBgRef.current?.setMatrixAt(index, temp.matrix);
+
+      // Active health bar
+      temp.position.set(x - (1.2 * finalScale * (1 - healthVal)) / 2, barY, z + 0.01);
+      temp.scale.set(1.2 * finalScale * healthVal, 1, 1);
+      temp.updateMatrix();
+      healthRef.current?.setMatrixAt(index, temp.matrix);
+
+      // Health color mapping
+      const healthColor = healthVal < 0.35 ? '#ff2d55' : healthVal < 0.7 ? '#f7b731' : '#10b981';
+      healthRef.current?.setColorAt(index, new Color(healthColor));
     });
+
     meshRef.current.instanceMatrix.needsUpdate = true;
     if (meshRef.current.instanceColor) {
       meshRef.current.instanceColor.needsUpdate = true;
@@ -151,22 +187,72 @@ function GraphNodes({
     if (pulseRef.current.instanceColor) {
       pulseRef.current.instanceColor.needsUpdate = true;
     }
-  }, [nodes, selectedNodeId, temp]);
+    healthBgRef.current.instanceMatrix.needsUpdate = true;
+    healthRef.current.instanceMatrix.needsUpdate = true;
+    if (healthRef.current.instanceColor) {
+      healthRef.current.instanceColor.needsUpdate = true;
+    }
+  }, [nodes, selectedNodeId, hoveredNodeId, temp]);
 
   useFrame((state) => {
-    if (!pulseRef.current) return;
-    const wave = 1 + Math.sin(state.clock.elapsedTime * 3.4) * 0.1;
+    if (!pulseRef.current || !healthRef.current || !healthBgRef.current) return;
+    const time = state.clock.elapsedTime;
+    const wave = 1 + Math.sin(time * 3.4) * 0.1;
+
     nodes.forEach((node, index) => {
-      if (node.id !== selectedNodeId) return;
-      const [x, y, z] = node.position;
-      const baseSize = node.type === 'finding' ? 0.78 : 0.6;
-      temp.position.set(x, y, z);
-      temp.scale.setScalar(baseSize * 2.1 * wave);
-      temp.updateMatrix();
-      pulseRef.current?.setMatrixAt(index, temp.matrix);
+      const selected = node.id === selectedNodeId;
+      const hovered = node.id === hoveredNodeId;
+
+      if (selected || hovered) {
+        const severityScale = node.severity === 'critical' ? 1.6
+          : node.severity === 'high' ? 1.3
+          : node.severity === 'medium' ? 1.05
+          : node.severity === 'low' ? 0.85
+          : 0.7;
+        const baseSize = (node.type === 'finding' ? 0.78 : node.type === 'subdomain' ? 0.64 : 0.52) * severityScale;
+        const [x, y, z] = node.position;
+
+        const floatOffset = hovered ? Math.sin(time * 5) * 0.15 : 0;
+        const posY = (hovered ? y + 0.8 : y) + floatOffset;
+        const finalScale = (selected ? baseSize * 1.45 : baseSize * 1.3) * wave;
+
+        temp.position.set(x, posY, z);
+        temp.scale.setScalar(finalScale);
+        temp.updateMatrix();
+        meshRef.current?.setMatrixAt(index, temp.matrix);
+
+        if (selected) {
+          temp.scale.setScalar(baseSize * 2.1 * wave);
+          temp.updateMatrix();
+          pulseRef.current?.setMatrixAt(index, temp.matrix);
+        }
+
+        const barY = posY + finalScale + 0.35;
+        const healthVal = nodeHealth(node);
+
+        temp.position.set(x, barY, z);
+        temp.scale.set(1.2 * finalScale, 1, 1);
+        temp.updateMatrix();
+        healthBgRef.current?.setMatrixAt(index, temp.matrix);
+
+        temp.position.set(x - (1.2 * finalScale * (1 - healthVal)) / 2, barY, z + 0.01);
+        temp.scale.set(1.2 * finalScale * healthVal, 1, 1);
+        temp.updateMatrix();
+        healthRef.current?.setMatrixAt(index, temp.matrix);
+      }
     });
-    if (pulseRef.current.instanceMatrix) {
+
+    if (meshRef.current) {
+      meshRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (pulseRef.current) {
       pulseRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (healthBgRef.current) {
+      healthBgRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (healthRef.current) {
+      healthRef.current.instanceMatrix.needsUpdate = true;
     }
   });
 
@@ -179,6 +265,22 @@ function GraphNodes({
       >
         <sphereGeometry args={[0.5, sphereSegments, sphereSegments]} />
         <meshBasicMaterial transparent opacity={0.18} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh
+        ref={healthBgRef}
+        args={[new THREE.BufferGeometry(), new THREE.Material(), Math.max(1, nodes.length)]}
+        frustumCulled={true}
+      >
+        <boxGeometry args={[1, 0.12, 0.12]} />
+        <meshBasicMaterial color="#1a1a2e" transparent opacity={0.3} toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh
+        ref={healthRef}
+        args={[new THREE.BufferGeometry(), new THREE.Material(), Math.max(1, nodes.length)]}
+        frustumCulled={true}
+      >
+        <boxGeometry args={[1, 0.12, 0.12]} />
+        <meshBasicMaterial transparent opacity={0.85} toneMapped={false} />
       </instancedMesh>
       <instancedMesh
         ref={meshRef}
@@ -245,6 +347,7 @@ function Scene({
   nodes,
   edges,
   selectedNodeId,
+  hoveredNodeId,
   onSelectNode,
   onHoverNode,
 }: SceneProps) {
@@ -259,7 +362,13 @@ function Scene({
       <pointLight position={[-18, -10, -18]} intensity={1.1} color="#ff6b35" />
       <LaneGuides />
       <GraphEdges edges={edges} nodes={nodes} />
-      <GraphNodes nodes={nodes} selectedNodeId={selectedNodeId} onSelectNode={onSelectNode} onHoverNode={onHoverNode} />
+      <GraphNodes
+        nodes={nodes}
+        selectedNodeId={selectedNodeId}
+        hoveredNodeId={hoveredNodeId}
+        onSelectNode={onSelectNode}
+        onHoverNode={onHoverNode}
+      />
       <CameraRig selected={selected} />
       <perspectiveCamera makeDefault position={[0, 0, 42]} fov={48} />
       <OrbitRig />

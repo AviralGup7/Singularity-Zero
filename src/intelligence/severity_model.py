@@ -184,7 +184,7 @@ def _load_json(value: object) -> dict[str, Any]:
         return {}
     try:
         loaded = json.loads(str(value))
-    except TypeError, ValueError, json.JSONDecodeError:
+    except (TypeError, ValueError, json.JSONDecodeError):
         return {}
     return loaded if isinstance(loaded, dict) else {}
 

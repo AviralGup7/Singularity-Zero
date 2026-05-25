@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.core.frontier.bloom import NeuralBloomFilter
-from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
+from src.core.frontier.bloom_mesh import BloomMeshSynchronizer, NeuralBloomMesh, ReconcileBloom
 from src.dashboard.fastapi.collaboration import TriageCollaborationService
 from src.dashboard.fastapi.config import DashboardConfig, FeatureFlags
 from src.dashboard.fastapi.middleware import (
@@ -183,7 +183,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         capacity=int(os.getenv("BLOOM_CAPACITY", "1000000")),
         error_rate=float(os.getenv("BLOOM_ERROR_RATE", "0.001")),
     )
-    bloom_mesh = BloomMeshSynchronizer(
+    bloom_mesh = NeuralBloomMesh(
         bloom_filter,
         node_id=node_id,
         redis_url=config.redis_url,
@@ -191,6 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await bloom_mesh.start()
     app.state.bloom_filter = bloom_filter
     app.state.bloom_mesh = bloom_mesh
+    app.state.bloom_reconciler = ReconcileBloom(bloom_mesh)
     app.state.model_registry = ModelVersionRegistry()
 
     async def _pipeline_stage_probe() -> list[HealthMetric]:
@@ -276,7 +277,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         )
 
     async def _flush_bloom(finding: Any) -> CorrectionEvent:
-        details = await bloom_mesh.flush_overflowing_filter(reason="self_healing")
+        details = await app.state.bloom_reconciler.flush(reason="self_healing")
         return CorrectionEvent(
             finding_id=finding.finding_id,
             action=CorrectiveAction.FLUSH_BLOOM_FILTER,

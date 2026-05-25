@@ -274,6 +274,25 @@ export function CockpitPage() {
         };
         setMigrations((prev) => [...prev, migration]);
         toast.info(`Ghost-Actor Migration: ${migration.actor_id} moved to ${migration.target_node}`);
+
+        // Hook real-time Kuzu / telemetry update on migration events
+        cockpitApi.getGraph(target, run, activeJobId || jobId)
+          .then((res) => {
+            applyGraph(res.data);
+          })
+          .catch((err) => console.error('Failed to update graph on migration:', err));
+      } else if (
+        event.event_type === 'finding_batch' ||
+        event.event_type === 'stage_change' ||
+        event.event_type === 'progress_update' ||
+        event.event_type === 'completed'
+      ) {
+        // Hook real-time Kuzu / telemetry updates on active job progression
+        cockpitApi.getGraph(target, run, activeJobId || jobId)
+          .then((res) => {
+            applyGraph(res.data);
+          })
+          .catch((err) => console.error('Failed to update graph on job telemetry:', err));
       }
     },
   });

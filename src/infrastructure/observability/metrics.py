@@ -603,6 +603,7 @@ def register_pipeline_metrics(metrics: MetricsRegistry | None = None) -> None:
     metrics.counter("cache_misses", "Total number of cache misses")
     metrics.counter("retries_total", "Total number of job retries")
     metrics.counter("dead_letter_total", "Total number of dead-lettered jobs")
+    metrics.counter("fp_reduction_total", "Total number of false positive reductions made by ML")
 
     metrics.gauge("active_workers", "Number of currently active workers")
     metrics.gauge("queue_depth", "Current number of pending jobs in queue")

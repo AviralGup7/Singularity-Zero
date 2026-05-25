@@ -340,6 +340,42 @@
   margin-top: 2px;
 }
 
+/* ── Light Mode Auth ─────────────────────────────────────────── */
+[data-theme="light"] .auth-canvas {
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(37,99,235,0.06) 0%, transparent 70%);
+}
+
+[data-theme="light"] .auth-card {
+  background: var(--surface);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .auth-right {
+  background: var(--surface-2);
+}
+
+[data-theme="light"] .scene-grid {
+  background-image:
+    linear-gradient(rgba(37,99,235,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,99,235,0.05) 1px, transparent 1px);
+}
+
+[data-theme="light"] .auth-field {
+  background: var(--surface-2);
+}
+
+[data-theme="light"] .auth-submit {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+[data-theme="light"] .auth-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .auth-card {

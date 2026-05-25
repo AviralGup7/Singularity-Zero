@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyRound, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { PageSkeleton, EmptyState } from '@/components/ui';
 import {
   generateApiKey,
   getApiKeys,
@@ -122,7 +123,7 @@ export function SecurityPage() {
   };
 
   if (loading) {
-    return <div className="p-8 text-muted">Loading security monitor...</div>;
+    return <PageSkeleton />;
   }
 
   return (
@@ -258,6 +259,13 @@ export function SecurityPage() {
                   </td>
                 </tr>
               ))}
+              {apiKeys.length === 0 && (
+                <tr>
+                  <td className="py-8 text-center" colSpan={5}>
+                    <EmptyState title="No active API keys found" description="Select a role above and generate a new secure API key." />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -289,6 +297,13 @@ export function SecurityPage() {
                   <td className="py-2 max-w-[32rem] truncate" title={event.detail}>{event.detail}</td>
                 </tr>
               ))}
+              {events.length === 0 && (
+                <tr>
+                  <td className="py-8 text-center" colSpan={5}>
+                    <EmptyState title="No security events recorded" description="Security enforcement logs and access events will be cataloged here." />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

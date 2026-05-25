@@ -75,12 +75,12 @@ function RiskNode({ position, label, value, color, size = 1, isMain = false }: {
       </Float>
       <Html distanceFactor={10} position={[0, size * 0.6, 0]} center>
         <div className="risk-3d-label" style={{
-          background: 'rgba(11, 23, 40, 0.8)',
+          background: 'var(--glass-bg)',
           backdropFilter: 'blur(4px)',
           border: `1px solid ${color}`,
           padding: '2px 8px',
           borderRadius: '4px',
-          color: 'white',
+          color: 'var(--text-primary)',
           fontSize: isMain ? '14px' : '10px',
           fontWeight: 'bold',
           whiteSpace: 'nowrap',
@@ -385,7 +385,7 @@ export function RiskScorePage() {
                       <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
                       <XAxis dataKey="day" stroke="#8FA3B8" tick={{ fontSize: 11 }} />
                       <YAxis domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-                      <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
+                      <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }} />
                       <Legend />
                       {visibleTargets.slice(0, 6).map((target, index) => (
                         <Line key={target} type="monotone" dataKey={target} stroke={TARGET_COLORS[index % TARGET_COLORS.length]} strokeWidth={2} dot={false} />
@@ -408,7 +408,7 @@ export function RiskScorePage() {
                   <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
                   <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
                   <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
-                  <Tooltip contentStyle={{ background: '#0B1728', border: '1px solid #2D5676', borderRadius: 8 }} />
+                  <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }} />
                   <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
                 </BarChart>
               </ResponsiveContainer>

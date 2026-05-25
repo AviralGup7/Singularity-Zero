@@ -359,9 +359,12 @@ export function GapAnalysisPage() {
             className="bg-panel border border-white/5 p-6 rounded-xl cyber-glow-sm"
           >
             <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Overall Coverage</div>
-            <div className={`text-4xl font-black ${
-              data.overall_coverage > 80 ? 'text-ok' : data.overall_coverage > 50 ? 'text-warn' : 'text-bad'
-            }`}>
+            <div 
+              className={`font-semibold ${
+                data.overall_coverage > 80 ? 'text-ok' : data.overall_coverage > 50 ? 'text-warn' : 'text-bad'
+              }`}
+              style={{ fontSize: 'var(--text-card-value)' }}
+            >
               {data.overall_coverage}%
             </div>
             <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
@@ -381,7 +384,7 @@ export function GapAnalysisPage() {
             className="bg-panel border border-white/5 p-6 rounded-xl"
           >
             <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Module Integrity</div>
-            <div className="text-4xl font-black text-text">
+            <div className="font-semibold text-text" style={{ fontSize: 'var(--text-card-value)' }}>
               {data.total_modules - data.modules_with_gaps}<span className="text-lg text-muted font-normal ml-2">/ {data.total_modules} OK</span>
             </div>
             <div className="text-xs text-muted mt-2 italic">
@@ -396,7 +399,7 @@ export function GapAnalysisPage() {
             className="bg-panel border border-white/5 p-6 rounded-xl"
           >
             <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Identified Gaps</div>
-            <div className={`text-4xl font-black ${data.modules_with_gaps > 0 ? 'text-warn' : 'text-ok'}`}>
+            <div className={`font-semibold ${data.modules_with_gaps > 0 ? 'text-warn' : 'text-ok'}`} style={{ fontSize: 'var(--text-card-value)' }}>
               {data.modules_with_gaps}
             </div>
             <div className="text-xs text-muted mt-2">

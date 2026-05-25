@@ -60,10 +60,10 @@ export function ComplianceDashboard() {
 
   const getMaturityColor = (maturity: string) => {
     switch (maturity) {
-      case 'PASS': return 'text-green-400 border-green-500/30 bg-green-500/5';
-      case 'PARTIAL': return 'text-yellow-400 border-yellow-500/30 bg-yellow-500/5';
+      case 'PASS': return 'text-[var(--ok)] border-[var(--ok)]/30 bg-[var(--ok)]/5';
+      case 'PARTIAL': return 'text-[var(--warn)] border-[var(--warn)]/30 bg-[var(--warn)]/5';
       case 'AT_RISK': return 'text-orange-400 border-orange-500/30 bg-orange-500/5';
-      case 'FAIL': return 'text-red-400 border-red-500/30 bg-red-500/5';
+      case 'FAIL': return 'text-[var(--bad)] border-[var(--bad)]/30 bg-[var(--bad)]/5';
       default: return 'text-muted border-border bg-surface-1';
     }
   };
@@ -118,7 +118,7 @@ export function ComplianceDashboard() {
       </section>
 
       {loading && <div className="card p-12 text-center text-muted">Analyzing regulatory artifacts...</div>}
-      {error && <div className="card p-4 border-red-500/30 bg-red-500/5 text-red-400">{error}</div>}
+      {error && <div className="card p-4 border-[var(--bad)]/30 bg-[var(--bad)]/5 text-[var(--bad)]">{error}</div>}
 
       {report && !loading && (
         <>
@@ -128,19 +128,19 @@ export function ComplianceDashboard() {
               <div key={stat.name} className="card p-4 space-y-3">
                 <div className="flex justify-between items-start">
                   <h3 className="text-xs font-bold uppercase tracking-tight text-muted">{stat.name}</h3>
-                  <span className={`text-lg font-mono font-bold ${stat.score > 80 ? 'text-green-400' : stat.score > 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  <span className={`text-lg font-mono font-bold ${stat.score > 80 ? 'text-[var(--ok)]' : stat.score > 50 ? 'text-[var(--warn)]' : 'text-[var(--bad)]'}`}>
                     {stat.score}%
                   </span>
                 </div>
                 <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden">
                   <div 
-                    className={`h-full transition-all duration-500 ${stat.score > 80 ? 'bg-green-500' : stat.score > 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    className={`h-full transition-all duration-500 ${stat.score > 80 ? 'bg-[var(--ok)]' : stat.score > 50 ? 'bg-[var(--warn)]' : 'bg-[var(--bad)]'}`}
                     style={{ width: `${stat.score}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-[10px] font-mono">
-                  <span className="text-green-400">{stat.passed} PASS</span>
-                  <span className="text-red-400">{stat.failed} FAIL</span>
+                  <span className="text-[var(--ok)]">{stat.passed} PASS</span>
+                  <span className="text-[var(--bad)]">{stat.failed} FAIL</span>
                   <span className="text-muted">{stat.total} TOTAL</span>
                 </div>
               </div>
@@ -160,9 +160,9 @@ export function ComplianceDashboard() {
                     <div 
                       key={cid} 
                       className={`card overflow-hidden transition-all border ${data.maturity !== 'PASS' ? 'border-l-4' : ''} ${
-                        data.maturity === 'FAIL' ? 'border-l-red-500' : 
+                        data.maturity === 'FAIL' ? 'border-l-[var(--bad)]' : 
                         data.maturity === 'AT_RISK' ? 'border-l-orange-500' : 
-                        data.maturity === 'PARTIAL' ? 'border-l-yellow-500' : 'border-border'
+                        data.maturity === 'PARTIAL' ? 'border-l-[var(--warn)]' : 'border-border'
                       }`}
                     >
                       <div 
@@ -197,8 +197,8 @@ export function ComplianceDashboard() {
                                   <div key={f.id} className="text-xs flex items-center justify-between bg-surface-1 p-2 rounded border border-border/30">
                                     <div className="flex items-center gap-2">
                                       <span className={`w-2 h-2 rounded-full ${
-                                        f.severity === 'critical' ? 'bg-red-500' : 
-                                        f.severity === 'high' ? 'bg-orange-500' : 'bg-yellow-500'
+                                        f.severity === 'critical' ? 'bg-[var(--bad)]' : 
+                                        f.severity === 'high' ? 'bg-orange-500' : 'bg-[var(--warn)]'
                                       }`} />
                                       <span className="font-bold">{f.title}</span>
                                       <span className="text-muted truncate max-w-[300px]">{f.url}</span>
@@ -224,7 +224,7 @@ export function ComplianceDashboard() {
 
       {report && report.total_findings === 0 && !loading && (
         <div className="card p-12 text-center space-y-4">
-          <ShieldCheck size={48} className="mx-auto text-green-500 opacity-50" />
+          <ShieldCheck size={48} className="mx-auto text-[var(--ok)] opacity-50" />
           <div>
             <h3 className="text-lg font-bold">Compliant Posture</h3>
             <p className="text-sm text-muted">No security findings were detected for this target across the evaluated frameworks.</p>

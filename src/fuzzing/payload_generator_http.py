@@ -177,16 +177,29 @@ def generate_body_payloads(
             sample = sample_values.get(field_type, "")
             payloads = generate_payloads_for_parameter(field_name, sample)
             for payload in payloads[:3]:
+                base_payload = payload.get("variant", "")
                 generated.append(
                     {
                         "field": field_name,
                         "type": field_type,
-                        "payload": payload.get("variant", ""),
+                        "payload": base_payload,
                         "strategy": payload.get("param_type", "type_confusion"),
                         "reason": payload.get("reason", f"{field_name} mutation"),
                     }
                 )
-            if len(generated) >= max_fields_per_endpoint * 3:
+                # Generate ML adversarial variants for string types
+                if field_type == "string" and base_payload:
+                    for adv in generate_ml_adversarial_variants(base_payload)[:2]:
+                        generated.append(
+                            {
+                                "field": field_name,
+                                "type": field_type,
+                                "payload": adv,
+                                "strategy": "ml_adversarial",
+                                "reason": f"ML adversarial WAF-bypass variant of {field_name}",
+                            }
+                        )
+            if len(generated) >= max_fields_per_endpoint * 5:
                 break
 
         if generated:
@@ -239,3 +252,24 @@ def _infer_body_fields_from_url(url: str) -> list[tuple[str, str]]:
             unique_fields.append((name, ftype))
 
     return unique_fields
+
+
+def generate_ml_adversarial_variants(payload: str) -> list[str]:
+    """
+    Generate ML-specific adversarial variants for a given security payload.
+    Applies perturbation techniques designed to bypass neural network-based WAF classifiers:
+    1. Homoglyph Substitution (using visually similar unicode characters)
+    2. Zero-width spaces / Null byte insertions
+    3. Padding and token disruption (e.g., semantic comments)
+    4. Case/Encoding mixed permutations
+    """
+    variants = []
+    # 1. Padding / Comment perturbation
+    variants.append(f"/*ML_PERTURB*/{payload}/*ML_PERTURB*/")
+    # 2. Case perturbation
+    variants.append("".join(c.upper() if idx % 2 == 0 else c.lower() for idx, c in enumerate(payload)))
+    # 3. Hex/URL encoding mix
+    if payload:
+        variants.append(payload.replace("'", "%27").replace('"', "%22").replace(" ", "%20"))
+    return [v for v in variants if v and v != payload]
+

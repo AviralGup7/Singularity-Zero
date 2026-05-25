@@ -387,7 +387,7 @@ export function JobDetailPage() {
           </div>
 
           {telemetry.learning_feedback && (
-            <div className="mt-4 p-4 bg-accent/5 border border-accent/20 rounded-xl">
+            <div className="card mt-4 p-4">
                <h4 className="text-xs font-black uppercase tracking-widest text-accent mb-2">Neural Engine Feedback</h4>
                <p className="text-xs italic text-muted-foreground leading-relaxed">
                   {typeof telemetry.learning_feedback === 'string' 
