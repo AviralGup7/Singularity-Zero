@@ -377,7 +377,7 @@ export function SettingsPage() {
     <div className="settings-page">
       <Breadcrumbs items={crumbs} />
       <div className="page-header">
-        <h2 data-focus-heading>⚙️ Settings</h2>
+        <h2 data-focus-heading><SettingsIcon size={20} className="inline-block mr-2" /> Settings</h2>
       </div>
 
       {saveConfirmation && <div className="banner ok" role="status">{saveConfirmation}</div>}

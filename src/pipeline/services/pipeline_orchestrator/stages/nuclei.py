@@ -22,9 +22,12 @@ from src.pipeline.services.pipeline_helpers import (
 from src.pipeline.storage import read_lines
 from src.recon import build_nuclei_plan
 
+from src.pipeline.pipeline_logging import instrument
+
 logger = get_pipeline_logger(__name__)
 
 
+@instrument("nuclei")
 async def run_nuclei_stage(
     args: Any,
     config: Any,

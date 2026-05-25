@@ -38,7 +38,7 @@ class BloomNodeHealth:
     stale: bool = False
 
 
-class BloomMeshSynchronizer:
+class NeuralBloomMesh:
     """Synchronize Bloom snapshots across nodes using Redis pub/sub."""
 
     def __init__(
@@ -296,3 +296,22 @@ class BloomMeshSynchronizer:
             }
         )
         del self.saturation_history[:-120]
+
+
+BloomMeshSynchronizer = NeuralBloomMesh
+
+
+class ReconcileBloom:
+    """Coordinator class to reconcile Bloom Snapshots and manage flush loops."""
+
+    def __init__(self, synchronizer: NeuralBloomMesh) -> None:
+        self.synchronizer = synchronizer
+
+    async def reconcile(self, reason: str = "manual_reconcile") -> dict[str, Any]:
+        """Publish an immediate snapshot to all online nodes."""
+        return await self.synchronizer.force_reconcile()
+
+    async def flush(self, reason: str = "self_healing") -> dict[str, Any]:
+        """Clear a saturated local filter and publish a fresh empty snapshot."""
+        return await self.synchronizer.flush_overflowing_filter(reason=reason)
+

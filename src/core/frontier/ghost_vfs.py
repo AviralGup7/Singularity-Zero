@@ -8,6 +8,8 @@ from __future__ import annotations
 import os
 import tempfile
 import time
+import threading
+from typing import Any
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -74,6 +76,8 @@ class GhostVFS:
         self._files: dict[str, bytes] = {}
         self._key = bytearray(AESGCM.generate_key(bit_length=256))
         self._aesgcm = AESGCM(bytes(self._key))
+        self._lock = threading.RLock()
+        self._file_metadata: dict[str, dict[str, Any]] = {}
 
         # Use explicit rotation interval constant if hours not specified
         if rotation_interval_hours is not None:
@@ -107,39 +111,43 @@ class GhostVFS:
         ):
             raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
 
-        # Policy enforcement
-        if not self._policy_engine.is_allowed(self._principal, "write", path):
-            raise PermissionError(
-                f"Ghost-VFS: Principal '{self._principal}' is not allowed to write '{path}'"
+        with self._lock:
+            # Policy enforcement
+            if not self._policy_engine.is_allowed(self._principal, "write", path):
+                raise PermissionError(
+                    f"Ghost-VFS: Principal '{self._principal}' is not allowed to write '{path}'"
+                )
+
+            # Proactive rotation check on write
+            if time.time() - self._last_rotation > self._rotation_interval:
+                self.rotate_key()
+
+            salt = os.urandom(16)
+            hkdf = HKDF(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                info=path.encode("utf-8"),
             )
+            file_key = bytearray(hkdf.derive(bytes(self._key)))
 
-        # Proactive rotation check on write
-        if time.time() - self._last_rotation > self._rotation_interval:
-            self.rotate_key()
+            payload_parts = [salt]
+            try:
+                for idx, chunk in enumerate(stream):
+                    nonce = os.urandom(12)
+                    # Associated data prevents block reordering/injection attacks
+                    aad = f"chunk:{idx}".encode()
+                    ciphertext = AESGCM(bytes(file_key)).encrypt(nonce, chunk, aad)
+                    chunk_payload = nonce + ciphertext
+                    length_bytes = len(chunk_payload).to_bytes(4, byteorder="big")
+                    payload_parts.append(length_bytes + chunk_payload)
+            finally:
+                secure_wipe(file_key)
 
-        salt = os.urandom(16)
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            info=path.encode("utf-8"),
-        )
-        file_key = bytearray(hkdf.derive(bytes(self._key)))
-
-        payload_parts = [salt]
-        try:
-            for idx, chunk in enumerate(stream):
-                nonce = os.urandom(12)
-                # Associated data prevents block reordering/injection attacks
-                aad = f"chunk:{idx}".encode()
-                ciphertext = AESGCM(bytes(file_key)).encrypt(nonce, chunk, aad)
-                chunk_payload = nonce + ciphertext
-                length_bytes = len(chunk_payload).to_bytes(4, byteorder="big")
-                payload_parts.append(length_bytes + chunk_payload)
-        finally:
-            secure_wipe(file_key)
-
-        self._files[path] = b"".join(payload_parts)
+            self._files[path] = b"".join(payload_parts)
+            self._file_metadata[path] = {
+                "created_at": time.time(),
+            }
 
     def read_file(self, path: str) -> bytes:
         """Decrypt and retrieve file from RAM."""
@@ -162,35 +170,39 @@ class GhostVFS:
                 f"Ghost-VFS: Principal '{self._principal}' is not allowed to read '{path}'"
             )
 
-        raw = self._files.get(path)
-        if not raw:
-            raise FileNotFoundError(f"Ghost-VFS: {path} not found")
+        with self._lock:
+            raw = self._files.get(path)
+            if not raw:
+                raise FileNotFoundError(f"Ghost-VFS: {path} not found")
 
-        if len(raw) < 16:
-            raise ValueError("Ghost-VFS: Corrupt virtual file (too small)")
+            if len(raw) < 16:
+                raise ValueError("Ghost-VFS: Corrupt virtual file (too small)")
 
-        salt = raw[:16]
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            info=path.encode("utf-8"),
-        )
-        file_key = bytearray(hkdf.derive(bytes(self._key)))
+            salt = raw[:16]
+            hkdf = HKDF(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                info=path.encode("utf-8"),
+            )
+            file_key = bytearray(hkdf.derive(bytes(self._key)))
 
         try:
             offset = 16
             idx = 0
-            while offset < len(raw):
-                if offset + 4 > len(raw):
-                    raise ValueError("Ghost-VFS: Corrupt chunk length header")
-                length = int.from_bytes(raw[offset : offset + 4], byteorder="big")
-                offset += 4
+            while True:
+                with self._lock:
+                    if offset >= len(raw):
+                        break
+                    if offset + 4 > len(raw):
+                        raise ValueError("Ghost-VFS: Corrupt chunk length header")
+                    length = int.from_bytes(raw[offset : offset + 4], byteorder="big")
+                    offset += 4
 
-                if offset + length > len(raw):
-                    raise ValueError("Ghost-VFS: Corrupt chunk payload")
-                chunk_payload = raw[offset : offset + length]
-                offset += length
+                    if offset + length > len(raw):
+                        raise ValueError("Ghost-VFS: Corrupt chunk payload")
+                    chunk_payload = raw[offset : offset + length]
+                    offset += length
 
                 nonce = chunk_payload[:12]
                 ciphertext = chunk_payload[12:]
@@ -212,74 +224,108 @@ class GhostVFS:
         finally:
             secure_wipe(bytearray(data))
 
+    def delete_file(self, path: str) -> None:
+        """Securely remove a file from RAM and metadata."""
+        with self._lock:
+            if path in self._files:
+                raw = self._files[path]
+                try:
+                    buf = bytearray(raw)
+                    secure_wipe(buf)
+                except Exception as e:
+                    logger.debug("Failed to wipe raw encrypted buffer: %s", e)
+                del self._files[path]
+            if path in self._file_metadata:
+                del self._file_metadata[path]
+
     def rotate_key(self) -> None:
         """
-        Generate a fresh key and re-encrypt all stored artifacts.
+        Generate a fresh key and re-encrypt all stored artifacts chunk by chunk.
         Securely attempts to wipe the old key from memory.
         """
         logger.info("Ghost-VFS: Initiating temporal key rotation...")
         start_ts = time.monotonic()
 
-        # Phase 1: Pre-decrypt all files to ensure we don't lose data on any failure
-        decrypted_data: dict[str, bytes] = {}
-        try:
-            for path in list(self._files.keys()):
-                decrypted_data[path] = self.read_file(path)
-        except Exception as e:
-            logger.error("Ghost-VFS: Failed to decrypt %s during rotation prep: %s", path, e)
-            # Wipe what we have decrypted so far to avoid memory leak
-            for decrypted_bytes in decrypted_data.values():
-                secure_wipe(bytearray(decrypted_bytes))
-            raise RuntimeError(f"Key rotation aborted: failed to decrypt {path}") from e
-
         old_key = self._key
         old_aesgcm = self._aesgcm
         new_key = bytearray(AESGCM.generate_key(bit_length=256))
 
-        # Phase 2: Re-encrypt everything with the new key into a temporary dict
-        self._key = new_key
-        self._aesgcm = AESGCM(bytes(new_key))
         new_files: dict[str, bytes] = {}
-        try:
-            for path, data in decrypted_data.items():
-                try:
-                    salt = os.urandom(16)
-                    hkdf = HKDF(
+
+        with self._lock:
+            try:
+                for path in list(self._files.keys()):
+                    raw = self._files[path]
+                    if len(raw) < 16:
+                        raise ValueError("Corrupt file")
+                    old_salt = raw[:16]
+                    old_hkdf = HKDF(
                         algorithm=hashes.SHA256(),
                         length=32,
-                        salt=salt,
+                        salt=old_salt,
                         info=path.encode("utf-8"),
                     )
-                    file_key = bytearray(hkdf.derive(bytes(new_key)))
+                    old_file_key = bytearray(old_hkdf.derive(bytes(old_key)))
 
-                    nonce = os.urandom(12)
-                    aad = b"chunk:0"
-                    ciphertext = AESGCM(bytes(file_key)).encrypt(nonce, data, aad)
-                    chunk_payload = nonce + ciphertext
-                    length_bytes = len(chunk_payload).to_bytes(4, byteorder="big")
+                    new_salt = os.urandom(16)
+                    new_hkdf = HKDF(
+                        algorithm=hashes.SHA256(),
+                        length=32,
+                        salt=new_salt,
+                        info=path.encode("utf-8"),
+                    )
+                    new_file_key = bytearray(new_hkdf.derive(bytes(new_key)))
 
-                    new_files[path] = salt + length_bytes + chunk_payload
-                except Exception as e:
-                    logger.error("Ghost-VFS: Failed to re-encrypt %s during rotation: %s", path, e)
-                    raise RuntimeError(f"Key rotation aborted: failed to encrypt {path}") from e
-                finally:
-                    secure_wipe(file_key)
-        except Exception:
-            self._key = old_key
-            self._aesgcm = old_aesgcm
-            secure_wipe(new_key)
-            raise
-        finally:
-            # Wiping standard decrypted plaintext memory
-            for decrypted_bytes in decrypted_data.values():
-                secure_wipe(bytearray(decrypted_bytes))
+                    payload_parts = [new_salt]
 
-        # Phase 3: Update state (Atomic swap)
-        self._files = new_files
-        self._last_rotation = time.time()
+                    try:
+                        offset = 16
+                        idx = 0
+                        while offset < len(raw):
+                            if offset + 4 > len(raw):
+                                raise ValueError("Corrupt chunk length header")
+                            length = int.from_bytes(raw[offset : offset + 4], byteorder="big")
+                            offset += 4
 
-        # Wipe old key
-        self._secure_wipe_bytes(old_key)
+                            if offset + length > len(raw):
+                                raise ValueError("Corrupt chunk payload")
+                            chunk_payload = raw[offset : offset + length]
+                            offset += length
+
+                            nonce = chunk_payload[:12]
+                            ciphertext = chunk_payload[12:]
+                            aad = f"chunk:{idx}".encode()
+
+                            decrypted_chunk = bytearray(AESGCM(bytes(old_file_key)).decrypt(nonce, ciphertext, aad))
+
+                            try:
+                                new_nonce = os.urandom(12)
+                                new_ciphertext = AESGCM(bytes(new_file_key)).encrypt(new_nonce, bytes(decrypted_chunk), aad)
+                                new_chunk_payload = new_nonce + new_ciphertext
+                                new_length_bytes = len(new_chunk_payload).to_bytes(4, byteorder="big")
+                                payload_parts.append(new_length_bytes + new_chunk_payload)
+                            finally:
+                                secure_wipe(decrypted_chunk)
+
+                            idx += 1
+
+                        new_files[path] = b"".join(payload_parts)
+                    finally:
+                        secure_wipe(old_file_key)
+                        secure_wipe(new_file_key)
+            except Exception as e:
+                logger.error("Ghost-VFS: Key rotation failed: %s", e)
+                secure_wipe(new_key)
+                raise RuntimeError("Key rotation aborted") from e
+
+            # Phase 3: Update state (Atomic swap)
+            self._files = new_files
+            self._key = new_key
+            self._aesgcm = AESGCM(bytes(new_key))
+            self._last_rotation = time.time()
+
+            # Wipe old key
+            self._secure_wipe_bytes(old_key)
 
         duration = time.monotonic() - start_ts
         logger.info(
@@ -303,10 +349,11 @@ class GhostVFS:
 
     def list_files(self) -> list[str]:
         """List all files in the virtual filesystem."""
-        return list(self._files.keys())
+        with self._lock:
+            return list(self._files.keys())
 
     def flush_to_disk(self, physical_path: str, master_key: str) -> None:
-        """Persist RAM state to disk using Argon2id-derived AES-256-GCM envelopes."""
+        """Persist RAM state to disk using Argon2id-derived AES-256-GCM envelopes securely and atomically."""
         logger.info("Ghost-VFS: Flushing volatile state to %s", physical_path)
 
         # Canonicalize base path
@@ -335,26 +382,28 @@ class GhostVFS:
                         f"ghost-vfs:{path}".encode(),
                     )
 
-                fd, temp_file_path = tempfile.mkstemp(
-                    dir=target_dir, prefix=".vfs_tmp_", suffix=".tmp"
-                )
-                try:
-                    with os.fdopen(fd, "wb") as f:
-                        f.write(sealed.encode("utf-8"))
-                    os.replace(temp_file_path, full_path)
-                except Exception:
+                with self._lock:
+                    fd, temp_file_path = tempfile.mkstemp(
+                        dir=target_dir, prefix=".vfs_tmp_", suffix=".tmp"
+                    )
                     try:
-                        os.close(fd)
-                    except OSError:
-                        pass
-                    if os.path.exists(temp_file_path):
+                        with os.fdopen(fd, "wb") as f:
+                            f.write(sealed.encode("utf-8"))
+                        os.replace(temp_file_path, full_path)
+                    except Exception as e:
+                        logger.error("Ghost-VFS: Write fallback failed for %s: %s", temp_file_path, e)
                         try:
-                            os.remove(temp_file_path)
-                        except Exception as e:
-                            logger.debug(
-                                "Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, e
-                            )
-                    raise
+                            os.close(fd)
+                        except OSError:
+                            pass
+                        if os.path.exists(temp_file_path):
+                            try:
+                                os.remove(temp_file_path)
+                            except Exception as ex:
+                                logger.debug(
+                                    "Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, ex
+                                )
+                        raise
 
                 count += 1
             except Exception as e:
@@ -363,7 +412,7 @@ class GhostVFS:
         logger.info("Ghost-VFS: Flush complete. %d artifacts persisted to disk.", count)
 
     def load_from_disk(self, physical_path: str, master_key: str) -> None:
-        """Decrypt physical files and re-hydrate virtual filesystem RAM state."""
+        """Decrypt physical files and re-hydrate virtual filesystem RAM state securely."""
         logger.info("Ghost-VFS: Loading volatile state from %s", physical_path)
 
         base_abs = os.path.abspath(physical_path)
@@ -416,7 +465,7 @@ class GhostVFS:
     def export_sealed_bundle(
         self, output_path: str, master_key: str, *, name: str = "ghost-vfs"
     ) -> None:
-        """Export all virtual files as one sealed, integrity-bound bundle."""
+        """Export all virtual files as one sealed, integrity-bound bundle securely."""
         records: dict[str, str] = {}
         for path in self.list_files():
             # Policy enforcement
@@ -435,23 +484,25 @@ class GhostVFS:
 
         target_dir = os.path.dirname(os.path.abspath(output_path))
         os.makedirs(target_dir, exist_ok=True)
-        fd, temp_file_path = tempfile.mkstemp(dir=target_dir, prefix=".bundle_tmp_", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(bundle)
-            os.replace(temp_file_path, output_path)
-        except Exception:
+        with self._lock:
+            fd, temp_file_path = tempfile.mkstemp(dir=target_dir, prefix=".bundle_tmp_", suffix=".tmp")
             try:
-                os.close(fd)
-            except OSError:
-                pass
-            if os.path.exists(temp_file_path):
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    fh.write(bundle)
+                os.replace(temp_file_path, output_path)
+            except Exception as e:
+                logger.error("Ghost-VFS: Sealed bundle write fallback failed: %s", e)
                 try:
-                    os.remove(temp_file_path)
-                except Exception as e:
-                    logger.debug("Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, e)
+                    os.close(fd)
+                except OSError:
+                    pass
+                if os.path.exists(temp_file_path):
+                    try:
+                        os.remove(temp_file_path)
+                    except Exception as ex:
+                        logger.debug("Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, ex)
 
-            raise
+                raise
 
         logger.info(
             "Ghost-VFS: Sealed bundle exported to %s with %d files.", output_path, len(records)
@@ -487,7 +538,9 @@ class GhostVFS:
 
     def self_destruct(self) -> None:
         """Wipe all data and keys from RAM securely."""
-        self._files.clear()
-        self._secure_wipe_bytes(self._key)
-        self._key = bytearray()
+        with self._lock:
+            self._files.clear()
+            self._file_metadata.clear()
+            self._secure_wipe_bytes(self._key)
+            self._key = bytearray()
         logger.warning("Ghost-VFS: Data plane PURGED")

@@ -19,7 +19,7 @@ from uuid import uuid4
 
 if TYPE_CHECKING:
     from src.core.frontier.bloom import NeuralBloomFilter
-    from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
+    from src.core.frontier.bloom_mesh import BloomMeshSynchronizer, NeuralBloomMesh
 
 from src.infrastructure.cache.backends import (
     FileBackend,
@@ -83,7 +83,7 @@ class CacheManager:
         self._l1: MemoryBackend | None = None
         self._l2: SQLiteBackend | RedisBackend | None = None
         self._l3: FileBackend | None = None
-        self._bloom_synchronizer: BloomMeshSynchronizer | None = None
+        self._bloom_synchronizer: NeuralBloomMesh | None = None
         self._bloom_filter: NeuralBloomFilter | None = None
         self._lock_redis_client: Any = None
         self._initialized = False
@@ -92,9 +92,17 @@ class CacheManager:
             self._warm_cache()
         self._initialized = True
 
-    def set_bloom_synchronizer(self, synchronizer: BloomMeshSynchronizer) -> None:
+    def set_bloom_synchronizer(self, synchronizer: NeuralBloomMesh | BloomMeshSynchronizer) -> None:
         """Register the active Bloom mesh synchronizer."""
         self._bloom_synchronizer = synchronizer
+
+    def is_redundant_query(self, key: str, namespace: str = "default") -> bool:
+        """Check the Bloom routing path to reject redundant queries."""
+        bf = self.bloom_filter
+        if bf is not None:
+            full_key = self._make_key(key, namespace)
+            return full_key not in bf
+        return False
 
     def set_bloom_filter(self, bloom_filter: NeuralBloomFilter) -> None:
         """Register a direct Bloom filter."""
@@ -395,8 +403,7 @@ class CacheManager:
                         logger.debug("L1 HIT: %s", full_key)
                     return value
 
-            bf = self.bloom_filter
-            if bf is not None and full_key not in bf:
+            if self.is_redundant_query(key, namespace):
                 elapsed = (time.monotonic() - start) * 1000
                 self._metrics.record_miss(elapsed)
                 if self._config.log_cache_ops:
@@ -552,8 +559,7 @@ class CacheManager:
         """
         full_key = self._make_key(key, namespace)
         try:
-            bf = self.bloom_filter
-            if bf is not None and full_key not in bf:
+            if self.is_redundant_query(key, namespace):
                 if self._config.log_cache_ops:
                     logger.debug("BLOOM BYPASS EXISTS FALSE: %s", full_key)
                 return False

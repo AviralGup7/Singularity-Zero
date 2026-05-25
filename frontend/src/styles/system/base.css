@@ -54,13 +54,29 @@ body {
   }
 }
 
+/* ── Light Mode Background ───────────────────────────────────── */
+[data-theme="light"] body {
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.01) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.01) 1px, transparent 1px),
+    radial-gradient(circle at 80% 20%, hsla(217, 91%, 60%, 0.04) 0%, transparent 55%),
+    radial-gradient(circle at 20% 80%, hsla(187, 92%, 53%, 0.04) 0%, transparent 55%),
+    var(--app-bg);
+  animation: none;
+}
+
+[data-theme="light"] ::selection {
+  background: rgba(37, 99, 235, 0.2);
+  color: #0F172A;
+}
+
 /* ── Selection ────────────────────────────────────────────────── */
 ::selection {
   background: rgba(59, 130, 246, 0.3);
   color: var(--text-primary);
 }
 
-/* ── Scrollbar ────────────────────────────────────────────────── */
+/* ── Typography ─────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -193,22 +209,6 @@ a:focus-visible {
   font-size: var(--text-micro);
   padding: 2px 6px;
   line-height: 1.4;
-}
-
-/* ── Card Base ──────────────────────────────────────────────── */
-.card {
-  background: var(--surface);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--inner-padding);
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out), transform var(--motion-fast) var(--easing-out);
-}
-
-.card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
 }
 
 /* ── Smooth Scrolling ────────────────────────────────────────── */

@@ -12,7 +12,7 @@ function detectSystemTheme(): ThemeMode {
 
 const defaultTheme: ThemeState = {
   mode: detectSystemTheme(),
-  accentColor: '#00f3ff',
+  accentColor: '#3B82F6',
   motionIntensity: 'high' as MotionIntensity,
   effectCapability: 'auto' as EffectCapability,
 };
@@ -33,7 +33,11 @@ function getInitialTheme(): ThemeState {
 const applyThemeSideEffects = (theme: ThemeState) => {
   if (typeof window === 'undefined') return;
   document.documentElement.setAttribute('data-theme', theme.mode);
-  document.documentElement.style.setProperty('--accent', theme.accentColor);
+  if (theme.accentColor !== '#3B82F6') {
+    document.documentElement.style.setProperty('--accent', theme.accentColor);
+  } else {
+    document.documentElement.style.removeProperty('--accent');
+  }
   document.documentElement.setAttribute('data-motion-intensity', theme.motionIntensity);
   document.documentElement.setAttribute('data-effect-capability', theme.effectCapability);
   safeStorage.set('cyber-pipeline-theme', JSON.stringify({ theme }));

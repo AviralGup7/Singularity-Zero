@@ -12,20 +12,25 @@ import type { DashboardStats as StatsType, Job } from '../types/api';
 import { useApi } from '../hooks/useApi';
 import { DashboardStatsSchema } from '../api/schemas';
 import FindingsOverview from '../components/FindingsOverview';
+import { DashboardSkeleton } from '../components/ui';
 
 export function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const { data: stats } = useApi<StatsType>('/api/dashboard', { 
+  const { data: stats, loading: statsLoading } = useApi<StatsType>('/api/dashboard', { 
     refetchInterval: 10000,
     schema: DashboardStatsSchema,
     onSuccess: () => setLastUpdated(new Date())
   });
   
-  const { data: jobsResponse } = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
+  const { data: jobsResponse, loading: jobsLoading } = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
     refetchInterval: 5000,
     onSuccess: () => setLastUpdated(new Date())
   });
+
+  if (statsLoading && jobsLoading) {
+    return <DashboardSkeleton />;
+  }
 
   const recentJobs = (jobsResponse?.jobs ?? []).slice(0, 5);
   const telemetryTotals = (jobsResponse?.jobs ?? []).reduce((acc, job) => {

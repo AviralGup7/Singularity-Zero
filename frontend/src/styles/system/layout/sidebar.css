@@ -193,3 +193,18 @@
   color: var(--text-tertiary);
   font-size: var(--text-micro);
 }
+
+/* ── Light Mode Sidebar ──────────────────────────────────────── */
+[data-theme="light"] .sidebar {
+  background: var(--sidebar);
+  box-shadow: 1px 0 0 var(--border);
+}
+
+[data-theme="light"] .sidebar::after {
+  opacity: 0.15;
+}
+
+[data-theme="light"] .sidebar-nav-item--active {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  box-shadow: inset 0 0 8px -2px color-mix(in srgb, var(--accent) 10%, transparent);
+}

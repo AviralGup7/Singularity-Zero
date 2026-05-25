@@ -168,9 +168,37 @@ class WASMPluginHost:
         cast(Any, memory).write(self._store, input_json, int(input_ptr))
 
         # 2. Execute
+        import signal
+        import sys
+        import threading
+        
         logger.info("Executing WASM Plugin...")
         start = time.monotonic()
-        output_ptr = cast(Any, run)(self._store, int(input_ptr), len(input_json))
+        
+        # Setup process-level budget wall watchdog timer
+        timer_fired = False
+        def watchdog_kill() -> None:
+            nonlocal timer_fired
+            timer_fired = True
+            try:
+                pid = os.getpid()
+                if sys.platform == "win32":
+                    os.kill(pid, signal.SIGTERM)
+                else:
+                    os.kill(pid, signal.SIGKILL)
+            except Exception:
+                pass
+                
+        # 5.0 seconds maximum wall budget per module run
+        watchdog_timer = threading.Timer(5.0, watchdog_kill)
+        watchdog_timer.daemon = True
+        watchdog_timer.start()
+        
+        try:
+            output_ptr = cast(Any, run)(self._store, int(input_ptr), len(input_json))
+        finally:
+            watchdog_timer.cancel()
+            
         duration = time.monotonic() - start
 
         # 3. Retrieve Output

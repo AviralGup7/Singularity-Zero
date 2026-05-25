@@ -21,6 +21,9 @@ function SpanRow({ span, depth, startTime }: { span: TraceSpan; depth: number; s
       <div 
         className="flex items-center hover:bg-white/5 cursor-pointer py-2 group"
         onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsOpen(!isOpen); } }}
+        role="button"
+        tabIndex={0}
       >
         <div className="flex-1 flex items-center min-w-0 pr-4">
           <div style={{ paddingLeft: `${depth * 1.5}rem` }} className="flex items-center gap-2 min-w-0 flex-1">
@@ -251,7 +254,7 @@ export function TracePage() {
                <div className="grid grid-cols-4 gap-4">
                   <div className="glass-panel p-4 rounded-xl">
                      <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Total Spans</div>
-                     <div className="text-xl font-black text-white">{traceDetail.length}</div>
+                     <div className="text-xl font-black text-[var(--text-primary)]">{traceDetail.length}</div>
                   </div>
                   <div className="glass-panel p-4 rounded-xl">
                      <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Duration</div>
@@ -259,7 +262,7 @@ export function TracePage() {
                   </div>
                   <div className="glass-panel p-4 rounded-xl">
                      <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Service Count</div>
-                     <div className="text-xl font-black text-white">{new Set(traceDetail.map(s => s.service_name)).size}</div>
+                     <div className="text-xl font-black text-[var(--text-primary)]">{new Set(traceDetail.map(s => s.service_name)).size}</div>
                   </div>
                   <div className="glass-panel p-4 rounded-xl">
                      <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Status</div>

@@ -1,6 +1,7 @@
 import base64
 import json
 
+import time
 import pytest
 
 from src.core.frontier.ghost_vfs import GhostVFS
@@ -213,3 +214,32 @@ def test_ghost_vfs_policy_enforcement():
 
     with pytest.raises(PermissionError, match="not allowed to read"):
         audit_vfs.read_file("secrets/app.pem")
+
+
+def test_ghost_vfs_retention_policy():
+    from src.core.frontier.policies import PolicyEngine
+    vfs = GhostVFS()
+
+    vfs.write_file("file1.txt", "short content")
+    vfs.write_file("file2.txt", "another content")
+    vfs.write_file("file3.txt", "third file")
+
+    # Manually set distinct created_at to guarantee ordering
+    vfs._file_metadata["file1.txt"]["created_at"] = time.time() - 100
+    vfs._file_metadata["file2.txt"]["created_at"] = time.time() - 50
+    vfs._file_metadata["file3.txt"]["created_at"] = time.time()
+
+    assert len(vfs.list_files()) == 3
+
+    # 1. Enforce count limit = 2
+    engine = PolicyEngine(max_file_count=2, max_age_seconds=3600, max_total_bytes=10000)
+    engine.enforce_retention(vfs)
+    # The oldest file (file1.txt) should be pruned
+    assert len(vfs.list_files()) == 2
+    assert "file1.txt" not in vfs.list_files()
+
+    # 2. Enforce total bytes limit
+    engine_bytes = PolicyEngine(max_file_count=10, max_age_seconds=3600, max_total_bytes=50)
+    engine_bytes.enforce_retention(vfs)
+    assert len(vfs.list_files()) < 2
+
