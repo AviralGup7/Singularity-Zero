@@ -39,6 +39,13 @@
   background: var(--border-strong);
 }
 
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
 /* Base tailwind utility overrides */
 .glass-panel {
   @apply bg-[#12161E]/90 border border-white/10 shadow-lg;

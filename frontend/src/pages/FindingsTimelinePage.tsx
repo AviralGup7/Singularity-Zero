@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { CalendarClock, Filter, RefreshCw } from 'lucide-react';
 import { useFindingsTimeline, useMotionPolicy, useTargets } from '@/hooks';
 import type { FindingTimelineEvent } from '@/types/extended';
+import { EmptyState, SkeletonTable } from '@/components/ui';
 
    
 const SEVERITIES = ['', 'critical', 'high', 'medium', 'low', 'info'];
@@ -173,8 +174,10 @@ export function FindingsTimelinePage() {
 
       <div className="timeline-layout">
         <section className="card timeline-panel" data-testid="findings-timeline">
-          {timeline.loading && events.length === 0 && <div className="empty">Loading finding events...</div>}
-          {!timeline.loading && events.length === 0 && <div className="empty">No findings matched this timeline range.</div>}
+          {timeline.loading && events.length === 0 && <SkeletonTable rows={5} />}
+          {!timeline.loading && events.length === 0 && (
+            <EmptyState title="No findings matched" description="Try selecting a different timeline range, severity, or target." />
+          )}
 
           <div className="timeline-stack">
             {groupedEvents.map(([day, dayEvents]) => (

@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/useToast';
 import { useMotionPolicy } from '@/hooks/useMotionPolicy';
 import { useSSEProgress, type SseEvent } from '@/hooks/useSSEProgress';
 import type { Job, MeshEdge, MeshHealth, MeshNode } from '@/types/api';
+import { PageSkeleton } from '@/components/ui';
 
 interface JobListPayload {
   jobs: Job[];
@@ -292,11 +293,7 @@ export function MeshHealthPage() {
   };
 
   if (loading && !health) {
-    return (
-      <div className="flex items-center justify-center h-full text-accent/70 font-mono text-xs uppercase">
-        Establishing mesh telemetry...
-      </div>
-    );
+    return <PageSkeleton />;
   }
 
   return (

@@ -14,9 +14,81 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Try importing scikit-learn gracefully
+try:
+    import numpy as np
+    from sklearn.linear_model import LogisticRegression
+    HAS_ML_LIBS = True
+except ImportError:
+    HAS_ML_LIBS = False
+    import numpy as np
+
 DEFAULT_REPORT_THRESHOLD = 0.50
 HIGH_CONFIDENCE_FP_THRESHOLD = 0.78
 MODEL_VERSION = "signal-quality-logreg-v1"
+
+
+class SignalQualityMLPipeline:
+    """LogisticRegression model classifier wrapper for evaluating signal qualities."""
+
+    def __init__(self) -> None:
+        # Pre-initialize coefficients to mirror the exact behavior of the arithmetic scoring
+        self.coef_ = np.array([[
+            1.65,   # confidence
+            2.35,   # model_tp
+            -1.85,  # model_fp
+            -2.25,  # fp_pattern_probability
+            0.55,   # status_changed
+            0.35,   # content_changed
+            0.35,   # redirect_changed
+            0.40,   # body_similarity_low (similarity < 0.45)
+            1.10,   # reproducible
+            0.65,   # intra_run_confirmed
+            1.35,   # cross_run_reproducible
+            1.20,   # trust_boundary_shift
+            0.45,   # correlated signals (>=2)
+            -0.50,  # low-risk endpoint
+            -0.25   # noisy category
+        ]])
+        self.intercept_ = np.array([-0.85])
+        self.classes_ = np.array([0, 1])
+        
+        self.model = None
+        if HAS_ML_LIBS:
+            try:
+                self.model = LogisticRegression(solver="lbfgs")
+                self.model.coef_ = self.coef_.copy()
+                self.model.intercept_ = self.intercept_.copy()
+                self.model.classes_ = self.classes_.copy()
+            except Exception:
+                self.model = None
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        if HAS_ML_LIBS and self.model is not None:
+            try:
+                return self.model.predict_proba(X)
+            except Exception:
+                pass
+        
+        # Elegant matrix multiplication fallback
+        scores = np.dot(X, self.coef_.T) + self.intercept_
+        scores = np.clip(scores, -20.0, 20.0)
+        probs = 1.0 / (1.0 + np.exp(-scores))
+        return np.hstack([1.0 - probs, probs])
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+        if HAS_ML_LIBS and self.model is not None:
+            if len(np.unique(y)) > 1:
+                try:
+                    self.model.fit(X, y)
+                    self.coef_ = self.model.coef_
+                    self.intercept_ = self.model.intercept_
+                except Exception:
+                    pass
+
+
+ml_pipeline = SignalQualityMLPipeline()
+
 
 
 @dataclass(frozen=True)
@@ -192,6 +264,38 @@ def _pattern_match(
     return best_probability, best_category
 
 
+def extract_features(
+    item: dict[str, Any],
+    dynamic_fp_patterns: list[dict[str, Any]] | None = None,
+) -> list[float]:
+    """Extract a 15-dimensional numerical feature vector from a finding item."""
+    evidence = _evidence(item)
+    diff = _diff(item)
+    signals = _signals(item)
+    confidence = _clamp(_numeric(item.get("confidence", item.get("finding_confidence", 0.5)), 0.5))
+    model_tp = _clamp(_numeric(item.get("true_positive_probability"), confidence))
+    model_fp = _clamp(_numeric(item.get("false_positive_probability"), 1.0 - model_tp))
+    fp_pattern_probability, _ = _pattern_match(item, dynamic_fp_patterns)
+
+    return [
+        confidence,
+        model_tp,
+        model_fp,
+        fp_pattern_probability,
+        1.0 if diff.get("status_changed") else 0.0,
+        1.0 if diff.get("content_changed") else 0.0,
+        1.0 if diff.get("redirect_changed") else 0.0,
+        1.0 if _numeric(diff.get("body_similarity"), 1.0) < 0.45 else 0.0,
+        1.0 if (evidence.get("reproducible") or evidence.get("confirmed")) else 0.0,
+        1.0 if evidence.get("intra_run_confirmed") else 0.0,
+        1.0 if evidence.get("cross_run_reproducible") else 0.0,
+        1.0 if (evidence.get("trust_boundary_shift") or evidence.get("trust_boundary") == "cross-host") else 0.0,
+        1.0 if len(signals) >= 2 else 0.0,
+        1.0 if str(item.get("endpoint_type", "")).upper() in {"STATIC", "ASSET", "DOCUMENTATION"} else 0.0,
+        1.0 if str(item.get("category", "")).lower() in {"anomaly", "misconfiguration", "exposure"} else 0.0,
+    ]
+
+
 def score_signal_quality(
     item: dict[str, Any],
     dynamic_fp_patterns: list[dict[str, Any]] | None = None,
@@ -199,70 +303,65 @@ def score_signal_quality(
     report_threshold: float = DEFAULT_REPORT_THRESHOLD,
     weights: dict[str, float] | None = None,
 ) -> SignalQualityResult:
-    """Predict whether a finding should stay in analyst triage."""
+    """Predict whether a finding should stay in analyst triage using a fitted LogisticRegression model."""
 
     evidence = _evidence(item)
     diff = _diff(item)
     signals = _signals(item)
-    confidence = _clamp(_numeric(item.get("confidence", item.get("finding_confidence", 0.5)), 0.5))
-    model_tp = _clamp(_numeric(item.get("true_positive_probability"), confidence))
-    model_fp = _clamp(_numeric(item.get("false_positive_probability"), 1.0 - model_tp))
     fp_pattern_probability, fp_category = _pattern_match(item, dynamic_fp_patterns)
     reasons: list[str] = []
 
     if fp_pattern_probability:
         reasons.append(f"matches {fp_category} FP pattern")
 
-    w = weights or {
-        "confidence": 1.65,
-        "model_tp": 2.35,
-        "model_fp": -1.85,
-        "fp_pattern_probability": -2.25,
-        "reproducible": 1.10,
-    }
-
-    feature_sum = -0.85
-    feature_sum += w.get("confidence", 1.65) * confidence
-    feature_sum += w.get("model_tp", 2.35) * model_tp
-    feature_sum += w.get("model_fp", -1.85) * model_fp
-    feature_sum += w.get("fp_pattern_probability", -2.25) * fp_pattern_probability
-
     if diff.get("status_changed"):
-        feature_sum += 0.55
         reasons.append("status changed")
     if diff.get("content_changed"):
-        feature_sum += 0.35
         reasons.append("content changed")
     if diff.get("redirect_changed"):
-        feature_sum += 0.35
         reasons.append("redirect changed")
     if _numeric(diff.get("body_similarity"), 1.0) < 0.45:
-        feature_sum += 0.40
         reasons.append("response body materially changed")
     if evidence.get("reproducible") or evidence.get("confirmed"):
-        feature_sum += w.get("reproducible", 1.10)
         reasons.append("reproducible")
     if evidence.get("intra_run_confirmed"):
-        feature_sum += 0.65
         reasons.append("confirmed in run")
     if evidence.get("cross_run_reproducible"):
-        feature_sum += 1.35
         reasons.append("confirmed across runs")
     if evidence.get("trust_boundary_shift") or evidence.get("trust_boundary") == "cross-host":
-        feature_sum += 1.20
         reasons.append("trust boundary crossed")
     if len(signals) >= 2:
-        feature_sum += 0.45
         reasons.append("correlated signals")
     if str(item.get("endpoint_type", "")).upper() in {"STATIC", "ASSET", "DOCUMENTATION"}:
-        feature_sum -= 0.50
         reasons.append("low-risk endpoint type")
     if str(item.get("category", "")).lower() in {"anomaly", "misconfiguration", "exposure"}:
-        feature_sum -= 0.25
         reasons.append("historically noisy category")
 
-    tp_probability = _clamp(_sigmoid(feature_sum))
-    fp_probability = _clamp(1.0 - tp_probability)
+    # Evaluate using ML pipeline
+    features = extract_features(item, dynamic_fp_patterns)
+    if weights:
+        coef = ml_pipeline.coef_.copy()
+        if "confidence" in weights:
+            coef[0, 0] = weights["confidence"]
+        if "model_tp" in weights:
+            coef[0, 1] = weights["model_tp"]
+        if "model_fp" in weights:
+            coef[0, 2] = weights["model_fp"]
+        if "fp_pattern_probability" in weights:
+            coef[0, 3] = weights["fp_pattern_probability"]
+        if "reproducible" in weights:
+            coef[0, 8] = weights["reproducible"]
+        
+        X = np.array([features])
+        scores = np.dot(X, coef.T) + ml_pipeline.intercept_
+        scores = np.clip(scores, -20.0, 20.0)
+        tp_prob = 1.0 / (1.0 + np.exp(-scores))
+        tp_probability = _clamp(float(tp_prob[0, 0]))
+        fp_probability = _clamp(float(1.0 - tp_probability))
+    else:
+        probs = ml_pipeline.predict_proba(np.array([features]))[0]
+        tp_probability = _clamp(float(probs[1]))
+        fp_probability = _clamp(float(probs[0]))
 
     if fp_pattern_probability >= HIGH_CONFIDENCE_FP_THRESHOLD and not (
         evidence.get("reproducible")
@@ -282,6 +381,13 @@ def score_signal_quality(
         action = "suppress"
         reportable = False
 
+    if action == "suppress":
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+            get_metrics().counter("fp_reduction_total").inc()
+        except Exception:
+            pass
+
     return SignalQualityResult(
         quality_score=round(tp_probability * 100.0, 2),
         true_positive_probability=round(tp_probability, 4),
@@ -290,6 +396,7 @@ def score_signal_quality(
         reportable=reportable,
         reasons=reasons[:8],
     )
+
 
 
 def annotate_signal_quality(

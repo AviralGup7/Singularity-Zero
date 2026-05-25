@@ -11,10 +11,12 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.execution.validators import execute_validation_runtime
 from src.pipeline.runner_support import emit_progress
+from src.pipeline.pipeline_logging import instrument
 
 logger = get_pipeline_logger(__name__)
 
 
+@instrument("validation")
 async def run_validation(
     args: Any,
     config: Any,

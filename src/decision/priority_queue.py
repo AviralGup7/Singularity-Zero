@@ -28,6 +28,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from src.infrastructure.scheduling.bidding import MultiObjectiveBid, bid_for_target
+from src.learning.signal_quality import ml_pipeline, extract_features
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +373,10 @@ class CorrelationPriorityQueue:
             finding_url = finding.get("url", "")
             if not finding_url:
                 continue
+            with self._lock:
+                target = self._url_map.get(finding_url)
+                if target:
+                    target.findings_count += 1
             self._boost_related_urls(finding_url, finding, factor, boosted)
             with self._lock:
                 self._total_findings += 1
@@ -384,6 +389,10 @@ class CorrelationPriorityQueue:
                 len(boosted),
                 len(findings),
             )
+
+        # Trigger feedback retraining loop when findings are processed
+        if findings:
+            self.trigger_retraining_loop()
 
         return len(boosted)
 
@@ -535,3 +544,34 @@ class CorrelationPriorityQueue:
                 if unscanned
                 else [],
             }
+
+    def trigger_retraining_loop(self) -> None:
+        """Trigger incremental training of the ML quality model using queue targets and logs."""
+        try:
+            import numpy as np
+            X: list[list[float]] = []
+            y: list[int] = []
+
+            with self._lock:
+                for target in self._url_map.values():
+                    # If target has findings_count > 0, it's a true positive example (label 1)
+                    # If target has been scanned but findings_count == 0, it's a false positive example (label 0)
+                    if target.scanned:
+                        item = {
+                            "url": target.url,
+                            "confidence": target.base_priority / 100.0,
+                            "finding_confidence": target.base_priority / 100.0,
+                            "true_positive_probability": 0.9 if target.findings_count > 0 else 0.1,
+                            "false_positive_probability": 0.1 if target.findings_count > 0 else 0.9,
+                            "metadata": target.metadata,
+                        }
+                        features = extract_features(item)
+                        X.append(features)
+                        y.append(1 if target.findings_count > 0 else 0)
+
+            if len(X) >= 5 and len(np.unique(y)) > 1:
+                ml_pipeline.fit(np.array(X), np.array(y))
+                logger.info("ML Quality Model incrementally retrained on %d samples from priority queue", len(X))
+        except Exception as exc:
+            logger.warning("Failed to trigger ML feedback retraining: %s", exc)
+

@@ -1,0 +1,100 @@
+/* ══════════════════════════════════════════════════════════════
+   Display Modes — Density, Font Size, High Contrast
+   Wired to data-* attributes set by displayStore.ts
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Density: Compact ──────────────────────────────────────── */
+[data-density="compact"] {
+  --inner-padding: var(--space-3);
+  --card-gap: var(--space-2);
+  --row-gap: var(--space-2);
+  --section-gap: var(--space-4);
+  --page-inset: var(--space-4);
+}
+
+[data-density="compact"] .card,
+[data-density="compact"] .ops-card,
+[data-density="compact"] .job-card {
+  padding: var(--space-3);
+}
+
+[data-density="compact"] .sidebar-nav-item {
+  min-height: 30px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 12px;
+}
+
+[data-density="compact"] table td,
+[data-density="compact"] table th {
+  padding: var(--space-1) var(--space-2);
+}
+
+/* ── Density: Spacious ─────────────────────────────────────── */
+[data-density="spacious"] {
+  --inner-padding: var(--space-8);
+  --card-gap: var(--space-6);
+  --row-gap: var(--space-6);
+  --section-gap: var(--space-8);
+  --page-inset: var(--space-8);
+}
+
+[data-density="spacious"] .card,
+[data-density="spacious"] .ops-card,
+[data-density="spacious"] .job-card {
+  padding: var(--space-8);
+}
+
+[data-density="spacious"] .sidebar-nav-item {
+  min-height: 42px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+[data-density="spacious"] table td,
+[data-density="spacious"] table th {
+  padding: var(--space-3) var(--space-4);
+}
+
+/* ── Font Size: Small ──────────────────────────────────────── */
+[data-font-size="small"] {
+  --text-body: 13px;
+  --text-label: 12px;
+  --text-small: 11px;
+  --text-micro: 10px;
+  --text-card-value: 24px;
+  --text-card-value-sm: 18px;
+  --text-section-title: 14px;
+  --text-page-title: clamp(18px, 1.8vw, 20px);
+}
+
+/* ── Font Size: Large ──────────────────────────────────────── */
+[data-font-size="large"] {
+  --text-body: 16px;
+  --text-label: 15px;
+  --text-small: 14px;
+  --text-micro: 12px;
+  --text-card-value: 32px;
+  --text-card-value-sm: 26px;
+  --text-section-title: 18px;
+  --text-page-title: clamp(22px, 2.2vw, 28px);
+}
+
+/* ── High Contrast ─────────────────────────────────────────── */
+[data-high-contrast="true"] {
+  --text-primary:   #FFFFFF;
+  --text-secondary: #D1D5DB;
+  --text-tertiary:  #9CA3AF;
+  --border:         rgba(255, 255, 255, 0.20);
+  --border-strong:  rgba(255, 255, 255, 0.30);
+  --line:           rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="light"][data-high-contrast="true"] {
+  --text-primary:   #000000;
+  --text-secondary: #1F2937;
+  --text-tertiary:  #4B5563;
+  --border:         rgba(0, 0, 0, 0.20);
+  --border-strong:  rgba(0, 0, 0, 0.30);
+  --line:           rgba(0, 0, 0, 0.12);
+}

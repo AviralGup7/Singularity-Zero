@@ -537,7 +537,7 @@ async def run_post_analysis_enrichments(
 
     except FeedError as exc:
         logger.warning("Threat intelligence enrichment skipped: %s", exc)
-    except TypeError, ValueError, RuntimeError:
+    except (TypeError, ValueError, RuntimeError):
         import traceback
 
         traceback.print_exc()

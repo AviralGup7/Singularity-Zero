@@ -8,6 +8,7 @@ import { startJob, apiClient } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { UrlCollectionSystem } from '../components/UrlCollectionSystem';
 import { Icon } from '../components/Icon';
+import { Target as TargetIcon, ChevronDown, RefreshCw, AlertTriangle } from 'lucide-react';
 
 const PAGE_SIZE = 10;
    
@@ -288,7 +289,7 @@ export function TargetsPage() {
   if (error) {
     return (
       <div className="card error">
-        <h2>⚠️ Error</h2>
+        <h2><AlertTriangle size={16} className="inline-block mr-1" /> Error</h2>
         <p>{error.message}</p>
         <button onClick={() => { refetch(); }} className="btn btn-primary">Retry</button>
       </div>
@@ -298,7 +299,7 @@ export function TargetsPage() {
   return (
     <div className="targets-page">
       <div className="page-header">
-        <h2 data-focus-heading>🎯 Targets</h2>
+        <h2 data-focus-heading><TargetIcon size={18} className="inline-block mr-1" /> Targets</h2>
         <div className="targets-header-actions">
           <label className="btn btn-sm btn-secondary cursor-pointer">
             <Icon name="upload" size={14} /> Import Semgrep
@@ -318,7 +319,7 @@ export function TargetsPage() {
             className={`btn btn-sm ${showFilters ? 'btn-primary' : ''}`}
             onClick={() => setShowFilters(!showFilters)}
           >
-            🔽 Filters
+            <ChevronDown size={14} className="inline-block" /> Filters
           </button>
         </div>
       </div>
@@ -330,7 +331,7 @@ export function TargetsPage() {
           <div className="bulk-action-info">
             <span>{selectedTargets.size} target{selectedTargets.size > 1 ? 's' : ''} selected</span>
             <button className="btn btn-sm btn-primary" onClick={handleBulkRescan} disabled={isScanning}>
-              {isScanning ? 'Scanning...' : '🔄 Re-scan Selected'}
+              {isScanning ? 'Scanning...' : <><RefreshCw size={14} className="inline-block mr-1" /> Re-scan Selected</>}
             </button>
             <button className="bulk-clear-btn" onClick={clearSelection}>Clear selection</button>
           </div>

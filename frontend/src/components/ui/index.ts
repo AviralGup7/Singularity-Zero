@@ -5,7 +5,7 @@ export { Input, type InputProps } from './Input';
 export { ConfirmDialog, type ConfirmDialogProps, type ConfirmDialogVariant } from './ConfirmDialog';
 export { SeverityBadge, type SeverityBadgeProps, type SeverityLevel } from './SeverityBadge';
 export { DataTable, type DataTableProps, type Column } from './DataTable';
-export { Skeleton, SkeletonCard, SkeletonStat, SkeletonText, SkeletonTable, type SkeletonProps } from './Skeleton';
+export { Skeleton, SkeletonCard, SkeletonStat, SkeletonText, SkeletonTable, DashboardSkeleton, PageSkeleton, TableSkeleton, type SkeletonProps } from './Skeleton';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Breadcrumbs, type BreadcrumbsProps, type BreadcrumbItem } from './Breadcrumbs';
 export { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent, LegacyTooltip } from './Tooltip';
