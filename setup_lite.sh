@@ -29,8 +29,12 @@ else
 fi
 
 # 2. Install lightweight redis client dependency
-echo "[*] Installing pure-Python Redis client..."
-pip install redis
+if python3 -c "import redis" &>/dev/null; then
+    echo "[*] Redis client is already installed."
+else
+    echo "[*] Installing pure-Python Redis client..."
+    pip install redis
+fi
 
 # 3. Download standalone worker_lite.py script
 echo "[*] Downloading standalone worker_lite.py script..."
