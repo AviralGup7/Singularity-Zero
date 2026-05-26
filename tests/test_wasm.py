@@ -12,6 +12,7 @@ def test_wasm_mock_execution(monkeypatch):
 
 def test_isolated_scanner_validation():
     from src.analysis.plugins.wasm import IsolatedScanner
+
     scanner = IsolatedScanner(
         plugin_id="test_scanner",
         wasm_path="dummy.wasm",
@@ -28,4 +29,3 @@ def test_isolated_scanner_validation():
     filtered_output = scanner.validate_output(raw_output)
     assert "internal_debug" not in filtered_output
     assert filtered_output["severity"] == "high"
-

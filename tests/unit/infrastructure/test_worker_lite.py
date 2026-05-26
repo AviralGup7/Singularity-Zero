@@ -1,10 +1,8 @@
 """Unit tests for the ultra-lightweight standalone sub-node worker."""
 
 import asyncio
-import json
 import sys
 import unittest
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,7 +16,7 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         self.worker_id = "test-lite-worker"
         self.redis_url = "redis://localhost:6379/0"
         self.queue_name = "security-pipeline"
-        
+
         # Mock Redis client with AsyncMock methods
         self.mock_redis = AsyncMock()
         self.mock_redis.ping = AsyncMock(return_value=True)
@@ -33,7 +31,7 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         self.mock_redis.evalsha = AsyncMock(return_value=[1, "claimed"])
         self.mock_redis.srem = AsyncMock(return_value=1)
         self.mock_redis.aclose = AsyncMock()
-        
+
         # Patch redis.asyncio.from_url to return our mock
         self.redis_patcher = patch("redis.asyncio.from_url", return_value=self.mock_redis)
         self.redis_patcher.start()
@@ -64,7 +62,7 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         )
         worker._redis = self.mock_redis
         await worker._register()
-        
+
         # Verify worker info and capabilities were written to Redis
         assert self.mock_redis.hset.call_count >= 1
         assert self.mock_redis.sadd.call_count >= 2
@@ -80,13 +78,13 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         )
         worker._redis = self.mock_redis
         worker._running = True
-        
+
         # Let heartbeat run for a split second and check
         task = asyncio.create_task(worker._heartbeat())
         await asyncio.sleep(0.03)
         worker._running = False
         task.cancel()
-        
+
         assert self.mock_redis.hset.call_count >= 1
 
     @pytest.mark.asyncio
@@ -95,14 +93,16 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         # Mock asyncio subprocess capture
         mock_process = AsyncMock()
         mock_process.returncode = 0
-        mock_process.communicate = AsyncMock(return_value=(b"sub1.example.com\nsub2.example.com\n", b""))
+        mock_process.communicate = AsyncMock(
+            return_value=(b"sub1.example.com\nsub2.example.com\n", b"")
+        )
         mock_subprocess.return_value = mock_process
 
         worker = LiteWorker(
             worker_id=self.worker_id,
             redis_url=self.redis_url,
         )
-        
+
         results = await worker._execute_recon_command(["subfinder", "-d", "example.com"])
         assert results == ["sub1.example.com", "sub2.example.com"]
         mock_subprocess.assert_called_once()
@@ -122,10 +122,10 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         )
         worker._redis = self.mock_redis
         worker._shas = {"complete_job": "complete_sha", "fail_job": "fail_sha"}
-        
+
         payload = {"payload": {"target": "example.com"}}
         await worker._process_job("job_123", "subdomains", payload)
-        
+
         # Verify job state updates and completion evalsha call
         assert self.mock_redis.hset.called
         assert self.mock_redis.evalsha.called
@@ -155,13 +155,13 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         )
         worker._redis = self.mock_redis
         worker._shas = {"complete_job": "complete_sha", "fail_job": "fail_sha"}
-        
+
         # Mock retry policy parameters returned from job hash
         self.mock_redis.hget.side_effect = lambda key, field: "0" if field == "retries" else "3"
 
         payload = {"payload": {"target": "example.com"}}
         await worker._process_job("job_123", "subdomains", payload)
-        
+
         # Check that we called fail_job SHA
         self.mock_redis.evalsha.assert_any_call(
             "fail_sha",
@@ -189,14 +189,14 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         )
         worker._redis = self.mock_redis
         worker._running = True
-        
+
         self.mock_redis.zrevrange = AsyncMock(return_value=[])
-        
+
         task = asyncio.create_task(worker._poll_and_process())
         await asyncio.sleep(0.02)
         worker._running = False
         task.cancel()
-        
+
         self.mock_redis.zrevrange.assert_called_with("queue:security-pipeline:queue", 0, 5)
 
     @pytest.mark.asyncio
@@ -209,25 +209,29 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         worker._redis = self.mock_redis
         worker._running = True
         worker._shas = {"claim_job": "claim_sha"}
-        
+
         # Queue returns one candidate job
         self.mock_redis.zrevrange = AsyncMock(return_value=[b"queue:security-pipeline:job:job_abc"])
         # Claim succeeds
         self.mock_redis.evalsha = AsyncMock(return_value=[1, "claimed"])
         # Fetching details returns valid job
-        self.mock_redis.hgetall = AsyncMock(return_value={
-            b"type": b"subdomains",
-            b"payload": b"{\"payload\": {\"target\": \"example.com\"}}",
-        })
-        
+        self.mock_redis.hgetall = AsyncMock(
+            return_value={
+                b"type": b"subdomains",
+                b"payload": b'{"payload": {"target": "example.com"}}',
+            }
+        )
+
         # Patch _process_job to not actually spawn a subprocess
         with patch.object(worker, "_process_job", new_callable=AsyncMock) as mock_process_job:
             task = asyncio.create_task(worker._poll_and_process())
             await asyncio.sleep(0.03)
             worker._running = False
             task.cancel()
-            
-            mock_process_job.assert_called_with("job_abc", "subdomains", {"payload": {"target": "example.com"}})
+
+            mock_process_job.assert_called_with(
+                "job_abc", "subdomains", {"payload": {"target": "example.com"}}
+            )
 
     @pytest.mark.asyncio
     async def test_cleanup(self) -> None:
@@ -237,14 +241,14 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
         )
         worker._redis = self.mock_redis
         worker._shas = {"release_lease": "release_sha"}
-        
+
         # Mock active tasks
         task_mock = MagicMock()
         task_mock.get_name = MagicMock(return_value="job_999")
         worker._active_tasks.add(task_mock)
-        
+
         await worker._cleanup()
-        
+
         # Verify active task lease was released
         self.mock_redis.evalsha.assert_called_with(
             "release_sha",
@@ -253,7 +257,7 @@ class TestLiteWorker(unittest.IsolatedAsyncioTestCase):
             "queue:security-pipeline:worker:test-lite-worker:jobs",
             "queue:security-pipeline:queue",
         )
-        
+
         # Verify worker is deleted
         self.mock_redis.delete.assert_called_with("queue:security-pipeline:worker:test-lite-worker")
         self.mock_redis.srem.assert_called_with("queue:security-pipeline:workers", self.worker_id)
@@ -284,10 +288,16 @@ class TestSetupTools(unittest.TestCase):
     ) -> None:
         # Mock temporary zip archive contents
         mock_zip_instance = MagicMock()
-        mock_zip_instance.namelist = MagicMock(return_value=[
-            "subfinder", "httpx", "katana",
-            "subfinder.exe", "httpx.exe", "katana.exe"
-        ])
+        mock_zip_instance.namelist = MagicMock(
+            return_value=[
+                "subfinder",
+                "httpx",
+                "katana",
+                "subfinder.exe",
+                "httpx.exe",
+                "katana.exe",
+            ]
+        )
         mock_zipfile.return_value.__enter__.return_value = mock_zip_instance
 
         # Run tool setup

@@ -59,7 +59,7 @@ class FileBackend:
         if index_path.exists():
             try:
                 self._index = json.loads(index_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
+            except json.JSONDecodeError, OSError:
                 self._index = {}
 
     def _save_index(self) -> None:
@@ -106,12 +106,12 @@ class FileBackend:
             try:
                 data = gzip.decompress(gz_path.read_bytes())
                 entry = json.loads(data.decode("utf-8"))
-            except (json.JSONDecodeError, OSError):
+            except json.JSONDecodeError, OSError:
                 return None
         elif json_path.exists():
             try:
                 entry = json.loads(json_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
+            except json.JSONDecodeError, OSError:
                 return None
         else:
             return None

@@ -36,7 +36,7 @@ def warm_from_sqlite(manager: Any, db_path: str) -> None:
                 value = json.loads(row[1])
                 manager.set(row[0], value, namespace="warm")
                 count += 1
-            except (json.JSONDecodeError, TypeError):
+            except json.JSONDecodeError, TypeError:
                 pass
         conn.close()
         logger.info("Warmed %d entries from SQLite %s", count, db_path)
@@ -53,6 +53,6 @@ def warm_from_directory(manager: Any, dir_path: Path) -> None:
                 key = str(json_file.relative_to(dir_path))
                 manager.set(key, data, namespace="warm")
                 count += 1
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             pass
     logger.info("Warmed %d entries from directory %s", count, dir_path)
