@@ -23,7 +23,10 @@ def test_chameleon_diverse_noise_headers(monkeypatch):
     # Mock secrets.randbelow to ensure noise_chance is exceeded (e.g. returns 8 > 6)
     # and choice is deterministic
     import secrets
-    monkeypatch.setattr(secrets, "randbelow", lambda n: n - 1)  # always returns max possible, which is > 6
+
+    monkeypatch.setattr(
+        secrets, "randbelow", lambda n: n - 1
+    )  # always returns max possible, which is > 6
 
     chameleon = RequestChameleon()
     base_headers = {"Host": "example.com"}

@@ -9,7 +9,8 @@ import functools
 import logging
 import threading
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import msgspec
 
@@ -132,6 +133,7 @@ def instrument(func_or_stage_name: Any = None) -> Callable[..., Any]:
                 event_bus(event)
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return wrapper

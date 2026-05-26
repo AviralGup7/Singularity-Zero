@@ -1,7 +1,7 @@
 import base64
 import json
-
 import time
+
 import pytest
 
 from src.core.frontier.ghost_vfs import GhostVFS
@@ -218,6 +218,7 @@ def test_ghost_vfs_policy_enforcement():
 
 def test_ghost_vfs_retention_policy():
     from src.core.frontier.policies import PolicyEngine
+
     vfs = GhostVFS()
 
     vfs.write_file("file1.txt", "short content")
@@ -242,4 +243,3 @@ def test_ghost_vfs_retention_policy():
     engine_bytes = PolicyEngine(max_file_count=10, max_age_seconds=3600, max_total_bytes=50)
     engine_bytes.enforce_retention(vfs)
     assert len(vfs.list_files()) < 2
-

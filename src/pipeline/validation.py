@@ -53,7 +53,7 @@ def _is_valid_cidr(cidr: str) -> bool:
     try:
         ipaddress.ip_network(cidr, strict=False)
         return True
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False
 
 

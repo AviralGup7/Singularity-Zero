@@ -129,7 +129,7 @@ def _parse_graphql_response(body: str) -> dict[str, Any] | None:
     try:
         result: Any = json.loads(body)
         return result if isinstance(result, dict) else None
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return None
 
 

@@ -21,6 +21,7 @@ class IsolatedScanner:
     Manifest defining the strict input/output boundaries and resource limits
     for an isolated WASM scanner module.
     """
+
     plugin_id: str
     wasm_path: str
     allowed_inputs: list[str]
@@ -34,20 +35,28 @@ class IsolatedScanner:
 
     def validate_output(self, result: dict[str, Any]) -> dict[str, Any]:
         """Ensure result only returns expected outputs or standard audit fields."""
-        allowed_keys = set(self.expected_outputs) | {"verified", "error", "message", "_wasm_duration", "killed"}
+        allowed_keys = set(self.expected_outputs) | {
+            "verified",
+            "error",
+            "message",
+            "_wasm_duration",
+            "killed",
+        }
         return {k: v for k, v in result.items() if k in allowed_keys}
 
 
-def execute_isolated_scanner(scanner: IsolatedScanner, stage_input: dict[str, Any]) -> dict[str, Any]:
+def execute_isolated_scanner(
+    scanner: IsolatedScanner, stage_input: dict[str, Any]
+) -> dict[str, Any]:
     """
     Executes a scanner with strict input/output validation and an immutable
     OS-level wall-budget timer.
     """
     filtered_input = scanner.validate_input(stage_input)
-    
+
     # Define an OS-level wall-budget watchdog thread
     timer_fired = False
-    
+
     def watchdog() -> None:
         nonlocal timer_fired
         # Keep timer-fired flag
