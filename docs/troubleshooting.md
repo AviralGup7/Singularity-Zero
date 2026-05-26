@@ -77,3 +77,31 @@ Agents can use these "last resort" commands to recover the system:
 | `unhealthy:redis` | Queue backend is down | Pause all scans, wait for reconnect. |
 | `unhealthy:mesh` | No workers available | Scale up mesh workers or switch to standalone. |
 | `degraded:performance` | Stage duration > 2x baseline | Analyze logs for rate-limiting patterns. |
+
+---
+
+## 🌐 Network & Port Conflicts (Windows/WSL2/Termux Mesh)
+
+When connecting standalone sub-nodes (e.g., Android devices running Termux) to a Redis backplane hosted on a Windows PC or WSL2 environment, you may experience connection timeouts or `Connection reset by peer` errors.
+
+### 1. Windows IP Helper Service Conflict (`iphlpsvc`)
+* **Problem**: The Windows IP Helper service (`iphlpsvc`) binds to port `6379` by default on all host network interfaces. If you attempt to use `netsh interface portproxy` to route external traffic on port `6379` directly to your local Redis instance, the connection will fail or be reset because traffic hits the Windows IP Helper service rather than Redis.
+* **Symptoms**:
+  - `Connection reset by peer` in `worker_lite.py` or other clients.
+  - Port `6379` appears listening on the host but does not serve Redis protocol payloads.
+* **Remediation**:
+  Use a different external port (e.g., `16379`) for port proxying, and forward it to your local Redis port `6379`:
+  ```powershell
+  # Forward incoming traffic on port 16379 to local Redis on port 6379
+  netsh interface portproxy add v4tov4 listenport=16379 listenaddress=0.0.0.0 connectport=6379 connectaddress=127.0.0.1
+  ```
+  Ensure you allow inbound traffic on port `16379` in your Windows Defender Firewall.
+  Then connect the worker using:
+  ```bash
+  python worker_lite.py --redis-url redis://<YOUR_PC_IP>:16379/0
+  ```
+
+### 2. WSL2 vs Host Network Binding
+* **Problem**: If Redis is running inside a WSL2 container and you are using `localhost` or `127.0.0.1`, external network devices cannot reach it unless bridged or explicitly proxied.
+* **Remediation**: Ensure Redis binds to `0.0.0.0` or use the Windows host IP address with appropriate `netsh portproxy` rules to bridge the host OS Wi-Fi/Ethernet interface to the WSL2 virtual subnet.
+

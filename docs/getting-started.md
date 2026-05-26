@@ -83,6 +83,23 @@ Workers discover each other automatically via mDNS:
 cyber-worker --enable-discovery --capabilities browser heavy_compute
 ```
 
+### 📱 Standalone Sub-Node Setup (Android / Termux / Low-Resource)
+For low-resource Android devices running Termux, or remote Linux systems where you don't want a heavy installation, you can spin up a lightweight, completely compilation-free worker node using our single-line bootstrap installer. This installs only Python, the pure-Python Redis client, pre-compiled Go binaries, and a single standalone worker script.
+
+Run the following bootstrap command in Termux (or any compatible terminal):
+```bash
+curl -sSL -o setup_lite.sh "https://raw.githubusercontent.com/AviralGup7/Singularity-Zero/main/setup_lite.sh?t=\$(date +%s)" && chmod +x setup_lite.sh && ./setup_lite.sh
+```
+
+> [!NOTE]
+> The `?t=$(date +%s)` cache-buster ensures you always get the latest hotfixes immediately without waiting for GitHub CDN caching (which defaults to a 5-minute TTL).
+
+Once installed, connect the sub-node to the PC backplane:
+```bash
+python worker_lite.py --redis-url redis://<YOUR_PC_IP>:16379/0
+```
+
+
 ---
 
 ## 🔍 Debugging
