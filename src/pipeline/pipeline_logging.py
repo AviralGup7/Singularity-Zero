@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from src.pipeline.services.instrumentation import (
-    StageEvent,
     EventBus,
+    StageEvent,
     event_bus,
-    instrument,
     get_memory_usage,
+    instrument,
 )
 
 __all__ = [

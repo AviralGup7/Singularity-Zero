@@ -74,7 +74,7 @@ def resolve_priority_limit(
             value = value.get("default")
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
 
     configured = filters.get("priority_limit", 100)

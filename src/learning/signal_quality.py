@@ -18,6 +18,7 @@ from typing import Any
 try:
     import numpy as np
     from sklearn.linear_model import LogisticRegression
+
     HAS_ML_LIBS = True
 except ImportError:
     HAS_ML_LIBS = False
@@ -33,26 +34,30 @@ class SignalQualityMLPipeline:
 
     def __init__(self) -> None:
         # Pre-initialize coefficients to mirror the exact behavior of the arithmetic scoring
-        self.coef_ = np.array([[
-            1.65,   # confidence
-            2.35,   # model_tp
-            -1.85,  # model_fp
-            -2.25,  # fp_pattern_probability
-            0.55,   # status_changed
-            0.35,   # content_changed
-            0.35,   # redirect_changed
-            0.40,   # body_similarity_low (similarity < 0.45)
-            1.10,   # reproducible
-            0.65,   # intra_run_confirmed
-            1.35,   # cross_run_reproducible
-            1.20,   # trust_boundary_shift
-            0.45,   # correlated signals (>=2)
-            -0.50,  # low-risk endpoint
-            -0.25   # noisy category
-        ]])
+        self.coef_ = np.array(
+            [
+                [
+                    1.65,  # confidence
+                    2.35,  # model_tp
+                    -1.85,  # model_fp
+                    -2.25,  # fp_pattern_probability
+                    0.55,  # status_changed
+                    0.35,  # content_changed
+                    0.35,  # redirect_changed
+                    0.40,  # body_similarity_low (similarity < 0.45)
+                    1.10,  # reproducible
+                    0.65,  # intra_run_confirmed
+                    1.35,  # cross_run_reproducible
+                    1.20,  # trust_boundary_shift
+                    0.45,  # correlated signals (>=2)
+                    -0.50,  # low-risk endpoint
+                    -0.25,  # noisy category
+                ]
+            ]
+        )
         self.intercept_ = np.array([-0.85])
         self.classes_ = np.array([0, 1])
-        
+
         self.model = None
         if HAS_ML_LIBS:
             try:
@@ -69,7 +74,7 @@ class SignalQualityMLPipeline:
                 return self.model.predict_proba(X)
             except Exception:
                 pass
-        
+
         # Elegant matrix multiplication fallback
         scores = np.dot(X, self.coef_.T) + self.intercept_
         scores = np.clip(scores, -20.0, 20.0)
@@ -88,7 +93,6 @@ class SignalQualityMLPipeline:
 
 
 ml_pipeline = SignalQualityMLPipeline()
-
 
 
 @dataclass(frozen=True)
@@ -150,7 +154,7 @@ def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
 def _numeric(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -289,10 +293,16 @@ def extract_features(
         1.0 if (evidence.get("reproducible") or evidence.get("confirmed")) else 0.0,
         1.0 if evidence.get("intra_run_confirmed") else 0.0,
         1.0 if evidence.get("cross_run_reproducible") else 0.0,
-        1.0 if (evidence.get("trust_boundary_shift") or evidence.get("trust_boundary") == "cross-host") else 0.0,
+        1.0
+        if (evidence.get("trust_boundary_shift") or evidence.get("trust_boundary") == "cross-host")
+        else 0.0,
         1.0 if len(signals) >= 2 else 0.0,
-        1.0 if str(item.get("endpoint_type", "")).upper() in {"STATIC", "ASSET", "DOCUMENTATION"} else 0.0,
-        1.0 if str(item.get("category", "")).lower() in {"anomaly", "misconfiguration", "exposure"} else 0.0,
+        1.0
+        if str(item.get("endpoint_type", "")).upper() in {"STATIC", "ASSET", "DOCUMENTATION"}
+        else 0.0,
+        1.0
+        if str(item.get("category", "")).lower() in {"anomaly", "misconfiguration", "exposure"}
+        else 0.0,
     ]
 
 
@@ -351,7 +361,7 @@ def score_signal_quality(
             coef[0, 3] = weights["fp_pattern_probability"]
         if "reproducible" in weights:
             coef[0, 8] = weights["reproducible"]
-        
+
         X = np.array([features])
         scores = np.dot(X, coef.T) + ml_pipeline.intercept_
         scores = np.clip(scores, -20.0, 20.0)
@@ -384,6 +394,7 @@ def score_signal_quality(
     if action == "suppress":
         try:
             from src.infrastructure.observability.metrics import get_metrics
+
             get_metrics().counter("fp_reduction_total").inc()
         except Exception:
             pass
@@ -396,7 +407,6 @@ def score_signal_quality(
         reportable=reportable,
         reasons=reasons[:8],
     )
-
 
 
 def annotate_signal_quality(

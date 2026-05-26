@@ -13,13 +13,13 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
-import threading
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from typing import Any, Protocol
+
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from src.core.logging.audit import AuditEventType, get_audit_logger
 from src.infrastructure.security.encryption import (
@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 class _AuditSink(Protocol):
     def log(self, *args: Any, **kwargs: Any) -> Any: ...
+
 
 class VaultRotationPolicy:
     """Time-based key rotation policy for vault records."""
@@ -76,10 +77,10 @@ class CyberVault:
         # Generate the master KEK using Argon2id derived from the master passphrase
         self._master_salt = salt or os.urandom(self._kdf_params.salt_len)
         self._kek = Argon2idAESGCM.derive_key(self._master_key, self._master_salt, self._kdf_params)
-        
+
         # Generate a random Data Encrypting Key (DEK)
         self._dek = os.urandom(32)
-        
+
         # Encrypt the DEK with the KEK
         aesgcm_kek = AESGCM(self._kek)
         self._dek_nonce = os.urandom(12)
@@ -129,14 +130,14 @@ class CyberVault:
         """Advance the vault key version, generate a new DEK, and re-encrypt records."""
         records = encrypted_records or {}
         rotated: dict[str, str] = {}
-        
+
         # Generate a new KEK from the passphrase
         self._master_salt = os.urandom(self._kdf_params.salt_len)
         new_kek = Argon2idAESGCM.derive_key(self._master_key, self._master_salt, self._kdf_params)
-        
+
         # Generate a new DEK
         new_dek = os.urandom(32)
-        
+
         # Encrypt the new DEK with the new KEK
         aesgcm_new_kek = AESGCM(new_kek)
         new_dek_nonce = os.urandom(12)
@@ -147,7 +148,9 @@ class CyberVault:
             with self.decrypt_lease(encrypted, purpose=secret_id) as lease:
                 # Encrypt with new DEK
                 nonce = os.urandom(12)
-                ciphertext = AESGCM(new_dek).encrypt(nonce, lease.bytes, self._aad(secret_id, self._key_version + 1))
+                ciphertext = AESGCM(new_dek).encrypt(
+                    nonce, lease.bytes, self._aad(secret_id, self._key_version + 1)
+                )
                 envelope = {
                     "v": self._key_version + 1,
                     "alg": "AES-256-GCM-DEK",
@@ -164,13 +167,13 @@ class CyberVault:
             secure_wipe(bytearray(self._kek))
         if hasattr(self, "_dek"):
             secure_wipe(bytearray(self._dek))
-        
+
         # Swap keys
         self._kek = new_kek
         self._dek = new_dek
         self._dek_nonce = new_dek_nonce
         self._wrapped_dek = new_wrapped_dek
-        
+
         self._key_version += 1
         self._rotated_at = time.time()
         self._audit("rotate", secret_count=len(records))
@@ -194,18 +197,18 @@ class CyberVault:
             # Generate KEK salt and derive KEK
             kek_salt = os.urandom(self._kdf_params.salt_len)
             kek = Argon2idAESGCM.derive_key(self._master_key, kek_salt, self._kdf_params)
-            
+
             # Generate random DEK
             dek = os.urandom(32)
-            
+
             # Wrap DEK using KEK
             dek_nonce = os.urandom(12)
             wrapped_dek = AESGCM(kek).encrypt(dek_nonce, dek, b"dek-envelope")
-            
+
             # Encrypt data using DEK
             nonce = os.urandom(12)
             ciphertext = AESGCM(dek).encrypt(nonce, bytes(raw), self._aad(purpose, version))
-            
+
             envelope = {
                 "v": version,
                 "alg": "AES-256-GCM-DEK",
@@ -215,11 +218,11 @@ class CyberVault:
                 "nonce": base64.b64encode(nonce).decode("utf-8"),
                 "ciphertext": base64.b64encode(ciphertext).decode("utf-8"),
             }
-            
+
             # Secure wipe
             secure_wipe(bytearray(kek))
             secure_wipe(bytearray(dek))
-            
+
             self._audit("store", secret_id=purpose, key_version=version)
             return "csp-a256gcm-argon2id-v1:" + json.dumps(envelope)
         finally:
@@ -231,7 +234,7 @@ class CyberVault:
         try:
             payload = encrypted_payload
             if payload.startswith("csp-a256gcm-argon2id-v1:"):
-                payload = payload[len("csp-a256gcm-argon2id-v1:"):]
+                payload = payload[len("csp-a256gcm-argon2id-v1:") :]
             envelope = json.loads(payload)
             if envelope.get("alg") == "AES-256-GCM-DEK":
                 kek_salt = base64.b64decode(envelope["kek_salt"])
@@ -240,24 +243,24 @@ class CyberVault:
                 nonce = base64.b64decode(envelope["nonce"])
                 ciphertext = base64.b64decode(envelope["ciphertext"])
                 version = envelope.get("v", self._key_version)
-                
+
                 # Derive KEK
                 kek = Argon2idAESGCM.derive_key(self._master_key, kek_salt, self._kdf_params)
-                
+
                 # Unwrap DEK
                 dek = AESGCM(kek).decrypt(dek_nonce, wrapped_dek, b"dek-envelope")
-                
+
                 # Decrypt secret data
                 plaintext = AESGCM(dek).decrypt(nonce, ciphertext, self._aad(purpose, version))
-                
+
                 # Secure wipe
                 secure_wipe(bytearray(kek))
                 secure_wipe(bytearray(dek))
-                
+
                 return SecretLease(plaintext)
         except Exception:
             pass
-            
+
         # Compatibility fallback for Argon2idAESGCM envelopes
         return self._envelope().decrypt_lease(
             encrypted_payload, self._aad(purpose), info=purpose.encode("utf-8")
@@ -303,7 +306,7 @@ class TargetSecretStore:
         self._vault = vault
         self._secrets: dict[str, str] = {}
         self._lock = threading.RLock()
-        
+
         # Background key rotation scheduler (checks every 5 seconds, rotates every 4 hours)
         self._stop_scheduler = threading.Event()
         self._scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
