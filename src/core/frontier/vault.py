@@ -18,6 +18,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import threading
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from typing import Any, Protocol
 
@@ -122,7 +123,7 @@ class CyberVault:
                 result,
                 redacted,
             )
-        except Exception as e:
+        except (AttributeError, ValueError, OSError) as e:
             logger.warning("Vault: Audit logging failed: %s", e)
 
     def rotate_key(self, encrypted_records: dict[str, str] | None = None) -> dict[str, str]:
@@ -255,7 +256,7 @@ class CyberVault:
                 secure_wipe(bytearray(dek))
                 
                 return SecretLease(plaintext)
-        except Exception:
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature):
             pass
             
         # Compatibility fallback for Argon2idAESGCM envelopes
@@ -314,8 +315,8 @@ class TargetSecretStore:
             with self._lock:
                 try:
                     self.rotate_due_keys()
-                except Exception:
-                    pass
+                except (ValueError, KeyError, InvalidSignature) as exc:
+                    logger.debug("Vault background key rotation scheduler failure: %s", exc)
 
     def close(self) -> None:
         """Stop the background scheduler cleanly."""

@@ -193,6 +193,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Run Platform Hardening Quality Gates
+        run: |
+          python scripts/verify_dependency_pins.py
+          python scripts/validate_sbom.py
+          python scripts/verify_a11y.py
+          python scripts/validate_openapi.py
+          python scripts/verify_bundle_secrets.py
+
   iac-scan:
     runs-on: ubuntu-24.04
     steps:

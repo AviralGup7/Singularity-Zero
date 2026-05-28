@@ -59,7 +59,7 @@ class ErrorResponse(BaseModel):
 class StrictRequestModel(BaseModel):
     """Base class for JSON request bodies that reject unknown fields."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 class HealthResponse(BaseModel):

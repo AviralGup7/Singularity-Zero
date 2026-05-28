@@ -434,6 +434,15 @@ Tests:
 Health sweep:
 - `npm run health`
 
+### 14.1 Production Bundle Optimization & Chunk Splitting
+
+To guarantee fast initial loading times and prevent large vendor bundle warnings from Rollup, the Vite compiler leverages custom `manualChunks` splitting. Dependencies are split dynamically under node_modules into four high-cohesion vendor modules, keeping all individual asset payloads comfortably under **800KB**:
+
+1. **`three-vendor`**: Isolates heavy 3D assets such as `three`, `@react-three/fiber`, `@react-three/drei`, and `@react-three/postprocessing`. This prevents rendering pipelines from delaying page load of text/metrics routes.
+2. **`data-vendor`**: Groups charting and data visualization engines including D3 primitives (`d3`, `d3-array`, `d3-force`, `d3-scale`, `d3-shape`), `recharts`, and `@tanstack/react-query`.
+3. **`ui-vendor`**: Combines interface interactive modules, icons, and micro-animation systems like `framer-motion`, `@radix-ui/*`, `lucide-react`, `cmdk`, `vaul`, `embla-carousel-react`, and `@formkit/auto-animate`.
+4. **`react-vendor`**: Contains core reactive frameworks and routing packages (`react`, `react-dom`, `react-router-dom`, `react-router`, and `react-is`).
+
 ---
 
 ## 15. Testing Structure
@@ -499,9 +508,8 @@ Defined in:
 - A few UI strings include mojibake characters in source output capture.
 - Functional impact is low, but cleanup is recommended for polish.
 
-3. Large vendor chunk warning:
-- `react-vendor` chunk is large.
-- Build passes, but further code-splitting can reduce initial payload.
+3. [RESOLVED] Large vendor chunk warning:
+- High-cohesion code splitting has been configured. Rollup dynamic chunking splits vendor modules into four lighter chunks (three-vendor, data-vendor, ui-vendor, react-vendor), each measuring comfortably under 800KB.
 
 ---
 

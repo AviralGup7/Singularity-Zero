@@ -15,6 +15,7 @@ from src.dashboard.fastapi.security import (
     authenticate_jwt_token,
     raise_for_roles,
 )
+from src.core.tenant_context import TenantContext
 
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -99,18 +100,23 @@ async def require_auth(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Valid X-API-Key or bearer token required",
             )
+        tenant_id = request.headers.get("X-Tenant-ID") or principal.tenant_id or "default"
+        TenantContext.set_current_tenant(tenant_id)
         return {
             "user": principal.user,
             "role": principal.role,
             "api_key_id": principal.api_key_id or "",
             "auth_method": principal.auth_method,
+            "tenant_id": tenant_id,
         }
 
     configured_key = config.api_key or os.environ.get("DASHBOARD_API_KEY")
     if configured_key is None:
         disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "true").strip().lower()
         if disabled in ("true", "1", "yes"):
-            return {"user": "anonymous", "role": "admin"}
+            tenant_id = request.headers.get("X-Tenant-ID") or "default"
+            TenantContext.set_current_tenant(tenant_id)
+            return {"user": "anonymous", "role": "admin", "tenant_id": tenant_id}
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required: DASHBOARD_API_KEY is not set. Set DASHBOARD_AUTH_DISABLED=true to disable auth in development.",
@@ -136,8 +142,10 @@ async def require_auth(
         k.strip() for k in os.environ.get("DASHBOARD_ADMIN_KEYS", "").split(",") if k.strip()
     ]
     role = "admin" if api_key in admin_keys else "read"
+    tenant_id = request.headers.get("X-Tenant-ID") or "default"
+    TenantContext.set_current_tenant(tenant_id)
 
-    return {"user": "api_user", "role": role}
+    return {"user": "api_user", "role": role, "tenant_id": tenant_id}
 
 
 def _security_principal_from_request(request: Request, api_key: str | None) -> Principal | None:
@@ -187,6 +195,7 @@ async def require_admin(
         principal = Principal(
             user=auth.get("user", ""),
             role=auth.get("role", "read_only"),
+            tenant_id=auth.get("tenant_id", "default"),
             api_key_id=auth.get("api_key_id") or None,
             auth_method=auth.get("auth_method", "api_key"),
         )
@@ -209,6 +218,7 @@ async def require_worker(
         principal = Principal(
             user=auth.get("user", ""),
             role=auth.get("role", "read_only"),
+            tenant_id=auth.get("tenant_id", "default"),
             api_key_id=auth.get("api_key_id") or None,
             auth_method=auth.get("auth_method", "api_key"),
         )
@@ -269,7 +279,11 @@ async def check_rate_limit(
         "/api/jobs/start": config.rate_limit_jobs,
         "/api/replay": config.rate_limit_replay,
     }
-    limit = limits.get(path, config.rate_limit_default)
+    
+    if path.startswith("/api/remediated/") and path.endswith("/verify"):
+        limit = config.rate_limit_remediation
+    else:
+        limit = limits.get(path, config.rate_limit_default)
 
     key = f"{client_ip}:{path}"
     allowed, retry_after = _rate_limiter.check(key, limit)

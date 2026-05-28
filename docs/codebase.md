@@ -17,19 +17,23 @@ src/
 │   │   ├── bloom_mesh.py        # Neural Bloom Mesh: cluster-wide OR-merge of packed-bit snapshots
 │   │   ├── chameleon.py         # Polymorphic WAF evasion engine
 │   │   ├── chameleon_evasion.py # HMM-based evasion state machine, JA3 fingerprinting, timing permutation
-│   │   ├── ghost_actor.py       # Pykka-based migratory actors
+│   │   ├── ghost_actor.py       # Custom asyncio-based migratory actors (Pykka-compatible)
 │   │   ├── ghost_vfs.py         # RAM-only anti-forensic storage with temporal AES-GCM key rotation
 │   │   ├── marshaller.py        # MessagePack zero-copy serialization
 │   │   ├── mesh_limiter.py      # Mesh message-rate limiter
 │   │   ├── plugins/             # Dynamic plugin registry for frontier extensions
 │   │   ├── proc_pool.py         # Worker-process resource pool
 │   │   ├── ring_bus.py          # Inter-node broadcast ring bus
-│   │   ├── state.py             # CRDT Vector-Clock / LWW-Sets / NeuralState
+│   │   ├── state.py             # CRDT Hybrid Logical Clock / LWW-Sets / NeuralState
 │   │   ├── tracing_manager.py   # Distributed tracing collector + exporter
 │   │   ├── vault.py             # PBKDF2-600k-AES-256-GCM encrypted credential vault
 │   │   ├── waf_patterns.py      # WAF fingerprint and evasion signature catalogue
 │   │   ├── wal.py               # Redis-backed Write-Ahead Log (dual-commit: Redis Stream + local AOF)
 │   │   └── wasm.py              # WebAssembly runtime isolation
+│   ├── security/     # Core cryptographic security and signature verification
+│   │   ├── circuit_breaker.py # CLOSED, OPEN, HALF_OPEN Circuit Breaker for high-resilience external systems
+│   │   └── provenance.py # Ed25519-signed manifest and SHA-256 template checks
+│   ├── tenant_context.py # contextvars-based thread-local and async-safe Tenant Context
 │   └── utils/        # Lower-level utilities
 │       ├── http_pool.py                  # HTTP connection pooling
 │       ├── param_types.py                # Typed parameter descriptors
@@ -90,7 +94,8 @@ src/
 │   │   ├── lateral_graph.py     # Kuzu Attack-Chain database
 │   │   ├── differential_prober.py # IDOR/BAC State Fuzzer
 │   │   ├── semantic_dedup.py    # Vector-space Cosine Similarity
-│   │   └── neural_score.py      # Composite Severity Index (CSI)
+│   │   ├── neural_score.py      # Composite Severity Index (CSI)
+│   │   └── drift_detection.py   # Stateless Jaccard similarity exploit path drift engine
 │   ├── active/
 │   ├── automation/
 │   ├── behavior/
@@ -121,6 +126,13 @@ src/
 ├── dashboard/          # FastAPI REST + 3D visualisation dashboard
 ├── cli.py              # Unified high-performance terminal engine
 └── __init__.py
+
+scripts/                # 🛡️ CI/CD Quality Gates & Security Verification Scripts
+├── verify_dependency_pins.py # Enforces absolute package locks
+├── validate_sbom.py          # CycloneDX baseline drift auditor
+├── verify_a11y.py            # WCAG 2.2 AA accessibility checker
+├── validate_openapi.py       # OpenAPI contract drift detector
+└── verify_bundle_secrets.py  # Attests build contains no leaked secrets
 ```
 
 ---
@@ -128,7 +140,7 @@ src/
 ## 🧬 Frontier Tech Stack
 The pipeline relies on highly optimized C/C++ extensions to bypass standard Python limits:
 
-- **Infrastructure**: `pykka` (Actor Model), `redis` (Pub/Sub & Streams).
+- **Infrastructure**: Custom native `asyncio` actor framework (replaces `pykka` for high-performance execution), `redis` (Pub/Sub & Streams).
 - **Hardware Acceleration**: `numpy` (SIMD Vectorization), `mmh3` (Fast Hashing), `msgpack` (Binary Marshalling).
 - **Intelligence**: `kuzu` (Graph Database), `diff-match-patch` (Differential Analysis).
 - **Security**: `cryptography` (AES-GCM, PBKDF2), `wasmtime` (Sandbox Isolation).

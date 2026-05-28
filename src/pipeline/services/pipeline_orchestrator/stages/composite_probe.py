@@ -50,6 +50,7 @@ class CompositeActiveProbe:
             "auth_bypass",
             "json",
             "fuzzing_suggestions",
+            "fuzzing_campaign",
         ]
         tasks = [
             _try_probe(
@@ -140,6 +141,15 @@ class CompositeActiveProbe:
             _try_probe(
                 "fuzzing_suggestions",
                 _run_fuzzing_suggestion_probe,
+                url_l,
+                6,
+                timeout_seconds=self.timeout_seconds,
+                probes=self.probes,
+                error_accumulator=self.error_accumulator,
+            ),
+            _try_probe(
+                "fuzzing_campaign",
+                self.probes["run_fuzzing_campaign_probe"],
                 url_l,
                 6,
                 timeout_seconds=self.timeout_seconds,

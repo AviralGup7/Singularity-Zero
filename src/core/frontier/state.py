@@ -1,6 +1,7 @@
 """
 Cyber Security Test Pipeline - Distributed State (CRDT)
-Implements Conflict-free Replicated Data Types for multi-worker synchronization.
+Implements Hybrid Logical Clocks (HLC) and Conflict-free Replicated Data Types.
+Ensures bounded-size distributed causality tracking for cross-datacenter replication.
 """
 
 from __future__ import annotations
@@ -24,10 +25,69 @@ T = TypeVar("T")
 
 
 @dataclass(frozen=True)
-class VectorClock:
-    """Logical clock for distributed causality tracking."""
+class HybridLogicalClock:
+    """Hybrid Logical Clock (HLC) for bounded distributed causality tracking."""
 
-    # Fix #324: Use MappingProxyType to prevent mutable default dictionary in frozen dataclass
+    physical_time: float = field(default_factory=time.time)
+    logical_counter: int = 0
+    node_id: str = "local"
+
+    def tick(self, now: float | None = None) -> HybridLogicalClock:
+        """Generate a new HLC tick representing a local event."""
+        physical_now = now if now is not None else time.time()
+        l_new = max(self.physical_time, physical_now)
+        c_new = (self.logical_counter + 1) if l_new == self.physical_time else 0
+        return HybridLogicalClock(l_new, c_new, self.node_id)
+
+    def update(self, remote: HybridLogicalClock, now: float | None = None) -> HybridLogicalClock:
+        """Merge causality with a remote HLC tick upon message/state receipt."""
+        physical_now = now if now is not None else time.time()
+        l_new = max(self.physical_time, remote.physical_time, physical_now)
+        if l_new == self.physical_time == remote.physical_time:
+            c_new = max(self.logical_counter, remote.logical_counter) + 1
+        elif l_new == self.physical_time:
+            c_new = self.logical_counter + 1
+        elif l_new == remote.physical_time:
+            c_new = remote.logical_counter + 1
+        else:
+            c_new = 0
+        return HybridLogicalClock(l_new, c_new, self.node_id)
+
+    def is_later_than(self, other: HybridLogicalClock) -> bool:
+        """Compare HLC timestamps using causal ordering rules."""
+        if self.physical_time > other.physical_time:
+            return True
+        if self.physical_time < other.physical_time:
+            return False
+        if self.logical_counter > other.logical_counter:
+            return True
+        if self.logical_counter < other.logical_counter:
+            return False
+        return self.node_id > other.node_id
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize HLC properties."""
+        return {
+            "l": self.physical_time,
+            "c": self.logical_counter,
+            "node": self.node_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> HybridLogicalClock:
+        if not data:
+            return cls()
+        return cls(
+            physical_time=float(data.get("l", 0.0)),
+            logical_counter=int(data.get("c", 0)),
+            node_id=str(data.get("node", "local")),
+        )
+
+
+@dataclass(frozen=True)
+class VectorClock:
+    """Logical clock kept for interface backwards-compatibility."""
+
     versions: MappingProxyType[str, int] = field(default_factory=lambda: MappingProxyType({}))
 
     def increment(self, node_id: str) -> VectorClock:
@@ -42,12 +102,10 @@ class VectorClock:
         return VectorClock(MappingProxyType(next_v))
 
     def prune(self, active_node_ids: set[str]) -> VectorClock:
-        """Remove entries for nodes that are no longer part of the mesh."""
         next_v = {nid: v for nid, v in self.versions.items() if nid in active_node_ids}
         return VectorClock(MappingProxyType(next_v))
 
     def is_later_than(self, other: VectorClock) -> bool:
-        """True if this clock is strictly greater than or equal to 'other'."""
         at_least_one_greater = False
         for nid, v in self.versions.items():
             other_v = other.versions.get(nid, 0)
@@ -58,7 +116,6 @@ class VectorClock:
         return at_least_one_greater
 
     def to_dict(self) -> dict[str, int]:
-        """Return a JSON/MessagePack-friendly representation."""
         return dict(self.versions)
 
     @classmethod
@@ -68,9 +125,10 @@ class VectorClock:
 
 @dataclass(frozen=True)
 class LWWElement:
-    """An element with causal versioning."""
+    """An element with causal versioning using Hybrid Logical Clocks."""
 
     value: Any
+    hlc: HybridLogicalClock = field(default_factory=HybridLogicalClock)
     vclock: VectorClock = field(default_factory=VectorClock)
     timestamp: float = field(default_factory=time.time)
     deleted: bool = False
@@ -79,7 +137,7 @@ class LWWElement:
 class LWWset[T]:
     """
     A Last-Write-Wins Element Set CRDT.
-    Ensures that multiple workers adding/removing items eventually converge.
+    Uses Hybrid Logical Clocks (HLC) for deterministic event tie-breaking.
     """
 
     def __init__(self) -> None:
@@ -89,52 +147,56 @@ class LWWset[T]:
         self,
         item: T,
         timestamp: float | None = None,
+        hlc: HybridLogicalClock | None = None,
         vclock: VectorClock | None = None,
     ) -> None:
-        # Fix #235: use 'is not None' so timestamp=0.0 (epoch) is preserved.
         ts = timestamp if timestamp is not None else time.time()
+        clock = hlc if hlc is not None else HybridLogicalClock(ts, 0, "local").tick(ts)
         key = self._key(item)
         existing = self._elements.get(key)
-        if existing is None or ts > existing.timestamp:
-            self._elements[key] = LWWElement(item, vclock or VectorClock(), ts, deleted=False)
+        if existing is None or clock.is_later_than(existing.hlc):
+            self._elements[key] = LWWElement(
+                item, clock, vclock or VectorClock(), ts, deleted=False
+            )
 
     def remove(
         self,
         item: T,
         timestamp: float | None = None,
+        hlc: HybridLogicalClock | None = None,
         vclock: VectorClock | None = None,
     ) -> None:
-        # Match add(): preserve timestamp=0.0 (epoch)
         ts = timestamp if timestamp is not None else time.time()
+        clock = hlc if hlc is not None else HybridLogicalClock(ts, 0, "local").tick(ts)
         key = self._key(item)
         existing = self._elements.get(key)
-        if existing is None or ts > existing.timestamp:
-            self._elements[key] = LWWElement(item, vclock or VectorClock(), ts, deleted=True)
+        if existing is None or clock.is_later_than(existing.hlc):
+            self._elements[key] = LWWElement(
+                item, clock, vclock or VectorClock(), ts, deleted=True
+            )
 
     def merge(self, other: LWWset[T]) -> None:
-        """Commutative, Associative, and Idempotent merge."""
+        """Commutative, Associative, and Idempotent merge using Hybrid Logical Clocks."""
         for item, element in other._elements.items():
             existing = self._elements.get(item)
-            if existing is None or element.timestamp > existing.timestamp:
+            if existing is None or element.hlc.is_later_than(existing.hlc):
                 self._elements[item] = element
-            elif element.timestamp == existing.timestamp:
-                # Fix #323: Use VectorClock as tiebreaker when timestamps are exactly equal
-                if element.vclock.is_later_than(existing.vclock) or (
-                    element.vclock.versions == existing.vclock.versions
+            elif (
+                element.hlc.physical_time == existing.hlc.physical_time
+                and element.hlc.logical_counter == existing.hlc.logical_counter
+            ):
+                # Tie-breaker on node_id and JSON stable value string content
+                if element.hlc.node_id > existing.hlc.node_id or (
+                    element.hlc.node_id == existing.hlc.node_id
                     and _stable_json(element.value) > _stable_json(existing.value)
                 ):
                     self._elements[item] = element
 
     @property
     def tombstone_count(self) -> int:
-        """Count the number of deleted items (tombstones) currently in memory."""
         return sum(1 for el in self._elements.values() if el.deleted)
 
     def compact(self, max_tombstone_age_seconds: float = 86400.0) -> int:
-        """
-        Purge tombstones (deleted items) older than the threshold.
-        Returns the number of elements purged.
-        """
         now = time.time()
         to_remove = [
             k
@@ -151,10 +213,6 @@ class LWWset[T]:
         budget_ms: float,
         start_time: float,
     ) -> int:
-        """
-        Purge tombstones (deleted items) older than the threshold within the time budget.
-        Uses radix sort to sort tombstones by age for deterministic compaction.
-        """
         now = time.time()
         tombstones = [
             (k, el.timestamp)
@@ -164,7 +222,6 @@ class LWWset[T]:
         if not tombstones:
             return 0
 
-        # Sort tombstones using radix sort (or cython path if available)
         if _state_cython and hasattr(_state_cython, "radix_sort_timestamps"):
             sorted_tombstones = _state_cython.radix_sort_timestamps(tombstones)
         else:
@@ -179,20 +236,21 @@ class LWWset[T]:
         return purged
 
     def to_set(self) -> set[T]:
-        """
-        Return the current visible set of non-deleted elements.
-        Note: If elements are unhashable (e.g. dicts), use .values() instead.
-        """
         return {el.value for el in self._elements.values() if not el.deleted}
 
     def values(self) -> list[T]:
-        """Return visible values, preserving unhashable payloads such as findings."""
         return [el.value for el in self._elements.values() if not el.deleted]
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize for state_delta transfer."""
+        """Serialize for state_delta transfer, preserving HLC, vclock and physical timestamps."""
         return {
-            str(k): {"v": el.value, "vc": el.vclock.to_dict(), "ts": el.timestamp, "d": el.deleted}
+            str(k): {
+                "v": el.value,
+                "hlc": el.hlc.to_dict(),
+                "vc": el.vclock.to_dict(),
+                "ts": el.timestamp,
+                "d": el.deleted,
+            }
             for k, el in self._elements.items()
         }
 
@@ -200,10 +258,18 @@ class LWWset[T]:
     def from_dict(cls, data: dict[str, Any]) -> LWWset[T]:
         lww = cls()
         for k, v in data.items():
+            hlc_data = v.get("hlc")
+            ts = v["ts"]
+            if hlc_data:
+                hlc = HybridLogicalClock.from_dict(hlc_data)
+            else:
+                hlc = HybridLogicalClock(ts, 0, "local")
+
             lww._elements[k] = LWWElement(
                 v["v"],
+                hlc,
                 VectorClock.from_dict(v.get("vc", {})),
-                v["ts"],
+                ts,
                 v["d"],
             )
         return lww
@@ -220,10 +286,7 @@ class LWWset[T]:
 
 
 class NeuralState:
-    """
-    Frontier State Container using CRDTs for global consistency.
-    Replaces standard dictionaries for critical pipeline keys.
-    """
+    """Frontier State Container utilizing HLC-backed LWWset CRDTs for global consistency."""
 
     def __init__(self) -> None:
         self.subdomains = LWWset[str]()
@@ -233,12 +296,9 @@ class NeuralState:
         self.last_wal_id: str | None = None
         self.applied_wal_ids: set[str] = set()
         self.created_at: float = time.time()
+        self.hlc = HybridLogicalClock(node_id="local")
 
     def compact(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
-        """
-        Safely purge old tombstones across all CRDT sets.
-        Default threshold is 1 hour for high-velocity scans.
-        """
         purged = {
             "subdomains": self.subdomains.compact(max_tombstone_age_seconds),
             "urls": self.urls.compact(max_tombstone_age_seconds),
@@ -254,52 +314,59 @@ class NeuralState:
         return purged
 
     def apply_delta(self, delta: dict[str, Any]) -> None:
-        """Merge a state_delta using CRDT logic."""
+        """Merge state_delta using HLC causal tie-breaking logic."""
         wal_id = delta.get("_wal_id") or delta.get("wal_id")
         if isinstance(wal_id, str) and wal_id in self.applied_wal_ids:
             return
 
         ts = delta.get("_ts", time.time())
         node_id = str(delta.get("_node_id") or delta.get("node_id") or "local")
+
+        # Update local HLC with remote event info
+        remote_hlc_dict = delta.get("hlc")
+        if remote_hlc_dict:
+            remote_hlc = HybridLogicalClock.from_dict(remote_hlc_dict)
+            self.hlc = self.hlc.update(remote_hlc, ts)
+        else:
+            self.hlc = self.hlc.tick(ts)
+
         vclock = VectorClock().increment(node_id)
 
-        # Fix #388: guard against string being passed instead of a list,
-        # which would cause character-by-character iteration.
         if "subdomains" in delta:
             subdomains = delta["subdomains"]
             if isinstance(subdomains, list):
                 for sub in subdomains:
-                    self.subdomains.add(sub, ts, vclock)
+                    self.subdomains.add(sub, ts, self.hlc, vclock)
 
         if "urls" in delta:
             urls = delta["urls"]
             if isinstance(urls, list):
                 for url in urls:
-                    self.urls.add(url, ts, vclock)
+                    self.urls.add(url, ts, self.hlc, vclock)
 
         if "discovered_urls" in delta:
             urls = delta["discovered_urls"]
             if isinstance(urls, list):
                 for url in urls:
-                    self.urls.add(url, ts, vclock)
+                    self.urls.add(url, ts, self.hlc, vclock)
 
         if "findings" in delta:
             findings = delta["findings"]
             if isinstance(findings, list):
                 for finding in findings:
-                    self.findings.add(finding, ts, vclock)
+                    self.findings.add(finding, ts, self.hlc, vclock)
 
         if "active_scan_findings" in delta:
             findings = delta["active_scan_findings"]
             if isinstance(findings, list):
                 for finding in findings:
-                    self.findings.add(finding, ts, vclock)
+                    self.findings.add(finding, ts, self.hlc, vclock)
 
         if "reportable_findings" in delta:
             findings = delta["reportable_findings"]
             if isinstance(findings, list):
                 for finding in findings:
-                    self.findings.add(finding, ts, vclock)
+                    self.findings.add(finding, ts, self.hlc, vclock)
 
         if "vulnerabilities" in delta:
             findings = delta["vulnerabilities"]
@@ -310,14 +377,13 @@ class NeuralState:
                         if isinstance(finding, dict)
                         else {"id": str(finding), "title": str(finding)}
                     )
-                    self.findings.add(payload, ts, vclock)
+                    self.findings.add(payload, ts, self.hlc, vclock)
 
         if isinstance(wal_id, str):
             self.applied_wal_ids.add(wal_id)
             self.last_wal_id = wal_id
 
     def get_snapshot(self) -> dict[str, Any]:
-        # Fix #355: Sort subdomains and urls for deterministic output across runs.
         return {
             "subdomains": sorted(self.subdomains.to_set()),
             "urls": sorted(self.urls.to_set()),
@@ -325,12 +391,13 @@ class NeuralState:
         }
 
     def to_crdt_snapshot(self) -> dict[str, Any]:
-        """Serialize the complete convergence state, including tombstones and WAL cursors."""
+        """Serialize complete convergence state, including HLC, tombstones and WAL cursors."""
         return {
-            "format": "neural-state-crdt-v2",
+            "format": "neural-state-crdt-v3",
             "created_at": getattr(self, "created_at", None) or time.time(),
             "last_wal_id": self.last_wal_id,
             "applied_wal_ids": sorted(self.applied_wal_ids),
+            "hlc": self.hlc.to_dict(),
             "sets": {
                 "subdomains": self.subdomains.to_dict(),
                 "urls": self.urls.to_dict(),
@@ -341,7 +408,6 @@ class NeuralState:
 
     @classmethod
     def from_crdt_snapshot(cls, snapshot: dict[str, Any] | None) -> NeuralState:
-        """Restore a full CRDT snapshot or a legacy value-only snapshot."""
         state = cls()
         if not isinstance(snapshot, dict):
             return state
@@ -360,6 +426,8 @@ class NeuralState:
                 state.applied_wal_ids.add(state.last_wal_id)
             if "created_at" in snapshot:
                 state.created_at = snapshot["created_at"]
+            if "hlc" in snapshot:
+                state.hlc = HybridLogicalClock.from_dict(snapshot["hlc"])
             return state
 
         state.apply_delta(
@@ -374,12 +442,13 @@ class NeuralState:
         return state
 
     def merge(self, other: NeuralState) -> None:
-        """Merge another NeuralState without losing tombstones or replay cursors."""
+        """Merge another NeuralState causationally using Hybrid Logical Clocks."""
         self.subdomains.merge(other.subdomains)
         self.urls.merge(other.urls)
         self.findings.merge(other.findings)
         self.metadata.update(other.metadata)
         self.applied_wal_ids.update(other.applied_wal_ids)
+        self.hlc = self.hlc.update(other.hlc)
         if other.last_wal_id:
             self.last_wal_id = other.last_wal_id
 
@@ -389,27 +458,18 @@ def _stable_json(value: Any) -> str:
 
 
 def stable_digest(value: Any) -> str:
-    """Stable content address for deduplication and evidence records."""
     return hashlib.sha256(_stable_json(value).encode("utf-8")).hexdigest()
 
 
 def radix_sort_timestamps(items: list[tuple[Any, float]]) -> list[tuple[Any, float]]:
-    """
-    Sorts a list of (key, timestamp) tuples by timestamp using a radix sort.
-    We convert the timestamp to an integer of millisecond scale.
-    """
     if not items:
         return []
-    # Map to integer representations
     min_ts = min(item[1] for item in items)
-    # Convert to non-negative integers relative to min_ts
     int_items = []
     for key, ts in items:
-        # millisecond precision as integer
         val = int((ts - min_ts) * 1000)
         int_items.append((key, ts, val))
 
-    # Standard Radix Sort (LSD)
     max_val = max(item[2] for item in int_items)
     if max_val == 0:
         return [(item[0], item[1]) for item in int_items]
@@ -430,11 +490,6 @@ def radix_sort_timestamps(items: list[tuple[Any, float]]) -> list[tuple[Any, flo
 
 
 class CRDTCompactionBudget:
-    """
-    Tracks and dynamically adjusts the compaction budget (max execution time)
-    using an Additive Increase / Multiplicative Decrease (AIMD) algorithm.
-    """
-
     def __init__(
         self,
         initial_budget_ms: float = 50.0,
@@ -448,12 +503,9 @@ class CRDTCompactionBudget:
         self.target_elapsed_ms = target_elapsed_ms
 
     def adjust(self, elapsed_ms: float) -> None:
-        """Adjust budget using AIMD based on elapsed execution time."""
         if elapsed_ms > self.target_elapsed_ms:
-            # Backoff: Multiplicative Decrease
             self.budget_ms = max(self.min_budget_ms, self.budget_ms * 0.75)
         else:
-            # Additive Increase
             self.budget_ms = min(self.max_budget_ms, self.budget_ms + 5.0)
 
 
@@ -462,14 +514,9 @@ def compact_state(
     budget: CRDTCompactionBudget,
     max_tombstone_age_seconds: float = 3600.0,
 ) -> dict[str, Any]:
-    """
-    Compact tombstones across all sets in NeuralState within the specified CRDTCompactionBudget.
-    Uses radix sort and AIMD budget gating to ensure low latency.
-    """
     start_time = time.time()
     budget_ms = budget.budget_ms
 
-    # Compact each LWWset while keeping within the remaining budget
     purged_subdomains = state.subdomains.compact_with_budget(
         max_tombstone_age_seconds, budget_ms, start_time
     )

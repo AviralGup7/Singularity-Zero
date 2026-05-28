@@ -5,7 +5,7 @@ Verifies that old tombstones are pruned correctly without affecting visible stat
 
 import time
 
-from src.core.frontier.state import NeuralState
+from src.core.frontier.state import LWWElement, NeuralState
 
 
 def test_neural_state_compaction_logic():
@@ -38,7 +38,13 @@ def test_neural_state_compaction_logic():
     for lww in [state.subdomains, state.urls, state.findings]:
         for key in lww._elements:
             el = lww._elements[key]
-            lww._elements[key] = type(el)(el.value, el.vclock, old_ts, deleted=True)
+            lww._elements[key] = LWWElement(
+                value=el.value,
+                hlc=el.hlc,
+                vclock=el.vclock,
+                timestamp=old_ts,
+                deleted=True
+            )
 
     # 5. Compact with a small threshold (should purge all tombstones)
     stats2 = state.compact(max_tombstone_age_seconds=10)

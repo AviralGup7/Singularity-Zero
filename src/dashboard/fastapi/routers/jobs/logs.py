@@ -22,8 +22,15 @@ async def get_job_logs(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> JobLogsResponse:
-    """Retrieve all logged process outputs captured during a job execution."""
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+    from fastapi import HTTPException
+
     job = await get_enriched_job(job_id, services)
+    job_target = str(job.get("target_name") or job.get("hostname") or job.get("target") or "")
+    if not is_target_owned_by_tenant(job_target, tenant_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+
     return JobLogsResponse(
         job_id=job_id,
         logs=job.get("latest_logs", []),

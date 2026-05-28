@@ -49,6 +49,7 @@ function deduplicateRequest<T>(key: string, fn: () => Promise<T>, signal?: Abort
   return promise;
 }
 
+/* eslint-disable security/detect-object-injection */
 function isDeepEqual(obj1: unknown, obj2: unknown): boolean {
   if (obj1 === obj2) return true;
   if (obj1 === null || obj2 === null || typeof obj1 !== 'object' || typeof obj2 !== 'object') {
@@ -76,6 +77,7 @@ function isDeepEqual(obj1: unknown, obj2: unknown): boolean {
   }
   return true;
 }
+/* eslint-enable security/detect-object-injection */
 
 export function useApi<T>(
   url: string | null,

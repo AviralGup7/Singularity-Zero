@@ -93,6 +93,7 @@ def _load_active_probe_functions() -> dict[str, Any]:
         generate_body_payloads,
         generate_header_payloads,
     )
+    from src.pipeline.services.pipeline_orchestrator.stages.probe_runners import _run_fuzzing_campaign_probe
 
     probes = {
         "run_auth_bypass_probes": run_auth_bypass_probes,
@@ -122,6 +123,7 @@ def _load_active_probe_functions() -> dict[str, Any]:
         "generate_payload_suggestions": generate_payload_suggestions,
         "generate_header_payloads": generate_header_payloads,
         "generate_body_payloads": generate_body_payloads,
+        "run_fuzzing_campaign_probe": _run_fuzzing_campaign_probe,
         "response_diff_engine": response_diff_engine,
         "run_jwt_attack_suite": run_jwt_attack_suite,
         "jwt_token_regex": JWT_RE,

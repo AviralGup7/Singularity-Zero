@@ -32,10 +32,51 @@ class ActiveLearningController:
 
                 # 1. Fetch triaged feedback events
                 try:
-                    rows = conn.execute(
+                    raw_rows = conn.execute(
                         "SELECT * FROM feedback_events ORDER BY timestamp DESC LIMIT 3000"
                     ).fetchall()
-                    for row in rows:
+                    
+                    # Poisoning defense: Group FPs to verify confirmation threshold (N>=3)
+                    fp_counts = {}
+                    for row in raw_rows:
+                        item = dict(row)
+                        if bool(item.get("was_false_positive")):
+                            key = (item.get("finding_category"), item.get("plugin_name"))
+                            fp_counts[key] = fp_counts.get(key, 0) + 1
+
+                    # Poisoning defense: Detect anomalous bursts of FP feedback to quarantine poisoning attempts
+                    fp_timeframes = {}  # run_id -> list of timestamps
+                    anomalous_runs = set()
+                    for row in raw_rows:
+                        item = dict(row)
+                        if bool(item.get("was_false_positive")):
+                            rid = item.get("run_id") or "unknown"
+                            ts_str = item.get("timestamp") or ""
+                            try:
+                                # Try parsing numeric or ISO format timestamps
+                                if isinstance(ts_str, (int, float)):
+                                    ts = float(ts_str)
+                                else:
+                                    import datetime
+                                    ts = datetime.datetime.fromisoformat(str(ts_str)).timestamp()
+                            except Exception:
+                                ts = time.time()
+                            fp_timeframes.setdefault(rid, []).append(ts)
+
+                    for rid, ts_list in fp_timeframes.items():
+                        if len(ts_list) >= 5:
+                            ts_list = sorted(ts_list)
+                            # Check if 5 or more FPs were submitted within 60 seconds
+                            for i in range(len(ts_list) - 4):
+                                if ts_list[i + 4] - ts_list[i] <= 60:
+                                    anomalous_runs.add(rid)
+                                    logger.warning(
+                                        "Poisoning protection: Detected FP submission burst in run %s (quarantined).",
+                                        rid
+                                    )
+                                    break
+
+                    for row in raw_rows:
                         item = dict(row)
                         was_tp = bool(item.get("was_validated")) and not bool(
                             item.get("was_false_positive")
@@ -43,6 +84,26 @@ class ActiveLearningController:
                         was_fp = bool(item.get("was_false_positive"))
                         if not was_tp and not was_fp:
                             continue
+
+                        # Apply Poisoning Protection Policies
+                        if was_fp:
+                            # Defense 1: Minimum confirmation threshold
+                            key = (item.get("finding_category"), item.get("plugin_name"))
+                            if fp_counts.get(key, 0) < 3:
+                                logger.info(
+                                    "Poisoning protection: Omitted FP feedback for %s due to low confirmation threshold (%d/3).",
+                                    key, fp_counts.get(key, 0)
+                                )
+                                continue
+
+                            # Defense 2: Quarantine anomalous runs/bursts
+                            rid = item.get("run_id") or "unknown"
+                            if rid in anomalous_runs:
+                                logger.info(
+                                    "Poisoning protection: Quarantining feedback from run %s due to anomalous submission burst.",
+                                    rid
+                                )
+                                continue
 
                         finding = {
                             "category": item.get("finding_category"),

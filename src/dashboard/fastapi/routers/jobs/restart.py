@@ -25,11 +25,16 @@ async def restart_job_safe(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> JobResponse:
-    """Restart a previously completed or failed job with safe defaults.
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
-    Stops the job if running, then re-launches with skip_crtsh=True
-    and refresh_cache=False to avoid redundant work.
-    """
+    job = services.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    job_target = str(job.get("target_name") or job.get("hostname") or job.get("target") or "")
+    if not is_target_owned_by_tenant(job_target, tenant_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+
     try:
         result = services.restart_job_safe(job_id)
         return JobResponse(**snapshot_job_api(result))

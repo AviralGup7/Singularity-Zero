@@ -31,6 +31,8 @@ from .tracing import router as tracing_router
 from .triage import router as triage_router
 from .webhooks import router as webhooks_router
 
+from .remediated import router as remediated_router
+
 imports_router: Any = None
 try:
     from .imports import router as _imports_router
@@ -43,6 +45,7 @@ except RuntimeError as exc:
 api_router = APIRouter()
 
 api_router.include_router(health_router, tags=["Health"])
+api_router.include_router(remediated_router, tags=["Remediation Verification"])
 api_router.include_router(self_healing_router, tags=["Self-Healing"])
 api_router.include_router(audit_router, tags=["Audit"])
 api_router.include_router(bloom_router, tags=["Bloom"])
