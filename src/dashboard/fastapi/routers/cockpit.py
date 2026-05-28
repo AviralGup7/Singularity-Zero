@@ -97,6 +97,40 @@ async def get_attack_chains(
         }
         formatted.append(entry)
 
+    # 🛸 Frontier GNN Upgrade: Enrich attack chains with node-embedding predictions
+    try:
+        from src.intelligence.ml.gnn_predict import GNNPredictor
+        
+        graph_data = await get_cockpit_graph(target=target, services=services, _auth=_auth)
+        predictor = GNNPredictor()
+        predicted_links = predictor.predict_links(graph_data["nodes"], graph_data["edges"], threshold=0.65)
+        
+        for idx, link in enumerate(predicted_links):
+            source_id = link["source"]
+            target_id = link["target"]
+            confidence = link["metadata"]["confidence"]
+            
+            chain_entry = {
+                "id": f"chain-gnn-{idx}-{hash(source_id + target_id)}",
+                "steps": [
+                    {
+                        "asset_id": source_id,
+                        "finding_id": source_id,
+                        "severity": "high",
+                    },
+                    {
+                        "asset_id": target_id,
+                        "finding_id": target_id,
+                        "severity": "critical",
+                    },
+                ],
+                "confidence": confidence,
+                "description": f"GNN predicted attack path from {source_id} to {target_id} with {round(confidence * 100, 1)}% confidence",
+            }
+            formatted.append(chain_entry)
+    except Exception as exc:
+        logger.debug("Failed to enrich attack chains with GNN predictions: %s", exc)
+
     return formatted  # type: ignore
 
 
@@ -341,6 +375,24 @@ async def get_cockpit_graph(
                 break
 
     graph = _merge_graphs(kuzu_graph, artifact_graph)
+    
+    # 🛸 Frontier ML Upgrade: Predict unseen attack paths using pure-NumPy Graph Neural Networks (GCN)
+    predicted_links_count = 0
+    optimal_probes = []
+    try:
+        from src.intelligence.ml.gnn_predict import GNNPredictor, ProbeSelectionRLAgent
+        
+        predictor = GNNPredictor()
+        predicted_links = predictor.predict_links(graph["nodes"], graph["edges"], threshold=0.65)
+        graph["edges"].extend(predicted_links)
+        predicted_links_count = len(predicted_links)
+        
+        # Instantiate RL agent to recommend optimal probe sequences for the target
+        rl_agent = ProbeSelectionRLAgent()
+        optimal_probes = rl_agent.get_optimal_probe_sequence(target)
+    except Exception as e:
+        logger.debug("GNN attack path prediction or RL probe selection failed: %s", e)
+
     severities: dict[str, int] = {}
     types: dict[str, int] = {}
     for node in graph["nodes"]:
@@ -358,6 +410,8 @@ async def get_cockpit_graph(
             "job_id": job_id,
             "node_count": len(graph["nodes"]),
             "edge_count": len(graph["edges"]),
+            "predicted_paths_count": predicted_links_count,
+            "optimal_probe_sequence": optimal_probes,
             "severity_counts": severities,
             "type_counts": types,
             "source": "kuzu+artifacts" if kuzu_graph.get("nodes") else "artifacts",

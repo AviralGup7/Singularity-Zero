@@ -23,25 +23,42 @@ pip install -e ".[dev]"
 
 ### 3. Basic Configuration
 ```bash
-cp configs/config.example.json config.json
+cp configs/config.example.json configs/config.json
 echo "example.com" > scope.txt
 ```
 
-### 4. Running Your First Scan
+### 4. Multi-Tenant Scoping (Local Development)
+To test and develop under a multi-tenant context:
+- Set `ENABLE_API_SECURITY=true` in your `.env` file to activate role and tenant boundaries.
+- Include the `X-Tenant-ID` header on requests (e.g. `X-Tenant-ID: client_alpha`) to automatically scope Redis keys and findings paths.
+- For security header requirements and CSRF Double-Submit token specifications, see [API Reference - Global Security Headers](api-reference.md#-global-security--governance-headers).
+
+
+### 5. Running Your First Scan
 ```bash
+# Verify installation with the system doctor
+cyber system doctor
+
 # Verify installation with a dry-run
-cyber-pipeline --config config.json --scope scope.txt --dry-run
+cyber scan run --config configs/config.json --scope scope.txt --dry-run
 
 # Run a real scan
-cyber-pipeline --config config.json --scope scope.txt
+cyber scan run --config configs/config.json --scope scope.txt
 ```
 
-### 5. Starting the Dashboard
+### 6. Starting the Dashboard & Background Queue Worker
 ```bash
-# Backend
-cyber-dashboard --port 8000
+# Recommended: Start both in a single command
+cyber launch
 
-# Frontend (Dev mode)
+# Or separately:
+# 1. Start the Dashboard Backend
+cyber start dashboard --port 8000
+
+# 2. Start a Queue Worker Node
+cyber start worker --concurrency 2
+
+# 3. Start the Frontend (Dev mode)
 cd frontend && npm install && npm run dev
 ```
 
@@ -57,7 +74,7 @@ The system relies on environment variables for configuration. To avoid ambiguity
 
 ## 🛠️ Required External Tools
 
-The pipeline orchestrates several specialized tools. Install them via `go install`:
+The pipeline orchestrates several specialized tools. Install them automatically via `cyber system setup` or manually via `go install`:
 
 | Tool | Purpose | Installation |
 |------|---------|--------------|
@@ -66,6 +83,11 @@ The pipeline orchestrates several specialized tools. Install them via `go instal
 | **katana** | Web crawling | `go install -v github.com/projectdiscovery/katana/cmd/katana@latest` |
 | **nuclei** | Template scanning | `go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest` |
 | **gau** | URL collection | `go install github.com/lc/gau/v2/cmd/gau@latest` |
+
+For quick local deployment of dependencies, simply run:
+```bash
+cyber system setup
+```
 
 ---
 
@@ -78,9 +100,9 @@ The pipeline orchestrates several specialized tools. Install them via `go instal
 - **Testing**: `pytest`
 
 ### Local-Mesh Joining
-Workers discover each other automatically via mDNS:
+Workers can register themselves with Redis to join a distributed queue scan context:
 ```bash
-cyber-worker --enable-discovery --capabilities browser heavy_compute
+cyber start worker --queue security-pipeline --concurrency 4
 ```
 
 ### 📱 Standalone Sub-Node Setup (Android / Termux / Low-Resource)
@@ -111,7 +133,7 @@ from pathlib import Path
 from src.pipeline.services.pipeline_flow import run_pipeline
 from src.core.config.loader import load_config
 
-cfg = load_config(Path("config.json"))
+cfg = load_config(Path("configs/config.json"))
 run_pipeline(cfg.__dict__, ["example.com"], output_dir="output/debug")
 ```
 

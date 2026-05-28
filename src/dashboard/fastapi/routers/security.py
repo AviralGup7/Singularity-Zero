@@ -25,6 +25,19 @@ from src.dashboard.rate_limiter import get_rate_limit_status
 router = APIRouter(tags=["Security"])
 
 
+@router.get(
+    "/api/csrf-token",
+    summary="Retrieve the current active CSRF token for the session",
+)
+async def get_csrf_token(request: Request) -> dict[str, str]:
+    """Exposes the session's active CSRF token securely to verified SPA clients."""
+    csrf_token = request.cookies.get("csrf_token")
+    if not csrf_token:
+        import secrets
+        csrf_token = secrets.token_urlsafe(32)
+    return {"csrf_token": csrf_token}
+
+
 @router.post(
     "/api/auth/token",
     response_model=TokenResponse,

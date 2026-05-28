@@ -56,7 +56,7 @@ async def test_actor_wal_recovery(monkeypatch):
 
     try:
         # Initial state should be empty
-        state = actor.ask({"command": "snapshot"}, block=True).data
+        state = actor.ask({"command": "_get_attribute", "name": "state"}, block=True)
         assert "discovered_urls" not in state
 
         # Trigger recovery
@@ -68,7 +68,7 @@ async def test_actor_wal_recovery(monkeypatch):
         assert recovery_result["applied_count"] == 2
 
         # Verify state is recovered
-        recovered_state = actor.ask({"command": "snapshot"}, block=True).data
+        recovered_state = actor.ask({"command": "_get_attribute", "name": "state"}, block=True)
         assert "http://a.com" in recovered_state["discovered_urls"]
         assert "xss-1" in recovered_state["vulnerabilities"]
 

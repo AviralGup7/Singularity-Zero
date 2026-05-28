@@ -3,6 +3,8 @@
 import json
 import logging
 import time
+import hmac
+import secrets
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -33,11 +35,29 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         "/api/openapi.json",
         "/api/docs",
         "/api/redoc",
+        "/api/auth/token",
+        "/api/csp-report",
+        "/api/csrf-token",
     }
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.method in self.SAFE_METHODS:
+        from src.dashboard.fastapi.security import api_security_enabled
+        if not api_security_enabled():
             return await call_next(request)
+
+        if request.method in self.SAFE_METHODS:
+            response = await call_next(request)
+            # Bootstrapping: Set a CSRF cookie on safe requests if not already set
+            if not request.cookies.get("csrf_token"):
+                token = secrets.token_urlsafe(32)
+                response.set_cookie(
+                    "csrf_token",
+                    token,
+                    httponly=True,   # Protected against XSS token theft (Double-Submit cookie with HttpOnly=True)
+                    samesite="lax",
+                    secure=False,    # Allow secure=False for local development/testing flexibility
+                )
+            return response
 
         path = request.url.path
         if path in self.EXEMPT_PATHS or path.startswith("/reports/"):
@@ -47,8 +67,13 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
         auth = request.headers.get("authorization", "")
+        api_key_header = request.headers.get("x-api-key", "")
 
-        if origin and not auth.startswith("Bearer "):
+        # Non-browser clients using Bearer tokens or API keys are exempt from CSRF checks
+        if auth.startswith("Bearer ") or api_key_header:
+            return await call_next(request)
+
+        if origin:
             expected_host = request.headers.get("host", "")
             if referer and expected_host not in referer:
                 logger.warning("CSRF: Origin mismatch: origin=%s, referer=%s", origin, referer)
@@ -60,6 +85,21 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                         "code": "csrf_origin_failed",
                     },
                 )
+
+        # Enforce Double-Submit Cookie CSRF protection
+        csrf_cookie = request.cookies.get("csrf_token") or request.cookies.get("csrf-token")
+        csrf_header = request.headers.get("x-csrf-token") or request.headers.get("X-CSRF-Token")
+
+        if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
+            logger.warning("CSRF: Double-submit token mismatch: cookie=%s, header=%s", csrf_cookie, csrf_header)
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "error": "CSRF: Token verification failed",
+                    "detail": "CSRF token verification failed",
+                    "code": "csrf_token_failed",
+                },
+            )
 
         return await call_next(request)
 
@@ -73,11 +113,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
             "connect-src 'self' ws: wss:; "
+            "frame-ancestors 'none'; "
+            "object-src 'none'; "
             "base-uri 'self'; "
             "form-action 'self';"
         )

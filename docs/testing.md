@@ -13,6 +13,55 @@ Testing should provide fast, reliable feedback to developers and CI. Favor many 
 - **Regression tests**: small tests added to capture a previously-observed bug and prevent re-introduction. Put these in `tests/regression/` or next to the unit test that demonstrates the bug (name clearly to indicate the bug ID or root cause).
 - **End-to-end (e2e) tests**: full-system workflows that exercise user-facing or pipeline flows. These are slower and more brittle; tag with `@pytest.mark.e2e` and run them in gated CI stages or on demand. Place under `tests/e2e/`.
 
+## Regression and Fallback Testing
+
+To guarantee the high-availability of machine learning classifiers, priority queues, and distributed clocks under extreme operational limits, the following suites are enforced:
+- **ML Fallback Regression Suite** (`tests/regression/test_ml_regression.py`): Automates regression validation on the historical golden set (`tests/fixtures/ml_golden_set.json`), ensuring that the pure-NumPy logistic regression fallback deviates by less than `0.15` MSE from the fitted pipeline. It also validates that the pure-NumPy matrix math has exactly `0.000000` MSE deviation from a standard scikit-learn `LogisticRegression` classifier under identical weights.
+- **Priority Queue Aging and Decay Suite** (`tests/unit/test_priority_queue_decay.py`): Validates that the priority queue's dynamic `effective_priority` enforces the 120-second boost decay half-life and wait-time aging bonuses, checking that max-heap ordering is completely correct and starvation-safe under popped and peeked lifecycles.
+- **Hybrid Logical Clocks Causality Suite** (`tests/unit/core/frontier/test_hlc.py`): Validates the constant-size $O(1)$ causal ordering and convergent merges of the `HybridLogicalClock` implementation. Tests ticking, physical drift thresholds, logical increment counters, and `LWWset.merge` tie-breaking.
+
+---
+
+## 🌀 Multi-Node Stress & Chaos Engineering Suites
+
+To validate mesh resilience, dynamic failover, and crash tolerance under production-grade hardware stress and service outages, two dedicated test suites are integrated:
+
+### 1. Multi-Node Stress Suite (`tests/stress/test_mesh_failover.py`)
+This suite validates the scalability, actor lifecycle, and CRDT convergence of the custom asyncio-based Ghost-Actor Mesh under extreme load.
+*   **Mailbox Concurrency Stress**: Floods the custom asyncio-based actor queue with 100+ concurrent state merge operations using un-blocked asynchronous futures to assert mailbox queue thread safety and prevent lock contention.
+*   **Actor Migration Failover**: Simulates abrupt actor coordinator node deaths, asserting that active actors successfully serialize, migrate, and re-hydrate on cold nodes without state loss.
+*   **Network Partition Split**: Artificially divides mesh participants and verifies that their discrete LWW-Sets converge conflict-free using CRDT Jaccard similarity once connection heals.
+*   **WAL Dual-Commit Recovery**: Interrupts Redis connection while committing deltas, verifying that state events successfully fall back to the local append-only file (AOF) and resume streaming once Redis is reachable.
+
+### 2. Chaos Engineering Suite (`tests/chaos/`)
+Decorated with `@pytest.mark.chaos`, these tests simulate runtime hardware, link, and resource failures:
+*   **Redis Failover & Circuit Breaker (`test_redis_failover.py`)**: Drops the primary Redis stream link mid-scan. Verifies that the Circuit Breaker trips to `OPEN`, immediately falls back to writing exclusively to the local AOF ledger without thread timeouts, and successfully replays/synchronizes when the connection is restored and the breaker heals.
+*   **Mid-Migration Crash (`test_node_crash_during_migration.py`)**: Kills the source coordinator node precisely mid-migration to assert that the destination registry safely recovers from half-migrated actor envelopes with zero duplicate registrations.
+*   **Network Split & CRDT Healing (`test_network_split.py`)**: Simulates a split-brain condition where nodes are partitioned, validating that the HLC-enforced clocks determine the correct causal history during automatic recovery.
+*   **Disk Full Resilience (`test_disk_full.py`)**: Artificially injects an `ENOSPC` (No space left on device) or `OSError` failure during local WAL AOF disk flushes. Asserts that the system maintains scanning integrity by running durably on Redis Streams commits alone.
+
+> [!NOTE]
+> **Performance Metric Thresholds**: The simulated failure states, self-healing thresholds, and adaptive auto-scaling triggers in these chaos test suites match the active limits defined in [Performance - Bottleneck Detection & Mesh Auto-Scaling](performance.md#-bottleneck-detection--mesh-auto-scaling).
+
+### 3. Custom Actor & Subsystem Upgrades Suite (`tests/test_ghost_actor.py` & `tests/test_recovery_subsystem_upgrades.py`)
+Validates actor state serializability with MessagePack and Zstd compression, recovery and rehydration from differential checkpoints, automatic AIMD compaction budgeting, and memory-safe credentials copying.
+
+To run these advanced suites:
+```bash
+# Run the custom actor unit & recovery upgrades tests
+pytest -v tests/test_ghost_actor.py tests/test_recovery_subsystem_upgrades.py
+
+# Run the HLC causality tests
+pytest -v tests/unit/core/frontier/test_hlc.py
+
+# Run the multi-node stress suite
+pytest -v tests/stress/test_mesh_failover.py
+
+# Run the chaos engineering suite
+pytest -v tests/chaos/
+```
+
+
 ## Architecture Boundary Tests
 
 - Architecture dependency rules are enforced in `tests/architecture/` and should run in CI.
@@ -92,6 +141,50 @@ def test_stage_output_replaces_state_delta(ctx):
 	- Critical infrastructure modules: consider >= 90% where practical.
 - Prefer focused tests with clear assertions over artificially raising coverage numbers.
 - CI should publish `coverage.xml` (`pytest --cov=src --cov-report=xml`) and compare against historical runs to detect regressions.
+
+## 🛡️ Automated Quality Gates & Pipeline Security Verification
+
+To secure the continuous delivery pipeline against supply chain attacks, dependency drifts, contract breaks, and accessibility regressions, the CI pipeline enforces five mandatory quality gates. These gates reside in the `scripts/` directory and can be executed locally:
+
+### 1. Dependency Lockdown Check (`verify_dependency_pins.py`)
+- **Purpose**: Enforces strict dependency version lockdown rules. It audits `pyproject.toml` and requires absolute double-equals (`==`) version definitions, blocking range operators (`>=`, `<=`, `~=`, etc.) which could expose the pipeline to upstream hijackings.
+- **Command**:
+  ```bash
+  python scripts/verify_dependency_pins.py
+  ```
+
+### 2. CycloneDX SBOM Integrity Check (`validate_sbom.py`)
+- **Purpose**: Compares software bill of materials (SBOM) component lists against the secure baseline at `configs/sbom-baseline.json` to block unauthorized package additions or version deviations.
+- **Command**:
+  ```bash
+  python scripts/validate_sbom.py
+  ```
+
+### 3. Visual Layout & WCAG 2.2 AA Audit (`verify_a11y.py`)
+- **Purpose**: Scans compiled frontend pages for compliance landmark structures, missing ARIA tags, missing image alt attributes, and visual outlines/default focus ring styling bypasses.
+- **Command**:
+  ```bash
+  python scripts/verify_a11y.py
+  ```
+
+### 4. OpenAPI Contract Stability Auditor & Doc Sync (`validate_openapi.py`)
+- **Purpose**: Dynamically compiles the active FastAPI dashboard schema and compares response/request schemas against `configs/openapi-baseline.json` to block breaking schema modifications. It enriches the spec with `x-ai-metadata` and path-level `x-ai-` tags (including the remediation verify endpoint) and automatically synchronizes the machine-readable YAML block in `docs/api-reference.md`. In CI, it fails if committed docs drift from the active schema.
+- **Commands**:
+  - Run checks only (fails if out-of-sync):
+    ```bash
+    python scripts/validate_openapi.py
+    ```
+  - Automatically rewrite and synchronize `docs/api-reference.md` with the active spec:
+    ```bash
+    python scripts/validate_openapi.py --write
+    ```
+
+### 5. Bundle Secret Scan & Attestation (`verify_bundle_secrets.py`)
+- **Purpose**: Runs high-entropy signature regex scans across all build assets to guarantee no committed secrets, AWS credentials, generic API keys, private keys, or Slack webhooks leak to the distribution package.
+- **Command**:
+  ```bash
+  python scripts/verify_bundle_secrets.py
+  ```
 
 ## Example: Required Tests for New Modules
 

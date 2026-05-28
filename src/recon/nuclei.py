@@ -5,12 +5,16 @@ then executes nuclei with appropriate tags, severity filters, and concurrency se
 """
 
 from collections.abc import Iterable
+import os
 from typing import Any
 
 from src.core.models import Config
 from src.core.parsers.nuclei_parser import NucleiFindingParser
 from src.pipeline.tools import build_retry_policy, tool_available, try_command
 from src.recon.scoring import query_parameter_names
+from src.core.logging.trace_logging import get_pipeline_logger
+
+logger = get_pipeline_logger(__name__)
 
 
 def build_nuclei_plan(
@@ -154,6 +158,20 @@ def run_nuclei_jsonl(
     url_list = list(priority_urls)
     if not url_list or not config.tools.get("nuclei") or not tool_available("nuclei"):
         return ""
+
+    # Run template signature and SHA-256 integrity verification
+    try:
+        from src.core.security.provenance import verify_provenance
+        manifest_dir = os.getenv("NUCLEI_MANIFEST_DIR") or "configs/templates"
+        extra_args = config.nuclei.get("extra_args", []) if hasattr(config, "nuclei") and isinstance(config.nuclei, dict) else []
+        for idx, arg in enumerate(extra_args):
+            if arg in ("-t", "-templates") and idx + 1 < len(extra_args):
+                template_path = extra_args[idx + 1]
+                if os.path.exists(template_path):
+                    verify_provenance(template_path, manifest_dir)
+    except Exception as exc:
+        logger.error("Nuclei Template Provenance check failed: %s", exc)
+        raise ValueError(f"Template verification failed: {exc}")
 
     command = ["nuclei", "-silent", "-no-color", "-jsonl"]
     severities = config.nuclei.get("severity", [])

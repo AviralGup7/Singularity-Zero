@@ -32,5 +32,5 @@
     "ignoreDeprecations": "6.0"
   },
   "include": ["src"],
-  "exclude": ["src/components/ui-shadcn", "src/styles/cyberpunk", "src/tests", "**/*.test.tsx", "**/*.test.ts", "**/*.stories.tsx", "**/*.stories.ts"]
+  "exclude": ["src/components/ui-shadcn", "src/tests", "**/*.test.tsx", "**/*.test.ts", "**/*.stories.tsx", "**/*.stories.ts"]
 }

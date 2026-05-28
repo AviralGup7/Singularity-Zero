@@ -53,16 +53,14 @@ stage plugins are registered as sandboxed callables in the live plugin registry.
 
 ## Validation And Sandboxing
 
-The loader parses plugin source with `ast` before registration. It requires a
-literal manifest, verifies the entrypoint exists, restricts imports to safe
-standard-library modules, blocks dynamic execution helpers such as `eval`,
-`exec`, `open`, and `__import__`, and records invalid manifests for the UI.
+The platform utilizes a **Tiered Sandboxing Architecture** to isolate dynamic executable checks:
 
-Loaded Python plugins execute in a separate child process through JSON
-stdin/stdout with a per-plugin timeout. This keeps untrusted plugin code away
-from in-process orchestrator objects and makes failed plugins disposable. WASM
-verifiers remain supported through `src/core/frontier/wasm.py`; the manifest
-schema reserves `sandbox: "wasm"` for future direct WASM catalog entries.
+1. **Process-Based & AST validation (Python Plugins)**: 
+   The loader parses plugin source using the `ast` module before registration. It requires a literal manifest, verifies the entrypoint exists, restricts imports to safe standard-library modules, blocks dynamic execution helpers (such as `eval`, `exec`, `open`, and `__import__`), and records invalid manifests for the UI.
+   Once validated, loaded Python plugins execute in a separate, isolated child process through JSON stdin/stdout with a strict per-plugin timeout. This process boundary prevents untrusted plugin code from accessing orchestrator objects or sharing the primary memory pool.
+
+2. **WebAssembly (WASM) Isolation (Binary / AEVE Verifiers)**:
+   For binary validators and untrusted proof-of-concept executables, the platform requires full hardware-level memory and CPU isolation. This is handled by WebAssembly sandboxing via `wasmtime` (implemented in `src/core/frontier/wasm.py`), completely locking out host kernel access. The plugin manifest schema reserves `sandbox: "wasm"` for native WebAssembly plugin entries.
 
 ## Runtime Surfaces
 

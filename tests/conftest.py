@@ -4,6 +4,26 @@ Root conftest.py for the security test pipeline.
 Provides shared pytest fixtures available to all test categories.
 """
 
+import sys
+import types
+
+try:
+    import pykka
+    # Verify both exceptions exist
+    _ = pykka.ActorDeadError
+    _ = pykka.Timeout
+except (ImportError, AttributeError):
+    class ActorDeadError(Exception):
+        pass
+    class ActorTimeout(Exception):
+        pass
+    class PykkaCompatibility(types.ModuleType):
+        ActorDeadError = ActorDeadError
+        Timeout = ActorTimeout
+        ActorDeadError.__module__ = "pykka"
+        ActorTimeout.__module__ = "pykka"
+    sys.modules["pykka"] = PykkaCompatibility("pykka")
+
 import tempfile
 from collections.abc import Generator
 from pathlib import Path

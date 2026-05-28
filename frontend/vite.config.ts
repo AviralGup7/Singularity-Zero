@@ -24,7 +24,7 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: true,
     watch: {
-      ignored: ['**/src/styles/cyberpunk/**'],
+      ignored: [],
     },
     // Security: add security headers in dev server
     headers: {
@@ -48,23 +48,46 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('three') || id.includes('@react-three')) {
+            // 1. Three.js / 3D Graphics Vendor Group
+            if (
+              id.includes('three') ||
+              id.includes('@react-three') ||
+              id.includes('@react-three/fiber') ||
+              id.includes('@react-three/drei') ||
+              id.includes('@react-three/postprocessing')
+            ) {
               return 'three-vendor';
             }
-            if (id.includes('d3-') || id.includes('recharts')) {
-              return 'd3-vendor';
+            // 2. Data Visualization & State Management Group
+            if (
+              id.includes('d3') ||
+              id.includes('d3-') ||
+              id.includes('recharts') ||
+              id.includes('@tanstack/react-query')
+            ) {
+              return 'data-vendor';
             }
-            if (id.includes('react') || id.includes('react-dom')) {
+            // 3. UI Primitives, Micro-Animations, and Design Tokens
+            if (
+              id.includes('framer-motion') ||
+              id.includes('@radix-ui') ||
+              id.includes('lucide-react') ||
+              id.includes('cmdk') ||
+              id.includes('vaul') ||
+              id.includes('embla-carousel-react') ||
+              id.includes('@formkit/auto-animate')
+            ) {
+              return 'ui-vendor';
+            }
+            // 4. Core React Platform dependencies
+            if (
+              id.includes('react') ||
+              id.includes('react-dom') ||
+              id.includes('react-router-dom') ||
+              id.includes('react-router') ||
+              id.includes('react-is')
+            ) {
               return 'react-vendor';
-            }
-            if (id.includes('react-router')) {
-              return 'router-vendor';
-            }
-            if (id.includes('axios')) {
-              return 'api-client';
-            }
-            if (id.includes('lucide-react')) {
-              return 'icons-vendor';
             }
           }
         },

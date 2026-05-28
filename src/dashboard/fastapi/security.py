@@ -57,6 +57,7 @@ def mask_api_key(api_key: str | None = None, prefix: str | None = None) -> str:
 class Principal:
     user: str
     role: str
+    tenant_id: str | None = "default"
     api_key_id: str | None = None
     auth_method: str = "api_key"
 
@@ -357,6 +358,7 @@ def create_jwt(principal: Principal) -> dict[str, Any]:
         "sub": principal.user,
         "roles": [principal.role],
         "role": principal.role,
+        "tenant_id": principal.tenant_id or "default",
         "api_key_id": principal.api_key_id,
         "exp": expires_at,
         "iat": datetime.now(UTC),
@@ -381,6 +383,7 @@ def authenticate_jwt_token(token: str) -> Principal | None:
     return Principal(
         user=str(payload.get("sub", "dashboard")),
         role=role,
+        tenant_id=str(payload.get("tenant_id", "default")),
         api_key_id=payload.get("api_key_id"),
         auth_method="jwt",
     )

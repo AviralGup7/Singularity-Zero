@@ -247,10 +247,43 @@ class HMMEvasionModel:
             ],
         }
 
+        # Initialize Cython/SIMD-equivalent optimized NumPy transition matrices
+        try:
+            import numpy as np
+            self._np_transitions = np.array([
+                [0.85, 0.12, 0.03, 0.00],  # row 0: STATE_UNDETECTED
+                [0.30, 0.40, 0.20, 0.10],  # row 1: STATE_SUSPECTED
+                [0.10, 0.00, 0.30, 0.60],  # row 2: STATE_BLOCKED
+                [0.10, 0.20, 0.00, 0.70],  # row 3: STATE_EVADING
+            ], dtype=np.float64)
+
+            self._np_emissions = np.array([
+                [0.90, 0.08, 0.02, 0.00],  # row 0: STATE_UNDETECTED
+                [0.40, 0.40, 0.15, 0.05],  # row 1: STATE_SUSPECTED
+                [0.10, 0.10, 0.60, 0.20],  # row 2: STATE_BLOCKED
+                [0.50, 0.30, 0.15, 0.05],  # row 3: STATE_EVADING
+            ], dtype=np.float64)
+            self._use_np = True
+        except ImportError:
+            self._use_np = False
+
     def observe(self, observation: int) -> None:
         """Update model based on observed response."""
         self._state_history.append(self._current_state)
 
+        # 1. Performance-Hardened Vectorized transition lookup fallback
+        if getattr(self, "_use_np", False):
+            try:
+                import numpy as np
+                probs = self._np_transitions[self._current_state] * self._np_emissions[:, observation]
+                max_idx = int(np.argmax(probs))
+                if probs[max_idx] > 0.0:
+                    self._current_state = max_idx
+                return
+            except Exception:
+                pass  # Fallback to pure-Python dictionary loop on any anomaly
+
+        # 2. Pure-Python fallback loop
         max_prob = 0.0
         next_state = self._current_state
 

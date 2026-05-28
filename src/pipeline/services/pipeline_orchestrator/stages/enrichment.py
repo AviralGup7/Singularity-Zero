@@ -500,6 +500,21 @@ async def run_post_analysis_enrichments(
                             exc,
                         )
 
+                    try:
+                        from src.intelligence.threat_intel import ThreatIntelCorrelator
+                        correlator = ThreatIntelCorrelator(enable_threat_intel=True)
+                        target_url = finding.get("url")
+                        if target_url:
+                            from urllib.parse import urlparse
+                            host = urlparse(str(target_url)).netloc
+                            if host:
+                                ioc_match = await correlator.match_ioc_async(host)
+                                if ioc_match.get("malicious") or ioc_match.get("reputation_score", 0) > 0:
+                                    finding.setdefault("threat_intel", {})["ioc_correlation"] = ioc_match
+                                    count += 1
+                    except Exception as exc:
+                        logger.debug("IoC matching failed for finding target: %s", exc)
+
                     return finding, count
 
             enriched_count = 0

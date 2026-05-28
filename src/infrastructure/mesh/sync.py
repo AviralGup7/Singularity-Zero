@@ -31,12 +31,20 @@ class MeshSync:
         self._running = False
         self._task: asyncio.Task[Any] | None = None
 
+    @property
+    def channel_scoped(self) -> str:
+        from src.core.tenant_context import TenantContext
+        tenant_id = TenantContext.get_current_tenant()
+        if tenant_id:
+            return f"{tenant_id}:{self.channel}"
+        return self.channel
+
     async def publish(self, message: dict[str, Any]) -> None:
         """Broadcast a message to the mesh."""
         try:
-            await self._client.publish(self.channel, json.dumps(message))
+            await self._client.publish(self.channel_scoped, json.dumps(message))
         except Exception as e:
-            logger.debug("MeshSync: Failed to publish message on %s: %s", self.channel, e)
+            logger.debug("MeshSync: Failed to publish message on %s: %s", self.channel_scoped, e)
 
     async def start_listening(self, callback: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
         """Start a background loop to listen for messages and invoke the callback."""
@@ -44,11 +52,11 @@ class MeshSync:
             return
 
         self._running = True
-        await self._pubsub.subscribe(self.channel)
+        await self._pubsub.subscribe(self.channel_scoped)
         self._task = asyncio.create_task(
-            self._listen_loop(callback), name=f"mesh-sync-listener-{self.channel}"
+            self._listen_loop(callback), name=f"mesh-sync-listener-{self.channel_scoped}"
         )
-        logger.info("MeshSync: Subscribed to channel '%s'", self.channel)
+        logger.info("MeshSync: Subscribed to channel '%s'", self.channel_scoped)
 
     async def _listen_loop(self, callback: Callable[[dict[str, Any]], Awaitable[None]]) -> None:
         """Internal listen loop."""
@@ -64,7 +72,7 @@ class MeshSync:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.debug("MeshSync: Listen loop error on %s: %s", self.channel, e)
+                logger.debug("MeshSync: Listen loop error on %s: %s", self.channel_scoped, e)
                 await asyncio.sleep(1.0)
 
     async def stop(self) -> None:
@@ -79,8 +87,8 @@ class MeshSync:
             self._task = None
 
         try:
-            await self._pubsub.unsubscribe(self.channel)
+            await self._pubsub.unsubscribe(self.channel_scoped)
             await self._client.close()
-            logger.info("MeshSync: Disconnected from channel '%s'", self.channel)
+            logger.info("MeshSync: Disconnected from channel '%s'", self.channel_scoped)
         except Exception as e:
             logger.debug("MeshSync: Shutdown error: %s", e)

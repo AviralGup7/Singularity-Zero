@@ -186,6 +186,14 @@ def build_summary(
 
     from src.reporting.compliance_mapping import build_compliance_report
 
+    # Enrich findings with Threat Intelligence CVE mappings
+    try:
+        from src.intelligence.threat_intel import ThreatIntelCorrelator
+        intel = ThreatIntelCorrelator(enable_threat_intel=True)
+        merged_findings = intel.enrich_findings_with_intel(merged_findings)
+    except Exception as e:
+        logger.warning("Failed to enrich findings with threat intel: %s", e)
+
     compliance_report = build_compliance_report(merged_findings)
 
     return {

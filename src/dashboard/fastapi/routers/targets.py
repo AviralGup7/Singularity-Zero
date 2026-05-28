@@ -5,7 +5,7 @@ import logging
 import shutil
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from src.dashboard.fastapi.dependencies import (
@@ -25,6 +25,51 @@ from src.dashboard.fastapi.schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def is_target_owned_by_tenant(target_name: str, tenant_id: str | None) -> bool:
+    """Helper to enforce strict tenant boundary limits on targets."""
+    if not tenant_id:
+        tenant_id = "default"
+
+    # If the target starts with the tenant's prefix
+    if target_name.startswith(f"{tenant_id}_"):
+        return True
+
+    # For default tenant, allow targets that don't have an explicit underscore prefix
+    # of any other active tenant. If it has no underscore prefix, it belongs to default.
+    if tenant_id == "default":
+        if target_name.startswith("tenant") and "_" in target_name:
+            parts = target_name.split("_", 1)
+            if parts[0] != "default":
+                return False
+        return True
+
+    return False
+
+
+def verify_tenant_boundary(request: Request, target_name: str, tenant_id: str | None, user_id: str | None = None) -> None:
+    """Verify tenant boundary and log any violations to the security store as audit logs."""
+    if not is_target_owned_by_tenant(target_name, tenant_id):
+        store = getattr(request.app.state, "security_store", None)
+        if store:
+            try:
+                store.record_event(
+                    "tenant_violation",
+                    status_code=403,
+                    method=request.method,
+                    path=request.url.path,
+                    client_ip=request.client.host if request.client else "unknown",
+                    detail={
+                        "target_name": target_name,
+                        "tenant_id": tenant_id or "default",
+                        "user_id": user_id or "unknown",
+                        "violation": "Attempted cross-tenant resource access"
+                    }
+                )
+            except Exception as exc:
+                logger.warning("Failed to record tenant violation event: %s", exc)
+        raise HTTPException(status_code=403, detail="Access denied to this target")
 
 
 class TargetFindingsResponse(BaseModel):
@@ -133,10 +178,15 @@ async def list_targets(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> TargetListResponse:
+    tenant_id = (_auth or {}).get("tenant_id", "default")
     targets = services.list_targets()
+    filtered = [
+        TargetInfo(**t) for t in targets 
+        if is_target_owned_by_tenant(t.get("name", ""), tenant_id)
+    ]
     return TargetListResponse(
-        targets=[TargetInfo(**t) for t in targets],
-        total=len(targets),
+        targets=filtered,
+        total=len(filtered),
     )
 
 
@@ -147,10 +197,15 @@ async def list_targets(
 )
 async def delete_target(
     target_name: str,
+    request: Request,
     _auth: Any = Depends(require_admin),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Delete a target output directory."""
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    user_id = (_auth or {}).get("user", "unknown")
+    verify_tenant_boundary(request, target_name, tenant_id, user_id)
+
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
@@ -184,10 +239,15 @@ async def delete_target(
 )
 async def get_target_findings(
     target_name: str,
+    request: Request,
     run: str | None = Query(None, description="Specific run name"),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> TargetFindingsResponse:
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    user_id = (_auth or {}).get("user", "unknown")
+    verify_tenant_boundary(request, target_name, tenant_id, user_id)
+
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
@@ -246,10 +306,15 @@ async def get_target_findings(
 )
 async def get_risk_score(
     target_name: str,
+    request: Request,
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> RiskScoreResponse:
     from src.recon.scoring import compute_aggregate_risk_score
+
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    user_id = (_auth or {}).get("user", "unknown")
+    verify_tenant_boundary(request, target_name, tenant_id, user_id)
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
@@ -312,6 +377,10 @@ async def get_timeline(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> TimelineResponse:
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    if not is_target_owned_by_tenant(target_name, tenant_id):
+        raise HTTPException(status_code=403, detail="Access denied to this target")
+
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
@@ -336,6 +405,10 @@ async def get_historical_scores(
     cache_manager: Any = Depends(get_cache_manager),
 ) -> HistoricalScoreResponse:
     from src.recon.scoring import compute_historical_score
+
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    if not is_target_owned_by_tenant(target_name, tenant_id):
+        raise HTTPException(status_code=403, detail="Access denied to this target")
 
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
@@ -420,6 +493,10 @@ async def get_target_compliance(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Get the latest compliance coverage and maturity report (Phase 6)."""
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    if not is_target_owned_by_tenant(target_name, tenant_id):
+        raise HTTPException(status_code=403, detail="Access denied to this target")
+
     if not _validate_target_name(target_name):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
@@ -475,11 +552,17 @@ async def list_all_findings(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """List all findings across all targets with pagination support."""
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    if target and not is_target_owned_by_tenant(target, tenant_id):
+        raise HTTPException(status_code=403, detail="Access denied to this target")
+
     output_root = services.query.output_root
     all_findings: list[dict[str, Any]] = []
 
     for entry in sorted(output_root.iterdir(), key=lambda item: item.name.lower()):
         if not entry.is_dir() or entry.name.startswith("_"):
+            continue
+        if not is_target_owned_by_tenant(entry.name, tenant_id):
             continue
         if target and entry.name.lower() != target.lower():
             continue
@@ -656,6 +739,10 @@ async def compare_targets(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> TargetComparisonResponse:
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    if not is_target_owned_by_tenant(target_a, tenant_id) or not is_target_owned_by_tenant(target_b, tenant_id):
+        raise HTTPException(status_code=403, detail="Access denied to one or both targets")
+
     if not _validate_target_name(target_a) or not _validate_target_name(target_b):
         raise HTTPException(status_code=400, detail="Invalid target name")
 
