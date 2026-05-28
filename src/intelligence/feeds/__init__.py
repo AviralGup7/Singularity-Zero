@@ -27,6 +27,8 @@ __all__ = [
     "VirusTotalClient",
     "VirusTotalReport",
     "VirusTotalVerdict",
+    "MISPClient",
+    "MISPConfig",
     "__version__",
 ]
 
@@ -80,4 +82,13 @@ def __getattr__(name: str) -> object:
         from src.intelligence.feeds.mitre import MitreTechnique
 
         return MitreTechnique
+    if name == "MISPClient":
+        from src.intelligence.feeds.misp import MISPClient
+
+        return MISPClient
+    if name == "MISPConfig":
+        from src.intelligence.feeds.misp import MISPConfig
+
+        return MISPConfig
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+

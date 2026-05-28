@@ -186,14 +186,20 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
                     framework_coverage[framework][control]["findings"].append(f_summary)
 
     # Calculate maturity and recommendations for each control
+    control_maturities = {}
     for framework, controls_dict in framework_coverage.items():
         for control_id, data in controls_dict.items():
             maturity = calculate_control_maturity(data["findings"])
             data["maturity"] = maturity.value
             data["recommendation"] = get_maturity_recommendation(maturity, control_id)
+            control_maturities[control_id] = maturity
+
+    from src.reporting.compliance_maturity import calculate_overall_grc_score
+    overall_grc = calculate_overall_grc_score(control_maturities)
 
     return {
         "framework_coverage": framework_coverage,
         "category_counts": category_counts,
         "total_findings": len(findings),
+        "overall_grc": overall_grc,
     }

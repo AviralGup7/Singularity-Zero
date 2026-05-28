@@ -16,6 +16,8 @@ from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
+from src.core.tenant_context import TenantContext
+from src.core.security.circuit_breaker import CircuitBreaker, CircuitBreakerOpenException
 
 logger = get_pipeline_logger(__name__)
 
@@ -67,6 +69,7 @@ class RedisClient:
         self._fallback_lock = threading.Lock()
         self._use_fallback = False
         self._scripts: dict[str, Any] = {}
+        self._breaker = CircuitBreaker("redis-client", failure_threshold=3, recovery_timeout=10.0)
 
         db_dir = os.path.join("output")
         os.makedirs(db_dir, exist_ok=True)
@@ -287,11 +290,22 @@ class RedisClient:
         Returns:
             Command result, or fallback implementation result.
         """
+        tenant_id = TenantContext.get_current_tenant()
+        if tenant_id and len(args) > 0:
+            key = args[0]
+            if isinstance(key, str):
+                if not key.startswith(f"{tenant_id}:"):
+                    args = (f"{tenant_id}:{key}",) + args[1:]
+            elif isinstance(key, bytes):
+                prefix_bytes = f"{tenant_id}:".encode("utf-8")
+                if not key.startswith(prefix_bytes):
+                    args = (prefix_bytes + key,) + args[1:]
+
         if self._use_fallback or self._client is None:
             return self._fallback_command(command, *args, **kwargs)
 
         try:
-            return self._client.execute_command(command, *args, **kwargs)
+            return self._breaker.call(self._client.execute_command, command, *args, **kwargs)
         except Exception as exc:
             logger.warning("Redis command '%s' failed: %s, using fallback", command, exc)
             self._healthy = False
@@ -677,6 +691,25 @@ class RedisClient:
         keys = keys or []
         args = args or []
 
+        tenant_id = TenantContext.get_current_tenant()
+        if tenant_id:
+            prefixed_keys = []
+            for k in keys:
+                if isinstance(k, str):
+                    if not k.startswith(f"{tenant_id}:"):
+                        prefixed_keys.append(f"{tenant_id}:{k}")
+                    else:
+                        prefixed_keys.append(k)
+                elif isinstance(k, bytes):
+                    prefix_bytes = f"{tenant_id}:".encode("utf-8")
+                    if not k.startswith(prefix_bytes):
+                        prefixed_keys.append(prefix_bytes + k)
+                    else:
+                        prefixed_keys.append(k)
+                else:
+                    prefixed_keys.append(k)
+            keys = prefixed_keys
+
         if self._use_fallback or self._client is None:
             return self._fallback_script_exec(name, keys, args)
 
@@ -685,10 +718,12 @@ class RedisClient:
             raise ValueError(f"Script '{name}' not registered")
 
         try:
-            script_obj = script_info.get("object")
-            if script_obj is not None:
-                return script_obj(keys=keys, args=args)
-            return self._client.evalsha(script_info["hash"], len(keys), *(keys + args))
+            def run_script() -> Any:
+                script_obj = script_info.get("object")
+                if script_obj is not None:
+                    return script_obj(keys=keys, args=args)
+                return self._client.evalsha(script_info["hash"], len(keys), *(keys + args))
+            return self._breaker.call(run_script)
         except Exception as exc:
             logger.warning("Script execution failed for '%s': %s, using fallback", name, exc)
             self._healthy = False

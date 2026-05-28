@@ -174,7 +174,7 @@ def is_safe_replay_url(url: str) -> bool:
             _log_ssrf_block(url, "DNS rebinding detected: IPs differ on resolution")
             return False
         return True
-    except ValueError, OSError, socket.gaierror:
+    except (ValueError, OSError, socket.gaierror):
         return False
 
 

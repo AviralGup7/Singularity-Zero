@@ -54,7 +54,7 @@ try:
 
     def compute_crc64(data: bytes) -> str:
         return f"{_crc64_func(data):016x}"
-except Exception:
+except (ImportError, ValueError):
 
     def compute_crc64(data: bytes) -> str:
         return f"{crc64_pure(data):016x}"
@@ -82,7 +82,7 @@ class FrontierWAL:
             self._client = redis.from_url(redis_url, decode_responses=False)
             self._client.ping()
             self._active = True
-        except Exception as exc:
+        except (redis.exceptions.RedisError, ValueError, ConnectionError, Exception) as exc:
             logger.warning("Frontier WAL inactive: Redis connection failed: %s", exc)
             self._active = False
 
@@ -122,7 +122,7 @@ class FrontierWAL:
                         os.fsync(f.fileno())
                     except OSError as e:
                         logger.debug("WAL AOF fsync failed (might be virtual/mocked drive): %s", e)
-            except Exception as exc:
+            except (OSError, TypeError, ValueError, Exception) as exc:
                 logger.error("WAL AOF append failed for stage '%s': %s", stage_name, exc)
 
             # 2. Dual Commit: Write to Redis Stream
@@ -144,7 +144,7 @@ class FrontierWAL:
             )
             logger.debug("WAL recorded delta for '%s' (ID: %s)", stage_name, entry_id)
             return entry_id.decode() if isinstance(entry_id, bytes) else str(entry_id)
-        except Exception as exc:
+        except (redis.exceptions.RedisError, ValueError, TypeError, AttributeError, Exception) as exc:
             logger.error("WAL append failed for stage '%s': %s", stage_name, exc)
             return None
 
@@ -202,7 +202,7 @@ class FrontierWAL:
                     last_id = raw_items[-1][0]
                     last_id_str = last_id.decode() if isinstance(last_id, bytes) else str(last_id)
                     cursor = f"({last_id_str}"
-            except Exception as exc:
+            except (redis.exceptions.RedisError, Exception) as exc:
                 logger.error("WAL Redis xrange recovery failed, falling back to AOF: %s", exc)
                 redis_failed = True
 
@@ -244,9 +244,9 @@ class FrontierWAL:
                                 "tx_id": entry["tx_id"],
                             }
                         )
-                    except Exception as exc:
+                    except (json.JSONDecodeError, ValueError, KeyError, Exception) as exc:
                         logger.error("WAL AOF entry parse failed: %s", exc)
-        except Exception as exc:
+        except (OSError, Exception) as exc:
             logger.error("WAL AOF recovery failed completely: %s", exc)
             return []
 
@@ -278,7 +278,7 @@ class FrontierWAL:
                     state.last_wal_id,
                 )
                 return True
-        except Exception as exc:
+        except (redis.exceptions.RedisError, ValueError, Exception) as exc:
             logger.error("WAL snapshot persist failed for run %s: %s", self._run_id, exc)
         return False
 
@@ -302,7 +302,7 @@ class FrontierWAL:
                 logger.error("WAL snapshot digest mismatch for run %s", self._run_id)
                 return None
             return cast(dict[str, Any], envelope)
-        except Exception as exc:
+        except (redis.exceptions.RedisError, ValueError, Exception) as exc:
             logger.error("WAL snapshot load failed for run %s: %s", self._run_id, exc)
             return None
 
@@ -327,7 +327,7 @@ class FrontierWAL:
         try:
             self._client.xtrim(self._stream_key, maxlen=max(keep_entries, 1), approximate=True)
             return True
-        except Exception as exc:
+        except (redis.exceptions.RedisError, Exception) as exc:
             logger.warning("WAL stream compaction failed for run %s: %s", self._run_id, exc)
             return False
 
@@ -338,11 +338,11 @@ class FrontierWAL:
                 if hasattr(self._client, "delete"):
                     self._client.delete(self._stream_key)
                     self._client.delete(self._snapshot_key)
-            except Exception as exc:
+            except (redis.exceptions.RedisError, Exception) as exc:
                 logger.warning("WAL cleanup failed for run %s: %s", self._run_id, exc)
         # Delete local AOF
         try:
             if self._aof_path.exists():
                 self._aof_path.unlink()
-        except Exception as exc:
+        except (OSError, Exception) as exc:
             logger.warning("WAL AOF cleanup failed: %s", exc)

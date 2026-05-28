@@ -43,6 +43,7 @@ class DashboardConfig(BaseSettings):
     admin_keys: list[str] = Field(default_factory=list)
     rate_limit_jobs: int = Field(default=10)
     rate_limit_replay: int = Field(default=30)
+    rate_limit_remediation: int = Field(default=5)
     rate_limit_default: int = Field(default=60)
     log_level: str = Field(default="INFO")
     request_timeout_seconds: int = Field(default=120)

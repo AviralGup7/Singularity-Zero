@@ -17,9 +17,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/findings", tags=["Findings"])
 
 
-def _find_finding_by_id(output_root: Any, finding_id: str) -> dict[str, Any] | None:
+def _find_finding_by_id(output_root: Any, finding_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
     for target_entry in output_root.iterdir():
         if not target_entry.is_dir():
+            continue
+        if not is_target_owned_by_tenant(target_entry.name, tenant_id):
             continue
         for run_entry in target_entry.iterdir():
             if not run_entry.is_dir():
@@ -98,6 +101,7 @@ def _collect_timeline_events(
     end_date: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    tenant_id: str | None = None,
 ) -> list[dict[str, Any]]:
     if not output_root.exists():
         return []
@@ -106,8 +110,11 @@ def _collect_timeline_events(
     end_dt = _parse_timestamp(end_date, "2999-12-31") if end_date else None
     events: list[dict[str, Any]] = []
 
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
     for target_entry in sorted(output_root.iterdir(), key=lambda path: path.name.lower()):
         if not target_entry.is_dir() or target_entry.name.startswith("_"):
+            continue
+        if not is_target_owned_by_tenant(target_entry.name, tenant_id):
             continue
         if target and target_entry.name.lower() != target.lower():
             continue
@@ -213,13 +220,18 @@ def _telemetry_timeline_events(
     target: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    tenant_id: str | None = None,
 ) -> list[dict[str, Any]]:
     start_dt = _parse_timestamp(start_date, "1970-01-01") if start_date else None
     end_dt = _parse_timestamp(end_date, "2999-12-31") if end_date else None
     events: list[dict[str, Any]] = []
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
     for job in jobs:
         current_job_id = str(job.get("id") or "")
         if job_id and current_job_id != job_id:
+            continue
+        job_target = str(job.get("target_name") or job.get("hostname") or "")
+        if not is_target_owned_by_tenant(job_target, tenant_id):
             continue
         job_target = str(job.get("target_name") or job.get("hostname") or "")
         if target and job_target.lower() != target.lower():
@@ -303,8 +315,12 @@ async def get_findings_summary(
             "total_targets": 0,
         }
 
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
     for entry in sorted(output_root.iterdir()):
         if not entry.is_dir() or entry.name.startswith("_"):
+            continue
+        if not is_target_owned_by_tenant(entry.name, tenant_id):
             continue
 
         if target and entry.name.lower() != target.lower():
@@ -382,6 +398,7 @@ async def get_findings_timeline(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> list[dict[str, Any]]:
+    tenant_id = (_auth or {}).get("tenant_id", "default")
     job_target = None
     if job_id:
         job = services.get_job(job_id)
@@ -398,6 +415,7 @@ async def get_findings_timeline(
         end_date=end_date,
         limit=limit,
         offset=offset,
+        tenant_id=tenant_id,
     )
     telemetry_events = _telemetry_timeline_events(
         services.list_jobs(),
@@ -406,6 +424,7 @@ async def get_findings_timeline(
         target=target,
         start_date=start_date,
         end_date=end_date,
+        tenant_id=tenant_id,
     )
     if telemetry_events:
         merged = {str(item.get("id")): item for item in [*events, *telemetry_events]}
@@ -429,7 +448,8 @@ async def get_finding_detail(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Retrieve full details for a specific finding by ID."""
-    finding = _find_finding_by_id(services.query.output_root, finding_id)
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
     return finding
@@ -533,8 +553,13 @@ async def update_finding(
     findings_list = []
     findings_file_path = None
 
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
     for target_entry in output_root.iterdir():
         if not target_entry.is_dir():
+            continue
+        if not is_target_owned_by_tenant(target_entry.name, tenant_id):
             continue
         for run_entry in target_entry.iterdir():
             if not run_entry.is_dir():
@@ -652,8 +677,13 @@ async def delete_finding(
     findings_list = []
     target_finding_idx = -1
 
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
     for target_entry in output_root.iterdir():
         if not target_entry.is_dir():
+            continue
+        if not is_target_owned_by_tenant(target_entry.name, tenant_id):
             continue
         for run_entry in target_entry.iterdir():
             if not run_entry.is_dir():

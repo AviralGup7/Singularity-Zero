@@ -153,7 +153,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     local_node = MeshNode(
         id=node_id,
-        host=config.host,
+        host=os.getenv("MESH_BIND_INTERFACE", config.host),
         port=config.port,
         status="alive",
         cpu_usage=psutil.cpu_percent(interval=0.1) if psutil else 0.0,

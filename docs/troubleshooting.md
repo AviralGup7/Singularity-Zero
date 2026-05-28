@@ -16,6 +16,8 @@ failure_diagnosis:
         remedy: "Check REDIS_URL and ensure port 6379 is reachable"
       - target: "Tool PATH"
         remedy: "Verify 'subfinder', 'httpx', 'nuclei' are in $PATH"
+      - target: "Template Provenance / Signature Failures"
+        remedy: "Ensure local template hashes match configs/templates/manifest.json and signature manifest.json.sig is valid. Set NUCLEI_SIGNATURE_PUBLIC_KEY environment variable to match the Ed25519 signing key."
 
   during_discovery:
     checks:
@@ -44,6 +46,13 @@ failure_diagnosis:
         remedy: "Validate findings.json schema vs Jinja2 template"
       - target: "Disk space full"
         remedy: "Clean up 'output/cache/' and old checkpoints"
+
+  dashboard_access:
+    checks:
+      - target: "CSRF token verification failed (code: csrf_token_failed)"
+        remedy: "Ensure cookies are preserved. The csrf_token cookie is now HttpOnly=True for maximum XSS protection. JavaScript SPA clients must fetch the token value from the secure 'GET /api/csrf-token' endpoint on app bootstrap or form mount and supply it in the 'X-CSRF-Token' request header on mutating requests."
+      - target: "Access denied to target / Scoping error (403 Forbidden)"
+        remedy: "Verify that the request has the X-Tenant-ID header matching the target owner, or check JWT claims to ensure tenant_id is matching. Security violations are automatically audit-logged under event type 'tenant_violation'."
 ```
 
 ---

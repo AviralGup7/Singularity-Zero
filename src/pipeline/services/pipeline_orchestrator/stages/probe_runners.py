@@ -340,3 +340,30 @@ async def _try_probe(
     except Exception as exc:
         msg = f"Probe '{name}' failed: {exc}"
         return _record_failure("error", msg)
+
+
+async def _run_fuzzing_campaign_probe(
+    priority_urls: list[str],
+    limit: int = 6,
+    *,
+    probes: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Execute an active mutation parameter fuzzing campaign against priority URLs."""
+    from src.fuzzing.orchestrator import FuzzingOrchestrator
+
+    orchestrator = FuzzingOrchestrator(priority_urls)
+    findings: list[dict[str, Any]] = []
+
+    for url in priority_urls[:limit]:
+        url = str(url).strip()
+        if not url:
+            continue
+        try:
+            logger.info("Fuzzer: Launching parameter mutation campaign on %s", url)
+            campaign_findings = await orchestrator.run_fuzzing_campaign(url)
+            findings.extend(campaign_findings)
+        except Exception as exc:
+            logger.warning("Fuzzer: Campaign failed on %s: %s", url, exc)
+
+    return findings
+

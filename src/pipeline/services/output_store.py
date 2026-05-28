@@ -222,13 +222,17 @@ class PipelineOutputStore:
         if compliance:
             self.write_json_artifact("compliance_coverage.json", compliance)
 
-            # Also write a flattened version for GRC intake
+            # Also write a flattened version for GRC intake with overall scoring metrics
+            overall_grc = compliance.get("overall_grc", {})
             maturity_summary = {
-                framework: {
-                    cid: {"maturity": data["maturity"], "rec": data["recommendation"]}
-                    for cid, data in controls.items()
+                "overall_grc": overall_grc,
+                "frameworks": {
+                    framework: {
+                        cid: {"maturity": data["maturity"], "rec": data["recommendation"]}
+                        for cid, data in controls.items()
+                    }
+                    for framework, controls in compliance.get("framework_coverage", {}).items()
                 }
-                for framework, controls in compliance.get("framework_coverage", {}).items()
             }
             self.write_json_artifact("compliance_maturity.json", maturity_summary)
 

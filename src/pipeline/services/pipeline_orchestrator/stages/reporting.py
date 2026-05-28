@@ -255,6 +255,19 @@ async def run_reporting(
                             correlation_id=ctx.run_id,
                         )
 
+            # GRC SLA Escalation Check
+            try:
+                from src.reporting.sla_tracker import SLATracker
+                sla_alerts = await SLATracker.auto_escalate_overdue(
+                    ctx.reportable_findings,
+                    notification_manager,
+                    config.target_name,
+                )
+                if sla_alerts > 0:
+                    logger.info("Fired %d GRC SLA breach escalation alerts.", sla_alerts)
+            except Exception as e:
+                logger.warning("Failed to run SLA tracking auto-escalations: %s", e)
+
             await notification_manager.close()
         except Exception as exc:
             logger.warning(

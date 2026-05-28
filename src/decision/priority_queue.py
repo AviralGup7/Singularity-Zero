@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import heapq
 import logging
+import math
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -125,13 +127,38 @@ class ScanTarget:
     heap_idx: int = -1
     metadata: dict[str, Any] = field(default_factory=dict)
     bid: MultiObjectiveBid | None = None
+    created_at: float = field(default_factory=time.time)
+    last_boosted_at: float | None = None
+
+    @property
+    def effective_priority(self) -> float:
+        """Calculate effective priority using aging bonus and exponential decay of the boosted portion."""
+        now = time.time()
+        
+        # Monotonically increasing aging factor to prevent starvation
+        wait_time = max(0.0, now - self.created_at)
+        aging_bonus = wait_time * 0.01
+
+        # Exponential decay of the boosted portion (120s half-life)
+        boosted_portion = self.current_priority - self.base_priority
+        if boosted_portion > 0.0 and self.last_boosted_at is not None:
+            time_since_boost = max(0.0, now - self.last_boosted_at)
+            decay_factor = math.pow(2.0, -time_since_boost / 120.0)
+            decayed_boost = boosted_portion * decay_factor
+        else:
+            decayed_boost = 0.0
+
+        eff_priority = self.base_priority + decayed_boost + aging_bonus
+        return min(max(0.0, eff_priority), 1000.0)
 
     def refresh_bid(self) -> MultiObjectiveBid:
         """Recompute the multi-objective bid for this target."""
+        if "created_at" not in self.metadata:
+            self.metadata["created_at"] = self.created_at
         self.bid = bid_for_target(
             url=self.url,
             base_priority=self.base_priority,
-            current_priority=self.current_priority,
+            current_priority=self.effective_priority,
             metadata=self.metadata,
         )
         return self.bid
@@ -154,6 +181,7 @@ class ScanTarget:
             new_priority = cap
 
         self.current_priority = new_priority
+        self.last_boosted_at = time.time()
         if reason:
             self.boost_factors.append(reason)
         if self.current_priority != old_priority:
@@ -281,6 +309,9 @@ class CorrelationPriorityQueue:
         with self._lock:
             if not self._targets:
                 return None
+            for t in self._targets:
+                t.refresh_bid()
+            heapq.heapify(self._targets)
             target = heapq.heappop(self._targets)
             target.scanned = True
             self._pop_count += 1
@@ -289,6 +320,11 @@ class CorrelationPriorityQueue:
     def peek(self) -> ScanTarget | None:
         """Return the highest-priority target without removing it."""
         with self._lock:
+            if not self._targets:
+                return None
+            for t in self._targets:
+                t.refresh_bid()
+            heapq.heapify(self._targets)
             return self._targets[0] if self._targets else None
 
     def push(self, target: ScanTarget) -> None:

@@ -75,3 +75,85 @@ def get_maturity_recommendation(maturity: ControlMaturity, control_id: str) -> s
         ControlMaturity.PASS: f"Control {control_id} is currently within acceptable tolerance based on scan results.",
     }
     return recommendations.get(maturity, "No specific recommendation available.")
+
+
+def calculate_overall_grc_score(control_maturities: dict[str, ControlMaturity]) -> dict[str, Any]:
+    """Calculate the overall GRC maturity score and determine Pass/Fail band status.
+
+    Args:
+        control_maturities: Mapping of control IDs to their individual maturities.
+
+    Returns:
+        Dictionary containing overall_score (0.0 to 100.0), band ("PASS", "PARTIAL", "FAIL"),
+        and detailed stats.
+    """
+    if not control_maturities:
+        return {
+            "overall_score": 100.0,
+            "band": "PASS",
+            "evaluated_controls_count": 0,
+            "pass_count": 0,
+            "fail_count": 0,
+            "partial_count": 0,
+        }
+
+    # Assign weights to maturities: PASS=100, PARTIAL=70, AT_RISK=40, FAIL=0
+    maturity_weights = {
+        ControlMaturity.PASS: 100.0,
+        ControlMaturity.PARTIAL: 70.0,
+        ControlMaturity.AT_RISK: 40.0,
+        ControlMaturity.FAIL: 0.0,
+        ControlMaturity.UNKNOWN: 100.0,  # Unknown is treated as neutral/pass for scoring
+    }
+
+    total_weight = 0.0
+    evaluated_count = 0
+    pass_count = 0
+    fail_count = 0
+    partial_count = 0
+
+    for control_id, maturity in control_maturities.items():
+        if maturity == ControlMaturity.UNKNOWN:
+            continue
+        evaluated_count += 1
+        total_weight += maturity_weights.get(maturity, 100.0)
+        if maturity == ControlMaturity.PASS:
+            pass_count += 1
+        elif maturity in (ControlMaturity.FAIL, ControlMaturity.AT_RISK):
+            fail_count += 1
+        elif maturity == ControlMaturity.PARTIAL:
+            partial_count += 1
+
+    if evaluated_count == 0:
+        return {
+            "overall_score": 100.0,
+            "band": "PASS",
+            "evaluated_controls_count": 0,
+            "pass_count": 0,
+            "fail_count": 0,
+            "partial_count": 0,
+        }
+
+    overall_score = total_weight / evaluated_count
+
+    # Define Bands:
+    # FAIL: overall_score < 50.0 or any critical FAIL controls
+    # PASS: overall_score >= 85.0 and zero FAIL/AT_RISK controls
+    # PARTIAL: fallback intermediate state
+    if any(m == ControlMaturity.FAIL for m in control_maturities.values()):
+        band = "FAIL"
+    elif overall_score < 50.0:
+        band = "FAIL"
+    elif overall_score >= 85.0 and not any(m in (ControlMaturity.FAIL, ControlMaturity.AT_RISK) for m in control_maturities.values()):
+        band = "PASS"
+    else:
+        band = "PARTIAL"
+
+    return {
+        "overall_score": round(overall_score, 2),
+        "band": band,
+        "evaluated_controls_count": evaluated_count,
+        "pass_count": pass_count,
+        "partial_count": partial_count,
+        "fail_count": fail_count,
+    }
