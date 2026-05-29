@@ -355,7 +355,11 @@ class GhostMeshCoordinator(BaseMeshCoordinator):
     """Subclass of GhostMeshCoordinator extending to auto-bind ScanActor."""
 
     async def spawn_or_rehydrate_actor(
-        self, actor_id: str, logic_fn: Callable[[dict[str, Any], dict[str, Any]], Any]
+        self,
+        actor_id: str,
+        logic_fn: Callable[[dict[str, Any], dict[str, Any]], Any],
+        scan_actor_cls: Any = None,
     ) -> pykka.ActorRef:
         """Spawn a new actor, automatically re-hydrating from registry if state exists."""
-        return await super().spawn_or_rehydrate_actor(actor_id, logic_fn, ScanActor)
+        cls = scan_actor_cls if scan_actor_cls is not None else ScanActor
+        return await super().spawn_or_rehydrate_actor(actor_id, logic_fn, cls)

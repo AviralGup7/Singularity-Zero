@@ -180,7 +180,7 @@ def enumerate_subdomains(
 
                         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
 
-                            def _run_in_thread():
+                            def _run_in_thread() -> Any:
                                 new_loop = asyncio.new_event_loop()
                                 try:
                                     return new_loop.run_until_complete(reg.provider(root))

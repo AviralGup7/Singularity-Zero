@@ -55,7 +55,7 @@ def param_mining_probe(
     Returns:
         List of hidden parameter findings.
     """
-    findings = []
+    findings: list[dict[str, Any]] = []
     seen = set()
 
     for url_entry in priority_urls:

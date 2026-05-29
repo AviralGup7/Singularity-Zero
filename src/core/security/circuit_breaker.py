@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -59,7 +59,7 @@ class CircuitBreaker:
             else:
                 # Fail fast or route to fallback
                 if self.fallback_fn:
-                    return self.fallback_fn(*args, **kwargs)
+                    return cast(T, self.fallback_fn(*args, **kwargs))
                 raise CircuitBreakerOpenException(
                     f"Circuit Breaker [{self.name}] is currently OPEN. Failing fast."
                 )
@@ -99,5 +99,5 @@ class CircuitBreaker:
                 )
 
             if self.fallback_fn:
-                return self.fallback_fn(*args, **kwargs)
+                return cast(T, self.fallback_fn(*args, **kwargs))
             raise exc

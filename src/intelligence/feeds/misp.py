@@ -7,7 +7,7 @@ compromise (IOCs), and attribute correlations.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from pydantic import Field
 
@@ -78,9 +78,9 @@ class MISPClient(BaseFeedConnector):
             if isinstance(data, dict) and "response" in data:
                 res = data["response"]
                 if isinstance(res, dict) and "Attribute" in res:
-                    return res["Attribute"]
+                    return cast(list[dict[str, Any]], res["Attribute"])
                 elif isinstance(res, list):
-                    return res
+                    return cast(list[dict[str, Any]], res)
             return []
         except Exception as e:
             logger.debug("MISP REST search failed for '%s': %s", value, e)
