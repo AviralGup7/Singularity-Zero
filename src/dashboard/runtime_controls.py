@@ -643,7 +643,10 @@ def apply_runtime_overrides(config: dict[str, Any], overrides: dict[str, str]) -
             section[spec.path[-1]] = validated
         else:
             try:
-                parsed = int(str(raw))
+                if isinstance(raw, (int, float)):
+                    parsed = int(raw)
+                else:
+                    parsed = int(str(raw))
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"{spec.name} must be an integer.") from exc
             validated = validate_control_value(spec.name, parsed)

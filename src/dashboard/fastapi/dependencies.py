@@ -112,7 +112,9 @@ async def require_auth(
 
     configured_key = config.api_key or os.environ.get("DASHBOARD_API_KEY")
     if configured_key is None:
-        disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "true").strip().lower()
+        # Security Fix: Default DASHBOARD_AUTH_DISABLED to "false" so that
+        # authentication is required unless the operator explicitly opts out.
+        disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "false").strip().lower()
         if disabled in ("true", "1", "yes"):
             tenant_id = request.headers.get("X-Tenant-ID") or "default"
             TenantContext.set_current_tenant(tenant_id)
@@ -159,6 +161,14 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
 
     query_token = request.query_params.get("token")
     if query_token:
+        # Security Note: Tokens in query params can leak into server logs and
+        # browser history. Warn operators and prefer Authorization headers instead.
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "Security: JWT token supplied via query parameter for %s. "
+            "Use Authorization: Bearer header instead to avoid token leakage.",
+            request.url.path,
+        )
         principal = authenticate_jwt_token(query_token)
         if principal:
             return cast(Principal | None, principal)
@@ -278,6 +288,10 @@ async def check_rate_limit(
     limits = {
         "/api/jobs/start": config.rate_limit_jobs,
         "/api/replay": config.rate_limit_replay,
+        # Security Fix: Rate-limit authentication endpoints to prevent brute-force attacks.
+        "/api/auth/token": config.rate_limit_auth if hasattr(config, "rate_limit_auth") else 10,
+        "/api/auth/login": config.rate_limit_auth if hasattr(config, "rate_limit_auth") else 10,
+        "/api/keys": config.rate_limit_auth if hasattr(config, "rate_limit_auth") else 10,
     }
 
     if path.startswith("/api/remediated/") and path.endswith("/verify"):

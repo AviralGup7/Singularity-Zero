@@ -61,7 +61,9 @@ LABEL org.opencontainers.image.title="Cyber Security Test Pipeline" \
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONFAULTHANDLER=1 \
+    # Security Fix: PYTHONFAULTHANDLER removed from production image.
+    # It writes tracebacks (potentially containing sensitive data) to stderr
+    # on fatal errors. Enable only in debug/dev builds if needed.
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     DEBIAN_FRONTEND=noninteractive \

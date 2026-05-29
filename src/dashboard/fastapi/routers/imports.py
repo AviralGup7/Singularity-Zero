@@ -2,7 +2,6 @@
 
 import datetime
 import json
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -12,22 +11,15 @@ from src.dashboard.fastapi.schemas import ErrorResponse
 from src.dashboard.fastapi.validation import (
     validate_json_payload,
     validate_run_name,
-    validate_target_name,
 )
 
 router = APIRouter(prefix="/api/imports", tags=["Imports"])
 
 
-def _find_target_dir(output_root: Path, target_id: str) -> Path | None:
-    target = output_root / target_id
-    if target.is_dir():
-        return target
-    for entry in output_root.iterdir():
-        if entry.is_dir() and entry.name.lower() == target_id.lower():
-            return entry
-    return None
+from src.dashboard.fastapi.routers.utils import get_safe_target_path
 
 
+# ...
 @router.post(
     "/semgrep",
     responses={
@@ -45,13 +37,10 @@ async def import_semgrep(
     _auth: Any = Depends(require_admin),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, str]:
-    if not validate_target_name(target_name):
-        raise HTTPException(status_code=400, detail="Invalid target name")
-
     output_root = services.query.output_root
-    target_dir = _find_target_dir(output_root, target_name)
-    if target_dir is None:
-        target_dir = output_root / target_name
+    target_dir = get_safe_target_path(output_root, target_name)
+
+    if not target_dir.exists():
         try:
             target_dir.mkdir(parents=True, exist_ok=True)
         except Exception as exc:

@@ -45,7 +45,7 @@ export class ErrorTracker {
     const errorObj = typeof error === 'string' ? new Error(error) : error;
 
     const trackedError: TrackedError = {
-      id: `error-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `error-${crypto.randomUUID()}`,
       error: errorObj,
       context: {
         component: context.component,

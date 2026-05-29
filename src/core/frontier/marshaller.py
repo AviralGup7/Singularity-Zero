@@ -15,7 +15,17 @@ from src.core.logging.trace_logging import get_pipeline_logger
 logger = get_pipeline_logger(__name__)
 
 # Secret for HMAC integrity checks
-_MESH_SECRET = os.environ.get("MESH_SECRET", "frontier-default-secret-change-in-prod").encode()
+_MESH_SECRET_RAW = os.environ.get("MESH_SECRET")
+_IS_PROD = os.environ.get("APP_ENV") == "production"
+
+if not _MESH_SECRET_RAW:
+    if _IS_PROD:
+        raise ValueError("CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production.")
+    _MESH_SECRET_RAW = "frontier-default-secret-change-in-prod"
+elif _IS_PROD and _MESH_SECRET_RAW == "frontier-default-secret-change-in-prod":
+    raise ValueError("CRITICAL SECURITY RISK: MESH_SECRET must not be the default value in production.")
+
+_MESH_SECRET = _MESH_SECRET_RAW.encode()
 
 
 def _derive_integrity_key(salt: bytes) -> bytes:

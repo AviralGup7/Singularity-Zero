@@ -1,6 +1,9 @@
+import logging
 import time
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from src.analysis.behavior.artifacts import write_plugin_artifacts
 from src.analysis.helpers import resolve_endpoint_key

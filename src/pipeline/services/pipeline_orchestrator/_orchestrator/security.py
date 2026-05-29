@@ -113,7 +113,8 @@ async def run_secured(
     logger.info("Frontier WAL initialized: stream=cyber:wal:%s", run_id)
 
     # Ghost-Actor Migration Handler
-    from src.core.frontier.ghost_actor import GhostMeshCoordinator, GhostMeshRegistry
+    from src.core.frontier.ghost_actor import GhostMeshCoordinator
+    from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
 
     mesh_registry = GhostMeshRegistry(cache_mgr._redis, run_id)
     coordinator = GhostMeshCoordinator(mesh_registry, getattr(cache_mgr, "_gossip", None))

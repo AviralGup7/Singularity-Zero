@@ -96,9 +96,11 @@ class CyberVault:
         return Argon2idAESGCM(self._master_key, self._kdf_params)
 
     def _aad(self, purpose: str, key_version: int | None = None) -> bytes:
-        payload = {
+        payload: dict[str, object] = {
             "purpose": purpose,
         }
+        if key_version is not None:
+            payload["key_version"] = key_version
         return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
     def _audit(self, action: str, result: str = "success", **details: Any) -> None:
@@ -259,7 +261,7 @@ class CyberVault:
                 secure_wipe(bytearray(dek))
 
                 return SecretLease(plaintext)
-        except json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature:
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature):
             pass
 
         # Compatibility fallback for Argon2idAESGCM envelopes

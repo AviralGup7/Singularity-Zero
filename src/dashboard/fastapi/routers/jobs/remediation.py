@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.dashboard.fastapi.routers.utils import get_enriched_job
 from src.dashboard.fastapi.schemas import ErrorResponse
+from src.dashboard.remediation import suggest_for_job
 
 router = APIRouter(prefix="/api/jobs")
 

@@ -53,7 +53,7 @@ export async function createEvidenceRecord(
 ): Promise<EvidenceRecord> {
   const hash = await sha256(data);
   const record: EvidenceRecord = {
-    id: `evidence-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `evidence-${crypto.randomUUID()}`,
     findingId,
     data,
     hash,
@@ -61,7 +61,7 @@ export async function createEvidenceRecord(
     createdBy: user,
     custodyChain: [
       {
-        id: `custody-${Date.now()}`,
+        id: `custody-${crypto.randomUUID()}`,
         evidenceId: '',
         action: 'created',
         user,
@@ -89,7 +89,7 @@ export async function logEvidenceAccess(
   if (!record) return;
 
   const entry: CustodyEntry = {
-    id: `custody-${Date.now()}`,
+    id: `custody-${crypto.randomUUID()}`,
     evidenceId,
     action: 'accessed',
     user,
@@ -118,7 +118,7 @@ export async function logEvidenceModification(
   record.hash = hashAfter;
 
   const entry: CustodyEntry = {
-    id: `custody-${Date.now()}`,
+    id: `custody-${crypto.randomUUID()}`,
     evidenceId,
     action: 'modified',
     user,

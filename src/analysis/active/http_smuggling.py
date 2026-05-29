@@ -143,15 +143,14 @@ def http_smuggling_probe(
             if not response:
                 continue
             response_status = int(response.get("status_code") or 0)
-            response_time = float(
-                response.get("response_time_ms") or response.get("elapsed_ms") or 0
-            )
-            baseline_time = float(
-                baseline.get("response_time_ms") or baseline.get("elapsed_ms") or 0
-            )
+            response_time = float(response.get("response_time_ms", 0))
+            baseline_time = float(baseline.get("response_time_ms", 0))
             response_body = str(response.get("body_text") or "").lower()
             time_delta = abs(response_time - baseline_time)
             status_changed = response_status != baseline_status and response_status < 500
+
+            # Logic adjustment: only count as delay if response is slower than baseline (Fix Audit #7)
+            significant_delay = (response_time > baseline_time + 2000)
             smuggled_indicators = [
                 "smuggled",
                 "404",
@@ -162,7 +161,7 @@ def http_smuggling_probe(
             body_indicates_smuggling = (
                 any(ind in response_body for ind in smuggled_indicators) and status_changed
             )
-            if time_delta > 2000 or status_changed or body_indicates_smuggling:
+            if significant_delay or status_changed or body_indicates_smuggling:
                 issues.append(f"smuggling_{smuggling_test['name']}_indicator")
                 smuggling_details.append(
                     {

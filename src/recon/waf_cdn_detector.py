@@ -26,6 +26,7 @@ from typing import Any
 import httpx
 
 from src.core.frontier.waf_patterns import CDN_WAF_PATTERNS
+from src.core.utils.url_validation import is_safe_url
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,10 @@ async def detect_waf_cdn(
     results: list[dict[str, Any]] = []
     try:
         for url in urls[:max_urls]:
+            # SSRF protection: skip URLs that target internal/private hosts
+            if not is_safe_url(url):
+                logger.warning("WAF detector: URL failed SSRF safety check, skipping: %s", url)
+                continue
             passive_findings = await _passive_detect(url, client)
             results.extend(passive_findings)
 

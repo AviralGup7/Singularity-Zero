@@ -17,6 +17,7 @@ from src.analysis.checks.active.file_upload_probe import file_upload_active_prob
 from src.analysis.checks.active.idor_probe import idor_active_probe
 from src.analysis.passive.detectors.detector_app_ssrf import scan_responses as app_ssrf_scan
 from src.analysis.passive.detectors.detector_clickjacking import clickjacking_detector
+from src.analysis.passive.detectors.detector_graphql import graphql_introspection_detector
 from src.analysis.passive.detectors.detector_logging import logging_security_detector
 from src.analysis.passive.detectors.detector_oauth import oauth_misconfiguration_detector
 from src.analysis.passive.detectors.detector_open_redirect import open_redirect_detector
@@ -75,6 +76,9 @@ def _register_bindings() -> None:
         "debug_artifact_checker": _binding("responses_only"),
         "stored_xss_signal_detector": _binding("responses_only"),
         "token_leak_detector": _binding("responses_only"),
+        "graphql_introspection_detector": _binding(
+            "urls_and_responses", graphql_introspection_detector
+        ),
         "csrf_protection_checker": _binding("responses_only"),
         "ssti_surface_detector": _binding("responses_only"),
         "file_upload_surface_detector": _binding("responses_only"),

@@ -20,6 +20,7 @@ from src.analysis.helpers import (
     parameter_weight,
 )
 from src.intelligence.severity_model import enrich_findings_with_model_severity
+from src.recon.cvps import compute_cvps_score
 from src.recon.ranking_support import (
     HistoryFeedback,
     build_flow_graph,
@@ -28,9 +29,7 @@ from src.recon.ranking_support import (
     detect_trust_boundary,
     history_feedback_score,
     normalize_ranked_scores,
-    select_deep_analysis_targets,
 )
-from src.recon.cvps import compute_cvps_score
 
 
 def infer_target_profile(urls: Iterable[str]) -> dict[str, int | bool]:
@@ -321,7 +320,7 @@ def rank_urls(
     history_feedback: HistoryFeedback | None = None,
     waf_findings: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    \"\"\"Rank URLs by composite security-relevant score with WAF-aware penalties.
+    """Rank URLs by composite security-relevant score with WAF-aware penalties.
 
     Scoring Algorithm Overview:
     ───────────────────────────────────
@@ -374,7 +373,7 @@ def rank_urls(
     Returns:
         List of dicts with url, score components, signals, trust_boundary,
         normalized_score, and flow metadata. Sorted by priority.
-    \"\"\"
+    """
     url_list = list(urls)
     active_profile = profile or infer_target_profile(url_list)
     ignored = [item.lower() for item in filters.get("ignore_extensions", [])]
@@ -384,12 +383,12 @@ def rank_urls(
     }
     custom_priority_keywords = [str(item).lower() for item in filters.get("priority_keywords", [])]
     custom_keyword_bonus = int(scoring.get("custom_keyword_bonus", 2))
-    
+
     # CDN/WAF context integration
     cdn_protected_urls = set()
     if waf_findings:
         cdn_protected_urls = {
-            f["url"] for f in waf_findings 
+            f["url"] for f in waf_findings
             if f["confidence"] >= 0.9 and any(cdn in f["provider"].lower() for cdn in ["cloudflare", "akamai", "fastly", "cloudfront"])
         }
 
@@ -554,7 +553,7 @@ _AGGREGATE_RISK_MEDIUM_THRESHOLD = 15
 def compute_aggregate_risk_score(
     findings: list[dict[str, Any]], run_summary: dict[str, Any]
 ) -> dict[str, Any]:
-    \"\"\"Compute aggregate risk score from findings, severity-weighted.
+    """Compute aggregate risk score from findings, severity-weighted.
 
     Args:
         findings: List of finding dicts with at least a 'severity' key.
@@ -563,7 +562,7 @@ def compute_aggregate_risk_score(
     Returns:
         Dict with aggregate_score, severity_breakdown, max_severity,
         finding_count, score_label, and per-category scores.
-    \"\"\"
+    """
     modeled_findings = enrich_findings_with_model_severity(
         [finding for finding in findings if isinstance(finding, dict)]
     )
@@ -618,7 +617,7 @@ def compute_aggregate_risk_score(
 def compute_historical_score(
     endpoint: str, current_score: float, past_runs: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    \"\"\"Compute historical score evolution for an endpoint across runs.
+    """Compute historical score evolution for an endpoint across runs.
 
     Args:
         endpoint: The URL/endpoint to track.
@@ -629,7 +628,7 @@ def compute_historical_score(
     Returns:
         Dict with trend, score_history, finding_frequency,
         first_seen, last_seen, trend_direction, and risk_delta.
-    \"\"\"
+    """
     score_history: list[dict[str, Any]] = []
     finding_frequency = 0
     first_seen = ""

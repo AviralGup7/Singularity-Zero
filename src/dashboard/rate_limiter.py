@@ -329,30 +329,31 @@ class RedisRateLimiter:
         key = f"rate_limit:{client_key}:{endpoint}"
         window = self._config.window_seconds
 
-        try:
-            # Use Redis Sorted Set for sliding window
-            pipe = self._redis.pipeline()
-            pipe.zremrangebyscore(key, 0, now - window)
-            pipe.zcard(key)
-            pipe.zadd(key, {str(now): now})
-            pipe.expire(key, int(window) + 1)
-            results = pipe.execute()
+        def _redis_check() -> tuple[bool, int, int | None]:
+            try:
+                pipe = self._redis.pipeline()
+                pipe.zremrangebyscore(key, 0, now - window)
+                pipe.zcard(key)
+                pipe.zadd(key, {str(now): now})
+                pipe.expire(key, int(window) + 1)
+                results = pipe.execute()
 
-            count = results[1]
-            if count >= limit:
-                # Get the oldest timestamp to compute retry_after
-                oldest = cast(
-                    list[tuple[Any, float]], self._redis.zrange(key, 0, 0, withscores=True)
-                )
-                retry_after = 1
-                if oldest:
-                    retry_after = max(1, int(window - (now - oldest[0][1])) + 1)
-                return False, 0, retry_after
+                count = results[1]
+                if count >= limit:
+                    oldest = cast(
+                        list[tuple[Any, float]], self._redis.zrange(key, 0, 0, withscores=True)
+                    )
+                    retry_after = 1
+                    if oldest:
+                        retry_after = max(1, int(window - (now - oldest[0][1])) + 1)
+                    return False, 0, retry_after
 
-            return True, limit - (count + 1), None
-        except Exception as exc:
-            logger.error("Redis rate limit check failed: %s", exc)
-            return True, 999, None
+                return True, limit - (count + 1), None
+            except Exception as exc:
+                logger.error("Redis rate limit check failed: %s", exc)
+                return True, 999, None
+
+        return await asyncio.to_thread(_redis_check)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

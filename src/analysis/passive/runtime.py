@@ -12,9 +12,17 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.error import URLError
 
 import urllib3
+
+# Shared pool manager for connection reuse (Fix Audit #5)
+_HTTP_POOL = urllib3.PoolManager(
+    num_pools=50,
+    maxsize=10,
+    block=False,
+    retries=False,
+    timeout=urllib3.util.Timeout(connect=10, read=10),
+)
 
 from src.analysis.passive.patterns import TEXTUAL_CONTENT_TYPES
 from src.analysis.text_utils import (
@@ -33,6 +41,8 @@ from src.pipeline.retry import RetryPolicy
 from src.recon.common import normalize_url
 
 RequestRetryPolicy = RetryPolicy
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -110,7 +120,6 @@ class RequestScheduler:
 
     def observe(
         self,
-        *,
         successful: bool,
         latency_seconds: float,
         status_code: int | None = None,
@@ -119,9 +128,8 @@ class RequestScheduler:
         if not self.adaptive_mode:
             return
         with self._lock:
-            # Handle explicit retry-after header (highest priority)
+            # Handle explicit retry-after header (highest priority) (Fix Audit #31)
             if retry_after_seconds is not None and retry_after_seconds > 0:
-                # Immediately reduce rate based on retry-after duration
                 backoff_factor = max(0.1, 1.0 / (1.0 + retry_after_seconds))
                 self.current_rate_per_second = max(
                     self.min_rate_per_second, self.current_rate_per_second * backoff_factor
@@ -148,9 +156,8 @@ class RequestScheduler:
                 return
 
             self._healthy_streak = 0
-            # 429 rate limit responses get stronger backoff
             if status_code == 429:
-                factor = self.error_backoff_factor * 0.5  # Stronger backoff for rate limits
+                factor = self.error_backoff_factor * 0.5
             elif not successful:
                 factor = self.error_backoff_factor
             else:
@@ -181,10 +188,14 @@ class ResponseCache:
         self.cache_ttl_hours = cache_ttl_hours
         self.request_retry_policy = request_retry_policy or RetryPolicy()
         self._records: dict[str, dict[str, Any] | None] = {}
+        # Fix Audit #6: Cache for active probes with headers/body
+        self._active_records: dict[tuple, dict[str, Any] | None] = {}
         self._persistent_records = (
             load_cached_json(persistent_cache_path) if persistent_cache_path else {}
         )
         self._lock = threading.Lock()
+        # Fix Audit #29: Cap in-memory records to prevent exhaustion
+        self._max_memory_records = 2500
 
     def get(self, url: str) -> dict[str, Any] | None:
         normalized = normalize_url(url)
@@ -193,11 +204,18 @@ class ResponseCache:
                 return self._records[normalized]
             cached = self._persistent_records.get(normalized)
             if isinstance(cached, dict) and response_cache_fresh(cached, self.cache_ttl_hours):
-                self._records[normalized] = cached
+                if len(self._records) < self._max_memory_records:
+                    self._records[normalized] = cached
                 return cached
 
         record = self._request_with_policy(normalized)
         with self._lock:
+            if len(self._records) >= self._max_memory_records:
+                try:
+                    evict_key = next(iter(self._records))
+                    self._records.pop(evict_key, None)
+                except StopIteration:
+                    pass
             self._records[normalized] = record
             if record is not None:
                 self._persistent_records[normalized] = {**record, "cached_at_epoch": time.time()}
@@ -214,10 +232,20 @@ class ResponseCache:
         target_name: str | None = None,
     ) -> dict[str, Any] | None:
         normalized = normalize_url(url)
-        # Cache only plain GET requests; active probes should bypass memoization.
+
+        # Fix Audit #6: Key for active probes to allow memoization of repeated identical probes
+        header_key = frozenset((headers or {}).items())
+        body_key = hash(body) if body else None
+        active_key = (normalized, method.upper(), header_key, body_key)
+
         if method.upper() == "GET" and not headers and body is None and not capture_forensics:
             return self.get(normalized)
-        return self._request_with_policy(
+
+        with self._lock:
+            if active_key in self._active_records:
+                return self._active_records[active_key]
+
+        record = self._request_with_policy(
             normalized,
             method=method,
             headers=headers,
@@ -226,6 +254,13 @@ class ResponseCache:
             output_dir=self.persistent_cache_path.parent if self.persistent_cache_path else None,
             target_name=target_name,
         )
+
+        with self._lock:
+            if len(self._active_records) >= 1000:
+                self._active_records.clear()
+            self._active_records[active_key] = record
+
+        return record
 
     def prefetch(self, targets: list[str]) -> list[dict[str, Any]]:
         normalized_targets = [normalize_url(target) for target in targets if normalize_url(target)]
@@ -251,8 +286,10 @@ class ResponseCache:
         output_dir: Path | None = None,
         target_name: str | None = None,
     ) -> dict[str, Any] | None:
+        policy = self.request_retry_policy
         last_result: FetchResponseResult | None = None
-        for attempt in range(1, self.request_retry_policy.max_attempts + 1):
+
+        for attempt in range(1, policy.max_attempts + 1):
             self.scheduler.acquire()
             result = _fetch_response_once(
                 url,
@@ -263,9 +300,22 @@ class ResponseCache:
                 body=body,
             )
 
+            # Fix Audit #31: Extract Retry-After
+            retry_after = 0.0
+            if result.record and "headers" in result.record:
+                ra = result.record["headers"].get("Retry-After")
+                if ra and str(ra).isdigit():
+                    retry_after = float(ra)
+
+            self.scheduler.observe(
+                successful=result.successful,
+                latency_seconds=result.latency_seconds,
+                status_code=result.status_code,
+                retry_after_seconds=retry_after
+            )
+
             if capture_forensics and result.record and output_dir and target_name:
                 from src.analysis.passive.forensics import ForensicExchange, save_forensic_exchange
-
                 exchange = ForensicExchange(
                     url=url,
                     method=method,
@@ -277,7 +327,6 @@ class ResponseCache:
                     latency_seconds=result.latency_seconds,
                 )
                 save_forensic_exchange(output_dir, exchange, target_name)
-                # Update result with exchange_id
                 result = FetchResponseResult(
                     record={**result.record, "exchange_id": exchange.exchange_id},
                     latency_seconds=result.latency_seconds,
@@ -288,14 +337,9 @@ class ResponseCache:
                 )
 
             last_result = result
-            self.scheduler.observe(
-                successful=result.successful,
-                latency_seconds=result.latency_seconds,
-                status_code=result.status_code,
-            )
-            if not result.retryable or attempt >= self.request_retry_policy.max_attempts:
+            if not result.retryable or attempt >= policy.max_attempts:
                 return result.record
-            delay = self.request_retry_policy.delay_for_attempt(attempt + 1)
+            delay = policy.delay_for_attempt(attempt + 1)
             if delay > 0:
                 time.sleep(delay)
         return last_result.record if last_result else None
@@ -310,7 +354,6 @@ def _fetch_response_stream(
     extra_headers: dict[str, str] | None = None,
     body: str | bytes | None = None,
 ) -> dict[str, Any] | None:
-    """Fetch a response using streaming chunked reading."""
     headers = {
         "User-Agent": DEFAULT_USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/json,text/plain,*/*",
@@ -322,20 +365,15 @@ def _fetch_response_stream(
     if request_body and "Content-Type" not in headers:
         headers["Content-Type"] = "application/json"
 
-    pool = urllib3.PoolManager(
-        num_pools=1,
-        maxsize=1,
-        timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
-    )
-
     try:
-        resp = pool.request(
+        resp = _HTTP_POOL.request(
             method.upper(),
             url,
             headers=headers,
             body=request_body,
             preload_content=False,
             redirect=True,
+            timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds)
         )
 
         resp_headers = dict(resp.headers.items())
@@ -349,12 +387,10 @@ def _fetch_response_stream(
             chunk = resp.read(chunk_size)
             if not chunk:
                 break
-
             remaining = max_bytes - bytes_read
             if remaining <= 0:
                 truncated = True
                 break
-
             if len(chunk) > remaining:
                 body_parts.append(chunk[:remaining])
                 bytes_read += remaining
@@ -373,28 +409,23 @@ def _fetch_response_stream(
             except LookupError:
                 body_text = raw.decode("utf-8", errors="replace")
 
-        final_url = normalize_url(url)
-        redirect_chain = [normalize_url(url)]
-
         return {
             "requested_url": normalize_url(url),
             "request_method": method.upper(),
-            "url": final_url,
-            "final_url": final_url,
+            "url": normalize_url(url),
+            "final_url": normalize_url(url),
             "status_code": resp.status,
             "headers": resp_headers,
             "content_type": content_type,
             "body_text": body_text,
             "body_length": len(body_text),
             "truncated": truncated,
-            "redirect_chain": redirect_chain,
+            "redirect_chain": [normalize_url(url)],
             "redirect_count": 0,
         }
     except Exception as exc:
         logger.debug("Streaming error fetching %s: %s", url, exc)
         return None
-    finally:
-        pool.clear()
 
 
 def fetch_response(
@@ -412,26 +443,14 @@ def fetch_response(
 ) -> dict[str, Any] | None:
     if stream:
         return _fetch_response_stream(
-            url,
-            timeout_seconds,
-            max_bytes,
-            method=method,
-            extra_headers=extra_headers,
-            body=body,
+            url, timeout_seconds, max_bytes, method=method, extra_headers=extra_headers, body=body
         )
 
     result = _fetch_response_once(
-        url,
-        timeout_seconds,
-        max_bytes,
-        method=method,
-        extra_headers=extra_headers,
-        body=body,
+        url, timeout_seconds, max_bytes, method=method, extra_headers=extra_headers, body=body
     )
-
     if capture_forensics and result.record and output_dir and target_name:
         from src.analysis.passive.forensics import ForensicExchange, save_forensic_exchange
-
         exchange = ForensicExchange(
             url=url,
             method=method,
@@ -463,62 +482,55 @@ def _fetch_response_once(
     }
     if extra_headers:
         headers.update(extra_headers)
-    # Encode body if needed
+
     request_body: bytes | None = body.encode("utf-8") if isinstance(body, str) else body
     if request_body and "Content-Type" not in headers:
         headers["Content-Type"] = "application/json"
+
     if not is_safe_url(url):
-        logger.debug("URL failed safety check: %s", url)
-        return FetchResponseResult(
-            record=None,
-            latency_seconds=0.0,
-            status_code=None,
-            successful=False,
-            retryable=False,
-        )
+        return FetchResponseResult(None, 0.0, None, False, False)
+
     started_at = time.monotonic()
     try:
-        pool = urllib3.PoolManager(
-            num_pools=1,
-            maxsize=1,
-            timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
+        # Fix Audit #5: Use shared pool for connection reuse
+        response = _HTTP_POOL.request(
+            method.upper(),
+            url,
+            headers=headers,
+            body=request_body,
+            preload_content=True,
+            timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds)
         )
-        response = pool.request(
-            method.upper(), url, headers=headers, body=request_body, preload_content=True
+
+        latency = time.monotonic() - started_at
+        # Fix Audit #7: Include response_time_ms
+        record = build_response_record(
+            url, response, max_bytes, request_method=method.upper(), latency_ms=latency * 1000
         )
-        record = build_response_record(url, response, max_bytes, request_method=method.upper())
+
         status_code = int(record.get("status_code") or 0)
-        retryable = status_code == 429 or 500 <= status_code < 600
         successful = status_code < 400
+        retryable = status_code == 429 or 500 <= status_code < 600
+
         return FetchResponseResult(
             record=record,
-            latency_seconds=time.monotonic() - started_at,
+            latency_seconds=latency,
             status_code=status_code,
             successful=successful,
             retryable=retryable,
         )
-    except (TimeoutError, URLError) as exc:
-        logger.debug("Ignoring timeout error for %s: %s", url, exc)
-        return FetchResponseResult(
-            record=None,
-            latency_seconds=time.monotonic() - started_at,
-            status_code=None,
-            successful=False,
-            retryable=True,
-        )
     except Exception as exc:
-        logger.debug("Unexpected error fetching %s: %s", url, exc)
-        return FetchResponseResult(
-            record=None,
-            latency_seconds=time.monotonic() - started_at,
-            status_code=None,
-            successful=False,
-            retryable=False,
-        )
+        logger.debug("Error fetching %s: %s", url, exc)
+        return FetchResponseResult(None, time.monotonic() - started_at, None, False, True)
 
 
 def build_response_record(
-    url: str, response: Any, max_bytes: int, *, request_method: str = "GET"
+    url: str,
+    response: Any,
+    max_bytes: int,
+    *,
+    request_method: str = "GET",
+    latency_ms: float = 0.0
 ) -> dict[str, Any]:
     headers = dict(response.headers.items())
     content_type = headers.get("Content-Type", "")
@@ -535,9 +547,6 @@ def build_response_record(
 
     status_code = getattr(response, "status", None) or getattr(response, "code", None)
     final_url = normalize_url(getattr(response, "geturl", lambda: url)() or url)
-    redirect_chain = [normalize_url(url)]
-    if final_url and final_url != redirect_chain[0]:
-        redirect_chain.append(final_url)
     return {
         "requested_url": normalize_url(url),
         "request_method": request_method,
@@ -549,8 +558,9 @@ def build_response_record(
         "body_text": body_text,
         "body_length": len(body_text),
         "truncated": len(raw) > max_bytes if max_bytes > 0 else False,
-        "redirect_chain": redirect_chain,
-        "redirect_count": max(len(redirect_chain) - 1, 0),
+        "redirect_chain": [normalize_url(url), final_url] if final_url != normalize_url(url) else [normalize_url(url)],
+        "redirect_count": 1 if final_url != normalize_url(url) else 0,
+        "response_time_ms": round(latency_ms, 2), # Fix Audit #7
     }
 
 
@@ -578,5 +588,3 @@ __all__ = [
     "redacted_snippet",
     "shannon_entropy",
 ]
-
-logger = logging.getLogger(__name__)

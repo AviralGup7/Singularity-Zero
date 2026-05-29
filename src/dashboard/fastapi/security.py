@@ -26,10 +26,20 @@ def api_security_enabled() -> bool:
 
 
 def app_secret_key() -> str:
-    key = os.getenv("APP_SECRET_KEY") or os.getenv("DASHBOARD_API_KEY") or "dev-dashboard-secret"
-    if os.getenv("APP_ENV") == "production" and key == "change-me-in-production":
+    key = os.getenv("APP_SECRET_KEY") or os.getenv("DASHBOARD_API_KEY")
+    is_prod = os.getenv("APP_ENV") == "production"
+
+    if not key:
+        if is_prod:
+            raise ValueError(
+                "CRITICAL SECURITY RISK: APP_SECRET_KEY is not set. "
+                "A high-entropy secret key must be configured in production via environment variables."
+            )
+        return "dev-dashboard-secret"
+
+    if is_prod and key in ("change-me-in-production", "dev-dashboard-secret"):
         raise ValueError(
-            "CRITICAL SECURITY RISK: The APP_SECRET_KEY is set to the default 'change-me-in-production' value. "
+            f"CRITICAL SECURITY RISK: The APP_SECRET_KEY is set to a default value ('{key}'). "
             "A high-entropy secret key must be configured in production environments."
         )
     return key

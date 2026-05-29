@@ -17,14 +17,14 @@ from src.dashboard.fastapi.dependencies import (
     get_queue_client,
     require_auth,
 )
+from src.dashboard.fastapi.routers.utils import get_safe_target_dir
 from src.dashboard.fastapi.schemas import AttackChainSchema, ErrorResponse
-from src.dashboard.fastapi.validation import validate_target_name
+from src.dashboard.fastapi.validation import sanitize_path_segment
 from src.intelligence.graph.threat_graph import load_lateral_movement_graph
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cockpit", tags=["Cockpit"])
-
 
 SEVERITY_WEIGHT = {"critical": 1.0, "high": 0.78, "medium": 0.52, "low": 0.28, "info": 0.12}
 
@@ -54,13 +54,11 @@ async def get_attack_chains(
     services: Any = Depends(get_queue_client),
 ) -> Any:
     """Return identified attack chains linking multiple vulnerabilities and assets."""
-    if not validate_target_name(target):
-        raise HTTPException(status_code=400, detail="Invalid target name")
+    output_root = services.query.output_root
+    target_dir = get_safe_target_dir(output_root, target)
 
     # Frontier Logic: Query Kuzu for attack paths
-    # In a real mesh, the DB path might be shared or per-target
-    output_root = services.query.output_root
-    graph = LateralGraph(db_path=str(output_root / target / "graph.db"))
+    graph = LateralGraph(db_path=str(target_dir / "graph.db"))
     try:
         raw_chains = graph.find_attack_chains()
     except Exception as e:
@@ -295,12 +293,10 @@ def _merge_graphs(*graphs: dict[str, Any]) -> dict[str, Any]:
     return {"nodes": nodes, "edges": edges}
 
 
-def _get_run_dir(
-    output_root: Path, target: str, run: str | None, job_id: str | None
+def _get_run_dir_safe(
+    output_root: Path, target_name: str, run: str | None, job_id: str | None
 ) -> Path | None:
-    target_dir = output_root / target
-    if not target_dir.exists():
-        return None
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     if run:
         run_dir = target_dir / run
@@ -321,23 +317,31 @@ def _get_run_dir(
                         continue
 
     # Fallback to latest run
-    runs = [
-        child
-        for child in target_dir.iterdir()
-        if child.is_dir() and (child / "run_summary.json").exists()
-    ]
-    if not runs:
-        # Fallback to any run if summary is missing (e.g. partial run)
-        runs = [
+    runs = sorted(
+        [
             child
             for child in target_dir.iterdir()
-            if child.is_dir() and child.name != "checkpoints"
-        ]
+            if child.is_dir() and (child / "run_summary.json").exists()
+        ],
+        key=lambda d: d.name,
+        reverse=True,
+    )
+    if not runs:
+        # Fallback to any run if summary is missing (e.g. partial run)
+        runs = sorted(
+            [
+                child
+                for child in target_dir.iterdir()
+                if child.is_dir() and child.name != "checkpoints"
+            ],
+            key=lambda d: d.name,
+            reverse=True,
+        )
 
     if not runs:
         return None
 
-    return max(runs, key=lambda d: d.name)
+    return runs[0]
 
 
 @router.get(
@@ -354,12 +358,10 @@ async def get_cockpit_graph(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Build and return 3D threat graph data for the cockpit."""
-    if not validate_target_name(target):
-        raise HTTPException(status_code=400, detail="Invalid target name")
     max_node_limit = max_nodes if isinstance(max_nodes, int) else 2000
 
     output_root = services.query.output_root
-    run_dir = _get_run_dir(output_root, target, run, job_id)
+    run_dir = _get_run_dir_safe(output_root, target, run, job_id)
 
     if not run_dir:
         return {"nodes": [], "edges": [], "metadata": {"target": target}}
@@ -436,8 +438,8 @@ async def get_cockpit_events(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Return a timeline of cockpit-relevant events."""
-    if not validate_target_name(target):
-        raise HTTPException(status_code=400, detail="Invalid target name")
+    output_root = services.query.output_root
+    get_safe_target_dir(output_root, target)
 
     # 1. Get findings timeline
     timeline = services.query.get_timeline_data(target)
@@ -445,7 +447,7 @@ async def get_cockpit_events(
     # 2. Get analyst notes
     from src.pipeline.analyst_notes import get_all_notes
 
-    notes = get_all_notes(target, output_dir=services.query.output_root)
+    notes = get_all_notes(target, output_dir=output_root)
 
     events = []
     for f in timeline:
@@ -494,9 +496,6 @@ async def stream_cockpit_graph(
     services: Any = Depends(get_queue_client),
 ) -> StreamingResponse:
     """Stream graph snapshots so the 3D cockpit can ingest pipeline additions live."""
-    if not validate_target_name(target):
-        raise HTTPException(status_code=400, detail="Invalid target name")
-
     async def event_stream() -> Any:
         last_signature = ""
         while True:
@@ -548,13 +547,8 @@ async def list_forensic_exchanges(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """List forensic exchanges stored for a target."""
-    if not validate_target_name(target):
-        raise HTTPException(status_code=400, detail="Invalid target name")
-
     output_root = services.query.output_root
-    target_dir = output_root / target
-    if not target_dir.exists():
-        return {"exchanges": []}
+    target_dir = get_safe_target_dir(output_root, target)
 
     exchanges = []
 
@@ -618,25 +612,24 @@ async def get_forensic_exchange(
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Retrieve a forensic exchange artifact from disk."""
-    if not validate_target_name(target):
-        raise HTTPException(status_code=400, detail="Invalid target name")
-
     output_root = services.query.output_root
-    forensics_dir = output_root / target / "forensics"
-    file_path = forensics_dir / f"exchange_{exchange_id}.json"
+    target_dir = get_safe_target_dir(output_root, target)
+
+    # SEC-FIX: Sanitize exchange_id
+    safe_id = sanitize_path_segment(exchange_id)
+    forensics_dir = target_dir / "forensics"
+    file_path = forensics_dir / f"exchange_{safe_id}.json"
 
     if not file_path.exists():
         # Also check in run directories if not found in root forensics
-        target_dir = output_root / target
         found = False
-        if target_dir.exists():
-            for child in target_dir.iterdir():
-                if child.is_dir():
-                    candidate = child / "forensics" / f"exchange_{exchange_id}.json"
-                    if candidate.exists():
-                        file_path = candidate
-                        found = True
-                        break
+        for child in target_dir.iterdir():
+            if child.is_dir():
+                candidate = child / "forensics" / f"exchange_{safe_id}.json"
+                if candidate.exists():
+                    file_path = candidate
+                    found = True
+                    break
         if not found:
             raise HTTPException(status_code=404, detail="Forensic exchange not found")
 
@@ -665,14 +658,11 @@ async def trigger_cockpit_probe(
     from src.analysis.passive.runtime import fetch_response
     from src.core.utils.url_validation import is_safe_url
 
-    if not validate_target_name(target):
-        raise HTTPException(status_code=400, detail="Invalid target name")
+    output_root = services.query.output_root
+    get_safe_target_dir(output_root, target)
 
     if not is_safe_url(url):
         raise HTTPException(status_code=400, detail="URL is out of scope or unsafe")
-
-    output_root = services.query.output_root
-    # We use the target directory as the output_dir for forensics
 
     try:
         result = fetch_response(

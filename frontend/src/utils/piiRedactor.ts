@@ -109,7 +109,7 @@ export function logPIIAction(
   user = 'anonymous'
 ): void {
   const entry: PIIAuditEntry = {
-    id: `pii-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `pii-${crypto.randomUUID()}`,
     timestamp: new Date().toISOString(),
     action,
     category,

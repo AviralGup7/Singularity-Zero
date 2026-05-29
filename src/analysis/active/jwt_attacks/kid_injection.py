@@ -47,7 +47,7 @@ def test_kid_traversal(token: str, url: str, session: Any) -> dict[str, Any]:
             kid_header = dict(header)
             kid_header["kid"] = kid_path
             kid_header["alg"] = "HS256"
-            kid_token = _create_jwt(kid_header, payload)
+            kid_token = _create_jwt(kid_header, payload, secret=b"secret")
 
             for auth_header in JWT_AUTH_HEADERS:
                 resp = _send_with_token(url, kid_token, auth_header, session)

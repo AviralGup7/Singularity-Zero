@@ -71,7 +71,7 @@ class ApiSchemaReconstructor:
 
     def reconstruct_spec(self, target: str, urls: list[str] | set[str]) -> dict[str, Any]:
         """Compile a list of raw URLs into an OpenAPI 3.0 Specification dictionary."""
-        spec = {
+        spec: dict[str, Any] = {
             "openapi": "3.0.0",
             "info": {
                 "title": f"Reconstructed API Specification for {target}",

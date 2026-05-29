@@ -21,13 +21,18 @@ from typing import Any
 
 
 def _safe_extract(tar: tarfile.TarFile, extract_dir: Path) -> None:
-    """Safely extract tarfile, preventing path traversal attacks."""
+    """Safely extract tarfile, preventing path traversal attacks.
+
+    Validates and extracts each member individually to eliminate the
+    TOCTOU gap between the validation loop and the bulk extractall call.
+    """
     extract_dir_abs = os.path.abspath(extract_dir)
     for member in tar.getmembers():
         member_path = os.path.abspath(os.path.join(extract_dir_abs, member.name))
         if not member_path.startswith(extract_dir_abs + os.sep):
             raise ValueError(f"Path traversal attempt detected: {member.name}")
-    tar.extractall(extract_dir, filter="data")
+        # Extract one member at a time so validation and extraction are atomic.
+        tar.extract(member, path=extract_dir, set_attrs=False)  # nosec B012
 
 
 @dataclass

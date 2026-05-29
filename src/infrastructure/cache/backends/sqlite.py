@@ -128,6 +128,11 @@ class SQLiteBackend:
                     "CREATE INDEX IF NOT EXISTS idx_cache_last_accessed ON cache_entries(last_accessed)"
                 )
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_cache_tags ON cache_entries(tags)")
+                # Composite index for the common pattern: WHERE namespace = ? AND (expires_at IS NULL OR expires_at > ?)
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_cache_namespace_expires "
+                    "ON cache_entries(namespace, expires_at)"
+                )
                 conn.commit()
             finally:
                 self._close_conn()

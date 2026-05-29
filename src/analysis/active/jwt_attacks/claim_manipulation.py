@@ -48,7 +48,7 @@ def test_claim_manipulation(token: str, url: str, session: Any) -> dict[str, Any
         ]
 
         for test in claim_tests:
-            manipulated_token = _create_jwt(header, cast(dict, test["payload"]))
+            manipulated_token = _create_jwt(header, cast(dict, test["payload"]), secret=b"secret")
 
             for auth_header in JWT_AUTH_HEADERS:
                 resp = _send_with_token(url, manipulated_token, auth_header, session)

@@ -8,7 +8,6 @@ import { useApi } from '../hooks/useApi';
 import { startJob, apiClient } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { UrlCollectionSystem } from '../components/UrlCollectionSystem';
-import { Icon } from '../components/Icon';
 import { Target as TargetIcon, ChevronDown, RefreshCw, AlertTriangle, X, Upload } from 'lucide-react';
 import { PageHeader, GlassCard, AnimatedCounter, GlowProgress } from '../components/ui';
 
