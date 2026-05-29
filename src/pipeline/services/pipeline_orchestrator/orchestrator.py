@@ -34,7 +34,7 @@ from src.pipeline.runner_support import (
     load_adaptive_config,  # noqa: F401 – module-namespace seam
 )
 from src.pipeline.services.output_store import PipelineOutputStore  # noqa: F401 – seam
-from src.pipeline.services.pipeline_flow import pipeline_flow_manifest  # noqa: F401 – seam
+from src.pipeline.services.stage_registry import pipeline_flow_manifest  # noqa: F401 – seam
 from src.pipeline.services.plugin_catalog import resolve_stage_runner
 from src.pipeline.storage import read_scope  # noqa: F401 – module-namespace seam
 
@@ -84,6 +84,70 @@ __all__ = [
 logger = get_pipeline_logger(__name__)
 
 
+class ExecutionContext:
+    """Manages the run inputs, variables, correlation IDs, run paths, output stores, and checkpoint managers."""
+
+    def __init__(self) -> None:
+        self.pipeline_input: PipelineInput | None = None
+        self.pipeline_correlation_id: str = ""
+        self.checkpoint_mgr: Any = None
+        self.wal: Any = None
+
+
+class ObservabilityBus:
+    """Manages registering of subscribers (event metrics, progress, audit, notification, learning) and emitting events."""
+
+    def __init__(self, event_bus: EventBus) -> None:
+        self._event_bus = event_bus
+        register_event_metrics_subscribers(self._event_bus)
+        register_progress_subscriber(self._event_bus)
+        register_audit_subscriber(self._event_bus)
+
+        self.notification_manager = NotificationManager(ManagerConfig())
+        register_notification_subscriber(self._event_bus, self.notification_manager)
+
+        self.learning_integration = LearningIntegration.get_or_create()
+        register_learning_subscriber(self._event_bus, self.learning_integration)
+
+    def emit_event(
+        self,
+        event_type: EventType,
+        source: str,
+        data: dict[str, Any],
+        pipeline_input: PipelineInput | None,
+        correlation_id: str,
+    ) -> None:
+        enriched_data = {
+            "event_schema_version": EVENT_SCHEMA_VERSION,
+            **(data or {}),
+        }
+        if pipeline_input:
+            enriched_data.setdefault("target", pipeline_input.target_name)
+            enriched_data.setdefault("target_name", pipeline_input.target_name)
+            enriched_data.setdefault("run_id", pipeline_input.run_id)
+
+        try:
+            self._event_bus.emit(
+                event_type,
+                source=source,
+                data=enriched_data,
+                correlation_id=correlation_id or None,
+            )
+        except (TypeError, ValueError, AttributeError) as exc:
+            logger.warning("Failed to emit event %s from %s: %s", event_type.value, source, exc)
+
+
+class StageDispatcher:
+    """Manages sequential and parallel runner groups, and legacy monkeypatch lookups."""
+
+    def build_stage_methods(self) -> dict[str, Any]:
+        return build_stage_methods_map(
+            stage_order=STAGE_ORDER,
+            module_globals=globals(),
+            resolve_stage_runner_func=resolve_stage_runner,
+        )
+
+
 class PipelineOrchestrator:
     """Orchestrates the security testing pipeline execution."""
 
@@ -92,24 +156,48 @@ class PipelineOrchestrator:
         self._stage_retry_metrics: RetryMetrics = RetryMetrics()
         self._event_bus: EventBus = event_bus or get_event_bus()
 
-        # Register Observability Subscribers
-        register_event_metrics_subscribers(self._event_bus)
-        register_progress_subscriber(self._event_bus)
+        # Extracted dedicated services
+        self.observability_bus = ObservabilityBus(self._event_bus)
+        self.ctx = ExecutionContext()
+        self.dispatcher = StageDispatcher()
 
-        # Register Cross-cutting Concern Subscribers
-        register_audit_subscriber(self._event_bus)
-
-        # Notifications (using default config for now, can be updated in run())
-        self._notification_manager = NotificationManager(ManagerConfig())
-        register_notification_subscriber(self._event_bus, self._notification_manager)
-
-        # Learning
-        self._learning_integration = LearningIntegration.get_or_create()
-        register_learning_subscriber(self._event_bus, self._learning_integration)
-
-        self._pipeline_input: PipelineInput | None = None
-        self._pipeline_correlation_id: str = ""
         self._migration_handler: ProactiveMigrationHandler | None = None
+
+    @property
+    def _pipeline_input(self) -> PipelineInput | None:
+        return self.ctx.pipeline_input
+
+    @_pipeline_input.setter
+    def _pipeline_input(self, val: PipelineInput | None) -> None:
+        self.ctx.pipeline_input = val
+
+    @property
+    def _pipeline_correlation_id(self) -> str:
+        return self.ctx.pipeline_correlation_id
+
+    @_pipeline_correlation_id.setter
+    def _pipeline_correlation_id(self, val: str) -> None:
+        self.ctx.pipeline_correlation_id = val
+
+    @property
+    def _checkpoint_mgr(self) -> Any:
+        return self.ctx.checkpoint_mgr
+
+    @_checkpoint_mgr.setter
+    def _checkpoint_mgr(self, val: Any) -> None:
+        self.ctx.checkpoint_mgr = val
+
+    @property
+    def _wal(self) -> Any:
+        return self.ctx.wal
+
+    @_wal.setter
+    def _wal(self, val: Any) -> None:
+        self.ctx.wal = val
+
+    @property
+    def _learning_integration(self) -> LearningIntegration:
+        return self.observability_bus.learning_integration
 
     def _get_stage_retry_policy(self, config: Any) -> RetryPolicy:
         if self._stage_retry_policy is None:
@@ -125,11 +213,9 @@ class PipelineOrchestrator:
 
     @staticmethod
     def _coerce_positive_int(value: Any) -> int | None:
-        try:
-            parsed = int(value)
-        except (TypeError, ValueError):
-            return None
-        return parsed if parsed > 0 else None
+        from ._orchestrator.utils import coerce_positive_int
+
+        return coerce_positive_int(value)
 
     def _resolve_stage_timeout(
         self,
@@ -148,25 +234,13 @@ class PipelineOrchestrator:
 
     def _emit_event(self, event_type: EventType, source: str, data: dict[str, Any]) -> None:
         """Emit a pipeline domain event while keeping orchestration failure-safe."""
-        # Enrich event data with common fields if available
-        enriched_data = {
-            "event_schema_version": EVENT_SCHEMA_VERSION,
-            **(data or {}),
-        }
-        if self._pipeline_input:
-            enriched_data.setdefault("target", self._pipeline_input.target_name)
-            enriched_data.setdefault("target_name", self._pipeline_input.target_name)
-            enriched_data.setdefault("run_id", self._pipeline_input.run_id)
-
-        try:
-            self._event_bus.emit(
-                event_type,
-                source=source,
-                data=enriched_data,
-                correlation_id=self._pipeline_correlation_id or None,
-            )
-        except (TypeError, ValueError, AttributeError) as exc:
-            logger.warning("Failed to emit event %s from %s: %s", event_type.value, source, exc)
+        self.observability_bus.emit_event(
+            event_type,
+            source=source,
+            data=data,
+            pipeline_input=self.ctx.pipeline_input,
+            correlation_id=self.ctx.pipeline_correlation_id,
+        )
 
     def _emit_pipeline_error(self, reason: str, details: dict[str, Any] | None = None) -> None:
         self._emit_event(
@@ -351,7 +425,7 @@ class PipelineOrchestrator:
             return 1
 
         try:
-            return await self._run_secured(args, config, flow_manifest, cache_mgr)
+            return await self._run_secured(args, config, flow_manifest, cache_mgr, scope_entries, tool_status)
         finally:
             if lock_token:
                 logger.info("Releasing distributed lock for target: %s", target_name)
@@ -359,12 +433,20 @@ class PipelineOrchestrator:
             cache_mgr.close()
 
     async def _run_secured(
-        self, args: argparse.Namespace, config: Any, flow_manifest: Any, cache_mgr: Any
+        self,
+        args: argparse.Namespace,
+        config: Any,
+        flow_manifest: Any,
+        cache_mgr: Any,
+        scope_entries: list[str],
+        tool_status: dict[str, Any],
     ) -> int:
         """Internal execution loop after lock acquisition."""
         from ._orchestrator.security import run_secured
 
-        return await run_secured(self, args, config, flow_manifest, cache_mgr)
+        return await run_secured(
+            self, args, config, flow_manifest, cache_mgr, scope_entries, tool_status
+        )
 
     # ------------------------------------------------------------------ parallel helpers --
 
@@ -457,14 +539,5 @@ class PipelineOrchestrator:
         stage_name: str,
         ctx: PipelineContext,
         checkpoint_mgr: Any,
-        target_name: str,
     ) -> None:
-        _ = target_name
         await record_stage_post_run(stage_name, ctx, checkpoint_mgr)
-
-
-def find_previous_run(target_root: Path) -> Path | None:
-    """Find the previous run directory for trend analysis."""
-    from src.reporting import find_previous_run as _find_previous_run
-
-    return cast(Path | None, _find_previous_run(target_root))

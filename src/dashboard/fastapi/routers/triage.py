@@ -16,7 +16,7 @@ from fastapi import (
 )
 
 from src.dashboard.fastapi.collaboration import TriageCollaborationService, TriageConnection
-from src.dashboard.fastapi.dependencies import require_auth
+from src.dashboard.fastapi.dependencies import require_auth, get_queue_client
 from src.learning.integration import LearningIntegration
 
 router = APIRouter(prefix="/api/triage", tags=["Triage Collaboration"])
@@ -103,6 +103,62 @@ async def record_triage_action(
         },
     )
     return {"event": event, "state": service.build_finding_state(run_id, finding_id)}
+
+
+@router.post("/runs/{run_id}/findings/{finding_id}/ai-review")
+async def ai_triage_finding(
+    run_id: str,
+    finding_id: str,
+    auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+    service: TriageCollaborationService = Depends(get_triage_service),
+) -> dict[str, Any]:
+    from src.dashboard.fastapi.routers.findings import _find_finding_by_id
+    tenant_id = (auth or {}).get("tenant_id", "default")
+    finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    from src.intelligence.ml.llm_service import LLMService
+    llm = LLMService.get_instance()
+    
+    req_payload = finding.get("request_payload") or finding.get("payload") or finding.get("evidence")
+    resp_body = finding.get("response_body") or finding.get("response") or finding.get("body")
+    
+    try:
+        review = await llm.triage_false_positive(finding, req_payload, resp_body)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"AI Triage failed: {exc}")
+
+    event = service.record_action(
+        run_id=run_id,
+        finding_id=finding_id,
+        action="ai_false_positive_review",
+        analyst_id="ai_analyst",
+        analyst_name="AI Validation Analyst",
+        payload={
+            "decision": review["decision"],
+            "confidence": review["confidence"],
+            "reasoning": review["reasoning"]
+        }
+    )
+    
+    if review["decision"] == "FP":
+        await _register_false_positive_pattern(finding_id, {
+            "category": finding.get("category", "general"),
+            "status_code": finding.get("response_status") or finding.get("status_code"),
+            "body_indicator": review["reasoning"]
+        })
+        
+    await service.broadcast(
+        run_id,
+        {
+            "type": "triage_event",
+            "event": event,
+            "state": service.build_finding_state(run_id, finding_id),
+        },
+    )
+    return {"review": review, "event": event, "state": service.build_finding_state(run_id, finding_id)}
 
 
 async def _register_false_positive_pattern(finding_id: str, payload: dict[str, Any]) -> None:

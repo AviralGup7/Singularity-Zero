@@ -24,12 +24,35 @@ from src.recon.common import normalize_scope_entry, parse_plain_lines, run_comma
 SUBDOMAIN_ENUMERATOR = "subdomain_enumerator"
 
 
+def is_safe_domain(domain: str) -> bool:
+    """Strict validation for domain input against SSRF, newlines, and null bytes."""
+    import re
+    if not domain:
+        return False
+    lower_domain = domain.lower()
+    for bad in ("\x00", "%00", "\n", "\r", "%0a", "%0d", "%0A", "%0D"):
+        if bad in lower_domain:
+            return False
+    if any(ch in domain for ch in ("/", "\\", ":", "@", "?", "#", " ", "\t")):
+        return False
+    _DOMAIN_RE = re.compile(
+        r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$",
+        re.IGNORECASE,
+    )
+    return bool(_DOMAIN_RE.fullmatch(domain))
+
+
 def fetch_crtsh_subdomains(
     domain: str,
     timeout_seconds: int,
     retry_policy: RetryPolicy | None = None,
 ) -> set[str]:
-    url = f"https://crt.sh/?q=%25.{domain.rstrip('/')}&output=json"
+    clean_domain = str(domain or "").strip().lower().rstrip(".")
+    if not is_safe_domain(clean_domain):
+        emit_warning(f"crt.sh rejected invalid domain input: {domain}")
+        return set()
+
+    url = f"https://crt.sh/?q=%25.{clean_domain}&output=json"
     policy = retry_policy or RetryPolicy()
     payload = ""
     for attempt in range(1, policy.max_attempts + 1):
@@ -145,13 +168,30 @@ def enumerate_subdomains(
         for root in roots:
             try:
                 if asyncio.iscoroutinefunction(reg.provider):
-                    # For async providers, run in a temporary loop
-                    loop = asyncio.new_event_loop()
+                    # For async providers, run in a temporary loop safely
                     try:
-                        res = loop.run_until_complete(reg.provider(root))
-                        subdomains.update(res)
-                    finally:
-                        loop.close()
+                        running_loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        running_loop = None
+
+                    if running_loop is not None and running_loop.is_running():
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                            def _run_in_thread():
+                                new_loop = asyncio.new_event_loop()
+                                try:
+                                    return new_loop.run_until_complete(reg.provider(root))
+                                finally:
+                                    new_loop.close()
+                            res = executor.submit(_run_in_thread).result()
+                            subdomains.update(res)
+                    else:
+                        loop = asyncio.new_event_loop()
+                        try:
+                            res = loop.run_until_complete(reg.provider(root))
+                            subdomains.update(res)
+                        finally:
+                            loop.close()
                 elif reg.key == "crtsh":
                     res = reg.provider(
                         root,

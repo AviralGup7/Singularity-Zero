@@ -326,6 +326,7 @@ async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
     urls = set(state.get("urls", []) or [])
     target_profile = dict(state.get("target_profile", {}) or {})
     history_feedback = dict(state.get("history_feedback", {}) or {})
+    waf_findings = list(state.get("waf_findings", []) or [])
 
     filters = dict(runtime.get("filters", {}) or {})
     scoring = dict(runtime.get("scoring", {}) or {})
@@ -341,6 +342,7 @@ async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
             mode,
             target_profile,
             cast(Any, history_feedback),
+            waf_findings,
         )
         priority_urls = [item.get("url", "") for item in ranked_priority_urls if item.get("url")]
         selected_priority_items, selection_meta = await asyncio.to_thread(
@@ -392,6 +394,56 @@ async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
                 "selection_meta": {},
                 "deep_analysis_urls": [],
             },
+        )
+
+
+@beartype
+async def run_waf_detection_service(
+    stage_input: StageInput,
+    *,
+    timeout: float = 10.0,
+) -> StageOutput:
+    """Pure service implementation for WAF/CDN detection with active probing."""
+    from src.recon.waf_cdn_detector import detect_waf_cdn
+    started = time.monotonic()
+    state = _state(stage_input)
+    
+    # Use live hosts as targets for WAF detection
+    live_hosts = list(state.get("live_hosts", []) or [])
+    if not live_hosts:
+        return StageOutput(
+            stage_name=stage_input.stage_name,
+            outcome=StageOutcome.SKIPPED,
+            duration_seconds=0.0,
+            metrics={"status": "skipped", "reason": "no_live_hosts"},
+            state_delta={}
+        )
+
+    # Convert hosts to URLs
+    urls_to_test = []
+    for host in live_hosts:
+        urls_to_test.append(f"https://{host}")
+        
+    try:
+        # We only need to test a representative sample if there are many hosts
+        findings = await detect_waf_cdn(urls_to_test, timeout=timeout, max_urls=50)
+        duration = round(time.monotonic() - started, 2)
+        
+        return StageOutput(
+            stage_name=stage_input.stage_name,
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=duration,
+            metrics={"status": "ok", "findings_count": len(findings)},
+            state_delta={"waf_findings": findings}
+        )
+    except Exception as exc:
+        logger.error("WAF detection service failed: %s", exc)
+        return StageOutput(
+            stage_name=stage_input.stage_name,
+            outcome=StageOutcome.FAILED,
+            duration_seconds=time.monotonic() - started,
+            error=str(exc),
+            state_delta={}
         )
 
 

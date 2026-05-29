@@ -302,4 +302,10 @@ ACTIVE_PLUGIN_SPECS: tuple[AnalysisPluginSpec, ...] = (
         "Automated authorization bypass detection inspired by Autorize. Tests endpoints with no auth and invalid tokens, comparing responses to detect enforcement failures.",
         "active",
     ),
+    spec(
+        "hidden_parameter_miner",
+        "Hidden Parameter Miner",
+        "Actively discover hidden parameters like ?debug=1 or ?admin=true using common wordlists to find hidden inputs.",
+        "active",
+    ),
 )

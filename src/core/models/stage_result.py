@@ -113,6 +113,9 @@ class StageResult:
     validation_ok: bool = False
     remediation_logic: dict[str, Any] = field(default_factory=dict)
 
+    #: WAF/CDN detection findings
+    waf_findings: list[dict[str, Any]] = field(default_factory=list)
+
     def apply_state_delta(self, delta: dict[str, Any]) -> None:
         """Atomically merge an incremental delta using Neural-Mesh logic."""
         # 1. Update CRDT sets
@@ -701,6 +704,14 @@ class PipelineContext:
     @nuclei_findings.setter
     def nuclei_findings(self, value: list[dict[str, Any]]) -> None:
         self.result.nuclei_findings = value
+
+    @property
+    def waf_findings(self) -> list[dict[str, Any]]:
+        return self.result.waf_findings
+
+    @waf_findings.setter
+    def waf_findings(self, value: list[dict[str, Any]]) -> None:
+        self.result.waf_findings = value
 
     @property
     def stage_status(self) -> dict[str, str]:

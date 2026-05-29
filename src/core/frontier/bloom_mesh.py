@@ -314,4 +314,3 @@ class ReconcileBloom:
     async def flush(self, reason: str = "self_healing") -> dict[str, Any]:
         """Clear a saturated local filter and publish a fresh empty snapshot."""
         return await self.synchronizer.flush_overflowing_filter(reason=reason)
-

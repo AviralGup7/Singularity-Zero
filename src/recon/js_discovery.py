@@ -9,6 +9,7 @@ reuse.
 
 from __future__ import annotations
 
+import re
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any
@@ -22,6 +23,22 @@ from src.recon.js_parsers import (
     _normalized_scope_roots,
 )
 
+_SECRET_PATTERNS = [
+    (re.compile(r"(?:api_key|apikey|access_token|secret_key|secretToken)[\"']?\s*[:=]\s*[\"']([a-zA-Z0-9_\-]{20,})[\"']", re.IGNORECASE), "Generic API Key/Token"),
+    (re.compile(r"AKIA[0-9A-Z]{16}", re.IGNORECASE), "AWS Access Key ID"),
+    (re.compile(r"sk-[a-zA-Z0-9]{48}", re.IGNORECASE), "OpenAI API Key"),
+    (re.compile(r"Bearer\s+([a-zA-Z0-9_\-\.]{20,})", re.IGNORECASE), "Bearer Token"),
+    (re.compile(r"gh[po]_[a-zA-Z0-9]{36}", re.IGNORECASE), "GitHub Token"),
+    (re.compile(r"xox[baprs]-[a-zA-Z0-9\-]{10,}", re.IGNORECASE), "Slack Token"),
+]
+
+def _extract_secrets(content: str) -> list[dict[str, str]]:
+    secrets = []
+    for pattern, label in _SECRET_PATTERNS:
+        for match in pattern.finditer(content):
+            val = match.group(1) if match.groups() else match.group(0)
+            secrets.append({"type": label, "value": val[:10] + "***"})
+    return secrets
 
 def _collect_js_discovery_urls(
     live_hosts: set[str],
@@ -66,17 +83,19 @@ def _collect_js_discovery_urls(
     scope_roots = _normalized_scope_roots(scope_entries)
     started = time.monotonic()
     discovered_urls: set[str] = set()
+    all_secrets: list[dict[str, Any]] = []
     hosts_scanned = 0
     script_refs = 0
     js_files_fetched = 0
     errors = 0
     budget_exceeded = False
 
-    def _scan_single_host(base_url: str) -> tuple[set[str], int, int]:
+    def _scan_single_host(base_url: str) -> tuple[set[str], int, int, list[dict[str, Any]]]:
         host_discovered: set[str] = set()
+        host_secrets: list[dict[str, Any]] = []
         html = _fetch_text_content(base_url, timeout_seconds, max_response_bytes)
         if not html:
-            return host_discovered, 0, 0
+            return host_discovered, 0, 0, host_secrets
 
         host_discovered.update(_extract_js_candidate_urls(html, base_url, scope_roots))
         script_urls = sorted(_extract_script_urls_from_html(html, base_url, scope_roots))
@@ -87,8 +106,22 @@ def _collect_js_discovery_urls(
                 continue
             fetched += 1
             host_discovered.update(_extract_js_candidate_urls(js_body, js_url, scope_roots))
+            
+            # Secret Scanning
+            extracted_secrets = _extract_secrets(js_body)
+            for secret in extracted_secrets:
+                host_secrets.append({"url": js_url, "type": secret["type"], "value": secret["value"]})
+
+            # Map File Analysis
+            map_url = js_url + ".map"
+            map_body = _fetch_text_content(map_url, timeout_seconds, max_response_bytes)
+            if map_body:
+                host_discovered.add(map_url)
+                host_discovered.update(_extract_js_candidate_urls(map_body, map_url, scope_roots))
+                fetched += 1
+
         host_discovered.update(script_urls[:max_js_files_per_host])
-        return host_discovered, len(script_urls), fetched
+        return host_discovered, len(script_urls), fetched, host_secrets
 
     emit_collection_progress(
         progress_callback,
@@ -132,7 +165,8 @@ def _collect_js_discovery_urls(
             for future in done:
                 pending.pop(future, None)
                 try:
-                    host_urls, host_script_refs, host_js_files = future.result()
+                    host_urls, host_script_refs, host_js_files, h_secrets = future.result()
+                    all_secrets.extend(h_secrets)
                 except Exception:
                     host_urls, host_script_refs, host_js_files = set(), 0, 0
                     errors += 1
@@ -175,6 +209,7 @@ def _collect_js_discovery_urls(
         "errors": errors,
         "js_discovery_time_budget_seconds": js_discovery_time_budget_seconds,
         "budget_exceeded": budget_exceeded,
+        "js_secrets_found": all_secrets,
     }
     return discovered_urls, meta
 

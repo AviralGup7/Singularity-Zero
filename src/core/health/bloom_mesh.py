@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from src.core.frontier.bloom_mesh import NeuralBloomMesh, ReconcileBloom, BloomMeshSynchronizer
+from src.core.frontier.bloom_mesh import BloomMeshSynchronizer, NeuralBloomMesh, ReconcileBloom
 
 __all__ = ["NeuralBloomMesh", "ReconcileBloom", "BloomMeshSynchronizer"]

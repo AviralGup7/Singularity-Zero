@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, FileText, ShieldCheck, Download, RefreshCw } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ExternalLink, FileText, ShieldCheck, Download, RefreshCw, Library, Package, Shield } from 'lucide-react';
 
 import { getReportLibrary, type ReportLibraryItem } from '@/api/reports';
 import { ApiError } from '@/api/core';
+import { GlassCard, AnimatedCounter, PageHeader, SkeletonTable } from '@/components/ui';
 
 function shortHash(value: string): string {
   if (!value) return 'pending';
@@ -15,6 +17,8 @@ function formatGeneratedAt(value: string): string {
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString();
 }
+
+const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 export function ReportLibraryPage() {
   const [reports, setReports] = useState<ReportLibraryItem[]>([]);
@@ -48,38 +52,59 @@ export function ReportLibraryPage() {
   }, [reports]);
 
   return (
-    <div className="space-y-20">
-      <section>
-        <div className="flex flex-wrap items-center justify-between gap-12">
-          <div>
-            <p className="text-[11px] uppercase text-muted">Report library</p>
-            <h2 className="mt-1 text-xl font-semibold">Signed compliance artefacts</h2>
-          </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={<Library size={20} />}
+        title="Report Library"
+        subtitle="Signed compliance artefacts"
+        actions={
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadReports()}>
             <RefreshCw size={14} aria-hidden="true" />
             Refresh
           </button>
-        </div>
+        }
+      />
 
-        <div className="mt-16 grid gap-12 md:grid-cols-3">
-          <div className="card">
-            <span className="metric-label">Reports</span>
-            <strong className="metric-value">{reports.length}</strong>
+      {/* ── KPI Cards ──────────────────────────────────────────── */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <GlassCard variant="glow" delay={0} hoverable>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs uppercase tracking-wider text-muted">Reports</span>
+            <FileText size={16} className="text-accent" />
           </div>
-          <div className="card">
-            <span className="metric-label">Valid signatures</span>
-            <strong className="metric-value">{stats.signed}</strong>
-          </div>
-          <div className="card">
-            <span className="metric-label">Targets</span>
-            <strong className="metric-value">{stats.targets}</strong>
-          </div>
-        </div>
-      </section>
+          <AnimatedCounter value={reports.length} className="text-2xl font-semibold text-[var(--text-primary)]" />
+        </GlassCard>
 
-      {error && <div className="banner error" role="alert">{error}</div>}
+        <GlassCard variant="success" delay={0.1} hoverable>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs uppercase tracking-wider text-muted">Valid Signatures</span>
+            <ShieldCheck size={16} className="text-ok" />
+          </div>
+          <AnimatedCounter value={stats.signed} className="text-2xl font-semibold text-ok" />
+        </GlassCard>
 
-      <section>
+        <GlassCard variant="glow" delay={0.2} hoverable>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs uppercase tracking-wider text-muted">Targets</span>
+            <Shield size={16} className="text-accent" />
+          </div>
+          <AnimatedCounter value={stats.targets} className="text-2xl font-semibold text-[var(--text-primary)]" />
+        </GlassCard>
+      </div>
+
+      {/* ── Error Banner ───────────────────────────────────────── */}
+      {error && (
+        <GlassCard variant="error" hoverable={false}>
+          <p className="text-sm text-bad">{error}</p>
+        </GlassCard>
+      )}
+
+      {/* ── Reports Table ──────────────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2, ease: EASE_OUT }}
+      >
         <div className="table-container">
           <table className="data-table">
             <thead>
@@ -95,16 +120,26 @@ export function ReportLibraryPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6}>Loading report artefacts...</td>
+                  <td colSpan={6} className="p-0">
+                    <SkeletonTable />
+                  </td>
                 </tr>
               )}
               {!loading && reports.length === 0 && (
                 <tr>
-                  <td colSpan={6}>No signed reports have been generated yet.</td>
+                  <td colSpan={6} className="text-center py-12 text-[var(--text-secondary)]">
+                    No signed reports have been generated yet.
+                  </td>
                 </tr>
               )}
-              {!loading && reports.map(report => (
-                <tr key={`${report.target}-${report.run_id}`}>
+              {!loading && reports.map((report, idx) => (
+                <motion.tr
+                  key={`${report.target}-${report.run_id}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.03, duration: 0.25 }}
+                  className="transition-all duration-200 hover:bg-white/5"
+                >
                   <td>
                     <div className="font-medium">{report.target}</div>
                     <div className="text-xs text-muted">{report.finding_count} reportable findings</div>
@@ -115,38 +150,41 @@ export function ReportLibraryPage() {
                   </td>
                   <td>{formatGeneratedAt(report.generated_at)}</td>
                   <td>
-                    <span className={`status-badge ${report.signature_valid ? 'status-completed' : 'status-stopped'}`}>
+                    <span
+                      className={`status-badge ${report.signature_valid ? 'status-completed' : 'status-stopped'}`}
+                      style={report.signature_valid ? { boxShadow: '0 0 8px rgba(16,185,129,0.3)' } : undefined}
+                    >
                       <ShieldCheck size={12} aria-hidden="true" />
                       {report.signature_valid ? 'Verified' : 'Review'}
                     </span>
                   </td>
                   <td><code title={report.manifest_sha256}>{shortHash(report.manifest_sha256)}</code></td>
                   <td>
-                    <div className="flex flex-wrap gap-8">
-                      <a className="btn btn-small" href={report.links.html} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink size={13} aria-hidden="true" />
+                    <div className="flex flex-wrap gap-2">
+                      <a className="btn btn-small inline-flex items-center gap-1" href={report.links.html} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink size={12} aria-hidden="true" />
                         HTML
                       </a>
-                      <a className="btn btn-small" href={report.links.attestation_pdf} download>
-                        <FileText size={13} aria-hidden="true" />
+                      <a className="btn btn-small inline-flex items-center gap-1" href={report.links.attestation_pdf} download>
+                        <FileText size={12} aria-hidden="true" />
                         PDF
                       </a>
-                      <a className="btn btn-small" href={report.links.sbom} download>
-                        <Download size={13} aria-hidden="true" />
+                      <a className="btn btn-small inline-flex items-center gap-1" href={report.links.sbom} download>
+                        <Shield size={12} aria-hidden="true" />
                         SBOM
                       </a>
-                      <a className="btn btn-small" href={report.links.manifest} download>
-                        <Download size={13} aria-hidden="true" />
+                      <a className="btn btn-small inline-flex items-center gap-1" href={report.links.manifest} download>
+                        <Package size={12} aria-hidden="true" />
                         Manifest
                       </a>
                     </div>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
+      </motion.section>
     </div>
   );
 }

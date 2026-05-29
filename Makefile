@@ -36,7 +36,7 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 	rm -rf .mypy_cache .pytest_cache .ruff_cache .hypothesis
-	rm -rf output/*
+	rm -rf output/logs/* output/bandit-report.json output/lint_output.txt output/test_*.txt output/security_*.txt output/head_version.txt
 	cd frontend && rm -rf node_modules dist coverage
 
 docker-build:

@@ -62,7 +62,7 @@ class DashboardLaunchService:
             raise ValueError("Enter a base URL or paste a bug bounty scope block.")
 
         job_id = uuid.uuid4().hex[:8]
-        launcher_dir = self.output_root / "_launcher" / job_id
+        launcher_dir = self.output_root / "launcher" / job_id
         launcher_dir.mkdir(parents=True, exist_ok=True)
 
         config = self.query_service.load_template()

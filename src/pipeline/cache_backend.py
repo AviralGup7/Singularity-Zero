@@ -32,8 +32,9 @@ class PersistentCache:
 
     def __init__(self, db_path: str | None = None) -> None:
         self._db_path = db_path or _DEFAULT_DB_PATH
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._thread_local = _ThreadLocalConnections()
+        self._all_conns = set()
         self._init_db()
 
     def _ensure_thread_local(self) -> None:
@@ -50,6 +51,10 @@ class PersistentCache:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=5000")
         self._thread_local.conn = conn
+        with self._lock:
+            if not hasattr(self, "_all_conns"):
+                self._all_conns = set()
+            self._all_conns.add(conn)
         return conn
 
     def _close_conn(self) -> None:
@@ -57,12 +62,29 @@ class PersistentCache:
         self._ensure_thread_local()
         if self._thread_local.conn is not None:
             try:
-                self._thread_local.conn.close()
+                conn = self._thread_local.conn
+                conn.close()
+                with self._lock:
+                    if hasattr(self, "_all_conns") and conn in self._all_conns:
+                        self._all_conns.remove(conn)
             except Exception as e:
                 # Fix Audit #87: Log cache close failure
                 logger.debug("Failed to close cache SQLite connection: %s", e)
             finally:
                 self._thread_local.conn = None
+
+    def close_all(self) -> None:
+        """Close all SQLite connections across all threads."""
+        with self._lock:
+            if hasattr(self, "_all_conns"):
+                for conn in list(self._all_conns):
+                    try:
+                        conn.close()
+                    except Exception as e:
+                        logger.debug("Failed to close SQLite connection: %s", e)
+                self._all_conns.clear()
+            self._ensure_thread_local()
+            self._thread_local.conn = None
 
     def _init_db(self) -> None:
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -104,87 +126,69 @@ class PersistentCache:
         """
         with self._lock:
             conn = self._get_conn()
-            try:
-                now = time.time()
-                cursor = conn.execute(
-                    "SELECT value, expires_at FROM cache_entries WHERE key = ?",
-                    (key,),
-                )
-                row = cursor.fetchone()
-                if row is None:
-                    return None
-                value_str, expires_at = row
-                if expires_at is not None and now >= expires_at:
-                    conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
-                    conn.commit()
-                    return None
-                return json.loads(value_str)
-            finally:
-                self._close_conn()
+            now = time.time()
+            cursor = conn.execute(
+                "SELECT value, expires_at FROM cache_entries WHERE key = ?",
+                (key,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            value_str, expires_at = row
+            if expires_at is not None and now >= expires_at:
+                conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                conn.commit()
+                return None
+            return json.loads(value_str)
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         with self._lock:
             conn = self._get_conn()
-            try:
-                now = time.time()
-                expires_at = now + ttl if ttl is not None else None
-                value_str = json.dumps(value)
-                conn.execute(
-                    """
-                    INSERT INTO cache_entries (key, value, created_at, expires_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(key) DO UPDATE SET
-                        value = excluded.value,
-                        created_at = excluded.created_at,
-                        expires_at = excluded.expires_at
-                    """,
-                    (key, value_str, now, expires_at),
-                )
-                conn.commit()
-            finally:
-                self._close_conn()
+            now = time.time()
+            expires_at = now + ttl if ttl is not None else None
+            value_str = json.dumps(value)
+            conn.execute(
+                """
+                INSERT INTO cache_entries (key, value, created_at, expires_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    created_at = excluded.created_at,
+                    expires_at = excluded.expires_at
+                """,
+                (key, value_str, now, expires_at),
+            )
+            conn.commit()
 
     def delete(self, key: str) -> None:
         with self._lock:
             conn = self._get_conn()
-            try:
-                conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
-                conn.commit()
-            finally:
-                self._close_conn()
+            conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+            conn.commit()
 
     def clear(self) -> None:
         with self._lock:
             conn = self._get_conn()
-            try:
-                conn.execute("DELETE FROM cache_entries")
-                conn.commit()
-            finally:
-                self._close_conn()
+            conn.execute("DELETE FROM cache_entries")
+            conn.commit()
 
     def cleanup_expired(self) -> int:
         with self._lock:
             conn = self._get_conn()
-            try:
-                now = time.time()
-                cursor = conn.execute(
-                    "DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
-                    (now,),
-                )
-                conn.commit()
-                return cursor.rowcount
-            finally:
-                self._close_conn()
+            now = time.time()
+            cursor = conn.execute(
+                "DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
+                (now,),
+            )
+            conn.commit()
+            return cursor.rowcount
 
     def size(self) -> int:
         with self._lock:
             conn = self._get_conn()
-            try:
-                cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
-                row = cursor.fetchone()
-                return row[0] if row else 0
-            finally:
-                self._close_conn()
+            cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
+            row = cursor.fetchone()
+            return row[0] if row else 0
 
     def validate_integrity(self) -> dict[str, Any]:
         """Check SQLite database health and return a status dict."""
@@ -310,37 +314,34 @@ class PersistentCache:
         """
         with self._lock:
             conn = self._get_conn()
-            try:
-                now = time.time()
+            now = time.time()
 
-                cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
-                total = cursor.fetchone()[0]
+            cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
+            total = cursor.fetchone()[0]
 
-                cursor = conn.execute(
-                    "SELECT COUNT(*) FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
-                    (now,),
-                )
-                expired = cursor.fetchone()[0]
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
+                (now,),
+            )
+            expired = cursor.fetchone()[0]
 
-                cursor = conn.execute("SELECT MIN(created_at) FROM cache_entries")
-                row = cursor.fetchone()
-                oldest_age = round(now - row[0], 1) if row and row[0] else 0
+            cursor = conn.execute("SELECT MIN(created_at) FROM cache_entries")
+            row = cursor.fetchone()
+            oldest_age = round(now - row[0], 1) if row and row[0] else 0
 
-                db_size = 0
-                db_path = Path(self._db_path)
-                if db_path.exists():
-                    db_size = db_path.stat().st_size
+            db_size = 0
+            db_path = Path(self._db_path)
+            if db_path.exists():
+                db_size = db_path.stat().st_size
 
-                return {
-                    "total_entries": total,
-                    "active_entries": total - expired,
-                    "expired_entries": expired,
-                    "db_size_bytes": db_size,
-                    "oldest_entry_age_seconds": oldest_age,
-                    "db_path": self._db_path,
-                }
-            finally:
-                self._close_conn()
+            return {
+                "total_entries": total,
+                "active_entries": total - expired,
+                "expired_entries": expired,
+                "db_size_bytes": db_size,
+                "oldest_entry_age_seconds": oldest_age,
+                "db_path": self._db_path,
+            }
 
     def save_historical_scores(self, target_id: str, scores: list[dict[str, Any]]) -> None:
         """Persist historical endpoint scores for a target.

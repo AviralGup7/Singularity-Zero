@@ -326,23 +326,6 @@ def execute_with_retry[T](  # pylint: disable=W0621
     raise RuntimeError("Retry loop exited without result or exception")
 
 
-def execute_with_retry_with_metrics[T](  # pylint: disable=W0621
-    func: Callable[..., T],
-    policy: RetryPolicy,
-    *args: Any,
-    **kwargs: Any,
-) -> tuple[T, RetryMetrics]:
-    """Execute with retry and return both result and collected metrics."""
-    metrics = RetryMetrics()
-    try:
-        result = execute_with_retry(func, policy, metrics, *args, **kwargs)
-        return result, metrics
-    except Exception as exc:
-        # Fix #382: If it raises, attach the metrics object so the caller
-        # doesn't lose the retry statistics.
-        setattr(exc, "retry_metrics", metrics)
-        raise
-
 
 def _positive_int(value: object, default: int) -> int:
     try:

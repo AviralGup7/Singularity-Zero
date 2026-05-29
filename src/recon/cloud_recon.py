@@ -89,29 +89,60 @@ class CloudBucketScanner:
     async def check_aws_bucket(
         self, session: aiohttp.ClientSession, bucket: str
     ) -> dict[str, Any] | None:
-        """Check AWS S3 bucket status."""
+        """Check AWS S3 bucket status and permissions."""
         url = f"https://{bucket}.s3.amazonaws.com"
         try:
+            finding = None
             async with session.get(url, timeout=self.timeout_seconds) as response:
                 status = response.status
                 if status == 200:
-                    return {
+                    finding = {
                         "platform": "AWS S3",
                         "bucket": bucket,
                         "url": url,
                         "status": "public",
                         "severity": "high",
                         "details": "Publicly indexable / directory listing enabled.",
+                        "permissions": {"read": True}
                     }
                 elif status == 403:
-                    return {
+                    finding = {
                         "platform": "AWS S3",
                         "bucket": bucket,
                         "url": url,
                         "status": "secure",
                         "severity": "info",
                         "details": "Bucket exists, but access is restricted (403 Forbidden).",
+                        "permissions": {"read": False}
                     }
+            
+            if finding:
+                # Active Probe 1: Check ACL readability
+                try:
+                    async with session.get(f"{url}/?acl", timeout=self.timeout_seconds) as acl_resp:
+                        finding["permissions"]["read_acl"] = (acl_resp.status == 200)
+                        if acl_resp.status == 200:
+                            finding["severity"] = "high"
+                            finding["details"] += " ACL is publicly readable."
+                except Exception:
+                    pass
+
+                # Active Probe 2: Check Public Write (Upload)
+                try:
+                    async with session.put(
+                        f"{url}/cyber_pipeline_write_test.txt",
+                        data="test",
+                        timeout=self.timeout_seconds
+                    ) as put_resp:
+                        finding["permissions"]["write"] = (put_resp.status == 200)
+                        if put_resp.status == 200:
+                            finding["severity"] = "critical"
+                            finding["details"] += " Bucket allows unauthenticated file uploads (Public Write)!"
+                except Exception:
+                    pass
+
+                return finding
+
         except Exception:  # noqa: S110
             pass
         return None
@@ -119,32 +150,64 @@ class CloudBucketScanner:
     async def check_gcp_bucket(
         self, session: aiohttp.ClientSession, bucket: str
     ) -> dict[str, Any] | None:
-        """Check Google Cloud Storage bucket status."""
+        """Check Google Cloud Storage bucket status and permissions."""
         url = f"https://storage.googleapis.com/{bucket}"
         try:
+            finding = None
             async with session.get(url, timeout=self.timeout_seconds) as response:
                 status = response.status
                 if status == 200:
-                    return {
+                    finding = {
                         "platform": "GCP Cloud Storage",
                         "bucket": bucket,
                         "url": url,
                         "status": "public",
                         "severity": "high",
                         "details": "Publicly indexable / directory listing enabled.",
+                        "permissions": {"read": True}
                     }
                 elif status == 403:
-                    return {
+                    finding = {
                         "platform": "GCP Cloud Storage",
                         "bucket": bucket,
                         "url": url,
                         "status": "secure",
                         "severity": "info",
                         "details": "Bucket exists, but access is restricted (403 Forbidden).",
+                        "permissions": {"read": False}
                     }
+
+            if finding:
+                # Active Probe 1: Check ACL readability
+                try:
+                    async with session.get(f"{url}?acl", timeout=self.timeout_seconds) as acl_resp:
+                        finding["permissions"]["read_acl"] = (acl_resp.status == 200)
+                        if acl_resp.status == 200:
+                            finding["severity"] = "high"
+                            finding["details"] += " ACL is publicly readable."
+                except Exception:
+                    pass
+
+                # Active Probe 2: Check Public Write (Upload)
+                try:
+                    async with session.put(
+                        f"{url}/cyber_pipeline_write_test.txt",
+                        data="test",
+                        timeout=self.timeout_seconds
+                    ) as put_resp:
+                        finding["permissions"]["write"] = (put_resp.status == 200)
+                        if put_resp.status == 200:
+                            finding["severity"] = "critical"
+                            finding["details"] += " Bucket allows unauthenticated file uploads (Public Write)!"
+                except Exception:
+                    pass
+
+                return finding
+
         except Exception:  # noqa: S110
             pass
         return None
+
 
     async def check_azure_bucket(
         self, session: aiohttp.ClientSession, bucket: str

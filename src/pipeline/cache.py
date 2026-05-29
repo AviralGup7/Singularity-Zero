@@ -22,6 +22,36 @@ def cache_enabled(settings: dict[str, Any]) -> bool:
     return bool(settings.get("enabled", True))
 
 
+def _read_cached_payload(path: Path) -> Any | None:
+    """Read a cached payload from file, supporting gzip fallback and decoding.
+
+    Args:
+        path: Path to the cached file.
+
+    Returns:
+        Decoded JSON payload, or None if missing or corrupt.
+    """
+    if not path.exists():
+        if path.suffix != ".gz":
+            gz_path = path.with_suffix(path.suffix + ".gz")
+            if gz_path.exists():
+                path = gz_path
+            else:
+                return None
+        else:
+            return None
+
+    try:
+        if path.suffix == ".gz":
+            data = gzip.decompress(path.read_bytes())
+            return json.loads(data.decode("utf-8"))
+        else:
+            return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to read cache file (%s): %s", exc.__class__.__name__, path)
+        return None
+
+
 def load_cached_set(path: Path) -> set[str]:
     """Load a cached set from a JSON file.
 
@@ -31,25 +61,7 @@ def load_cached_set(path: Path) -> set[str]:
     Returns:
         Set of strings, or empty set if file is missing or corrupt.
     """
-    if not path.exists():
-        if path.suffix != ".gz":
-            gz_path = path.with_suffix(path.suffix + ".gz")
-            if gz_path.exists():
-                path = gz_path
-            else:
-                return set()
-        else:
-            return set()
-
-    try:
-        if path.suffix == ".gz":
-            data = gzip.decompress(path.read_bytes())
-            payload = json.loads(data.decode("utf-8"))
-        else:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to read cache file (%s): %s", exc.__class__.__name__, path)
-        return set()
+    payload = _read_cached_payload(path)
     if not isinstance(payload, list):
         return set()
     return {str(item).strip() for item in payload if str(item).strip()}
@@ -80,25 +92,7 @@ def load_cached_json(path: Path) -> dict[str, Any]:
     Returns:
         Parsed dict, or empty dict if file is missing, corrupt, or not a dict.
     """
-    if not path.exists():
-        if path.suffix != ".gz":
-            gz_path = path.with_suffix(path.suffix + ".gz")
-            if gz_path.exists():
-                path = gz_path
-            else:
-                return {}
-        else:
-            return {}
-
-    try:
-        if path.suffix == ".gz":
-            data = gzip.decompress(path.read_bytes())
-            payload = json.loads(data.decode("utf-8"))
-        else:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to read cache file (%s): %s", exc.__class__.__name__, path)
-        return {}
+    payload = _read_cached_payload(path)
     return payload if isinstance(payload, dict) else {}
 
 

@@ -80,6 +80,7 @@ def _load_active_probe_functions() -> dict[str, Any]:
     from src.analysis.active.injection.xxe import xxe_active_probe
     from src.analysis.active.jwt_attacks import run_jwt_attack_suite
     from src.analysis.active.jwt_attacks._helpers import JWT_RE
+    from src.analysis.active.param_mining import param_mining_probe
     from src.analysis.intelligence.mutation_runtime import run_mutation_tests
     from src.analysis.json.active_probes import (
         filter_parameter_fuzzer,
@@ -138,6 +139,7 @@ def _load_active_probe_functions() -> dict[str, Any]:
         "websocket_message_probe": websocket_message_probe,
         "jwt_manipulation_probe": jwt_manipulation_probe,
         "run_mutation_tests": run_mutation_tests,
+        "hidden_parameter_miner": param_mining_probe,
     }
     probes["_active_check_manifests"] = DEFAULT_ACTIVE_MANIFEST_REGISTRY.all()
     return probes

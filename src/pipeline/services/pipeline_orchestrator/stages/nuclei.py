@@ -14,6 +14,7 @@ from src.core.contracts.finding_lifecycle import apply_lifecycle
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
+from src.pipeline.pipeline_logging import instrument
 from src.pipeline.runner_support import emit_progress
 from src.pipeline.services.pipeline_helpers import (
     build_feedback_targets,
@@ -21,8 +22,6 @@ from src.pipeline.services.pipeline_helpers import (
 )
 from src.pipeline.storage import read_lines
 from src.recon import build_nuclei_plan
-
-from src.pipeline.pipeline_logging import instrument
 
 logger = get_pipeline_logger(__name__)
 
@@ -122,6 +121,7 @@ async def run_nuclei_stage(
             None,
             scope_hosts,
             nuclei_output_file,
+            ctx.waf_findings,
         )
 
         nuclei_duration = round(time.monotonic() - nuclei_started, 2)

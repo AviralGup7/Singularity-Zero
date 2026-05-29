@@ -133,6 +133,25 @@ class SensitiveDataScanner:
             "severity": "medium",
             "data_type": "infrastructure",
         },
+        {
+            "name": "Internal Hostname Leakage",
+            "regex": r"(?i)\b[a-z0-9-]+\.internal\b|\b[a-z0-9-]+\.corp\b|\b[a-z0-9-]+\.local\b",
+            "severity": "low",
+            "data_type": "infrastructure",
+        },
+        {
+            "name": "Cloud Metadata IP",
+            "regex": r"169\.254\.169\.254",
+            "severity": "critical",
+            "data_type": "infrastructure",
+        },
+        {
+            "name": "Detailed SQL Error",
+            "regex": r"(?i)(SQL syntax.*MySQL|Warning.*pg_connect|Microsoft OLE DB Provider for SQL Server|ORA-[0-9]{5})",
+            "severity": "high",
+            "data_type": "infrastructure",
+        },
+
     ]
 
     def __init__(self) -> None:

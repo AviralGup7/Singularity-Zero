@@ -16,6 +16,10 @@ export { Select, Option } from './Select';
 // ── Data Display Components ────────────────────────────────
 export { Progress, type ProgressProps } from './Progress';
 export { Pagination, type PaginationProps } from './Pagination';
+export { GlassCard, type GlassCardProps } from './GlassCard';
+export { AnimatedCounter, type AnimatedCounterProps } from './AnimatedCounter';
+export { GlowProgress, type GlowProgressProps } from './GlowProgress';
+export { PageHeader, type PageHeaderProps } from './PageHeader';
 
 // ── Radix-based UI Primitives (ui-shadcn) ──────────────────
 // Import directly: import { Dialog, Sheet, Command } from '@/components/ui-shadcn'

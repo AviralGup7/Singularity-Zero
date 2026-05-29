@@ -10,6 +10,7 @@ from src.core.models.stage_result import PipelineContext
 from src.core.utils import normalize_scope_entry
 from src.pipeline.runner_support import (
     emit_progress,
+    emit_stage_summary,
     emit_url_progress,
 )
 from src.pipeline.services.pipeline_helpers import (
@@ -22,6 +23,7 @@ from src.pipeline.services.services.recon_service import (
     run_priority_ranking_stage,
     run_subdomain_enumeration_service,
     run_url_collection_service,
+    run_waf_detection_service,
 )
 from src.recon.live_hosts import probe_live_hosts
 from src.recon.subdomains import enumerate_subdomains
@@ -114,6 +116,12 @@ async def run_subdomain_enumeration(
             artifact_type="subdomain",
             telemetry_items=sorted(subdomains),
         )
+
+        emit_stage_summary("subdomains", {
+            "subdomains_found": len(subdomains),
+            "duration": stage_output.duration_seconds,
+            "status": "ok"
+        })
 
         # Write to output store (side effect allowed in wrapper)
         ctx.output_store.write_subdomains(subdomains)
@@ -218,6 +226,13 @@ async def run_live_hosts(
             telemetry_items=sorted(live_hosts),
         )
 
+        emit_stage_summary("live_hosts", {
+            "live_hosts_found": len(live_hosts),
+            "records_found": len(stage_output.state_delta.get("live_records", [])),
+            "duration": stage_output.duration_seconds,
+            "status": "ok"
+        })
+
         return cast(StageOutput, stage_output)
 
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
@@ -240,6 +255,46 @@ async def run_live_hosts(
         )
 
 
+async def run_waf_detection(
+    args: Any,
+    config: Any,
+    ctx: PipelineContext,
+    *,
+    stage_input: StageInput | None = None,
+) -> StageOutput:
+    \"\"\"Stage 2.5: Detect WAF/CDN protection on live hosts.\"\"\"
+    try:
+        emit_progress("waf", "Detecting WAF/CDN protection", 55)
+        if stage_input is None:
+            stage_input = build_stage_input_from_context("waf", config, ctx)
+            
+        stage_output = await run_waf_detection_service(
+            stage_input,
+            timeout=float(config.recon.get("waf_timeout", 10.0))
+        )
+        
+        if stage_output.outcome == StageOutcome.COMPLETED:
+            waf_findings = stage_output.state_delta.get("waf_findings", [])
+            emit_progress("waf", f"Found {len(waf_findings)} WAF/CDN signatures", 56)
+            
+            emit_stage_summary("waf", {
+                "findings_count": len(waf_findings),
+                "providers": sorted(list({f["provider"] for f in waf_findings})),
+                "duration": stage_output.duration_seconds,
+                "status": "ok"
+            })
+            
+        return cast(StageOutput, stage_output)
+    except Exception as exc:
+        logger.error("Stage 'waf' failed: %s", exc)
+        return StageOutput(
+            stage_name="waf",
+            outcome=StageOutcome.FAILED,
+            duration_seconds=0.0,
+            error=str(exc)
+        )
+
+
 logger = get_pipeline_logger(__name__)
 
 
@@ -250,7 +305,7 @@ async def run_url_collection(
     *,
     stage_input: StageInput | None = None,
 ) -> StageOutput:
-    """Stage 3: Collect URLs from live hosts."""
+    \"\"\"Stage 3: Collect URLs from live hosts.\"\"\"
     try:
         emit_progress("urls", "Collecting URLs", 56)
 
@@ -284,6 +339,12 @@ async def run_url_collection(
             return cast(StageOutput, stage_output)
 
         urls = set(stage_output.state_delta.get("urls", []))
+
+        emit_stage_summary("urls", {
+            "urls_collected": len(urls),
+            "duration": stage_output.duration_seconds,
+            "status": "ok"
+        })
 
         # ──────────────────────────────────────────────────────────
         # Category 2: Advanced Reconnaissance & Asset Discovery Integrations
@@ -399,7 +460,7 @@ async def run_parameter_extraction(
     *,
     stage_input: StageInput | None = None,
 ) -> StageOutput:
-    """Stage 4: Extract parameters, infer target profile, load history feedback."""
+    \"\"\"Stage 4: Extract parameters, infer target profile, load history feedback.\"\"\"
     try:
         emit_progress("parameters", "Extracting parameters", 74)
         if stage_input is None:
@@ -424,6 +485,14 @@ async def run_parameter_extraction(
             targets_scanning=0,
             event_trigger="recon_parameters_extracted",
         )
+        
+        emit_stage_summary("parameters", {
+            "parameters_extracted": parameter_count,
+            "target_profile": stage_output.state_delta.get("target_profile", {}),
+            "duration": stage_output.duration_seconds,
+            "status": "ok"
+        })
+        
         return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'parameters' failed: %s", exc)
@@ -448,7 +517,7 @@ async def run_priority_ranking(
     *,
     stage_input: StageInput | None = None,
 ) -> StageOutput:
-    """Stage 5: Score and rank priority endpoints."""
+    \"\"\"Stage 5: Score and rank priority endpoints.\"\"\"
     try:
         emit_progress("priority", "Scoring priority endpoints", 82)
         if stage_input is None:
@@ -488,6 +557,21 @@ async def run_priority_ranking(
             targets_scanning=0,
             event_trigger="recon_priority_ranked",
         )
+
+        # Write to output store for regression tracking
+        priority_urls = stage_output.state_delta.get("priority_urls", [])
+        ranked_priority_urls = stage_output.state_delta.get("ranked_priority_urls", [])
+        ctx.output_store.write_priority_endpoints(priority_urls)
+        ctx.output_store.write_priority_scores(ranked_priority_urls)
+
+        emit_stage_summary("priority", {
+            "priority_urls": priority_url_count,
+            "deep_analysis_urls": deep_analysis_count,
+            "avg_score": round(sum(f["score"] for f in selected_items) / max(1, len(selected_items)), 2),
+            "duration": stage_output.duration_seconds,
+            "status": "ok"
+        })
+
         return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'priority' failed: %s", exc)

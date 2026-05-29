@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/_launcher/{job_id}/{filename}", include_in_schema=False)
+@router.get("/launcher/{job_id}/{filename}", include_in_schema=False)
 async def serve_launcher_artifact(job_id: str, filename: str, request: Request) -> Response:
     """Serve specific log and metadata files for a background job run."""
     config = request.app.state.config
-    safe_path = (config.output_root / "_launcher" / job_id / filename).resolve()
+    safe_path = (config.output_root / "launcher" / job_id / filename).resolve()
     if safe_path.is_file() and safe_path.is_relative_to(config.output_root.resolve()):
         return FileResponse(path=safe_path)
     return Response(status_code=404)

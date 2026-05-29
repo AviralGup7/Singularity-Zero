@@ -10,8 +10,8 @@ from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
 from src.execution.validators import execute_validation_runtime
-from src.pipeline.runner_support import emit_progress
 from src.pipeline.pipeline_logging import instrument
+from src.pipeline.runner_support import emit_progress
 
 logger = get_pipeline_logger(__name__)
 
