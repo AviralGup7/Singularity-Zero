@@ -34,11 +34,12 @@ MAX_FLOW_CHAIN_SLICE = 6
 MAX_FLOWS_RETURNED = 20
 
 
-class HistoryFeedback(TypedDict):
+class HistoryFeedback(TypedDict, total=False):
     hosts: set[str]
     endpoint_keys: set[str]
     endpoint_bases: set[str]
     parameter_names: set[str]
+    scores: dict[str, float]
 
 
 class FlowInfo(TypedDict, total=False):
@@ -89,23 +90,34 @@ def _coerce_feedback_set(value: Any) -> set[str]:
 
 
 def load_history_feedback(previous_run: Path | str | None) -> HistoryFeedback:
-    """Load history feedback from a previous pipeline run's findings.
+    \"\"\"Load history feedback from a previous pipeline run's findings and scores.
 
     Args:
         previous_run: Path to previous run output directory.
 
     Returns:
-        Dict with hosts, endpoint_keys, endpoint_bases, and parameter_names sets.
-    """
+        Dict with hosts, endpoint_keys, endpoint_bases, parameter_names, and scores.
+    \"\"\"
     feedback: HistoryFeedback = {
         "hosts": set(),
         "endpoint_keys": set(),
         "endpoint_bases": set(),
         "parameter_names": set(),
+        "scores": {},
     }
     previous_run_path = _coerce_previous_run_path(previous_run)
     if previous_run_path is None:
         return feedback
+
+    # 1. Load scores for regression tracking
+    scores_path = previous_run_path / "priority_scores.json"
+    if scores_path.exists():
+        try:
+            feedback["scores"] = json.loads(scores_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.debug("Failed to load history scores: %s", exc)
+
+    # 2. Load findings for signal reinforcement
     findings_path = previous_run_path / "findings.json"
     if not findings_path.exists():
         return feedback
@@ -300,13 +312,23 @@ def history_feedback_score(url: str, feedback: HistoryFeedback | None) -> int:
     endpoint_keys = _coerce_feedback_set(feedback.get("endpoint_keys", set()))
     endpoint_bases = _coerce_feedback_set(feedback.get("endpoint_bases", set()))
     parameter_names = _coerce_feedback_set(feedback.get("parameter_names", set()))
+    past_scores = feedback.get("scores", {})
 
     if host in hosts:
         score += 4
-    if endpoint_signature(url, include_host=True) in endpoint_keys:
+    
+    # Regression tracking: if it had a high score before, keep it relevant
+    canonical_key = endpoint_signature(url, include_host=True)
+    if canonical_key in endpoint_keys:
         score += 6
-    elif endpoint_base_key(url, include_host=True) in endpoint_bases:
+    elif canonical_key in past_scores:
+        past_val = float(past_scores[canonical_key])
+        if past_val >= 50: score += 5
+        elif past_val >= 30: score += 3
+
+    if endpoint_base_key(url, include_host=True) in endpoint_bases:
         score += 3
+        
     matched_params = parameter_names & {name for name, _ in meaningful_query_pairs(url)}
     score += min(len(matched_params), 3) * 2
     return score

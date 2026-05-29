@@ -267,9 +267,10 @@ def generate_ml_adversarial_variants(payload: str) -> list[str]:
     # 1. Padding / Comment perturbation
     variants.append(f"/*ML_PERTURB*/{payload}/*ML_PERTURB*/")
     # 2. Case perturbation
-    variants.append("".join(c.upper() if idx % 2 == 0 else c.lower() for idx, c in enumerate(payload)))
+    variants.append(
+        "".join(c.upper() if idx % 2 == 0 else c.lower() for idx, c in enumerate(payload))
+    )
     # 3. Hex/URL encoding mix
     if payload:
         variants.append(payload.replace("'", "%27").replace('"', "%22").replace(" ", "%20"))
     return [v for v in variants if v and v != payload]
-

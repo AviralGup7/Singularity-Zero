@@ -82,7 +82,7 @@ class LocalCheckpointStore(CheckpointStore):
             return None
         try:
             return dict(json.loads(p.read_text(encoding="utf-8")))
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return None
 
     def list_versions(self, run_id: str) -> list[str | Path]:

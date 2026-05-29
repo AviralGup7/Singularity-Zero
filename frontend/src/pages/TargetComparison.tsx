@@ -1,11 +1,128 @@
 import { useState, useMemo, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowLeftRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { Target } from '../types/api';
 import { useTargets } from '../hooks';
 import { compareTargets } from '@/api/client';
+import { GlassCard, AnimatedCounter, PageHeader } from '@/components/ui';
 
 interface TargetComparisonProps {
   targets?: Target[];
 }
+
+/* ── Shared column renderer to eliminate duplication ────────── */
+interface ComparisonColumnProps {
+  target: Target;
+  otherTarget: Target;
+  severityTotal: number | null;
+  otherSeverityTotal: number | null;
+  highestSev: string | null;
+  delay: number;
+}
+
+const STAT_LABELS = [
+  'Risk Index (CSI)', 'Findings', 'Highest Severity', 'URLs',
+  'Parameters', 'Attack Chains', 'Scan Runs', 'Last Scan',
+] as const;
+
+function DeltaIndicator({ a, b, invert }: { a: number; b: number; invert?: boolean }) {
+  const better = invert ? a > b : a < b;
+  const worse = invert ? a < b : a > b;
+  if (better) return <TrendingDown size={14} className="text-ok ml-1 inline" />;
+  if (worse) return <TrendingUp size={14} className="text-bad ml-1 inline" />;
+  return <Minus size={12} className="text-muted ml-1 inline" />;
+}
+
+function ComparisonColumn({ target, otherTarget, severityTotal, otherSeverityTotal, highestSev, delay }: ComparisonColumnProps) {
+  const riskA = target.risk_score;
+  const riskB = otherTarget.risk_score;
+
+  return (
+    <GlassCard delay={delay} hoverable>
+      <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 pb-3 border-b border-[var(--border)]">
+        {target.name}
+      </h3>
+      <div className="space-y-3">
+        {/* Risk Index */}
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[0]}</span>
+          <span className="font-semibold text-[var(--text-primary)] flex items-center">
+            {riskA != null ? <AnimatedCounter value={riskA} decimals={1} /> : '—'}
+            {riskA != null && riskB != null && <DeltaIndicator a={riskA} b={riskB} />}
+          </span>
+        </div>
+        {/* Findings */}
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[1]}</span>
+          <span className="font-semibold text-[var(--text-primary)] flex items-center">
+            <AnimatedCounter value={target.finding_count} />
+            {severityTotal != null && otherSeverityTotal != null && (
+              <DeltaIndicator a={severityTotal} b={otherSeverityTotal} />
+            )}
+          </span>
+        </div>
+        {/* Highest Severity */}
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[2]}</span>
+          <span className={`font-mono text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded severity-badge sev-${highestSev}`}>
+            {highestSev ?? '—'}
+          </span>
+        </div>
+        {/* URLs */}
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[3]}</span>
+          <span className="font-semibold text-[var(--text-primary)]">
+            <AnimatedCounter value={target.url_count} />
+          </span>
+        </div>
+        {/* Parameters */}
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[4]}</span>
+          <span className="font-semibold text-[var(--text-primary)]">
+            <AnimatedCounter value={target.parameter_count} />
+          </span>
+        </div>
+        {/* Attack Chains */}
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[5]}</span>
+          <span className="font-semibold text-[var(--text-primary)]">
+            <AnimatedCounter value={target.attack_chain_count} />
+          </span>
+        </div>
+        {/* Scan Runs */}
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[6]}</span>
+          <span className="font-semibold text-[var(--text-primary)]">
+            <AnimatedCounter value={target.run_count} />
+          </span>
+        </div>
+        {/* Last Scan */}
+        <div className="flex items-center justify-between py-2">
+          <span className="text-xs uppercase tracking-wider text-muted">{STAT_LABELS[7]}</span>
+          <span className="text-sm text-[var(--text-secondary)]">{target.latest_run || '—'}</span>
+        </div>
+      </div>
+
+      {/* Severity Breakdown */}
+      <div className="mt-4 pt-4 border-t border-[var(--border)]">
+        <h4 className="text-xs uppercase tracking-wider text-muted mb-3">Severity Breakdown</h4>
+        <div className="space-y-2">
+          {Object.entries(target.severity_counts ?? {}).map(([sev, count]) => (
+            <div key={sev} className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full severity-dot severity-${sev}`} />
+                <span className="text-xs capitalize text-[var(--text-secondary)]">{sev}</span>
+              </div>
+              <span className="text-sm font-medium text-[var(--text-primary)]">{count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+const selectClass = 'w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] focus:outline-none transition-all duration-200 appearance-none cursor-pointer';
 
 export function TargetComparison({ targets: propTargets }: TargetComparisonProps) {
    
@@ -73,22 +190,33 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
 
   if (safeTargets.length < 2) {
     return (
-      <div className="card empty">
-        <p>At least 2 targets are needed for comparison.</p>
-      </div>
+      <GlassCard className="text-center py-16">
+        <ArrowLeftRight size={48} className="mx-auto mb-4 text-[var(--text-tertiary)]" />
+        <p className="text-[var(--text-secondary)]">At least 2 targets are needed for comparison.</p>
+      </GlassCard>
     );
   }
 
   return (
-    <div className="target-comparison">
-      <h2 className="target-comparison-title" data-focus-heading>🔀 Target Comparison</h2>
+    <div className="space-y-6">
+      <PageHeader
+        icon={<ArrowLeftRight size={20} />}
+        title="Target Comparison"
+        subtitle="Compare security posture between scan targets"
+      />
 
-      <div className="target-comparison-selectors">
-        <div className="form-group">
-          <label htmlFor="target-comparison-a" className="form-label-accent">Target A</label>
+      {/* ── Selectors ──────────────────────────────────────────── */}
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <GlassCard hoverable={false}>
+          <label htmlFor="target-comparison-a" className="block text-xs font-semibold uppercase tracking-wider text-accent mb-2">Target A</label>
           <select
             id="target-comparison-a"
-            className="form-select target-comparison-select"
+            className={selectClass}
             value={targetA}
             onChange={e => {
               const val = e.target.value;
@@ -108,12 +236,13 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
               <option key={t.name} value={t.name} disabled={t.name === targetB}>{t.name}</option>
             ))}
           </select>
-        </div>
-        <div className="form-group">
-          <label htmlFor="target-comparison-b" className="form-label-accent">Target B</label>
+        </GlassCard>
+
+        <GlassCard hoverable={false}>
+          <label htmlFor="target-comparison-b" className="block text-xs font-semibold uppercase tracking-wider text-accent mb-2">Target B</label>
           <select
             id="target-comparison-b"
-            className="form-select target-comparison-select"
+            className={selectClass}
             value={targetB}
             onChange={e => {
               const val = e.target.value;
@@ -133,137 +262,58 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
               <option key={t.name} value={t.name} disabled={t.name === targetA}>{t.name}</option>
             ))}
           </select>
-        </div>
-      </div>
+        </GlassCard>
+      </motion.div>
 
+      {/* ── Loading ────────────────────────────────────────────── */}
       {compareLoading && (
-        <div className="card empty flex flex-col justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)] mb-3" />
-          <p className="text-sm text-[var(--muted)]">Comparing security postures...</p>
-        </div>
+        <GlassCard className="flex flex-col justify-center items-center py-16" hoverable={false}>
+          <div className="w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-sm text-[var(--text-secondary)]">Comparing security postures...</p>
+        </GlassCard>
       )}
 
+      {/* ── Error ──────────────────────────────────────────────── */}
       {compareError && (
-        <div className="banner error py-4 my-2 text-center text-sm" role="status">
-          <span>{compareError}</span>
-        </div>
+        <GlassCard variant="error" hoverable={false} className="text-center py-6">
+          <p className="text-sm text-bad">{compareError}</p>
+        </GlassCard>
       )}
 
+      {/* ── Comparison Grid ────────────────────────────────────── */}
       {!compareLoading && !compareError && selectedA && selectedB ? (
-        <div className="target-comparison-grid">
-          <div className="target-comparison-column">
-            <h3 className="target-comparison-col-title">{selectedA.name}</h3>
-            <div className="target-comparison-stats">
-              <div className="tc-stat">
-                <span className="tc-stat-label">Risk Index (CSI)</span>
-                <span className={`tc-stat-value ${selectedA.risk_score !== undefined && selectedB.risk_score !== undefined ? (selectedA.risk_score > selectedB.risk_score ? 'tc-worse' : selectedA.risk_score < selectedB.risk_score ? 'tc-better' : '') : ''}`}>
-                  {selectedA.risk_score?.toFixed(1) ?? '—'}
-                </span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Findings</span>
-                <span className={`tc-stat-value ${severityTotals.a !== null && severityTotals.b !== null ? (severityTotals.a > severityTotals.b ? 'tc-worse' : severityTotals.a < severityTotals.b ? 'tc-better' : '') : ''}`}>
-                  {selectedA.finding_count}
-                </span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Highest Severity</span>
-                <span className={`tc-stat-value severity-badge sev-${highestSeverity.a}`}>
-                  {highestSeverity.a}
-                </span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">URLs</span>
-                <span className="tc-stat-value">{selectedA.url_count}</span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Parameters</span>
-                <span className="tc-stat-value">{selectedA.parameter_count}</span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Attack Chains</span>
-                <span className="tc-stat-value">{selectedA.attack_chain_count}</span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Scan Runs</span>
-                <span className="tc-stat-value">{selectedA.run_count}</span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Last Scan</span>
-                <span className="tc-stat-value">{selectedA.latest_run || '—'}</span>
-              </div>
-            </div>
-            <div className="tc-severity-breakdown">
-              <h4 className="tc-subtitle">Severity Breakdown</h4>
-              {Object.entries(selectedA.severity_counts ?? {}).map(([sev, count]) => (
-                <div key={sev} className="tc-sev-row">
-                  <span className={`tc-sev-dot severity-dot severity-${sev}`}>{sev}</span>
-                  <span className="tc-sev-count">{count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="target-comparison-column">
-            <h3 className="target-comparison-col-title">{selectedB.name}</h3>
-            <div className="target-comparison-stats">
-              <div className="tc-stat">
-                <span className="tc-stat-label">Risk Index (CSI)</span>
-                <span className={`tc-stat-value ${selectedA.risk_score !== undefined && selectedB.risk_score !== undefined ? (selectedB.risk_score > selectedA.risk_score ? 'tc-worse' : selectedB.risk_score < selectedA.risk_score ? 'tc-better' : '') : ''}`}>
-                  {selectedB.risk_score?.toFixed(1) ?? '—'}
-                </span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Findings</span>
-                <span className={`tc-stat-value ${severityTotals.a !== null && severityTotals.b !== null ? (severityTotals.b > severityTotals.a ? 'tc-worse' : severityTotals.b < severityTotals.a ? 'tc-better' : '') : ''}`}>
-                  {selectedB.finding_count}
-                </span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Highest Severity</span>
-                <span className={`tc-stat-value severity-badge sev-${highestSeverity.b}`}>
-                  {highestSeverity.b}
-                </span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">URLs</span>
-                <span className="tc-stat-value">{selectedB.url_count}</span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Parameters</span>
-                <span className="tc-stat-value">{selectedB.parameter_count}</span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Attack Chains</span>
-                <span className="tc-stat-value">{selectedB.attack_chain_count}</span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Scan Runs</span>
-                <span className="tc-stat-value">{selectedB.run_count}</span>
-              </div>
-              <div className="tc-stat">
-                <span className="tc-stat-label">Last Scan</span>
-                <span className="tc-stat-value">{selectedB.latest_run || '—'}</span>
-              </div>
-            </div>
-            <div className="tc-severity-breakdown">
-              <h4 className="tc-subtitle">Severity Breakdown</h4>
-              {Object.entries(selectedB.severity_counts ?? {}).map(([sev, count]) => (
-                <div key={sev} className="tc-sev-row">
-                  <span className={`tc-sev-dot severity-dot severity-${sev}`}>{sev}</span>
-                  <span className="tc-sev-count">{count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 gap-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <ComparisonColumn
+            target={selectedA}
+            otherTarget={selectedB}
+            severityTotal={severityTotals.a}
+            otherSeverityTotal={severityTotals.b}
+            highestSev={highestSeverity.a}
+            delay={0}
+          />
+          <ComparisonColumn
+            target={selectedB}
+            otherTarget={selectedA}
+            severityTotal={severityTotals.b}
+            otherSeverityTotal={severityTotals.a}
+            highestSev={highestSeverity.b}
+            delay={0.15}
+          />
+        </motion.div>
       ) : null}
 
-      {!compareLoading && !compareError && (!selectedA || !selectedB) ? (
-        <div className="card empty">
-          <p>Select two targets to compare their security posture side by side.</p>
-        </div>
-      ) : null}
+      {/* ── Empty State ────────────────────────────────────────── */}
+      {!compareLoading && !compareError && (!selectedA || !selectedB) && (
+        <GlassCard className="text-center py-16" hoverable={false}>
+          <ArrowLeftRight size={48} className="mx-auto mb-4 text-[var(--text-tertiary)]" />
+          <p className="text-[var(--text-secondary)]">Select two targets to compare their security posture side by side.</p>
+        </GlassCard>
+      )}
     </div>
   );
 }

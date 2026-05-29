@@ -502,6 +502,35 @@ async def explain_finding_severity(
         )
 
 
+@router.get(
+    "/{finding_id}/ai-explain",
+    response_model=dict[str, Any],
+    responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+    summary="Get AI persona-tailored (Developer/Auditor) explanations for a finding",
+)
+async def explain_finding_ai(
+    finding_id: str,
+    _auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> dict[str, Any]:
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    try:
+        from src.intelligence.ml.llm_service import LLMService
+        service = LLMService.get_instance()
+        explanation = await service.explain_finding(finding)
+        return {"finding_id": finding_id, "explanations": explanation}
+    except Exception as exc:
+        logger.exception("Failed to generate AI explainability analysis: %s", exc)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate AI explanations: {exc}"
+        )
+
+
+
 @router.put(
     "/bulk",
     response_model=list[dict[str, Any]],

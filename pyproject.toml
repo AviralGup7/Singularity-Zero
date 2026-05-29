@@ -109,7 +109,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["."]
-addopts = "-v --tb=short --strict-markers --disable-warnings --import-mode=importlib --cov=src.analysis --cov=src.core --cov=src.pipeline --cov=src.dashboard --cov=src.recon --cov=src.execution --cov=src.reporting --cov=src.intelligence --cov=src.detection --cov=src.decision --cov=src.fuzzing --cov=src.infrastructure.queue --cov=src.infrastructure.execution_engine --cov=src.infrastructure.cache --cov=src.infrastructure.observability --cov=src.infrastructure.security --cov=src.infrastructure.notifications --cov=src.dashboard.fastapi --cov=src.websocket_server --cov=src.learning --cov=src.api_tests --cov=src.exploitation"
+addopts = "-v --tb=short --strict-markers --disable-warnings --import-mode=importlib --cov=src.analysis --cov=src.core --cov=src.pipeline --cov=src.dashboard --cov=src.recon --cov=src.execution --cov=src.reporting --cov=src.intelligence --cov=src.detection --cov=src.decision --cov=src.fuzzing --cov=src.infrastructure.queue --cov=src.infrastructure.execution_engine --cov=src.infrastructure.cache --cov=src.infrastructure.observability --cov=src.infrastructure.security --cov=src.infrastructure.notifications --cov=src.dashboard.fastapi --cov=src.websocket_server --cov=src.learning --cov=src.exploitation"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
@@ -122,7 +122,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure.queue", "src.infrastructure.execution_engine", "src.infrastructure.cache", "src.infrastructure.observability", "src.infrastructure.security", "src.infrastructure.notifications", "src.dashboard.fastapi", "src.websocket_server", "src.learning", "src.api_tests", "src.exploitation"]
+source = ["src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure.queue", "src.infrastructure.execution_engine", "src.infrastructure.cache", "src.infrastructure.observability", "src.infrastructure.security", "src.infrastructure.notifications", "src.dashboard.fastapi", "src.websocket_server", "src.learning", "src.exploitation"]
 branch = true
 omit = [
     "tests/*",
@@ -134,12 +134,12 @@ omit = [
     "src/execution/validators/validators/*",
     "src/intelligence/feeds/*",
     "src/infrastructure/notifications/*",
-    "_audit_runner.py",
-    "read_job.py",
-    "run_scan_squareup.py",
-    "script.py",
-    "script_find_pass.py",
-    "script_fix_excepts.py",
+    "scripts/audit/*",
+    "scripts/debug/*",
+    "scripts/read_job.py",
+    "scripts/find_password_refs.py",
+    "scripts/fix_bare_excepts.py",
+    "scripts/pipeline_main.py",
     "start_backend.py"
 ]
 
@@ -173,7 +173,6 @@ exclude_lines = [
 "src.infrastructure.security" = 5
 "src.infrastructure.notifications" = 5
 "src.learning" = 5
-"src.api_tests" = 5
 "src.exploitation" = 5
 
 [tool.ruff]
@@ -199,7 +198,7 @@ select = ["E", "F", "I", "N", "W", "UP", "S"]
 ignore = ["E501", "BLE001", "S101"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src", "src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.api_tests", "src.infrastructure", "src.infrastructure.queue", "src.infrastructure.cache", "src.infrastructure.execution_engine", "src.infrastructure.observability", "src.infrastructure.security", "src.websocket_server", "src.learning", "src.exploitation"]
+known-first-party = ["src", "src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure", "src.infrastructure.queue", "src.infrastructure.cache", "src.infrastructure.execution_engine", "src.infrastructure.observability", "src.infrastructure.security", "src.websocket_server", "src.learning", "src.exploitation"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401"]
@@ -212,13 +211,10 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 check_untyped_defs = true
 exclude = [
-    "scripts/uiux-optimization/reporting/",
+    "scripts/",
     "frontend/",
     "tests/",
     "benchmarks/",
-    "^audit_.*\\.py$",
-    "^_audit_.*\\.py$",
-    "^grep_bugs\\.py$",
 ]
 ignore_missing_imports = true
 

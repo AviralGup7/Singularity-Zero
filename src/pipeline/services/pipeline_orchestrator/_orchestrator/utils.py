@@ -152,20 +152,8 @@ async def finalize_run(
         logger_obj.warning("Failed to flush pending event handlers", exc_info=True)
 
     try:
-        import gc
-
-        import httpx
-
-        leaked_clients = 0
-        for obj in gc.get_objects():
-            if not isinstance(obj, httpx.AsyncClient):
-                continue
-            if obj.is_closed:
-                continue
-            await obj.aclose()
-            leaked_clients += 1
-        if leaked_clients:
-            logger_obj.debug("Closed %d leaked AsyncClient instance(s)", leaked_clients)
+        from src.core.http_utils import close_all_clients
+        await close_all_clients()
     except Exception:
         logger_obj.debug("Best-effort AsyncClient cleanup failed", exc_info=True)
 
@@ -236,6 +224,15 @@ def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) 
 # ---------------------------------------------------------------------------
 
 
+def coerce_positive_int(value: Any) -> int | None:
+    """Coerce value to a positive integer, returning None if invalid."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def resolve_stage_timeout(
     orchestrator: Any,
     stage_name: str,
@@ -250,11 +247,11 @@ def resolve_stage_timeout(
 
     stage_overrides = filters.get("stage_timeout_overrides", {})
     if isinstance(stage_overrides, dict):
-        override = orchestrator._coerce_positive_int(stage_overrides.get(stage_name))
+        override = coerce_positive_int(stage_overrides.get(stage_name))
         if override is not None:
             return int(override)
 
-    direct_override = orchestrator._coerce_positive_int(
+    direct_override = coerce_positive_int(
         filters.get(f"{stage_name}_stage_timeout_seconds")
     )
     if direct_override is not None:

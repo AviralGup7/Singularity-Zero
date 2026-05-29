@@ -66,6 +66,32 @@ _KNOWN_VULNERABLE_VERSIONS: list[tuple[str, str, str, str]] = [
     (r"WordPress/4\.", "WordPress 4.x", "high", "End-of-life WordPress version"),
 ]
 
+_FRONTEND_LIBRARY_PATTERNS = [
+    (r"(?i)jquery[/-]?([0-2]\.\d+\.\d+)", "jQuery < 3.x", "medium"),
+    (r"(?i)react(?:-dom)?[/-]?([0-1]?[0-5]\.\d+\.\d+)", "React < 16.x", "low"),
+    (r"(?i)angular(?:\.min)?\.js.*\b[vV]?([1]\.\d+\.\d+)", "AngularJS 1.x", "high"),
+    (r"(?i)vue[/-]?([1-2]\.\d+\.\d+)", "Vue.js < 3.x", "medium"),
+    (r"(?i)moment[/-]?([1-2]\.[0-1][0-9]\.\d+)", "Moment.js < 2.29", "low"),
+    (r"(?i)lodash[/-]?([1-3]\.\d+\.\d+|4\.[0-1][0-6]\.\d+)", "Lodash < 4.17", "medium"),
+]
+
+def _check_frontend_dependencies(response: dict[str, Any]) -> list[str]:
+    """Check for outdated or vulnerable frontend dependencies in the response body."""
+    signals: list[str] = []
+    body = str(response.get("body_text") or "")
+    
+    # Quick filter to avoid heavy regex on non-HTML/JS
+    content_type = str(response.get("headers", {}).get("content-type", "")).lower()
+    if not ("html" in content_type or "javascript" in content_type or "json" in content_type):
+        return signals
+
+    for pattern, lib_desc, severity in _FRONTEND_LIBRARY_PATTERNS:
+        match = re.search(pattern, body)
+        if match:
+            signals.append(f"vulnerable_version:frontend_library:{severity}:{lib_desc}")
+            
+    return signals
+
 _DEPRECATED_API_PATTERNS = re.compile(
     r"(?:/v1/|/v0/|/api/v1/|/api/v0/|/old/|/legacy/|/deprecated/|/api/1\.0/|/api/0\.\d/)",
     re.IGNORECASE,
@@ -356,6 +382,7 @@ def vulnerable_component_detector(
         resp_signals.extend(_check_framework_headers(response))
         resp_signals.extend(_check_vulnerable_versions(response))
         resp_signals.extend(_check_default_config(response))
+        resp_signals.extend(_check_frontend_dependencies(response))
 
         if not resp_signals:
             continue
@@ -373,7 +400,10 @@ def vulnerable_component_detector(
 
         resp_title_parts: list[str] = []
         if any(s.startswith("vulnerable_version:") for s in resp_signals):
-            resp_title_parts.append("Known Vulnerable Version Detected")
+            if any("frontend_library" in s for s in resp_signals):
+                resp_title_parts.append("Outdated/Vulnerable Frontend Library")
+            else:
+                resp_title_parts.append("Known Vulnerable Version Detected")
         if any(s.startswith("server_version_disclosure:") for s in resp_signals):
             resp_title_parts.append("Server Version Disclosure")
         if any(s.startswith("powered_by_disclosure:") for s in resp_signals):

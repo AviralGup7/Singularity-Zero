@@ -118,6 +118,15 @@ class PipelineOutputStore:
     def write_priority_endpoints(self, priority_urls: list[str]) -> None:
         self.write_text("priority_endpoints.txt", format_ranked_lines(priority_urls))
 
+    def write_priority_scores(self, ranked_items: list[dict[str, Any]]) -> None:
+        """Persist canonical_key -> score mapping for regression tracking."""
+        scores = {
+            item["canonical_key"]: item["score"] 
+            for item in ranked_items 
+            if "canonical_key" in item
+        }
+        self.write_json_artifact("priority_scores.json", scores)
+
     def write_nuclei_output(self, label: str, output: str) -> None:
         if not output:
             return
@@ -186,7 +195,7 @@ class PipelineOutputStore:
             if isinstance(res, dict):
                 return res
             return None
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             return None
 
     def upload_file(self, local_path: Path, filename: str | None = None) -> str:

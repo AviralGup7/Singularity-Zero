@@ -35,6 +35,19 @@ def emit_progress(stage: str, message: str, percent: int, **fields: object) -> N
     emit_progress_event(stage, message, percent, **fields)
 
 
+def emit_stage_summary(stage: str, summary: dict[str, Any]) -> None:
+    """Emit a machine-readable stage summary for observability."""
+    emit_progress(
+        stage,
+        f"Stage {stage} summary",
+        100,
+        stage_status="completed",
+        summary_payload=summary,
+        event_trigger=f"recon_{stage}_summary",
+        telemetry_event_type=f"recon.{stage}.summary",
+    )
+
+
 def emit_url_progress(message: str, percent: int, **fields: object) -> None:
     emit_progress("urls", message, percent, **fields)
 

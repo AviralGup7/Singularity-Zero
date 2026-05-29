@@ -184,6 +184,14 @@
   --easing-out: cubic-bezier(0.16, 1, 0.3, 1);
   --easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --easing-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Input/Table Tokens ──────────────────────────────────────── */
+  --input-bg:         var(--surface);
+  --input-border:     var(--border);
+  --input-focus:      var(--accent);
+  --table-header-bg:  var(--surface-2);
+  --table-row-hover:  var(--surface-hover);
+  --table-border:     var(--line);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -263,4 +271,12 @@
   --shadow-panel: var(--shadow-sm);
   --shadow-panel-hover: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-sidebar: inset -1px 0 0 var(--border);
+
+  /* ── Input/Table Tokens ──────────────────────────────────────── */
+  --input-bg:         var(--surface);
+  --input-border:     var(--border);
+  --input-focus:      var(--accent);
+  --table-header-bg:  var(--surface-2);
+  --table-row-hover:  var(--surface-hover);
+  --table-border:     var(--line);
 }

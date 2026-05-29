@@ -64,3 +64,19 @@ class TestSubdomains:
         assert "sub1.example.com" in subs
         assert "sub2.example.com" in subs
         assert "example.com" in subs  # Root domain always added
+
+    def test_fetch_crtsh_subdomains_boundary_inputs(self):
+        # Null bytes
+        assert fetch_crtsh_subdomains("example\x00.com", timeout_seconds=5) == set()
+        # URL-encoded null bytes
+        assert fetch_crtsh_subdomains("example%00.com", timeout_seconds=5) == set()
+        # Newlines
+        assert fetch_crtsh_subdomains("example\n.com", timeout_seconds=5) == set()
+        assert fetch_crtsh_subdomains("example\r.com", timeout_seconds=5) == set()
+        # URL-encoded newlines
+        assert fetch_crtsh_subdomains("example%0a.com", timeout_seconds=5) == set()
+        assert fetch_crtsh_subdomains("example%0d.com", timeout_seconds=5) == set()
+        # Other bad characters
+        assert fetch_crtsh_subdomains("example/foo.com", timeout_seconds=5) == set()
+        assert fetch_crtsh_subdomains("example\\foo.com", timeout_seconds=5) == set()
+        assert fetch_crtsh_subdomains("example@foo.com", timeout_seconds=5) == set()

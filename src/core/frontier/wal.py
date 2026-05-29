@@ -71,8 +71,18 @@ class FrontierWAL:
         self._stream_key = f"cyber:wal:{run_id}"
         self._snapshot_key = f"cyber:wal:snapshot:{run_id}"
         self._max_stream_entries = 10000
-        # Setup local append-only file (AOF) path for dual-commit
-        self._aof_path = Path(f"./local_wal_{run_id}.aof")
+        # Setup local append-only file (AOF) path for dual-commit in gitignored directory
+        wal_dir = Path(".pipeline") / "wal"
+        try:
+            wal_dir.mkdir(parents=True, exist_ok=True)
+            # Retention policy: keep last 5 AOF files, purge older on startup
+            wal_files = sorted(wal_dir.glob("local_wal_*.aof"), key=lambda p: p.stat().st_mtime)
+            if len(wal_files) > 5:
+                for old_file in wal_files[:-5]:
+                    old_file.unlink(missing_ok=True)
+        except Exception as e:
+            logger.debug("Failed to initialize WAL directory or prune old logs: %s", e)
+        self._aof_path = wal_dir / f"local_wal_{run_id}.aof"
 
         if redis_url is None:
             logger.warning("Frontier WAL inactive: Redis URL is not configured")

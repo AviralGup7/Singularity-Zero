@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { LogIn, ChevronDown, LockKeyhole, ScanLine, Shield, User, Workflow, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION } from '@/config';
@@ -9,6 +10,8 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: 'analyst', label: 'Analyst' },
   { value: 'viewer', label: 'Viewer' },
 ];
+
+const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 export function LoginPage() {
   const { user, login, loginWithApiKey } = useAuth();
@@ -24,12 +27,18 @@ export function LoginPage() {
   const [authError, setAuthError] = useState<string | null>(null);
    
   const [authLoading, setAuthLoading] = useState(false);
+  const [shakeError, setShakeError] = useState(false);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
 
   if (user) {
     return <Navigate to={from} replace />;
   }
+
+  const triggerShake = () => {
+    setShakeError(true);
+    setTimeout(() => setShakeError(false), 500);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,21 +57,29 @@ export function LoginPage() {
       navigate(from, { replace: true });
     } catch {
       setAuthError('API key authentication failed');
+      triggerShake();
     } finally {
       setAuthLoading(false);
     }
   };
 
+  const inputFocusClass = 'focus-within:shadow-[0_0_0_2px_var(--accent-soft),0_0_12px_rgba(59,130,246,0.15)] transition-shadow duration-200';
+
   return (
     <main className="auth-canvas" aria-label="Sign in">
-      <section className="auth-card">
-        <div className="auth-left">
+      <section className="auth-card" style={{ backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
+        <motion.div
+          className="auth-left"
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: EASE_OUT }}
+        >
           <h1>Cyber Pipeline</h1>
           <p className="auth-subtitle">Sign in to continue</p>
 
-          <form onSubmit={handleApiKeySubmit} className="auth-form">
+          <form onSubmit={handleApiKeySubmit} className={`auth-form ${shakeError ? 'animate-shake' : ''}`}>
             <label htmlFor="login-api-key">API Key</label>
-            <div className="auth-field">
+            <div className={`auth-field ${inputFocusClass}`}>
               <LockKeyhole size={24} strokeWidth={1.7} aria-hidden="true" />
               <input
                 id="login-api-key"
@@ -75,9 +92,21 @@ export function LoginPage() {
               />
             </div>
 
-            {authError && <p className="auth-demo text-bad">{authError}</p>}
+            {authError && (
+              <motion.p
+                className="auth-demo text-bad"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                {authError}
+              </motion.p>
+            )}
 
-            <button type="submit" className="auth-submit" disabled={!apiKey.trim() || authLoading}>
+            <button type="submit" className="auth-submit cyber-gradient-btn" disabled={!apiKey.trim() || authLoading}>
+              {authLoading && (
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+              )}
               <span>{authLoading ? 'Signing In...' : 'Sign In'}</span>
               <LogIn size={18} strokeWidth={2} aria-hidden="true" />
             </button>
@@ -87,7 +116,7 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="auth-form">
             <label htmlFor="login-name">Demo Name</label>
-            <div className="auth-field">
+            <div className={`auth-field ${inputFocusClass}`}>
               <User size={24} strokeWidth={1.7} aria-hidden="true" />
               <input
                 id="login-name"
@@ -100,7 +129,7 @@ export function LoginPage() {
             </div>
 
             <label htmlFor="login-role">Role</label>
-            <div className="auth-field auth-select-wrap">
+            <div className={`auth-field auth-select-wrap ${inputFocusClass}`}>
               <Shield size={24} strokeWidth={1.7} aria-hidden="true" />
               <select
                 id="login-role"
@@ -120,7 +149,7 @@ export function LoginPage() {
             </button>
           </form>
 
-          <button type="button" className="auth-sso" onClick={() => login('SSO User', 'viewer')}>
+          <button type="button" className="auth-sso" onClick={() => login('SSO User', 'viewer')} style={{ backdropFilter: 'blur(12px)' }}>
             <Shield size={22} strokeWidth={1.8} aria-hidden="true" />
             <span>Sign in with SSO</span>
           </button>
@@ -129,9 +158,15 @@ export function LoginPage() {
             <LockKeyhole size={15} strokeWidth={1.8} aria-hidden="true" />
             Demo auth - no real authentication is performed
           </p>
-        </div>
+        </motion.div>
 
-        <div className="auth-right" aria-hidden="true">
+        <motion.div
+          className="auth-right"
+          aria-hidden="true"
+          initial={{ opacity: 0, x: 30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.2, ease: EASE_OUT }}
+        >
           <div className="security-scene">
             <div className="scene-grid" />
             <div className="scene-card scene-card-left" />
@@ -139,7 +174,7 @@ export function LoginPage() {
             <div className="scene-platform platform-back" />
             <div className="scene-platform platform-mid" />
             <div className="scene-platform platform-front" />
-            <div className="scene-shield">
+            <div className="scene-shield" style={{ animation: 'glow-pulse 3s ease-in-out infinite', color: 'var(--accent)' }}>
               <Shield size={116} strokeWidth={1.15} />
             </div>
             <span className="scene-node node-1" />
@@ -149,29 +184,27 @@ export function LoginPage() {
           </div>
 
           <div className="auth-features">
-            <div className="feature-row">
-              <span className="feature-icon"><ScanLine size={24} strokeWidth={1.65} /></span>
-              <span>
-                <strong>Unified Security Testing</strong>
-                <small>Manage targets, jobs, and findings in one place</small>
-              </span>
-            </div>
-            <div className="feature-row">
-              <span className="feature-icon"><Workflow size={24} strokeWidth={1.65} /></span>
-              <span>
-                <strong>Real-time Visibility</strong>
-                <small>Monitor scans and pipeline activity live</small>
-              </span>
-            </div>
-            <div className="feature-row">
-              <span className="feature-icon"><ShieldCheck size={24} strokeWidth={1.65} /></span>
-              <span>
-                <strong>Actionable Insights</strong>
-                <small>Identify risks and take action faster</small>
-              </span>
-            </div>
+            {[
+              { icon: ScanLine, title: 'Unified Security Testing', desc: 'Manage targets, jobs, and findings in one place' },
+              { icon: Workflow, title: 'Real-time Visibility', desc: 'Monitor scans and pipeline activity live' },
+              { icon: ShieldCheck, title: 'Actionable Insights', desc: 'Identify risks and take action faster' },
+            ].map((feat, i) => (
+              <motion.div
+                key={feat.title}
+                className="feature-row"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + i * 0.1, duration: 0.4, ease: EASE_OUT }}
+              >
+                <span className="feature-icon"><feat.icon size={24} strokeWidth={1.65} /></span>
+                <span>
+                  <strong>{feat.title}</strong>
+                  <small>{feat.desc}</small>
+                </span>
+              </motion.div>
+            ))}
           </div>
-        </div>
+        </motion.div>
       </section>
       <footer className="auth-footer">
         Cyber Pipeline Dashboard v{APP_VERSION} &bull; {new Date().getFullYear()}

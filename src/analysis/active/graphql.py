@@ -129,11 +129,16 @@ def _parse_graphql_response(body: str) -> dict[str, Any] | None:
     try:
         result: Any = json.loads(body)
         return result if isinstance(result, dict) else None
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return None
 
 
+# GraphQL field suggestion brute-forcing words
+GRAPHQL_COMMON_FIELDS = ["users", "admin", "settings", "me", "profile", "config", "debug", "secrets", "roles", "permissions"]
+
 def _check_graphql_errors(body: str) -> list[str]:
+# ... (existing code unchanged for a moment, let's insert field suggestion right after Test 1) ...
+
     """Check response body for GraphQL error patterns.
 
     Args:
@@ -203,6 +208,8 @@ def graphql_active_probe(
         batch_result = None
         mutation_result = None
 
+        field_suggestion_result = None
+
         # Test 1: Introspection query
         introspection_response = response_cache.request(
             url,
@@ -240,7 +247,27 @@ def graphql_active_probe(
                 error_signals = _check_graphql_errors(body)
                 signals.extend(error_signals)
 
+        # Field Suggestion (If introspection failed/disabled)
+        if "introspection_enabled" not in signals:
+            suggested_fields = []
+            for field in GRAPHQL_COMMON_FIELDS:
+                field_resp = response_cache.request(
+                    url,
+                    method="POST",
+                    headers={"Content-Type": "application/json", "Cache-Control": "no-cache"},
+                    body=json.dumps({"query": f"{{ {field} {{ __typename }} }}"}),
+                )
+                if field_resp:
+                    fb = str(field_resp.get("body_text") or "")
+                    if "cannot query field" not in fb.lower() and "unknown type" not in fb.lower():
+                        if "errors" in fb or "data" in fb:
+                            suggested_fields.append(field)
+            if suggested_fields:
+                signals.append("field_suggestion_success")
+                field_suggestion_result = {"discovered_fields": suggested_fields}
+
         # Test 2: Batch query abuse
+
         batch_response = response_cache.request(
             url,
             method="POST",

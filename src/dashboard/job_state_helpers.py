@@ -26,7 +26,7 @@ def _coerce_int(value: object) -> int | None:
     if isinstance(value, str):
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
     return None
 
@@ -42,7 +42,7 @@ def _coerce_float(value: object) -> float | None:
             return None
         try:
             return float(text)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
     return None
 

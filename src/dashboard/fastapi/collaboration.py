@@ -24,6 +24,7 @@ TRIAGE_ACTIONS = {
     "finding_closed",
     "finding_reopened",
     "finding_false_positive",
+    "ai_false_positive_review",
 }
 
 

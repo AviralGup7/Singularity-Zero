@@ -22,6 +22,8 @@ from src.core.utils.url_validation import is_safe_url
 
 logger = get_pipeline_logger(__name__)
 
+import weakref
+
 _PID_LIMITERS: dict[str, PIDRateLimiter] = {}
 
 DEFAULT_TIMEOUT = 10.0
@@ -29,6 +31,19 @@ MAX_BODY_LENGTH = 120_000
 _SYNC_SESSION = requests.Session()
 atexit.register(_SYNC_SESSION.close)
 _ASYNC_CLIENTS: dict[tuple[bool, bool], httpx.AsyncClient] = {}
+
+_ASYNC_CLIENTS_WEAKSET = weakref.WeakSet()
+
+# Hook httpx.AsyncClient creation to track all instances process-wide
+_original_async_client_init = httpx.AsyncClient.__init__
+
+
+def _patched_async_client_init(self: httpx.AsyncClient, *args: Any, **kwargs: Any) -> None:
+    _original_async_client_init(self, *args, **kwargs)
+    _ASYNC_CLIENTS_WEAKSET.add(self)
+
+
+httpx.AsyncClient.__init__ = _patched_async_client_init  # type: ignore[method-assign]
 
 
 def _get_async_client(verify_ssl: bool, follow_redirects: bool) -> httpx.AsyncClient:
@@ -38,6 +53,18 @@ def _get_async_client(verify_ssl: bool, follow_redirects: bool) -> httpx.AsyncCl
         client = httpx.AsyncClient(verify=verify_ssl, follow_redirects=follow_redirects)
         _ASYNC_CLIENTS[client_key] = client
     return client
+
+
+async def close_all_clients() -> None:
+    """Acquire all tracked HTTP clients process-wide and cleanly close them."""
+    for client in list(_ASYNC_CLIENTS_WEAKSET):
+        try:
+            if not client.is_closed:
+                await client.aclose()
+        except Exception as e:
+            logger.debug("Failed to close tracked httpx client during shutdown: %s", e)
+    _ASYNC_CLIENTS.clear()
+    _ASYNC_CLIENTS_WEAKSET.clear()
 
 
 def safe_request(

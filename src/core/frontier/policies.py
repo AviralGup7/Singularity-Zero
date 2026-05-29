@@ -5,8 +5,8 @@ Retention policy engine for enforcing storage metrics.
 
 from __future__ import annotations
 
-import time
 import logging
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -79,7 +79,9 @@ class PolicyEngine:
                 vfs.delete_file(path)
                 logger.info("PolicyEngine: Pruned file %s due to file count limit", path)
             except Exception as e:
-                logger.error("PolicyEngine: Failed to delete file %s under count policy: %s", path, e)
+                logger.error(
+                    "PolicyEngine: Failed to delete file %s under count policy: %s", path, e
+                )
 
         # Enforce max total bytes
         total_bytes = sum(size for _, size, _ in file_metrics)
@@ -90,4 +92,6 @@ class PolicyEngine:
                 total_bytes -= size
                 logger.info("PolicyEngine: Pruned file %s due to total bytes limit", path)
             except Exception as e:
-                logger.error("PolicyEngine: Failed to delete file %s under size policy: %s", path, e)
+                logger.error(
+                    "PolicyEngine: Failed to delete file %s under size policy: %s", path, e
+                )

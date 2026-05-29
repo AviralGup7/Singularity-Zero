@@ -8,13 +8,22 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
-import src.pipeline.services.pipeline_orchestrator.orchestrator as o
+from src.core.checkpoint import (
+    attempt_recovery,
+    create_checkpoint_manager,
+    generate_run_id,
+)
 from src.core.contracts.pipeline_runtime import PipelineInput
 from src.core.events import EventType
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.middleware import OutboundRequestInterceptor, ScopeValidator
 from src.core.models.stage_result import PipelineContext, StageResult
 from src.core.utils import normalize_scope_entry
+from src.pipeline.cache import cache_enabled
+from src.pipeline.runner_support import (
+    emit_progress,
+    load_adaptive_config,
+)
 from src.pipeline.services.output_store import PipelineOutputStore
 
 from .._constants import STAGE_ORDER
@@ -35,27 +44,13 @@ async def run_secured(
     config: Any,
     flow_manifest: Any,
     cache_mgr: Any,
+    scope_entries: list[str],
+    tool_status: dict[str, Any],
 ) -> int:
     """Securely execute the testing pipeline after acquiring target locks.
 
     Handles WAL logging, mesh coordinators, recovery checks, and error metrics.
     """
-    attempt_recovery = getattr(o, "attempt_recovery")
-    create_checkpoint_manager = getattr(o, "create_checkpoint_manager")
-    generate_run_id = getattr(o, "generate_run_id")
-    cache_enabled = getattr(o, "cache_enabled")
-    emit_progress = getattr(o, "emit_progress")
-    load_adaptive_config = getattr(o, "load_adaptive_config")
-    read_scope = getattr(o, "read_scope")
-    build_tool_status = getattr(o, "build_tool_status")
-    preloaded_scope_entries = getattr(args, "_loaded_scope_entries", None)
-    scope_entries = (
-        list(preloaded_scope_entries)
-        if preloaded_scope_entries is not None
-        else read_scope(Path(args.scope).resolve())
-    )
-    screenshot_cfg = config.screenshots if isinstance(config.screenshots, dict) else {}
-    tool_status = build_tool_status(screenshot_cfg.get("browser_paths", []))
     emit_progress("startup", f"Loaded config for {config.target_name}", 8)
 
     if args.dry_run:
