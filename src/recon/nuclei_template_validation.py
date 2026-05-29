@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -68,9 +67,7 @@ class NucleiTemplateValidator:
             if expected_hash:
                 actual_hash = self.calculate_sha256(file_path)
                 if actual_hash != expected_hash:
-                    mismatched_files.append(
-                        (relative_path, expected_hash, actual_hash)
-                    )
+                    mismatched_files.append((relative_path, expected_hash, actual_hash))
 
         if mismatched_files:
             for rel_path, exp, act in mismatched_files:

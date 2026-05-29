@@ -17,7 +17,9 @@ class FuzzingOrchestrator:
 
     def __init__(self, target_endpoints: list[str]) -> None:
         self.target_endpoints = target_endpoints
-        self._coverage_feedback: dict[str, set[str]] = {}  # endpoint -> unique response signatures seen
+        self._coverage_feedback: dict[
+            str, set[str]
+        ] = {}  # endpoint -> unique response signatures seen
         self._mutation_history: dict[str, list[dict[str, Any]]] = {}
 
     def bit_flip(self, data: str) -> str:
@@ -28,7 +30,7 @@ class FuzzingOrchestrator:
         if len(byte_arr) > 0:
             idx = secrets.randbelow(len(byte_arr))
             bit = secrets.randbelow(8)
-            byte_arr[idx] ^= (1 << bit)
+            byte_arr[idx] ^= 1 << bit
         return byte_arr.decode("utf-8", errors="ignore")
 
     def boundary_values(self, param_type: str) -> list[str]:
@@ -45,7 +47,7 @@ class FuzzingOrchestrator:
         """Return classic injection and structural bypass payload templates."""
         return [
             "' OR '1'='1",
-            "\" OR \"1\"=\"1",
+            '" OR "1"="1',
             "<script>alert(1)</script>",
             "javascript:alert(1)",
             "../../../../etc/passwd",
@@ -53,7 +55,7 @@ class FuzzingOrchestrator:
             "; id",
             "admin'--",
             "{}",
-            "[]"
+            "[]",
         ]
 
     def grammar_mutate(self, base_grammar: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -78,13 +80,15 @@ class FuzzingOrchestrator:
         # Group lengths into bands of 100 bytes to smooth out dynamic content variance
         len_band = response_len // 100
         signature = f"{status_code}:{len_band}"
-        
+
         self._coverage_feedback.setdefault(endpoint, set())
         history = self._coverage_feedback[endpoint]
-        
+
         if signature not in history:
             history.add(signature)
-            logger.info("Fuzzer: Discovered new coverage feedback path on %s: %s", endpoint, signature)
+            logger.info(
+                "Fuzzer: Discovered new coverage feedback path on %s: %s", endpoint, signature
+            )
             return True
         return False
 
@@ -110,32 +114,38 @@ class FuzzingOrchestrator:
             List of generated fuzzer mutation payload dictionaries.
         """
         payloads: list[dict[str, Any]] = []
-        
+
         # 1. Base Boundary values
         for v in self.boundary_values(param_type):
-            payloads.append({
-                "parameter": param_name,
-                "variant": v,
-                "strategy": "boundary_values",
-                "reason": f"fuzz_boundary_{param_type}"
-            })
+            payloads.append(
+                {
+                    "parameter": param_name,
+                    "variant": v,
+                    "strategy": "boundary_values",
+                    "reason": f"fuzz_boundary_{param_type}",
+                }
+            )
 
         # 2. Dictionary injections
         for v in self.dictionary_attack():
-            payloads.append({
-                "parameter": param_name,
-                "variant": v,
-                "strategy": "dictionary_attack",
-                "reason": "fuzz_injection_bypass"
-            })
+            payloads.append(
+                {
+                    "parameter": param_name,
+                    "variant": v,
+                    "strategy": "dictionary_attack",
+                    "reason": "fuzz_injection_bypass",
+                }
+            )
 
         # 3. Bit flipped variants
-        payloads.append({
-            "parameter": param_name,
-            "variant": self.bit_flip(base_value),
-            "strategy": "bit_flip",
-            "reason": "fuzz_bit_mutation"
-        })
+        payloads.append(
+            {
+                "parameter": param_name,
+                "variant": self.bit_flip(base_value),
+                "strategy": "bit_flip",
+                "reason": "fuzz_bit_mutation",
+            }
+        )
 
         # Deduplicate and limit payloads
         seen = set()
@@ -163,11 +173,13 @@ class FuzzingOrchestrator:
         Mutates query parameters and sends HTTP requests. Evaluates status code
         and response size feedback to find anomalies and coverage increases.
         """
-        import httpx
         import re
         from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+        import httpx
+
+        from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
         from src.core.mutation_engine import detect_parameter_type
-        from src.analysis.helpers import endpoint_signature, endpoint_base_key, classify_endpoint
 
         findings: list[dict[str, Any]] = []
         parsed = urlparse(url)
@@ -234,76 +246,82 @@ class FuzzingOrchestrator:
                         continue
 
                     # Record status code + size band feedback
-                    coverage_increased = self.record_feedback(url, status, resp_len)
+                    self.record_feedback(url, status, resp_len)
 
                     # Look for security issues/anomalies:
                     # Case A: SQL/Execution Error leak in body
                     error_match = error_re.search(body[:8000])
                     if error_match:
-                        findings.append({
-                            "url": url,
-                            "endpoint_key": endpoint_key,
-                            "endpoint_base_key": endpoint_base_key(url),
-                            "endpoint_type": classify_endpoint(url),
-                            "issues": ["fuzzing_error_leak_detected"],
-                            "probe_type": "fuzzing_campaign",
-                            "severity": "high",
-                            "confidence": 0.90,
-                            "evidence": {
-                                "parameter": param_name,
-                                "payload": variant_val,
-                                "strategy": strategy,
-                                "status_code": status,
-                                "error_pattern": error_match.group(0),
-                                "reason": f"Database or stack trace leak: '{error_match.group(0)}'"
+                        findings.append(
+                            {
+                                "url": url,
+                                "endpoint_key": endpoint_key,
+                                "endpoint_base_key": endpoint_base_key(url),
+                                "endpoint_type": classify_endpoint(url),
+                                "issues": ["fuzzing_error_leak_detected"],
+                                "probe_type": "fuzzing_campaign",
+                                "severity": "high",
+                                "confidence": 0.90,
+                                "evidence": {
+                                    "parameter": param_name,
+                                    "payload": variant_val,
+                                    "strategy": strategy,
+                                    "status_code": status,
+                                    "error_pattern": error_match.group(0),
+                                    "reason": f"Database or stack trace leak: '{error_match.group(0)}'",
+                                },
                             }
-                        })
+                        )
                         logger.info("Fuzzer: Detected vulnerability on %s: Error Leak!", url)
                         break  # Stop fuzzing this parameter if critical leak found
 
                     # Case B: Significant status boundary drift (e.g. bypass validation)
                     # For example, base was 403/401/400 but mutation returned 200/201 (auth bypass or boundary acceptance)
                     elif base_status in {400, 401, 403} and status in {200, 201}:
-                        findings.append({
-                            "url": url,
-                            "endpoint_key": endpoint_key,
-                            "endpoint_base_key": endpoint_base_key(url),
-                            "endpoint_type": classify_endpoint(url),
-                            "issues": ["fuzzing_structural_bypass_detected"],
-                            "probe_type": "fuzzing_campaign",
-                            "severity": "high",
-                            "confidence": 0.85,
-                            "evidence": {
-                                "parameter": param_name,
-                                "payload": variant_val,
-                                "strategy": strategy,
-                                "status_code": status,
-                                "base_status_code": base_status,
-                                "reason": f"Status code transitioned from {base_status} to {status} during mutation"
+                        findings.append(
+                            {
+                                "url": url,
+                                "endpoint_key": endpoint_key,
+                                "endpoint_base_key": endpoint_base_key(url),
+                                "endpoint_type": classify_endpoint(url),
+                                "issues": ["fuzzing_structural_bypass_detected"],
+                                "probe_type": "fuzzing_campaign",
+                                "severity": "high",
+                                "confidence": 0.85,
+                                "evidence": {
+                                    "parameter": param_name,
+                                    "payload": variant_val,
+                                    "strategy": strategy,
+                                    "status_code": status,
+                                    "base_status_code": base_status,
+                                    "reason": f"Status code transitioned from {base_status} to {status} during mutation",
+                                },
                             }
-                        })
+                        )
                         logger.info("Fuzzer: Detected vulnerability on %s: Structural Bypass!", url)
                         break
 
                     # Case C: Status code 500 crash anomaly
                     elif status >= 500 and base_status < 500:
-                        findings.append({
-                            "url": url,
-                            "endpoint_key": endpoint_key,
-                            "endpoint_base_key": endpoint_base_key(url),
-                            "endpoint_type": classify_endpoint(url),
-                            "issues": ["fuzzing_unhandled_server_crash"],
-                            "probe_type": "fuzzing_campaign",
-                            "severity": "medium",
-                            "confidence": 0.80,
-                            "evidence": {
-                                "parameter": param_name,
-                                "payload": variant_val,
-                                "strategy": strategy,
-                                "status_code": status,
-                                "reason": "Mutation triggered unhandled Internal Server Error (HTTP 500)"
+                        findings.append(
+                            {
+                                "url": url,
+                                "endpoint_key": endpoint_key,
+                                "endpoint_base_key": endpoint_base_key(url),
+                                "endpoint_type": classify_endpoint(url),
+                                "issues": ["fuzzing_unhandled_server_crash"],
+                                "probe_type": "fuzzing_campaign",
+                                "severity": "medium",
+                                "confidence": 0.80,
+                                "evidence": {
+                                    "parameter": param_name,
+                                    "payload": variant_val,
+                                    "strategy": strategy,
+                                    "status_code": status,
+                                    "reason": "Mutation triggered unhandled Internal Server Error (HTTP 500)",
+                                },
                             }
-                        })
+                        )
                         logger.info("Fuzzer: Detected anomaly on %s: Server crash (500)!", url)
                         break
 
@@ -312,4 +330,3 @@ class FuzzingOrchestrator:
                 await client.aclose()
 
         return findings
-

@@ -171,9 +171,7 @@ class LWWset[T]:
         key = self._key(item)
         existing = self._elements.get(key)
         if existing is None or clock.is_later_than(existing.hlc):
-            self._elements[key] = LWWElement(
-                item, clock, vclock or VectorClock(), ts, deleted=True
-            )
+            self._elements[key] = LWWElement(item, clock, vclock or VectorClock(), ts, deleted=True)
 
     def merge(self, other: LWWset[T]) -> None:
         """Commutative, Associative, and Idempotent merge using Hybrid Logical Clocks."""

@@ -100,16 +100,18 @@ async def get_attack_chains(
     # 🛸 Frontier GNN Upgrade: Enrich attack chains with node-embedding predictions
     try:
         from src.intelligence.ml.gnn_predict import GNNPredictor
-        
+
         graph_data = await get_cockpit_graph(target=target, services=services, _auth=_auth)
         predictor = GNNPredictor()
-        predicted_links = predictor.predict_links(graph_data["nodes"], graph_data["edges"], threshold=0.65)
-        
+        predicted_links = predictor.predict_links(
+            graph_data["nodes"], graph_data["edges"], threshold=0.65
+        )
+
         for idx, link in enumerate(predicted_links):
             source_id = link["source"]
             target_id = link["target"]
             confidence = link["metadata"]["confidence"]
-            
+
             chain_entry = {
                 "id": f"chain-gnn-{idx}-{hash(source_id + target_id)}",
                 "steps": [
@@ -375,18 +377,18 @@ async def get_cockpit_graph(
                 break
 
     graph = _merge_graphs(kuzu_graph, artifact_graph)
-    
+
     # 🛸 Frontier ML Upgrade: Predict unseen attack paths using pure-NumPy Graph Neural Networks (GCN)
     predicted_links_count = 0
     optimal_probes = []
     try:
         from src.intelligence.ml.gnn_predict import GNNPredictor, ProbeSelectionRLAgent
-        
+
         predictor = GNNPredictor()
         predicted_links = predictor.predict_links(graph["nodes"], graph["edges"], threshold=0.65)
         graph["edges"].extend(predicted_links)
         predicted_links_count = len(predicted_links)
-        
+
         # Instantiate RL agent to recommend optimal probe sequences for the target
         rl_agent = ProbeSelectionRLAgent()
         optimal_probes = rl_agent.get_optimal_probe_sequence(target)

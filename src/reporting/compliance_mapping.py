@@ -195,6 +195,7 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
             control_maturities[control_id] = maturity
 
     from src.reporting.compliance_maturity import calculate_overall_grc_score
+
     overall_grc = calculate_overall_grc_score(control_maturities)
 
     return {

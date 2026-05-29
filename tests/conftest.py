@@ -9,19 +9,24 @@ import types
 
 try:
     import pykka
+
     # Verify both exceptions exist
     _ = pykka.ActorDeadError
     _ = pykka.Timeout
-except (ImportError, AttributeError):
+except ImportError, AttributeError:
+
     class ActorDeadError(Exception):
         pass
+
     class ActorTimeout(Exception):
         pass
+
     class PykkaCompatibility(types.ModuleType):
         ActorDeadError = ActorDeadError
         Timeout = ActorTimeout
         ActorDeadError.__module__ = "pykka"
         ActorTimeout.__module__ = "pykka"
+
     sys.modules["pykka"] = PykkaCompatibility("pykka")
 
 import tempfile

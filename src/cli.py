@@ -522,7 +522,9 @@ def handle_plugin_new(args: argparse.Namespace) -> int:
 
     category = args.category
 
-    console.print(f"[info]Scaffolding custom [accent]{category}[/accent] plugin: [accent]{name}[/accent]...[/info]")
+    console.print(
+        f"[info]Scaffolding custom [accent]{category}[/accent] plugin: [accent]{name}[/accent]...[/info]"
+    )
 
     # Generate templates
     src_dir = Path("src")
@@ -620,7 +622,9 @@ class {name.capitalize()}Reporter:
         registry_data.append(plugin_entry)
         registry_path.write_text(json.dumps(registry_data, indent=2), encoding="utf-8")
 
-    console.print(f"[success]SUCCESS: Plugin {name} scaffolded at {target_path} and registered![/success]")
+    console.print(
+        f"[success]SUCCESS: Plugin {name} scaffolded at {target_path} and registered![/success]"
+    )
     return 0
 
 

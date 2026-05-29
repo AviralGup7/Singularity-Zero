@@ -20,6 +20,7 @@ from .learning import router as learning_router
 from .mesh import router as mesh_router
 from .notes import router as notes_router
 from .registry import router as registry_router
+from .remediated import router as remediated_router
 from .remediation import router as remediation_router
 from .replay import router as replay_router
 from .reports import router as reports_router
@@ -30,8 +31,6 @@ from .targets import router as targets_router
 from .tracing import router as tracing_router
 from .triage import router as triage_router
 from .webhooks import router as webhooks_router
-
-from .remediated import router as remediated_router
 
 imports_router: Any = None
 try:

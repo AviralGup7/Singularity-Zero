@@ -41,6 +41,7 @@ class SecretManager:
             cache_ttl_seconds: Seconds before cached secrets expire.
         """
         import collections
+
         from src.infrastructure.security.encryption import DataEncryptor  # Avoid circular imports
 
         self.config = config

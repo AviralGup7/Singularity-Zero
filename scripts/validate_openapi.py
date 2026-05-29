@@ -12,6 +12,7 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
+
 import yaml
 
 
@@ -21,61 +22,49 @@ def enrich_openapi_metadata(openapi_spec: dict[str, Any]) -> dict[str, Any]:
     openapi_spec["info"]["x-ai-metadata"] = {
         "agent_roles": ["orchestrator", "worker", "dashboard", "auditor"],
         "stateful_endpoints": ["/api/jobs/{id}", "/api/jobs/{id}/progress/stream"],
-        "mesh_aware": True
+        "mesh_aware": True,
     }
-    
+
     # 2. Path-level x-ai mapping
     ai_meta_mapping = {
-        ("/api/jobs", "get"): {
-            "x-ai-action": "list_jobs",
-            "x-ai-idempotency": True
-        },
+        ("/api/jobs", "get"): {"x-ai-action": "list_jobs", "x-ai-idempotency": True},
         ("/api/jobs", "post"): {
             "x-ai-action": "start_scan",
             "x-ai-requires": ["base_url"],
             "x-ai-idempotency": False,
-            "x-ai-impact": "high"
+            "x-ai-impact": "high",
         },
-        ("/api/health/ready", "get"): {
-            "x-ai-action": "check_readiness",
-            "x-ai-idempotency": True
-        },
-        ("/api/health/mesh", "get"): {
-            "x-ai-action": "get_mesh_health",
-            "x-ai-idempotency": True
-        },
-        ("/api/bloom/health", "get"): {
-            "x-ai-action": "get_bloom_health",
-            "x-ai-idempotency": True
-        },
+        ("/api/health/ready", "get"): {"x-ai-action": "check_readiness", "x-ai-idempotency": True},
+        ("/api/health/mesh", "get"): {"x-ai-action": "get_mesh_health", "x-ai-idempotency": True},
+        ("/api/bloom/health", "get"): {"x-ai-action": "get_bloom_health", "x-ai-idempotency": True},
         ("/api/bloom/reconcile", "post"): {
             "x-ai-action": "reconcile_bloom_mesh",
             "x-ai-idempotency": True,
-            "x-ai-impact": "medium"
+            "x-ai-impact": "medium",
         },
         ("/api/findings/{finding_id}", "put"): {
             "x-ai-action": "update_finding",
-            "x-ai-idempotency": False
+            "x-ai-idempotency": False,
         },
         ("/api/findings/{finding_id}", "delete"): {
             "x-ai-action": "delete_finding",
             "x-ai-idempotency": False,
-            "x-ai-impact": "high"
+            "x-ai-impact": "high",
         },
         ("/api/remediated/{finding_id}/verify", "post"): {
             "x-ai-action": "verify_remediation",
             "x-ai-idempotency": False,
             "x-ai-impact": "medium",
-            "x-ai-requires": ["finding_id"]
-        }
+            "x-ai-requires": ["finding_id"],
+        },
     }
-    
+
     for (path_pattern, method), meta in ai_meta_mapping.items():
         if path_pattern in openapi_spec.get("paths", {}):
             if method in openapi_spec["paths"][path_pattern]:
                 for k, v in meta.items():
                     openapi_spec["paths"][path_pattern][method][k] = v
-                    
+
     return openapi_spec
 
 
@@ -89,9 +78,10 @@ def main() -> int:
     # 1. Dynamically generate active OpenAPI schema from FastAPI app
     try:
         from src.dashboard.fastapi.app import create_app
+
         app = create_app()
         active_openapi = app.openapi()
-        
+
         # Save generated openapi.json to output directory
         current_path.parent.mkdir(parents=True, exist_ok=True)
         current_path.write_text(json.dumps(active_openapi, indent=2), encoding="utf-8")
@@ -154,7 +144,9 @@ def main() -> int:
                 b_type = b_prop.get("type") or b_prop.get("$ref")
                 c_type = c_prop.get("type") or c_prop.get("$ref")
                 if b_type != c_type:
-                    print(f"CRITICAL DRIFT: Type changed for '{name}.{prop}'! (expected {b_type}, got {c_type})")
+                    print(
+                        f"CRITICAL DRIFT: Type changed for '{name}.{prop}'! (expected {b_type}, got {c_type})"
+                    )
                     drift_detected = True
 
             # Check if any new required fields were added
@@ -181,24 +173,27 @@ def main() -> int:
             docs_path.write_text("# API Reference\n\n```yaml\n```\n", encoding="utf-8")
 
         current_doc_content = docs_path.read_text(encoding="utf-8")
-        
+
         # Regex substitution to place YAML inside the fenced block
         updated_doc_content = re.sub(
-            r"```yaml\n.*?\n```",
-            f"```yaml\n{yaml_str}```",
-            current_doc_content,
-            flags=re.DOTALL
+            r"```yaml\n.*?\n```", f"```yaml\n{yaml_str}```", current_doc_content, flags=re.DOTALL
         )
 
         write_mode = "--write" in sys.argv
         if current_doc_content != updated_doc_content:
             if write_mode:
                 docs_path.write_text(updated_doc_content, encoding="utf-8")
-                print(f"Successfully updated and synchronized {docs_path} with active OpenAPI spec.")
+                print(
+                    f"Successfully updated and synchronized {docs_path} with active OpenAPI spec."
+                )
                 return 0
             else:
-                print("CRITICAL DRIFT: docs/api-reference.md is OUT OF SYNC with active FastAPI spec!")
-                print("Please run: python scripts/validate_openapi.py --write to synchronize the file.")
+                print(
+                    "CRITICAL DRIFT: docs/api-reference.md is OUT OF SYNC with active FastAPI spec!"
+                )
+                print(
+                    "Please run: python scripts/validate_openapi.py --write to synchronize the file."
+                )
                 return 1
         else:
             print("Documentation Sync Gate: [PASS] - docs/api-reference.md is fully in sync.")

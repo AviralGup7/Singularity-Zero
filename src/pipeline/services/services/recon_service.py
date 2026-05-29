@@ -405,9 +405,10 @@ async def run_waf_detection_service(
 ) -> StageOutput:
     """Pure service implementation for WAF/CDN detection with active probing."""
     from src.recon.waf_cdn_detector import detect_waf_cdn
+
     started = time.monotonic()
     state = _state(stage_input)
-    
+
     # Use live hosts as targets for WAF detection
     live_hosts = list(state.get("live_hosts", []) or [])
     if not live_hosts:
@@ -416,25 +417,25 @@ async def run_waf_detection_service(
             outcome=StageOutcome.SKIPPED,
             duration_seconds=0.0,
             metrics={"status": "skipped", "reason": "no_live_hosts"},
-            state_delta={}
+            state_delta={},
         )
 
     # Convert hosts to URLs
     urls_to_test = []
     for host in live_hosts:
         urls_to_test.append(f"https://{host}")
-        
+
     try:
         # We only need to test a representative sample if there are many hosts
         findings = await detect_waf_cdn(urls_to_test, timeout=timeout, max_urls=50)
         duration = round(time.monotonic() - started, 2)
-        
+
         return StageOutput(
             stage_name=stage_input.stage_name,
             outcome=StageOutcome.COMPLETED,
             duration_seconds=duration,
             metrics={"status": "ok", "findings_count": len(findings)},
-            state_delta={"waf_findings": findings}
+            state_delta={"waf_findings": findings},
         )
     except Exception as exc:
         logger.error("WAF detection service failed: %s", exc)
@@ -443,7 +444,7 @@ async def run_waf_detection_service(
             outcome=StageOutcome.FAILED,
             duration_seconds=time.monotonic() - started,
             error=str(exc),
-            state_delta={}
+            state_delta={},
         )
 
 

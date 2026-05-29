@@ -23,8 +23,9 @@ async def get_job_logs(
     services: Any = Depends(get_queue_client),
 ) -> JobLogsResponse:
     tenant_id = (_auth or {}).get("tenant_id", "default")
-    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
     from fastapi import HTTPException
+
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
     job = await get_enriched_job(job_id, services)
     job_target = str(job.get("target_name") or job.get("hostname") or job.get("target") or "")

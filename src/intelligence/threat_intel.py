@@ -48,9 +48,10 @@ class ThreatIntelCorrelator:
             return {"status": "disabled", "malicious": False, "score": 0}
 
         import os
+
+        from src.intelligence.feeds.misp import MISPClient, MISPConfig
         from src.intelligence.feeds.otx import OTXClient, OTXConfig
         from src.intelligence.feeds.virustotal import VirusTotalClient, VirusTotalConfig
-        from src.intelligence.feeds.misp import MISPClient, MISPConfig
 
         host = str(host_or_ip or "").strip().lower()
         score = 0
@@ -80,6 +81,7 @@ class ThreatIntelCorrelator:
                 async with OTXClient(otx_cfg) as otx_client:
                     # Determine indicator type (simple heuristic)
                     import re
+
                     is_ip = re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host)
                     indicator_type = "IPv4" if is_ip else "domain"
                     otx_res = await otx_client.get_indicator_details(indicator_type, host_or_ip)
@@ -98,6 +100,7 @@ class ThreatIntelCorrelator:
                 vt_cfg = VirusTotalConfig(api_key=vt_key)
                 async with VirusTotalClient(vt_cfg) as vt_client:
                     import re
+
                     is_ip = re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host)
                     if is_ip:
                         vt_res = await vt_client.get_ip_report(host_or_ip)
@@ -129,7 +132,7 @@ class ThreatIntelCorrelator:
             "reputation_score": score,
             "intel_category": intel_category,
             "matched_feeds": feed_sources,
-            "threat_actor_attribution": attribution
+            "threat_actor_attribution": attribution,
         }
 
     def match_ioc(self, host_or_ip: str) -> dict[str, Any]:
@@ -138,11 +141,11 @@ class ThreatIntelCorrelator:
         Acts as a local cache/matcher.
         """
         host = str(host_or_ip or "").strip().lower()
-        
+
         # Simulate active indicators for testing and realistic execution
         suspicious_keywords = {"malicious", "botnet", "phishing", "c2-server", "tor-exit"}
         malicious = any(kw in host for kw in suspicious_keywords)
-        
+
         score = 0
         feed_sources = []
         intel_category = None
@@ -163,10 +166,12 @@ class ThreatIntelCorrelator:
             "reputation_score": score,
             "intel_category": intel_category,
             "matched_feeds": feed_sources,
-            "threat_actor_attribution": "APT-Unknown" if malicious else None
+            "threat_actor_attribution": "APT-Unknown" if malicious else None,
         }
 
-    async def enrich_findings_with_intel_async(self, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    async def enrich_findings_with_intel_async(
+        self, findings: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Enrich findings with CVE correlation numbers and threat intelligence feeds.
 
         Args:
@@ -186,18 +191,23 @@ class ThreatIntelCorrelator:
             target_url = f_copy.get("url")
             if target_url:
                 from urllib.parse import urlparse
+
                 host = urlparse(str(target_url)).netloc
                 if host:
                     try:
                         ioc_match = await self.match_ioc_async(host)
                         if ioc_match.get("malicious"):
                             f_copy.setdefault("threat_intel", {})["ioc_correlation"] = ioc_match
-                            logger.info("ThreatIntel: Correlated finding target '%s' to threat feeds!", host)
+                            logger.info(
+                                "ThreatIntel: Correlated finding target '%s' to threat feeds!", host
+                            )
                     except Exception as e:
                         logger.debug("Failed to match finding target against IoC feeds: %s", e)
 
             if cves:
-                logger.info("ThreatIntel: Enriched finding %s with CVEs: %s", f_copy.get("id"), cves)
+                logger.info(
+                    "ThreatIntel: Enriched finding %s with CVEs: %s", f_copy.get("id"), cves
+                )
             enriched.append(f_copy)
         return enriched
 
@@ -210,6 +220,8 @@ class ThreatIntelCorrelator:
             cves = self.correlate_cve(cat)
             f_copy["cve_correlations"] = cves
             if cves:
-                logger.info("ThreatIntel: Enriched finding %s with CVEs: %s", f_copy.get("id"), cves)
+                logger.info(
+                    "ThreatIntel: Enriched finding %s with CVEs: %s", f_copy.get("id"), cves
+                )
             enriched.append(f_copy)
         return enriched

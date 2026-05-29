@@ -35,7 +35,7 @@ class ActiveLearningController:
                     raw_rows = conn.execute(
                         "SELECT * FROM feedback_events ORDER BY timestamp DESC LIMIT 3000"
                     ).fetchall()
-                    
+
                     # Poisoning defense: Group FPs to verify confirmation threshold (N>=3)
                     fp_counts = {}
                     for row in raw_rows:
@@ -58,6 +58,7 @@ class ActiveLearningController:
                                     ts = float(ts_str)
                                 else:
                                     import datetime
+
                                     ts = datetime.datetime.fromisoformat(str(ts_str)).timestamp()
                             except Exception:
                                 ts = time.time()
@@ -72,7 +73,7 @@ class ActiveLearningController:
                                     anomalous_runs.add(rid)
                                     logger.warning(
                                         "Poisoning protection: Detected FP submission burst in run %s (quarantined).",
-                                        rid
+                                        rid,
                                     )
                                     break
 
@@ -92,7 +93,8 @@ class ActiveLearningController:
                             if fp_counts.get(key, 0) < 3:
                                 logger.info(
                                     "Poisoning protection: Omitted FP feedback for %s due to low confirmation threshold (%d/3).",
-                                    key, fp_counts.get(key, 0)
+                                    key,
+                                    fp_counts.get(key, 0),
                                 )
                                 continue
 
@@ -101,7 +103,7 @@ class ActiveLearningController:
                             if rid in anomalous_runs:
                                 logger.info(
                                     "Poisoning protection: Quarantining feedback from run %s due to anomalous submission burst.",
-                                    rid
+                                    rid,
                                 )
                                 continue
 

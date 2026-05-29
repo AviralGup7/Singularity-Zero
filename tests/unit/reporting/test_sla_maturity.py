@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import time
+
 import pytest
 
-from src.reporting.compliance_maturity import ControlMaturity, calculate_overall_grc_score
-from src.reporting.compliance_mapping import build_compliance_report
-from src.reporting.sla_tracker import SLATracker
 from src.core.frontier.chameleon_evasion import HMMEvasionModel
-from src.infrastructure.notifications.base import NotificationEvent, NotificationPriority
+from src.infrastructure.notifications.base import NotificationPriority
 from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
+from src.reporting.compliance_maturity import ControlMaturity, calculate_overall_grc_score
+from src.reporting.sla_tracker import SLATracker
 
 
 def test_calculate_overall_grc_score() -> None:
@@ -50,27 +50,28 @@ def test_calculate_overall_grc_score() -> None:
 
 def test_sla_compliance_tracker() -> None:
     now = time.time()
-    
+
     # 1. Setup sample findings
     findings = [
         {
             "id": "find-1",
             "severity": "critical",
             "title": "Critical RCE",
-            "discovered_at": now - (15 * 24 * 60 * 60)  # 15 days ago -> Overdue (SLA: 14 days)
+            "discovered_at": now - (15 * 24 * 60 * 60),  # 15 days ago -> Overdue (SLA: 14 days)
         },
         {
             "id": "find-2",
             "severity": "high",
             "title": "High SQLi",
-            "discovered_at": now - (5 * 24 * 60 * 60)   # 5 days ago -> Compliant (SLA: 30 days)
+            "discovered_at": now - (5 * 24 * 60 * 60),  # 5 days ago -> Compliant (SLA: 30 days)
         },
         {
             "id": "find-3",
             "severity": "info",
             "title": "Info Disclosure",
-            "discovered_at": now - (200 * 24 * 60 * 60) # 200 days ago -> Compliant (Info has no SLA limits)
-        }
+            "discovered_at": now
+            - (200 * 24 * 60 * 60),  # 200 days ago -> Compliant (Info has no SLA limits)
+        },
     ]
 
     report = SLATracker.check_sla_compliance(findings, current_time=now)
@@ -90,7 +91,7 @@ async def test_auto_escalate_overdue_alerts() -> None:
             "id": "find-1",
             "severity": "critical",
             "title": "Critical RCE",
-            "discovered_at": now - (16 * 24 * 60 * 60)
+            "discovered_at": now - (16 * 24 * 60 * 60),
         }
     ]
 
@@ -100,32 +101,31 @@ async def test_auto_escalate_overdue_alerts() -> None:
 
     # Track emails/slack sends
     sent_events = []
-    
+
     class MockNotifier:
         def __init__(self):
             self.channel_name = "mock"
             self.config = type("Config", (), {"min_priority": NotificationPriority.LOW})()
-            
+
         async def send(self, event, priority, title, message, metadata, correlation_id):
-            sent_events.append({
-                "event": event,
-                "priority": priority,
-                "title": title,
-                "message": message,
-                "metadata": metadata
-            })
+            sent_events.append(
+                {
+                    "event": event,
+                    "priority": priority,
+                    "title": title,
+                    "message": message,
+                    "metadata": metadata,
+                }
+            )
             return type("Result", (), {"success": True, "channel": "mock"})()
-            
+
         async def close(self):
             pass
 
     notification_manager.register_notifier("mock", MockNotifier())
 
     escalations = await SLATracker.auto_escalate_overdue(
-        findings,
-        notification_manager,
-        "target.example",
-        current_time=now
+        findings, notification_manager, "target.example", current_time=now
     )
 
     assert escalations == 1
@@ -140,17 +140,25 @@ async def test_auto_escalate_overdue_alerts() -> None:
 def test_chameleon_hmm_vectorized_transitions() -> None:
     # Instantiate the Hidden Markov Model
     model = HMMEvasionModel()
-    
+
     # Assert HMM initializes in undetected state
     assert model.get_current_state() == HMMEvasionModel.STATE_UNDETECTED
-    
+
     # Trigger observation transitions
     model.observe(HMMEvasionModel.OBS_CHALLENGE)
     # Undetected (0) with challenge (1) -> should step state if transition is active
     state1 = model.get_current_state()
-    assert state1 in {HMMEvasionModel.STATE_UNDETECTED, HMMEvasionModel.STATE_SUSPECTED, HMMEvasionModel.STATE_BLOCKED}
-    
+    assert state1 in {
+        HMMEvasionModel.STATE_UNDETECTED,
+        HMMEvasionModel.STATE_SUSPECTED,
+        HMMEvasionModel.STATE_BLOCKED,
+    }
+
     # Observe subsequent blocks
     model.observe(HMMEvasionModel.OBS_BLOCK)
     state2 = model.get_current_state()
-    assert state2 in {HMMEvasionModel.STATE_SUSPECTED, HMMEvasionModel.STATE_BLOCKED, HMMEvasionModel.STATE_EVADING}
+    assert state2 in {
+        HMMEvasionModel.STATE_SUSPECTED,
+        HMMEvasionModel.STATE_BLOCKED,
+        HMMEvasionModel.STATE_EVADING,
+    }

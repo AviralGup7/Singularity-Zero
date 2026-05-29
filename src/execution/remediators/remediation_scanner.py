@@ -6,11 +6,10 @@ Phase 9.1: Closed-loop exploit remediation re-scanning.
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 
-from src.execution.exploiters.aeve import AEVE, VerificationStatus
 from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+from src.execution.exploiters.aeve import AEVE, VerificationStatus
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +64,9 @@ class RemediationScanner:
         # Run AEVE verification
         logger.info("RemediationScanner: Re-testing finding %s via AEVE", finding_id)
         verified_result = await self.aeve.verify_finding(finding)
-        
+
         status = verified_result.get("verification_status")
-        is_still_vulnerable = (status == VerificationStatus.VERIFIED_TP.value)
+        is_still_vulnerable = status == VerificationStatus.VERIFIED_TP.value
 
         # Update lifecycle/status of the finding
         if is_still_vulnerable:

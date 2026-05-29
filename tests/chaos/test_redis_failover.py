@@ -1,7 +1,8 @@
 import uuid
-import pytest
-import redis
 from unittest.mock import MagicMock
+
+import redis
+
 from src.core.frontier.wal import FrontierWAL
 
 
@@ -36,10 +37,12 @@ def test_redis_failover_and_local_aof_fallback() -> None:
 
     # Re-verify recovery fallbacks to AOF
     # We mock _client.xrange to raise ConnectionError to force it to recover from AOF
-    mock_client.xrange.side_effect = redis.exceptions.ConnectionError("Redis down during xrange recovery")
-    
+    mock_client.xrange.side_effect = redis.exceptions.ConnectionError(
+        "Redis down during xrange recovery"
+    )
+
     recovered = wal.recover_deltas()
-    
+
     # Assert AOF recovery reconstructed both logged transactions successfully with 0% data loss
     assert len(recovered) == 2
     assert recovered[0]["stage"] == "stage_1"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+
 from src.intelligence.feeds.misp import MISPClient, MISPConfig
 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
@@ -28,23 +29,26 @@ async def test_misp_client_ioc(monkeypatch: pytest.MonkeyPatch) -> None:
         headers = self.headers
         assert "Authorization" in headers
         assert headers["Authorization"] == "test_key_xyz"
-        
+
         json_val = kwargs.get("json", {})
         val = json_val.get("value", "")
         if val == "1.1.1.1":
-            return MockResponse(200, {
-                "response": {
-                    "Attribute": [
-                        {
-                            "event_id": "101",
-                            "category": "Network activity",
-                            "type": "ip-dst",
-                            "value": "1.1.1.1",
-                            "Event": {"info": "Known malicious host"}
-                        }
-                    ]
-                }
-            })
+            return MockResponse(
+                200,
+                {
+                    "response": {
+                        "Attribute": [
+                            {
+                                "event_id": "101",
+                                "category": "Network activity",
+                                "type": "ip-dst",
+                                "value": "1.1.1.1",
+                                "Event": {"info": "Known malicious host"},
+                            }
+                        ]
+                    }
+                },
+            )
         return MockResponse(200, {"response": {}})
 
     monkeypatch.setattr(httpx.AsyncClient, "request", mock_request)
@@ -75,8 +79,12 @@ async def test_threat_intel_correlator_async() -> None:
 
     # Test enrich_findings_with_intel_async
     findings = [
-        {"id": "vuln-01", "category": "sql_injection", "url": "https://malicious-c2-server.com/search"},
-        {"id": "vuln-02", "category": "xss", "url": "https://clean.example.com/input"}
+        {
+            "id": "vuln-01",
+            "category": "sql_injection",
+            "url": "https://malicious-c2-server.com/search",
+        },
+        {"id": "vuln-02", "category": "xss", "url": "https://clean.example.com/input"},
     ]
 
     enriched = await correlator.enrich_findings_with_intel_async(findings)

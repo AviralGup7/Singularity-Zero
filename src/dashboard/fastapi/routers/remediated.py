@@ -100,8 +100,12 @@ async def verify_finding_remediation(
     # 3. Instantiate RemediationScanner and execute verification
     scanner = RemediationScanner(use_wasm_sandbox=True)
     try:
-        redis_client = services.queue.client if hasattr(services, "queue") and hasattr(services.queue, "client") else None
-        
+        redis_client = (
+            services.queue.client
+            if hasattr(services, "queue") and hasattr(services.queue, "client")
+            else None
+        )
+
         # Note: verify_remediation enforces tenant_id check internally!
         result = await scanner.verify_remediation(
             finding,
@@ -117,7 +121,7 @@ async def verify_finding_remediation(
     # If verification ran successfully (i.e. not on cooldown), persist the updated finding to disk
     if result.get("status") in {"success", "failed"}:
         updated_finding = result["finding"]
-        
+
         # Remove internal/normalized helper fields before writing back to the raw JSON file
         clean_finding = dict(updated_finding)
         clean_finding.pop("target_name", None)
@@ -130,6 +134,8 @@ async def verify_finding_remediation(
             findings_file_path.write_text(json.dumps(findings_list, indent=2), encoding="utf-8")
         except Exception as exc:
             logger.error("Failed to write remediated finding update back to disk: %s", exc)
-            raise HTTPException(status_code=500, detail="Failed to save remediation verification outcome to disk")
+            raise HTTPException(
+                status_code=500, detail="Failed to save remediation verification outcome to disk"
+            )
 
     return result

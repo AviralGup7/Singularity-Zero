@@ -62,7 +62,7 @@ class ScanAnomalyDetector:
             "mean": round(mean, 4),
             "std_dev": round(std_dev, 4),
             "current": round(current_latency, 4),
-            "status": "ANOMALOUS_SPIKE" if is_anomaly else "NORMAL"
+            "status": "ANOMALOUS_SPIKE" if is_anomaly else "NORMAL",
         }
 
     def should_throttle(self, current_latency: float) -> bool:
@@ -71,7 +71,7 @@ class ScanAnomalyDetector:
         if analysis.get("anomaly"):
             logger.warning(
                 "Anomaly detection: Latency spike detected (Z-Score: %s). Auto-throttling active.",
-                analysis.get("z_score")
+                analysis.get("z_score"),
             )
             return True
         return False

@@ -22,11 +22,11 @@ from collections.abc import Iterable
 from typing import Any
 from urllib.parse import urlparse
 
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models import Config
 from src.core.parsers.nuclei_parser import NucleiFindingParser
 from src.pipeline.tools import build_retry_policy, tool_available, try_command
 from src.recon.scoring import query_parameter_names
-from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
@@ -77,7 +77,10 @@ def build_nuclei_plan(
         parameter_names = query_parameter_names(url)
         matched: list[str] = []
 
-        if any(token in lowered for token in ["redirect=", "url=", "next=", "return=", "callback", "dest="]):
+        if any(
+            token in lowered
+            for token in ["redirect=", "url=", "next=", "return=", "callback", "dest="]
+        ):
             groups["redirect"].append(url)
             matched.append("redirect")
         if any(token in lowered for token in ["upload", "file=", "attachment"]):
@@ -96,13 +99,51 @@ def build_nuclei_plan(
         ):
             groups["idor"].append(url)
             matched.append("idor")
-        if any(token in lowered for token in ["url=", "uri=", "dest=", "domain=", "feed=", "image=", "callback=", "next="]):
+        if any(
+            token in lowered
+            for token in [
+                "url=",
+                "uri=",
+                "dest=",
+                "domain=",
+                "feed=",
+                "image=",
+                "callback=",
+                "next=",
+            ]
+        ):
             groups["ssrf"].append(url)
             matched.append("ssrf")
-        if any(token in lowered for token in ["file=", "path=", "page=", "template=", "include=", "folder=", "download=", "document="]):
+        if any(
+            token in lowered
+            for token in [
+                "file=",
+                "path=",
+                "page=",
+                "template=",
+                "include=",
+                "folder=",
+                "download=",
+                "document=",
+            ]
+        ):
             groups["lfi"].append(url)
             matched.append("lfi")
-        if any(token in lowered for token in ["debug", "swagger", "actuator", "metrics", "health", "env", "trace", "config", "internal", "console"]):
+        if any(
+            token in lowered
+            for token in [
+                "debug",
+                "swagger",
+                "actuator",
+                "metrics",
+                "health",
+                "env",
+                "trace",
+                "config",
+                "internal",
+                "console",
+            ]
+        ):
             groups["debug"].append(url)
             matched.append("debug")
         if mode == "idor" and parameter_names and "idor" not in matched:
@@ -301,9 +342,7 @@ def _verify_templates(config: Config) -> None:
 # ---------------------------------------------------------------------------
 
 
-def run_nuclei(
-    priority_urls: Iterable[str], config: Config, tags: list[str] | None = None
-) -> str:
+def run_nuclei(priority_urls: Iterable[str], config: Config, tags: list[str] | None = None) -> str:
     """Run nuclei scanning and return raw stdout text.
 
     .. deprecated::

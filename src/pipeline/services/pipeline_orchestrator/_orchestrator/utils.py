@@ -153,6 +153,7 @@ async def finalize_run(
 
     try:
         from src.core.http_utils import close_all_clients
+
         await close_all_clients()
     except Exception:
         logger_obj.debug("Best-effort AsyncClient cleanup failed", exc_info=True)
@@ -228,7 +229,7 @@ def coerce_positive_int(value: Any) -> int | None:
     """Coerce value to a positive integer, returning None if invalid."""
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return parsed if parsed > 0 else None
 
@@ -251,9 +252,7 @@ def resolve_stage_timeout(
         if override is not None:
             return int(override)
 
-    direct_override = coerce_positive_int(
-        filters.get(f"{stage_name}_stage_timeout_seconds")
-    )
+    direct_override = coerce_positive_int(filters.get(f"{stage_name}_stage_timeout_seconds"))
     if direct_override is not None:
         return int(direct_override)
 
@@ -506,7 +505,7 @@ async def record_stage_post_run(
         if getrusage is not None and rusage_self is not None:
             mem_usage = getrusage(rusage_self).ru_maxrss / 1024
             ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         pass
 
     try:

@@ -52,7 +52,9 @@ class ComplianceAlertsDispatcher:
         for control in at_risk_controls:
             body_lines.append(f"  - [AT_RISK] {control}")
 
-        body_lines.append("\nImmediate remediation action is required to restore control maturity bands.")
+        body_lines.append(
+            "\nImmediate remediation action is required to restore control maturity bands."
+        )
         full_msg = "\n".join(body_lines)
 
         try:

@@ -1,5 +1,6 @@
 import uuid
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
+
 from src.core.frontier.wal import FrontierWAL
 
 
@@ -8,9 +9,8 @@ def test_wal_local_disk_full_resilience() -> None:
     run_id = f"chaos_disk_{uuid.uuid4().hex[:8]}"
 
     # Mock Redis client so that Redis writes are healthy and successful
-    import redis
     from unittest.mock import MagicMock
-    
+
     mock_client = MagicMock()
     mock_client.xadd.return_value = b"12345-0"  # Redis stream ID
 

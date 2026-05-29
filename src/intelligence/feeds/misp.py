@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import Field
 
-from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig, FeedError
+from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class MISPClient(BaseFeedConnector):
             if response.status_code == 404:
                 return []
             response.raise_for_status()
-            
+
             data = response.json()
             if isinstance(data, dict) and "response" in data:
                 res = data["response"]
@@ -92,7 +92,10 @@ class MISPClient(BaseFeedConnector):
         if not attributes:
             # Fallback simulator for realistic target matches or sandboxes in testing
             val_lower = str(value or "").lower()
-            if any(kw in val_lower for kw in ("malicious", "botnet", "phishing", "c2-server", "tor-exit")):
+            if any(
+                kw in val_lower
+                for kw in ("malicious", "botnet", "phishing", "c2-server", "tor-exit")
+            ):
                 return {
                     "matched": True,
                     "reputation_score": 85,
@@ -112,13 +115,15 @@ class MISPClient(BaseFeedConnector):
         for attr in attributes:
             event_id = attr.get("event_id")
             event_info = attr.get("Event", {}).get("info") or f"MISP Event {event_id}"
-            events.append({
-                "event_id": str(event_id),
-                "info": str(event_info),
-                "category": attr.get("category"),
-                "type": attr.get("type"),
-                "value": attr.get("value"),
-            })
+            events.append(
+                {
+                    "event_id": str(event_id),
+                    "info": str(event_info),
+                    "category": attr.get("category"),
+                    "type": attr.get("type"),
+                    "value": attr.get("value"),
+                }
+            )
 
         return {
             "matched": len(events) > 0,

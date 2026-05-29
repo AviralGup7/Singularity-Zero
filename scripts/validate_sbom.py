@@ -18,7 +18,9 @@ def main() -> int:
     current_path = Path("output") / "sbom-current.json"
 
     if not baseline_path.exists():
-        print(f"GRC Warning: Baseline SBOM missing at {baseline_path}. Bootstrapping standard list...")
+        print(
+            f"GRC Warning: Baseline SBOM missing at {baseline_path}. Bootstrapping standard list..."
+        )
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
         # Bootstrap with default safe baseline dependencies
         default_baseline = {
@@ -28,22 +30,27 @@ def main() -> int:
                 {"name": "fastapi", "version": "0.115.0"},
                 {"name": "pydantic", "version": "2.12.0"},
                 {"name": "redis", "version": "7.0.0"},
-            ]
+            ],
         }
         baseline_path.write_text(json.dumps(default_baseline, indent=2))
 
     if not current_path.exists():
         print("Generating scan simulation for current active dependencies...")
         current_path.parent.mkdir(parents=True, exist_ok=True)
-        current_path.write_text(json.dumps({
-            "bomFormat": "CycloneDX",
-            "specVersion": "1.5",
-            "components": [
-                {"name": "fastapi", "version": "0.115.0"},
-                {"name": "pydantic", "version": "2.12.0"},
-                {"name": "redis", "version": "7.0.0"},
-            ]
-        }, indent=2))
+        current_path.write_text(
+            json.dumps(
+                {
+                    "bomFormat": "CycloneDX",
+                    "specVersion": "1.5",
+                    "components": [
+                        {"name": "fastapi", "version": "0.115.0"},
+                        {"name": "pydantic", "version": "2.12.0"},
+                        {"name": "redis", "version": "7.0.0"},
+                    ],
+                },
+                indent=2,
+            )
+        )
 
     try:
         baseline_data = json.loads(baseline_path.read_text(encoding="utf-8"))
@@ -57,7 +64,9 @@ def main() -> int:
             if name not in baseline_pkgs:
                 drifted.append(f"New package introduced: {name}=={ver}")
             elif baseline_pkgs[name] != ver:
-                drifted.append(f"Drifted version: {name} (expected {baseline_pkgs[name]}, found {ver})")
+                drifted.append(
+                    f"Drifted version: {name} (expected {baseline_pkgs[name]}, found {ver})"
+                )
 
         if drifted:
             print("Supply Chain Security Warning - Divergent packages found:")

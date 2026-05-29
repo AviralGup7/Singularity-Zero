@@ -124,7 +124,10 @@ TAKEOVER_PATTERNS: list[dict[str, Any]] = [
     {
         "service": "GCP Cloud Run / Firebase Hosting",
         "cname_pattern": ".run.app",
-        "http_indicators": [r"Error 404.*Cloud Run", r"Requested URL.*was not found on this server"],
+        "http_indicators": [
+            r"Error 404.*Cloud Run",
+            r"Requested URL.*was not found on this server",
+        ],
         "confidence": 0.8,
         "provider_url": "https://cloud.google.com/run/docs/mapping-custom-domains",
     },
@@ -173,7 +176,10 @@ TAKEOVER_PATTERNS: list[dict[str, Any]] = [
     {
         "service": "Fastly",
         "cname_pattern": ".fastly.net",
-        "http_indicators": [r"Fastly error.*Unknown domain", r"please check that this domain has been added"],
+        "http_indicators": [
+            r"Fastly error.*Unknown domain",
+            r"please check that this domain has been added",
+        ],
         "confidence": 0.85,
         "provider_url": "https://developer.fastly.com/reference/api/services/domain/",
     },
@@ -187,7 +193,10 @@ TAKEOVER_PATTERNS: list[dict[str, Any]] = [
     {
         "service": "Strikingly",
         "cname_pattern": ".strikingly.com",
-        "http_indicators": [r"But if you are the owner of this website", r"page not found.*strikingly"],
+        "http_indicators": [
+            r"But if you are the owner of this website",
+            r"page not found.*strikingly",
+        ],
         "confidence": 0.75,
         "provider_url": "https://support.strikingly.com/hc/en-us/articles/214364928",
     },
@@ -238,6 +247,7 @@ async def _resolve_cname(subdomain: str) -> str | None:
     try:
         import dns.asyncresolver
         import dns.resolver
+
         resolver = dns.asyncresolver.Resolver()
         resolver.timeout = 10
         resolver.lifetime = 10
@@ -272,9 +282,7 @@ def _match_cname_pattern(cname: str, pattern: str) -> bool:
     return cname.lower().endswith(pattern.lower())
 
 
-async def _check_http_indicators(
-    subdomain: str, service: str, timeout: float = 10.0
-) -> list[str]:
+async def _check_http_indicators(subdomain: str, service: str, timeout: float = 10.0) -> list[str]:
     """Probe subdomain over HTTP/HTTPS and match compiled indicator regexes."""
     if httpx is None:
         return []
@@ -323,9 +331,7 @@ async def _check_single_subdomain(
         if not _match_cname_pattern(cname, pattern["cname_pattern"]):
             continue
 
-        matched_indicators = await _check_http_indicators(
-            subdomain, pattern["service"]
-        )
+        matched_indicators = await _check_http_indicators(subdomain, pattern["service"])
         base_confidence: float = float(pattern.get("confidence", 0.7))
         # Downgrade if we couldn't confirm via HTTP
         effective_confidence = base_confidence if matched_indicators else base_confidence * 0.5
@@ -353,12 +359,15 @@ async def _check_single_subdomain(
 # Public API
 # ---------------------------------------------------------------------------
 
+
 async def _fetch_community_patterns(timeout: float = 10.0) -> list[dict[str, Any]]:
     """Fetch the latest takeover fingerprints from community repo (can-i-take-over-xyz)."""
     if httpx is None:
         return []
-    
-    url = "https://raw.githubusercontent.com/EdOverflow/can-i-take-over-xyz/master/fingerprints.json"
+
+    url = (
+        "https://raw.githubusercontent.com/EdOverflow/can-i-take-over-xyz/master/fingerprints.json"
+    )
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.get(url)
@@ -374,16 +383,19 @@ async def _fetch_community_patterns(timeout: float = 10.0) -> list[dict[str, Any
                             if isinstance(cname, list):
                                 cname = cname[0]
                             # Use empty string for pattern if none provided, though usually it exists
-                            new_patterns.append({
-                                "service": item.get("service", "Unknown Community Service"),
-                                "cname_pattern": str(cname).strip(),
-                                "http_indicators": [str(fingerprint)],
-                                "confidence": 0.8
-                            })
+                            new_patterns.append(
+                                {
+                                    "service": item.get("service", "Unknown Community Service"),
+                                    "cname_pattern": str(cname).strip(),
+                                    "http_indicators": [str(fingerprint)],
+                                    "confidence": 0.8,
+                                }
+                            )
                 return new_patterns
     except Exception as e:
         logger.debug("Failed to fetch community takeover patterns: %s", e)
     return []
+
 
 async def detect_takeover(
     subdomains: set[str],
@@ -415,6 +427,7 @@ async def detect_takeover(
             patterns.extend(community_patterns)
             # Compile new patterns dynamically into the global cache
             import re
+
             for p in community_patterns:
                 if p["service"] not in _COMPILED_PATTERNS:
                     _COMPILED_PATTERNS[p["service"]] = [

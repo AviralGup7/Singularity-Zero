@@ -24,13 +24,20 @@ from src.recon.js_parsers import (
 )
 
 _SECRET_PATTERNS = [
-    (re.compile(r"(?:api_key|apikey|access_token|secret_key|secretToken)[\"']?\s*[:=]\s*[\"']([a-zA-Z0-9_\-]{20,})[\"']", re.IGNORECASE), "Generic API Key/Token"),
+    (
+        re.compile(
+            r"(?:api_key|apikey|access_token|secret_key|secretToken)[\"']?\s*[:=]\s*[\"']([a-zA-Z0-9_\-]{20,})[\"']",
+            re.IGNORECASE,
+        ),
+        "Generic API Key/Token",
+    ),
     (re.compile(r"AKIA[0-9A-Z]{16}", re.IGNORECASE), "AWS Access Key ID"),
     (re.compile(r"sk-[a-zA-Z0-9]{48}", re.IGNORECASE), "OpenAI API Key"),
     (re.compile(r"Bearer\s+([a-zA-Z0-9_\-\.]{20,})", re.IGNORECASE), "Bearer Token"),
     (re.compile(r"gh[po]_[a-zA-Z0-9]{36}", re.IGNORECASE), "GitHub Token"),
     (re.compile(r"xox[baprs]-[a-zA-Z0-9\-]{10,}", re.IGNORECASE), "Slack Token"),
 ]
+
 
 def _extract_secrets(content: str) -> list[dict[str, str]]:
     secrets = []
@@ -39,6 +46,7 @@ def _extract_secrets(content: str) -> list[dict[str, str]]:
             val = match.group(1) if match.groups() else match.group(0)
             secrets.append({"type": label, "value": val[:10] + "***"})
     return secrets
+
 
 def _collect_js_discovery_urls(
     live_hosts: set[str],
@@ -106,11 +114,13 @@ def _collect_js_discovery_urls(
                 continue
             fetched += 1
             host_discovered.update(_extract_js_candidate_urls(js_body, js_url, scope_roots))
-            
+
             # Secret Scanning
             extracted_secrets = _extract_secrets(js_body)
             for secret in extracted_secrets:
-                host_secrets.append({"url": js_url, "type": secret["type"], "value": secret["value"]})
+                host_secrets.append(
+                    {"url": js_url, "type": secret["type"], "value": secret["value"]}
+                )
 
             # Map File Analysis
             map_url = js_url + ".map"
