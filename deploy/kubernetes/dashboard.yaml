@@ -30,7 +30,7 @@ metadata:
     app.kubernetes.io/component: dashboard
     app.kubernetes.io/version: "2.0.0"
   annotations:
-    #checkov:skip=CKV_K8S_35:Prefer using secrets as files over secrets as environment variables
+    checkov.io/skip1: CKV_K8S_35=Prefer using secrets as files over secrets as environment variables
 spec:
   replicas: 2
   strategy:
