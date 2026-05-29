@@ -3,6 +3,7 @@
 import hmac
 import json
 import logging
+import os
 import secrets
 import time
 
@@ -128,6 +129,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Security Fix: Remove Server header to avoid technology fingerprinting.
+        if "server" in response.headers:
+            del response.headers["server"]
+        if "Server" in response.headers:
+            del response.headers["Server"]
+        # Security Fix: Add Permissions-Policy to restrict powerful browser features.
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+        )
         return response
 
 
