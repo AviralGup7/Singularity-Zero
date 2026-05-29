@@ -75,6 +75,12 @@ class RemediationPatchGenerator:
 
         Dumps a `remediation_patches.json` file in output target root.
         """
+        import asyncio
+        import logging
+        from src.intelligence.ml.llm_service import LLMService
+
+        logger = logging.getLogger(__name__)
+        llm = LLMService.get_instance()
         patches = []
         seen_categories = set()
 
@@ -84,6 +90,40 @@ class RemediationPatchGenerator:
             if cat_key in seen_categories:
                 continue
             seen_categories.add(cat_key)
+
+            # Check if LLM is enabled to generate custom dynamic patches
+            if llm.config.enabled:
+                req_payload = finding.get("request_payload") or finding.get("payload") or finding.get("evidence")
+                resp_body = finding.get("response_body") or finding.get("response") or finding.get("body")
+                
+                try:
+                    coro = llm.generate_patch(finding, req_payload, resp_body)
+                    try:
+                        loop = asyncio.get_running_loop()
+                        if loop.is_running():
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(lambda: asyncio.run(coro))
+                                patch_data = future.result()
+                        else:
+                            patch_data = asyncio.run(coro)
+                    except RuntimeError:
+                        patch_data = asyncio.run(coro)
+                        
+                    patches.append(
+                        {
+                            "target": target,
+                            "category": category,
+                            "title": patch_data["title"],
+                            "description": patch_data["description"],
+                            "vulnerability": finding.get("title", "Detected vulnerability"),
+                            "severity": finding.get("severity", "medium"),
+                            "remediation_code": patch_data["remediation_code"],
+                        }
+                    )
+                    continue
+                except Exception as exc:
+                    logger.debug("Failed to compile AI patch, falling back to static template: %s", exc)
 
             template = self.get_patch_template(category)
             patches.append(
@@ -107,3 +147,4 @@ class RemediationPatchGenerator:
             pass
 
         return patches
+

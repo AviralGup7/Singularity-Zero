@@ -7,13 +7,12 @@ from __future__ import annotations
 
 import os
 import tempfile
-import time
 import threading
-from typing import Any
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Any
 
-from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -233,7 +232,7 @@ class GhostVFS:
                 try:
                     buf = bytearray(raw)
                     secure_wipe(buf)
-                except (TypeError, ValueError) as e:
+                except Exception as e:
                     logger.debug("Failed to wipe raw encrypted buffer: %s", e)
                 del self._files[path]
             if path in self._file_metadata:
@@ -248,7 +247,6 @@ class GhostVFS:
         start_ts = time.monotonic()
 
         old_key = self._key
-        old_aesgcm = self._aesgcm
         new_key = bytearray(AESGCM.generate_key(bit_length=256))
 
         new_files: dict[str, bytes] = {}
@@ -297,13 +295,19 @@ class GhostVFS:
                             ciphertext = chunk_payload[12:]
                             aad = f"chunk:{idx}".encode()
 
-                            decrypted_chunk = bytearray(AESGCM(bytes(old_file_key)).decrypt(nonce, ciphertext, aad))
+                            decrypted_chunk = bytearray(
+                                AESGCM(bytes(old_file_key)).decrypt(nonce, ciphertext, aad)
+                            )
 
                             try:
                                 new_nonce = os.urandom(12)
-                                new_ciphertext = AESGCM(bytes(new_file_key)).encrypt(new_nonce, bytes(decrypted_chunk), aad)
+                                new_ciphertext = AESGCM(bytes(new_file_key)).encrypt(
+                                    new_nonce, bytes(decrypted_chunk), aad
+                                )
                                 new_chunk_payload = new_nonce + new_ciphertext
-                                new_length_bytes = len(new_chunk_payload).to_bytes(4, byteorder="big")
+                                new_length_bytes = len(new_chunk_payload).to_bytes(
+                                    4, byteorder="big"
+                                )
                                 payload_parts.append(new_length_bytes + new_chunk_payload)
                             finally:
                                 secure_wipe(decrypted_chunk)
@@ -314,7 +318,7 @@ class GhostVFS:
                     finally:
                         secure_wipe(old_file_key)
                         secure_wipe(new_file_key)
-            except (ValueError, KeyError, InvalidSignature) as e:
+            except Exception as e:
                 logger.error("Ghost-VFS: Key rotation failed: %s", e)
                 secure_wipe(new_key)
                 raise RuntimeError("Key rotation aborted") from e
@@ -345,7 +349,7 @@ class GhostVFS:
             try:
                 # Immutable bytes can't be cleared in place, but we try to delete reference
                 del b
-            except AttributeError as e:
+            except Exception as e:
                 logger.warning("Ghost-VFS: Diagnostic warning in secure wipe bytes: %s", e)
 
     def list_files(self) -> list[str]:
@@ -391,8 +395,10 @@ class GhostVFS:
                         with os.fdopen(fd, "wb") as f:
                             f.write(sealed.encode("utf-8"))
                         os.replace(temp_file_path, full_path)
-                    except (OSError, AttributeError, ValueError) as e:
-                        logger.error("Ghost-VFS: Write fallback failed for %s: %s", temp_file_path, e)
+                    except Exception as e:
+                        logger.error(
+                            "Ghost-VFS: Write fallback failed for %s: %s", temp_file_path, e
+                        )
                         try:
                             os.close(fd)
                         except OSError:
@@ -400,14 +406,16 @@ class GhostVFS:
                         if os.path.exists(temp_file_path):
                             try:
                                 os.remove(temp_file_path)
-                            except OSError as ex:
+                            except Exception as ex:
                                 logger.debug(
-                                    "Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, ex
+                                    "Ghost-VFS: Failed to remove temp file %s: %s",
+                                    temp_file_path,
+                                    ex,
                                 )
                         raise
 
                 count += 1
-            except (OSError, ValueError, PermissionError) as e:
+            except Exception as e:
                 logger.error("Ghost-VFS: Failed to flush %s to disk: %s", path, e)
 
         logger.info("Ghost-VFS: Flush complete. %d artifacts persisted to disk.", count)
@@ -458,7 +466,7 @@ class GhostVFS:
                     self.write_file(rel_path, decrypted)
                     secure_wipe(bytearray(decrypted))
                     count += 1
-                except (OSError, ValueError, InvalidSignature) as e:
+                except Exception as e:
                     logger.error("Ghost-VFS: Failed to load/decrypt %s: %s", rel_path, e)
 
         logger.info("Ghost-VFS: Load complete. %d files re-hydrated.", count)
@@ -486,12 +494,14 @@ class GhostVFS:
         target_dir = os.path.dirname(os.path.abspath(output_path))
         os.makedirs(target_dir, exist_ok=True)
         with self._lock:
-            fd, temp_file_path = tempfile.mkstemp(dir=target_dir, prefix=".bundle_tmp_", suffix=".tmp")
+            fd, temp_file_path = tempfile.mkstemp(
+                dir=target_dir, prefix=".bundle_tmp_", suffix=".tmp"
+            )
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as fh:
                     fh.write(bundle)
                 os.replace(temp_file_path, output_path)
-            except (OSError, AttributeError, ValueError) as e:
+            except Exception as e:
                 logger.error("Ghost-VFS: Sealed bundle write fallback failed: %s", e)
                 try:
                     os.close(fd)
@@ -500,8 +510,10 @@ class GhostVFS:
                 if os.path.exists(temp_file_path):
                     try:
                         os.remove(temp_file_path)
-                    except OSError as ex:
-                        logger.debug("Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, ex)
+                    except Exception as ex:
+                        logger.debug(
+                            "Ghost-VFS: Failed to remove temp file %s: %s", temp_file_path, ex
+                        )
 
                 raise
 

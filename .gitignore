@@ -28,6 +28,7 @@ htmlcov/
 
 # Logs and test results
 *.log
+output/logs/
 test_results.txt
 _audit_findings.json
 test-results/
@@ -113,13 +114,14 @@ playwright/.cache/
 
 # Pipeline runtime data
 .pipeline/
-resume.cfg
+configs/pipeline_resume.cfg
 
 # Local Configs (NEVER track actual configs)
-configs/config.json
+configs/runtime.json
 configs/api_keys.json
 configs/scope.txt
 configs/settings.json
+configs/pipeline_resume.cfg
 !configs/*.example.json
 !configs/scope.example.txt
 
@@ -145,24 +147,24 @@ GEMINI.md
 !frontend/dist/**
 
 # Ignore runtime launcher job data
-_launcher/
-src/dashboard/output/_launcher/
+launcher/
+src/dashboard/output/launcher/
 
 # Exceptions for launcher static test fixtures
 !src/dashboard/output/jobs.db
-!src/dashboard/output/_launcher/
-!src/dashboard/output/_launcher/3ed7c0ee/
-!src/dashboard/output/_launcher/3ed7c0ee/**
-!src/dashboard/output/_launcher/59d5e72d/
-!src/dashboard/output/_launcher/59d5e72d/**
-!src/dashboard/output/_launcher/5e20a0db/
-!src/dashboard/output/_launcher/5e20a0db/**
-!src/dashboard/output/_launcher/694da23d/
-!src/dashboard/output/_launcher/694da23d/**
-!src/dashboard/output/_launcher/70771cc8/
-!src/dashboard/output/_launcher/70771cc8/**
-!src/dashboard/output/_launcher/a0b71b8e/
-!src/dashboard/output/_launcher/a0b71b8e/**
+!src/dashboard/output/launcher/
+!src/dashboard/output/launcher/3ed7c0ee/
+!src/dashboard/output/launcher/3ed7c0ee/**
+!src/dashboard/output/launcher/59d5e72d/
+!src/dashboard/output/launcher/59d5e72d/**
+!src/dashboard/output/launcher/5e20a0db/
+!src/dashboard/output/launcher/5e20a0db/**
+!src/dashboard/output/launcher/694da23d/
+!src/dashboard/output/launcher/694da23d/**
+!src/dashboard/output/launcher/70771cc8/
+!src/dashboard/output/launcher/70771cc8/**
+!src/dashboard/output/launcher/a0b71b8e/
+!src/dashboard/output/launcher/a0b71b8e/**
 
 # Generated Cython C source files
 src/core/frontier/_state_cython.c

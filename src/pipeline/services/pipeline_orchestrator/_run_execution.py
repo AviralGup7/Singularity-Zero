@@ -196,7 +196,7 @@ async def _execute_single_stage(
 
             # Post-run recording
             await orchestrator._record_stage_post_run(
-                stage_name, ctx, checkpoint_mgr, config.target_name
+                stage_name, ctx, checkpoint_mgr
             )
 
             # 2. Emit completion progress

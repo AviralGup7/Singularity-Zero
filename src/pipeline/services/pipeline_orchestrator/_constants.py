@@ -13,6 +13,7 @@ __all__ = [
 PIPELINE_STAGES = {
     "subdomains": "Subdomain enumeration",
     "live_hosts": "Live host probing",
+    "waf": "WAF/CDN detection",
     "urls": "URL collection",
     "parameters": "Parameter extraction",
     "ranking": "Priority ranking",
@@ -28,6 +29,7 @@ PIPELINE_STAGES = {
 STAGE_TIMEOUTS = {
     "subdomains": 600,
     "live_hosts": 900,
+    "waf": 120,
     "urls": 900,
     "parameters": 120,
     "ranking": 60,
@@ -44,6 +46,7 @@ STAGE_TIMEOUTS = {
 # Stage timeout reasoning:
 # subdomains (600s): DNS enumeration with retries for large scopes
 # live_hosts (900s): HTTP probing with batch concurrency for 1000s of hosts
+# waf (120s): WAF/CDN active fingerprinting probes
 # urls (900s): URL collection from multiple sources with rate limiting
 # parameters (120s): Fast parameter extraction from collected URLs
 # ranking (60s): Lightweight scoring and prioritization
@@ -59,6 +62,7 @@ STAGE_TIMEOUTS = {
 STAGE_ORDER = [
     "subdomains",
     "live_hosts",
+    "waf",
     "urls",
     "parameters",
     "ranking",
@@ -80,9 +84,10 @@ DEFAULT_TIMEOUT_SECONDS = 3600
 STAGE_DEPS = {
     "subdomains": set(),
     "live_hosts": {"subdomains"},
+    "waf": {"live_hosts"},
     "urls": {"live_hosts"},
     "parameters": {"urls"},
-    "ranking": {"urls", "parameters"},
+    "ranking": {"urls", "parameters", "waf"},
     "passive_scan": {"ranking", "live_hosts", "urls"},
     "active_scan": {"passive_scan"},
     "semgrep": {"passive_scan"},
@@ -97,5 +102,6 @@ STAGE_DEPS = {
 # Each tuple is (after_stage, [parallel_stages]).
 # After `after_stage` completes, all stages in the list can run concurrently.
 PARALLEL_STAGE_GROUPS = [
+    ("live_hosts", ["waf", "urls"]),
     ("passive_scan", ["nuclei", "access_control", "semgrep"]),
 ]

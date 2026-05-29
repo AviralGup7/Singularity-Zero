@@ -553,22 +553,49 @@ def probe_live_hosts_fallback(
 
 
 def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] | None:
+    """Fallback prober using urllib3 and explicit IPv6 connectivity checks."""
+    import socket
+    
     candidates = [host] if "://" in host else [f"https://{host}", f"http://{host}"]
+    
+    # Dual-stack support: find IPv6 addresses for the host
+    if "://" not in host:
+        try:
+            # Only attempt if it looks like a hostname
+            if not any(c.isdigit() for c in host.split(".")[-1:]):
+                addr_info = socket.getaddrinfo(host, None, socket.AF_INET6)
+                for info in addr_info:
+                    ip6 = info[4][0]
+                    # Avoid duplicates and link-local if possible, but keep it simple
+                    candidates.append(f"https://[{ip6}]")
+                    candidates.append(f"http://[{ip6}]")
+        except (socket.gaierror, socket.herror, OSError):
+            pass
+
     pool = get_pooled_connection()
-    for candidate in candidates:
+    # De-duplicate candidates while preserving order
+    seen = set()
+    unique_candidates = []
+    for c in candidates:
+        if c not in seen:
+            seen.add(c)
+            unique_candidates.append(c)
+
+    for candidate in unique_candidates:
         try:
             resp = pool.request(
                 "GET",
                 candidate,
-                headers={"User-Agent": DEFAULT_USER_AGENT},
+                headers={"User-Agent": DEFAULT_USER_AGENT, "Host": host.split(":")[0]},
                 timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
                 retries=False,
             )
             return {
                 "url": normalize_url(resp.geturl() or candidate),
                 "status_code": resp.status,
-                "source": "python-probe",
+                "source": "python-probe-ipv6" if "[" in candidate else "python-probe",
+                "resolved_host": host,
             }
-        except urllib3.exceptions.HTTPError:
+        except (urllib3.exceptions.HTTPError, Exception):
             continue
     return None

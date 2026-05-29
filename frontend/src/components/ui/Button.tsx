@@ -2,7 +2,7 @@ import { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { VisualVariantProps } from '@/types/ui';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'gradient';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VisualVariantProps {
@@ -25,6 +25,9 @@ const variantClasses: Record<ButtonVariant, string> = {
   ghost:
    
     'bg-transparent text-[var(--text)] border border-transparent hover:bg-[var(--hover-bg)] hover:text-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]',
+  gradient:
+   
+    'text-white border border-white/10 bg-[linear-gradient(135deg,var(--neon-cyan),var(--accent),var(--accent-2))] [background-size:200%_200%] hover:[background-position:100%_100%] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -84,7 +87,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         disabled={disabled || loading}
         className={cn(
-          'inline-flex items-center justify-center gap-2 font-mono font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed',
+          'inline-flex items-center justify-center gap-2 font-mono font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed',
           toneClasses && Reflect.get(toneClasses, tone),
           intensityClasses && Reflect.get(intensityClasses, intensity),
           !interactive && 'pointer-events-none',

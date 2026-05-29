@@ -43,6 +43,36 @@ async def run_reporting(
     try:
         emit_progress("reporting", "Generating report and dashboard", 96)
         post_started = time.monotonic()
+
+        # ──────────────────────────────────────────────────────────
+        # LLM-Driven Vulnerability Triage Integration
+        # ──────────────────────────────────────────────────────────
+        try:
+            from src.intelligence.ml.llm_service import LLMService
+            llm = LLMService.get_instance()
+            if llm.config.enabled:
+                findings_to_triage = getattr(ctx, "merged_findings", None) or getattr(ctx, "reportable_findings", [])
+                logger.info("Running automated AI triage on %d scan findings", len(findings_to_triage))
+                for finding in findings_to_triage:
+                    req_payload = finding.get("request_payload") or finding.get("payload") or finding.get("evidence")
+                    resp_body = finding.get("response_body") or finding.get("response") or finding.get("body")
+                    
+                    try:
+                        review = await llm.triage_false_positive(finding, req_payload, resp_body)
+                        finding["ai_triage_decision"] = review["decision"]
+                        finding["ai_confidence_score"] = review["confidence"]
+                        finding["ai_reasoning"] = review["reasoning"]
+                        
+                        # Automatically suppress and adjust FP based on AI review decision
+                        if review["decision"] == "FP":
+                            finding["lifecycle_state"] = "FALSE_POSITIVE"
+                            finding["status"] = "false_positive"
+                            finding["confidence"] = min(finding.get("confidence", 0.8), round(1.0 - review["confidence"], 2))
+                    except Exception as e:
+                        logger.debug("AI triage failed for finding %s: %s", finding.get("id"), e)
+        except Exception as exc:
+            logger.warning("Failed to run automated AI triage: %s", exc)
+
         screenshots_task = asyncio.create_task(
             asyncio.to_thread(
                 capture_screenshots,

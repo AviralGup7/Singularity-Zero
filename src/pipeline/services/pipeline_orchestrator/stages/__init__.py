@@ -10,6 +10,7 @@ from .recon import (
     run_priority_ranking,
     run_subdomain_enumeration,
     run_url_collection,
+    run_waf_detection,
 )
 from .reporting import run_reporting
 from .semgrep import run_semgrep_stage
@@ -18,6 +19,7 @@ from .validation import run_validation
 __all__ = [
     "run_subdomain_enumeration",
     "run_live_hosts",
+    "run_waf_detection",
     "run_url_collection",
     "run_parameter_extraction",
     "run_priority_ranking",

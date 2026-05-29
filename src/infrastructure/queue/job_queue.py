@@ -5,6 +5,8 @@ scheduling, atomic state transitions via Redis Lua scripts, lease management,
 dead-letter queue handling, and configurable retry policies.
 """
 
+from __future__ import annotations
+
 import json
 import time
 from collections.abc import Callable
@@ -18,178 +20,17 @@ from src.infrastructure.queue.redis_client import RedisClient
 from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
 from src.pipeline.self_healing import HealthComponent, HealthMetric, HealthStatus
 
-# Fix #283: use pipeline logger instead of stdlib
+# Modular imports
+from src.infrastructure.queue.lua_scripts import (
+    CLAIM_JOB_SCRIPT,
+    COMPLETE_JOB_SCRIPT,
+    FAIL_JOB_SCRIPT,
+    RELEASE_LEASE_SCRIPT,
+    ENQUEUE_SCRIPT,
+)
+from src.infrastructure.queue.retry_policy import RetryPolicy
+
 logger = get_pipeline_logger(__name__)
-
-CLAIM_JOB_SCRIPT = """
-local job_key = KEYS[1]
-local queue_key = KEYS[2]
-local worker_key = KEYS[3]
-local worker_id = ARGV[1]
-local lease_seconds = tonumber(ARGV[2])
-local now = tonumber(ARGV[3])
-
-local exists = redis.call('EXISTS', job_key)
-if exists == 0 then
-    return {0, 'not_found'}
-end
-
-local state = redis.call('HGET', job_key, 'state')
-if state ~= 'pending' and state ~= 'retrying' then
-    return {0, 'invalid_state', state}
-end
-
-local lease_expires = now + lease_seconds
-redis.call('HSET', job_key, 'state', 'claimed', 'worker_id', worker_id, 'lease_expires_at', tostring(lease_expires))
-redis.call('ZREM', queue_key, job_key)
-redis.call('SADD', worker_key, job_key)
-return {1, 'claimed'}
-"""
-
-COMPLETE_JOB_SCRIPT = """
-local job_key = KEYS[1]
-local worker_key = KEYS[2]
-local metrics_key = KEYS[3]
-local result_json = ARGV[1]
-local now = ARGV[2]
-
-if redis.call('EXISTS', job_key) == 0 then
-    return {0}
-end
-
-redis.call('HSET', job_key, 'state', 'completed', 'completed_at', now, 'result', result_json, 'lease_expires_at', '', 'worker_id', '')
-redis.call('SREM', worker_key, job_key)
-redis.call('HINCRBY', metrics_key, 'completed', 1)
-return {1}
-"""
-
-FAIL_JOB_SCRIPT = """
-local job_key = KEYS[1]
-local worker_key = KEYS[2]
-local queue_key = KEYS[3]
-local dlq_key = KEYS[4]
-local metrics_key = KEYS[5]
-local error_msg = ARGV[1]
-local retries = tonumber(ARGV[2])
-local max_retries = tonumber(ARGV[3])
-local now = tonumber(ARGV[4])
-
-if redis.call('EXISTS', job_key) == 0 then
-    return {0, 'not_found'}
-end
-
-redis.call('SREM', worker_key, job_key)
-redis.call('HSET', job_key, 'error', error_msg)
-
-if retries < max_retries then
-    local backoff = math.floor(math.min(tonumber(ARGV[5]) * math.pow(tonumber(ARGV[6]), retries), tonumber(ARGV[7])))
-    local retry_at = now + backoff
-    local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or retry_at
-    redis.call('HSET', job_key, 'state', 'retrying', 'worker_id', '', 'lease_expires_at', '')
-    redis.call('ZADD', queue_key, bid_score, job_key)
-    redis.call('HINCRBY', metrics_key, 'retried', 1)
-    return {1, 'retrying', tostring(retry_at)}
-else
-    redis.call('HSET', job_key, 'state', 'dead_letter', 'completed_at', tostring(now), 'worker_id', '', 'lease_expires_at', '')
-    redis.call('ZADD', dlq_key, now, job_key)
-    redis.call('HINCRBY', metrics_key, 'dead_lettered', 1)
-    return {2, 'dead_letter'}
-end
-"""
-
-RELEASE_LEASE_SCRIPT = """
-local job_key = KEYS[1]
-local worker_key = KEYS[2]
-local queue_key = KEYS[3]
-
-if redis.call('EXISTS', job_key) == 0 then
-    return {0}
-end
-
-local state = redis.call('HGET', job_key, 'state')
-if state ~= 'claimed' and state ~= 'running' then
-    return {0}
-end
-
-redis.call('HSET', job_key, 'state', 'pending', 'worker_id', '', 'lease_expires_at', '')
-redis.call('SREM', worker_key, job_key)
-local bid_score = tonumber(redis.call('HGET', job_key, 'bid_score')) or 0
-redis.call('ZADD', queue_key, bid_score, job_key)
-return {1}
-"""
-
-ENQUEUE_SCRIPT = """
-local job_key = KEYS[1]
-local queue_key = KEYS[2]
-local priority = tonumber(ARGV[1])
-local job_id = ARGV[2]
-local created_at = tonumber(ARGV[3])
-local hash_args = cjson.decode(ARGV[4])
-local bid_score = tonumber(ARGV[5])
-
-local score = bid_score or ((priority * 10000000000) - created_at)
-redis.call('HSET', job_key, unpack(hash_args))
-redis.call('ZADD', queue_key, score, job_key)
-return {1, job_id}
-"""
-
-
-class RetryPolicy:
-    """Configurable retry policy with exponential backoff.
-
-    Attributes:
-        max_retries: Maximum number of retry attempts.
-        backoff_multiplier: Multiplier for exponential backoff calculation.
-        initial_delay: Initial delay in seconds before first retry.
-        max_delay: Maximum delay in seconds between retries.
-        jitter: Whether to add random jitter to backoff delays.
-    """
-
-    def __init__(
-        self,
-        max_retries: int = 3,
-        backoff_multiplier: float = 2.0,
-        initial_delay: float = 1.0,
-        max_delay: float = 300.0,
-        jitter: bool = True,
-    ) -> None:
-        """Initialize the retry policy.
-
-        Args:
-            max_retries: Maximum retry attempts before dead-lettering.
-            backoff_multiplier: Exponential backoff multiplier.
-            initial_delay: Initial delay in seconds.
-            max_delay: Maximum delay cap in seconds.
-            jitter: Whether to add random jitter (prevents thundering herd).
-        """
-        self.max_retries = max_retries
-        self.backoff_multiplier = backoff_multiplier
-        self.initial_delay = initial_delay
-        self.max_delay = max_delay
-        self.jitter = jitter
-
-    def get_delay(self, attempt: int) -> float:
-        """Calculate the delay before the next retry attempt.
-
-        Uses exponential backoff with optional jitter.
-
-        Args:
-            attempt: The current retry attempt number (0-indexed).
-
-        Returns:
-            Delay in seconds before the next retry.
-        """
-
-        delay = self.initial_delay * (self.backoff_multiplier**attempt)
-        delay = min(delay, self.max_delay)
-
-        if self.jitter:
-            import secrets
-
-            # Fix #285: Use randbelow instead of instantiating SystemRandom on every call
-            delay = delay * (0.5 + secrets.randbelow(1000) / 2000.0)
-
-        return delay
 
 
 class JobQueue:
@@ -238,7 +79,7 @@ class JobQueue:
         self._scripts_registered = False
         self.scheduler = ResourceAwareScheduler() if enable_scheduler else None
 
-        # Fix #286: Register scripts once at initialization instead of per-call
+        # Register scripts once at initialization instead of per-call
         self._register_scripts()
 
     def _key(self, suffix: str) -> str:
@@ -300,7 +141,7 @@ class JobQueue:
             hash_args.append(v)
 
         hash_args_json = json.dumps(hash_args)
-        # Fix #284: Prevent extremely large hash_args from crashing Redis Lua engine
+        # Prevent extremely large hash_args from crashing Redis Lua engine
         if len(hash_args_json) > 1024 * 1024:
             raise ValueError(
                 f"Task envelope too large for queue (size: {len(hash_args_json)} bytes)"
@@ -435,7 +276,6 @@ class JobQueue:
         job = Job.from_redis_hash(job_data)
         retries = job.retries
         max_retries = job.max_retries
-        # Fix #287: removed dead self.retry_policy.get_delay(retries) call
 
         ret = self.redis.execute_script(
             "fail_job",
@@ -578,8 +418,7 @@ class JobQueue:
         if job is None or job.state != JobState.DEAD_LETTER:
             return False
 
-        # Fix #288: Mutating a Pydantic model directly can fail if it's frozen or tracked.
-        # Create a new copy instead.
+        # Create a new copy instead of mutating directly
         new_job = job.model_copy(
             update={
                 "state": JobState.PENDING,
@@ -639,7 +478,6 @@ class JobQueue:
 
         job_data = job.to_redis_hash()
         pipe = self.redis.client
-        # Fix #289: Access using getattr to avoid breaking encapsulation directly
         is_fallback = getattr(
             self.redis, "is_fallback", getattr(self.redis, "_use_fallback", False)
         )
@@ -651,7 +489,6 @@ class JobQueue:
                 pipeline.execute()
                 return True
             except Exception as exc:
-                # Fix #290: Log pipeline execution failure instead of silent pass
                 logger.warning("Pipeline execution failed while cancelling job %s: %s", job_id, exc)
 
         self.redis.execute_command("HSET", self._job_key(job_id), mapping=job_data)
@@ -872,9 +709,6 @@ class JobQueue:
             Number of stale leases released.
         """
         released = 0
-        # Fix #291: ZRANGEBYSCORE over the entire queue is O(n) and blocks Redis.
-        # Also, claimed jobs are in worker tracking sets, not the main queue.
-        # We iterate over worker job sets using SCAN/SMEMBERS instead.
         if worker_id:
             worker_keys = [self._key(f"worker:{worker_id}:jobs")]
         else:

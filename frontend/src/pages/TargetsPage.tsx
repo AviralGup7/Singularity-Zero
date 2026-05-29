@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Target } from '../types/api';
 import { SkeletonTable } from '../components/ui/Skeleton';
 import { Pagination } from '../components/ui/Pagination';
@@ -8,11 +9,14 @@ import { startJob, apiClient } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { UrlCollectionSystem } from '../components/UrlCollectionSystem';
 import { Icon } from '../components/Icon';
-import { Target as TargetIcon, ChevronDown, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Target as TargetIcon, ChevronDown, RefreshCw, AlertTriangle, X, Upload } from 'lucide-react';
+import { PageHeader, GlassCard, AnimatedCounter, GlowProgress } from '../components/ui';
 
 const PAGE_SIZE = 10;
    
 const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
+
+const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 interface TargetsResponse {
   targets: Target[];
@@ -87,6 +91,12 @@ export function TargetsPage() {
    
   const [isScanning, setIsScanning] = useState(false);
   const toast = useToast();
+
+  // Semgrep Import Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importTargetName, setImportTargetName] = useState('');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedFilter(filter), 300);
@@ -218,7 +228,6 @@ export function TargetsPage() {
 
   const allOnPageSelected = paginatedTargets.length > 0 && paginatedTargets.every(t => selectedTargets.has(t.name || ''));
 
-   
   const activeFilterChips: { label: string; onRemove: () => void }[] = [];
 
   filters.severities.forEach(sev => {
@@ -263,26 +272,60 @@ export function TargetsPage() {
     });
   }
 
-  const handleImportSemgrep = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChangeForImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImportFile(file);
+    const defaultName = file.name.replace(/\.[^/.]+$/, "");
+    setImportTargetName(defaultName);
+    setShowImportModal(true);
+    e.target.value = '';
+  };
 
-    const targetName = prompt('Enter target name for import:');
-    if (!targetName) return;
-
+  const executeSemgrepImport = async () => {
+    if (!importFile || !importTargetName.trim()) return;
+    setIsImporting(true);
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', importFile);
 
     try {
-      await apiClient.post(`/api/imports/semgrep?target_name=${encodeURIComponent(targetName)}`, formData, {
+      await apiClient.post(`/api/imports/semgrep?target_name=${encodeURIComponent(importTargetName.trim())}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      toast.success(`Successfully imported Semgrep results for ${targetName}`);
+      toast.success(`Successfully imported Semgrep results for ${importTargetName}`);
       refetch();
+      setShowImportModal(false);
+      setImportFile(null);
+      setImportTargetName('');
     } catch (err) {
       toast.error(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsImporting(false);
     }
   };
+
+  const getGlowProgressVariant = (status: string) => {
+    switch (status) {
+      case 'completed': return 'success';
+      case 'failed': return 'danger';
+      case 'running': return 'cyber';
+      default: return 'default';
+    }
+  };
+
+  // KPI calculations
+  const targetsCount = data?.targets?.length ?? 0;
+  const criticalFindings = useMemo(() => {
+    return (data?.targets ?? []).reduce((acc, t) => {
+      return acc + (Number(t.severity_counts?.critical) || 0);
+    }, 0);
+  }, [data?.targets]);
+  const avgFindings = useMemo(() => {
+    const targets = data?.targets ?? [];
+    if (!targets.length) return 0;
+    const totalFindings = targets.reduce((acc, t) => acc + (t.finding_count ?? 0), 0);
+    return Math.round(totalFindings / targets.length);
+  }, [data?.targets]);
 
   if (loading) return <SkeletonTable rows={5} />;
 
@@ -291,185 +334,267 @@ export function TargetsPage() {
       <div className="card error">
         <h2><AlertTriangle size={16} className="inline-block mr-1" /> Error</h2>
         <p>{error.message}</p>
-        <button onClick={() => { refetch(); }} className="btn btn-primary">Retry</button>
+        <button onClick={() => { void refetch(); }} className="btn btn-primary">Retry</button>
       </div>
     );
   }
 
   return (
-    <div className="targets-page">
-      <div className="page-header">
-        <h2 data-focus-heading><TargetIcon size={18} className="inline-block mr-1" /> Targets</h2>
-        <div className="targets-header-actions">
-          <label className="btn btn-sm btn-secondary cursor-pointer">
-            <Icon name="upload" size={14} /> Import Semgrep
-            <input type="file" accept=".json" className="hidden" onChange={handleImportSemgrep} />
-          </label>
-          <input
-            type="text"
-            placeholder="Filter targets..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="search-input"
-            aria-label="Filter targets by name or finding title"
-            data-testid="targets-filter"
-          />
-          <button
-            type="button"
-            className={`btn btn-sm ${showFilters ? 'btn-primary' : ''}`}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <ChevronDown size={14} className="inline-block" /> Filters
-          </button>
-        </div>
+    <div className="targets-page space-y-6">
+      <PageHeader
+        icon={<TargetIcon size={20} />}
+        title="Targets"
+        subtitle="Manage scan targets and view results"
+        actions={
+          <div className="flex items-center gap-3">
+            <label className="btn btn-sm btn-secondary cursor-pointer flex items-center gap-1.5">
+              <Upload size={14} />
+              <span>Import Semgrep</span>
+              <input type="file" accept=".json" className="hidden" onChange={handleFileChangeForImport} />
+            </label>
+            <input
+              type="text"
+              placeholder="Filter targets..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="search-input"
+              aria-label="Filter targets by name or finding title"
+              data-testid="targets-filter"
+            />
+            <button
+              type="button"
+              className={`btn btn-sm ${showFilters ? 'btn-primary' : ''} flex items-center gap-1`}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <ChevronDown size={14} className={`transform transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
+              <span>Filters</span>
+            </button>
+          </div>
+        }
+      />
+
+      {/* 3-column KPI summary row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <GlassCard variant="glow" delay={0.05}>
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Total Targets</span>
+            <span className="text-3xl font-bold mt-1 text-[var(--text-primary)]">
+              <AnimatedCounter value={targetsCount} />
+            </span>
+          </div>
+        </GlassCard>
+        <GlassCard variant="glow" delay={0.1}>
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Critical Findings</span>
+            <span className="text-3xl font-bold mt-1 text-[var(--bad)]">
+              <AnimatedCounter value={criticalFindings} />
+            </span>
+          </div>
+        </GlassCard>
+        <GlassCard variant="glow" delay={0.15}>
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Average Findings</span>
+            <span className="text-3xl font-bold mt-1 text-[var(--accent)]">
+              <AnimatedCounter value={avgFindings} />
+            </span>
+          </div>
+        </GlassCard>
       </div>
 
       <UrlCollectionSystem />
 
-      {selectedTargets.size > 0 && (
-        <div className="bulk-action-bar">
-          <div className="bulk-action-info">
-            <span>{selectedTargets.size} target{selectedTargets.size > 1 ? 's' : ''} selected</span>
-            <button className="btn btn-sm btn-primary" onClick={handleBulkRescan} disabled={isScanning}>
-              {isScanning ? 'Scanning...' : <><RefreshCw size={14} className="inline-block mr-1" /> Re-scan Selected</>}
-            </button>
-            <button className="bulk-clear-btn" onClick={clearSelection}>Clear selection</button>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {selectedTargets.size > 0 && (
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -20, opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE_OUT }}
+          >
+            <div className="bulk-action-bar">
+              <div className="bulk-action-info">
+                <span>{selectedTargets.size} target{selectedTargets.size > 1 ? 's' : ''} selected</span>
+                <button className="btn btn-sm btn-primary flex items-center gap-1.5" onClick={handleBulkRescan} disabled={isScanning}>
+                  {isScanning ? (
+                    <span className="animate-spin h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full" />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                  <span>{isScanning ? 'Scanning...' : 'Re-scan Selected'}</span>
+                </button>
+                <button className="bulk-clear-btn" onClick={clearSelection}>Clear selection</button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {scanProgress.size > 0 && (
-        <div className="scan-progress-panel">
+        <div className="scan-progress-panel space-y-3">
           <h4 className="scan-progress-title">Scan Progress</h4>
           {Array.from(scanProgress.values()).map(p => (
-            <div key={p.targetName} className="scan-progress-item">
-              <span className="scan-progress-target">{p.targetName}</span>
-              <div className="scan-progress-bar">
-                <div
-                  className={`scan-progress-fill scan-progress-${p.status}`}
-                  style={{ width: `${p.progress}%` }}
+            <div key={p.targetName} className="scan-progress-item flex items-center gap-4 p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+              <span className="scan-progress-target font-medium w-36 truncate">{p.targetName}</span>
+              <div className="flex-1">
+                <GlowProgress
+                  value={p.progress}
+                  variant={getGlowProgressVariant(p.status)}
+                  animated={p.status === 'running'}
+                  size="sm"
+                  showLabel
                 />
               </div>
-              <span className="scan-progress-status">{p.status}</span>
-              {p.jobId && <span className="scan-progress-job">{p.jobId}</span>}
+              <span className={`scan-progress-status text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${
+                p.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
+                p.status === 'failed' ? 'bg-rose-500/10 text-rose-400' :
+                p.status === 'running' ? 'bg-cyan-500/10 text-cyan-400 animate-pulse' :
+                'bg-gray-500/10 text-gray-400'
+              }`}>{p.status}</span>
+              {p.jobId && <span className="scan-progress-job text-xs text-[var(--text-tertiary)] tabular-nums">{p.jobId}</span>}
             </div>
           ))}
         </div>
       )}
 
-      {showFilters && (
-        <div className="card card-padded multi-filter-panel">
-          <div className="multi-filter-grid">
-            <div className="filter-group">
-              <span className="filter-group-label">Severity</span>
-              <div className="filter-checkboxes">
-                {SEVERITIES.map(sev => (
-                  <label key={sev} className="filter-checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={filters.severities.has(sev)}
-                      onChange={() => toggleSeverity(sev)}
-                    />
-                    <span className={`severity-dot severity-${sev}`}>{sev}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-group">
-              <span className="filter-group-label">Status</span>
-              <div className="filter-radio-group">
-                {(['all', 'active', 'inactive'] as const).map(status => (
-                  <label key={status} className="filter-radio-label">
-                    <input
-                      type="radio"
-                      name="target-status"
-                      checked={filters.status === status}
-                      onChange={() => setFilters(prev => ({ ...prev, status }))}
-                    />
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="filter-group">
-              <span className="filter-group-label">Finding Count</span>
-              <div className="filter-range-row">
-                <input
-                  id="filter-min-findings"
-                  type="number"
-                  min={0}
-                  placeholder="Min"
-                  value={filters.minFindings || ''}
-                  onChange={e => setFilters(prev => ({ ...prev, minFindings: parseInt(e.target.value, 10) || 0 }))}
-                  className="form-input form-input-sm"
-                  aria-label="Minimum findings"
-                />
-                <span className="filter-range-sep">to</span>
-                <input
-                  id="filter-max-findings"
-                  type="number"
-                  min={0}
-                  placeholder="Max"
-                  value={filters.maxFindings === Infinity ? '' : filters.maxFindings}
-                  onChange={e => setFilters(prev => ({ ...prev, maxFindings: parseInt(e.target.value, 10) || Infinity }))}
-                  className="form-input form-input-sm"
-                  aria-label="Maximum findings"
-                />
-              </div>
-            </div>
-
-            <div className="filter-group">
-              <span className="filter-group-label">Last Scan Date</span>
-              <div className="filter-date-row">
-                <input
-                  type="date"
-                  value={filters.lastScanAfter}
-                  onChange={e => setFilters(prev => ({ ...prev, lastScanAfter: e.target.value }))}
-                  className="form-input form-input-sm"
-                  aria-label="Scan date from"
-                />
-                <span className="filter-range-sep">to</span>
-                <input
-                  type="date"
-                  value={filters.lastScanBefore}
-                  onChange={e => setFilters(prev => ({ ...prev, lastScanBefore: e.target.value }))}
-                  className="form-input form-input-sm"
-                  aria-label="Scan date to"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeFilterChips.length > 0 && (
-        <div className="active-filters-bar">
-          <div className="active-filters-chips">
-            {activeFilterChips.map((chip, i) => (
-              <span key={i} className="filter-chip">
-                {chip.label}
-                <button
-                  type="button"
-                  className="filter-chip-remove"
-                  onClick={chip.onRemove}
-                  aria-label={`Remove filter: ${chip.label}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="btn btn-sm btn-danger"
-            onClick={clearAllFilters}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: EASE_OUT }}
+            className="overflow-hidden"
           >
-            Clear all filters
-          </button>
-        </div>
-      )}
+            <div className="card card-padded multi-filter-panel mb-6">
+              <div className="multi-filter-grid">
+                <div className="filter-group">
+                  <span className="filter-group-label">Severity</span>
+                  <div className="filter-checkboxes">
+                    {SEVERITIES.map(sev => (
+                      <label key={sev} className="filter-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={filters.severities.has(sev)}
+                          onChange={() => toggleSeverity(sev)}
+                        />
+                        <span className={`severity-dot severity-${sev}`}>{sev}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <span className="filter-group-label">Status</span>
+                  <div className="filter-radio-group">
+                    {(['all', 'active', 'inactive'] as const).map(status => (
+                      <label key={status} className="filter-radio-label">
+                        <input
+                          type="radio"
+                          name="target-status"
+                          checked={filters.status === status}
+                          onChange={() => setFilters(prev => ({ ...prev, status }))}
+                        />
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <span className="filter-group-label">Finding Count</span>
+                  <div className="filter-range-row">
+                    <input
+                      id="filter-min-findings"
+                      type="number"
+                      min={0}
+                      placeholder="Min"
+                      value={filters.minFindings || ''}
+                      onChange={e => setFilters(prev => ({ ...prev, minFindings: parseInt(e.target.value, 10) || 0 }))}
+                      className="form-input form-input-sm"
+                      aria-label="Minimum findings"
+                    />
+                    <span className="filter-range-sep">to</span>
+                    <input
+                      id="filter-max-findings"
+                      type="number"
+                      min={0}
+                      placeholder="Max"
+                      value={filters.maxFindings === Infinity ? '' : filters.maxFindings}
+                      onChange={e => setFilters(prev => ({ ...prev, maxFindings: parseInt(e.target.value, 10) || Infinity }))}
+                      className="form-input form-input-sm"
+                      aria-label="Maximum findings"
+                    />
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <span className="filter-group-label">Last Scan Date</span>
+                  <div className="filter-date-row">
+                    <input
+                      type="date"
+                      value={filters.lastScanAfter}
+                      onChange={e => setFilters(prev => ({ ...prev, lastScanAfter: e.target.value }))}
+                      className="form-input form-input-sm"
+                      aria-label="Scan date from"
+                    />
+                    <span className="filter-range-sep">to</span>
+                    <input
+                      type="date"
+                      value={filters.lastScanBefore}
+                      onChange={e => setFilters(prev => ({ ...prev, lastScanBefore: e.target.value }))}
+                      className="form-input form-input-sm"
+                      aria-label="Scan date to"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {activeFilterChips.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="active-filters-bar flex items-center justify-between mb-6"
+          >
+            <div className="active-filters-chips flex flex-wrap gap-2">
+              <AnimatePresence>
+                {activeFilterChips.map((chip) => (
+                  <motion.span
+                    key={chip.label}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    className="filter-chip flex items-center gap-1"
+                  >
+                    <span>{chip.label}</span>
+                    <button
+                      type="button"
+                      className="filter-chip-remove flex items-center justify-center hover:text-[var(--bad)] transition-colors"
+                      onClick={chip.onRemove}
+                      aria-label={`Remove filter: ${chip.label}`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </motion.span>
+                ))}
+              </AnimatePresence>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              onClick={clearAllFilters}
+            >
+              Clear all filters
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {filtered.length === 0 ? (
         <div className="card empty">
@@ -501,7 +626,12 @@ export function TargetsPage() {
               </thead>
               <tbody>
                 {paginatedTargets.map((target, index) => (
-                  <tr key={target.name || target.href || `target-${currentPage}-${index}`} className={selectedTargets.has(target.name || '') ? 'row-selected' : ''}>
+                  <tr
+                    key={target.name || target.href || `target-${currentPage}-${index}`}
+                    className={`transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/5 ${
+                      selectedTargets.has(target.name || '') ? 'row-selected bg-white/5' : ''
+                    }`}
+                  >
                     <td className="bulk-select-col">
                       <input
                         type="checkbox"
@@ -618,6 +748,112 @@ export function TargetsPage() {
           />
         </>
       )}
+
+      {/* Import Semgrep Modal */}
+      <AnimatePresence>
+        {showImportModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isImporting) {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportTargetName('');
+                }
+              }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            
+            {/* Modal Card */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.3, ease: EASE_OUT }}
+              className="relative w-full max-w-md overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl"
+              style={{ backdropFilter: 'blur(20px)' }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportTargetName('');
+                }}
+                disabled={isImporting}
+                className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <Upload size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--text-primary)]">Import Semgrep Results</h3>
+                  <p className="text-xs text-[var(--text-secondary)]">Upload scan results JSON to create/update target</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {importFile && (
+                  <div className="p-3 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-secondary)]">
+                    <span className="font-semibold block text-[var(--text-primary)] mb-1">Selected File:</span>
+                    <span className="truncate block font-mono">{importFile.name}</span>
+                    <span className="text-[10px] text-[var(--text-tertiary)]">({(importFile.size / 1024).toFixed(1)} KB)</span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label htmlFor="import-target-name" className="text-xs font-semibold text-[var(--text-secondary)]">Target Name</label>
+                  <input
+                    id="import-target-name"
+                    type="text"
+                    placeholder="e.g. example.com"
+                    value={importTargetName}
+                    onChange={(e) => setImportTargetName(e.target.value)}
+                    className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_2px_var(--accent-soft)] transition-all duration-200"
+                    disabled={isImporting}
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowImportModal(false);
+                      setImportFile(null);
+                      setImportTargetName('');
+                    }}
+                    disabled={isImporting}
+                    className="btn btn-sm btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={executeSemgrepImport}
+                    disabled={isImporting || !importTargetName.trim()}
+                    className="btn btn-sm btn-primary flex items-center gap-1.5"
+                  >
+                    {isImporting ? (
+                      <span className="animate-spin h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full" />
+                    ) : (
+                      <Upload size={14} />
+                    )}
+                    <span>{isImporting ? 'Importing...' : 'Import'}</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -30,7 +30,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from src.infrastructure.scheduling.bidding import MultiObjectiveBid, bid_for_target
-from src.learning.signal_quality import ml_pipeline, extract_features
+from src.learning.signal_quality import extract_features, ml_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -585,6 +585,7 @@ class CorrelationPriorityQueue:
         """Trigger incremental training of the ML quality model using queue targets and logs."""
         try:
             import numpy as np
+
             X: list[list[float]] = []
             y: list[int] = []
 
@@ -607,7 +608,9 @@ class CorrelationPriorityQueue:
 
             if len(X) >= 5 and len(np.unique(y)) > 1:
                 ml_pipeline.fit(np.array(X), np.array(y))
-                logger.info("ML Quality Model incrementally retrained on %d samples from priority queue", len(X))
+                logger.info(
+                    "ML Quality Model incrementally retrained on %d samples from priority queue",
+                    len(X),
+                )
         except Exception as exc:
             logger.warning("Failed to trigger ML feedback retraining: %s", exc)
-

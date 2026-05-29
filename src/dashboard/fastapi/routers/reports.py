@@ -37,6 +37,60 @@ def _get_latest_run_dir(output_root: Path, target: str) -> Path | None:
 
 
 @router.get(
+    "/ai-summary",
+    summary="Get AI executive security posture summary for a target",
+)
+async def get_ai_executive_summary(
+    target: str,
+    auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> dict[str, Any]:
+    output_root = services.query.output_root
+    tenant_id = (auth or {}).get("tenant_id", "default")
+    
+    # 1. Enforce strict multi-tenant boundary checks
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+    if not is_target_owned_by_tenant(target, tenant_id):
+        raise HTTPException(status_code=403, detail="Access denied to requested target infrastructure")
+
+    # 2. Get latest run directory
+    run_dir = _get_latest_run_dir(output_root, target)
+    if not run_dir:
+        raise HTTPException(status_code=404, detail="No completed scan runs found for target")
+
+    # 3. Load findings
+    findings = []
+    findings_path = run_dir / "findings.json"
+    if findings_path.exists():
+        try:
+            findings = json.loads(findings_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # 4. Load compliance report if available
+    compliance_report = None
+    compliance_path = run_dir / "compliance_coverage.json"
+    if compliance_path.exists():
+        try:
+            compliance_report = json.loads(compliance_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # 5. Generate AI summary
+    try:
+        from src.intelligence.ml.llm_service import LLMService
+        llm = LLMService.get_instance()
+        summary_markdown = await llm.generate_executive_summary(findings, compliance_report)
+        return {
+            "target": target,
+            "run_id": run_dir.name,
+            "summary": summary_markdown
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to generate AI executive summary: {exc}")
+
+
+@router.get(
     "/library",
     summary="List signed report artefacts across pipeline runs",
 )
