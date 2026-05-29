@@ -109,7 +109,6 @@ def emit_summary(payload: dict[str, Any]) -> None:
     emit_info(json.dumps(payload, indent=2, default=_json_default))
 
 
-
 def emit_warning(message: str) -> None:
     """Emit a warning message to stderr.
 
@@ -155,4 +154,3 @@ def emit_retry_warning(
     )
     sys.stderr.write(f"{LOGGING_FORMAT['warning_prefix']}{msg}\n")
     sys.stderr.flush()
-
