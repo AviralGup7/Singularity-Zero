@@ -19,7 +19,7 @@ declare module 'axios' {
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
 function generateRequestId(): string {
-  return `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `req-${crypto.randomUUID()}`;
 }
 
 export class ApiError extends Error {

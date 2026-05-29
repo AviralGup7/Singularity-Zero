@@ -17,7 +17,8 @@ services:
     networks:
       - cyber-pipeline-dev
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-devpassword}", "ping"]
+      # Use PING command without exposing password in process list
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -52,8 +53,8 @@ services:
       - pipeline-data:/app/data
       - pipeline-logs:/app/logs
     environment:
-      APP_ENV: development
-      APP_DEBUG: "true"
+      APP_ENV: production
+      APP_DEBUG: "false"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
@@ -102,8 +103,8 @@ services:
       - pipeline-data:/app/data
       - pipeline-logs:/app/logs
     environment:
-      APP_ENV: development
-      APP_DEBUG: "true"
+      APP_ENV: production
+      APP_DEBUG: "false"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
@@ -123,7 +124,7 @@ services:
           cpus: '0.5'
           memory: 512M
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD:-devpassword}'); r.ping()"]
+      test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379); r.ping()"]
       interval: 15s
       timeout: 5s
       retries: 3

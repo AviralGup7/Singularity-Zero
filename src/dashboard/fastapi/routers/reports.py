@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,10 +17,11 @@ from src.reporting.report_artifacts import build_report_library
 router = APIRouter(prefix="/api/reports")
 
 
-def _get_latest_run_dir(output_root: Path, target: str) -> Path | None:
-    target_dir = output_root / target
-    if not target_dir.is_dir():
-        return None
+from src.dashboard.fastapi.routers.utils import get_safe_target_dir
+
+
+def _get_latest_run_dir_safe(output_root: Path, target_name: str) -> Path | None:
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     run_dirs = sorted(
         [
@@ -57,7 +59,7 @@ async def get_ai_executive_summary(
         )
 
     # 2. Get latest run directory
-    run_dir = _get_latest_run_dir(output_root, target)
+    run_dir = _get_latest_run_dir_safe(output_root, target)
     if not run_dir:
         raise HTTPException(status_code=404, detail="No completed scan runs found for target")
 
@@ -119,7 +121,7 @@ async def get_compliance_pdf(
 ) -> FileResponse:
     """Return the compliance attestation PDF for the latest run of *target*."""
     output_root = services.query.output_root
-    run_dir = _get_latest_run_dir(output_root, target)
+    run_dir = _get_latest_run_dir_safe(output_root, target)
 
     if run_dir is None:
         raise HTTPException(

@@ -262,28 +262,28 @@ async def run_waf_detection(
     *,
     stage_input: StageInput | None = None,
 ) -> StageOutput:
-    \"\"\"Stage 2.5: Detect WAF/CDN protection on live hosts.\"\"\"
+    """Stage 2.5: Detect WAF/CDN protection on live hosts."""
     try:
         emit_progress("waf", "Detecting WAF/CDN protection", 55)
         if stage_input is None:
             stage_input = build_stage_input_from_context("waf", config, ctx)
-            
+
         stage_output = await run_waf_detection_service(
             stage_input,
             timeout=float(config.recon.get("waf_timeout", 10.0))
         )
-        
+
         if stage_output.outcome == StageOutcome.COMPLETED:
             waf_findings = stage_output.state_delta.get("waf_findings", [])
             emit_progress("waf", f"Found {len(waf_findings)} WAF/CDN signatures", 56)
-            
+
             emit_stage_summary("waf", {
                 "findings_count": len(waf_findings),
                 "providers": sorted(list({f["provider"] for f in waf_findings})),
                 "duration": stage_output.duration_seconds,
                 "status": "ok"
             })
-            
+
         return cast(StageOutput, stage_output)
     except Exception as exc:
         logger.error("Stage 'waf' failed: %s", exc)
@@ -305,7 +305,7 @@ async def run_url_collection(
     *,
     stage_input: StageInput | None = None,
 ) -> StageOutput:
-    \"\"\"Stage 3: Collect URLs from live hosts.\"\"\"
+    """Stage 3: Collect URLs from live hosts."""
     try:
         emit_progress("urls", "Collecting URLs", 56)
 
@@ -407,9 +407,8 @@ async def run_url_collection(
             }
             drift_report = detector.compute_drift(target_name, current_snapshot)
             if drift_report.get("has_drift", False):
-                logger.warning("Recon asset drift detected!")
                 summary = detector.render_cli_summary(drift_report)
-                print(summary)
+                logger.warning("Recon asset drift detected for %s:\n%s", target_name, summary)
             else:
                 logger.info(
                     "No recon asset drift detected. Core profile matches historical snapshot."
@@ -460,7 +459,7 @@ async def run_parameter_extraction(
     *,
     stage_input: StageInput | None = None,
 ) -> StageOutput:
-    \"\"\"Stage 4: Extract parameters, infer target profile, load history feedback.\"\"\"
+    """Stage 4: Extract parameters, infer target profile, load history feedback."""
     try:
         emit_progress("parameters", "Extracting parameters", 74)
         if stage_input is None:
@@ -485,14 +484,14 @@ async def run_parameter_extraction(
             targets_scanning=0,
             event_trigger="recon_parameters_extracted",
         )
-        
+
         emit_stage_summary("parameters", {
             "parameters_extracted": parameter_count,
             "target_profile": stage_output.state_delta.get("target_profile", {}),
             "duration": stage_output.duration_seconds,
             "status": "ok"
         })
-        
+
         return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'parameters' failed: %s", exc)
@@ -517,7 +516,7 @@ async def run_priority_ranking(
     *,
     stage_input: StageInput | None = None,
 ) -> StageOutput:
-    \"\"\"Stage 5: Score and rank priority endpoints.\"\"\"
+    """Stage 5: Score and rank priority endpoints."""
     try:
         emit_progress("priority", "Scoring priority endpoints", 82)
         if stage_input is None:

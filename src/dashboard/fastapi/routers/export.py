@@ -16,14 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/export", tags=["Export"])
 
 
-def _find_target_dir(output_root: Path, target_id: str) -> Path | None:
-    target = output_root / target_id
-    if target.is_dir() and (target / "index.html").exists():
-        return target
-    for entry in output_root.iterdir():
-        if entry.is_dir() and entry.name.lower() == target_id.lower():
-            return entry
-    return None
+from src.dashboard.fastapi.routers.utils import get_safe_target_dir
 
 
 def _find_latest_run_dir(target_dir: Path) -> Path | None:
@@ -125,9 +118,7 @@ async def export_findings(
     from src.reporting.export_findings import export_findings_csv, export_findings_json
 
     output_root = services.query.output_root
-    target_dir = _find_target_dir(output_root, target_name)
-    if target_dir is None:
-        raise HTTPException(status_code=404, detail="Target not found")
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     findings = _load_all_findings(target_dir)
 
@@ -163,9 +154,7 @@ async def export_latest_findings(
     from src.reporting.export_findings import export_findings_csv, export_findings_json
 
     output_root = services.query.output_root
-    target_dir = _find_target_dir(output_root, target_name)
-    if target_dir is None:
-        raise HTTPException(status_code=404, detail="Target not found")
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     latest_run = _find_latest_run_dir(target_dir)
     findings = _load_findings(latest_run) if latest_run else []
@@ -206,9 +195,7 @@ async def export_compliance_attestation(
     from src.reporting.compliance_attestation import generate_compliance_attestation_html
 
     output_root = services.query.output_root
-    target_dir = _find_target_dir(output_root, target_name)
-    if target_dir is None:
-        raise HTTPException(status_code=404, detail="Target not found")
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     latest_run = _find_latest_run_dir(target_dir)
     if not latest_run:

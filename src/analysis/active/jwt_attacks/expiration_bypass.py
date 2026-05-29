@@ -64,7 +64,7 @@ def test_expiration_bypass(token: str, url: str, session: Any) -> dict[str, Any]
         ]
 
         for test in lifetime_tests:
-            test_token = _create_jwt(header, cast(dict, test["payload"]))
+            test_token = _create_jwt(header, cast(dict, test["payload"]), secret=b"secret")
 
             for auth_header in JWT_AUTH_HEADERS:
                 resp = _send_with_token(url, test_token, auth_header, session)

@@ -99,7 +99,10 @@ SENSITIVE_PATTERNS = (
         ),
     ),
     ("sendgrid_api_key", re.compile(r"\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b")),
-    ("twilio_auth_token", re.compile(r"\b[a-f0-9]{32}\b")),
+    (
+        "twilio_auth_token",
+        re.compile(r"(?i)\btwilio(.{0,20})?auth[_-]?token\b.{0,8}[:=].{0,4}[a-f0-9]{32}\b"),
+    ),
     ("bearer_token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]+=*")),
     (
         "internal_ip_reference",
@@ -131,7 +134,6 @@ TOKEN_PARAM_NAMES = {
     "sessionid",
     "token",
 }
-# Common CSRF token field names found in forms, headers, and cookies
 CSRF_TOKEN_NAMES = {
     "csrf_token",
     "csrf-token",
@@ -175,7 +177,6 @@ SSRF_PARAM_NAMES = {
     "validate",
     "webhook",
     "profile",
-    # Additional SSRF sink parameters commonly found in modern APIs
     "endpoint",
     "fetch",
     "forward",
@@ -200,7 +201,6 @@ SSRF_PARAM_NAMES = {
     "window",
 }
 
-# Additional CSRF token parameter names used in modern frameworks
 ADDITIONAL_CSRF_PARAM_NAMES = {
     "csrf",
     "xsrf",
@@ -222,4 +222,8 @@ TECH_SIGNATURES = (
     ("Laravel", re.compile(r"laravel", re.IGNORECASE)),
     ("Django", re.compile(r"django|csrftoken", re.IGNORECASE)),
     ("Ruby on Rails", re.compile(r"rails|rack", re.IGNORECASE)),
+    ("FastAPI", re.compile(r"fastapi", re.IGNORECASE)),
+    ("Express", re.compile(r"x-powered-by: express", re.IGNORECASE)),
+    ("Spring", re.compile(r"x-application-context|spring", re.IGNORECASE)),
+    ("Flask", re.compile(r"werkzeug|flask", re.IGNORECASE)),
 )

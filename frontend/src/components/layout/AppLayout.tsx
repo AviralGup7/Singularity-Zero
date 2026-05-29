@@ -158,7 +158,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   useCommandPaletteItems(defaultNavItems);
 
   const addNotification = useCallback((notif: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
-    const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const id = `notif-${crypto.randomUUID()}`;
     const newNotif: Notification = { ...notif, id, timestamp: Date.now(), read: false };
    
     setNotifications(prev => [newNotif, ...prev].slice(0, 100));

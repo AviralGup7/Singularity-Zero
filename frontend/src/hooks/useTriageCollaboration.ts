@@ -18,8 +18,8 @@ export function getTriageAnalyst() {
     }
   }
   const analyst = {
-    analyst_id: `analyst-${Math.random().toString(36).slice(2, 10)}`,
-    analyst_name: `Analyst ${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+    analyst_id: `analyst-${crypto.randomUUID()}`,
+    analyst_name: `Analyst ${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
   };
   localStorage.setItem(key, JSON.stringify(analyst));
   return analyst;

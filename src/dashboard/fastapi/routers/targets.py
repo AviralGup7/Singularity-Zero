@@ -14,6 +14,7 @@ from src.dashboard.fastapi.dependencies import (
     require_admin,
     require_auth,
 )
+from src.dashboard.fastapi.routers.utils import get_safe_target_dir
 from src.dashboard.fastapi.schemas import (
     ErrorResponse,
     HistoricalScoreResponse,
@@ -202,28 +203,14 @@ async def delete_target(
     _auth: Any = Depends(require_admin),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
-    """Delete a target output directory."""
+    """Delete a target output directory. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
     user_id = (_auth or {}).get("user", "unknown")
     verify_tenant_boundary(request, target_name, tenant_id, user_id)
 
-    if not _validate_target_name(target_name):
-        raise HTTPException(status_code=400, detail="Invalid target name")
+    output_root = services.query.output_root
+    target_dir = get_safe_target_dir(output_root, target_name)
 
-    output_root = services.query.output_root.resolve()
-    target_dir = (output_root / target_name).resolve()
-    if not target_dir.exists():
-        target_dir = next(
-            (
-                child.resolve()
-                for child in output_root.iterdir()
-                if child.is_dir() and child.name.lower() == target_name.lower()
-            ),
-            None,
-        )
-
-    if target_dir is None or not target_dir.exists() or not target_dir.is_relative_to(output_root):
-        raise HTTPException(status_code=404, detail="Target not found")
     if not target_dir.is_dir() or target_dir.name.startswith("_"):
         raise HTTPException(status_code=400, detail="Target cannot be deleted")
 
@@ -245,29 +232,19 @@ async def get_target_findings(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> TargetFindingsResponse:
+    """Retrieve findings for a specific target with traversal protection. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
     user_id = (_auth or {}).get("user", "unknown")
     verify_tenant_boundary(request, target_name, tenant_id, user_id)
 
-    if not _validate_target_name(target_name):
-        raise HTTPException(status_code=400, detail="Invalid target name")
-
     output_root = services.query.output_root
-    target_dir = output_root / target_name
-    if not target_dir.exists():
-        target_dir = next(
-            (
-                child
-                for child in output_root.iterdir()
-                if child.is_dir() and child.name.lower() == target_name.lower()
-            ),
-            None,
-        )
-    if not target_dir or not target_dir.exists():
-        raise HTTPException(status_code=404, detail="Target not found")
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     if run:
-        run_dir = target_dir / run
+        # SEC-FIX: Use Path().name to prevent sub-run traversal
+        from pathlib import Path
+        safe_run = Path(run).name
+        run_dir = target_dir / safe_run
         if not run_dir.exists():
             raise HTTPException(status_code=404, detail="Run not found")
         run_dirs = [run_dir]
@@ -289,8 +266,8 @@ async def get_target_findings(
                         if isinstance(f, dict):
                             f.setdefault("timestamp", run_dir.name)
                             all_findings.append(f)
-            except Exception:  # noqa: S110, S112  # noqa: S110, S112
-                pass  # Loading findings from single target failed, skip
+            except Exception:  # noqa: S110, S112
+                pass
 
     return TargetFindingsResponse(
         findings=all_findings,
@@ -311,19 +288,15 @@ async def get_risk_score(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> RiskScoreResponse:
+    """Get risk score with traversal protection. (SEC-FIX)"""
     from src.recon.scoring import compute_aggregate_risk_score
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
     user_id = (_auth or {}).get("user", "unknown")
     verify_tenant_boundary(request, target_name, tenant_id, user_id)
 
-    if not _validate_target_name(target_name):
-        raise HTTPException(status_code=400, detail="Invalid target name")
-
     output_root = services.query.output_root
-    target_dir = output_root / target_name
-    if not target_dir.exists():
-        raise HTTPException(status_code=404, detail="Target not found")
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     latest_run = max(
         (
@@ -378,12 +351,13 @@ async def get_timeline(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> TimelineResponse:
+    """Retrieve timeline with traversal protection. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
     if not is_target_owned_by_tenant(target_name, tenant_id):
         raise HTTPException(status_code=403, detail="Access denied to this target")
 
-    if not _validate_target_name(target_name):
-        raise HTTPException(status_code=400, detail="Invalid target name")
+    output_root = services.query.output_root
+    get_safe_target_dir(output_root, target_name)
 
     timeline = services.query.get_timeline_data(target_name)
     return TimelineResponse(
@@ -405,19 +379,15 @@ async def get_historical_scores(
     services: Any = Depends(get_queue_client),
     cache_manager: Any = Depends(get_cache_manager),
 ) -> HistoricalScoreResponse:
+    """Get historical scores with traversal protection. (SEC-FIX)"""
     from src.recon.scoring import compute_historical_score
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
     if not is_target_owned_by_tenant(target_name, tenant_id):
         raise HTTPException(status_code=403, detail="Access denied to this target")
 
-    if not _validate_target_name(target_name):
-        raise HTTPException(status_code=400, detail="Invalid target name")
-
     output_root = services.query.output_root
-    target_dir = output_root / target_name
-    if not target_dir.exists():
-        raise HTTPException(status_code=404, detail="Target not found")
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     run_dirs = sorted(
         (
@@ -447,8 +417,8 @@ async def get_historical_scores(
             try:
                 summary = json.loads(summary_path.read_text(encoding="utf-8"))
                 run_timestamp = summary.get("generated_at_utc", run_dir.name)
-            except Exception:  # noqa: S110, S112  # noqa: S110, S112
-                pass  # Loading findings from single target failed, skip
+            except Exception:  # noqa: S110, S112
+                pass
 
         for finding in findings:
             if not isinstance(finding, dict):
@@ -493,18 +463,13 @@ async def get_target_compliance(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
-    """Get the latest compliance coverage and maturity report (Phase 6)."""
+    """Get the latest compliance report with traversal protection. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
     if not is_target_owned_by_tenant(target_name, tenant_id):
         raise HTTPException(status_code=403, detail="Access denied to this target")
 
-    if not _validate_target_name(target_name):
-        raise HTTPException(status_code=400, detail="Invalid target name")
-
     output_root = services.query.output_root
-    target_dir = output_root / target_name
-    if not target_dir.exists():
-        raise HTTPException(status_code=404, detail="Target not found")
+    target_dir = get_safe_target_dir(output_root, target_name)
 
     latest_run = max(
         (
@@ -525,7 +490,6 @@ async def get_target_compliance(
         except Exception as e:
             logger.error("Failed to load compliance report: %s", e)
 
-    # Fallback: Generate it if it doesn't exist
     from src.reporting.compliance_mapping import build_compliance_report
 
     findings_path = latest_run / "findings.json"
@@ -552,7 +516,7 @@ async def list_all_findings(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
-    """List all findings across all targets with pagination support."""
+    """List all findings with traversal protection on target filter. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
     if target and not is_target_owned_by_tenant(target, tenant_id):
         raise HTTPException(status_code=403, detail="Access denied to this target")
@@ -583,7 +547,7 @@ async def list_all_findings(
                     parsed_summary = json.loads(summary_path.read_text(encoding="utf-8"))
                     if isinstance(parsed_summary, dict):
                         summary_data = parsed_summary
-                except Exception:  # noqa: S110, S112  # noqa: S110, S112
+                except Exception:  # noqa: S110, S112
                     summary_data = {}
 
             run_generated_at = str(
@@ -598,7 +562,7 @@ async def list_all_findings(
                     data = json.loads(findings_path.read_text(encoding="utf-8"))
                     if isinstance(data, list):
                         run_findings = [item for item in data if isinstance(item, dict)]
-            except Exception:  # noqa: S110, S112  # noqa: S110, S112
+            except Exception:  # noqa: S110, S112
                 run_findings = []
 
             if not run_findings:
@@ -636,12 +600,28 @@ async def list_all_findings(
 
 
 def _get_target_comparison_details(target_name: str, services: Any) -> dict[str, Any]:
+    """Retrieve comparison details with traversal protection. (SEC-FIX)"""
     output_root = services.query.output_root
-    target_dir = output_root / target_name
+
+    # Use safe lookup
+    try:
+        target_dir = get_safe_target_dir(output_root, target_name)
+    except HTTPException:
+        return {
+            "name": target_name,
+            "risk_score": 0.0,
+            "finding_count": 0,
+            "url_count": 0,
+            "parameter_count": 0,
+            "attack_chain_count": 0,
+            "run_count": 0,
+            "latest_run": "",
+            "severity_counts": {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0},
+        }
 
     # Defaults
     details = {
-        "name": target_name,
+        "name": target_dir.name,
         "risk_score": 0.0,
         "finding_count": 0,
         "url_count": 0,
@@ -651,22 +631,6 @@ def _get_target_comparison_details(target_name: str, services: Any) -> dict[str,
         "latest_run": "",
         "severity_counts": {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0},
     }
-
-    if not target_dir.exists():
-        # Case-insensitive check
-        matched = next(
-            (
-                child
-                for child in output_root.iterdir()
-                if child.is_dir() and child.name.lower() == target_name.lower()
-            ),
-            None,
-        )
-        if matched:
-            target_dir = matched
-            details["name"] = matched.name
-        else:
-            return details
 
     run_dirs = sorted(
         [d for d in target_dir.iterdir() if d.is_dir() and (d / "run_summary.json").exists()],
@@ -700,7 +664,6 @@ def _get_target_comparison_details(target_name: str, services: Any) -> dict[str,
         except Exception as e:
             logger.warning("Failed to load summary for target comparison: %s", e)
 
-    # Calculate risk score using compute_aggregate_risk_score
     from src.recon.scoring import compute_aggregate_risk_score
 
     risk_data = compute_aggregate_risk_score(findings, summary)
@@ -740,14 +703,12 @@ async def compare_targets(
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> TargetComparisonResponse:
+    """Compare targets with traversal protection. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
     if not is_target_owned_by_tenant(target_a, tenant_id) or not is_target_owned_by_tenant(
         target_b, tenant_id
     ):
         raise HTTPException(status_code=403, detail="Access denied to one or both targets")
-
-    if not _validate_target_name(target_a) or not _validate_target_name(target_b):
-        raise HTTPException(status_code=400, detail="Invalid target name")
 
     res_a = _get_target_comparison_details(target_a, services)
     res_b = _get_target_comparison_details(target_b, services)

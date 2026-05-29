@@ -121,7 +121,7 @@ function useFindingComments(findingId: string, targetName?: string, runId?: stri
     setError(null);
     try {
       await collaboration.sendAction('comment_added', {
-        comment_id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        comment_id: `comment-${crypto.randomUUID()}`,
         text,
         mentions,
       });
@@ -140,7 +140,7 @@ function useFindingComments(findingId: string, targetName?: string, runId?: stri
     setError(null);
     try {
       await collaboration.sendAction('comment_added', {
-        comment_id: `reply-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        comment_id: `reply-${crypto.randomUUID()}`,
         parent_id: parentId,
         text,
         mentions: extractMentions(text),

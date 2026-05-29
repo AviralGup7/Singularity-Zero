@@ -5,12 +5,9 @@ import re
 from typing import Any, cast
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-import requests
-
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.helpers.scoring import normalized_confidence
 from src.analysis.passive.runtime import ResponseCache
-from src.core.utils.url_validation import is_safe_url
 from src.recon.common import normalize_url
 
 IDOR_NUMERIC_RE = re.compile(r"/(\d+)(?:/|$|\?)")
@@ -88,67 +85,38 @@ SENSITIVE_PATH_HINTS = {
 
 
 def _safe_request(
+    response_cache: ResponseCache,
     url: str,
     method: str = "GET",
     headers: dict[str, str] | None = None,
     body: bytes | None = None,
     timeout: int = 10,
 ) -> dict[str, Any]:
-    req_headers = dict(headers or {})
-    req_headers.setdefault(
-        "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecurityPipeline/1.0"
+    """Surgically replace direct requests call with ResponseCache for safety and rate limiting. (Fix Audit #2)"""
+    resp = response_cache.request(
+        url,
+        method=method,
+        headers=headers,
+        body=body,
     )
-    req_headers.setdefault("Accept", "application/json, text/html, */*")
-    if not is_safe_url(url):
+    if resp is None:
         return {
             "status": 0,
             "headers": {},
             "body": "",
             "body_length": 0,
             "success": False,
-            "error": "URL failed safety check",
+            "error": "Request failed or blocked by safety policy",
         }
-    try:
-        resp = requests.request(
-            method, url, headers=req_headers, data=body, timeout=timeout, verify=True
-        )
-        resp_body = resp.text or ""
-        return {
-            "status": getattr(resp, "status_code", 0),
-            "headers": dict(resp.headers),
-            "body": resp_body[:8000],
-            "body_length": len(resp_body),
-            "success": resp.status_code < 400,
-        }
-    except requests.RequestException as e:
-        resp_body = ""
-        resp_obj = getattr(e, "response", None)
-        status = 0
-        headers = {}
-        if resp_obj is not None:
-            try:
-                resp_body = resp_obj.text
-                status = getattr(resp_obj, "status_code", 0)
-                headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
-        return {
-            "status": status,
-            "headers": headers,
-            "body": (resp_body or "")[:8000],
-            "body_length": len(resp_body or ""),
-            "success": False,
-            "error": str(e),
-        }
-    except Exception as e:
-        return {
-            "status": 0,
-            "headers": {},
-            "body": "",
-            "body_length": 0,
-            "success": False,
-            "error": str(e),
-        }
+
+    # Adapt ResponseCache output to IDOR probe's expected format
+    return {
+        "status": int(resp.get("status_code", 0)),
+        "headers": dict(resp.get("headers", {})),
+        "body": str(resp.get("body_text", "") or "")[:8000],
+        "body_length": len(str(resp.get("body_text", "") or "")),
+        "success": int(resp.get("status_code", 0)) < 400,
+    }
 
 
 def _is_sensitive_endpoint(url: str) -> bool:
@@ -161,9 +129,8 @@ def _extract_json_data(body: str) -> dict[str, Any] | list[Any] | None:
     if stripped.startswith(("{", "[")):
         try:
             return cast(dict[str, Any] | list[Any] | None, json.loads(stripped[:50000]))
-        except json.JSONDecodeError, ValueError:
+        except (json.JSONDecodeError, ValueError):
             pass
-    return None
     return None
 
 
@@ -272,7 +239,7 @@ def idor_active_probe(
 
         original_resp = response_cache.get(url)
         if not original_resp:
-            original_resp = _safe_request(url, timeout=8)
+            original_resp = _safe_request(response_cache, url, timeout=8)
         if not original_resp or original_resp.get("status") in (404, 410, 503):
             continue
 
@@ -283,7 +250,6 @@ def idor_active_probe(
 
         parsed = urlparse(url)
         query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
-        {k.lower() for k, _ in query_pairs}
 
         idor_targets: list[tuple[str, str, str]] = []
 
@@ -372,7 +338,7 @@ def idor_active_probe(
                     if k.lower() in ("authorization", "cookie", "x-csrf-token"):
                         test_headers[k] = v
 
-                response = _safe_request(test_url, headers=test_headers, timeout=10)
+                response = _safe_request(response_cache, test_url, headers=test_headers, timeout=10)
                 if not response:
                     continue
 
@@ -411,50 +377,51 @@ def idor_active_probe(
                     )
                     break
 
-        for method in ["PUT", "DELETE", "PATCH"]:
-            if len(url_evidence) >= 5:
-                break
-            if target_type == "path_numeric":
-                try:
-                    numeric_id = int(original_id)
-                except ValueError:
-                    continue
-                test_id = str(numeric_id + 1)
-                test_path = target_info.replace("{id}", test_id)
-                test_url = normalize_url(urlunparse(parsed._replace(path=test_path)))
-            elif target_type == "param":
-                test_id = "999999"
-                updated_pairs = [(k, test_id if k == target_info else v) for k, v in query_pairs]
-                test_url = normalize_url(
-                    urlunparse(parsed._replace(query=urlencode(updated_pairs, doseq=True)))
-                )
-            else:
-                continue
-
-            test_headers = {
-                "Content-Type": "application/json",
-            }
-            for k, v in original_headers.items():
-                if k.lower() in ("authorization", "cookie"):
-                    test_headers[k] = v
-
-            body_bytes = json.dumps({"test": "idor_probe"}).encode()
-            response = _safe_request(
-                test_url, method=method, headers=test_headers, body=body_bytes, timeout=10
-            )
-            if response:
-                status = response.get("status", 0)
-                if status in (200, 204) and original_status in (401, 403):
-                    url_signals.append(f"idor_method_{method.lower()}_bypass")
-                    url_evidence.append(
-                        {
-                            "target_type": target_type,
-                            "method": method,
-                            "test_id": test_id,
-                            "status_code": status,
-                            "signals": [f"idor_method_{method.lower()}_bypass"],
-                        }
+            # Method probes (PUT/DELETE/PATCH) (Fix Audit #4: Move inside loop scope)
+            for method in ["PUT", "DELETE", "PATCH"]:
+                if len(url_evidence) >= 8:
+                    break
+                if target_type == "path_numeric":
+                    try:
+                        numeric_id = int(original_id)
+                    except ValueError:
+                        continue
+                    test_id = str(numeric_id + 1)
+                    test_path = target_info.replace("{id}", test_id)
+                    test_url = normalize_url(urlunparse(parsed._replace(path=test_path)))
+                elif target_type == "param":
+                    test_id = "999999"
+                    updated_pairs = [(k, test_id if k == target_info else v) for k, v in query_pairs]
+                    test_url = normalize_url(
+                        urlunparse(parsed._replace(query=urlencode(updated_pairs, doseq=True)))
                     )
+                else:
+                    continue
+
+                test_headers = {
+                    "Content-Type": "application/json",
+                }
+                for k, v in original_headers.items():
+                    if k.lower() in ("authorization", "cookie"):
+                        test_headers[k] = v
+
+                body_bytes = json.dumps({"test": "idor_probe"}).encode()
+                response = _safe_request(
+                    response_cache, test_url, method=method, headers=test_headers, body=body_bytes, timeout=10
+                )
+                if response:
+                    status = response.get("status", 0)
+                    if status in (200, 204) and original_status in (401, 403):
+                        url_signals.append(f"idor_method_{method.lower()}_bypass")
+                        url_evidence.append(
+                            {
+                                "target_type": target_type,
+                                "method": method,
+                                "test_id": test_id,
+                                "status_code": status,
+                                "signals": [f"idor_method_{method.lower()}_bypass"],
+                            }
+                        )
 
         if url_evidence:
             severity = "high" if is_sensitive else "medium"
@@ -462,14 +429,15 @@ def idor_active_probe(
                 severity = "critical" if is_sensitive else "high"
 
             title = (
-                f"IDOR: potential unauthorized access to resource via {target_type} manipulation"
+                "IDOR: potential unauthorized access to resource via manipulation"
             )
             if is_sensitive:
                 title = "IDOR: sensitive resource accessed via ID manipulation"
             if "idor_auth_bypass" in url_signals:
                 title = "IDOR: authentication bypass via resource ID manipulation"
 
-            normalized_confidence(
+            # Fix Audit #3: Use normalized_confidence result
+            confidence = normalized_confidence(
                 base=0.70 if severity == "high" else 0.55 if severity == "medium" else 0.85,
                 score=8 if severity == "high" else 5,
                 signals=url_signals,
@@ -483,15 +451,18 @@ def idor_active_probe(
             )
 
             findings.append(
-                _build_finding(
-                    url=url,
-                    severity=severity,
-                    title=title,
-                    signals=sorted(set(url_signals)),
-                    evidence={"tests": url_evidence[:10], "total_tests": len(url_evidence)},
-                    explanation=explanation,
-                    status_code=original_status if original_status else None,
-                )
+                {
+                    **_build_finding(
+                        url=url,
+                        severity=severity,
+                        title=title,
+                        signals=sorted(set(url_signals)),
+                        evidence={"tests": url_evidence[:10], "total_tests": len(url_evidence)},
+                        explanation=explanation,
+                        status_code=original_status if original_status else None,
+                    ),
+                    "confidence": confidence
+                }
             )
 
     findings.sort(

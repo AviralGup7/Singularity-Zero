@@ -135,7 +135,7 @@ class NotificationDigest {
     const overflowSuffix = overflowCount > 0 ? ` (+${overflowCount} more)` : '';
 
     const digestItem: NotificationItem = {
-      id: `digest-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: `digest-${crypto.randomUUID()}`,
       type: 'new_finding',
       severity: this.getHighestSeverity(severityCounts),
       message: `${totalIncluded} new findings in the last ${elapsedSeconds} seconds${severitySummary}${overflowSuffix}`,

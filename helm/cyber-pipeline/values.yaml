@@ -21,7 +21,8 @@ podSecurityContext:
   fsGroup: 1000
 securityContext:
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  # Security Fix: Enable read-only root filesystem to limit container breakout impact.
+  readOnlyRootFilesystem: true
   capabilities:
     drop: ["ALL"]
 
@@ -74,7 +75,8 @@ redis:
 config:
   # SECURITY: Override with a strong random key before any deployment.
   # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
-  appSecretKey: ""
+  # Leaving this empty will cause the application to FAIL on startup in production.
+  appSecretKey: "REPLACE_BEFORE_DEPLOYING"
   appEnv: "production"
   appDebug: "false"
   corsOrigins: ""
@@ -97,7 +99,8 @@ observability:
     enabled: true
     adminUser: "admin"
     # SECURITY: Generate with: python -c "import secrets; print(secrets.token_urlsafe(16))"
-    adminPassword: ""
+    # Leaving this empty may allow access with Grafana's default credentials.
+    adminPassword: "REPLACE_BEFORE_DEPLOYING"
   jaeger:
     enabled: true
     otlpEndpoint: "http://jaeger:4317"

@@ -50,8 +50,7 @@ __all__ = [
     "race_condition_probe",
 ]
 
-# HTTP method probes extracted to active_probes_http_methods.py
-# Re-exported for backward compatibility
+# HTTP method probes re-exported for backward compatibility
 from src.analysis.active.brute_force import brute_force_resistance_probe
 from src.analysis.active.http_methods import (
     _probe_confidence,
@@ -80,48 +79,28 @@ _error_re = re.compile(
 def sqli_safe_probe(
     priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 12
 ) -> list[dict[str, Any]]:
-    """Send safe SQLi test payloads to SQL-relevant parameters and check for error responses.
-
-    This probe sends harmless SQL test strings to parameters that look like SQL sinks
-    (search, query, filter, sort, id, etc.) and analyzes responses for SQL error patterns.
-    Only sends one payload per parameter and stops after first significant finding per URL.
-
-    Args:
-        priority_urls: List of URL dicts with endpoint metadata.
-        response_cache: Response cache for making requests.
-        limit: Maximum number of findings to return.
-
-    Returns:
-        List of SQLi probe findings with detected error patterns.
-    """
+    """Send safe SQLi test payloads to SQL-relevant parameters and check for error responses. (Fix Audit #8, #23)"""
     from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
     from src.recon.common import normalize_url
 
     findings: list[dict[str, Any]] = []
+    # Expanded parameter list (Fix Audit #23)
     sql_param_names = {
-        "search",
-        "query",
-        "filter",
-        "sort",
-        "order",
-        "where",
-        "q",
-        "s",
-        "id",
-        "uid",
-        "user_id",
-        "column",
-        "select",
-        "sql",
-        "db",
-        "table",
-        "expr",
-        "keyword",
-        "term",
-        "lookup",
-        "match",
+        "search", "query", "filter", "sort", "order", "where", "q", "s", "id", "uid",
+        "user_id", "column", "select", "sql", "db", "table", "expr", "keyword",
+        "term", "lookup", "match", "$filter", "where_clause", "having", "group_by",
+        "criteria", "conditions", "expression", "raw", "native_query"
     }
+
+    # SQLi test payloads (Fix Audit #8)
+    SQLI_PAYLOADS = [
+        ("'", "single_quote"),
+        ("1 OR 1=1", "numeric_boolean"),
+        ("1' OR '1'='1", "string_boolean"),
+        ("1; SELECT 1--", "stacked_query"),
+        ("SLEEP(1)", "time_based_blind")
+    ]
 
     for url_entry in priority_urls:
         if len(findings) >= limit:
@@ -135,7 +114,6 @@ def sqli_safe_probe(
         if not query_pairs:
             continue
 
-        # Find SQL-relevant parameters
         sql_params = [
             (i, k, v) for i, (k, v) in enumerate(query_pairs) if k.lower() in sql_param_names
         ]
@@ -146,37 +124,36 @@ def sqli_safe_probe(
         url_findings: list[dict[str, Any]] = []
 
         for idx, param_name, param_value in sql_params:
-            # Test with single quote payload (most likely to trigger errors safely)
-            test_value = "'"
-            updated = list(query_pairs)
-            updated[idx] = (param_name, test_value)
-            test_url = normalize_url(
-                urlunparse(parsed._replace(query=urlencode(updated, doseq=True)))
-            )
-
-            response = response_cache.request(
-                test_url,
-                headers={"Cache-Control": "no-cache", "X-SQLi-Probe": "1"},
-            )
-            if not response:
-                continue
-
-            body = str(response.get("body_text", "") or "")[:8000]
-            status = int(response.get("status_code") or 0)
-            match = _error_re.search(body)
-
-            if match:
-                url_findings.append(
-                    {
-                        "parameter": param_name,
-                        "payload": test_value,
-                        "payload_type": "single_quote",
-                        "status_code": status,
-                        "error_pattern": match.group(0),
-                        "error_context": body[max(0, match.start() - 50) : match.end() + 50],
-                    }
+            for test_value, payload_type in SQLI_PAYLOADS:
+                updated = list(query_pairs)
+                updated[idx] = (param_name, test_value)
+                test_url = normalize_url(
+                    urlunparse(parsed._replace(query=urlencode(updated, doseq=True)))
                 )
-                break  # Stop after first SQL error for this URL
+
+                response = response_cache.request(
+                    test_url,
+                    headers={"Cache-Control": "no-cache", "X-SQLi-Probe": "1"},
+                )
+                if not response:
+                    continue
+
+                body = str(response.get("body_text", "") or "")[:8000]
+                status = int(response.get("status_code") or 0)
+                match = _error_re.search(body)
+
+                if match:
+                    url_findings.append(
+                        {
+                            "parameter": param_name,
+                            "payload": test_value,
+                            "payload_type": payload_type,
+                            "status_code": status,
+                            "error_pattern": match.group(0),
+                            "error_context": body[max(0, match.start() - 50) : match.end() + 50],
+                        }
+                    )
+                    break # Stop after first SQL error for this param
 
         if url_findings:
             findings.append(
@@ -194,9 +171,6 @@ def sqli_safe_probe(
 
     findings.sort(key=lambda item: (-item["confidence"], item["url"]))
     return findings
-
-
-# HTTP request smuggling detection patterns
 
 
 def websocket_message_probe(
@@ -257,15 +231,12 @@ def websocket_message_probe(
             issues.append("ws_origin_not_validated")
             ws_details.append({"type": "origin_param", "value": query_params.get("origin", "")})
 
-        # Check for arbitrary message acceptance (no message validation)
         if "/broadcast" in path or "/publish" in path or "/send" in path:
             issues.append("ws_arbitrary_message_acceptance")
-        # Check for missing subprotocol validation
         if "/graphql" in path or "/subscriptions" in path:
             issues.append("ws_graphql_subscriptions")
             ws_details.append({"type": "graphql_subscription", "path": parsed.path})
 
-        # Check for potential connection hijacking (upgrade without auth)
         if "/admin" in path or "/control" in path or "/manage" in path:
             issues.append("ws_admin_no_auth")
             ws_details.append({"type": "admin_endpoint_no_auth", "path": parsed.path})
@@ -274,12 +245,7 @@ def websocket_message_probe(
         if response:
             body = str(response.get("body_text", "")).lower()
             error_leak_indicators = [
-                "internal",
-                "stack trace",
-                "traceback",
-                "debug",
-                "error:",
-                "exception",
+                "internal", "stack trace", "traceback", "debug", "error:", "exception",
             ]
             if any(ind in body for ind in error_leak_indicators):
                 issues.append("ws_error_leaks_internal_info")
@@ -290,7 +256,6 @@ def websocket_message_probe(
                     }
                 )
 
-            # Check for CORS headers on WebSocket upgrade response
             headers = {str(k).lower(): str(v) for k, v in (response.get("headers") or {}).items()}
             if "access-control-allow-origin" in headers:
                 acao = headers["access-control-allow-origin"]
@@ -298,14 +263,8 @@ def websocket_message_probe(
                     issues.append("ws_permissive_cors")
                     ws_details.append({"type": "cors_issue", "allow_origin": acao})
 
-            # Check for missing security headers on WebSocket response
-            if "x-frame-options" not in headers and "content-security-policy" not in headers:
-                issues.append("ws_missing_clickjacking_protection")
-                ws_details.append(
-                    {"type": "missing_security_header", "header": "X-Frame-Options/CSP"}
-                )
+            # Fix Audit #40: Removed incorrect clickjacking check for WebSocket endpoints.
 
-            # Check for WebSocket upgrade without Sec-WebSocket-Protocol validation
             if "sec-websocket-accept" in headers and "sec-websocket-protocol" not in headers:
                 issues.append("ws_no_subprotocol_validation")
                 ws_details.append({"type": "missing_subprotocol_validation"})
@@ -357,15 +316,7 @@ def oauth_flow_analyzer(
     findings: list[dict[str, Any]] = []
     seen_endpoints: set[str] = set()
     oauth_paths = {
-        "/oauth",
-        "/authorize",
-        "/token",
-        "/callback",
-        "/signin",
-        "/login",
-        "/auth",
-        "/saml",
-        "/sso",
+        "/oauth", "/authorize", "/token", "/callback", "/signin", "/login", "/auth", "/saml", "/sso",
     }
 
     for url_entry in priority_urls:
@@ -389,8 +340,23 @@ def oauth_flow_analyzer(
 
         issues: list[str] = []
         oauth_details: list[dict[str, Any]] = []
+
+        # Fix Audit #22: Also check request body if available (via response record)
+        # Note: In current architecture, we primarily have access to the observed response's request parameters.
         query_params = dict(parse_qsl(parsed.query))
-        query_keys_lower = {k.lower(): v for k, v in query_params.items()}
+
+        response = response_cache.get(url)
+        # Combine query and body params if we can find them in the record
+        # (This assumes the collector stored the observed request body)
+        combined_params = dict(query_params)
+        if response and "request_body" in response:
+            try:
+                body = str(response["request_body"])
+                combined_params.update(dict(parse_qsl(body)))
+            except Exception:
+                pass
+
+        query_keys_lower = {k.lower(): v for k, v in combined_params.items()}
 
         response_type = query_keys_lower.get("response_type", "")
         if "token" in response_type.lower() and "code" not in response_type.lower():

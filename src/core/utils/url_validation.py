@@ -31,7 +31,18 @@ def is_safe_url(url: str) -> bool:
     hostname = parsed.hostname
     if not hostname:
         return False
-    # Block obvious private hostnames
+    # Normalise and try to parse as a bare IP address (handles decimal, hex,
+    # octal, and compressed IPv6 forms that bypass naive string checks).
+    try:
+        ip_addr = ipaddress.ip_address(hostname)
+        if any(ip_addr in network for network in PRIVATE_NETWORKS):
+            return False
+        if ip_addr.is_loopback or ip_addr.is_link_local or ip_addr.is_multicast:
+            return False
+        return True
+    except ValueError:
+        pass  # hostname is a domain name, not an IP literal
+    # Block well-known private/loopback hostnames
     if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # nosec B104 # noqa: S104
         return False
     # Block cloud metadata IPs
@@ -55,7 +66,7 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
                     return False
             except ValueError:
                 continue
-    except TimeoutError, socket.gaierror, OSError:
+    except (TimeoutError, socket.gaierror, OSError):
         return False
     return True
 
@@ -101,7 +112,7 @@ def detect_dns_rebinding(hostname: str, *, rounds: int = 8, timeout: float = 2.0
                 ips_this_round.append(ip_str)
                 all_ips.add(ip_str)
             ip_history.append(ips_this_round if ips_this_round else [])
-        except socket.gaierror, TimeoutError, OSError:
+        except (socket.gaierror, TimeoutError, OSError):
             ip_history.append([])
         time.sleep(0.1)
 

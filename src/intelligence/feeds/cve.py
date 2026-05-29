@@ -371,7 +371,8 @@ class CVESyncClient(BaseFeedConnector):
         if pub_str:
             try:
                 published_date = datetime.fromisoformat(pub_str.replace("Z", "+00:00"))
-            except ValueError, TypeError:
+            except (ValueError, TypeError) as exc:
+                logger.debug("Failed to parse NVD date: %s", exc)
                 pass
 
         last_modified = None
@@ -379,7 +380,8 @@ class CVESyncClient(BaseFeedConnector):
         if mod_str:
             try:
                 last_modified = datetime.fromisoformat(mod_str.replace("Z", "+00:00"))
-            except ValueError, TypeError:
+            except (ValueError, TypeError) as exc:
+                logger.debug("Failed to parse NVD date: %s", exc)
                 pass
 
         references: list[str] = []

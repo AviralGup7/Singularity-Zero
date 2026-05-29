@@ -29,7 +29,8 @@ def _cypher_string(value: object) -> str:
     # SEC-6: Apply strict regex allowlist to prevent Cypher injection
     if not re.match(r"^[a-zA-Z0-9._:-]+$", val_str):
         # Fallback to hashed value if it contains bad chars
-        return "safe_" + hashlib.md5(val_str.encode()).hexdigest()  # nosec B324  # noqa: S324
+        # Using SHA-256 instead of MD5 for better cryptographic properties (Fix Audit #1)
+        return "safe_" + hashlib.sha256(val_str.encode()).hexdigest()[:32]
     return val_str
 
 
@@ -77,14 +78,20 @@ class LateralGraph:
             logger.debug("Schema initialization skipped (likely already exists): %s", e)
 
     def ingest_finding(self, asset_id: str, finding: dict[str, Any]) -> None:
-        """Ingest an asset and its finding into the graph."""
+        """Ingest an asset and its finding into the graph.
+
+        All user-controlled values are passed through _cypher_string() which
+        enforces a strict allowlist (^[a-zA-Z0-9._:-]+$) and falls back to a
+        SHA-256 hash for any value containing disallowed characters, preventing
+        Cypher injection.
+        """
         if not self._conn:
             return
         fid = _cypher_string(finding.get("id", "unknown"))
         asset = _cypher_string(asset_id)
         severity = _cypher_string(finding.get("severity", "info"))
         finding_type = str(finding.get("type", "")).lower()
-        # Create Nodes
+        # Create Nodes (values are sanitized by _cypher_string above)
         self._conn.execute(f"MERGE (a:Asset {{id: '{asset}', type: 'endpoint'}})")
         self._conn.execute(f"MERGE (f:Finding {{id: '{fid}', severity: '{severity}'}})")
 

@@ -67,7 +67,7 @@ def get_memory_usage() -> float:
         import psutil
 
         process = psutil.Process()
-        return process.memory_info().rss / (1024 * 1024)
+        return cast(float, process.memory_info().rss / (1024 * 1024))
     except Exception:
         return 0.0
 

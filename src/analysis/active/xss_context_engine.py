@@ -65,6 +65,16 @@ _START_MARKER_RE = re.compile(r"_START_")
 # ---- Context classification ----
 
 
+class XssEnvironment(TypedDict, total=False):
+    tag: str
+    attribute: str
+    quote: str
+    script: bool
+    comment: bool
+    bad_tag: bool
+    context: str
+
+
 @dataclass(frozen=True)
 class ReflectionContext:
     """One reflection of user input in an HTML response.

@@ -20,7 +20,7 @@ export function getSavedFilterPresets(): SavedFilterPreset[] {
 
 export function saveFilterPreset(name: string, filters: Record<string, string>): SavedFilterPreset {
   const preset: SavedFilterPreset = {
-    id: `preset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `preset-${crypto.randomUUID()}`,
     name,
     filters,
     createdAt: new Date().toISOString(),

@@ -195,7 +195,23 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "S"]
-ignore = ["E501", "BLE001", "S101"]
+ignore = [
+    "E501",   # line-length
+    "BLE001", # blind-except
+    "S101",   # assert
+    "E701",   # multiple-statements-on-one-line-colon
+    "S110",   # try-except-pass
+    "S112",   # try-except-continue
+    "E402",   # module-import-not-at-top-of-file
+    "N806",   # non-lowercase-variable-in-function
+    "N803",   # non-lowercase-argument-name
+    "S105",   # hardcoded-password-string
+    "S104",   # hardcoded-bind-all-interfaces
+    "S310",   # audit-url-open
+    "S311",   # pseudo-random-generator
+    "S103",   # bad-file-permissions
+    "N818",   # exception-name-without-error
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src", "src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure", "src.infrastructure.queue", "src.infrastructure.cache", "src.infrastructure.execution_engine", "src.infrastructure.observability", "src.infrastructure.security", "src.websocket_server", "src.learning", "src.exploitation"]

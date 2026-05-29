@@ -71,13 +71,13 @@ function statusTone(status: UrlCollectionStatus): string {
 }
 
 function createCollectionId(): string {
-  return `url-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `url-${crypto.randomUUID()}`;
 }
 
 function createLocalJobId(hostname: string, mode: 'quick' | 'full'): string {
    
   const safeHost = hostname.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 12) || 'target';
-  return `local-${mode}-${safeHost}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  return `local-${mode}-${safeHost}-${crypto.randomUUID()}`;
 }
 
 function statusLabel(status: UrlCollectionStatus): string {

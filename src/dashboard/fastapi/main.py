@@ -14,7 +14,7 @@ from pathlib import Path
 
 from src.dashboard.fastapi.app import create_app
 from src.dashboard.fastapi.config import DashboardConfig
-from src.infrastructure.security.encryption import TLSConfig
+from src.infrastructure.security.tls_config import TLSConfig
 
 logger = logging.getLogger(__name__)
 

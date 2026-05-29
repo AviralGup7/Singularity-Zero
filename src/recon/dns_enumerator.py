@@ -345,8 +345,8 @@ def _extract_details(record_type: str, value: str) -> dict[str, Any]:
                     try:
                         k, val = part.strip().split("=", 1)
                         details[k.strip().lower()] = val.strip()
-                    except ValueError:
-                        pass
+                    except ValueError as exc:
+                        logger.debug("Failed to parse DMARC component: %s", exc)
         elif v.lower().startswith("v=dkim1"):
             details["record"] = "DKIM"
         elif "google-site-verification" in v.lower():

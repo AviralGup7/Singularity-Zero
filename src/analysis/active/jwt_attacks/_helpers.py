@@ -64,7 +64,7 @@ def _decode_jwt_part(part: str) -> dict | Any | None:
         return None
 
 
-def _create_jwt(header: dict, payload: dict, secret: bytes = b"secret") -> str:
+def _create_jwt(header: dict, payload: dict, secret: bytes) -> str:
     header_b64 = _b64url_encode(json.dumps(header, separators=(",", ":")).encode())
     payload_b64 = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode())
     signing_input = f"{header_b64}.{payload_b64}".encode()

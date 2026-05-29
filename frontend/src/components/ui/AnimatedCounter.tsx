@@ -55,7 +55,10 @@ function formatValue(raw: number, format: CounterFormat, decimals: number): stri
       return formatCompact(raw);
     case 'number':
     default:
-      return raw.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      }).format(raw);
   }
 }
 

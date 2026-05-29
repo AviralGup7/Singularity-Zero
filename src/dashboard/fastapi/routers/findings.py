@@ -17,11 +17,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/findings", tags=["Findings"])
 
 
-def _find_finding_by_id(
-    output_root: Any, finding_id: str, tenant_id: str | None = None
-) -> dict[str, Any] | None:
+def _find_finding_by_id(output_root: Any, finding_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
-
     for target_entry in output_root.iterdir():
         if not target_entry.is_dir():
             continue
@@ -114,7 +111,6 @@ def _collect_timeline_events(
     events: list[dict[str, Any]] = []
 
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
-
     for target_entry in sorted(output_root.iterdir(), key=lambda path: path.name.lower()):
         if not target_entry.is_dir() or target_entry.name.startswith("_"):
             continue
@@ -138,7 +134,7 @@ def _collect_timeline_events(
                 try:
                     parsed = json.loads(findings_path.read_text(encoding="utf-8"))
                     findings_data = parsed if isinstance(parsed, list) else []
-                except OSError, json.JSONDecodeError:
+                except (OSError, json.JSONDecodeError):
                     findings_data = []
 
             if not findings_data and summary_path.exists():
@@ -150,7 +146,7 @@ def _collect_timeline_events(
                         else []
                     )
                     findings_data = top_findings if isinstance(top_findings, list) else []
-                except OSError, json.JSONDecodeError:
+                except (OSError, json.JSONDecodeError):
                     findings_data = []
 
             run_generated_at = run_entry.name
@@ -163,7 +159,7 @@ def _collect_timeline_events(
                             or summary.get("generated_at_ist")
                             or run_entry.name
                         )
-                except OSError, json.JSONDecodeError:
+                except (OSError, json.JSONDecodeError):
                     run_generated_at = run_entry.name
 
             for idx, finding in enumerate(findings_data, start=1):
@@ -230,7 +226,6 @@ def _telemetry_timeline_events(
     end_dt = _parse_timestamp(end_date, "2999-12-31") if end_date else None
     events: list[dict[str, Any]] = []
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
-
     for job in jobs:
         current_job_id = str(job.get("id") or "")
         if job_id and current_job_id != job_id:
@@ -322,7 +317,6 @@ async def get_findings_summary(
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
-
     for entry in sorted(output_root.iterdir()):
         if not entry.is_dir() or entry.name.startswith("_"):
             continue
@@ -474,7 +468,8 @@ async def get_finding_remediation(
 ) -> dict[str, Any]:
     from src.dashboard.remediation import suggest_for_finding
 
-    finding = _find_finding_by_id(services.query.output_root, finding_id)
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
     return {"finding_id": finding_id, "suggestions": suggest_for_finding(finding)}
@@ -493,7 +488,8 @@ async def explain_finding_severity(
 ) -> dict[str, Any]:
     from src.intelligence.ml.shap_explainer import SHAPExplainer
 
-    finding = _find_finding_by_id(services.query.output_root, finding_id)
+    tenant_id = (_auth or {}).get("tenant_id", "default")
+    finding = _find_finding_by_id(services.query.output_root, finding_id, tenant_id=tenant_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
 
@@ -526,13 +522,14 @@ async def explain_finding_ai(
 
     try:
         from src.intelligence.ml.llm_service import LLMService
-
         service = LLMService.get_instance()
         explanation = await service.explain_finding(finding)
         return {"finding_id": finding_id, "explanations": explanation}
     except Exception as exc:
         logger.exception("Failed to generate AI explainability analysis: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Failed to generate AI explanations: {exc}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate AI explanations: {exc}"
+        )
 
 
 @router.put(
@@ -548,7 +545,17 @@ async def bulk_update_findings(
 ) -> list[dict[str, Any]]:
     """Apply updates to multiple findings."""
     ids = payload.get("ids", [])
-    updates = {k: v for k, v in payload.items() if k != "ids"}
+    # Security Fix: whitelist the fields that may be bulk-updated to prevent
+    # mass assignment of sensitive or identity fields.
+    ALLOWED_BULK_UPDATE_FIELDS = {
+        "status", "severity", "decision", "notes",
+        "lifecycle_state", "assignee", "tags",
+    }
+    raw_updates = {k: v for k, v in payload.items() if k != "ids"}
+    updates = {k: v for k, v in raw_updates.items() if k in ALLOWED_BULK_UPDATE_FIELDS}
+    if len(updates) != len(raw_updates):
+        rejected = set(raw_updates) - ALLOWED_BULK_UPDATE_FIELDS
+        logger.warning("Bulk update: rejecting disallowed fields: %s", sorted(rejected))
     results = []
 
     for fid in ids:
@@ -627,10 +634,17 @@ async def update_finding(
     if not found:
         raise HTTPException(status_code=404, detail="Finding not found")
 
-    # Apply updates
+    # Apply updates — only allow a defined set of fields to prevent mass assignment.
+    ALLOWED_UPDATE_FIELDS = {
+        "status", "severity", "decision", "notes",
+        "lifecycle_state", "assignee", "tags",
+        "false_positive", "remediation_status", "remediation_notes",
+    }
     for key, value in update_data.items():
-        if key not in {"id", "finding_id"}:  # Don't allow ID changes
+        if key in ALLOWED_UPDATE_FIELDS:
             finding_payload[key] = value
+        elif key not in {"id", "finding_id"}:
+            logger.warning("update_finding: ignoring disallowed field '%s'", key)
 
     # Save back to disk
     try:

@@ -129,7 +129,8 @@ class JobStore:
                     try:
                         job = json.loads(row["data"])
                         result[job["id"]] = job
-                    except json.JSONDecodeError, KeyError:
+                    except (json.JSONDecodeError, KeyError) as exc:
+                        logger.debug("Failed to decode job data from row: %s", exc)
                         continue
                 return result
             except Exception:  # noqa: S110
@@ -150,7 +151,8 @@ class JobStore:
                     try:
                         job = json.loads(row["data"])
                         result[job["id"]] = job
-                    except json.JSONDecodeError, KeyError:
+                    except (json.JSONDecodeError, KeyError) as exc:
+                        logger.debug("Failed to decode job data from row: %s", exc)
                         continue
                 return result
             except Exception:  # noqa: S110
@@ -189,7 +191,8 @@ class JobStore:
                             ),
                         )
                         stale_ids.append(job["id"])
-                    except json.JSONDecodeError, KeyError:
+                    except (json.JSONDecodeError, KeyError) as exc:
+                        logger.debug("Failed to decode job data from row: %s", exc)
                         continue
                 conn.commit()
             except Exception:  # noqa: S110
