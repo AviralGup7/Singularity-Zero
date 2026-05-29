@@ -50,15 +50,11 @@ dependencies = [
     "alembic==1.14.0",
     "aiosqlite==0.20.0",
     # --- Security analysis ---
-    "scipy==1.14.0",
     "numpy==2.0.0",
     "networkx==3.0.0",
     "beartype==0.18.5",
     "mmh3==5.1.0",
     "argon2-cffi==23.1.0",
-    "kuzu==0.11.3",
-    "xgboost==2.0.0",
-    "scikit-learn==1.5.0",
     # --- Message queue ---
     "msgspec==0.19.0",
     "msgpack==1.0.0",
@@ -101,6 +97,12 @@ dev = [
     "pytest-benchmark>=5.0.0",
     "memory-profiler>=0.61.0",
     "line-profiler>=4.2.0",
+]
+ml = [
+    "scipy==1.14.0",
+    "kuzu==0.11.3",
+    "xgboost==2.0.0",
+    "scikit-learn==1.5.0",
 ]
 
 [tool.pytest.ini_options]
