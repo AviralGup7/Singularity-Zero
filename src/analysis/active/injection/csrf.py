@@ -267,16 +267,18 @@ def csrf_active_probe(
                 url_issues.extend(cookie_issues[:3])
                 url_probes.append({"payload_type": "cookie_security", "issues": cookie_issues[:3]})
             if url_probes:
-                findings.append({
-                    "url": url,
-                    "endpoint_key": endpoint_key,
-                    "endpoint_base_key": endpoint_base_key(url),
-                    "endpoint_type": classify_endpoint(url),
-                    "issues": url_issues,
-                    "probes": url_probes,
-                    "confidence": probe_confidence(url_issues),
-                    "severity": probe_severity(url_issues),
-                })
+                findings.append(
+                    {
+                        "url": url,
+                        "endpoint_key": endpoint_key,
+                        "endpoint_base_key": endpoint_base_key(url),
+                        "endpoint_type": classify_endpoint(url),
+                        "issues": url_issues,
+                        "probes": url_probes,
+                        "confidence": probe_confidence(url_issues),
+                        "severity": probe_severity(url_issues),
+                    }
+                )
             continue
 
         for payload_name, csrf_headers in CSRF_PAYLOADS:

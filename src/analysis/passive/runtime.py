@@ -311,11 +311,12 @@ class ResponseCache:
                 successful=result.successful,
                 latency_seconds=result.latency_seconds,
                 status_code=result.status_code,
-                retry_after_seconds=retry_after
+                retry_after_seconds=retry_after,
             )
 
             if capture_forensics and result.record and output_dir and target_name:
                 from src.analysis.passive.forensics import ForensicExchange, save_forensic_exchange
+
                 exchange = ForensicExchange(
                     url=url,
                     method=method,
@@ -373,7 +374,7 @@ def _fetch_response_stream(
             body=request_body,
             preload_content=False,
             redirect=True,
-            timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds)
+            timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
         )
 
         resp_headers = dict(resp.headers.items())
@@ -451,6 +452,7 @@ def fetch_response(
     )
     if capture_forensics and result.record and output_dir and target_name:
         from src.analysis.passive.forensics import ForensicExchange, save_forensic_exchange
+
         exchange = ForensicExchange(
             url=url,
             method=method,
@@ -499,7 +501,7 @@ def _fetch_response_once(
             headers=headers,
             body=request_body,
             preload_content=True,
-            timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds)
+            timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
         )
 
         latency = time.monotonic() - started_at
@@ -525,12 +527,7 @@ def _fetch_response_once(
 
 
 def build_response_record(
-    url: str,
-    response: Any,
-    max_bytes: int,
-    *,
-    request_method: str = "GET",
-    latency_ms: float = 0.0
+    url: str, response: Any, max_bytes: int, *, request_method: str = "GET", latency_ms: float = 0.0
 ) -> dict[str, Any]:
     headers = dict(response.headers.items())
     content_type = headers.get("Content-Type", "")
@@ -558,9 +555,11 @@ def build_response_record(
         "body_text": body_text,
         "body_length": len(body_text),
         "truncated": len(raw) > max_bytes if max_bytes > 0 else False,
-        "redirect_chain": [normalize_url(url), final_url] if final_url != normalize_url(url) else [normalize_url(url)],
+        "redirect_chain": [normalize_url(url), final_url]
+        if final_url != normalize_url(url)
+        else [normalize_url(url)],
         "redirect_count": 1 if final_url != normalize_url(url) else 0,
-        "response_time_ms": round(latency_ms, 2), # Fix Audit #7
+        "response_time_ms": round(latency_ms, 2),  # Fix Audit #7
     }
 
 

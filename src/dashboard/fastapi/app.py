@@ -168,14 +168,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     if not mesh_secret:
         if is_prod:
-            raise ValueError("CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production.")
+            raise ValueError(
+                "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
+            )
         mesh_secret = "frontier-default-secret"
         logger.warning(
             "SECURITY WARNING: MESH_SECRET not set. Using insecure default. "
             "Set MESH_SECRET in production environments."
         )
-    elif is_prod and mesh_secret in ("frontier-default-secret", "frontier-default-secret-change-in-prod"):
-        raise ValueError("CRITICAL SECURITY RISK: MESH_SECRET must not be the default value in production.")
+    elif is_prod and mesh_secret in (
+        "frontier-default-secret",
+        "frontier-default-secret-change-in-prod",
+    ):
+        raise ValueError(
+            "CRITICAL SECURITY RISK: MESH_SECRET must not be the default value in production."
+        )
 
     gossip_engine = GossipEngine(local_node, secret=mesh_secret)
     try:

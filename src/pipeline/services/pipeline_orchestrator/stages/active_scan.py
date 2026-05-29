@@ -258,7 +258,7 @@ async def run_active_scanning(
             probes["race_condition_probe"],
             ranked_priority_items,
             response_cache,
-            concurrent_requests=int(analysis_settings.get("race_concurrency", 10))
+            concurrent_requests=int(analysis_settings.get("race_concurrency", 10)),
         ),
         _run_probe("hpp", probes["hpp_active_probe"], url_priority_items, response_cache),
         _run_probe(

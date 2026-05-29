@@ -97,7 +97,7 @@ def brute_force_resistance_probe(
             # Endpoint is already rate-limited, no need to spray more requests
             # Just report any existing issues (unlikely if well protected)
             if not issues:
-                continue # Skip reporting if it's fine
+                continue  # Skip reporting if it's fine
 
         # Test 2: Account lockout
         lockout_result = check_account_lockout(url, response_cache, max_attempts)
@@ -119,7 +119,7 @@ def brute_force_resistance_probe(
         ip_result = check_ip_blocking(url, response_cache, max_attempts)
         evidence["ip_blocking"] = ip_result
         if not ip_result["ip_blocked"] and "no_rate_limiting" in issues:
-             # Only report missing IP block if NO rate limiting at all is found
+            # Only report missing IP block if NO rate limiting at all is found
             issues.append("no_ip_blocking")
 
         # Test 6: Username enumeration
