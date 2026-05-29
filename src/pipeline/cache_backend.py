@@ -34,7 +34,7 @@ class PersistentCache:
         self._db_path = db_path or _DEFAULT_DB_PATH
         self._lock = threading.RLock()
         self._thread_local = _ThreadLocalConnections()
-        self._all_conns = set()
+        self._all_conns: set[sqlite3.Connection] = set()
         self._init_db()
 
     def _ensure_thread_local(self) -> None:

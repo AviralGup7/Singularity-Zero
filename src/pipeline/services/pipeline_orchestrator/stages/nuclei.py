@@ -105,7 +105,7 @@ async def run_nuclei_stage(
         )
         nuclei_started = time.monotonic()
 
-        from src.recon.nuclei import run_nuclei_with_parsing
+        from src.recon.nuclei import run_nuclei_adaptive
 
         scope_hosts = {
             entry.strip().lower()
@@ -115,13 +115,13 @@ async def run_nuclei_stage(
 
         nuclei_output_file = str(ctx.output_store.run_dir / "nuclei.jsonl")
         parsed_findings = await asyncio.to_thread(
-            run_nuclei_with_parsing,
+            run_nuclei_adaptive,
             nuclei_targets,
             config,
             None,
+            {"cdn_protected_urls": {f.get("url") for f in ctx.waf_findings if f.get("url")}},
             scope_hosts,
             nuclei_output_file,
-            ctx.waf_findings,
         )
 
         nuclei_duration = round(time.monotonic() - nuclei_started, 2)

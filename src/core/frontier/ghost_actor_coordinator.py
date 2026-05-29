@@ -247,4 +247,4 @@ class GhostMeshCoordinator:
                     e,
                 )
 
-        return actor_ref
+        return cast(pykka.ActorRef[Any], actor_ref)

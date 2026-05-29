@@ -10,6 +10,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from typing import cast
+
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
@@ -29,7 +31,8 @@ class NucleiTemplateValidator:
         try:
             content = self.manifest_path.read_text(encoding="utf-8")
             data = json.loads(content)
-            return data.get("hashes", {}) if isinstance(data, dict) else data
+            res = data.get("hashes", {}) if isinstance(data, dict) else data
+            return cast(dict[str, str], res)
         except Exception as exc:
             logger.error("Failed to parse signed template manifest: %s", exc)
             return {}

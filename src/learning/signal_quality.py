@@ -12,7 +12,7 @@ import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Try importing scikit-learn gracefully
 try:
@@ -71,7 +71,7 @@ class SignalQualityMLPipeline:
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         if HAS_ML_LIBS and self.model is not None:
             try:
-                return self.model.predict_proba(X)
+                return cast(np.ndarray, self.model.predict_proba(X))
             except Exception:
                 pass
 

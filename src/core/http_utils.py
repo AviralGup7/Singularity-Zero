@@ -32,7 +32,7 @@ _SYNC_SESSION = requests.Session()
 atexit.register(_SYNC_SESSION.close)
 _ASYNC_CLIENTS: dict[tuple[bool, bool], httpx.AsyncClient] = {}
 
-_ASYNC_CLIENTS_WEAKSET = weakref.WeakSet()
+_ASYNC_CLIENTS_WEAKSET: weakref.WeakSet[httpx.AsyncClient] = weakref.WeakSet()
 
 # Hook httpx.AsyncClient creation to track all instances process-wide
 _original_async_client_init = httpx.AsyncClient.__init__

@@ -37,7 +37,7 @@ class ActiveLearningController:
                     ).fetchall()
 
                     # Poisoning defense: Group FPs to verify confirmation threshold (N>=3)
-                    fp_counts = {}
+                    fp_counts: dict[tuple[Any, Any], int] = {}
                     for row in raw_rows:
                         item = dict(row)
                         if bool(item.get("was_false_positive")):
@@ -45,7 +45,7 @@ class ActiveLearningController:
                             fp_counts[key] = fp_counts.get(key, 0) + 1
 
                     # Poisoning defense: Detect anomalous bursts of FP feedback to quarantine poisoning attempts
-                    fp_timeframes = {}  # run_id -> list of timestamps
+                    fp_timeframes: dict[str, list[float]] = {}  # run_id -> list of timestamps
                     anomalous_runs = set()
                     for row in raw_rows:
                         item = dict(row)

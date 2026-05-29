@@ -92,8 +92,8 @@ class CloudBucketScanner:
         """Check AWS S3 bucket status and permissions."""
         url = f"https://{bucket}.s3.amazonaws.com"
         try:
-            finding = None
-            async with session.get(url, timeout=self.timeout_seconds) as response:
+            finding: dict[str, Any] | None = None
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as response:
                 status = response.status
                 if status == 200:
                     finding = {
@@ -119,7 +119,7 @@ class CloudBucketScanner:
             if finding:
                 # Active Probe 1: Check ACL readability
                 try:
-                    async with session.get(f"{url}/?acl", timeout=self.timeout_seconds) as acl_resp:
+                    async with session.get(f"{url}/?acl", timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as acl_resp:
                         finding["permissions"]["read_acl"] = acl_resp.status == 200
                         if acl_resp.status == 200:
                             finding["severity"] = "high"
@@ -132,7 +132,7 @@ class CloudBucketScanner:
                     async with session.put(
                         f"{url}/cyber_pipeline_write_test.txt",
                         data="test",
-                        timeout=self.timeout_seconds,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
                     ) as put_resp:
                         finding["permissions"]["write"] = put_resp.status == 200
                         if put_resp.status == 200:
@@ -155,8 +155,8 @@ class CloudBucketScanner:
         """Check Google Cloud Storage bucket status and permissions."""
         url = f"https://storage.googleapis.com/{bucket}"
         try:
-            finding = None
-            async with session.get(url, timeout=self.timeout_seconds) as response:
+            finding: dict[str, Any] | None = None
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as response:
                 status = response.status
                 if status == 200:
                     finding = {
@@ -182,7 +182,7 @@ class CloudBucketScanner:
             if finding:
                 # Active Probe 1: Check ACL readability
                 try:
-                    async with session.get(f"{url}?acl", timeout=self.timeout_seconds) as acl_resp:
+                    async with session.get(f"{url}?acl", timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as acl_resp:
                         finding["permissions"]["read_acl"] = acl_resp.status == 200
                         if acl_resp.status == 200:
                             finding["severity"] = "high"
@@ -195,7 +195,7 @@ class CloudBucketScanner:
                     async with session.put(
                         f"{url}/cyber_pipeline_write_test.txt",
                         data="test",
-                        timeout=self.timeout_seconds,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
                     ) as put_resp:
                         finding["permissions"]["write"] = put_resp.status == 200
                         if put_resp.status == 200:
@@ -223,7 +223,7 @@ class CloudBucketScanner:
 
         url = f"https://{sanitized_bucket}.blob.core.windows.net"
         try:
-            async with session.get(url, timeout=self.timeout_seconds) as response:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=self.timeout_seconds)) as response:
                 # If we get 400 (InvalidHeader/Bad Request) or 403, the storage account exists!
                 status = response.status
                 if status in {400, 403}:
