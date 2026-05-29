@@ -59,8 +59,12 @@ class ComplianceAlertsDispatcher:
 
         try:
             # Broadcast to all registered channels
-            from src.infrastructure.notifications.base import NotificationEvent, NotificationPriority
             import asyncio
+
+            from src.infrastructure.notifications.base import (
+                NotificationEvent,
+                NotificationPriority,
+            )
 
             coro = self.manager.send(
                 event=NotificationEvent.COMPLIANCE_VIOLATION,
