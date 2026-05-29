@@ -69,7 +69,9 @@ class LifetimeManipulationAttack:
             ]
 
             for test in lifetime_tests:
-                test_token = create_jwt(header, cast(dict[Any, Any], test["payload"]), secret=b"secret")
+                test_token = create_jwt(
+                    header, cast(dict[Any, Any], test["payload"]), secret=b"secret"
+                )
 
                 for auth_header in JWT_AUTH_HEADERS:
                     resp = session.request(

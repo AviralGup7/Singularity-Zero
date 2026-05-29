@@ -117,11 +117,14 @@ async def run_subdomain_enumeration(
             telemetry_items=sorted(subdomains),
         )
 
-        emit_stage_summary("subdomains", {
-            "subdomains_found": len(subdomains),
-            "duration": stage_output.duration_seconds,
-            "status": "ok"
-        })
+        emit_stage_summary(
+            "subdomains",
+            {
+                "subdomains_found": len(subdomains),
+                "duration": stage_output.duration_seconds,
+                "status": "ok",
+            },
+        )
 
         # Write to output store (side effect allowed in wrapper)
         ctx.output_store.write_subdomains(subdomains)
@@ -226,12 +229,15 @@ async def run_live_hosts(
             telemetry_items=sorted(live_hosts),
         )
 
-        emit_stage_summary("live_hosts", {
-            "live_hosts_found": len(live_hosts),
-            "records_found": len(stage_output.state_delta.get("live_records", [])),
-            "duration": stage_output.duration_seconds,
-            "status": "ok"
-        })
+        emit_stage_summary(
+            "live_hosts",
+            {
+                "live_hosts_found": len(live_hosts),
+                "records_found": len(stage_output.state_delta.get("live_records", [])),
+                "duration": stage_output.duration_seconds,
+                "status": "ok",
+            },
+        )
 
         return cast(StageOutput, stage_output)
 
@@ -269,29 +275,28 @@ async def run_waf_detection(
             stage_input = build_stage_input_from_context("waf", config, ctx)
 
         stage_output = await run_waf_detection_service(
-            stage_input,
-            timeout=float(config.recon.get("waf_timeout", 10.0))
+            stage_input, timeout=float(config.recon.get("waf_timeout", 10.0))
         )
 
         if stage_output.outcome == StageOutcome.COMPLETED:
             waf_findings = stage_output.state_delta.get("waf_findings", [])
             emit_progress("waf", f"Found {len(waf_findings)} WAF/CDN signatures", 56)
 
-            emit_stage_summary("waf", {
-                "findings_count": len(waf_findings),
-                "providers": sorted(list({f["provider"] for f in waf_findings})),
-                "duration": stage_output.duration_seconds,
-                "status": "ok"
-            })
+            emit_stage_summary(
+                "waf",
+                {
+                    "findings_count": len(waf_findings),
+                    "providers": sorted(list({f["provider"] for f in waf_findings})),
+                    "duration": stage_output.duration_seconds,
+                    "status": "ok",
+                },
+            )
 
         return cast(StageOutput, stage_output)
     except Exception as exc:
         logger.error("Stage 'waf' failed: %s", exc)
         return StageOutput(
-            stage_name="waf",
-            outcome=StageOutcome.FAILED,
-            duration_seconds=0.0,
-            error=str(exc)
+            stage_name="waf", outcome=StageOutcome.FAILED, duration_seconds=0.0, error=str(exc)
         )
 
 
@@ -340,11 +345,14 @@ async def run_url_collection(
 
         urls = set(stage_output.state_delta.get("urls", []))
 
-        emit_stage_summary("urls", {
-            "urls_collected": len(urls),
-            "duration": stage_output.duration_seconds,
-            "status": "ok"
-        })
+        emit_stage_summary(
+            "urls",
+            {
+                "urls_collected": len(urls),
+                "duration": stage_output.duration_seconds,
+                "status": "ok",
+            },
+        )
 
         # ──────────────────────────────────────────────────────────
         # Category 2: Advanced Reconnaissance & Asset Discovery Integrations
@@ -485,12 +493,15 @@ async def run_parameter_extraction(
             event_trigger="recon_parameters_extracted",
         )
 
-        emit_stage_summary("parameters", {
-            "parameters_extracted": parameter_count,
-            "target_profile": stage_output.state_delta.get("target_profile", {}),
-            "duration": stage_output.duration_seconds,
-            "status": "ok"
-        })
+        emit_stage_summary(
+            "parameters",
+            {
+                "parameters_extracted": parameter_count,
+                "target_profile": stage_output.state_delta.get("target_profile", {}),
+                "duration": stage_output.duration_seconds,
+                "status": "ok",
+            },
+        )
 
         return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
@@ -563,13 +574,18 @@ async def run_priority_ranking(
         ctx.output_store.write_priority_endpoints(priority_urls)
         ctx.output_store.write_priority_scores(ranked_priority_urls)
 
-        emit_stage_summary("priority", {
-            "priority_urls": priority_url_count,
-            "deep_analysis_urls": deep_analysis_count,
-            "avg_score": round(sum(f["score"] for f in selected_items) / max(1, len(selected_items)), 2),
-            "duration": stage_output.duration_seconds,
-            "status": "ok"
-        })
+        emit_stage_summary(
+            "priority",
+            {
+                "priority_urls": priority_url_count,
+                "deep_analysis_urls": deep_analysis_count,
+                "avg_score": round(
+                    sum(f["score"] for f in selected_items) / max(1, len(selected_items)), 2
+                ),
+                "duration": stage_output.duration_seconds,
+                "status": "ok",
+            },
+        )
 
         return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:

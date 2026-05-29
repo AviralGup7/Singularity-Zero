@@ -20,10 +20,14 @@ _IS_PROD = os.environ.get("APP_ENV") == "production"
 
 if not _MESH_SECRET_RAW:
     if _IS_PROD:
-        raise ValueError("CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production.")
+        raise ValueError(
+            "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
+        )
     _MESH_SECRET_RAW = "frontier-default-secret-change-in-prod"
 elif _IS_PROD and _MESH_SECRET_RAW == "frontier-default-secret-change-in-prod":
-    raise ValueError("CRITICAL SECURITY RISK: MESH_SECRET must not be the default value in production.")
+    raise ValueError(
+        "CRITICAL SECURITY RISK: MESH_SECRET must not be the default value in production."
+    )
 
 _MESH_SECRET = _MESH_SECRET_RAW.encode()
 

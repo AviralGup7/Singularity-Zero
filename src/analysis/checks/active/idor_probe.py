@@ -129,7 +129,7 @@ def _extract_json_data(body: str) -> dict[str, Any] | list[Any] | None:
     if stripped.startswith(("{", "[")):
         try:
             return cast(dict[str, Any] | list[Any] | None, json.loads(stripped[:50000]))
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             pass
     return None
 
@@ -391,7 +391,9 @@ def idor_active_probe(
                     test_url = normalize_url(urlunparse(parsed._replace(path=test_path)))
                 elif target_type == "param":
                     test_id = "999999"
-                    updated_pairs = [(k, test_id if k == target_info else v) for k, v in query_pairs]
+                    updated_pairs = [
+                        (k, test_id if k == target_info else v) for k, v in query_pairs
+                    ]
                     test_url = normalize_url(
                         urlunparse(parsed._replace(query=urlencode(updated_pairs, doseq=True)))
                     )
@@ -407,7 +409,12 @@ def idor_active_probe(
 
                 body_bytes = json.dumps({"test": "idor_probe"}).encode()
                 response = _safe_request(
-                    response_cache, test_url, method=method, headers=test_headers, body=body_bytes, timeout=10
+                    response_cache,
+                    test_url,
+                    method=method,
+                    headers=test_headers,
+                    body=body_bytes,
+                    timeout=10,
                 )
                 if response:
                     status = response.get("status", 0)
@@ -428,9 +435,7 @@ def idor_active_probe(
             if "idor_auth_bypass" in url_signals:
                 severity = "critical" if is_sensitive else "high"
 
-            title = (
-                "IDOR: potential unauthorized access to resource via manipulation"
-            )
+            title = "IDOR: potential unauthorized access to resource via manipulation"
             if is_sensitive:
                 title = "IDOR: sensitive resource accessed via ID manipulation"
             if "idor_auth_bypass" in url_signals:
@@ -461,7 +466,7 @@ def idor_active_probe(
                         explanation=explanation,
                         status_code=original_status if original_status else None,
                     ),
-                    "confidence": confidence
+                    "confidence": confidence,
                 }
             )
 

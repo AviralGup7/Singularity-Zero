@@ -75,7 +75,7 @@ def resolve_priority_limit(
             value = value.get("default")
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
 
     configured = filters.get("priority_limit", 100)
@@ -388,8 +388,13 @@ def rank_urls(
     cdn_protected_urls = set()
     if waf_findings:
         cdn_protected_urls = {
-            f["url"] for f in waf_findings
-            if f["confidence"] >= 0.9 and any(cdn in f["provider"].lower() for cdn in ["cloudflare", "akamai", "fastly", "cloudfront"])
+            f["url"]
+            for f in waf_findings
+            if f["confidence"] >= 0.9
+            and any(
+                cdn in f["provider"].lower()
+                for cdn in ["cloudflare", "akamai", "fastly", "cloudfront"]
+            )
         }
 
     flow_graph = build_flow_graph(url_list)

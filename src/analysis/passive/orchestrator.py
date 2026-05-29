@@ -66,19 +66,25 @@ def run_passive_scanners(
     )
 
     if progress_callback:
-        progress_callback({"group": "passive_analysis", "status": "initializing", "stage_percent": 5})
+        progress_callback(
+            {"group": "passive_analysis", "status": "initializing", "stage_percent": 5}
+        )
 
     scheduler = RequestScheduler(
         request_rate_per_second,
         request_burst,
         adaptive_mode=auto_max_speed_mode,
-        max_rate_per_second=float(analysis_config.get("adaptive_max_rate_per_second", request_rate_per_second * 3.0)),
+        max_rate_per_second=float(
+            analysis_config.get("adaptive_max_rate_per_second", request_rate_per_second * 3.0)
+        ),
         max_capacity=float(analysis_config.get("adaptive_max_burst", request_burst * 2.0)),
         min_rate_per_second=float(analysis_config.get("adaptive_min_rate_per_second", 0.25)),
     )
 
     retry_policy = RetryPolicy(
-        max_attempts=max(1, int(analysis_config.get("adaptive_retry_attempts", 2 if auto_max_speed_mode else 1))),
+        max_attempts=max(
+            1, int(analysis_config.get("adaptive_retry_attempts", 2 if auto_max_speed_mode else 1))
+        ),
     )
 
     response_cache = ResponseCache(
@@ -92,7 +98,14 @@ def run_passive_scanners(
     )
 
     if progress_callback:
-        progress_callback({"group": "passive_analysis", "status": "fetching_responses", "total": len(content_targets), "stage_percent": 10})
+        progress_callback(
+            {
+                "group": "passive_analysis",
+                "status": "fetching_responses",
+                "total": len(content_targets),
+                "stage_percent": 10,
+            }
+        )
 
     responses = response_cache.prefetch(content_targets)
     response_map = {response["url"]: response for response in responses}
@@ -116,7 +129,9 @@ def run_passive_scanners(
 
     # Fix Audit #15: Incremental progress (simulated by splitting plugins or just emitting before call)
     if progress_callback:
-        progress_callback({"group": "passive_analysis", "status": "running_scanners", "stage_percent": 50})
+        progress_callback(
+            {"group": "passive_analysis", "status": "running_scanners", "stage_percent": 50}
+        )
 
     results = run_detection_plugins(context)
     response_cache.persist()
@@ -130,7 +145,7 @@ def run_passive_scanners(
                     "status": "complete",
                     "processed": len(urls),
                     "total": len(urls),
-                    "stage_percent": 100
+                    "stage_percent": 100,
                 }
             )
         except Exception as exc:

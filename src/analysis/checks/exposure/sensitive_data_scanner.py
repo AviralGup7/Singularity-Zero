@@ -220,7 +220,8 @@ class SensitiveDataScanner:
 
     def _redact(self, match: str) -> str:
         """Redact sensitive data for safe reporting."""
-        if not match: return ""
+        if not match:
+            return ""
         if len(match) <= 8:
             return match[:2] + "..." + match[-2:]
         return match[:4] + "..." + match[-4:]

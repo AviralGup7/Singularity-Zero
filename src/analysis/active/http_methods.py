@@ -134,9 +134,11 @@ def origin_reflection_probe(
 
     for item in priority_urls:
         url = str(item.get("url", "")).strip()
-        if not url: continue
+        if not url:
+            continue
         endpoint_key = ensure_endpoint_key(item, url)
-        if endpoint_key in seen: continue
+        if endpoint_key in seen:
+            continue
         seen.add(endpoint_key)
 
         domain = urlparse(url).netloc.split(":")[0]
@@ -145,39 +147,46 @@ def origin_reflection_probe(
             "https://probe.invalid",
             "null",
             f"https://evil.{domain}" if domain else "https://evil.local",
-            f"https://{domain}.evil.com" if domain else "https://target.evil.com"
+            f"https://{domain}.evil.com" if domain else "https://target.evil.com",
         ]
 
         for probe_origin in probe_origins:
             response = response_cache.request(url, method="GET", headers={"Origin": probe_origin})
-            if not response: continue
+            if not response:
+                continue
 
             headers = {str(k).lower(): str(v) for k, v in (response.get("headers") or {}).items()}
             acao = headers.get("access-control-allow-origin", "").strip()
             acac = headers.get("access-control-allow-credentials", "").strip().lower()
 
-            if acao not in {probe_origin, "*"}: continue
+            if acao not in {probe_origin, "*"}:
+                continue
 
             issues: list[str] = []
-            if acao == probe_origin: issues.append("origin_reflection")
-            if acac == "true": issues.append("credentialed_cors")
+            if acao == probe_origin:
+                issues.append("origin_reflection")
+            if acac == "true":
+                issues.append("credentialed_cors")
 
-            findings.append({
-                "url": url,
-                "endpoint_key": endpoint_key,
-                "endpoint_base_key": endpoint_base_key(url),
-                "endpoint_type": classify_endpoint(url),
-                "status_code": response.get("status_code"),
-                "probe_origin": probe_origin,
-                "allow_origin": acao,
-                "allow_credentials": acac == "true",
-                "confidence": _probe_confidence(issues or ["permissive_cors"]),
-                "severity": _probe_severity(issues or ["permissive_cors"]),
-                "issues": issues or ["permissive_cors"],
-            })
-            break # One hit per URL is enough for reflection
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base_key(url),
+                    "endpoint_type": classify_endpoint(url),
+                    "status_code": response.get("status_code"),
+                    "probe_origin": probe_origin,
+                    "allow_origin": acao,
+                    "allow_credentials": acac == "true",
+                    "confidence": _probe_confidence(issues or ["permissive_cors"]),
+                    "severity": _probe_severity(issues or ["permissive_cors"]),
+                    "issues": issues or ["permissive_cors"],
+                }
+            )
+            break  # One hit per URL is enough for reflection
 
-        if len(findings) >= limit: break
+        if len(findings) >= limit:
+            break
     return findings
 
 
@@ -189,14 +198,17 @@ def head_method_probe(
     seen: set[str] = set()
     for item in priority_urls:
         url = str(item.get("url", "")).strip()
-        if not url: continue
+        if not url:
+            continue
         endpoint_key = ensure_endpoint_key(item, url)
-        if endpoint_key in seen: continue
+        if endpoint_key in seen:
+            continue
         seen.add(endpoint_key)
 
         get_resp = response_cache.get(url)
         head_resp = response_cache.request(url, method="HEAD")
-        if not get_resp or not head_resp: continue
+        if not get_resp or not head_resp:
+            continue
 
         issues: list[str] = []
         if get_resp.get("status_code") != head_resp.get("status_code"):
@@ -218,16 +230,19 @@ def head_method_probe(
             issues.append("head_missing_headers")
 
         if issues:
-            findings.append({
-                "url": url,
-                "endpoint_key": endpoint_key,
-                "endpoint_base_key": endpoint_base_key(url),
-                "endpoint_type": classify_endpoint(url),
-                "issues": issues,
-                "confidence": _probe_confidence(issues),
-                "severity": _probe_severity(issues),
-            })
-        if len(findings) >= limit: break
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base_key(url),
+                    "endpoint_type": classify_endpoint(url),
+                    "issues": issues,
+                    "confidence": _probe_confidence(issues),
+                    "severity": _probe_severity(issues),
+                }
+            )
+        if len(findings) >= limit:
+            break
     return findings
 
 
@@ -241,17 +256,24 @@ def cors_preflight_probe(
 
     for item in priority_urls:
         url = str(item.get("url", "")).strip()
-        if not url: continue
+        if not url:
+            continue
         endpoint_key = ensure_endpoint_key(item, url)
-        if endpoint_key in seen: continue
+        if endpoint_key in seen:
+            continue
         seen.add(endpoint_key)
 
-        response = response_cache.request(url, method="OPTIONS", headers={
-            "Origin": probe_origin,
-            "Access-Control-Request-Method": "PUT",
-            "Access-Control-Request-Headers": "authorization,content-type",
-        })
-        if not response: continue
+        response = response_cache.request(
+            url,
+            method="OPTIONS",
+            headers={
+                "Origin": probe_origin,
+                "Access-Control-Request-Method": "PUT",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+        if not response:
+            continue
 
         headers = {str(k).lower(): str(v) for k, v in (response.get("headers") or {}).items()}
         acao = headers.get("access-control-allow-origin", "").strip()
@@ -277,23 +299,31 @@ def cors_preflight_probe(
                     if nh.get("access-control-allow-credentials") == "true":
                         issues.append("null_origin_with_credentials")
 
-        if "PUT" in acam: issues.append("preflight_allows_put")
-        if "DELETE" in acam: issues.append("preflight_allows_delete")
-        if "PATCH" in acam: issues.append("preflight_allows_patch")
-        if "authorization" in acah or "*" in acah: issues.append("preflight_allows_authorization_header")
-        if acao and "origin" not in vary: issues.append("missing_vary_origin")
+        if "PUT" in acam:
+            issues.append("preflight_allows_put")
+        if "DELETE" in acam:
+            issues.append("preflight_allows_delete")
+        if "PATCH" in acam:
+            issues.append("preflight_allows_patch")
+        if "authorization" in acah or "*" in acah:
+            issues.append("preflight_allows_authorization_header")
+        if acao and "origin" not in vary:
+            issues.append("missing_vary_origin")
 
         if issues:
-            findings.append({
-                "url": url,
-                "endpoint_key": endpoint_key,
-                "endpoint_base_key": endpoint_base_key(url),
-                "endpoint_type": classify_endpoint(url),
-                "issues": issues,
-                "confidence": _probe_confidence(issues),
-                "severity": _probe_severity(issues),
-            })
-        if len(findings) >= limit: break
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base_key(url),
+                    "endpoint_type": classify_endpoint(url),
+                    "issues": issues,
+                    "confidence": _probe_confidence(issues),
+                    "severity": _probe_severity(issues),
+                }
+            )
+        if len(findings) >= limit:
+            break
     return findings
 
 
@@ -305,13 +335,16 @@ def trace_method_probe(
     seen: set[str] = set()
     for item in priority_urls:
         url = str(item.get("url", "")).strip()
-        if not url: continue
+        if not url:
+            continue
         endpoint_key = ensure_endpoint_key(item, url)
-        if endpoint_key in seen: continue
+        if endpoint_key in seen:
+            continue
         seen.add(endpoint_key)
 
         response = response_cache.request(url, method="TRACE")
-        if not response: continue
+        if not response:
+            continue
 
         status = int(response.get("status_code") or 0)
         # Fix Audit #33: Include 301/302 as some servers redirect TRACE
@@ -321,15 +354,18 @@ def trace_method_probe(
             if any(token in body for token in ("cookie", "authorization", "x-api-key")):
                 issues.append("trace_reflects_headers")
 
-            findings.append({
-                "url": url,
-                "endpoint_key": endpoint_key,
-                "endpoint_base_key": endpoint_base_key(url),
-                "endpoint_type": classify_endpoint(url),
-                "status_code": status,
-                "issues": issues,
-                "confidence": _probe_confidence(issues),
-                "severity": _probe_severity(issues),
-            })
-        if len(findings) >= limit: break
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base_key(url),
+                    "endpoint_type": classify_endpoint(url),
+                    "status_code": status,
+                    "issues": issues,
+                    "confidence": _probe_confidence(issues),
+                    "severity": _probe_severity(issues),
+                }
+            )
+        if len(findings) >= limit:
+            break
     return findings
