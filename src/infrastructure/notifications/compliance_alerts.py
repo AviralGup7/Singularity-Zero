@@ -59,7 +59,23 @@ class ComplianceAlertsDispatcher:
 
         try:
             # Broadcast to all registered channels
-            self.manager.send_all(subject, full_msg)
+            from src.infrastructure.notifications.base import NotificationEvent, NotificationPriority
+            import asyncio
+
+            coro = self.manager.send(
+                event=NotificationEvent.COMPLIANCE_VIOLATION,
+                priority=NotificationPriority.CRITICAL,
+                title=subject,
+                message=full_msg,
+            )
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(coro)
+                else:
+                    loop.run_until_complete(coro)
+            except RuntimeError:
+                asyncio.run(coro)
             logger.info("GRC compliance maturity failure notifications successfully dispatched.")
         except Exception as exc:
             logger.error("Failed to broadcast compliance alerts: %s", exc)

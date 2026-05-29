@@ -262,7 +262,7 @@ class RedisClient:
 
         tenant_id = TenantContext.get_current_tenant()
         if tenant_id:
-            prefixed_keys = []
+            prefixed_keys: list[Any] = []
             for k in keys:
                 if isinstance(k, str):
                     if not k.startswith(f"{tenant_id}:"):
