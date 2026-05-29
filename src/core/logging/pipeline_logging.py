@@ -83,20 +83,21 @@ def emit_progress_event(stage: str, message: str, percent: int, **fields: object
     )
 
 
+def _json_default(obj: Any) -> Any:
+    """Custom JSON encoder for types that are not natively serializable."""
+    if isinstance(obj, types.MappingProxyType):
+        return dict(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 def emit_info(message: str) -> None:
     """Emit an informational message to stdout.
 
     Args:
         message: Message text to display.
     """
-    print(message, flush=True)
-
-
-def _json_default(obj: Any) -> Any:
-    """Custom JSON encoder for types that are not natively serializable."""
-    if isinstance(obj, types.MappingProxyType):
-        return dict(obj)
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+    sys.stdout.write(f"{message}\n")
+    sys.stdout.flush()
 
 
 def emit_summary(payload: dict[str, Any]) -> None:
@@ -108,30 +109,15 @@ def emit_summary(payload: dict[str, Any]) -> None:
     emit_info(json.dumps(payload, indent=2, default=_json_default))
 
 
+
 def emit_warning(message: str) -> None:
     """Emit a warning message to stderr.
 
     Args:
         message: Warning text to display.
     """
-    print(f"{LOGGING_FORMAT['warning_prefix']}{message}", file=sys.stderr, flush=True)
-
-
-def emit_retry_warning(
-    subject: str, *, reason: str, attempt: int, max_attempts: int, delay: float
-) -> None:
-    """Emit a retry warning with attempt count and delay information.
-
-    Args:
-        subject: What is being retried (e.g., tool name).
-        reason: Why the retry is needed.
-        attempt: Current attempt number (0-based).
-        max_attempts: Maximum number of attempts.
-        delay: Delay in seconds before the retry.
-    """
-    emit_warning(
-        f"{subject} {reason}; retrying attempt {attempt + 1}/{max_attempts} in {delay:.1f}s"
-    )
+    sys.stderr.write(f"{LOGGING_FORMAT['warning_prefix']}{message}\n")
+    sys.stderr.flush()
 
 
 def emit_error(message: str, *parts: object) -> None:
@@ -142,4 +128,31 @@ def emit_error(message: str, *parts: object) -> None:
     """
     if parts:
         message = " ".join([str(message), *(str(part) for part in parts)])
-    print(f"{LOGGING_FORMAT['error_prefix']}{message}", file=sys.stderr, flush=True)
+    sys.stderr.write(f"{LOGGING_FORMAT['error_prefix']}{message}\n")
+    sys.stderr.flush()
+
+
+def emit_retry_warning(
+    target: str,
+    *,
+    reason: str,
+    attempt: int,
+    max_attempts: int,
+    delay: float,
+) -> None:
+    """Emit a structured retry warning to stderr.
+
+    Args:
+        target: The resource or command being retried.
+        reason: Why the retry is happening.
+        attempt: Current attempt number (1-based).
+        max_attempts: Total maximum attempts allowed.
+        delay: Seconds to wait before the next attempt.
+    """
+    msg = (
+        f"Retrying {target} (attempt {attempt}/{max_attempts}) "
+        f"after {delay:.2f}s — reason: {reason}"
+    )
+    sys.stderr.write(f"{LOGGING_FORMAT['warning_prefix']}{msg}\n")
+    sys.stderr.flush()
+
