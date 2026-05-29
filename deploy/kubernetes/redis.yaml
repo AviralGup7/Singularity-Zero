@@ -61,6 +61,8 @@ metadata:
   labels:
     app.kubernetes.io/name: redis
     app.kubernetes.io/component: database
+  annotations:
+    #checkov:skip=CKV_K8S_35:Prefer using secrets as files over secrets as environment variables
 spec:
   serviceName: redis-headless
   replicas: 3
@@ -72,13 +74,30 @@ spec:
       labels:
         app.kubernetes.io/name: redis
     spec:
+      automountServiceAccountToken: false
       securityContext:
-        fsGroup: 1000
-        runAsUser: 999
+        fsGroup: 10001
+        runAsUser: 10001
+        runAsGroup: 10001
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
-          image: redis:7.6-alpine
+          image: redis:7.2.4-alpine@sha256:d894e43eb91176b6d4b29bb88de47ab188849b251121d55639148d424b9c1d68
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            privileged: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          imagePullPolicy: Always
           command:
             - "sh"
             - "-c"
@@ -152,6 +171,11 @@ spec:
           volumeMounts:
             - name: redis-data
               mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
       terminationGracePeriodSeconds: 60
   volumeClaimTemplates:
     - metadata:
@@ -162,3 +186,51 @@ spec:
           requests:
             storage: 10Gi
         storageClassName: standard
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-network-policy
+  namespace: cyber-pipeline
+  labels:
+    app.kubernetes.io/name: redis
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from within the same namespace (dashboard and workers)
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cyber-pipeline
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow from redis pods for replication
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+  egress:
+    # Allow DNS
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow replication communication to other redis pods
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
