@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from src.pipeline.services.pipeline_flow import pipeline_flow_manifest
+from src.pipeline.services.stage_registry import pipeline_flow_manifest
 from src.pipeline.storage import load_config
 from src.reporting import build_summary
 from src.reporting.pages import generate_run_report

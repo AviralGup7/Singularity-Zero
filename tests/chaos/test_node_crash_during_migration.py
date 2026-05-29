@@ -5,9 +5,9 @@ import pytest
 
 from src.core.frontier.ghost_actor import (
     GhostMeshCoordinator,
-    GhostMeshRegistry,
     ScanActor,
 )
+from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
 
 
 class MockRedisAsync:
