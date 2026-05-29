@@ -7,9 +7,9 @@ import pytest
 
 from src.core.frontier.ghost_actor import (
     GhostMeshCoordinator,
-    GhostMeshRegistry,
     ScanActor,
 )
+from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
 from src.core.frontier.wal import FrontierWAL
 from src.infrastructure.mesh.gossip import MeshNode
 

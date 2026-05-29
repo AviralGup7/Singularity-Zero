@@ -7,7 +7,7 @@ from src.api_tests.apitester import get_workflow_runner, list_workflows
 from src.api_tests.apitester.result_view import build_result_view
 from src.dashboard.services import DashboardServices
 from src.detection.registry import DETECTION_PLUGINS_BY_KEY, list_detection_plugins
-from src.pipeline.services.pipeline_flow import pipeline_flow_manifest
+from src.pipeline.services.stage_registry import pipeline_flow_manifest
 
 
 class ArchitectureBoundaryTests(unittest.TestCase):
