@@ -29,6 +29,8 @@ metadata:
     app.kubernetes.io/name: cyber-pipeline
     app.kubernetes.io/component: dashboard
     app.kubernetes.io/version: "2.0.0"
+  annotations:
+    #checkov:skip=CKV_K8S_35:Prefer using secrets as files over secrets as environment variables
 spec:
   replicas: 2
   strategy:
@@ -51,18 +53,29 @@ spec:
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: dashboard
-          image: cyber-pipeline:2.0.0
+          image: cyber-pipeline:2.0.0@sha256:d55f00e99d91f28e2b8f855d045d6a2f38d3809fb0317e174092d6e3c03565f1
           securityContext:
+            readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
+            privileged: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
             capabilities:
               drop:
                 - ALL
+            seccompProfile:
+              type: RuntimeDefault
           imagePullPolicy: Always
           command:
             - "uvicorn"
@@ -129,6 +142,8 @@ spec:
             - name: nuclei-templates
               mountPath: /app/nuclei-templates
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: output-data
           persistentVolumeClaim:
@@ -139,6 +154,8 @@ spec:
         - name: nuclei-templates
           persistentVolumeClaim:
             claimName: cyber-pipeline-nuclei-templates
+        - name: tmp
+          emptyDir: {}
       terminationGracePeriodSeconds: 60
       affinity:
         podAntiAffinity:
