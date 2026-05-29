@@ -17,7 +17,7 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -272,7 +272,7 @@ class CyberVault:
     def decrypt(self, encrypted_payload: str, *, purpose: str = "secret") -> str:
         """Compatibility helper. Prefer decrypt_lease for zero-after-use behavior."""
         with self.decrypt_lease(encrypted_payload, purpose=purpose) as lease:
-            return lease.text
+            return cast(str, lease.text)
 
     def export_sealed_bundle(
         self, records: dict[str, str], passphrase: str, *, name: str = "credential-vault"
@@ -286,8 +286,11 @@ class CyberVault:
             for key, value in sorted(records.items())
         }
         self._audit("bundle_export", secret_count=len(records), bundle_name=name)
-        return sealed_bundle_encrypt(
-            name, manifest_records, passphrase, aad=b"csp:vault:sealed-bundle"
+        return cast(
+            str,
+            sealed_bundle_encrypt(
+                name, manifest_records, passphrase, aad=b"csp:vault:sealed-bundle"
+            ),
         )
 
     def import_sealed_bundle(self, bundle: str | bytes, passphrase: str) -> dict[str, str]:

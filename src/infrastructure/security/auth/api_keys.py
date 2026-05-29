@@ -4,7 +4,7 @@ import hashlib
 import json
 import secrets
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from src.infrastructure.security.config import SecurityConfig
 from src.infrastructure.security.encryption import sealed_bundle_decrypt, sealed_bundle_encrypt
@@ -231,7 +231,7 @@ class APIKeyStore:
             "user_api_keys": self._user_api_keys,
         }
         self._audit("credential.bundle_export", secret_count=len(self._api_keys), bundle_name=name)
-        return sealed_bundle_encrypt(name, records, passphrase, aad=b"csp:auth:api-key-store")
+        return cast(str, sealed_bundle_encrypt(name, records, passphrase, aad=b"csp:auth:api-key-store"))
 
     def import_sealed_bundle(self, bundle: str | bytes, passphrase: str) -> None:
         """Restore API key metadata from a sealed bundle."""
