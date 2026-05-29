@@ -231,7 +231,9 @@ class APIKeyStore:
             "user_api_keys": self._user_api_keys,
         }
         self._audit("credential.bundle_export", secret_count=len(self._api_keys), bundle_name=name)
-        return cast(str, sealed_bundle_encrypt(name, records, passphrase, aad=b"csp:auth:api-key-store"))
+        return cast(
+            str, sealed_bundle_encrypt(name, records, passphrase, aad=b"csp:auth:api-key-store")
+        )
 
     def import_sealed_bundle(self, bundle: str | bytes, passphrase: str) -> None:
         """Restore API key metadata from a sealed bundle."""
