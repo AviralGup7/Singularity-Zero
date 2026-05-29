@@ -26,9 +26,13 @@ def audit_pyproject_deps(file_path: Path) -> list[str]:
         for dep in dep_lines:
             # Check for range operators (>=, <=, <, >, ~, ^) or lack of double equals
             if any(op in dep for op in [">=", "<=", "<", ">", "~=", "^="]):
-                violations.append(f"Unpinned dependency found in pyproject.toml: '{dep}' (uses a range operator)")
+                violations.append(
+                    f"Unpinned dependency found in pyproject.toml: '{dep}' (uses a range operator)"
+                )
             elif "==" not in dep:
-                violations.append(f"Unpinned dependency found in pyproject.toml: '{dep}' (missing absolute '==' check)")
+                violations.append(
+                    f"Unpinned dependency found in pyproject.toml: '{dep}' (missing absolute '==' check)"
+                )
 
         return violations
     except Exception as exc:
@@ -50,10 +54,14 @@ def main() -> int:
         print("Dependency Pinning Policy Gate: [FAIL] Loose version boundaries identified:")
         for v in violations:
             print(f"  - {v}")
-        print("\nRecommendation: Transition direct dependencies to absolute version pins in production environments.")
+        print(
+            "\nRecommendation: Transition direct dependencies to absolute version pins in production environments."
+        )
         return 1
 
-    print("Dependency Pinning Policy Gate: [PASS] Immutability checks successful. All packages locked.")
+    print(
+        "Dependency Pinning Policy Gate: [PASS] Immutability checks successful. All packages locked."
+    )
     return 0
 
 

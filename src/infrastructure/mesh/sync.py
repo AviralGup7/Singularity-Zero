@@ -34,6 +34,7 @@ class MeshSync:
     @property
     def channel_scoped(self) -> str:
         from src.core.tenant_context import TenantContext
+
         tenant_id = TenantContext.get_current_tenant()
         if tenant_id:
             return f"{tenant_id}:{self.channel}"

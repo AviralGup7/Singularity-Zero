@@ -8,6 +8,7 @@ from typing import Any, cast
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
+from src.core.tenant_context import TenantContext
 from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.security import (
     Principal,
@@ -15,7 +16,6 @@ from src.dashboard.fastapi.security import (
     authenticate_jwt_token,
     raise_for_roles,
 )
-from src.core.tenant_context import TenantContext
 
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -279,7 +279,7 @@ async def check_rate_limit(
         "/api/jobs/start": config.rate_limit_jobs,
         "/api/replay": config.rate_limit_replay,
     }
-    
+
     if path.startswith("/api/remediated/") and path.endswith("/verify"):
         limit = config.rate_limit_remediation
     else:

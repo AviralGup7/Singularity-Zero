@@ -144,7 +144,9 @@ def calculate_overall_grc_score(control_maturities: dict[str, ControlMaturity]) 
         band = "FAIL"
     elif overall_score < 50.0:
         band = "FAIL"
-    elif overall_score >= 85.0 and not any(m in (ControlMaturity.FAIL, ControlMaturity.AT_RISK) for m in control_maturities.values()):
+    elif overall_score >= 85.0 and not any(
+        m in (ControlMaturity.FAIL, ControlMaturity.AT_RISK) for m in control_maturities.values()
+    ):
         band = "PASS"
     else:
         band = "PARTIAL"

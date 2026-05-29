@@ -99,9 +99,7 @@ async def enumerate_dns_records(
         return domain, "AXFR", values
 
     tasks: list[Any] = [
-        _bounded_query(domain, rtype)
-        for domain in sorted(domains)
-        for rtype in record_types
+        _bounded_query(domain, rtype) for domain in sorted(domains) for rtype in record_types
     ]
 
     # Zone-transfer check for every domain when NS is in scope
@@ -124,8 +122,7 @@ async def enumerate_dns_records(
             )
 
     logger.info(
-        "DNS enumeration: %d domains × %d types → %d records "
-        "(dnspython=%s, concurrency=%d)",
+        "DNS enumeration: %d domains × %d types → %d records (dnspython=%s, concurrency=%d)",
         len(domains),
         len(record_types),
         len(results),
@@ -284,10 +281,7 @@ async def _check_axfr(domain: str, timeout: float) -> list[str]:
 def _axfr_attempt(domain: str, nameserver: str, timeout: float) -> bool:
     """Synchronous AXFR attempt; returns True if zone transfer succeeds."""
     try:
-        addrs = [
-            str(a[4][0])
-            for a in socket.getaddrinfo(nameserver, 53, socket.AF_INET)
-        ]
+        addrs = [str(a[4][0]) for a in socket.getaddrinfo(nameserver, 53, socket.AF_INET)]
     except OSError:
         return False
 
@@ -305,7 +299,7 @@ def _socket_resolve(domain: str, family: int) -> list[str]:
     """Resolve A or AAAA records using the stdlib socket module."""
     try:
         return [str(a[4][0]) for a in socket.getaddrinfo(domain, None, family)]
-    except (socket.gaierror, socket.herror, OSError):
+    except socket.gaierror, socket.herror, OSError:
         return []
 
 
@@ -322,8 +316,12 @@ def _is_security_relevant(record_type: str, value: str) -> bool:
         return any(
             p in v
             for p in (
-                "spf", "dkim", "dmarc", "_amazonses",
-                "google-site-verification", "facebook-domain-verification",
+                "spf",
+                "dkim",
+                "dmarc",
+                "_amazonses",
+                "google-site-verification",
+                "facebook-domain-verification",
                 "apple-domain-verification",
             )
         )
@@ -427,7 +425,9 @@ async def _check_dns_security(
         # Run parent inheritance checks concurrently
         spf_inherited, dmarc_inherited = await asyncio.gather(
             _has_inherited_txt(domain, "v=spf1") if not has_spf else asyncio.sleep(0, result=True),
-            _has_inherited_txt(domain, "v=dmarc1") if not has_dmarc else asyncio.sleep(0, result=True),
+            _has_inherited_txt(domain, "v=dmarc1")
+            if not has_dmarc
+            else asyncio.sleep(0, result=True),
         )
 
         if not has_spf and not spf_inherited and mx_records:
@@ -467,9 +467,7 @@ async def _check_dns_security(
         async with sem:
             return await _check_domain(domain, records)
 
-    all_results = await asyncio.gather(
-        *[_bounded_check(d, r) for d, r in by_domain.items()]
-    )
+    all_results = await asyncio.gather(*[_bounded_check(d, r) for d, r in by_domain.items()])
     for domain_findings in all_results:
         findings.extend(domain_findings)
 

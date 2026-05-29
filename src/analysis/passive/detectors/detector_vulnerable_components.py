@@ -75,11 +75,12 @@ _FRONTEND_LIBRARY_PATTERNS = [
     (r"(?i)lodash[/-]?([1-3]\.\d+\.\d+|4\.[0-1][0-6]\.\d+)", "Lodash < 4.17", "medium"),
 ]
 
+
 def _check_frontend_dependencies(response: dict[str, Any]) -> list[str]:
     """Check for outdated or vulnerable frontend dependencies in the response body."""
     signals: list[str] = []
     body = str(response.get("body_text") or "")
-    
+
     # Quick filter to avoid heavy regex on non-HTML/JS
     content_type = str(response.get("headers", {}).get("content-type", "")).lower()
     if not ("html" in content_type or "javascript" in content_type or "json" in content_type):
@@ -89,8 +90,9 @@ def _check_frontend_dependencies(response: dict[str, Any]) -> list[str]:
         match = re.search(pattern, body)
         if match:
             signals.append(f"vulnerable_version:frontend_library:{severity}:{lib_desc}")
-            
+
     return signals
+
 
 _DEPRECATED_API_PATTERNS = re.compile(
     r"(?:/v1/|/v0/|/api/v1/|/api/v0/|/old/|/legacy/|/deprecated/|/api/1\.0/|/api/0\.\d/)",

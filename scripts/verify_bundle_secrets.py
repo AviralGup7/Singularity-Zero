@@ -12,10 +12,16 @@ from pathlib import Path
 
 # Entropy and static secret signature matching rules
 SECRET_PATTERNS = {
-    "Generic API Key": re.compile(r"(?i)(api[-_]?key|secret[-_]?key|auth[-_]?token)\s*[:=]\s*['\"][a-zA-Z0-9_\-]{16,}['\"]"),
+    "Generic API Key": re.compile(
+        r"(?i)(api[-_]?key|secret[-_]?key|auth[-_]?token)\s*[:=]\s*['\"][a-zA-Z0-9_\-]{16,}['\"]"
+    ),
     "Private Key Block": re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----"),
-    "Slack Webhook URL": re.compile(r"https://hooks\.slack\.com/services/[T|B][A-Z0-9]{8}/[A-Z0-9]{8}/[A-Z0-9a-zA-Z]{24}"),
-    "AWS Access ID / Key": re.compile(r"(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}"),
+    "Slack Webhook URL": re.compile(
+        r"https://hooks\.slack\.com/services/[T|B][A-Z0-9]{8}/[A-Z0-9]{8}/[A-Z0-9a-zA-Z]{24}"
+    ),
+    "AWS Access ID / Key": re.compile(
+        r"(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}"
+    ),
 }
 
 

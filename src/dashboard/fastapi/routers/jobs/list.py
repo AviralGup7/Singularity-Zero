@@ -33,11 +33,12 @@ async def list_jobs(
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
     all_jobs = [
-        j for j in all_jobs
+        j
+        for j in all_jobs
         if is_target_owned_by_tenant(
-            str(j.get("target_name") or j.get("hostname") or j.get("target") or ""),
-            tenant_id
+            str(j.get("target_name") or j.get("hostname") or j.get("target") or ""), tenant_id
         )
     ]
 

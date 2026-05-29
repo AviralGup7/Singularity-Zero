@@ -47,11 +47,14 @@ async def get_ai_executive_summary(
 ) -> dict[str, Any]:
     output_root = services.query.output_root
     tenant_id = (auth or {}).get("tenant_id", "default")
-    
+
     # 1. Enforce strict multi-tenant boundary checks
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
     if not is_target_owned_by_tenant(target, tenant_id):
-        raise HTTPException(status_code=403, detail="Access denied to requested target infrastructure")
+        raise HTTPException(
+            status_code=403, detail="Access denied to requested target infrastructure"
+        )
 
     # 2. Get latest run directory
     run_dir = _get_latest_run_dir(output_root, target)
@@ -79,15 +82,14 @@ async def get_ai_executive_summary(
     # 5. Generate AI summary
     try:
         from src.intelligence.ml.llm_service import LLMService
+
         llm = LLMService.get_instance()
         summary_markdown = await llm.generate_executive_summary(findings, compliance_report)
-        return {
-            "target": target,
-            "run_id": run_dir.name,
-            "summary": summary_markdown
-        }
+        return {"target": target, "run_id": run_dir.name, "summary": summary_markdown}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to generate AI executive summary: {exc}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate AI executive summary: {exc}"
+        )
 
 
 @router.get(
@@ -181,7 +183,7 @@ async def get_sla_trending(
     total_open = 0
     active_breaches = 0
     mttr_durations = []
-    
+
     # Trend grouping by month: e.g. {"2026-05": {"remediated": 0, "breached": 0, "total": 0}}
     trend_data: dict[str, dict[str, Any]] = {}
 
@@ -206,18 +208,19 @@ async def get_sla_trending(
             if not isinstance(findings, list):
                 continue
 
-            sla_report = SLATracker.check_sla_compliance(findings)
-            
+            SLATracker.check_sla_compliance(findings)
+
             for f in findings:
                 if not isinstance(f, dict):
                     continue
                 total_findings += 1
-                
+
                 # Determine discovery and remediation timestamp
                 disc_ts = f.get("discovered_at") or f.get("timestamp")
                 if isinstance(disc_ts, str):
                     try:
                         import datetime
+
                         disc_ts = datetime.datetime.fromisoformat(disc_ts).timestamp()
                     except Exception:
                         disc_ts = time.time()
@@ -225,14 +228,24 @@ async def get_sla_trending(
 
                 # Group by month for trending
                 import datetime
-                dt = datetime.datetime.fromtimestamp(disc_ts, datetime.timezone.utc)
+
+                dt = datetime.datetime.fromtimestamp(disc_ts, datetime.UTC)
                 month_key = dt.strftime("%Y-%m")
-                trend_entry = trend_data.setdefault(month_key, {"remediated_count": 0, "breach_count": 0, "total_count": 0, "mttr_days": 0.0, "_mttr_list": []})
+                trend_entry = trend_data.setdefault(
+                    month_key,
+                    {
+                        "remediated_count": 0,
+                        "breach_count": 0,
+                        "total_count": 0,
+                        "mttr_days": 0.0,
+                        "_mttr_list": [],
+                    },
+                )
                 trend_entry["total_count"] += 1
 
                 status = str(f.get("status") or "").lower()
                 is_remediated = status in {"remediated", "resolved", "verified"}
-                
+
                 if is_remediated:
                     total_remediated += 1
                     rem_ts = f.get("remediated_at") or f.get("resolved_at") or f.get("timestamp")
@@ -242,7 +255,7 @@ async def get_sla_trending(
                         except Exception:
                             rem_ts = time.time()
                     rem_ts = float(rem_ts or time.time())
-                    
+
                     duration = max(0.0, rem_ts - disc_ts)
                     mttr_durations.append(duration)
                     trend_entry["remediated_count"] += 1
@@ -257,7 +270,7 @@ async def get_sla_trending(
                         sla_limit = SLATracker.SLA_CRITICAL_SECONDS
                     elif severity == "high":
                         sla_limit = SLATracker.SLA_HIGH_SECONDS
-                        
+
                     if age > sla_limit:
                         active_breaches += 1
                         trend_entry["breach_count"] += 1
@@ -268,16 +281,26 @@ async def get_sla_trending(
         entry = trend_data[month]
         mttrs = entry.pop("_mttr_list")
         entry["mttr_days"] = round((sum(mttrs) / len(mttrs)) / (24 * 3600), 2) if mttrs else 0.0
-        sorted_trend.append({
-            "month": month,
-            "remediated_count": entry["remediated_count"],
-            "breach_count": entry["breach_count"],
-            "total_count": entry["total_count"],
-            "mttr_days": entry["mttr_days"]
-        })
+        sorted_trend.append(
+            {
+                "month": month,
+                "remediated_count": entry["remediated_count"],
+                "breach_count": entry["breach_count"],
+                "total_count": entry["total_count"],
+                "mttr_days": entry["mttr_days"],
+            }
+        )
 
-    avg_mttr_days = round((sum(mttr_durations) / len(mttr_durations)) / (24 * 3600), 2) if mttr_durations else 0.0
-    compliance_rate = round(((total_findings - active_breaches) / total_findings * 100), 1) if total_findings else 100.0
+    avg_mttr_days = (
+        round((sum(mttr_durations) / len(mttr_durations)) / (24 * 3600), 2)
+        if mttr_durations
+        else 0.0
+    )
+    compliance_rate = (
+        round(((total_findings - active_breaches) / total_findings * 100), 1)
+        if total_findings
+        else 100.0
+    )
 
     return {
         "active_breaches": active_breaches,
@@ -288,4 +311,3 @@ async def get_sla_trending(
         "sla_compliance_rate": compliance_rate,
         "trending": sorted_trend,
     }
-

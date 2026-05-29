@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 import time
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 

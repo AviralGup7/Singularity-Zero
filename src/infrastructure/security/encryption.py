@@ -10,24 +10,9 @@ import base64
 import os
 from typing import Any, cast
 
-# Re-exports of modular sub-components for backwards compatibility
-from src.infrastructure.security.argon2id_aesgcm import (
-    ARGON2ID_AESGCM_PREFIX,
-    Argon2idParameters,
-    Argon2idAESGCM,
-    SecretLease,
-    secure_wipe,
-)
-
-from src.infrastructure.security.sealed_bundle import (
-    sealed_bundle_encrypt,
-    sealed_bundle_decrypt,
-)
-
-from src.infrastructure.security.secret_manager import SecretManager
-from src.infrastructure.security.tls_config import TLSConfig
-
 from src.core.logging.trace_logging import get_pipeline_logger
+
+# Re-exports of modular sub-components for backwards compatibility
 
 logger = get_pipeline_logger(__name__)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+
 from src.fuzzing.orchestrator import FuzzingOrchestrator
 
 

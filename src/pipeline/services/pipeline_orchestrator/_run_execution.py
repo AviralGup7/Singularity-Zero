@@ -195,9 +195,7 @@ async def _execute_single_stage(
             elapsed = time.time() - stage_started
 
             # Post-run recording
-            await orchestrator._record_stage_post_run(
-                stage_name, ctx, checkpoint_mgr
-            )
+            await orchestrator._record_stage_post_run(stage_name, ctx, checkpoint_mgr)
 
             # 2. Emit completion progress
             progress_emitter(

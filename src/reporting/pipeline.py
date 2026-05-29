@@ -189,6 +189,7 @@ def build_summary(
     # Enrich findings with Threat Intelligence CVE mappings
     try:
         from src.intelligence.threat_intel import ThreatIntelCorrelator
+
         intel = ThreatIntelCorrelator(enable_threat_intel=True)
         merged_findings = intel.enrich_findings_with_intel(merged_findings)
     except Exception as e:

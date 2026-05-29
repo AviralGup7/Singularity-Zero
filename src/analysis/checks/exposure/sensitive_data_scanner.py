@@ -151,7 +151,6 @@ class SensitiveDataScanner:
             "severity": "high",
             "data_type": "infrastructure",
         },
-
     ]
 
     def __init__(self) -> None:

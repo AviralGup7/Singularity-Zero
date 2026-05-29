@@ -1,12 +1,11 @@
-import pytest
-import pykka
-from typing import Any, cast
+from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.core.frontier.ghost_actor import (
-    ActorState,
-    GhostMeshRegistry,
     GhostMeshCoordinator,
+    GhostMeshRegistry,
     ScanActor,
 )
 
@@ -77,14 +76,14 @@ async def test_node_crash_mid_migration() -> None:
 
     # 5. Verify the target node (node-beta) orchestrator can safely recover the state from the prepared migration marker
     target_coordinator = GhostMeshCoordinator(registry, MagicMock())
-    
+
     # Target rehydrates the actor successfully
     recovered_ref = await target_coordinator.spawn_or_rehydrate_actor(actor_id, mock_logic)
-    
+
     try:
         snapshot = recovered_ref.ask({"command": "snapshot"}, block=True)
         assert snapshot.data["status"] == "running"
-        
+
         # Verify it cleaned up the migration state after successful recovery
         assert await registry.get_migration(actor_id) is None
         assert await registry.retrieve_actor_state(actor_id) is None

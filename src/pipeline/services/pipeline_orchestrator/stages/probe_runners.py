@@ -366,4 +366,3 @@ async def _run_fuzzing_campaign_probe(
             logger.warning("Fuzzer: Campaign failed on %s: %s", url, exc)
 
     return findings
-

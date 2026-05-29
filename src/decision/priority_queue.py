@@ -134,7 +134,7 @@ class ScanTarget:
     def effective_priority(self) -> float:
         """Calculate effective priority using aging bonus and exponential decay of the boosted portion."""
         now = time.time()
-        
+
         # Monotonically increasing aging factor to prevent starvation
         wait_time = max(0.0, now - self.created_at)
         aging_bonus = wait_time * 0.01

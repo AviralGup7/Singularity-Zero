@@ -22,8 +22,16 @@ def test_gnn_link_prediction() -> None:
     # The finding auth_bypass_01 affects api.example.com.
     # portal.example.com is currently unconnected.
     edges = [
-        {"source": "subdomain:api.example.com", "target": "url:https://api.example.com/v1/auth", "label": "serves"},
-        {"source": "subdomain:api.example.com", "target": "finding:auth_bypass_01", "label": "has_vuln"},
+        {
+            "source": "subdomain:api.example.com",
+            "target": "url:https://api.example.com/v1/auth",
+            "label": "serves",
+        },
+        {
+            "source": "subdomain:api.example.com",
+            "target": "finding:auth_bypass_01",
+            "label": "has_vuln",
+        },
     ]
 
     predicted = predictor.predict_links(nodes, edges, threshold=0.1)

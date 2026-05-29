@@ -34,6 +34,7 @@ async def get_csrf_token(request: Request) -> dict[str, str]:
     csrf_token = request.cookies.get("csrf_token")
     if not csrf_token:
         import secrets
+
         csrf_token = secrets.token_urlsafe(32)
     return {"csrf_token": csrf_token}
 
