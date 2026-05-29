@@ -13,6 +13,32 @@ from typing import Any, cast
 from src.core.logging.trace_logging import get_pipeline_logger
 
 # Re-exports of modular sub-components for backwards compatibility
+from src.infrastructure.security.argon2id_aesgcm import (
+    Argon2idAESGCM,
+    Argon2idParameters,
+    SecretLease,
+    secure_wipe,
+)
+from src.infrastructure.security.sealed_bundle import (
+    sealed_bundle_decrypt,
+    sealed_bundle_encrypt,
+)
+
+__all__ = [
+    "Argon2idAESGCM",
+    "Argon2idParameters",
+    "SecretLease",
+    "secure_wipe",
+    "sealed_bundle_decrypt",
+    "sealed_bundle_encrypt",
+    "generate_fernet_key",
+    "encrypt_data",
+    "decrypt_data",
+    "encrypt_string",
+    "decrypt_string",
+    "redis_tls_kwargs_from_env",
+    "DataEncryptor",
+]
 
 logger = get_pipeline_logger(__name__)
 
