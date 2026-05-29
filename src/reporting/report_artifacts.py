@@ -6,9 +6,12 @@ import base64
 import hashlib
 import html
 import json
+import logging
 import os
 import re
 from datetime import UTC, datetime
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import Any, cast
 
@@ -219,8 +222,8 @@ def _load_or_create_private_key(key_dir: Path) -> Ed25519PrivateKey:
     )
     try:
         os.chmod(key_path, 0o600)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as exc:
+        logger.debug("Failed to set file permissions: %s", exc)
     return private_key
 
 
@@ -354,8 +357,8 @@ def write_report_package(
         from src.reporting.compliance_pdf import generate_compliance_pdf
 
         pdf_path = generate_compliance_pdf(summary=summary, run_dir=run_dir)
-    except Exception:  # noqa: S110
-        pass
+    except Exception as exc:
+        logger.debug("Failed to set file permissions: %s", exc)
 
     if pdf_path is None or not pdf_path.exists():
         _write_simple_pdf(

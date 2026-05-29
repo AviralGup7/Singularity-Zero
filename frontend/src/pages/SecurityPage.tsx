@@ -422,7 +422,7 @@ export function SecurityPage() {
                     <span className="text-[var(--text-secondary)]">{formatDate(report.timestamp)}</span>
                     <span className="text-[var(--accent)] font-semibold">{report.client_ip ?? 'unknown'}</span>
                     <span className="text-[var(--text-tertiary)] max-w-xs truncate">
-                      {(report.report as any)['csp-report']?.['blocked-uri'] || 'Violation'}
+                      {((report.report as Record<string, Record<string, unknown>>)['csp-report']?.['blocked-uri'] as string) || 'Violation'}
                     </span>
                   </div>
                   <ChevronDown

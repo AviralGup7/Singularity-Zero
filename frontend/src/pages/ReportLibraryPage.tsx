@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, FileText, ShieldCheck, Download, RefreshCw, Library, Package, Shield } from 'lucide-react';
+import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield } from 'lucide-react';
 
 import { getReportLibrary, type ReportLibraryItem } from '@/api/reports';
 import { ApiError } from '@/api/core';

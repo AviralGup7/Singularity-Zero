@@ -7,8 +7,12 @@ from __future__ import annotations
 
 import requests
 
+from src.core.utils.url_validation import is_safe_url
+
 
 def _fetch_text_content(url: str, timeout_seconds: int, max_bytes: int) -> str:
+    if not is_safe_url(url):
+        return ""
     try:
         response = requests.get(
             url,

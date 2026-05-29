@@ -41,6 +41,7 @@ class SecretManager:
             cache_ttl_seconds: Seconds before cached secrets expire.
         """
         import collections
+        import threading
 
         from src.infrastructure.security.encryption import DataEncryptor  # Avoid circular imports
 
@@ -49,6 +50,7 @@ class SecretManager:
         self._cache: dict[str, tuple[str, float]] = {}  # {name: (value, expires_at)}
         self._cache_max_size = cache_max_size
         self._cache_ttl = cache_ttl_seconds
+        self._lock = threading.Lock()
         self._cache_order: collections.OrderedDict[str, None] = (
             collections.OrderedDict()
         )  # LRU tracking
@@ -74,22 +76,27 @@ class SecretManager:
         """Store a secret in the cache with TTL. Evicts oldest if full."""
         expires_at = time.time() + self._cache_ttl
 
-        if name in self._cache:
+        with self._lock:
+            if name in self._cache:
+                self._cache[name] = (value, expires_at)
+                self._cache_order.move_to_end(name)
+                return
+
+            while len(self._cache) >= self._cache_max_size:
+                try:
+                    oldest_name, _ = self._cache_order.popitem(last=False)
+                    self._cache.pop(oldest_name, None)
+                except KeyError:
+                    break
+
             self._cache[name] = (value, expires_at)
-            self._cache_order.move_to_end(name)
-            return
-
-        while len(self._cache) >= self._cache_max_size:
-            oldest_name, _ = self._cache_order.popitem(last=False)
-            self._cache.pop(oldest_name, None)
-
-        self._cache[name] = (value, expires_at)
-        self._cache_order[name] = None
+            self._cache_order[name] = None
 
     def _cache_del(self, name: str) -> None:
         """Remove a secret from the cache."""
-        self._cache.pop(name, None)
-        self._cache_order.pop(name, None)
+        with self._lock:
+            self._cache.pop(name, None)
+            self._cache_order.pop(name, None)
 
     def get_secret(self, name: str, default: str | None = None) -> str | None:
         """Get a secret from cache (with TTL) or environment.

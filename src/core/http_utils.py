@@ -109,7 +109,8 @@ def safe_request(
 
         parsed = urlparse(url)
         target = parsed.netloc or parsed.path.split("/")[0] or "unknown"
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to parse URL %s: %s", url, exc)
         target = "unknown"
 
     input_headers_lower = {k.lower(): v for k, v in (headers or {}).items()}
@@ -152,7 +153,8 @@ def safe_request(
                 else:
                     try:
                         cookies = {str(c.name): str(c.value) for c in resp.cookies}
-                    except Exception:  # noqa: S110
+                    except Exception as exc:
+                        logger.debug("Failed to extract cookies: %s", exc)
                         cookies = {}
             detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
             _chameleon._evasion_engine.update_observation(
@@ -181,7 +183,8 @@ def safe_request(
         if hasattr(e, "response") and e.response is not None:
             try:
                 err_status = getattr(e.response, "status_code", 0)
-            except Exception:  # noqa: S110
+            except Exception as exc:
+                logger.debug("Failed to extract error status: %s", exc)
                 pass
         is_blocked = err_status in {429, 503}
         limiter.update(0.0, is_blocked=is_blocked)
@@ -201,7 +204,8 @@ def safe_request(
                 target=target,
                 detected_waf=None,
             )
-        except Exception:  # noqa: S110
+        except Exception as exc:
+            logger.debug("Telemetry/Evasion observation failed: %s", exc)
             pass
         return _error_response(str(e), url=url, exc=e)
     except Exception as e:
@@ -254,7 +258,8 @@ async def async_safe_request(
 
         parsed = urlparse(url)
         target = parsed.netloc or parsed.path.split("/")[0] or "unknown"
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to parse URL %s: %s", url, exc)
         target = "unknown"
 
     input_headers_lower = {k.lower(): v for k, v in (headers or {}).items()}
@@ -277,6 +282,7 @@ async def async_safe_request(
             headers=req_headers,
             content=body,
             timeout=final_timeout,
+            follow_redirects=final_follow,
         )
         duration_ms = (time.monotonic() - start_time) * 1000
         is_blocked = resp.status_code in {429, 503}
@@ -297,7 +303,8 @@ async def async_safe_request(
                 else:
                     try:
                         cookies = {str(c.name): str(c.value) for c in resp.cookies}  # type: ignore[attr-defined]
-                    except Exception:  # noqa: S110
+                    except Exception as exc:
+                        logger.debug("Failed to extract cookies: %s", exc)
                         cookies = {}
             detected_waf = _chameleon.detect_waf(resp_headers, resp_body, cookies)
             _chameleon._evasion_engine.update_observation(
@@ -326,7 +333,8 @@ async def async_safe_request(
         if hasattr(e, "response") and e.response is not None:
             try:
                 err_status = getattr(e.response, "status_code", 0)
-            except Exception:  # noqa: S110
+            except Exception as exc:
+                logger.debug("Failed to extract error status: %s", exc)
                 pass
         is_blocked = err_status in {429, 503}
         limiter.update(0.0, is_blocked=is_blocked)
@@ -345,7 +353,8 @@ async def async_safe_request(
                 target=target,
                 detected_waf=None,
             )
-        except Exception:  # noqa: S110
+        except Exception as exc:
+            logger.debug("Telemetry/Evasion observation failed: %s", exc)
             pass
         return _error_response(str(e), url=url, exc=e)
     except Exception as e:
@@ -360,7 +369,8 @@ def _error_response(error: str, url: str = "", exc: Exception | None = None) -> 
         try:
             status = getattr(exc.response, "status_code", 0)
             headers = dict(getattr(exc.response, "headers", {}))
-        except Exception:  # noqa: S110
+        except Exception as exc:
+            logger.debug("Telemetry/Evasion observation failed: %s", exc)
             pass
 
     return {

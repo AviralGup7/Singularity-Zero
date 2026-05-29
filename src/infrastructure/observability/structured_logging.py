@@ -42,7 +42,9 @@ SENSITIVE_PATTERNS: dict[str, re.Pattern[str]] = {
     "api_key": re.compile(r"(?:api[_-]?key|apikey)\s*[:=]\s*['\"]?([A-Za-z0-9\-._~+/]+=*)"),
     "password": re.compile(r"(?:password|passwd|pwd)\s*[:=]\s*['\"]?([^\s'\"]+)"),
     "secret": re.compile(r"(?:secret|secret_key)\s*[:=]\s*['\"]?([A-Za-z0-9\-._~+/]+=*)"),
-    "credit_card": re.compile(r"\b(?:\d[ -]*?){13,16}\b"),
+    # Replaced catastrophic backtracking pattern with a linear-time equivalent:
+    # Match 13-16 digits optionally separated by spaces or hyphens, anchored on word boundaries.
+    "credit_card": re.compile(r"\b\d(?:[ -]?\d){12,15}\b"),
     "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
     "email": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
     "ipv4": re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),

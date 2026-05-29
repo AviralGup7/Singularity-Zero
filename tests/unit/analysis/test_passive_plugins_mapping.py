@@ -15,7 +15,7 @@ class TestPassivePluginsMapping(unittest.TestCase):
         self.assertEqual(len(duplicate_keys), 0, f"Duplicate keys found: {duplicate_keys}")
 
         # Check for duplicate labels
-        duplicate_labels = {l for l in labels if labels.count(l) > 1}
+        duplicate_labels = {lbl for lbl in labels if labels.count(lbl) > 1}
         self.assertEqual(len(duplicate_labels), 0, f"Duplicate labels found: {duplicate_labels}")
 
     def test_exposure_related_plugins_are_mapped(self) -> None:

@@ -40,7 +40,7 @@ export async function createEvidenceRecord(
   const now = new Date().toISOString();
 
   const custodyEntry: CustodyEntry = {
-    id: `custody-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `custody-${crypto.randomUUID()}`,
     evidenceId: '',
     action: 'created',
     user,
@@ -50,7 +50,7 @@ export async function createEvidenceRecord(
   };
 
   const record: EvidenceRecord = {
-    id: `evidence-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `evidence-${crypto.randomUUID()}`,
     name,
     type,
     created: now,
@@ -78,7 +78,7 @@ export async function recordEvidenceAccess(
    
   const lastEntry = record.custodyChain[record.custodyChain.length - 1];
   const entry: CustodyEntry = {
-    id: `custody-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `custody-${crypto.randomUUID()}`,
     evidenceId,
     action: 'accessed',
     user,
@@ -107,7 +107,7 @@ export async function recordEvidenceModification(
   const lastEntry = record.custodyChain[record.custodyChain.length - 1];
 
   const entry: CustodyEntry = {
-    id: `custody-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `custody-${crypto.randomUUID()}`,
     evidenceId,
     action: 'modified',
     user,
@@ -136,7 +136,7 @@ export async function recordEvidenceTransfer(
    
   const lastEntry = record.custodyChain[record.custodyChain.length - 1];
   const entry: CustodyEntry = {
-    id: `custody-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `custody-${crypto.randomUUID()}`,
     evidenceId,
     action: 'transferred',
     user,
@@ -201,7 +201,7 @@ export function deleteEvidenceRecord(evidenceId: string, user = 'anonymous'): vo
    
     const lastEntry = record.custodyChain[record.custodyChain.length - 1];
     record.custodyChain.push({
-      id: `custody-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `custody-${crypto.randomUUID()}`,
       evidenceId,
       action: 'deleted',
       user,

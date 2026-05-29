@@ -233,9 +233,33 @@ async def run_active_scanning(
             else:
                 probes_failed += 1
 
-    # Group 2: IDOR, HPP, WebSocket, GraphQL (ranked_items + URL focused)
+    # Fix Audit #32: Handoff passive IDOR candidates to active probe
+    passive_idor_candidates = []
+    if hasattr(ctx.result, "passive_findings"):
+        idor_findings = ctx.result.passive_findings.get("idor_candidate_finder", [])
+        for f in idor_findings:
+            if f.get("url") and f.get("score", 0) >= 3:
+                passive_idor_candidates.append({"url": f["url"], "passive_score": f["score"]})
+
+    idor_active_targets = ranked_priority_items
+    if passive_idor_candidates:
+        # Merge passive candidates, prioritizing them
+        seen_urls = {str(item.get("url")) for item in idor_active_targets}
+        for candidate in passive_idor_candidates:
+            if candidate["url"] not in seen_urls:
+                idor_active_targets.insert(0, candidate)
+                seen_urls.add(candidate["url"])
+
+    # Group 2: IDOR, Race, HPP, WebSocket, GraphQL (ranked_items + URL focused)
     group2 = [
-        _run_probe("idor", probes["idor_active_probe"], ranked_priority_items, response_cache),
+        _run_probe("idor", probes["idor_active_probe"], idor_active_targets, response_cache),
+        _run_probe(
+            "race",
+            probes["race_condition_probe"],
+            ranked_priority_items,
+            response_cache,
+            concurrent_requests=int(analysis_settings.get("race_concurrency", 10))
+        ),
         _run_probe("hpp", probes["hpp_active_probe"], url_priority_items, response_cache),
         _run_probe(
             "websocket",
@@ -358,14 +382,32 @@ async def run_active_scanning(
             else:
                 probes_failed += 1
 
-    # Build state_delta with findings
+    # Deduplicate findings across probes (Fix Audit #27)
+    dedup_findings: list[dict[str, Any]] = []
+    seen_vulns: set[tuple] = set()
+
+    for finding in all_findings:
+        # Create a unique key for the finding: (url, category, issue_type/probes_hash)
+        url = str(finding.get("url", ""))
+        category = str(finding.get("category", ""))
+        # Some findings use 'issues', some use 'finding'
+        issues = tuple(sorted(finding.get("issues", [])))
+        if not issues and "finding" in finding:
+            issues = (finding["finding"],)
+
+        vuln_key = (url, category, issues)
+        if vuln_key not in seen_vulns:
+            seen_vulns.add(vuln_key)
+            dedup_findings.append(finding)
+
+    # Build state_delta with deduplicated findings
     state_delta: dict[str, Any] = {
-        "active_scan_findings": all_findings,
+        "active_scan_findings": dedup_findings,
     }
 
     emit_progress(
         "active_scan",
-        f"Active scan complete: {probes_succeeded}/{probes_executed} probes succeeded, {len(all_findings)} findings",
+        f"Active scan complete: {probes_succeeded}/{probes_executed} probes succeeded, {len(dedup_findings)} findings",
         90,
         processed=probes_executed,
         total=probes_executed,

@@ -80,11 +80,11 @@ class DashboardQueryService:
         try:
             path = Path(path_str).resolve()
             # If the path is within output_root, make it relative
-            if path.is_relative_to(self.output_root):
-                rel = path.relative_to(self.output_root)
+            if path.is_relative_to(self.output_root.resolve()):
+                rel = path.relative_to(self.output_root.resolve())
                 return f"/{rel.as_posix()}"
             return path_str
-        except ValueError, RuntimeError:
+        except (ValueError, RuntimeError):
             return path_str
 
     def _recover_job_from_launcher(self, job_id: str) -> dict[str, Any] | None:
@@ -249,20 +249,22 @@ class DashboardQueryService:
         }
 
     def detection_gap_summary(self, target_name: str | None = None) -> dict[str, object]:
-        """Aggregate real telemetry across runs to compute coverage and gaps."""
+        """Aggregate real telemetry across runs to compute coverage and gaps. (SEC-FIX)"""
         # Normalize special target names
         if target_name in ("all", ""):
             target_name = None
 
         targets_to_process = []
+        output_root_resolved = self.output_root.resolve()
+
         if target_name:
-            target_dir = self.output_root / target_name
-            if target_dir.exists() and target_dir.is_dir():
+            target_dir = (output_root_resolved / target_name).resolve()
+            if target_dir.is_relative_to(output_root_resolved) and target_dir.is_dir():
                 targets_to_process.append(target_name)
         else:
             # List all target directories
-            if self.output_root.exists():
-                for entry in self.output_root.iterdir():
+            if output_root_resolved.exists():
+                for entry in output_root_resolved.iterdir():
                     if entry.is_dir() and not entry.name.startswith("_"):
                         targets_to_process.append(entry.name)
 
@@ -271,7 +273,7 @@ class DashboardQueryService:
         coverage_by_category: dict[str, int] = {}
 
         for target in targets_to_process:
-            target_dir = self.output_root / target
+            target_dir = output_root_resolved / target
             run_dirs = sorted(
                 [
                     d
@@ -339,10 +341,11 @@ class DashboardQueryService:
 
     def list_targets(self) -> list[dict[str, Any]]:
         targets = []
-        if not self.output_root.exists():
+        output_root_resolved = self.output_root.resolve()
+        if not output_root_resolved.exists():
             return []
 
-        for entry in sorted(self.output_root.iterdir(), key=lambda x: x.name.lower()):
+        for entry in sorted(output_root_resolved.iterdir(), key=lambda x: x.name.lower()):
             if not entry.is_dir() or entry.name.startswith("_"):
                 continue
 
@@ -387,8 +390,11 @@ class DashboardQueryService:
         return targets
 
     def get_timeline_data(self, target_name: str) -> list[dict[str, Any]]:
-        target_dir = self.output_root / target_name
-        if not target_dir.exists():
+        """Retrieve timeline data with boundary protection. (SEC-FIX)"""
+        output_root_resolved = self.output_root.resolve()
+        target_dir = (output_root_resolved / target_name).resolve()
+
+        if not target_dir.is_relative_to(output_root_resolved) or not target_dir.exists():
             return []
 
         timeline = []
@@ -404,7 +410,6 @@ class DashboardQueryService:
                 run_timestamp = summary.get("generated_at_utc", run_dir.name)
 
                 # Gap Analysis Fix: Metrics now resolve from both 'analysis' and 'passive_scan' keys
-                # This ensures telemetry matches backend field naming during frontier mesh runs.
                 analysis_metrics = (
                     summary.get("metrics", {}).get("analysis")
                     or summary.get("metrics", {}).get("passive_scan")
@@ -432,8 +437,11 @@ class DashboardQueryService:
         return timeline
 
     def get_target_history(self, target_name: str) -> list[dict[str, Any]]:
-        target_dir = self.output_root / target_name
-        if not target_dir.exists():
+        """Retrieve target history with boundary protection. (SEC-FIX)"""
+        output_root_resolved = self.output_root.resolve()
+        target_dir = (output_root_resolved / target_name).resolve()
+
+        if not target_dir.is_relative_to(output_root_resolved) or not target_dir.exists():
             return []
 
         history = []

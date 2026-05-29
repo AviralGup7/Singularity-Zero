@@ -28,22 +28,30 @@ class LLMConfig(BaseModel):
     timeout_seconds: float = Field(default=10.0, gt=0)
 
 
+import threading
+
+
+# ...
 class LLMService:
     """Async service orchestrating LLM-driven vulnerability validation and posture assessments."""
 
     _instance: LLMService | None = None
+    _lock = threading.Lock()
 
     def __init__(self, config: LLMConfig | None = None) -> None:
         if config is None:
             config = self._load_from_env()
         self.config = config
-        self.client = httpx.AsyncClient(timeout=config.timeout_seconds, verify=False)
+        # Security Fix: Re-enabled SSL verification (verify=True)
+        self.client = httpx.AsyncClient(timeout=config.timeout_seconds, verify=True)
 
     @classmethod
     def get_instance(cls) -> LLMService:
-        """Retrieve or construct singleton instance."""
+        """Retrieve or construct singleton instance in a thread-safe manner."""
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     @staticmethod

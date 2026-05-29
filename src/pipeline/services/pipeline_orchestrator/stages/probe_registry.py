@@ -81,6 +81,7 @@ def _load_active_probe_functions() -> dict[str, Any]:
     from src.analysis.active.jwt_attacks import run_jwt_attack_suite
     from src.analysis.active.jwt_attacks._helpers import JWT_RE
     from src.analysis.active.param_mining import param_mining_probe
+    from src.analysis.active.race_condition import race_condition_probe
     from src.analysis.intelligence.mutation_runtime import run_mutation_tests
     from src.analysis.json.active_probes import (
         filter_parameter_fuzzer,
@@ -131,6 +132,7 @@ def _load_active_probe_functions() -> dict[str, Any]:
         "run_jwt_attack_suite": run_jwt_attack_suite,
         "jwt_token_regex": JWT_RE,
         "sqli_safe_probe": sqli_safe_probe,
+        "race_condition_probe": race_condition_probe,
         "ssrf_active_probe": ssrf_active_probe,
         "ssti_active_probe": ssti_active_probe,
         "state_transition_analyzer": state_transition_analyzer,

@@ -8,7 +8,7 @@ from typing import Any
 
 from src.core.config import load_config
 from src.pipeline.runner_support import build_tool_status, emit_progress
-from src.pipeline.services.pipeline_flow import pipeline_flow_manifest
+from src.pipeline.services.stage_registry import pipeline_flow_manifest
 from src.pipeline.storage import read_scope
 
 

@@ -1,12 +1,26 @@
 {
-  "worktrees": {},
-  "sessions": {},
+  "worktrees": {
+    "wt-1780042660307-1": {
+      "branch": "solar-road",
+      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\solar-road",
+      "parentBranch": "main",
+      "createdAt": "2026-05-29T08:17:40.307Z",
+      "remote": "origin"
+    }
+  },
+  "sessions": {
+    "ses_18d3057c4ffeW5v8IQ5eFivkTk": {
+      "worktreeId": "wt-1780042660307-1",
+      "createdAt": "2026-05-29T08:17:52.202Z"
+    }
+  },
   "tabOrder": {
     "local": [
-      "ses_297252f40ffeDOxj0E90kRBrTq",
-      "ses_29b77af37ffee40yNL5RZN0aEe",
-      "ses_29b76b716ffeQYuqtHjSApdcQm"
+      "pending:1"
     ]
   },
+  "worktreeOrder": [
+    "wt-1780042660307-1"
+  ],
   "sessionsCollapsed": true
 }

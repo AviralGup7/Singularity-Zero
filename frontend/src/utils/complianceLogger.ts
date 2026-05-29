@@ -21,7 +21,7 @@ export function logComplianceAction(
   outcome: ComplianceLogEntry['outcome'] = 'success'
 ): ComplianceLogEntry {
   const entry: ComplianceLogEntry = {
-    id: `compliance-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `compliance-${crypto.randomUUID()}`,
     timestamp: new Date().toISOString(),
     user,
     action,

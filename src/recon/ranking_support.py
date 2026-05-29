@@ -90,14 +90,14 @@ def _coerce_feedback_set(value: Any) -> set[str]:
 
 
 def load_history_feedback(previous_run: Path | str | None) -> HistoryFeedback:
-    \"\"\"Load history feedback from a previous pipeline run's findings and scores.
+    """Load history feedback from a previous pipeline run's findings and scores.
 
     Args:
         previous_run: Path to previous run output directory.
 
     Returns:
         Dict with hosts, endpoint_keys, endpoint_bases, parameter_names, and scores.
-    \"\"\"
+    """
     feedback: HistoryFeedback = {
         "hosts": set(),
         "endpoint_keys": set(),
@@ -316,7 +316,7 @@ def history_feedback_score(url: str, feedback: HistoryFeedback | None) -> int:
 
     if host in hosts:
         score += 4
-    
+
     # Regression tracking: if it had a high score before, keep it relevant
     canonical_key = endpoint_signature(url, include_host=True)
     if canonical_key in endpoint_keys:
@@ -328,7 +328,7 @@ def history_feedback_score(url: str, feedback: HistoryFeedback | None) -> int:
 
     if endpoint_base_key(url, include_host=True) in endpoint_bases:
         score += 3
-        
+
     matched_params = parameter_names & {name for name, _ in meaningful_query_pairs(url)}
     score += min(len(matched_params), 3) * 2
     return score

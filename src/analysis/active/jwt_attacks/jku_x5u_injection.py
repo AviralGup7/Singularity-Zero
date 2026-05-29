@@ -45,7 +45,7 @@ def test_jku_injection(token: str, url: str, session: Any) -> dict[str, Any]:
             jku_header = dict(header)
             jku_header["jku"] = jku_url
             jku_header["alg"] = "HS256"
-            jku_token = _create_jwt(jku_header, payload)
+            jku_token = _create_jwt(jku_header, payload, secret=b"secret")
 
             for auth_header in JWT_AUTH_HEADERS:
                 resp = _send_with_token(url, jku_token, auth_header, session)

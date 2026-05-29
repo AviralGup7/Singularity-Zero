@@ -79,6 +79,56 @@ def heartbeat_interval_seconds() -> float:
     return max(5.0, parsed)
 
 
+from pathlib import Path
+
+from src.dashboard.fastapi.validation import validate_target_name
+
+
+# ...
+def get_safe_target_dir(output_root: Path, target_name: str) -> Path:
+    """Validate target name and ensure directory exists within output_root. (SEC-FIX)"""
+    if not validate_target_name(target_name):
+        raise HTTPException(status_code=400, detail="Invalid target name")
+
+    # Use .resolve() to flatten path and verify boundary
+    output_root_resolved = output_root.resolve()
+    target_dir = (output_root_resolved / target_name).resolve()
+
+    if not target_dir.is_relative_to(output_root_resolved):
+        logger.warning(
+            "Security: Attempted directory traversal detected for target_name: %r", target_name
+        )
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    if not target_dir.exists():
+        # Check for case-insensitive match among existing child directories
+        for entry in output_root_resolved.iterdir():
+            if entry.is_dir() and entry.name.lower() == target_name.lower():
+                return entry
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    return target_dir
+
+
+def get_safe_target_path(output_root: Path, target_name: str) -> Path:
+    """Construct a safe target path within output_root, without requiring existence. (SEC-FIX)"""
+    if not validate_target_name(target_name):
+        raise HTTPException(status_code=400, detail="Invalid target name")
+
+    # Use .resolve() to flatten path and verify boundary
+    output_root_resolved = output_root.resolve()
+    target_path = (output_root_resolved / target_name).resolve()
+
+    if not target_path.is_relative_to(output_root_resolved):
+        logger.warning(
+            "Security: Attempted directory traversal detected (path) for target_name: %r",
+            target_name,
+        )
+        raise HTTPException(status_code=403, detail="Target path out of bounds")
+
+    return target_path
+
+
 async def get_enriched_job(job_id: str, services: Any) -> dict[str, Any]:
     """Retrieve and validate job presence in the job queue store."""
     job = services.get_job(job_id)

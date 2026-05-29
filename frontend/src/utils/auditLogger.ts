@@ -19,7 +19,7 @@ export function logAuditAction(
   page = window.location.pathname
 ): void {
   const entry: AuditEntry = {
-    id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `audit-${crypto.randomUUID()}`,
     timestamp: new Date().toISOString(),
     user,
     action,

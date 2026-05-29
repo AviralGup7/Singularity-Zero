@@ -65,7 +65,7 @@ const STORAGE_INTEGRITY_KEY = 'cyber-pipeline-user-role-integrity';
 function getSessionSalt(): string {
   let salt = sessionStorage.getItem('cyber-pipeline-role-salt');
   if (!salt) {
-    salt = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+    salt = crypto.randomUUID();
     sessionStorage.setItem('cyber-pipeline-role-salt', salt);
   }
   return salt;

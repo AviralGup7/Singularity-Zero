@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarClock, Filter, RefreshCw, X } from 'lucide-react';
+import { CalendarClock, Filter, RefreshCw } from 'lucide-react';
 import { useFindingsTimeline, useMotionPolicy, useTargets } from '@/hooks';
 import type { FindingTimelineEvent } from '@/types/extended';
 import { EmptyState, SkeletonTable, PageHeader, GlassCard, AnimatedCounter } from '@/components/ui';
@@ -61,14 +61,17 @@ export function FindingsTimelinePage() {
     offset,
   });
 
-  useEffect(() => {
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
     setOffset(0);
     setEvents([]);
     setSelectedEvent(null);
-   
-  }, [filterKey]);
+  }
 
-  useEffect(() => {
+  const [prevData, setPrevData] = useState<FindingTimelineEvent[] | null>(null);
+  if (timeline.data !== prevData) {
+    setPrevData(timeline.data);
     const incoming = timeline.events;
     setEvents((current) => {
       const merged = offset === 0 ? incoming : [...current, ...incoming];
@@ -79,8 +82,7 @@ export function FindingsTimelinePage() {
         return true;
       });
     });
-   
-  }, [offset, timeline.events]);
+  }
 
   const targetOptions = useMemo(() => {
     const names = new Set<string>();

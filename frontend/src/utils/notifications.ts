@@ -28,7 +28,7 @@ export function sendPushNotification(
   data?: Record<string, unknown>
 ): void {
   const notification: AppNotification = {
-    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `notif-${crypto.randomUUID()}`,
     type,
     title,
     body,

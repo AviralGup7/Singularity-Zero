@@ -141,7 +141,10 @@ def xss_reflect_probe(
             continue
 
         baseline = response_cache.get(url)
-        (baseline or {}).get("body_text", "")
+        baseline_body = (baseline or {}).get("body_text", "")
+        if baseline_body and XSS_REFLECT_MARKER.lower() in baseline_body.lower():
+            logger.debug("Reflection marker already present in baseline for %s, skipping", url)
+            continue
 
         for param_idx, param_name in params_to_test:
             if len(findings) >= limit:

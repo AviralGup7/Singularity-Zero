@@ -180,11 +180,17 @@ class FuzzingOrchestrator:
 
         from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
         from src.core.mutation_engine import detect_parameter_type
+        from src.core.utils.url_validation import is_safe_url
 
         findings: list[dict[str, Any]] = []
         parsed = urlparse(url)
         query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
         if not query_pairs:
+            return findings
+
+        # SSRF protection: validate URL before any HTTP request
+        if not is_safe_url(url):
+            logger.warning("Fuzzer: URL failed SSRF safety check, skipping: %s", url)
             return findings
 
         # Compiled error matching regex
@@ -197,7 +203,8 @@ class FuzzingOrchestrator:
 
         close_client = False
         if client is None:
-            client = httpx.AsyncClient(timeout=timeout_seconds, verify=False)
+            # Security Fix: Re-enabled SSL verification (verify=True)
+            client = httpx.AsyncClient(timeout=timeout_seconds, verify=True)
             close_client = True
 
         endpoint_key = endpoint_signature(url)

@@ -132,7 +132,6 @@ export function SelfHealingPage() {
 
   const activeFindingsCount = useMemo(() => snapshot?.findings?.length || 0, [snapshot]);
   const isDegraded = snapshot?.status === 'degraded';
-  const isCritical = snapshot?.status === 'critical';
   const isHealthy = snapshot?.status === 'healthy';
 
   const containerVariants = {

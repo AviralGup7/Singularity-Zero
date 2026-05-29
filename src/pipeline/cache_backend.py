@@ -210,27 +210,29 @@ class PersistentCache:
 
         try:
             conn = sqlite3.connect(self._db_path)
-            cursor = conn.execute("PRAGMA integrity_check")
-            check_result = cursor.fetchone()
-            if check_result and check_result[0] != "ok":
-                result["healthy"] = False
-                result["issues"].append(f"Integrity check failed: {check_result[0]}")
+            try:
+                cursor = conn.execute("PRAGMA integrity_check")
+                check_result = cursor.fetchone()
+                if check_result and check_result[0] != "ok":
+                    result["healthy"] = False
+                    result["issues"].append(f"Integrity check failed: {check_result[0]}")
+            finally:
+                conn.close()
         except sqlite3.DatabaseError as exc:
             result["healthy"] = False
             result["issues"].append(f"Database error during integrity check: {exc}")
-        finally:
-            conn.close()
 
         try:
             conn = sqlite3.connect(self._db_path)
-            cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
-            row = cursor.fetchone()
-            result["entry_count"] = row[0] if row else 0
+            try:
+                cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
+                row = cursor.fetchone()
+                result["entry_count"] = row[0] if row else 0
+            finally:
+                conn.close()
         except (sqlite3.OperationalError, sqlite3.DatabaseError) as exc:
             result["healthy"] = False
             result["issues"].append(f"Cannot query cache_entries: {exc}")
-        finally:
-            conn.close()
 
         if result["db_size_bytes"] > 100 * 1024 * 1024:
             result["issues"].append(

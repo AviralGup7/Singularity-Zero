@@ -5,6 +5,7 @@ and TRACE methods. Extracted from active_probes.py for better separation of conc
 """
 
 from typing import Any, cast
+from urllib.parse import urlparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, ensure_endpoint_key
 from src.analysis.passive.runtime import ResponseCache
@@ -12,7 +13,7 @@ from src.analysis.passive.runtime import ResponseCache
 # Type alias for response headers
 HeadersDict = dict[str, str]
 
-# Confidence scores for HTTP method probe issue types
+# Confidence scores for HTTP method probe issue types (Fix Audit #12)
 PROBE_CONFIDENCE = {
     "unsafe_methods_exposed": 0.72,
     "trace_enabled": 0.68,
@@ -24,9 +25,16 @@ PROBE_CONFIDENCE = {
     "content_length_mismatch": 0.52,
     "preflight_origin_allowed": 0.75,
     "preflight_allows_put": 0.68,
+    "preflight_allows_delete": 0.68,
+    "preflight_allows_patch": 0.68,
     "preflight_allows_authorization_header": 0.82,
     "trace_method_accepted": 0.70,
     "trace_reflects_headers": 0.78,
+    "wildcard_origin_with_credentials": 0.95,
+    "reflected_origin_with_credentials": 0.90,
+    "null_origin_accepted": 0.75,
+    "null_origin_with_credentials": 0.85,
+    "missing_vary_origin": 0.60,
 }
 
 PROBE_SEVERITY = {
@@ -40,9 +48,16 @@ PROBE_SEVERITY = {
     "content_length_mismatch": "low",
     "preflight_origin_allowed": "medium",
     "preflight_allows_put": "medium",
+    "preflight_allows_delete": "high",
+    "preflight_allows_patch": "medium",
     "preflight_allows_authorization_header": "high",
     "trace_method_accepted": "medium",
     "trace_reflects_headers": "high",
+    "wildcard_origin_with_credentials": "critical",
+    "reflected_origin_with_credentials": "high",
+    "null_origin_accepted": "medium",
+    "null_origin_with_credentials": "high",
+    "missing_vary_origin": "low",
 }
 
 
@@ -113,35 +128,41 @@ def options_method_probe(
 def origin_reflection_probe(
     priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
 ) -> list[dict[str, Any]]:
+    """Probe for Origin header reflection weaknesses. (Fix Audit #19)"""
     findings: list[dict[str, Any]] = []
     seen: set[str] = set()
-    probe_origin = "https://probe.invalid"
+
     for item in priority_urls:
         url = str(item.get("url", "")).strip()
-        if not url:
-            continue
+        if not url: continue
         endpoint_key = ensure_endpoint_key(item, url)
-        if endpoint_key in seen:
-            continue
+        if endpoint_key in seen: continue
         seen.add(endpoint_key)
-        response = response_cache.request(url, method="GET", headers={"Origin": probe_origin})
-        if not response:
-            continue
-        raw_headers: Any = response.get("headers") or {}
-        headers: HeadersDict = {
-            str(key).lower(): str(value) for key, value in cast(dict[str, Any], raw_headers).items()
-        }
-        acao = headers.get("access-control-allow-origin", "").strip()
-        acac = headers.get("access-control-allow-credentials", "").strip().lower()
-        if acao not in {probe_origin, "*"}:
-            continue
-        issues: list[str] = []
-        if acao == probe_origin:
-            issues.append("origin_reflection")
-        if acac == "true":
-            issues.append("credentialed_cors")
-        findings.append(
-            {
+
+        domain = urlparse(url).netloc.split(":")[0]
+        # Multiple probe origins (Fix Audit #19)
+        probe_origins = [
+            "https://probe.invalid",
+            "null",
+            f"https://evil.{domain}" if domain else "https://evil.local",
+            f"https://{domain}.evil.com" if domain else "https://target.evil.com"
+        ]
+
+        for probe_origin in probe_origins:
+            response = response_cache.request(url, method="GET", headers={"Origin": probe_origin})
+            if not response: continue
+
+            headers = {str(k).lower(): str(v) for k, v in (response.get("headers") or {}).items()}
+            acao = headers.get("access-control-allow-origin", "").strip()
+            acac = headers.get("access-control-allow-credentials", "").strip().lower()
+
+            if acao not in {probe_origin, "*"}: continue
+
+            issues: list[str] = []
+            if acao == probe_origin: issues.append("origin_reflection")
+            if acac == "true": issues.append("credentialed_cors")
+
+            findings.append({
                 "url": url,
                 "endpoint_key": endpoint_key,
                 "endpoint_base_key": endpoint_base_key(url),
@@ -153,224 +174,162 @@ def origin_reflection_probe(
                 "confidence": _probe_confidence(issues or ["permissive_cors"]),
                 "severity": _probe_severity(issues or ["permissive_cors"]),
                 "issues": issues or ["permissive_cors"],
-            }
-        )
-        if len(findings) >= limit:
-            break
+            })
+            break # One hit per URL is enough for reflection
+
+        if len(findings) >= limit: break
     return findings
 
 
 def head_method_probe(
     priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
 ) -> list[dict[str, Any]]:
+    """Compare GET and HEAD responses for inconsistencies. (Fix Audit #34)"""
     findings: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in priority_urls:
         url = str(item.get("url", "")).strip()
-        if not url:
-            continue
+        if not url: continue
         endpoint_key = ensure_endpoint_key(item, url)
-        if endpoint_key in seen:
-            continue
+        if endpoint_key in seen: continue
         seen.add(endpoint_key)
-        get_response = response_cache.get(url)
-        head_response = response_cache.request(url, method="HEAD")
-        if not get_response or not head_response:
-            continue
+
+        get_resp = response_cache.get(url)
+        head_resp = response_cache.request(url, method="HEAD")
+        if not get_resp or not head_resp: continue
+
         issues: list[str] = []
-        if get_response.get("status_code") != head_response.get("status_code"):
+        if get_resp.get("status_code") != head_resp.get("status_code"):
             issues.append("head_status_mismatch")
-        if not head_response.get("headers"):
-            issues.append("head_missing_headers")
-        get_raw_headers: Any = get_response.get("headers") or {}
-        get_headers: HeadersDict = {
-            str(k).lower(): str(v) for k, v in cast(dict[str, Any], get_raw_headers).items()
-        }
-        head_raw_headers: Any = head_response.get("headers") or {}
-        head_headers: HeadersDict = {
-            str(k).lower(): str(v) for k, v in cast(dict[str, Any], head_raw_headers).items()
-        }
-        get_length = str(get_headers.get("content-length", ""))
-        head_length = str(head_headers.get("content-length", ""))
-        # Note: head_headers is also available for additional header comparison checks
-        if get_length and head_length and get_length != head_length:
+
+        get_headers = {str(k).lower(): str(v) for k, v in (get_resp.get("headers") or {}).items()}
+        head_headers = {str(k).lower(): str(v) for k, v in (head_resp.get("headers") or {}).items()}
+
+        # Check Content-Length (Fix Audit #34)
+        gl = get_headers.get("content-length")
+        hl = head_headers.get("content-length")
+        if gl and hl and gl != hl:
             issues.append("content_length_mismatch")
+
+        # Check if security headers are missing only on HEAD (Fix Audit #34)
+        sec_headers = {"x-frame-options", "content-security-policy", "x-content-type-options"}
+        missing_on_head = [h for h in sec_headers if h in get_headers and h not in head_headers]
+        if missing_on_head:
+            issues.append("head_missing_headers")
+
         if issues:
-            findings.append(
-                {
-                    "url": url,
-                    "endpoint_key": endpoint_key,
-                    "endpoint_base_key": endpoint_base_key(url),
-                    "endpoint_type": classify_endpoint(url),
-                    "confidence": _probe_confidence(issues),
-                    "severity": _probe_severity(issues),
-                    "get_status": get_response.get("status_code"),
-                    "head_status": head_response.get("status_code"),
-                    "issues": issues,
-                }
-            )
-        if len(findings) >= limit:
-            break
+            findings.append({
+                "url": url,
+                "endpoint_key": endpoint_key,
+                "endpoint_base_key": endpoint_base_key(url),
+                "endpoint_type": classify_endpoint(url),
+                "issues": issues,
+                "confidence": _probe_confidence(issues),
+                "severity": _probe_severity(issues),
+            })
+        if len(findings) >= limit: break
     return findings
 
 
 def cors_preflight_probe(
     priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
 ) -> list[dict[str, Any]]:
-    """Probe for CORS misconfigurations via OPTIONS preflight requests.
-
-    Tests for:
-    - Wildcard origin with credentials (critical)
-    - Null origin acceptance (medium)
-    - Reflected origin with credentials (high)
-    - Overly permissive methods (PUT, DELETE, PATCH)
-    - Authorization header allowance
-    - Missing Vary: Origin header (cache poisoning risk)
-    """
+    """Probe for CORS misconfigurations via OPTIONS preflight. (Fix Audit #35)"""
     findings: list[dict[str, Any]] = []
     seen: set[str] = set()
     probe_origin = "https://probe.invalid"
-    null_origin = "null"
 
     for item in priority_urls:
         url = str(item.get("url", "")).strip()
-        if not url:
-            continue
+        if not url: continue
         endpoint_key = ensure_endpoint_key(item, url)
-        if endpoint_key in seen:
-            continue
+        if endpoint_key in seen: continue
         seen.add(endpoint_key)
 
-        # Test 1: Standard preflight with probe origin
-        response = response_cache.request(
-            url,
-            method="OPTIONS",
-            headers={
-                "Origin": probe_origin,
-                "Access-Control-Request-Method": "PUT",
-                "Access-Control-Request-Headers": "authorization,content-type",
-            },
-        )
-        if not response:
-            continue
+        response = response_cache.request(url, method="OPTIONS", headers={
+            "Origin": probe_origin,
+            "Access-Control-Request-Method": "PUT",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        })
+        if not response: continue
 
-        raw_headers: Any = response.get("headers") or {}
-        headers: HeadersDict = {
-            str(key).lower(): str(value) for key, value in cast(dict[str, Any], raw_headers).items()
-        }
+        headers = {str(k).lower(): str(v) for k, v in (response.get("headers") or {}).items()}
         acao = headers.get("access-control-allow-origin", "").strip()
+        acac = headers.get("access-control-allow-credentials", "").lower()
         acam = headers.get("access-control-allow-methods", "").upper()
         acah = headers.get("access-control-allow-headers", "").lower()
-        acac = headers.get("access-control-allow-credentials", "").lower()
         vary = headers.get("vary", "").lower()
 
         issues: list[str] = []
-        cors_details: list[dict[str, str]] = []
 
-        # Check for wildcard origin with credentials (critical)
         if acao == "*" and acac == "true":
             issues.append("wildcard_origin_with_credentials")
-            cors_details.append({"type": "wildcard_with_creds", "severity": "critical"})
-        # Check for reflected origin with credentials (high)
         elif acao == probe_origin and acac == "true":
             issues.append("reflected_origin_with_credentials")
-            cors_details.append({"type": "reflected_origin_with_creds", "severity": "high"})
-        # Check for null origin acceptance (medium)
 
-        # Test 2: Null origin preflight
-        null_response = response_cache.request(
-            url,
-            method="OPTIONS",
-            headers={
-                "Origin": null_origin,
-                "Access-Control-Request-Method": "GET",
-            },
-        )
-        if null_response:
-            null_raw_headers: Any = null_response.get("headers") or {}
-            null_headers: HeadersDict = {
-                str(k).lower(): str(v) for k, v in cast(dict[str, Any], null_raw_headers).items()
-            }
-            null_acao = null_headers.get("access-control-allow-origin", "").strip()
-            null_acac = null_headers.get("access-control-allow-credentials", "").lower()
-            if null_acao == null_origin:
-                issues.append("null_origin_accepted")
-                cors_details.append({"type": "null_origin", "severity": "medium"})
-                if null_acac == "true":
-                    issues.append("null_origin_with_credentials")
-                    cors_details.append({"type": "null_origin_with_creds", "severity": "high"})
+        # Test 2: Null origin (Fix Audit #35: skip if Test 1 already hit critical)
+        if not issues:
+            null_resp = response_cache.request(url, method="OPTIONS", headers={"Origin": "null"})
+            if null_resp:
+                nh = {str(k).lower(): str(v) for k, v in (null_resp.get("headers") or {}).items()}
+                if nh.get("access-control-allow-origin") == "null":
+                    issues.append("null_origin_accepted")
+                    if nh.get("access-control-allow-credentials") == "true":
+                        issues.append("null_origin_with_credentials")
 
-        # Check for overly permissive methods
-        if "PUT" in acam or "*" in acam:
-            issues.append("preflight_allows_put")
-        if "DELETE" in acam:
-            issues.append("preflight_allows_delete")
-        if "PATCH" in acam:
-            issues.append("preflight_allows_patch")
-
-        # Check for authorization header allowance
-        if "authorization" in acah or "*" in acah:
-            issues.append("preflight_allows_authorization_header")
-
-        # Check for missing Vary: Origin header (cache poisoning risk)
-        if acao and "origin" not in vary:
-            issues.append("missing_vary_origin")
+        if "PUT" in acam: issues.append("preflight_allows_put")
+        if "DELETE" in acam: issues.append("preflight_allows_delete")
+        if "PATCH" in acam: issues.append("preflight_allows_patch")
+        if "authorization" in acah or "*" in acah: issues.append("preflight_allows_authorization_header")
+        if acao and "origin" not in vary: issues.append("missing_vary_origin")
 
         if issues:
-            findings.append(
-                {
-                    "url": url,
-                    "endpoint_key": endpoint_key,
-                    "endpoint_base_key": endpoint_base_key(url),
-                    "endpoint_type": classify_endpoint(url),
-                    "status_code": response.get("status_code"),
-                    "issues": issues,
-                    "cors_details": cors_details,
-                    "confidence": _probe_confidence(issues),
-                    "severity": _probe_severity(issues),
-                }
-            )
-        if len(findings) >= limit:
-            break
+            findings.append({
+                "url": url,
+                "endpoint_key": endpoint_key,
+                "endpoint_base_key": endpoint_base_key(url),
+                "endpoint_type": classify_endpoint(url),
+                "issues": issues,
+                "confidence": _probe_confidence(issues),
+                "severity": _probe_severity(issues),
+            })
+        if len(findings) >= limit: break
     return findings
 
 
 def trace_method_probe(
     priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 5
 ) -> list[dict[str, Any]]:
+    """Probe for TRACE exposure. (Fix Audit #33)"""
     findings: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in priority_urls:
         url = str(item.get("url", "")).strip()
-        if not url:
-            continue
+        if not url: continue
         endpoint_key = ensure_endpoint_key(item, url)
-        if endpoint_key in seen:
-            continue
+        if endpoint_key in seen: continue
         seen.add(endpoint_key)
+
         response = response_cache.request(url, method="TRACE")
-        if not response:
-            continue
+        if not response: continue
+
         status = int(response.get("status_code") or 0)
-        if status in {200, 202, 204}:
+        # Fix Audit #33: Include 301/302 as some servers redirect TRACE
+        if status in {200, 202, 204, 301, 302}:
             issues: list[str] = ["trace_method_accepted"]
             body = str(response.get("body_text", "")).lower()
-            if any(
-                token in body for token in ("cookie", "authorization", "x-forwarded", "x-api-key")
-            ):
+            if any(token in body for token in ("cookie", "authorization", "x-api-key")):
                 issues.append("trace_reflects_headers")
-            findings.append(
-                {
-                    "url": url,
-                    "endpoint_key": endpoint_key,
-                    "endpoint_base_key": endpoint_base_key(url),
-                    "endpoint_type": classify_endpoint(url),
-                    "status_code": status,
-                    "issues": issues,
-                    "confidence": _probe_confidence(issues),
-                    "severity": _probe_severity(issues),
-                }
-            )
-        if len(findings) >= limit:
-            break
+
+            findings.append({
+                "url": url,
+                "endpoint_key": endpoint_key,
+                "endpoint_base_key": endpoint_base_key(url),
+                "endpoint_type": classify_endpoint(url),
+                "status_code": status,
+                "issues": issues,
+                "confidence": _probe_confidence(issues),
+                "severity": _probe_severity(issues),
+            })
+        if len(findings) >= limit: break
     return findings

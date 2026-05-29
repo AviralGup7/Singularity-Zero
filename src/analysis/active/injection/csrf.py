@@ -245,6 +245,7 @@ def csrf_active_probe(
         original_status = original_resp.get("status", 0)
         original_body = str(original_resp.get("body") or original_resp.get("body_text") or "")
         original_headers = original_resp.get("headers", {})
+        csrf_tokens = _extract_csrf_tokens(original_resp)
 
         cookie_result = _check_cookie_security(original_headers)
         cookie_issues = cookie_result.get("issues", [])
@@ -252,7 +253,31 @@ def csrf_active_probe(
         url_issues: list[str] = []
         url_probes: list[dict[str, Any]] = []
 
-        csrf_tokens = _extract_csrf_tokens(original_resp)
+        # Confirm POST is allowed via OPTIONS (Fix Audit #11)
+        options_resp = response_cache.request(url, method="OPTIONS")
+        post_allowed = True
+        if options_resp:
+            allow_header = str(options_resp.get("headers", {}).get("Allow", "")).upper()
+            if allow_header and "POST" not in allow_header:
+                post_allowed = False
+
+        if not post_allowed:
+            # Fallback check: if no probes yet, we still check cookies, but skip POST probes
+            if cookie_issues:
+                url_issues.extend(cookie_issues[:3])
+                url_probes.append({"payload_type": "cookie_security", "issues": cookie_issues[:3]})
+            if url_probes:
+                findings.append({
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base_key(url),
+                    "endpoint_type": classify_endpoint(url),
+                    "issues": url_issues,
+                    "probes": url_probes,
+                    "confidence": probe_confidence(url_issues),
+                    "severity": probe_severity(url_issues),
+                })
+            continue
 
         for payload_name, csrf_headers in CSRF_PAYLOADS:
             if len(url_probes) >= 3:

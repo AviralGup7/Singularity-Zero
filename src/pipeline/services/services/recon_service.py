@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import typing
 from typing import Any, cast
+
+logger = logging.getLogger(__name__)
 
 
 def _identity(func: Any) -> Any:
