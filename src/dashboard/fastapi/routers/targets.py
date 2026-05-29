@@ -243,6 +243,7 @@ async def get_target_findings(
     if run:
         # SEC-FIX: Use Path().name to prevent sub-run traversal
         from pathlib import Path
+
         safe_run = Path(run).name
         run_dir = target_dir / safe_run
         if not run_dir.exists():

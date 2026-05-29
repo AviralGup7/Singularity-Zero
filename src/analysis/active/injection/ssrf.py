@@ -51,8 +51,21 @@ HEADER_INJECTION_HEADERS = [
 ]
 
 SSRF_PATH_HINTS = {
-    "webhook", "import", "fetch", "proxy", "callback", "preview", "download",
-    "upload", "image", "url", "uri", "site", "load", "external", "remote"
+    "webhook",
+    "import",
+    "fetch",
+    "proxy",
+    "callback",
+    "preview",
+    "download",
+    "upload",
+    "image",
+    "url",
+    "uri",
+    "site",
+    "load",
+    "external",
+    "remote",
 }
 
 
@@ -64,9 +77,13 @@ def _analyze_metadata_response(body: str, provider: str) -> list[str]:
         indicators.append("internal_ip_response")
     if "127.0.0.1" in body or "localhost" in body.lower():
         indicators.append("localhost_response")
-    if provider == "aws" and any(kw in body.lower() for kw in ("ami-id", "instance-id", "iam/security")):
+    if provider == "aws" and any(
+        kw in body.lower() for kw in ("ami-id", "instance-id", "iam/security")
+    ):
         indicators.append("aws_metadata_leak")
-    if provider == "gcp" and any(kw in body.lower() for kw in ("instance/", "project/", "service-accounts")):
+    if provider == "gcp" and any(
+        kw in body.lower() for kw in ("instance/", "project/", "service-accounts")
+    ):
         indicators.append("gcp_metadata_leak")
     if provider == "azure" and any(kw in body.lower() for kw in ("compute", "network", "vmSize")):
         indicators.append("azure_metadata_leak")
@@ -85,11 +102,46 @@ def ssrf_active_probe(
     seen: set[str] = set()
 
     url_param_names = {
-        "url", "uri", "path", "dest", "redirect", "next", "data", "reference", "site",
-        "html", "val", "validate", "domain", "callback", "return", "page", "feed",
-        "port", "view", "dir", "show", "navigation", "open", "target", "link",
-        "href", "src", "source", "file", "load", "proxy", "fetch", "remote",
-        "access", "to", "from", "server", "host", "endpoint", "api",
+        "url",
+        "uri",
+        "path",
+        "dest",
+        "redirect",
+        "next",
+        "data",
+        "reference",
+        "site",
+        "html",
+        "val",
+        "validate",
+        "domain",
+        "callback",
+        "return",
+        "page",
+        "feed",
+        "port",
+        "view",
+        "dir",
+        "show",
+        "navigation",
+        "open",
+        "target",
+        "link",
+        "href",
+        "src",
+        "source",
+        "file",
+        "load",
+        "proxy",
+        "fetch",
+        "remote",
+        "access",
+        "to",
+        "from",
+        "server",
+        "host",
+        "endpoint",
+        "api",
     }
 
     ssrf_payloads = [
@@ -120,58 +172,89 @@ def ssrf_active_probe(
 
         # 1. Parameter-based SSRF
         if query_pairs:
-            url_params = [(i, k, v) for i, (k, v) in enumerate(query_pairs) if k.lower() in url_param_names]
+            url_params = [
+                (i, k, v) for i, (k, v) in enumerate(query_pairs) if k.lower() in url_param_names
+            ]
             for idx, param_name, _ in url_params:
-                if len(url_probes) >= 2: break
+                if len(url_probes) >= 2:
+                    break
                 for payload_name, payload_value in ssrf_payloads:
                     updated = list(query_pairs)
                     updated[idx] = (param_name, payload_value)
-                    test_url = normalize_url(urlunparse(parsed._replace(query=urlencode(updated, doseq=True))))
+                    test_url = normalize_url(
+                        urlunparse(parsed._replace(query=urlencode(updated, doseq=True)))
+                    )
                     response = response_cache.request(test_url, headers={"X-SSRF-Probe": "1"})
                     if response:
                         body = str(response.get("body_text", "") or "")[:8000]
                         indicators = _analyze_metadata_response(body, payload_name.split("_")[-1])
                         if indicators:
                             url_issues.extend(indicators)
-                            url_probes.append({"parameter": param_name, "payload": payload_value, "type": "parameter", "issues": indicators})
+                            url_probes.append(
+                                {
+                                    "parameter": param_name,
+                                    "payload": payload_value,
+                                    "type": "parameter",
+                                    "issues": indicators,
+                                }
+                            )
                             break
 
         # 2. Header Injection SSRF (Fix Audit #9)
         if not url_probes:
             for inject_headers in HEADER_INJECTION_HEADERS:
-                response = response_cache.request(url, headers={**inject_headers, "X-SSRF-Probe": "1"})
+                response = response_cache.request(
+                    url, headers={**inject_headers, "X-SSRF-Probe": "1"}
+                )
                 if response:
                     body = str(response.get("body_text", "") or "")[:8000]
                     indicators = _analyze_metadata_response(body, "generic")
                     if indicators:
                         url_issues.extend(indicators)
-                        url_probes.append({"headers": inject_headers, "type": "header_injection", "issues": indicators})
+                        url_probes.append(
+                            {
+                                "headers": inject_headers,
+                                "type": "header_injection",
+                                "issues": indicators,
+                            }
+                        )
                         break
 
         # 3. POST Body SSRF for suggestive paths (Fix Audit #10)
         path_lower = parsed.path.lower()
         if not url_probes and any(hint in path_lower for hint in SSRF_PATH_HINTS):
             for payload_name, payload_value in ssrf_payloads:
-                test_body = json.dumps({"url": payload_value, "uri": payload_value, "path": payload_value})
-                response = response_cache.request(url, method="POST", body=test_body, headers={"Content-Type": "application/json", "X-SSRF-Probe": "1"})
+                test_body = json.dumps(
+                    {"url": payload_value, "uri": payload_value, "path": payload_value}
+                )
+                response = response_cache.request(
+                    url,
+                    method="POST",
+                    body=test_body,
+                    headers={"Content-Type": "application/json", "X-SSRF-Probe": "1"},
+                )
                 if response:
                     body = str(response.get("body_text", "") or "")[:8000]
                     indicators = _analyze_metadata_response(body, payload_name.split("_")[-1])
                     if indicators:
                         url_issues.extend(indicators)
-                        url_probes.append({"body": test_body, "type": "post_body", "issues": indicators})
+                        url_probes.append(
+                            {"body": test_body, "type": "post_body", "issues": indicators}
+                        )
                         break
 
         if url_probes:
-            findings.append({
-                "url": url,
-                "endpoint_key": endpoint_key,
-                "endpoint_base_key": endpoint_base_key(url),
-                "endpoint_type": classify_endpoint(url),
-                "issues": sorted(list(set(url_issues))),
-                "probes": url_probes,
-                "confidence": probe_confidence(url_issues),
-                "severity": probe_severity(url_issues),
-            })
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base_key(url),
+                    "endpoint_type": classify_endpoint(url),
+                    "issues": sorted(list(set(url_issues))),
+                    "probes": url_probes,
+                    "confidence": probe_confidence(url_issues),
+                    "severity": probe_severity(url_issues),
+                }
+            )
 
     return findings[:limit]

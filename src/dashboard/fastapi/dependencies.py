@@ -164,6 +164,7 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
         # Security Note: Tokens in query params can leak into server logs and
         # browser history. Warn operators and prefer Authorization headers instead.
         import logging as _logging
+
         _logging.getLogger(__name__).warning(
             "Security: JWT token supplied via query parameter for %s. "
             "Use Authorization: Bearer header instead to avoid token leakage.",

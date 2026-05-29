@@ -87,10 +87,36 @@ def sqli_safe_probe(
     findings: list[dict[str, Any]] = []
     # Expanded parameter list (Fix Audit #23)
     sql_param_names = {
-        "search", "query", "filter", "sort", "order", "where", "q", "s", "id", "uid",
-        "user_id", "column", "select", "sql", "db", "table", "expr", "keyword",
-        "term", "lookup", "match", "$filter", "where_clause", "having", "group_by",
-        "criteria", "conditions", "expression", "raw", "native_query"
+        "search",
+        "query",
+        "filter",
+        "sort",
+        "order",
+        "where",
+        "q",
+        "s",
+        "id",
+        "uid",
+        "user_id",
+        "column",
+        "select",
+        "sql",
+        "db",
+        "table",
+        "expr",
+        "keyword",
+        "term",
+        "lookup",
+        "match",
+        "$filter",
+        "where_clause",
+        "having",
+        "group_by",
+        "criteria",
+        "conditions",
+        "expression",
+        "raw",
+        "native_query",
     }
 
     # SQLi test payloads (Fix Audit #8)
@@ -99,7 +125,7 @@ def sqli_safe_probe(
         ("1 OR 1=1", "numeric_boolean"),
         ("1' OR '1'='1", "string_boolean"),
         ("1; SELECT 1--", "stacked_query"),
-        ("SLEEP(1)", "time_based_blind")
+        ("SLEEP(1)", "time_based_blind"),
     ]
 
     for url_entry in priority_urls:
@@ -153,7 +179,7 @@ def sqli_safe_probe(
                             "error_context": body[max(0, match.start() - 50) : match.end() + 50],
                         }
                     )
-                    break # Stop after first SQL error for this param
+                    break  # Stop after first SQL error for this param
 
         if url_findings:
             findings.append(
@@ -245,7 +271,12 @@ def websocket_message_probe(
         if response:
             body = str(response.get("body_text", "")).lower()
             error_leak_indicators = [
-                "internal", "stack trace", "traceback", "debug", "error:", "exception",
+                "internal",
+                "stack trace",
+                "traceback",
+                "debug",
+                "error:",
+                "exception",
             ]
             if any(ind in body for ind in error_leak_indicators):
                 issues.append("ws_error_leaks_internal_info")
@@ -316,7 +347,15 @@ def oauth_flow_analyzer(
     findings: list[dict[str, Any]] = []
     seen_endpoints: set[str] = set()
     oauth_paths = {
-        "/oauth", "/authorize", "/token", "/callback", "/signin", "/login", "/auth", "/saml", "/sso",
+        "/oauth",
+        "/authorize",
+        "/token",
+        "/callback",
+        "/signin",
+        "/login",
+        "/auth",
+        "/saml",
+        "/sso",
     }
 
     for url_entry in priority_urls:

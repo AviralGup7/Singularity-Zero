@@ -150,7 +150,7 @@ def http_smuggling_probe(
             status_changed = response_status != baseline_status and response_status < 500
 
             # Logic adjustment: only count as delay if response is slower than baseline (Fix Audit #7)
-            significant_delay = (response_time > baseline_time + 2000)
+            significant_delay = response_time > baseline_time + 2000
             smuggled_indicators = [
                 "smuggled",
                 "404",

@@ -496,6 +496,7 @@ async def stream_cockpit_graph(
     services: Any = Depends(get_queue_client),
 ) -> StreamingResponse:
     """Stream graph snapshots so the 3D cockpit can ingest pipeline additions live."""
+
     async def event_stream() -> Any:
         last_signature = ""
         while True:

@@ -74,7 +74,7 @@ def _coerce_previous_run_path(previous_run: Any) -> Path | None:
         return Path(normalized)
     try:
         return Path(previous_run)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -323,8 +323,10 @@ def history_feedback_score(url: str, feedback: HistoryFeedback | None) -> int:
         score += 6
     elif canonical_key in past_scores:
         past_val = float(past_scores[canonical_key])
-        if past_val >= 50: score += 5
-        elif past_val >= 30: score += 3
+        if past_val >= 50:
+            score += 5
+        elif past_val >= 30:
+            score += 3
 
     if endpoint_base_key(url, include_host=True) in endpoint_bases:
         score += 3
