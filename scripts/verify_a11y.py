@@ -48,7 +48,9 @@ def main() -> int:
         dist_dir = Path("frontend") / "src"
 
     if not dist_dir.exists():
-        print("Accessibility Verification Gate: [PASS] - Skip-links & interactive attributes verified.")
+        print(
+            "Accessibility Verification Gate: [PASS] - Skip-links & interactive attributes verified."
+        )
         return 0
 
     html_files = list(dist_dir.rglob("*.html"))

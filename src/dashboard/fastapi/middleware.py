@@ -1,10 +1,10 @@
 """Custom middleware for the FastAPI dashboard."""
 
+import hmac
 import json
 import logging
-import time
-import hmac
 import secrets
+import time
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -42,6 +42,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         from src.dashboard.fastapi.security import api_security_enabled
+
         if not api_security_enabled():
             return await call_next(request)
 
@@ -53,9 +54,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 response.set_cookie(
                     "csrf_token",
                     token,
-                    httponly=True,   # Protected against XSS token theft (Double-Submit cookie with HttpOnly=True)
+                    httponly=True,  # Protected against XSS token theft (Double-Submit cookie with HttpOnly=True)
                     samesite="lax",
-                    secure=False,    # Allow secure=False for local development/testing flexibility
+                    secure=False,  # Allow secure=False for local development/testing flexibility
                 )
             return response
 
@@ -91,7 +92,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         csrf_header = request.headers.get("x-csrf-token") or request.headers.get("X-CSRF-Token")
 
         if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
-            logger.warning("CSRF: Double-submit token mismatch: cookie=%s, header=%s", csrf_cookie, csrf_header)
+            logger.warning(
+                "CSRF: Double-submit token mismatch: cookie=%s, header=%s", csrf_cookie, csrf_header
+            )
             return JSONResponse(
                 status_code=403,
                 content={

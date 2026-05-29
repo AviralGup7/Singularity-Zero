@@ -1,6 +1,6 @@
-import pytest
-from src.core.frontier.ghost_actor import ScanActor
 from tests.stress.test_mesh_failover import dummy_logic
+
+from src.core.frontier.ghost_actor import ScanActor
 
 
 def test_network_split_and_crdt_heal_convergence() -> None:
@@ -14,10 +14,13 @@ def test_network_split_and_crdt_heal_convergence() -> None:
             {"id": "wal-a1", "delta": {"findings": [{"id": "vuln-a", "severity": "high"}]}},
             {"id": "wal-a2", "delta": {"findings": [{"id": "vuln-b", "severity": "medium"}]}},
         ]
-        
+
         # 2. Simulate active partition B: collects discoveries on targets in region B
         deltas_partition_b = [
-            {"id": "wal-b1", "delta": {"findings": [{"id": "vuln-b", "severity": "medium"}]}},  # Overlapping finding
+            {
+                "id": "wal-b1",
+                "delta": {"findings": [{"id": "vuln-b", "severity": "medium"}]},
+            },  # Overlapping finding
             {"id": "wal-c1", "delta": {"findings": [{"id": "vuln-c", "severity": "low"}]}},
         ]
 
@@ -33,7 +36,7 @@ def test_network_split_and_crdt_heal_convergence() -> None:
 
         # Reconciled set size should be exactly 3 (vuln-a, vuln-b, vuln-c) with no duplicates
         assert len(findings) == 3
-        
+
         finding_ids = {f["id"] for f in findings}
         assert finding_ids == {"vuln-a", "vuln-b", "vuln-c"}
     finally:

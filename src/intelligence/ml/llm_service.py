@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -104,13 +103,18 @@ class LLMService:
         # 3. Gemini Integration
         elif self.config.provider == "gemini":
             key = self.config.api_key or ""
-            url = self.config.api_base or f"https://generativelanguage.googleapis.com/v1beta/models/{self.config.model}:generateContent?key={key}"
+            url = (
+                self.config.api_base
+                or f"https://generativelanguage.googleapis.com/v1beta/models/{self.config.model}:generateContent?key={key}"
+            )
             headers = {"Content-Type": "application/json"}
             payload = {
                 "contents": [
                     {
                         "parts": [
-                            {"text": f"System Guidelines: {system_prompt}\n\nUser Task: {user_prompt}"}
+                            {
+                                "text": f"System Guidelines: {system_prompt}\n\nUser Task: {user_prompt}"
+                            }
                         ]
                     }
                 ],
@@ -266,7 +270,9 @@ class LLMService:
             "Write highly professional, audit-ready Markdown."
         )
 
-        critical_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "critical")
+        critical_count = sum(
+            1 for f in findings if str(f.get("severity", "info")).lower() == "critical"
+        )
         high_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "high")
         med_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "medium")
         low_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "low")
@@ -416,12 +422,19 @@ class LLMService:
 
         if evidence and evidence in resp_text:
             confidence = 0.95
-            reasons.append(f"Confirmed reflection of vulnerability payload '{evidence}' directly in the HTTP response body.")
+            reasons.append(
+                f"Confirmed reflection of vulnerability payload '{evidence}' directly in the HTTP response body."
+            )
 
-        if any(err in resp_text.lower() for err in ["traceback", "stack trace", "sql syntax", "exception"]):
+        if any(
+            err in resp_text.lower()
+            for err in ["traceback", "stack trace", "sql syntax", "exception"]
+        ):
             is_tp = True
             confidence = 0.98
-            reasons.append("Detected database syntax or application stack trace disclosure leaking in HTTP response body.")
+            reasons.append(
+                "Detected database syntax or application stack trace disclosure leaking in HTTP response body."
+            )
 
         return {
             "decision": "TP" if is_tp else "FP",
@@ -435,7 +448,9 @@ class LLMService:
         compliance_report: dict[str, Any] | None = None,
     ) -> str:
         """Produce beautiful, GRC-ready backup summary reports."""
-        critical_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "critical")
+        critical_count = sum(
+            1 for f in findings if str(f.get("severity", "info")).lower() == "critical"
+        )
         high_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "high")
         med_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "medium")
         low_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "low")
@@ -461,7 +476,9 @@ class LLMService:
 
         findings_summary = []
         for idx, f in enumerate(findings[:5], start=1):
-            findings_summary.append(f"**{idx}. [{str(f.get('severity')).upper()}] {str(f.get('title'))}** on `{str(f.get('url') or f.get('target'))}`")
+            findings_summary.append(
+                f"**{idx}. [{str(f.get('severity')).upper()}] {str(f.get('title'))}** on `{str(f.get('url') or f.get('target'))}`"
+            )
 
         summary_markdown = (
             f"# Executive Security Posture & Compliance Attestation Report\n\n"

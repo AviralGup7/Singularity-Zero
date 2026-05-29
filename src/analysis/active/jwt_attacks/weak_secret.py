@@ -2,7 +2,6 @@
 
 import hashlib
 import hmac
-import json
 import logging
 from typing import Any
 
@@ -10,7 +9,6 @@ from ._helpers import (
     JWT_AUTH_HEADERS,
     WEAK_SECRETS,
     _b64url_encode,
-    _b64url_decode,
     _create_jwt,
     _decode_jwt_part,
     _get_original_status,
@@ -39,7 +37,7 @@ def test_weak_secret(token: str, url: str, session: Any) -> dict[str, Any]:
 
         signing_input = f"{parts[0]}.{parts[1]}".encode()
         provided_signature = parts[2]
-        
+
         # Determine hash algorithm
         hash_alg = hashlib.sha256
         if alg == "HS384":

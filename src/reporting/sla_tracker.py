@@ -19,12 +19,12 @@ class SLATracker:
     """Manages remediation SLA schedules and auto-escalations for severe findings."""
 
     SLA_CRITICAL_SECONDS = 14 * 24 * 60 * 60  # 14 days
-    SLA_HIGH_SECONDS = 30 * 24 * 60 * 60      # 30 days
-    SLA_MEDIUM_SECONDS = 90 * 24 * 60 * 60    # 90 days
+    SLA_HIGH_SECONDS = 30 * 24 * 60 * 60  # 30 days
+    SLA_MEDIUM_SECONDS = 90 * 24 * 60 * 60  # 90 days
 
     @classmethod
     def check_sla_compliance(
-        self,
+        cls,
         findings: list[dict[str, Any]],
         current_time: float | None = None,
     ) -> dict[str, Any]:
@@ -54,16 +54,17 @@ class SLATracker:
                 try:
                     # If ISO timestamp string
                     import datetime
+
                     disc_ts = datetime.datetime.fromisoformat(disc_ts).timestamp()
                 except Exception:
                     disc_ts = ref_time
 
             age = ref_time - float(disc_ts)
-            sla_limit = self.SLA_MEDIUM_SECONDS
+            sla_limit = cls.SLA_MEDIUM_SECONDS
             if severity == "critical":
-                sla_limit = self.SLA_CRITICAL_SECONDS
+                sla_limit = cls.SLA_CRITICAL_SECONDS
             elif severity == "high":
-                sla_limit = self.SLA_HIGH_SECONDS
+                sla_limit = cls.SLA_HIGH_SECONDS
 
             finding_copy = dict(finding)
             finding_copy["sla_limit_seconds"] = sla_limit
@@ -87,7 +88,7 @@ class SLATracker:
 
     @classmethod
     async def auto_escalate_overdue(
-        self,
+        cls,
         findings: list[dict[str, Any]],
         notification_manager: NotificationManager,
         target_name: str,
@@ -104,7 +105,7 @@ class SLATracker:
         Returns:
             Count of escalated alerts fired.
         """
-        sla_report = self.check_sla_compliance(findings, current_time)
+        sla_report = cls.check_sla_compliance(findings, current_time)
         escalated_count = 0
 
         for f in sla_report["overdue"]:
@@ -116,13 +117,17 @@ class SLATracker:
             alert_title = f"SLA BREACH ALERT: Overdue {severity} Vulnerability on {target_name}"
             alert_message = (
                 f"Vulnerability '{title}' (ID: {fid}) has breached its remediation SLA by {days_overdue} days.\n"
-                f"SLA threshold: {round(f['sla_limit_seconds'] / (24*60*60))} days. "
-                f"Current age: {round(f['age_seconds'] / (24*60*60))} days.\n"
+                f"SLA threshold: {round(f['sla_limit_seconds'] / (24 * 60 * 60))} days. "
+                f"Current age: {round(f['age_seconds'] / (24 * 60 * 60))} days.\n"
                 f"Immediate action is required to remediate this finding."
             )
 
-            priority = NotificationPriority.CRITICAL if severity == "CRITICAL" else NotificationPriority.HIGH
-            
+            priority = (
+                NotificationPriority.CRITICAL
+                if severity == "CRITICAL"
+                else NotificationPriority.HIGH
+            )
+
             # Send notification
             await notification_manager.send(
                 event=NotificationEvent.COMPLIANCE_VIOLATION,
@@ -134,9 +139,9 @@ class SLATracker:
                     "target": target_name,
                     "severity": severity,
                     "days_overdue": days_overdue,
-                    "sla_status": "BREACHED"
+                    "sla_status": "BREACHED",
                 },
-                correlation_id=fid
+                correlation_id=fid,
             )
             escalated_count += 1
 

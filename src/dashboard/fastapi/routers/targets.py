@@ -48,7 +48,9 @@ def is_target_owned_by_tenant(target_name: str, tenant_id: str | None) -> bool:
     return False
 
 
-def verify_tenant_boundary(request: Request, target_name: str, tenant_id: str | None, user_id: str | None = None) -> None:
+def verify_tenant_boundary(
+    request: Request, target_name: str, tenant_id: str | None, user_id: str | None = None
+) -> None:
     """Verify tenant boundary and log any violations to the security store as audit logs."""
     if not is_target_owned_by_tenant(target_name, tenant_id):
         store = getattr(request.app.state, "security_store", None)
@@ -64,8 +66,8 @@ def verify_tenant_boundary(request: Request, target_name: str, tenant_id: str | 
                         "target_name": target_name,
                         "tenant_id": tenant_id or "default",
                         "user_id": user_id or "unknown",
-                        "violation": "Attempted cross-tenant resource access"
-                    }
+                        "violation": "Attempted cross-tenant resource access",
+                    },
                 )
             except Exception as exc:
                 logger.warning("Failed to record tenant violation event: %s", exc)
@@ -181,8 +183,7 @@ async def list_targets(
     tenant_id = (_auth or {}).get("tenant_id", "default")
     targets = services.list_targets()
     filtered = [
-        TargetInfo(**t) for t in targets 
-        if is_target_owned_by_tenant(t.get("name", ""), tenant_id)
+        TargetInfo(**t) for t in targets if is_target_owned_by_tenant(t.get("name", ""), tenant_id)
     ]
     return TargetListResponse(
         targets=filtered,
@@ -740,7 +741,9 @@ async def compare_targets(
     services: Any = Depends(get_queue_client),
 ) -> TargetComparisonResponse:
     tenant_id = (_auth or {}).get("tenant_id", "default")
-    if not is_target_owned_by_tenant(target_a, tenant_id) or not is_target_owned_by_tenant(target_b, tenant_id):
+    if not is_target_owned_by_tenant(target_a, tenant_id) or not is_target_owned_by_tenant(
+        target_b, tenant_id
+    ):
         raise HTTPException(status_code=403, detail="Access denied to one or both targets")
 
     if not _validate_target_name(target_a) or not _validate_target_name(target_b):

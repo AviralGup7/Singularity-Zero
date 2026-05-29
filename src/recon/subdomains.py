@@ -27,6 +27,7 @@ SUBDOMAIN_ENUMERATOR = "subdomain_enumerator"
 def is_safe_domain(domain: str) -> bool:
     """Strict validation for domain input against SSRF, newlines, and null bytes."""
     import re
+
     if not domain:
         return False
     lower_domain = domain.lower()
@@ -176,13 +177,16 @@ def enumerate_subdomains(
 
                     if running_loop is not None and running_loop.is_running():
                         import concurrent.futures
+
                         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+
                             def _run_in_thread():
                                 new_loop = asyncio.new_event_loop()
                                 try:
                                     return new_loop.run_until_complete(reg.provider(root))
                                 finally:
                                     new_loop.close()
+
                             res = executor.submit(_run_in_thread).result()
                             subdomains.update(res)
                     else:

@@ -39,11 +39,7 @@ def test_neural_state_compaction_logic():
         for key in lww._elements:
             el = lww._elements[key]
             lww._elements[key] = LWWElement(
-                value=el.value,
-                hlc=el.hlc,
-                vclock=el.vclock,
-                timestamp=old_ts,
-                deleted=True
+                value=el.value, hlc=el.hlc, vclock=el.vclock, timestamp=old_ts, deleted=True
             )
 
     # 5. Compact with a small threshold (should purge all tombstones)

@@ -72,9 +72,9 @@ def verify_provenance(template_path: str | Path, manifest_dir: str | Path) -> bo
 
     # Calculate relative template path to compare with manifest entries
     try:
-        template_rel_path = str(Path(template_path).resolve().relative_to(manifest_dir.resolve())).replace(
-            "\\", "/"
-        )
+        template_rel_path = str(
+            Path(template_path).resolve().relative_to(manifest_dir.resolve())
+        ).replace("\\", "/")
     except ValueError:
         # Fallback if path is not relative to manifest_dir
         template_rel_path = Path(template_path).name.replace("\\", "/")

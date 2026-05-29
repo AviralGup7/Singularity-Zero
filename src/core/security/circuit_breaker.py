@@ -86,7 +86,10 @@ class CircuitBreaker:
             self.last_state_change = now
 
             # Trip to OPEN if failure threshold is breached
-            if self.state in ("CLOSED", "HALF_OPEN") and self.failure_count >= self.failure_threshold:
+            if (
+                self.state in ("CLOSED", "HALF_OPEN")
+                and self.failure_count >= self.failure_threshold
+            ):
                 self.state = "OPEN"
                 logger.warning(
                     "CircuitBreaker [%s]: Tripped to OPEN due to %d consecutive failures: %s",

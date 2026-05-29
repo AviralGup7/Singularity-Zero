@@ -21,7 +21,7 @@ class GNNPredictor:
         self.hidden_dim = hidden_dim
         # Seed for deterministic and reproducible weight initialization
         rng = np.random.default_rng(seed)
-        
+
         # W0: size 4 (input features) -> hidden_dim
         self.W0 = rng.normal(0, 0.1, (4, hidden_dim))
         # W1: size hidden_dim -> hidden_dim (embeddings)
@@ -32,17 +32,17 @@ class GNNPredictor:
         N = A.shape[0]
         # Add self-loops
         A_loop = A + np.eye(N)
-        
+
         # Calculate degrees
         degrees = np.sum(A_loop, axis=1)
-        
+
         # D^-1/2
         with np.errstate(divide="ignore", invalid="ignore"):
             deg_inv_sqrt = 1.0 / np.sqrt(degrees)
             deg_inv_sqrt[np.isinf(deg_inv_sqrt) | np.isnan(deg_inv_sqrt)] = 0.0
-            
+
         D_inv_sqrt = np.diag(deg_inv_sqrt)
-        
+
         # D^-1/2 * A_loop * D^-1/2
         return D_inv_sqrt @ A_loop @ D_inv_sqrt
 
@@ -121,29 +121,31 @@ class GNNPredictor:
                 if sim >= threshold:
                     node_u = nodes[u]
                     node_v = nodes[v]
-                    
+
                     # Semantically, it's interesting to predict pivots from findings to target endpoints
                     u_type = node_u.get("type")
                     v_type = node_v.get("type")
-                    if (u_type == "finding" and v_type in {"endpoint", "subdomain"}) or \
-                       (v_type == "finding" and u_type in {"endpoint", "subdomain"}):
-                        
+                    if (u_type == "finding" and v_type in {"endpoint", "subdomain"}) or (
+                        v_type == "finding" and u_type in {"endpoint", "subdomain"}
+                    ):
                         source = node_u["id"]
                         target = node_v["id"]
                         if u_type != "finding":
                             source, target = target, source  # Finding is source
 
-                        predicted_edges.append({
-                            "source": source,
-                            "target": target,
-                            "label": "predicted_pivot",
-                            "metadata": {
-                                "relationship": "predicted_pivot",
-                                "confidence": round(sim, 2),
-                                "predicted": True,
-                                "method": "GCN-Embeddings"
+                        predicted_edges.append(
+                            {
+                                "source": source,
+                                "target": target,
+                                "label": "predicted_pivot",
+                                "metadata": {
+                                    "relationship": "predicted_pivot",
+                                    "confidence": round(sim, 2),
+                                    "predicted": True,
+                                    "method": "GCN-Embeddings",
+                                },
                             }
-                        })
+                        )
 
         return predicted_edges
 
@@ -155,7 +157,7 @@ class ProbeSelectionRLAgent:
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
-        
+
         # Q-table: key is state, value is dict of action -> q_value
         self.q_table: dict[str, dict[str, float]] = {}
         self.available_probes = [
@@ -169,7 +171,7 @@ class ProbeSelectionRLAgent:
             "graphql",
             "auth_bypass",
             "json",
-            "fuzzing_campaign"
+            "fuzzing_campaign",
         ]
 
     def _get_state(self, url: str) -> str:
@@ -187,7 +189,7 @@ class ProbeSelectionRLAgent:
         """Warm-start the Q-values based on expert security heuristic states."""
         if state not in self.q_table:
             q_vals = {action: 0.05 for action in self.available_probes}
-            
+
             # Prioritize probes by state features
             if state == "api_endpoint":
                 q_vals["jwt"] = 0.85
@@ -215,7 +217,7 @@ class ProbeSelectionRLAgent:
         """Rank and return the optimal security probe sequence for the target URL."""
         state = self._get_state(url)
         self._initialize_state(state)
-        
+
         state_qs = self.q_table[state]
         # Sort probes descending based on their Q-values
         sorted_probes = sorted(self.available_probes, key=lambda a: state_qs[a], reverse=True)
@@ -225,15 +227,15 @@ class ProbeSelectionRLAgent:
         """Update Q-values using standard Q-learning equation."""
         self._initialize_state(state)
         self._initialize_state(next_state)
-        
+
         # Max Q(s', a')
         next_qs = self.q_table[next_state]
         max_next_q = max(next_qs.values()) if next_qs else 0.0
-        
+
         # Q-learning equation
         current_q = self.q_table[state][action]
         td_target = reward + self.gamma * max_next_q
         new_q = current_q + self.alpha * (td_target - current_q)
-        
+
         self.q_table[state][action] = round(new_q, 4)
         logger.debug("RL Agent: Updated Q(%s, %s) = %.4f", state, action, new_q)

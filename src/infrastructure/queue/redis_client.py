@@ -13,11 +13,11 @@ import time
 from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
-from src.core.tenant_context import TenantContext
 from src.core.security.circuit_breaker import CircuitBreaker
+from src.core.tenant_context import TenantContext
 from src.infrastructure.queue.fallback_db import FallbackDB
 from src.infrastructure.queue.fallback_emulator import FallbackEmulator
+from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
 
 logger = get_pipeline_logger(__name__)
 
@@ -203,7 +203,7 @@ class RedisClient:
                 if not key.startswith(f"{tenant_id}:"):
                     args = (f"{tenant_id}:{key}",) + args[1:]
             elif isinstance(key, bytes):
-                prefix_bytes = f"{tenant_id}:".encode("utf-8")
+                prefix_bytes = f"{tenant_id}:".encode()
                 if not key.startswith(prefix_bytes):
                     args = (prefix_bytes + key,) + args[1:]
 
@@ -270,7 +270,7 @@ class RedisClient:
                     else:
                         prefixed_keys.append(k)
                 elif isinstance(k, bytes):
-                    prefix_bytes = f"{tenant_id}:".encode("utf-8")
+                    prefix_bytes = f"{tenant_id}:".encode()
                     if not k.startswith(prefix_bytes):
                         prefixed_keys.append(prefix_bytes + k)
                     else:
@@ -287,11 +287,13 @@ class RedisClient:
             raise ValueError(f"Script '{name}' not registered")
 
         try:
+
             def run_script() -> Any:
                 script_obj = script_info.get("object")
                 if script_obj is not None:
                     return script_obj(keys=keys, args=args)
                 return self._client.evalsha(script_info["hash"], len(keys), *(keys + args))
+
             return self._breaker.call(run_script)
         except Exception as exc:
             logger.warning("Script execution failed for '%s': %s, using fallback", name, exc)

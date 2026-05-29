@@ -164,8 +164,7 @@ def build_waf_cdn_report(
         # Exposed for scoring stage – see Improvement #8
         "cdn_protected_urls": urls_with_waf,
         "by_provider": {
-            provider: {"urls": urls, "count": len(urls)}
-            for provider, urls in by_provider.items()
+            provider: {"urls": urls, "count": len(urls)} for provider, urls in by_provider.items()
         },
     }
 
@@ -202,15 +201,9 @@ def _analyze_response(
     body_lower = (resp.text or "").lower()
 
     for provider, patterns in CDN_WAF_PATTERNS.items():
-        header_score = sum(
-            1 for p in patterns.get("headers", []) if p.lower() in headers_lower
-        )
-        cookie_score = sum(
-            1 for p in patterns.get("cookies", []) if p.lower() in cookies_lower
-        )
-        body_score = sum(
-            1 for p in patterns.get("body", []) if p.lower() in body_lower
-        )
+        header_score = sum(1 for p in patterns.get("headers", []) if p.lower() in headers_lower)
+        cookie_score = sum(1 for p in patterns.get("cookies", []) if p.lower() in cookies_lower)
+        body_score = sum(1 for p in patterns.get("body", []) if p.lower() in body_lower)
 
         total_score = header_score + cookie_score + body_score
         if total_score == 0:

@@ -1,20 +1,17 @@
 import asyncio
 import time
 import uuid
+from typing import Any
+
 import pytest
-from typing import Any, cast
-import pykka
 
 from src.core.frontier.ghost_actor import (
-    ActorState,
-    GhostMeshRegistry,
     GhostMeshCoordinator,
+    GhostMeshRegistry,
     ScanActor,
 )
 from src.core.frontier.wal import FrontierWAL
-from src.core.frontier.state import stable_digest
-from src.infrastructure.mesh.gossip import MeshNode, GossipEngine
-from src.infrastructure.mesh.balancer import NeuralMeshBalancer
+from src.infrastructure.mesh.gossip import MeshNode
 
 
 class MockRedisAsync:
@@ -27,24 +24,28 @@ class MockRedisAsync:
     async def hset(self, key: str, field: str, value: Any) -> None:
         if self.is_down:
             import redis
+
             raise redis.exceptions.ConnectionError("Redis is simulated down")
         self.data[(key, field)] = value
 
     async def hget(self, key: str, field: str) -> Any:
         if self.is_down:
             import redis
+
             raise redis.exceptions.ConnectionError("Redis is simulated down")
         return self.data.get((key, field))
 
     async def hdel(self, key: str, field: str) -> None:
         if self.is_down:
             import redis
+
             raise redis.exceptions.ConnectionError("Redis is simulated down")
         self.data.pop((key, field), None)
 
     async def expire(self, key: str, seconds: int) -> None:
         if self.is_down:
             import redis
+
             raise redis.exceptions.ConnectionError("Redis is simulated down")
 
 
@@ -60,7 +61,9 @@ class MockGossipEngine:
         nodes = [self.local_node, *self.peers.values()]
         return nodes
 
-    async def _send_reliable(self, peer: Any, msg_type: str, payload: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+    async def _send_reliable(
+        self, peer: Any, msg_type: str, payload: dict[str, Any]
+    ) -> tuple[bool, dict[str, Any]]:
         # Simulated instant delivery
         return True, {"confirmed_dead": False}
 
@@ -80,7 +83,7 @@ def dummy_logic(task_input: dict[str, Any], state: dict[str, Any]) -> dict[str, 
 async def test_high_concurrency_actor_mailbox_stress() -> None:
     """Stress test: verify the Pykka actor mailbox remains stable under high frequency concurrent state merges."""
     actor_ref = ScanActor.start(actor_id="stress-actor-1", logic_fn=dummy_logic)
-    actor = actor_ref.proxy()
+    actor_ref.proxy()
 
     num_concurrent_tasks = 100
     tasks = []
@@ -117,10 +120,7 @@ async def test_node_failure_and_migration_failover() -> None:
     registry = GhostMeshRegistry(redis_mock, run_id="stress-run")
 
     # Define 5 mesh nodes
-    nodes = {
-        f"node-{i}": MockGossipEngine(f"node-{i}", "127.0.0.1", 9000 + i)
-        for i in range(5)
-    }
+    nodes = {f"node-{i}": MockGossipEngine(f"node-{i}", "127.0.0.1", 9000 + i) for i in range(5)}
 
     # Register 5 actors on their respective nodes
     actors = {}
@@ -128,12 +128,12 @@ async def test_node_failure_and_migration_failover() -> None:
     for i in range(5):
         actor_id = f"actor-{i}"
         node_id = f"node-{i}"
-        
+
         # Start the Pykka actor
         actor_ref = ScanActor.start(actor_id=actor_id, logic_fn=dummy_logic)
         actor_refs[actor_id] = actor_ref
         actors[actor_id] = actor_ref.proxy()
-        
+
         # Register actor host node
         await registry.register_actor(actor_id, node_id)
 
@@ -185,7 +185,7 @@ async def test_network_partition_split_and_crdt_convergence() -> None:
     # Simulate CRDT convergence by applying Jaccard similarity / union properties
     # Let's verify our delta merging algorithm resolves partitions deterministically
     actor_ref = ScanActor.start(actor_id="partition-actor", logic_fn=dummy_logic)
-    actor = actor_ref.proxy()
+    actor_ref.proxy()
 
     try:
         # Replay partition deltas
@@ -193,7 +193,7 @@ async def test_network_partition_split_and_crdt_convergence() -> None:
             {"id": "wal-1", "delta": state_a},
             {"id": "wal-2", "delta": state_b},
         ]
-        
+
         actor_ref.ask({"command": "recover", "deltas": deltas}, block=True)
         snapshot = actor_ref.ask({"command": "snapshot"}, block=True)
 
@@ -209,7 +209,7 @@ async def test_network_partition_split_and_crdt_convergence() -> None:
 def test_wal_failover_recovery_robustness() -> None:
     """Stress test: write events with Redis offline to verify local AOF fallback, then replay to recover full state."""
     run_id = f"stress_wal_{uuid.uuid4().hex[:8]}"
-    
+
     # 1. Start WAL with Redis set to None (simulating local-only fallback mode)
     wal = FrontierWAL(redis_url=None, run_id=run_id)
 

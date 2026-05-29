@@ -1,4 +1,3 @@
-import pytest
 from src.core.frontier.state import radix_sort_timestamps
 
 
@@ -22,6 +21,7 @@ def test_cython_radix_fallback():
     """Ensure that the Cython module is importable and matches python-only fallback if compiled."""
     try:
         from src.core.frontier import _state_cython
+
         if _state_cython is not None:
             data = [("a", 1.5), ("b", 0.5), ("c", 2.5)]
             result = _state_cython.radix_sort_timestamps(data)

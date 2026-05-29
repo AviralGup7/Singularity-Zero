@@ -17,12 +17,9 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
-import threading
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from typing import Any, Protocol
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from src.core.logging.audit import AuditEventType, get_audit_logger
@@ -262,7 +259,7 @@ class CyberVault:
                 secure_wipe(bytearray(dek))
 
                 return SecretLease(plaintext)
-        except (json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature):
+        except json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature:
             pass
 
         # Compatibility fallback for Argon2idAESGCM envelopes

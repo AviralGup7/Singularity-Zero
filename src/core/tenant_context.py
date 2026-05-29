@@ -51,7 +51,7 @@ class TenantContext:
 
     @classmethod
     @contextmanager
-    def scope(cls, tenant_id: str | None) -> Generator[None, None, None]:
+    def scope(cls, tenant_id: str | None) -> Generator[None]:
         """Context manager to scope a block of execution to a specific tenant ID.
 
         Args:

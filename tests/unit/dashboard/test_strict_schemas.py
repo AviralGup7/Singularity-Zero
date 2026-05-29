@@ -2,10 +2,10 @@ import pytest
 from pydantic import ValidationError
 
 from src.dashboard.fastapi.schemas import (
+    CacheKeyDeleteRequest,
     JobCreateRequest,
     NoteCreateRequest,
     NoteUpdateRequest,
-    CacheKeyDeleteRequest,
 )
 from src.intelligence.ml.feature_vector import FeatureVector
 

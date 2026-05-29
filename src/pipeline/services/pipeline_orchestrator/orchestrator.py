@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 import os
-from pathlib import Path
 from typing import Any, TypedDict, cast
 
 from src.core.checkpoint import (
@@ -34,8 +33,8 @@ from src.pipeline.runner_support import (
     load_adaptive_config,  # noqa: F401 – module-namespace seam
 )
 from src.pipeline.services.output_store import PipelineOutputStore  # noqa: F401 – seam
-from src.pipeline.services.stage_registry import pipeline_flow_manifest  # noqa: F401 – seam
 from src.pipeline.services.plugin_catalog import resolve_stage_runner
+from src.pipeline.services.stage_registry import pipeline_flow_manifest  # noqa: F401 – seam
 from src.pipeline.storage import read_scope  # noqa: F401 – module-namespace seam
 
 from . import parallel
@@ -425,7 +424,9 @@ class PipelineOrchestrator:
             return 1
 
         try:
-            return await self._run_secured(args, config, flow_manifest, cache_mgr, scope_entries, tool_status)
+            return await self._run_secured(
+                args, config, flow_manifest, cache_mgr, scope_entries, tool_status
+            )
         finally:
             if lock_token:
                 logger.info("Releasing distributed lock for target: %s", target_name)

@@ -1,12 +1,10 @@
-import time
-import pytest
-from src.core.frontier.state import HybridLogicalClock, LWWset, LWWElement, VectorClock
+from src.core.frontier.state import HybridLogicalClock, LWWset
 
 
 def test_hlc_tick_sequencing() -> None:
     """Verify that physical time advances tick logic and logical counter scales for synchronous events."""
     hlc = HybridLogicalClock(physical_time=0.0, node_id="node-a")
-    
+
     # Tick with same physical time raises logical counter
     t1 = 1000.0
     tick1 = hlc.tick(t1)
@@ -28,7 +26,7 @@ def test_hlc_tick_sequencing() -> None:
 def test_hlc_update_convergence() -> None:
     """Verify HLC preserves causality across distributed messages/states using update ticks."""
     local = HybridLogicalClock(physical_time=100.0, logical_counter=5, node_id="node-a")
-    
+
     # 1. Remote physical time is later
     remote1 = HybridLogicalClock(physical_time=150.0, logical_counter=2, node_id="node-b")
     merged1 = local.update(remote1, now=120.0)
@@ -89,7 +87,7 @@ def test_lwwset_merge_hlc() -> None:
     # Reversing adding a higher-hlc insert
     hlc_c = HybridLogicalClock(100.0, 2, "node-c")
     set_b.add("finding-1", timestamp=100.0, hlc=hlc_c)
-    
+
     set_a.merge(set_b)
     assert "finding-1" in set_a.to_set()
 

@@ -134,10 +134,22 @@ def _parse_graphql_response(body: str) -> dict[str, Any] | None:
 
 
 # GraphQL field suggestion brute-forcing words
-GRAPHQL_COMMON_FIELDS = ["users", "admin", "settings", "me", "profile", "config", "debug", "secrets", "roles", "permissions"]
+GRAPHQL_COMMON_FIELDS = [
+    "users",
+    "admin",
+    "settings",
+    "me",
+    "profile",
+    "config",
+    "debug",
+    "secrets",
+    "roles",
+    "permissions",
+]
+
 
 def _check_graphql_errors(body: str) -> list[str]:
-# ... (existing code unchanged for a moment, let's insert field suggestion right after Test 1) ...
+    # ... (existing code unchanged for a moment, let's insert field suggestion right after Test 1) ...
 
     """Check response body for GraphQL error patterns.
 
@@ -208,8 +220,6 @@ def graphql_active_probe(
         batch_result = None
         mutation_result = None
 
-        field_suggestion_result = None
-
         # Test 1: Introspection query
         introspection_response = response_cache.request(
             url,
@@ -264,7 +274,6 @@ def graphql_active_probe(
                             suggested_fields.append(field)
             if suggested_fields:
                 signals.append("field_suggestion_success")
-                field_suggestion_result = {"discovered_fields": suggested_fields}
 
         # Test 2: Batch query abuse
 

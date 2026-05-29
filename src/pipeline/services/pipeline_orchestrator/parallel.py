@@ -187,9 +187,7 @@ async def run_parallel_group(
                 )
             elapsed = time.time() - started
             logger.info("Stage completed: %s (%.1fs)", name, elapsed)
-            await orchestrator._record_stage_post_run(
-                name, ctx, checkpoint_mgr
-            )
+            await orchestrator._record_stage_post_run(name, ctx, checkpoint_mgr)
             stage_metrics = ctx.result.module_metrics.get(name, {})
             raw_state = str(ctx.result.stage_status.get(name, StageStatus.COMPLETED.value))
             status = "completed"

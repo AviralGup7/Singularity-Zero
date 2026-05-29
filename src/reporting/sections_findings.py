@@ -9,12 +9,12 @@ from src.intelligence.severity_model import enrich_findings_with_model_severity
 
 # Modularized badge imports
 from src.reporting.finding_badges import (
-    render_mitre_badges,
-    render_mitre_badge_for_auth_bypass,
-    render_mitre_badge_for_access_control,
+    render_attack_chain_badge,
     render_correlation_badge,
     render_cvss_badge,
-    render_attack_chain_badge,
+    render_mitre_badge_for_access_control,
+    render_mitre_badge_for_auth_bypass,
+    render_mitre_badges,
     render_model_badge,
 )
 

@@ -103,7 +103,7 @@ class CloudBucketScanner:
                         "status": "public",
                         "severity": "high",
                         "details": "Publicly indexable / directory listing enabled.",
-                        "permissions": {"read": True}
+                        "permissions": {"read": True},
                     }
                 elif status == 403:
                     finding = {
@@ -113,14 +113,14 @@ class CloudBucketScanner:
                         "status": "secure",
                         "severity": "info",
                         "details": "Bucket exists, but access is restricted (403 Forbidden).",
-                        "permissions": {"read": False}
+                        "permissions": {"read": False},
                     }
-            
+
             if finding:
                 # Active Probe 1: Check ACL readability
                 try:
                     async with session.get(f"{url}/?acl", timeout=self.timeout_seconds) as acl_resp:
-                        finding["permissions"]["read_acl"] = (acl_resp.status == 200)
+                        finding["permissions"]["read_acl"] = acl_resp.status == 200
                         if acl_resp.status == 200:
                             finding["severity"] = "high"
                             finding["details"] += " ACL is publicly readable."
@@ -132,12 +132,14 @@ class CloudBucketScanner:
                     async with session.put(
                         f"{url}/cyber_pipeline_write_test.txt",
                         data="test",
-                        timeout=self.timeout_seconds
+                        timeout=self.timeout_seconds,
                     ) as put_resp:
-                        finding["permissions"]["write"] = (put_resp.status == 200)
+                        finding["permissions"]["write"] = put_resp.status == 200
                         if put_resp.status == 200:
                             finding["severity"] = "critical"
-                            finding["details"] += " Bucket allows unauthenticated file uploads (Public Write)!"
+                            finding["details"] += (
+                                " Bucket allows unauthenticated file uploads (Public Write)!"
+                            )
                 except Exception:
                     pass
 
@@ -164,7 +166,7 @@ class CloudBucketScanner:
                         "status": "public",
                         "severity": "high",
                         "details": "Publicly indexable / directory listing enabled.",
-                        "permissions": {"read": True}
+                        "permissions": {"read": True},
                     }
                 elif status == 403:
                     finding = {
@@ -174,14 +176,14 @@ class CloudBucketScanner:
                         "status": "secure",
                         "severity": "info",
                         "details": "Bucket exists, but access is restricted (403 Forbidden).",
-                        "permissions": {"read": False}
+                        "permissions": {"read": False},
                     }
 
             if finding:
                 # Active Probe 1: Check ACL readability
                 try:
                     async with session.get(f"{url}?acl", timeout=self.timeout_seconds) as acl_resp:
-                        finding["permissions"]["read_acl"] = (acl_resp.status == 200)
+                        finding["permissions"]["read_acl"] = acl_resp.status == 200
                         if acl_resp.status == 200:
                             finding["severity"] = "high"
                             finding["details"] += " ACL is publicly readable."
@@ -193,12 +195,14 @@ class CloudBucketScanner:
                     async with session.put(
                         f"{url}/cyber_pipeline_write_test.txt",
                         data="test",
-                        timeout=self.timeout_seconds
+                        timeout=self.timeout_seconds,
                     ) as put_resp:
-                        finding["permissions"]["write"] = (put_resp.status == 200)
+                        finding["permissions"]["write"] = put_resp.status == 200
                         if put_resp.status == 200:
                             finding["severity"] = "critical"
-                            finding["details"] += " Bucket allows unauthenticated file uploads (Public Write)!"
+                            finding["details"] += (
+                                " Bucket allows unauthenticated file uploads (Public Write)!"
+                            )
                 except Exception:
                     pass
 
@@ -207,7 +211,6 @@ class CloudBucketScanner:
         except Exception:  # noqa: S110
             pass
         return None
-
 
     async def check_azure_bucket(
         self, session: aiohttp.ClientSession, bucket: str

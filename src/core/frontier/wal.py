@@ -54,7 +54,7 @@ try:
 
     def compute_crc64(data: bytes) -> str:
         return f"{_crc64_func(data):016x}"
-except (ImportError, ValueError):
+except ImportError, ValueError:
 
     def compute_crc64(data: bytes) -> str:
         return f"{crc64_pure(data):016x}"
@@ -154,7 +154,13 @@ class FrontierWAL:
             )
             logger.debug("WAL recorded delta for '%s' (ID: %s)", stage_name, entry_id)
             return entry_id.decode() if isinstance(entry_id, bytes) else str(entry_id)
-        except (redis.exceptions.RedisError, ValueError, TypeError, AttributeError, Exception) as exc:
+        except (
+            redis.exceptions.RedisError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            Exception,
+        ) as exc:
             logger.error("WAL append failed for stage '%s': %s", stage_name, exc)
             return None
 

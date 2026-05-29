@@ -12,18 +12,16 @@ from typing import Any, cast
 
 import pykka
 
-from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
+from src.core.frontier.ghost_actor_coordinator import GhostMeshCoordinator as BaseMeshCoordinator
+
+# Modular imports
+from src.core.frontier.ghost_actor_state import ActorState
 from src.core.frontier.marshaller import (
     mesh_marshal_pickle,
     mesh_unmarshal_pickle,
 )
 from src.core.frontier.state import CRDTCompactionBudget, stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
-
-# Modular imports
-from src.core.frontier.ghost_actor_state import ActorState
-from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
-from src.core.frontier.ghost_actor_coordinator import GhostMeshCoordinator as BaseMeshCoordinator
 
 logger = get_pipeline_logger(__name__)
 

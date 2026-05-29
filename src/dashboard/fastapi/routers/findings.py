@@ -17,8 +17,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/findings", tags=["Findings"])
 
 
-def _find_finding_by_id(output_root: Any, finding_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
+def _find_finding_by_id(
+    output_root: Any, finding_id: str, tenant_id: str | None = None
+) -> dict[str, Any] | None:
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
     for target_entry in output_root.iterdir():
         if not target_entry.is_dir():
             continue
@@ -111,6 +114,7 @@ def _collect_timeline_events(
     events: list[dict[str, Any]] = []
 
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
     for target_entry in sorted(output_root.iterdir(), key=lambda path: path.name.lower()):
         if not target_entry.is_dir() or target_entry.name.startswith("_"):
             continue
@@ -134,7 +138,7 @@ def _collect_timeline_events(
                 try:
                     parsed = json.loads(findings_path.read_text(encoding="utf-8"))
                     findings_data = parsed if isinstance(parsed, list) else []
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     findings_data = []
 
             if not findings_data and summary_path.exists():
@@ -146,7 +150,7 @@ def _collect_timeline_events(
                         else []
                     )
                     findings_data = top_findings if isinstance(top_findings, list) else []
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     findings_data = []
 
             run_generated_at = run_entry.name
@@ -159,7 +163,7 @@ def _collect_timeline_events(
                             or summary.get("generated_at_ist")
                             or run_entry.name
                         )
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     run_generated_at = run_entry.name
 
             for idx, finding in enumerate(findings_data, start=1):
@@ -226,6 +230,7 @@ def _telemetry_timeline_events(
     end_dt = _parse_timestamp(end_date, "2999-12-31") if end_date else None
     events: list[dict[str, Any]] = []
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
     for job in jobs:
         current_job_id = str(job.get("id") or "")
         if job_id and current_job_id != job_id:
@@ -317,6 +322,7 @@ async def get_findings_summary(
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
     for entry in sorted(output_root.iterdir()):
         if not entry.is_dir() or entry.name.startswith("_"):
             continue
@@ -520,15 +526,13 @@ async def explain_finding_ai(
 
     try:
         from src.intelligence.ml.llm_service import LLMService
+
         service = LLMService.get_instance()
         explanation = await service.explain_finding(finding)
         return {"finding_id": finding_id, "explanations": explanation}
     except Exception as exc:
         logger.exception("Failed to generate AI explainability analysis: %s", exc)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate AI explanations: {exc}"
-        )
-
+        raise HTTPException(status_code=500, detail=f"Failed to generate AI explanations: {exc}")
 
 
 @router.put(

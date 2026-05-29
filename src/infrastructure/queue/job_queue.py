@@ -15,20 +15,20 @@ from typing import Any
 from src.core.contracts.task_envelope import TaskEnvelope
 from src.core.frontier.tracing_manager import get_tracing_manager
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.queue.models import Job, JobState, WorkerInfo
-from src.infrastructure.queue.redis_client import RedisClient
-from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
-from src.pipeline.self_healing import HealthComponent, HealthMetric, HealthStatus
 
 # Modular imports
 from src.infrastructure.queue.lua_scripts import (
     CLAIM_JOB_SCRIPT,
     COMPLETE_JOB_SCRIPT,
+    ENQUEUE_SCRIPT,
     FAIL_JOB_SCRIPT,
     RELEASE_LEASE_SCRIPT,
-    ENQUEUE_SCRIPT,
 )
+from src.infrastructure.queue.models import Job, JobState, WorkerInfo
+from src.infrastructure.queue.redis_client import RedisClient
 from src.infrastructure.queue.retry_policy import RetryPolicy
+from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
+from src.pipeline.self_healing import HealthComponent, HealthMetric, HealthStatus
 
 logger = get_pipeline_logger(__name__)
 
@@ -509,7 +509,7 @@ class JobQueue:
                 v = value.decode("utf-8") if isinstance(value, bytes) else value
                 try:
                     metrics[k] = int(v)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     metrics[k] = v
 
         queue_length = await self.get_queue_length()
