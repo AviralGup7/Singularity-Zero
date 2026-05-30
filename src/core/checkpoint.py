@@ -224,14 +224,11 @@ class CheckpointManager:
         # Replicate to distributed store if available
         if self._distributed:
 
-            def _rollback(exc: Exception | BaseException) -> None:
+            def _log_replication_failure(exc: Exception | BaseException) -> None:
                 logger.warning(
-                    "Replication failed, rolling back local checkpoint %s: %s", checkpoint_path, exc
+                    "Distributed replication failed for checkpoint %s: %s. Local checkpoint remains intact.", 
+                    checkpoint_path, exc
                 )
-                try:
-                    Path(checkpoint_path).unlink(missing_ok=True)
-                except OSError:
-                    pass
 
             try:
                 # Fix Audit #11 & #12: Use running loop and create_task
@@ -241,18 +238,14 @@ class CheckpointManager:
 
                     def _on_done(t: asyncio.Task[Any]) -> None:
                         if t.cancelled():
-                            _rollback(asyncio.CancelledError("Task cancelled"))
+                            _log_replication_failure(asyncio.CancelledError("Task cancelled"))
                         elif t.exception():
-                            _rollback(t.exception())  # type: ignore
+                            _log_replication_failure(t.exception())  # type: ignore
 
                     task.add_done_callback(_on_done)
                 except RuntimeError:
-                    # Fix #331: Run synchronously if no loop, and rollback on failure
+                    # Fix #331: Run synchronously if no loop
                     try:
-                        # Cannot use asyncio.to_thread if there is no running loop,
-                        # but we want to avoid asyncio.run() creating a new loop.
-                        # Wait, if there is no running loop, we can just run the coroutine directly? No.
-                        # Let's just create a new loop but close it properly, or dispatch to a background thread.
                         loop = asyncio.new_event_loop()
                         try:
                             loop.run_until_complete(
@@ -261,10 +254,10 @@ class CheckpointManager:
                         finally:
                             loop.close()
                     except Exception as e:
-                        _rollback(e)
+                        _log_replication_failure(e)
                         raise
             except Exception as exc:
-                _rollback(exc)
+                _log_replication_failure(exc)
 
         self._state = state
         return Path(checkpoint_path)

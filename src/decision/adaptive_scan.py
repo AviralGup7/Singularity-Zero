@@ -211,7 +211,34 @@ class AdaptiveScanCoordinator:
 
         tasks = [bounded_scan(url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        return [r for r in results if isinstance(r, ScanResult)]
+        
+        processed_results: list[ScanResult] = []
+        for url, r in zip(urls, results):
+            if isinstance(r, ScanResult):
+                processed_results.append(r)
+            elif isinstance(r, Exception):
+                logger.error("Target scan task crashed exceptionally: url=%s error=%s", url, r)
+                processed_results.append(
+                    ScanResult(
+                        target=url,
+                        success=False,
+                        findings=[],
+                        duration_ms=0.0,
+                        error=f"Task execution crash: {r}",
+                    )
+                )
+            else:
+                logger.error("Target scan task returned invalid result type: url=%s got=%s", url, type(r))
+                processed_results.append(
+                    ScanResult(
+                        target=url,
+                        success=False,
+                        findings=[],
+                        duration_ms=0.0,
+                        error="Task execution returned invalid result type",
+                    )
+                )
+        return processed_results
 
 
 # Import the priority queue (defined next)

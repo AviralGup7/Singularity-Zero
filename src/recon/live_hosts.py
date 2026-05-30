@@ -569,7 +569,7 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
                     # Avoid duplicates and link-local if possible, but keep it simple
                     candidates.append(f"https://[{ip6}]")
                     candidates.append(f"http://[{ip6}]")
-        except socket.gaierror, socket.herror, OSError:
+        except (socket.gaierror, socket.herror, OSError):
             pass
 
     pool = get_pooled_connection()
@@ -596,6 +596,6 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
                 "source": "python-probe-ipv6" if "[" in candidate else "python-probe",
                 "resolved_host": host,
             }
-        except urllib3.exceptions.HTTPError, Exception:
+        except (urllib3.exceptions.HTTPError, Exception):
             continue
     return None

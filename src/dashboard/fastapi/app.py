@@ -462,7 +462,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         allow_origins=config.allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Tenant-ID", "X-CSRF-Token"],
     )
 
     security_enabled = api_security_enabled()
