@@ -25,6 +25,13 @@ import logging
 import math
 import threading
 import time
+
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
+    np = None
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -195,8 +202,12 @@ class ScanTarget:
         # heapq is a min-heap, so invert the bid score for max-heap behavior.
         if self_bid.score != other_bid.score:
             return self_bid.score > other_bid.score
-        # Tie-breaker: lower index first (more recently added)
-        return self.heap_idx < other.heap_idx
+        # Stable tie-breakers if heap_idx is not established (e.g. -1 for new items)
+        if self.heap_idx != other.heap_idx and self.heap_idx != -1 and other.heap_idx != -1:
+            return self.heap_idx < other.heap_idx
+        if self.created_at != other.created_at:
+            return self.created_at < other.created_at
+        return id(self) < id(other)
 
 
 def _url_patterns(url: str) -> dict[str, Any]:
@@ -258,6 +269,7 @@ class CorrelationPriorityQueue:
         self._boost_factor = boost_factor
         self._pop_count: int = 0
         self._total_findings: int = 0
+        self._retraining_failures_count: int = 0
 
         if targets:
             for i, t in enumerate(targets):
@@ -568,6 +580,7 @@ class CorrelationPriorityQueue:
                 "boosted_targets": boosted,
                 "total_findings_processed": self._total_findings,
                 "pop_count": self._pop_count,
+                "ml_retraining_failures": self._retraining_failures_count,
                 "top_remaining": [
                     {
                         "url": t.url,
@@ -583,9 +596,11 @@ class CorrelationPriorityQueue:
 
     def trigger_retraining_loop(self) -> None:
         """Trigger incremental training of the ML quality model using queue targets and logs."""
+        if not HAS_NUMPY or np is None:
+            logger.warning("Feedback retraining skipped: numpy is not available")
+            self._retraining_failures_count += 1
+            return
         try:
-            import numpy as np
-
             X: list[list[float]] = []
             y: list[int] = []
 
@@ -614,3 +629,4 @@ class CorrelationPriorityQueue:
                 )
         except Exception as exc:
             logger.warning("Failed to trigger ML feedback retraining: %s", exc)
+            self._retraining_failures_count += 1

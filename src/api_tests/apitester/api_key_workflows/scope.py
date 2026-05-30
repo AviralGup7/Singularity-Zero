@@ -19,7 +19,7 @@ def subdomain_privilege_methods_test(
     api_key: str,
     cookies: dict[str, Any] | None = None,
 ) -> None:
-    import requests  # type: ignore[import-untyped]  # type: ignore[import-untyped]
+    import requests  # type: ignore[import-untyped]
 
     base_url = normalize_base_url(base_url)
     print_banner(
@@ -83,10 +83,26 @@ def subdomain_privilege_methods_test(
                             "status": response.status_code,
                         }
                     )
-                except requests.exceptions.RequestException:
+                except requests.exceptions.RequestException as exc:
                     print(f"   {sub:<12} -> Connection failed / Not found")
-                except Exception as exc:
+                    results.append(
+                        {
+                            "test": "subdomain_scope",
+                            "subdomain": sub,
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
+                except Exception as exc:  # noqa: BLE001
                     print(f"   {sub:<12} -> Error: {type(exc).__name__}")
+                    results.append(
+                        {
+                            "test": "subdomain_scope",
+                            "subdomain": sub,
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
 
             print("\n2. Testing Privilege Escalation Endpoints")
             escalation_endpoints = [
@@ -138,9 +154,9 @@ def subdomain_privilege_methods_test(
                                 print(
                                     f"   CRITICAL: POST /{endpoint} succeeded -> Possible escalation"
                                 )
-                        except requests.exceptions.RequestException:
-                            print(f"   WARNING: POST /{endpoint} failed: Connection error")
-                        except Exception as exc:
+                        except requests.exceptions.RequestException as exc:
+                            print(f"   WARNING: POST /{endpoint} failed: {exc}")
+                        except Exception as exc:  # noqa: BLE001
                             print(
                                 f"   WARNING: POST /{endpoint} failed: {type(exc).__name__}: {exc}"
                             )
@@ -152,10 +168,26 @@ def subdomain_privilege_methods_test(
                             "get_status": response_get.status_code,
                         }
                     )
-                except requests.exceptions.RequestException:
+                except requests.exceptions.RequestException as exc:
                     print(f"   /{endpoint} -> Connection error")
-                except Exception as exc:
+                    results.append(
+                        {
+                            "test": "privilege_escalation",
+                            "endpoint": endpoint,
+                            "get_status": "error",
+                            "error": str(exc),
+                        }
+                    )
+                except Exception as exc:  # noqa: BLE001
                     print(f"   /{endpoint} -> Error: {type(exc).__name__}")
+                    results.append(
+                        {
+                            "test": "privilege_escalation",
+                            "endpoint": endpoint,
+                            "get_status": "error",
+                            "error": str(exc),
+                        }
+                    )
 
             print("\n3. Testing Key with Different HTTP Methods (GET/POST/PUT)")
             methods = ["GET", "POST", "PUT", "DELETE", "PATCH"]
@@ -189,10 +221,28 @@ def subdomain_privilege_methods_test(
                                 "status": status,
                             }
                         )
-                    except requests.exceptions.RequestException:
+                    except requests.exceptions.RequestException as exc:
                         print(f"      {method:<6} /{endpoint} -> Connection error")
-                    except Exception as exc:
+                        results.append(
+                            {
+                                "test": "http_methods",
+                                "method": method,
+                                "endpoint": endpoint,
+                                "status": "error",
+                                "error": str(exc),
+                            }
+                        )
+                    except Exception as exc:  # noqa: BLE001
                         print(f"      {method:<6} /{endpoint} -> Error: {type(exc).__name__}")
+                        results.append(
+                            {
+                                "test": "http_methods",
+                                "method": method,
+                                "endpoint": endpoint,
+                                "status": "error",
+                                "error": str(exc),
+                            }
+                        )
 
         print_summary_header("TEST SUMMARY - Scope, Privilege & Methods", divider_width=95)
         scope_success = sum(

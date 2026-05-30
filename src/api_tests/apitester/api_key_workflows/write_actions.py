@@ -95,6 +95,16 @@ def write_flexible_chaining_test(
                     )
                 except Exception as exc:  # noqa: BLE001
                     print(f"   {method} /{test['endpoint']} -> Error: {str(exc)[:60]}")
+                    results.append(
+                        {
+                            "test": "write_action",
+                            "location": placement["name"],
+                            "method": method,
+                            "endpoint": test["endpoint"],
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
 
             print("\n2. Testing Key in Headers vs Query Parameters (Flexibility)")
             from typing import cast
@@ -118,10 +128,36 @@ def write_flexible_chaining_test(
                         print(f"   Key accepted in {alt_placement['name']}")
                     else:
                         print(f"   {alt_placement['name']:<25} -> {response.status_code}")
-                except requests.exceptions.RequestException:
+                    results.append(
+                        {
+                            "test": "flexibility",
+                            "location": placement["name"],
+                            "alt_location": alt_placement["name"],
+                            "status": response.status_code,
+                        }
+                    )
+                except requests.exceptions.RequestException as exc:
                     print(f"   {alt_placement['name']:<25} -> Connection error")
-                except Exception as exc:
+                    results.append(
+                        {
+                            "test": "flexibility",
+                            "location": placement["name"],
+                            "alt_location": alt_placement["name"],
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
+                except Exception as exc:  # noqa: BLE001
                     print(f"   {alt_placement['name']:<25} -> Error: {type(exc).__name__}")
+                    results.append(
+                        {
+                            "test": "flexibility",
+                            "location": placement["name"],
+                            "alt_location": alt_placement["name"],
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
 
             print("\n3. Chaining Parameters to Amplify Access (user_id, token, etc.)")
             chaining_tests = [
@@ -153,8 +189,25 @@ def write_flexible_chaining_test(
                         print(
                             f"   Chaining {list(chain['params'].keys())} -> {response.status_code}"
                         )
+                    results.append(
+                        {
+                            "test": "chaining",
+                            "location": placement["name"],
+                            "chain_params": list(chain["params"].keys()),
+                            "status": response.status_code,
+                        }
+                    )
                 except Exception as exc:  # noqa: BLE001
                     print(f"   Chaining failed: {str(exc)[:50]}")
+                    results.append(
+                        {
+                            "test": "chaining",
+                            "location": placement["name"],
+                            "chain_params": list(chain["params"].keys()),
+                            "status": "error",
+                            "error": str(exc),
+                        }
+                    )
 
         print_summary_header("TEST SUMMARY - Write, Flexibility & Chaining", divider_width=95)
         write_success = sum(

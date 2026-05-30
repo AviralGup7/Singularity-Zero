@@ -32,329 +32,373 @@ class FallbackEmulator:
         self.fallback_db = fallback_db
         self.fallback_lock = fallback_lock
         self.scripts = scripts
+        self._handlers = {
+            "GET": self._handle_get,
+            "SET": self._handle_set,
+            "DELETE": self._handle_del,
+            "DEL": self._handle_del,
+            "HSET": self._handle_hset,
+            "HGETALL": self._handle_hgetall,
+            "HGET": self._handle_hget,
+            "HDEL": self._handle_hdel,
+            "HINCRBY": self._handle_hincrby,
+            "EXISTS": self._handle_exists,
+            "EXPIRE": self._handle_expire,
+            "SADD": self._handle_sadd,
+            "SREM": self._handle_srem,
+            "SMEMBERS": self._handle_smembers,
+            "SCAN": self._handle_scan,
+            "ZADD": self._handle_zadd,
+            "ZREM": self._handle_zrem,
+            "ZRANGEBYSCORE": self._handle_zrangebyscore,
+            "ZRANGE": self._handle_zrange,
+            "ZREVRANGE": self._handle_zrevrange,
+            "ZCARD": self._handle_zcard,
+            "ZSCORE": self._handle_zscore,
+            "LPUSH": self._handle_lpush,
+            "RPOP": self._handle_rpop,
+            "LLEN": self._handle_llen,
+            "EVALSHA": self._handle_eval,
+            "EVAL": self._handle_eval,
+            "SCRIPT": self._handle_script,
+        }
+
+    def _handle_get(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        _, data = self.fallback_db.db_get(key)
+        return data
+
+    def _handle_set(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        value = args[1] if len(args) > 1 else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        self.fallback_db.db_set(key, "string", value)
+        return True
+
+    def _handle_del(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        return self.fallback_db.db_del(key)
+
+    def _handle_hset(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t != "hash" or not isinstance(data, dict):
+            data = {}
+        mapping = kwargs.get("mapping", {})
+        if args[1:]:
+            rest = list(args[1:])
+            for i in range(0, len(rest) - 1, 2):
+                field = rest[i]
+                value = rest[i + 1] if i + 1 < len(rest) else ""
+                if isinstance(field, bytes):
+                    field = field.decode("utf-8")
+                if isinstance(value, bytes):
+                    value = value.decode("utf-8")
+                mapping[field] = value
+        if isinstance(mapping, dict):
+            for field, value in mapping.items():
+                f = field.decode("utf-8") if isinstance(field, bytes) else field
+                v = value.decode("utf-8") if isinstance(value, bytes) else value
+                data[f] = v
+        self.fallback_db.db_set(key, "hash", data)
+        return len(mapping)
+
+    def _handle_hgetall(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "hash" and isinstance(data, dict):
+            return {
+                k.encode("utf-8") if isinstance(k, str) else k: v.encode("utf-8")
+                if isinstance(v, str)
+                else v
+                for k, v in data.items()
+            }
+        return {}
+
+    def _handle_hget(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        field = args[1] if len(args) > 1 else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        if isinstance(field, bytes):
+            field = field.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "hash" and isinstance(data, dict):
+            val = data.get(field)
+            return val.encode("utf-8") if isinstance(val, str) else val
+        return None
+
+    def _handle_hdel(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "hash" and isinstance(data, dict):
+            count = 0
+            for field in args[1:]:
+                f = field.decode("utf-8") if isinstance(field, bytes) else field
+                if f in data:
+                    del data[f]
+                    count += 1
+            self.fallback_db.db_set(key, "hash", data)
+            return count
+        return 0
+
+    def _handle_hincrby(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        field = args[1] if len(args) > 1 else ""
+        amount = int(args[2]) if len(args) > 2 else 0
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        if isinstance(field, bytes):
+            field = field.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t != "hash" or not isinstance(data, dict):
+            data = {}
+        current = data.get(field, 0)
+        if isinstance(current, bytes):
+            current = current.decode("utf-8")
+        try:
+            current_int = int(current)
+        except (TypeError, ValueError):
+            current_int = 0
+        new_value = current_int + amount
+        data[field] = str(new_value)
+        self.fallback_db.db_set(key, "hash", data)
+        return new_value
+
+    def _handle_exists(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, _ = self.fallback_db.db_get(key)
+        return int(t is not None)
+
+    def _handle_expire(self, *args: Any, **kwargs: Any) -> Any:
+        return True
+
+    def _handle_sadd(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t != "set" or not isinstance(data, set):
+            data = set()
+        added = 0
+        for member in args[1:]:
+            m = member.decode("utf-8") if isinstance(member, bytes) else member
+            if m not in data:
+                data.add(m)
+                added += 1
+        self.fallback_db.db_set(key, "set", data)
+        return added
+
+    def _handle_srem(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t != "set" or not isinstance(data, set):
+            return 0
+        removed = 0
+        for member in args[1:]:
+            m = member.decode("utf-8") if isinstance(member, bytes) else member
+            if m in data:
+                data.remove(m)
+                removed += 1
+        self.fallback_db.db_set(key, "set", data)
+        return removed
+
+    def _handle_smembers(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "set" and isinstance(data, set):
+            return [m.encode("utf-8") if isinstance(m, str) else m for m in data]
+        return []
+
+    def _handle_scan(self, *args: Any, **kwargs: Any) -> Any:
+        pattern = "*"
+        if "MATCH" in [str(arg).upper() for arg in args]:
+            upper_args = [str(arg).upper() for arg in args]
+            pattern = str(args[upper_args.index("MATCH") + 1])
+        import fnmatch
+
+        all_keys = self.fallback_db.db_scan()
+        keys = [
+            key.encode("utf-8") for key in all_keys if fnmatch.fnmatch(str(key), pattern)
+        ]
+        return 0, keys
+
+    def _handle_zadd(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t != "zset" or not isinstance(data, dict):
+            data = {}
+        if len(args) >= 3:
+            score = float(args[1])
+            member = args[2]
+            if isinstance(member, bytes):
+                member = member.decode("utf-8")
+            data[member] = score
+        self.fallback_db.db_set(key, "zset", data)
+        return 1
+
+    def _handle_zrem(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "zset" and isinstance(data, dict):
+            count = 0
+            for member in args[1:]:
+                m = member.decode("utf-8") if isinstance(member, bytes) else member
+                if m in data:
+                    del data[m]
+                    count += 1
+            self.fallback_db.db_set(key, "zset", data)
+            return count
+        return 0
+
+    def _handle_zrangebyscore(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "zset" and isinstance(data, dict):
+            items = list(data.items())
+            if len(args) >= 3:
+                min_raw = args[1]
+                max_raw = args[2]
+                if isinstance(min_raw, bytes):
+                    min_raw = min_raw.decode("utf-8")
+                if isinstance(max_raw, bytes):
+                    max_raw = max_raw.decode("utf-8")
+                min_score = float(min_raw) if min_raw != "-inf" else float("-inf")
+                max_score = float(max_raw) if max_raw != "+inf" else float("inf")
+                reverse = min_score > max_score
+                if reverse:
+                    min_score, max_score = max_score, min_score
+                items = [(m, s) for m, s in items if min_score <= s <= max_score]
+                items.sort(key=lambda x: x[1], reverse=reverse)
+                if len(args) >= 6 and str(args[3]).upper() == "LIMIT":
+                    start = int(args[4])
+                    count = int(args[5])
+                    items = items[start : start + count]
+            else:
+                items.sort(key=lambda x: x[1])
+            return [m.encode("utf-8") if isinstance(m, str) else m for m, _ in items]
+        return []
+
+    def _handle_zrange(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "zset" and isinstance(data, dict):
+            items = list(data.items())
+            if len(args) >= 3:
+                start = int(args[1])
+                end = int(args[2])
+                items.sort(key=lambda x: x[1])
+                slice_end = None if end == -1 else end + 1
+                items = items[start:slice_end]
+            else:
+                items.sort(key=lambda x: x[1])
+            return [m.encode("utf-8") if isinstance(m, str) else m for m, _ in items]
+        return []
+
+    def _handle_zrevrange(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        start = int(args[1]) if len(args) > 1 else 0
+        end = int(args[2]) if len(args) > 2 else -1
+        t, data = self.fallback_db.db_get(key)
+        if t == "zset" and isinstance(data, dict):
+            items = sorted(data.items(), key=lambda x: x[1], reverse=True)
+            slice_end = None if end == -1 else end + 1
+            items = items[start:slice_end]
+            return [m.encode("utf-8") if isinstance(m, str) else m for m, _ in items]
+        return []
+
+    def _handle_zcard(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        return len(data) if t == "zset" and isinstance(data, dict) else 0
+
+    def _handle_zscore(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        member = args[1] if len(args) > 1 else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        if isinstance(member, bytes):
+            member = member.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "zset" and isinstance(data, dict) and member in data:
+            return str(data[member]).encode("utf-8")
+        return None
+
+    def _handle_lpush(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t != "list" or not isinstance(data, list):
+            data = []
+        for val in args[1:]:
+            v = val.decode("utf-8") if isinstance(val, bytes) else val
+            data.insert(0, v)
+        self.fallback_db.db_set(key, "list", data)
+        return len(data)
+
+    def _handle_rpop(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        if t == "list" and isinstance(data, list) and data:
+            val = data.pop()
+            self.fallback_db.db_set(key, "list", data)
+            return val.encode("utf-8") if isinstance(val, str) else val
+        return None
+
+    def _handle_llen(self, *args: Any, **kwargs: Any) -> Any:
+        key = args[0] if args else ""
+        if isinstance(key, bytes):
+            key = key.decode("utf-8")
+        t, data = self.fallback_db.db_get(key)
+        return len(data) if t == "list" and isinstance(data, list) else 0
+
+    def _handle_eval(self, *args: Any, **kwargs: Any) -> Any:
+        return []
+
+    def _handle_script(self, *args: Any, **kwargs: Any) -> Any:
+        return "fallback-script-hash"
 
     def fallback_command(self, command: str, *args: Any, **kwargs: Any) -> Any:
         """Execute a command against the SQLite fallback store."""
         with self.fallback_lock:
             cmd = command.upper()
-
-            if cmd == "GET":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                _, data = self.fallback_db.db_get(key)
-                return data
-
-            if cmd == "SET":
-                key = args[0] if args else ""
-                value = args[1] if len(args) > 1 else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                if isinstance(value, bytes):
-                    value = value.decode("utf-8")
-                self.fallback_db.db_set(key, "string", value)
-                return True
-
-            if cmd in ("DELETE", "DEL"):
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                return self.fallback_db.db_del(key)
-
-            if cmd == "HSET":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t != "hash" or not isinstance(data, dict):
-                    data = {}
-                mapping = kwargs.get("mapping", {})
-                if args[1:]:
-                    rest = list(args[1:])
-                    for i in range(0, len(rest) - 1, 2):
-                        field = rest[i]
-                        value = rest[i + 1] if i + 1 < len(rest) else ""
-                        if isinstance(field, bytes):
-                            field = field.decode("utf-8")
-                        if isinstance(value, bytes):
-                            value = value.decode("utf-8")
-                        mapping[field] = value
-                if isinstance(mapping, dict):
-                    for field, value in mapping.items():
-                        f = field.decode("utf-8") if isinstance(field, bytes) else field
-                        v = value.decode("utf-8") if isinstance(value, bytes) else value
-                        data[f] = v
-                self.fallback_db.db_set(key, "hash", data)
-                return len(mapping)
-
-            if cmd == "HGETALL":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t == "hash" and isinstance(data, dict):
-                    return {
-                        k.encode("utf-8") if isinstance(k, str) else k: v.encode("utf-8")
-                        if isinstance(v, str)
-                        else v
-                        for k, v in data.items()
-                    }
-                return {}
-
-            if cmd == "HGET":
-                key = args[0] if args else ""
-                field = args[1] if len(args) > 1 else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                if isinstance(field, bytes):
-                    field = field.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t == "hash" and isinstance(data, dict):
-                    val = data.get(field)
-                    return val.encode("utf-8") if isinstance(val, str) else val
-                return None
-
-            if cmd == "HDEL":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t == "hash" and isinstance(data, dict):
-                    count = 0
-                    for field in args[1:]:
-                        f = field.decode("utf-8") if isinstance(field, bytes) else field
-                        if f in data:
-                            del data[f]
-                            count += 1
-                    self.fallback_db.db_set(key, "hash", data)
-                    return count
-                return 0
-
-            if cmd == "HINCRBY":
-                key = args[0] if args else ""
-                field = args[1] if len(args) > 1 else ""
-                amount = int(args[2]) if len(args) > 2 else 0
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                if isinstance(field, bytes):
-                    field = field.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t != "hash" or not isinstance(data, dict):
-                    data = {}
-                current = data.get(field, 0)
-                if isinstance(current, bytes):
-                    current = current.decode("utf-8")
-                try:
-                    current_int = int(current)
-                except (TypeError, ValueError):
-                    current_int = 0
-                new_value = current_int + amount
-                data[field] = str(new_value)
-                self.fallback_db.db_set(key, "hash", data)
-                return new_value
-
-            if cmd == "EXISTS":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, _ = self.fallback_db.db_get(key)
-                return int(t is not None)
-
-            if cmd == "EXPIRE":
-                return True
-
-            if cmd == "SADD":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t != "set" or not isinstance(data, set):
-                    data = set()
-                added = 0
-                for member in args[1:]:
-                    m = member.decode("utf-8") if isinstance(member, bytes) else member
-                    if m not in data:
-                        data.add(m)
-                        added += 1
-                self.fallback_db.db_set(key, "set", data)
-                return added
-
-            if cmd == "SREM":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t != "set" or not isinstance(data, set):
-                    return 0
-                removed = 0
-                for member in args[1:]:
-                    m = member.decode("utf-8") if isinstance(member, bytes) else member
-                    if m in data:
-                        data.remove(m)
-                        removed += 1
-                self.fallback_db.db_set(key, "set", data)
-                return removed
-
-            if cmd == "SMEMBERS":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t == "set" and isinstance(data, set):
-                    return [m.encode("utf-8") if isinstance(m, str) else m for m in data]
-                return []
-
-            if cmd == "SCAN":
-                pattern = "*"
-                if "MATCH" in [str(arg).upper() for arg in args]:
-                    upper_args = [str(arg).upper() for arg in args]
-                    pattern = str(args[upper_args.index("MATCH") + 1])
-                import fnmatch
-
-                all_keys = self.fallback_db.db_scan()
-                keys = [
-                    key.encode("utf-8") for key in all_keys if fnmatch.fnmatch(str(key), pattern)
-                ]
-                return 0, keys
-
-            if cmd == "ZADD":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t != "zset" or not isinstance(data, dict):
-                    data = {}
-                if len(args) >= 3:
-                    score = float(args[1])
-                    member = args[2]
-                    if isinstance(member, bytes):
-                        member = member.decode("utf-8")
-                    data[member] = score
-                self.fallback_db.db_set(key, "zset", data)
-                return 1
-
-            if cmd == "ZREM":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t == "zset" and isinstance(data, dict):
-                    count = 0
-                    for member in args[1:]:
-                        m = member.decode("utf-8") if isinstance(member, bytes) else member
-                        if m in data:
-                            del data[m]
-                            count += 1
-                    self.fallback_db.db_set(key, "zset", data)
-                    return count
-                return 0
-
-            if cmd in ("ZRANGEBYSCORE", "ZRANGE"):
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t == "zset" and isinstance(data, dict):
-                    items = list(data.items())
-                    if cmd == "ZRANGEBYSCORE" and len(args) >= 3:
-                        min_raw = args[1]
-                        max_raw = args[2]
-                        if isinstance(min_raw, bytes):
-                            min_raw = min_raw.decode("utf-8")
-                        if isinstance(max_raw, bytes):
-                            max_raw = max_raw.decode("utf-8")
-                        min_score = float(min_raw) if min_raw != "-inf" else float("-inf")
-                        max_score = float(max_raw) if max_raw != "+inf" else float("inf")
-                        reverse = min_score > max_score
-                        if reverse:
-                            min_score, max_score = max_score, min_score
-                        items = [(m, s) for m, s in items if min_score <= s <= max_score]
-                        items.sort(key=lambda x: x[1], reverse=reverse)
-                        if len(args) >= 6 and str(args[3]).upper() == "LIMIT":
-                            start = int(args[4])
-                            count = int(args[5])
-                            items = items[start : start + count]
-                    elif cmd == "ZRANGE" and len(args) >= 3:
-                        start = int(args[1])
-                        end = int(args[2])
-                        items.sort(key=lambda x: x[1])
-                        slice_end = None if end == -1 else end + 1
-                        items = items[start:slice_end]
-                    else:
-                        items.sort(key=lambda x: x[1])
-                    return [m.encode("utf-8") if isinstance(m, str) else m for m, _ in items]
-                return []
-
-            if cmd == "ZREVRANGE":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                start = int(args[1]) if len(args) > 1 else 0
-                end = int(args[2]) if len(args) > 2 else -1
-                t, data = self.fallback_db.db_get(key)
-                if t == "zset" and isinstance(data, dict):
-                    items = sorted(data.items(), key=lambda x: x[1], reverse=True)
-                    slice_end = None if end == -1 else end + 1
-                    items = items[start:slice_end]
-                    return [m.encode("utf-8") if isinstance(m, str) else m for m, _ in items]
-                return []
-
-            if cmd == "ZCARD":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                return len(data) if t == "zset" and isinstance(data, dict) else 0
-
-            if cmd == "ZSCORE":
-                key = args[0] if args else ""
-                member = args[1] if len(args) > 1 else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                if isinstance(member, bytes):
-                    member = member.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t == "zset" and isinstance(data, dict) and member in data:
-                    return str(data[member]).encode("utf-8")
-                return None
-
-            if cmd == "LPUSH":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t != "list" or not isinstance(data, list):
-                    data = []
-                for val in args[1:]:
-                    v = val.decode("utf-8") if isinstance(val, bytes) else val
-                    data.insert(0, v)
-                self.fallback_db.db_set(key, "list", data)
-                return len(data)
-
-            if cmd == "RPOP":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                if t == "list" and isinstance(data, list) and data:
-                    val = data.pop()
-                    self.fallback_db.db_set(key, "list", data)
-                    return val.encode("utf-8") if isinstance(val, str) else val
-                return None
-
-            if cmd == "LLEN":
-                key = args[0] if args else ""
-                if isinstance(key, bytes):
-                    key = key.decode("utf-8")
-                t, data = self.fallback_db.db_get(key)
-                return len(data) if t == "list" and isinstance(data, list) else 0
-
-            if cmd in ("EVALSHA", "EVAL"):
-                return []
-
-            if cmd == "SCRIPT":
-                return "fallback-script-hash"
-
+            handler = self._handlers.get(cmd)
+            if handler is not None:
+                return handler(*args, **kwargs)
             logger.debug("Fallback command not implemented: %s", command)
             return None
 

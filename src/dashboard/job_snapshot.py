@@ -66,7 +66,7 @@ def snapshot_job(job: dict[str, Any]) -> dict[str, Any]:
     progress_percent = int(job.get("progress_percent", 0) or 0)
 
     if status == "running":
-        from src.dashboard.fastapi.config import FeatureFlags
+        from src.dashboard.feature_flags import FeatureFlags
 
         if FeatureFlags.ENABLE_BAYESIAN_ETA():
             remaining_seconds = _compute_eta_bayesian(job, elapsed_seconds)

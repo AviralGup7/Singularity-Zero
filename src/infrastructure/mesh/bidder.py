@@ -26,17 +26,8 @@ class MeshBidder:
     def __init__(self, node_id: str):
         self.node_id = node_id
 
-    def calculate_bid(
-        self, task_metadata: dict[str, Any], metrics: dict[str, Any] | None = None
-    ) -> float:
-        """
-        Calculate a bid score (0.0 - 1.0). Higher is better (more capable).
-
-        Args:
-            task_metadata: Requirements of the task.
-            metrics: Optional override for hardware metrics (used for remote estimation).
-        """
-        # 1. Hardware Availability (50% weight)
+    def _calculate_hardware_score(self, metrics: dict[str, Any] | None = None) -> float:
+        """Calculate hardware suitability score."""
         if metrics:
             cpu_free = 100.0 - float(metrics.get("cpu_usage", 50.0))
             ram_mb = float(metrics.get("ram_available_mb", 1024.0))
@@ -55,18 +46,18 @@ class MeshBidder:
             cpu_free = 50.0
             ram_free_pct = 50.0
 
-        hardware_score = (cpu_free * 0.6 + ram_free_pct * 0.4) / 100.0
+        return (cpu_free * 0.6 + ram_free_pct * 0.4) / 100.0
 
-        # 2. Task Affinity (30% weight)
-        # Check if we have the required capabilities (e.g. browser, gpu)
+    def _calculate_affinity_score(self, task_metadata: dict[str, Any]) -> float:
+        """Calculate task capability affinity score."""
         capabilities = task_metadata.get("required_capabilities", [])
         local_caps = ["browser", "nuclei", "semgrep"]  # Inferred local caps
 
         matches = sum(1 for c in capabilities if c in local_caps)
-        affinity_score = matches / max(len(capabilities), 1)
+        return matches / max(len(capabilities), 1)
 
-        # 3. Queue Pressure (20% weight)
-        # Penalize bid if we are already busy
+    def _calculate_pressure_penalty(self) -> float:
+        """Calculate queue and CPU load pressure penalty."""
         if psutil:
             try:
                 # getloadavg is Unix-only
@@ -76,11 +67,25 @@ class MeshBidder:
                     # Fallback for Windows
                     load_avg = psutil.cpu_percent() / 100.0 * (psutil.cpu_count() or 1)
 
-                pressure_penalty = min(1.0, load_avg / (psutil.cpu_count() or 1))
+                return min(1.0, load_avg / (psutil.cpu_count() or 1))
             except Exception:
-                pressure_penalty = 0.5
+                return 0.5
         else:
-            pressure_penalty = 0.5
+            return 0.5
+
+    def calculate_bid(
+        self, task_metadata: dict[str, Any], metrics: dict[str, Any] | None = None
+    ) -> float:
+        """
+        Calculate a bid score (0.0 - 1.0). Higher is better (more capable).
+
+        Args:
+            task_metadata: Requirements of the task.
+            metrics: Optional override for hardware metrics (used for remote estimation).
+        """
+        hardware_score = self._calculate_hardware_score(metrics)
+        affinity_score = self._calculate_affinity_score(task_metadata)
+        pressure_penalty = self._calculate_pressure_penalty()
 
         # Final Frontier Bid
         final_bid: float = (
@@ -113,5 +118,5 @@ def find_winning_bid(bids: dict[str, str]) -> str | None:
         winner_id, winner_val = sorted_bids[0]
         logger.info("Bid Winner: %s (Score: %s)", winner_id, winner_val)
         return winner_id
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return None

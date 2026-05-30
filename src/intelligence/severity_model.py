@@ -22,8 +22,7 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from src.intelligence.ml import ModelVersion, ModelVersionRegistry, XGBoostSeverityPipeline
-
+# Removed circular imports and unused MODEL_VERSION constant
 logger = logging.getLogger(__name__)
 
 SEVERITY_LABELS = ("info", "low", "medium", "high", "critical")
@@ -42,7 +41,6 @@ SCORE_THRESHOLDS = (
     (0.0, "info"),
 )
 DEFAULT_DB_PATH = Path(".pipeline") / "telemetry.db"
-MODEL_VERSION = "severity-logreg-v1"
 
 
 @dataclass(frozen=True)

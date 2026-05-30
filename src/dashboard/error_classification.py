@@ -32,15 +32,7 @@ def _classify_stderr(stderr_content: str, returncode: int) -> str | None:
     return None
 
 
-def _truncate_lines(lines: list[str], *, limit: int = 6) -> list[str]:
-    """Deduplicate and truncate a list of log/error lines to a maximum limit."""
-    deduped: list[str] = []
-    for line in lines:
-        text = str(line or "").strip()
-        if not text or text in deduped:
-            continue
-        deduped.append(text)
-    return deduped[-limit:]
+from src.dashboard.utils import truncate_lines as _truncate_lines
 
 
 def _extract_stdout_error_detail(stdout_text: str) -> str:

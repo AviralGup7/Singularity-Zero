@@ -131,3 +131,9 @@ class WebhookNotifier(BaseNotifier):
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    async def __aenter__(self) -> "WebhookNotifier":
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        await self.close()

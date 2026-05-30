@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from .interfaces import ArtifactStore, CheckpointStore, FindingStore
 
@@ -29,7 +32,7 @@ class LocalArtifactStore(ArtifactStore):
         try:
             path.unlink()
         except FileNotFoundError:
-            pass
+            logger.debug("File to delete not found: %s", path)
 
     def list(self, prefix: str = "") -> list[str]:
         prefix_path = self._root / prefix
@@ -92,7 +95,7 @@ class LocalCheckpointStore(CheckpointStore):
         try:
             Path(path).unlink()
         except FileNotFoundError:
-            pass
+            logger.debug("File to delete not found: %s", path)
 
 
 class LocalFindingStore(FindingStore):

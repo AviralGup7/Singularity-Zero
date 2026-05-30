@@ -35,6 +35,7 @@ class ResourceAwareScheduler:
     def __init__(self) -> None:
         """Initialize the scheduler with an empty worker registry."""
         self.workers: dict[str, WorkerInfo] = {}
+        self._capability_index: dict[str, set[str]] = {}
         self._lock = threading.RLock()
 
     def update_worker(self, worker_id: str, info: WorkerInfo) -> None:
@@ -45,7 +46,21 @@ class ResourceAwareScheduler:
             info: WorkerInfo instance with current state and resources.
         """
         with self._lock:
+            # Clean up old capabilities for this worker
+            old_info = self.workers.get(worker_id)
+            if old_info:
+                for cap in old_info.capabilities:
+                    if cap in self._capability_index and worker_id in self._capability_index[cap]:
+                        self._capability_index[cap].remove(worker_id)
+
             self.workers[worker_id] = info
+            
+            # Index new capabilities
+            for cap in info.capabilities:
+                if cap not in self._capability_index:
+                    self._capability_index[cap] = set()
+                self._capability_index[cap].add(worker_id)
+
             logger.debug(
                 "Updated worker %s: status=%s, active_jobs=%d, RAM=%dMB",
                 worker_id,
@@ -61,6 +76,11 @@ class ResourceAwareScheduler:
             worker_id: Unique identifier for the worker to remove.
         """
         with self._lock:
+            info = self.workers.get(worker_id)
+            if info:
+                for cap in info.capabilities:
+                    if cap in self._capability_index and worker_id in self._capability_index[cap]:
+                        self._capability_index[cap].remove(worker_id)
             if worker_id in self.workers:
                 del self.workers[worker_id]
                 logger.info("Removed worker %s from scheduler registry", worker_id)
@@ -83,7 +103,24 @@ class ResourceAwareScheduler:
         candidates: list[tuple[float, str]] = []
 
         with self._lock:
-            for worker_id, worker in self.workers.items():
+            # Determine candidate worker IDs based on required capabilities to skip scan
+            candidate_ids: set[str] | None = None
+            if requirements.requires_browser:
+                candidate_ids = self._capability_index.get("browser", set())
+            if requirements.requires_gpu:
+                gpu_candidates = self._capability_index.get("gpu", set())
+                if candidate_ids is None:
+                    candidate_ids = gpu_candidates
+                else:
+                    candidate_ids = candidate_ids.intersection(gpu_candidates)
+
+            # If no specific capability filters applied, evaluate all workers
+            target_ids = self.workers.keys() if candidate_ids is None else candidate_ids
+
+            for worker_id in target_ids:
+                worker = self.workers.get(worker_id)
+                if worker is None:
+                    continue
                 if self._can_handle(worker, requirements):
                     score = self._calculate_score(worker, requirements, job_bid)
                     candidates.append((score, worker_id))

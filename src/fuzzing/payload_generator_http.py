@@ -5,14 +5,17 @@ mutation payloads based on endpoint characteristics and parameter types.
 Extracted from fuzzing/payload_generator.py for better separation of concerns.
 """
 
+import logging
 from typing import Any
 from urllib.parse import urlparse
 
-from src.analysis.helpers import endpoint_signature, is_noise_url
+from src.analysis.helpers import endpoint_signature, is_noise_url, classify_endpoint
 from src.core.mutation_engine import generate_payloads_for_parameter
 
-# HTTP headers commonly used for injection attacks
-INJECTABLE_HEADERS = [
+logger = logging.getLogger(__name__)
+
+# Dynamic header injection templates
+EXTRA_INJECTABLE_HEADERS = [
     "X-Forwarded-For",
     "X-Original-URL",
     "X-Rewrite-URL",
@@ -31,6 +34,12 @@ INJECTABLE_HEADERS = [
     "X-Host",
     "X-HTTP-Method-Override",
     "X-Method-Override",
+    "X-Request-ID",
+    "X-Forwarded-By",
+    "X-Real-IP",
+    "X-Varnish",
+    "If-Modified-Since",
+    "If-None-Match",
 ]
 
 # Header-specific payload patterns
@@ -72,6 +81,9 @@ HEADER_PAYLOADS: dict[str, list[dict[str, str]]] = {
         },
     ],
 }
+
+INJECTABLE_HEADERS = sorted(list(set(list(HEADER_PAYLOADS.keys()) + EXTRA_INJECTABLE_HEADERS)))
+
 
 
 def generate_header_payloads(
@@ -162,13 +174,37 @@ def generate_body_payloads(
 
         parsed = urlparse(url)
         path = parsed.path.lower()
-        # Only target API-like endpoints for body mutations
-        if not any(kw in path for kw in ("/api/", "/rest/", "/graphql", "/v1/", "/v2/", "/v3/")):
+        # Target all potential API endpoints for body mutations
+        is_api = any(
+            kw in path
+            for kw in (
+                "/api/",
+                "/rest/",
+                "/graphql",
+                "/v1/",
+                "/v2/",
+                "/v3/",
+                "/svc/",
+                "/service/",
+                "/data/",
+                "/rpc/",
+                "/webhook/",
+            )
+        )
+        if not is_api:
+            try:
+                endpoint_type = classify_endpoint(url)
+                if endpoint_type in ("api", "graphql", "rest"):
+                    is_api = True
+            except Exception:
+                pass
+        if not is_api:
             continue
 
         # Generate body field mutations based on common API patterns
         body_fields = _infer_body_fields_from_url(url)
         if not body_fields:
+            logger.debug("No body fields inferred for %s", url)
             continue
 
         sample_values = {"integer": "0", "float": "0.0", "string": "", "boolean": "true"}

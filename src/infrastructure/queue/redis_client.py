@@ -218,6 +218,53 @@ class RedisClient:
             self._use_fallback = True
             return self._fallback_emulator.fallback_command(command, *args, **kwargs)
 
+    def execute_batch(self, commands: list[tuple[str, list[Any]]]) -> list[Any]:
+        """Execute multiple Redis commands in a single pipelined batch with fallback.
+
+        Args:
+            commands: A list of tuples containing (command_name, arguments_list).
+
+        Returns:
+            A list of execution results corresponding to the input commands.
+        """
+        tenant_id = TenantContext.get_current_tenant()
+        processed_commands = []
+        for cmd_name, args in commands:
+            args = list(args)
+            if tenant_id and len(args) > 0:
+                key = args[0]
+                if isinstance(key, str):
+                    if not key.startswith(f"{tenant_id}:"):
+                        args[0] = f"{tenant_id}:{key}"
+                elif isinstance(key, bytes):
+                    prefix_bytes = f"{tenant_id}:".encode()
+                    if not key.startswith(prefix_bytes):
+                        args[0] = prefix_bytes + key
+            processed_commands.append((cmd_name, args))
+
+        if self._use_fallback or self._client is None:
+            return [
+                self._fallback_emulator.fallback_command(cmd_name, *args)
+                for cmd_name, args in processed_commands
+            ]
+
+        try:
+            def run_pipeline() -> list[Any]:
+                pipe = self._client.pipeline()
+                for cmd_name, args in processed_commands:
+                    pipe.execute_command(cmd_name, *args)
+                return pipe.execute()
+
+            return self._breaker.call(run_pipeline)
+        except Exception as exc:
+            logger.warning("Pipelined execution failed: %s, using fallback", exc)
+            self._healthy = False
+            self._use_fallback = True
+            return [
+                self._fallback_emulator.fallback_command(cmd_name, *args)
+                for cmd_name, args in processed_commands
+            ]
+
     def register_script(self, name: str, script: str) -> str:
         """Register a Lua script for atomic Redis operations.
 

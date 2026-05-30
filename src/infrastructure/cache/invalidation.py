@@ -279,6 +279,7 @@ class DependencyInvalidation(InvalidationStrategy):
     def __init__(self) -> None:
         """Initialize the dependency invalidation strategy."""
         self.reverse_deps: dict[str, set[str]] = {}
+        self.forward_deps: dict[str, set[str]] = {}
 
     def register_dependency(self, key: str, depends_on: set[str]) -> None:
         """Register that `key` depends on the given keys.
@@ -287,10 +288,23 @@ class DependencyInvalidation(InvalidationStrategy):
             key: The dependent cache key.
             depends_on: Set of keys it depends on.
         """
+        # Clean up old dependencies that are no longer present
+        old_deps = self.forward_deps.get(key, set())
+        for dep in old_deps - depends_on:
+            if dep in self.reverse_deps:
+                self.reverse_deps[dep].discard(key)
+                if not self.reverse_deps[dep]:
+                    del self.reverse_deps[dep]
+
         for dep in depends_on:
             if dep not in self.reverse_deps:
                 self.reverse_deps[dep] = set()
             self.reverse_deps[dep].add(key)
+
+        if depends_on:
+            self.forward_deps[key] = set(depends_on)
+        else:
+            self.forward_deps.pop(key, None)
 
     def unregister_key(self, key: str) -> None:
         """Remove a key from the dependency graph.
@@ -298,6 +312,15 @@ class DependencyInvalidation(InvalidationStrategy):
         Args:
             key: Cache key to remove.
         """
+        # Clean up upstream dependency references
+        old_deps = self.forward_deps.pop(key, set())
+        for dep in old_deps:
+            if dep in self.reverse_deps:
+                self.reverse_deps[dep].discard(key)
+                if not self.reverse_deps[dep]:
+                    del self.reverse_deps[dep]
+
+        # Clean up downstream references
         for dep_key in self.reverse_deps.get(key, set()):
             if dep_key in self.reverse_deps:
                 self.reverse_deps[dep_key].discard(key)
@@ -662,6 +685,27 @@ class InvalidationEngine:
         if tags:
             self._tag_strategy.unregister_entry(key, tags)
         self._dep_strategy.unregister_key(key)
+
+    def update_entry(
+        self,
+        key: str,
+        tags: set[str] | None = None,
+        depends_on: set[str] | None = None,
+        version: str | None = None,
+    ) -> None:
+        """Update an existing entry's indices in-place using diffing.
+
+        Ensures we avoid inefficient unregister / register logic on overwrites.
+
+        Args:
+            key: Cache key.
+            tags: Updated tags set.
+            depends_on: Updated dependencies set.
+            version: Updated version.
+        """
+        self._tag_strategy.register_entry(key, tags or set())
+        self._dep_strategy.register_dependency(key, depends_on or set())
+        self._version_strategy.register_entry(key, version)
 
     def get_metrics(self) -> CacheMetrics:
         """Return invalidation metrics.

@@ -69,8 +69,28 @@ def detailed_api_key_test(
                     )
                 except requests.exceptions.RequestException as exc:
                     print(f"   Error accessing {endpoint}: {exc}")
+                    results.append(
+                        {
+                            "test": "direct_no_login",
+                            "placement": placement["name"],
+                            "endpoint": endpoint,
+                            "status": "error",
+                            "size": 0,
+                            "error": str(exc),
+                        }
+                    )
                 except Exception as exc:  # noqa: BLE001
                     print(f"   Unexpected error: {exc}")
+                    results.append(
+                        {
+                            "test": "direct_no_login",
+                            "placement": placement["name"],
+                            "endpoint": endpoint,
+                            "status": "error",
+                            "size": 0,
+                            "error": str(exc),
+                        }
+                    )
 
             print("\n2. Accessing Sensitive Endpoints with the key")
             for endpoint in [
@@ -118,6 +138,16 @@ def detailed_api_key_test(
                     )
                 except Exception as exc:  # noqa: BLE001
                     print(f"   Error on {endpoint}: {str(exc)[:80]}")
+                    results.append(
+                        {
+                            "test": "sensitive_endpoint",
+                            "placement": placement["name"],
+                            "endpoint": endpoint,
+                            "status": "error",
+                            "size": 0,
+                            "error": str(exc),
+                        }
+                    )
 
             print("\n3. Testing key ALONE (without any cookies/session)")
             try:
@@ -147,6 +177,17 @@ def detailed_api_key_test(
                 )
             except Exception as exc:  # noqa: BLE001
                 print(f"   Error in key-alone test: {exc}")
+                results.append(
+                    {
+                        "test": "key_alone",
+                        "placement": placement["name"],
+                        "endpoint": "users/me",
+                        "status": "error",
+                        "size": 0,
+                        "cookies_used": False,
+                        "error": str(exc),
+                    }
+                )
 
             print("\n" + "=" * 70)
 

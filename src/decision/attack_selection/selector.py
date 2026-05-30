@@ -1,7 +1,10 @@
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 from src.core.contracts.pipeline import scope_match
+
+logger = logging.getLogger(__name__)
 
 _ActionSpec = dict[str, Any]
 _PlannerConfig = dict[str, Any]
@@ -479,13 +482,18 @@ def _build_endpoint_facts(
     )
 
 
+def _get_planner_config(data: dict[str, Any]) -> dict[str, Any]:
+    cfg = data.get("planner", {})
+    return dict(cfg) if isinstance(cfg, dict) else {}
+
+
 def _build_compound_validation_plans(
     *, merged: dict[str, Any], facts: EndpointFacts, in_scope: bool
 ) -> list[dict[str, Any]]:
     plans: list[dict[str, Any]] = []
-    planner_settings: _PlannerConfig = (
-        merged.get("planner", {}) if isinstance(merged.get("planner", {}), dict) else {}
-    )
+    if not in_scope:
+        return plans
+    planner_settings = _get_planner_config(merged)
     if not planner_settings.get("planner_enabled", True):
         return plans
     max_plans: int = max(1, int(planner_settings.get("max_plans", 8) or 8))
@@ -499,8 +507,6 @@ def _build_compound_validation_plans(
         "sensitive_data": facts.sensitive_data,
     }
     for rule in COMPOUND_RULES:
-        if not in_scope:
-            continue
         if not all(bool(fact_map.get(name, False)) for name in rule.requires):
             continue
         enabled_steps = [
@@ -542,9 +548,7 @@ def _merge_config(config: dict[str, Any] | None) -> dict[str, Any]:
         "actions": {name: dict(spec) for name, spec in DEFAULT_SELECTOR_CONFIG["actions"].items()},
     }
     supplied = config or {}
-    supplied_planner = (
-        supplied.get("planner", {}) if isinstance(supplied.get("planner", {}), dict) else {}
-    )
+    supplied_planner = _get_planner_config(supplied)
     if supplied_planner:
         merged["planner"].update(supplied_planner)
     supplied_actions = (
@@ -552,6 +556,7 @@ def _merge_config(config: dict[str, Any] | None) -> dict[str, Any]:
     )
     for name, override in supplied_actions.items():
         if name not in merged["actions"]:
+            logger.warning("Action config override supplied for unknown action: %s", name)
             continue
         if isinstance(override, dict):
             merged["actions"][name].update(override)

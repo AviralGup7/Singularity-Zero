@@ -216,6 +216,17 @@ def estimate_remaining(
     return baseline_remaining
 
 
+def truncate_lines(lines: list[str], *, limit: int = 10) -> list[str]:
+    """Deduplicate and truncate a list of log/error lines to a maximum limit."""
+    deduped: list[str] = []
+    for line in lines:
+        text = str(line or "").strip()
+        if not text or text in deduped:
+            continue
+        deduped.append(text)
+    return deduped[-limit:]
+
+
 __all__ = [
     "build_scope_entries",
     "build_scope_entries_from_text",
@@ -228,4 +239,5 @@ __all__ = [
     "parse_args",
     "root_domain",
     "slugify",
+    "truncate_lines",
 ]

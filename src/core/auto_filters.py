@@ -23,7 +23,7 @@ class FilterRule:
         """Check if item matches this rule."""
         field_value = self._get_field(item)
         if field_value is None:
-            return False
+            return self.inverse
 
         result = self._check_match(field_value)
         return not result if self.inverse else result
@@ -71,7 +71,10 @@ class AutoFilterEngine:
 
     def set_logic(self, logic: str) -> None:
         """Set AND/OR logic for rule evaluation."""
-        self._logic = logic
+        normalized = str(logic).upper().strip()
+        if normalized not in {"AND", "OR"}:
+            raise ValueError(f"Invalid filter logic: {logic}")
+        self._logic = normalized
 
     def filter_items(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Filter items based on rules."""
@@ -83,9 +86,11 @@ class AutoFilterEngine:
             if self._logic == "AND":
                 if all(rule.matches(item) for rule in self._rules):
                     results.append(item)
-            else:
+            elif self._logic == "OR":
                 if any(rule.matches(item) for rule in self._rules):
                     results.append(item)
+            else:
+                raise ValueError(f"Invalid filter logic: {self._logic}")
 
         return results
 
@@ -97,9 +102,8 @@ class AutoFilterEngine:
 def create_default_security_filters() -> AutoFilterEngine:
     """Create default security filter rules."""
     engine = AutoFilterEngine()
-    engine.set_logic(
-        "AND"
-    )  # Fix #340: Use AND so it excludes if ALL exclusions match (wait, the issue said "exclude if ANY matches" for OR, but "AND of negated rules means include if ALL match"? Wait, inverse=True rules return False when they match. If logic is AND, `all(...)` requires all rules to be True to keep the item. If ANY rule is inverse=True and matches, it returns False, so `all(...)` returns False, and the item is excluded. So AND is correct for "exclude if ANY exclusion matches".
+    # Fix #340: Items are excluded when ANY inverse rule matches because all() requires every rule to return True for inclusion.
+    engine.set_logic("AND")
 
     engine.add_rule(
         FilterRule(

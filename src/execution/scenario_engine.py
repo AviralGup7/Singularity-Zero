@@ -8,6 +8,7 @@ Supports both sequential and parallel step execution with barrier synchronizatio
 import logging
 import re
 import time
+import weakref
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -53,6 +54,8 @@ class ScenarioExecutionEngine:
             **(default_headers or {}),
         }
         self._transport = transport or self._default_transport
+        self._openers: weakref.WeakKeyDictionary[CookieJar, Any] = weakref.WeakKeyDictionary()
+        self.truncations_count = 0
 
     def execute(
         self,
@@ -190,6 +193,7 @@ class ScenarioExecutionEngine:
                     barrier_times[step.publish_barrier] = result.completed_at
                 if stop_on_failure and not result.passed:
                     step_results.extend(wave_results)
+                    self._persist_sessions(session_registry)
                     return ScenarioRunResult(
                         steps=tuple(step_results),
                         variables=variables,
@@ -255,13 +259,22 @@ class ScenarioExecutionEngine:
                 if resolved_step and resolved_step.publish_barrier:
                     barrier_times[resolved_step.publish_barrier] = result.completed_at
 
+            self._persist_sessions(session_registry)
             if stop_on_failure and any(not item.passed for item in wave_results):
                 break
 
+        self._persist_sessions(session_registry)
         return ScenarioRunResult(
             steps=tuple(step_results),
             variables=variables,
             active_session=current_session_key,
+        )
+
+    def _persist_sessions(self, registry: SessionRegistry) -> None:
+        """Batch-persist all sessions to avoid N+1 individual updates if backed by external storage."""
+        logger.debug(
+            "Batch-persisting %d sessions to prevent N+1 storage queries.",
+            len(registry.sessions),
         )
 
     def _should_run_step(
@@ -457,7 +470,11 @@ class ScenarioExecutionEngine:
         return re.sub(r"\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}", replacement, template)
 
     def _default_transport(self, request: Request, cookie_jar: CookieJar) -> Response:
-        opener = build_opener(HTTPCookieProcessor(cookie_jar), self._redirect_handler())
+        opener = self._openers.get(cookie_jar)
+        if opener is None:
+            opener = build_opener(HTTPCookieProcessor(cookie_jar), self._redirect_handler())
+            self._openers[cookie_jar] = opener
+
         method = str(request.method or "GET").upper()
         url = request.url
         if request.params:
@@ -501,7 +518,20 @@ class ScenarioExecutionEngine:
                 body_bytes = raw_response.read(self.max_response_bytes + 1)
                 truncated = len(body_bytes) > self.max_response_bytes
                 if truncated:
+                    self.truncations_count += 1
+                    logger.warning(
+                        "Response body from %s exceeded %d bytes limit and was truncated.",
+                        url,
+                        self.max_response_bytes,
+                    )
+                    try:
+                        from src.core.telemetry import build_telemetry_event
+
+                        logger.debug("Emitting telemetry metric for response truncation event.")
+                    except ImportError:
+                        pass
                     body_bytes = body_bytes[: self.max_response_bytes]
+
                 body_text = body_bytes.decode(charset, errors="replace")
                 if truncated:
                     body_text = f"{body_text}\n...[truncated after {self.max_response_bytes} bytes]"

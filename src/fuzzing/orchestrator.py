@@ -6,10 +6,56 @@ Provides mutation strategies and coverage-guided feedback loops for fuzzing API 
 from __future__ import annotations
 
 import logging
+import random
+import re
 import secrets
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+import httpx
+
+from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
+from src.core.mutation_engine import detect_parameter_type
+from src.core.utils.url_validation import is_safe_url_with_dns_check
 
 logger = logging.getLogger(__name__)
+
+
+class FuzzingRequestSender:
+    """Coordinates HTTP request execution and client validation for fuzzer campaigns."""
+
+    def __init__(self, timeout_seconds: float = 5.0) -> None:
+        self.timeout_seconds = timeout_seconds
+
+    async def get_url(
+        self, client: httpx.AsyncClient, url: str, timeout_seconds: float | None = None
+    ) -> httpx.Response:
+        """Execute a GET request with per-request timeout enforcement."""
+        t = timeout_seconds if timeout_seconds is not None else self.timeout_seconds
+        return await client.get(url, timeout=t)
+
+
+class FuzzingFeedbackTracker:
+    """Tracks coverage path feedback and structured campaign execution metrics."""
+
+    def __init__(self) -> None:
+        self.metrics: dict[str, int] = {
+            "total_requests_sent": 0,
+            "payloads_tried": 0,
+            "anomalies_detected": 0,
+        }
+
+    def record_request(self) -> None:
+        """Increment the total requests sent counter."""
+        self.metrics["total_requests_sent"] += 1
+
+    def record_payload(self) -> None:
+        """Increment the payloads tried counter."""
+        self.metrics["payloads_tried"] += 1
+
+    def record_anomaly(self) -> None:
+        """Increment the anomalies/findings detected counter."""
+        self.metrics["anomalies_detected"] += 1
 
 
 class FuzzingOrchestrator:
@@ -21,6 +67,8 @@ class FuzzingOrchestrator:
             str, set[str]
         ] = {}  # endpoint -> unique response signatures seen
         self._mutation_history: dict[str, list[dict[str, Any]]] = {}
+        self.request_sender = FuzzingRequestSender()
+        self.feedback_tracker = FuzzingFeedbackTracker()
 
     def bit_flip(self, data: str) -> str:
         """Apply bit-flipping mutation strategy to a string payload."""
@@ -44,8 +92,8 @@ class FuzzingOrchestrator:
         return ["A" * 10000, "", " ", "null", "undefined"]
 
     def dictionary_attack(self) -> list[str]:
-        """Return classic injection and structural bypass payload templates."""
-        return [
+        """Return classic injection and structural bypass payload templates in randomized order."""
+        payloads = [
             "' OR '1'='1",
             '" OR "1"="1',
             "<script>alert(1)</script>",
@@ -57,6 +105,7 @@ class FuzzingOrchestrator:
             "{}",
             "[]",
         ]
+        return random.sample(payloads, len(payloads))
 
     def grammar_mutate(self, base_grammar: dict[str, list[str]]) -> dict[str, list[str]]:
         """Apply grammar-based expansion mutations on structural parameter templates."""
@@ -64,10 +113,12 @@ class FuzzingOrchestrator:
         for key, values in base_grammar.items():
             new_vals = list(values)
             # Add bit-flipped and dictionary variations to expand grammar coverage
-            if values:
+            if isinstance(values, list) and len(values) > 0:
                 choice = secrets.choice(values)
                 new_vals.append(self.bit_flip(choice))
-                new_vals.append(secrets.choice(self.dictionary_attack()))
+                dict_attack = self.dictionary_attack()
+                if dict_attack:
+                    new_vals.append(secrets.choice(dict_attack))
             mutated[key] = new_vals
         return mutated
 
@@ -129,8 +180,8 @@ class FuzzingOrchestrator:
                             "reason": "fuzz_ast_boundary",
                         }
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Fuzzer: AST mutation unavailable: %s", e)
 
         # 2. Base Boundary values
         for v in self.boundary_values(param_type):
@@ -180,7 +231,7 @@ class FuzzingOrchestrator:
     async def run_fuzzing_campaign(
         self,
         url: str,
-        client: Any | None = None,
+        client: httpx.AsyncClient | None = None,
         *,
         max_payloads: int = 15,
         timeout_seconds: float = 5.0,
@@ -190,15 +241,6 @@ class FuzzingOrchestrator:
         Mutates query parameters and sends HTTP requests. Evaluates status code
         and response size feedback to find anomalies and coverage increases.
         """
-        import re
-        from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-
-        import httpx
-
-        from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-        from src.core.mutation_engine import detect_parameter_type
-        from src.core.utils.url_validation import is_safe_url_with_dns_check
-
         findings: list[dict[str, Any]] = []
         parsed = urlparse(url)
         query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
@@ -229,7 +271,8 @@ class FuzzingOrchestrator:
         try:
             # 1. Capture base line response
             try:
-                base_resp = await client.get(url)
+                base_resp = await self.request_sender.get_url(client, url, timeout_seconds)
+                self.feedback_tracker.record_request()
                 base_status = base_resp.status_code
                 base_len = len(base_resp.text)
             except Exception as e:
@@ -265,7 +308,9 @@ class FuzzingOrchestrator:
                         continue
 
                     try:
-                        resp = await client.get(mutated_url)
+                        self.feedback_tracker.record_payload()
+                        resp = await self.request_sender.get_url(client, mutated_url, timeout_seconds)
+                        self.feedback_tracker.record_request()
                         status = resp.status_code
                         body = resp.text
                         resp_len = len(body)
@@ -277,9 +322,10 @@ class FuzzingOrchestrator:
                     self.record_feedback(url, status, resp_len)
 
                     # Look for security issues/anomalies:
-                    # Case A: SQL/Execution Error leak in body
-                    error_match = error_re.search(body[:8000])
+                    # Case A: SQL/Execution Error leak in body (scanning up to 50000 chars)
+                    error_match = error_re.search(body[:50000])
                     if error_match:
+                        self.feedback_tracker.record_anomaly()
                         findings.append(
                             {
                                 "url": url,
@@ -306,6 +352,7 @@ class FuzzingOrchestrator:
                     # Case B: Significant status boundary drift (e.g. bypass validation)
                     # For example, base was 403/401/400 but mutation returned 200/201 (auth bypass or boundary acceptance)
                     elif base_status in {400, 401, 403} and status in {200, 201}:
+                        self.feedback_tracker.record_anomaly()
                         findings.append(
                             {
                                 "url": url,
@@ -331,6 +378,7 @@ class FuzzingOrchestrator:
 
                     # Case C: Status code 500 crash anomaly
                     elif status >= 500 and base_status < 500:
+                        self.feedback_tracker.record_anomaly()
                         findings.append(
                             {
                                 "url": url,

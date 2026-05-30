@@ -69,8 +69,8 @@ class FrontierRingBus:
             if len(self._buffer) > self._downsample_threshold and priority < 5:
                 # Skip low-priority events during mesh congestion
                 self._dropped_events += 1
-                logger.debug(
-                    "Dropped low-priority event %s from %s (dropped=%d)",
+                logger.warning(
+                    "Dropped low-priority event %s from %s due to mesh congestion (dropped=%d)",
                     event_type,
                     source,
                     self._dropped_events,
@@ -192,3 +192,8 @@ class FrontierRingBus:
         loop = self._loop
         if loop is not None and loop.is_running():
             loop.call_soon_threadsafe(self._wakeup_event.set)
+
+    def get_dropped_events(self) -> int:
+        """Return the number of dropped low-priority events during congestion."""
+        with self._lock:
+            return self._dropped_events

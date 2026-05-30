@@ -394,12 +394,20 @@ class JobQueue:
         if not members:
             return jobs
 
+        batch_commands = []
         for member in members:
             job_key_str = member.decode("utf-8") if isinstance(member, bytes) else member
             job_id = job_key_str.split(":")[-1]
-            job = await self.get_job(job_id)
-            if job is not None:
-                jobs.append(job)
+            batch_commands.append(("HGETALL", [self._job_key(job_id)]))
+
+        batch_results = self.redis.execute_batch(batch_commands)
+        for job_data in batch_results:
+            if job_data:
+                try:
+                    job = Job.from_redis_hash(job_data)
+                    jobs.append(job)
+                except Exception as exc:
+                    logger.warning("Failed to deserialize job from batch result: %s", exc)
 
         return jobs
 
@@ -509,7 +517,7 @@ class JobQueue:
                 v = value.decode("utf-8") if isinstance(value, bytes) else value
                 try:
                     metrics[k] = int(v)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     metrics[k] = v
 
         queue_length = await self.get_queue_length()
