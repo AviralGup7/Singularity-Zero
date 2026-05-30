@@ -146,7 +146,7 @@ class FallbackEmulator:
                     current = current.decode("utf-8")
                 try:
                     current_int = int(current)
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     current_int = 0
                 new_value = current_int + amount
                 data[field] = str(new_value)
@@ -475,7 +475,7 @@ class FallbackEmulator:
                 bid_raw = self.client.execute_command("HGET", job_key, "bid_score")
                 try:
                     queue_score = float(_as_str(bid_raw)) if bid_raw is not None else retry_at
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     queue_score = retry_at
                 self.client.execute_command(
                     "HSET",
@@ -534,7 +534,7 @@ class FallbackEmulator:
             bid_raw = self.client.execute_command("HGET", job_key, "bid_score")
             try:
                 queue_score = float(_as_str(bid_raw)) if bid_raw is not None else 0.0
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 queue_score = 0.0
             self.client.execute_command("ZADD", queue_key, queue_score, job_key)
             return [1]

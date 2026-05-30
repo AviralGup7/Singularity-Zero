@@ -17,6 +17,7 @@ src/
 │   │   ├── bloom_mesh.py        # Neural Bloom Mesh: cluster-wide OR-merge of packed-bit snapshots
 │   │   ├── chameleon.py         # Polymorphic WAF evasion engine
 │   │   ├── chameleon_evasion.py # HMM-based evasion state machine, JA3 fingerprinting, timing permutation
+│   │   ├── drl_evasion.py       # Active PPO reinforcement learning evasion neural network model
 │   │   ├── ghost_actor.py       # Custom asyncio-based migratory actors (Pykka-compatible)
 │   │   ├── ghost_vfs.py         # RAM-only anti-forensic storage with temporal AES-GCM key rotation
 │   │   ├── marshaller.py        # MessagePack zero-copy serialization
@@ -118,12 +119,15 @@ src/
 │   ├── feeds/
 │   ├── graph/
 │   ├── ml/
-│   └── scoring/
+│   ├── scoring/
+│   └── swarm/           # 🤖 Collaborative AI Red Team Swarm engine (agent_node.py)
 ├── api_tests/           # Automated API vulnerability testing and fuzzing workflows
 ├── reporting/          # HTML PDF, VRT, triage, and compliance report generators
 ├── pipeline/           # DAG Orchestrator and service runners
 ├── websocket_server/   # WebSocket log streaming and real-time event relay
 ├── dashboard/          # FastAPI REST + 3D visualisation dashboard
+│   ├── fastapi/
+│   │   └── sandbox_service.py # Ephemeral container sandbox proxy orchestrator
 ├── cli.py              # Unified high-performance terminal engine
 └── __init__.py
 

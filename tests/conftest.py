@@ -13,7 +13,7 @@ try:
     # Verify both exceptions exist
     _ = pykka.ActorDeadError
     _ = pykka.Timeout
-except ImportError, AttributeError:
+except (ImportError, AttributeError):
 
     class ActorDeadError(Exception):
         pass

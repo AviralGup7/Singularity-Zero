@@ -225,7 +225,7 @@ def validate_manifest_data(data: dict[str, Any]) -> list[str]:
 
     try:
         timeout = int(data.get("timeout_seconds", 20))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         errors.append("PLUGIN_MANIFEST.timeout_seconds must be an integer")
     else:
         if timeout < 1 or timeout > 300:
@@ -289,11 +289,31 @@ def _extract_manifest(tree: ast.AST) -> dict[str, Any] | None:
     return None
 
 
+def _is_safe_ast_literal(node: ast.AST) -> bool:
+    if isinstance(node, (ast.Constant, ast.Num, ast.Str, ast.Bytes, ast.NameConstant)):
+        return True
+    if isinstance(node, ast.Dict):
+        return all(_is_safe_ast_literal(k) and _is_safe_ast_literal(v) for k, v in zip(node.keys, node.values) if k)
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return all(_is_safe_ast_literal(elt) for elt in node.elts)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        return _is_safe_ast_literal(node.operand)
+    return False
+
+
 def _literal_manifest_value(node: ast.AST) -> dict[str, Any]:
     if isinstance(node, ast.Call) and _is_manifest_helper_call(node):
+        # Strict validation of manifest helper keywords to prevent code injection/parser exploits
+        for keyword in node.keywords:
+            if not _is_safe_ast_literal(keyword.value):
+                raise PluginValidationError("Invalid plugin manifest keyword value structure")
         return {
             keyword.arg: ast.literal_eval(keyword.value) for keyword in node.keywords if keyword.arg
         }
+
+    if not _is_safe_ast_literal(node):
+        raise PluginValidationError("PLUGIN_MANIFEST must contain strictly static literal data structures")
+
     value = ast.literal_eval(node)
     if not isinstance(value, dict):
         raise ValueError("manifest is not a dict")
