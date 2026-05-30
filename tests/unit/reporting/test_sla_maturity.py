@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from src.core.frontier.chameleon_evasion import HMMEvasionModel
+from src.core.frontier.chameleon_evasion import PPOEvasionModel
 from src.infrastructure.notifications.base import NotificationPriority
 from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
 from src.reporting.compliance_maturity import ControlMaturity, calculate_overall_grc_score
@@ -139,26 +139,26 @@ async def test_auto_escalate_overdue_alerts() -> None:
 
 def test_chameleon_hmm_vectorized_transitions() -> None:
     # Instantiate the Hidden Markov Model
-    model = HMMEvasionModel()
+    model = PPOEvasionModel()
 
     # Assert HMM initializes in undetected state
-    assert model.get_current_state() == HMMEvasionModel.STATE_UNDETECTED
+    assert model.get_current_state() == PPOEvasionModel.STATE_UNDETECTED
 
     # Trigger observation transitions
-    model.observe(HMMEvasionModel.OBS_CHALLENGE)
+    model.observe(PPOEvasionModel.OBS_CHALLENGE)
     # Undetected (0) with challenge (1) -> should step state if transition is active
     state1 = model.get_current_state()
     assert state1 in {
-        HMMEvasionModel.STATE_UNDETECTED,
-        HMMEvasionModel.STATE_SUSPECTED,
-        HMMEvasionModel.STATE_BLOCKED,
+        PPOEvasionModel.STATE_UNDETECTED,
+        PPOEvasionModel.STATE_SUSPECTED,
+        PPOEvasionModel.STATE_BLOCKED,
     }
 
     # Observe subsequent blocks
-    model.observe(HMMEvasionModel.OBS_BLOCK)
+    model.observe(PPOEvasionModel.OBS_BLOCK)
     state2 = model.get_current_state()
     assert state2 in {
-        HMMEvasionModel.STATE_SUSPECTED,
-        HMMEvasionModel.STATE_BLOCKED,
-        HMMEvasionModel.STATE_EVADING,
+        PPOEvasionModel.STATE_SUSPECTED,
+        PPOEvasionModel.STATE_BLOCKED,
+        PPOEvasionModel.STATE_EVADING,
     }

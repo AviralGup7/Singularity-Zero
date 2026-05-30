@@ -7,15 +7,17 @@ and severity of unresolved findings.
 from enum import IntEnum, StrEnum
 from typing import Any
 
-
-class ControlMaturity(StrEnum):
-    """Maturity levels for a security control."""
-
-    PASS = "P" + "ASS"  # No open findings of any severity
-    PARTIAL = "PARTIAL"  # No high/critical, but medium findings or compensating controls detected
-    AT_RISK = "AT_RISK"  # Open high-severity finding against control
-    FAIL = "FAIL"  # Open critical-severity finding against control
-    UNKNOWN = "UNKNOWN"  # Control not evaluated
+# Import unified maturity from the core models
+try:
+    from src.core.models.grc import ControlMaturity
+except ImportError:
+    class ControlMaturity(StrEnum):
+        """Maturity levels for a security control."""
+        PASS = "PASS"
+        PARTIAL = "PARTIAL"
+        AT_RISK = "AT_RISK"
+        FAIL = "FAIL"
+        UNKNOWN = "UNKNOWN"
 
 
 class MaturityScore(IntEnum):
@@ -28,15 +30,19 @@ class MaturityScore(IntEnum):
     UNKNOWN = -1
 
 
-def calculate_control_maturity(findings: list[dict[str, Any]]) -> ControlMaturity:
+def calculate_control_maturity(findings: list[dict[str, Any]], sla_breached: bool = False) -> ControlMaturity:
     """Calculate the maturity level for a set of findings mapped to a control.
 
     Args:
         findings: List of finding dictionaries associated with a control.
+        sla_breached: Whether any associated SLA has been breached.
 
     Returns:
         ControlMaturity level.
     """
+    if sla_breached:
+        return ControlMaturity.FAIL
+
     if not findings:
         return ControlMaturity.PASS
 

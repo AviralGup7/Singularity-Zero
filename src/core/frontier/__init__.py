@@ -3,14 +3,14 @@
 from src.core.frontier.chameleon import RequestChameleon, wrap_polymorphic_request
 from src.core.frontier.chameleon_evasion import (
     ChameleonEvasionEngine,
-    HMMEvasionModel,
+    PPOEvasionModel,
     JA3FingerprintModel,
     TimingPermutator,
 )
 
 __all__ = [
     "ChameleonEvasionEngine",
-    "HMMEvasionModel",
+    "PPOEvasionModel",
     "JA3FingerprintModel",
     "RequestChameleon",
     "TimingPermutator",

@@ -24,6 +24,7 @@ class NeuralEvent:
     source: str
     data: dict[str, Any]
     priority: int = 0
+    shm_ref: str | None = None  # Reference to payload in shared memory
 
 
 class FrontierRingBus:
@@ -32,7 +33,7 @@ class FrontierRingBus:
     Optimized for massive event emission rates with zero heap fragmentation.
     """
 
-    def __init__(self, capacity: int = 10000) -> None:
+    def __init__(self, capacity: int = 10000, enable_shm: bool = False) -> None:
         self._buffer: deque[NeuralEvent] = deque(maxlen=capacity)
         self._subscribers: dict[str, list[Callable[[NeuralEvent], Any]]] = {}
         self._running = False
@@ -43,8 +44,18 @@ class FrontierRingBus:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._wakeup_event = asyncio.Event()
         self._dropped_events = 0
-        # Fix Audit #19: Store tasks to prevent garbage collection leaks and allow monitoring
         self._pending_tasks: set[asyncio.Task] = set()
+
+        # Shared Memory Zero-Copy Router
+        self._enable_shm = enable_shm
+        self._shm_router = None
+        if enable_shm:
+            try:
+                from src.core.frontier.shared_memory import ZeroCopyRouter
+                self._shm_router = ZeroCopyRouter()
+            except Exception as e:
+                logger.warning("Shared memory router initialization failed: %s", e)
+                self._enable_shm = False
 
     def subscribe(self, event_type: str, callback: Callable[[NeuralEvent], Any]) -> None:
         """Subscribe a handler to an event type. '*' for all events."""
@@ -66,7 +77,19 @@ class FrontierRingBus:
                 )
                 return
 
-            event = NeuralEvent(event_type, source, data, priority)
+            shm_ref = None
+            if self._enable_shm and self._shm_router:
+                try:
+                    # Offload data to shared memory for large payloads
+                    import msgpack
+                    payload = msgpack.packb(data)
+                    if len(payload) > 1024: # Only offload if > 1KB
+                        shm_ref = self._shm_router.route_payload(payload)
+                        data = {"_shm": True} # Placeholder for small in-memory state
+                except Exception as e:
+                    logger.debug("SHM offload failed, falling back to in-memory: %s", e)
+
+            event = NeuralEvent(event_type, source, data, priority, shm_ref=shm_ref)
             self._buffer.append(event)
 
         loop = self._loop
@@ -94,6 +117,16 @@ class FrontierRingBus:
                 continue
 
             for event in events:
+                # 2. Shared Memory Retrieval
+                if event.shm_ref and self._shm_router:
+                    try:
+                        import msgpack
+                        raw_payload = self._shm_router.retrieve_payload(event.shm_ref)
+                        event.data = msgpack.unpackb(raw_payload, raw=False)
+                    except Exception as e:
+                        logger.error("Failed to retrieve event data from SHM: %s", e)
+                        continue
+
                 # Fix Audit #125: Create a new combined list to avoid mutation during iteration
                 specific = self._subscribers.get(event.type, [])
                 wildcard = self._subscribers.get("*", [])

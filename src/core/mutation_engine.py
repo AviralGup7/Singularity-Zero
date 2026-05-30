@@ -231,6 +231,18 @@ def _jwt_none_token() -> str:
 
 def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
     decoded = decode_candidate_value(value)
+    variants = []
+    
+    # AST-Guided Mutations
+    try:
+        from src.fuzzing.ast_mutator import JSONASTMutator
+        mutator = JSONASTMutator()
+        ast_variants = mutator.mutate(decoded)
+        for v in ast_variants:
+            variants.append({"val": v, "reason": "json_ast_mutation"})
+    except ImportError:
+        pass
+
     if _looks_json(decoded):
         try:
             base_obj = json.loads(decoded)
@@ -239,18 +251,21 @@ def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
     else:
         base_obj = {"probe": True}
 
-    variants = [
+    static_variants = [
         {"nested": {"probe": True, "depth": 2}},
         {"user": {"id": 1, "role": "admin"}, "meta": {"source": "mutation_engine"}},
         [{"id": 1}, {"id": 2}],
         {"filters": {"where": {"$ne": None}}},
         {"payload": base_obj, "override": {"enabled": True}},
     ]
+    for sv in static_variants:
+        variants.append({"val": json.dumps(sv, separators=(",", ":")), "reason": "json_nested_mutation"})
+
     return [
         {
             "parameter": param,
-            "variant": json.dumps(item, separators=(",", ":")),
-            "reason": "json_nested_mutation",
+            "variant": item["val"],
+            "reason": item["reason"],
         }
         for item in variants
     ]

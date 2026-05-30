@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from src.core.frontier.chameleon_evasion import (
     ChameleonEvasionEngine,
-    HMMEvasionModel,
+    PPOEvasionModel,
     JA3FingerprintModel,
     TimingPermutator,
 )
@@ -68,44 +68,44 @@ class TestJA3FingerprintModel:
         assert "," in sig
 
 
-class TestHMMEvasionModel:
+class TestPPOEvasionModel:
     def test_initial_state_is_undetected(self):
-        hmm = HMMEvasionModel()
-        assert hmm.get_current_state() == HMMEvasionModel.STATE_UNDETECTED
+        hmm = PPOEvasionModel()
+        assert hmm.get_current_state() == PPOEvasionModel.STATE_UNDETECTED
         assert hmm.get_state_name() == "undetected"
 
     def test_observe_success_stays_undetected_or_moves_to_suspected(self):
-        hmm = HMMEvasionModel()
-        hmm.observe(HMMEvasionModel.OBS_SUCCESS)
+        hmm = PPOEvasionModel()
+        hmm.observe(PPOEvasionModel.OBS_SUCCESS)
         # HIGH probability of staying undetected
-        assert hmm.get_current_state() == HMMEvasionModel.STATE_UNDETECTED
+        assert hmm.get_current_state() == PPOEvasionModel.STATE_UNDETECTED
 
     def test_observe_block_moves_to_blocked_or_suspected(self):
-        hmm = HMMEvasionModel()
+        hmm = PPOEvasionModel()
         # Multiple observations increase probability of blocked
         for _ in range(10):
-            hmm.observe(HMMEvasionModel.OBS_BLOCK)
+            hmm.observe(PPOEvasionModel.OBS_BLOCK)
         # After multiple block observations, should be in blocked or evading
         assert hmm.get_current_state() in (
-            HMMEvasionModel.STATE_BLOCKED,
-            HMMEvasionModel.STATE_EVADING,
-            HMMEvasionModel.STATE_SUSPECTED,
+            PPOEvasionModel.STATE_BLOCKED,
+            PPOEvasionModel.STATE_EVADING,
+            PPOEvasionModel.STATE_SUSPECTED,
         )
 
     def test_observe_challenge_moves_to_suspected_or_blocked(self):
-        hmm = HMMEvasionModel()
+        hmm = PPOEvasionModel()
         for _ in range(10):
-            hmm.observe(HMMEvasionModel.OBS_CHALLENGE)
+            hmm.observe(PPOEvasionModel.OBS_CHALLENGE)
         # After multiple challenge observations, should be in one of these states
         assert hmm.get_current_state() in (
-            HMMEvasionModel.STATE_SUSPECTED,
-            HMMEvasionModel.STATE_BLOCKED,
-            HMMEvasionModel.STATE_EVADING,
-            HMMEvasionModel.STATE_UNDETECTED,  # Still possible with low probability
+            PPOEvasionModel.STATE_SUSPECTED,
+            PPOEvasionModel.STATE_BLOCKED,
+            PPOEvasionModel.STATE_EVADING,
+            PPOEvasionModel.STATE_UNDETECTED,  # Still possible with low probability
         )
 
     def test_get_evasion_action_returns_dict(self):
-        hmm = HMMEvasionModel()
+        hmm = PPOEvasionModel()
         action = hmm.get_evasion_action()
         assert "intensity" in action
         assert "delay_ms" in action
@@ -130,9 +130,9 @@ class TestChameleonEvasionEngine:
             engine.update_observation(403, "")
         assert engine._waf_detected is True
         assert engine.hmm.get_current_state() in (
-            HMMEvasionModel.STATE_BLOCKED,
-            HMMEvasionModel.STATE_EVADING,
-            HMMEvasionModel.STATE_SUSPECTED,
+            PPOEvasionModel.STATE_BLOCKED,
+            PPOEvasionModel.STATE_EVADING,
+            PPOEvasionModel.STATE_SUSPECTED,
         )
 
     def test_update_observation_rate_limit(self):
@@ -174,7 +174,7 @@ class TestChameleonEvasionEngine:
             engine.update_observation(403, "blocked by waf")
         assert engine.hmm.get_state_name() in ("blocked", "evading", "suspected")
 
-        for _ in range(5):
+        for _ in range(20):
             engine.update_observation(200, "")
         assert engine.hmm.get_state_name() in ("evading", "suspected", "undetected")
 
@@ -186,6 +186,6 @@ class TestChameleonEvasionEngine:
 
         assert engine._waf_detected is True
         assert engine.hmm.get_current_state() in (
-            HMMEvasionModel.STATE_BLOCKED,
-            HMMEvasionModel.STATE_EVADING,
+            PPOEvasionModel.STATE_BLOCKED,
+            PPOEvasionModel.STATE_EVADING,
         )

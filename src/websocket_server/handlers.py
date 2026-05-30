@@ -155,6 +155,14 @@ class WebSocketHandler:
             endpoint="dashboard",
         )
 
+    async def handle_evasion_telemetry(self, websocket: WebSocket) -> None:
+        """Handle connections for DRL Policy Telemetry."""
+        await self._handle_connection(
+            websocket,
+            default_channels={"global", "telemetry"},
+            endpoint="evasion-telemetry",
+        )
+
     async def _handle_connection(
         self,
         websocket: WebSocket,

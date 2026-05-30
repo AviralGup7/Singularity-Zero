@@ -175,7 +175,7 @@ class JA3FingerprintModel:
         return profile, self.get_signature(profile)
 
 
-class HMMEvasionModel:
+class PPOEvasionModel:
     """
     Hidden Markov Model for WAF evasion state transitions.
     Models the hidden state of WAF detection and selects optimal evasion actions.
@@ -356,14 +356,16 @@ class HMMEvasionModel:
         return names.get(s, "unknown")
 
 
+from src.core.frontier.drl_evasion import PPOEvasionModel
+
 class ChameleonEvasionEngine:
     """
-    Main evasion engine combining HMM state tracking, JA3 fingerprinting,
+    Main evasion engine combining PPO state tracking, JA3 fingerprinting,
     and timing permutation for comprehensive WAF evasion.
     """
 
     def __init__(self) -> None:
-        self.hmm = HMMEvasionModel()
+        self.hmm = PPOEvasionModel()
         self.ja3 = JA3FingerprintModel()
         self.timing = TimingPermutator()
         self._waf_detected = False
@@ -381,17 +383,17 @@ class ChameleonEvasionEngine:
         """Update HMM based on HTTP response and record telemetry metrics."""
         if "captcha" in (body or "").lower() or "challenge" in (body or "").lower():
             self._waf_detected = True
-            obs = HMMEvasionModel.OBS_CHALLENGE
+            obs = PPOEvasionModel.OBS_CHALLENGE
         elif response_status == 200:
-            obs = HMMEvasionModel.OBS_SUCCESS
+            obs = PPOEvasionModel.OBS_SUCCESS
         elif response_status in (403, 406, 418, 429, 503):
             self._waf_detected = True
             if response_status == 429:
-                obs = HMMEvasionModel.OBS_RATE_LIMIT
+                obs = PPOEvasionModel.OBS_RATE_LIMIT
             else:
-                obs = HMMEvasionModel.OBS_BLOCK
+                obs = PPOEvasionModel.OBS_BLOCK
         else:
-            obs = HMMEvasionModel.OBS_SUCCESS
+            obs = PPOEvasionModel.OBS_SUCCESS
 
         self.hmm.observe(obs)
 
@@ -423,13 +425,13 @@ class ChameleonEvasionEngine:
             if detected_waf:
                 entry["detected_waf"] = detected_waf
 
-            if obs == HMMEvasionModel.OBS_SUCCESS:
+            if obs == PPOEvasionModel.OBS_SUCCESS:
                 entry["successes"] += 1
-                if self.hmm.get_current_state() == HMMEvasionModel.STATE_EVADING:
+                if self.hmm.get_current_state() == PPOEvasionModel.STATE_EVADING:
                     entry["evaded_requests"] += 1
-            elif obs in (HMMEvasionModel.OBS_BLOCK, HMMEvasionModel.OBS_RATE_LIMIT):
+            elif obs in (PPOEvasionModel.OBS_BLOCK, PPOEvasionModel.OBS_RATE_LIMIT):
                 entry["blocks"] += 1
-            elif obs == HMMEvasionModel.OBS_CHALLENGE:
+            elif obs == PPOEvasionModel.OBS_CHALLENGE:
                 entry["challenges"] += 1
 
     def get_metrics(self) -> dict[str, Any]:
