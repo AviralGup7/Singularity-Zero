@@ -115,7 +115,24 @@ class FuzzingOrchestrator:
         """
         payloads: list[dict[str, Any]] = []
 
-        # 1. Base Boundary values
+        # 1. Grammar-Guided AST Mutations (for JSON)
+        if param_type == "json":
+            try:
+                from src.fuzzing.ast_mutator import JSONASTMutator
+                ast_mutator = JSONASTMutator()
+                for v in ast_mutator.mutate(base_value):
+                    payloads.append(
+                        {
+                            "parameter": param_name,
+                            "variant": v,
+                            "strategy": "ast_grammar_guided",
+                            "reason": "fuzz_ast_boundary",
+                        }
+                    )
+            except Exception:
+                pass
+
+        # 2. Base Boundary values
         for v in self.boundary_values(param_type):
             payloads.append(
                 {
@@ -126,7 +143,7 @@ class FuzzingOrchestrator:
                 }
             )
 
-        # 2. Dictionary injections
+        # 3. Dictionary injections
         for v in self.dictionary_attack():
             payloads.append(
                 {
@@ -137,7 +154,7 @@ class FuzzingOrchestrator:
                 }
             )
 
-        # 3. Bit flipped variants
+        # 4. Bit flipped variants
         payloads.append(
             {
                 "parameter": param_name,
@@ -180,7 +197,7 @@ class FuzzingOrchestrator:
 
         from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
         from src.core.mutation_engine import detect_parameter_type
-        from src.core.utils.url_validation import is_safe_url
+        from src.core.utils.url_validation import is_safe_url_with_dns_check
 
         findings: list[dict[str, Any]] = []
         parsed = urlparse(url)
@@ -189,7 +206,7 @@ class FuzzingOrchestrator:
             return findings
 
         # SSRF protection: validate URL before any HTTP request
-        if not is_safe_url(url):
+        if not is_safe_url_with_dns_check(url):
             logger.warning("Fuzzer: URL failed SSRF safety check, skipping: %s", url)
             return findings
 
@@ -242,6 +259,10 @@ class FuzzingOrchestrator:
                     mutated_pairs[idx] = (param_name, variant_val)
                     mutated_query = urlencode(mutated_pairs, doseq=True)
                     mutated_url = urlunparse(parsed._replace(query=mutated_query))
+
+                    if not is_safe_url_with_dns_check(mutated_url):
+                        logger.warning("Fuzzer: Mutated URL failed SSRF check, skipping: %s", mutated_url)
+                        continue
 
                     try:
                         resp = await client.get(mutated_url)

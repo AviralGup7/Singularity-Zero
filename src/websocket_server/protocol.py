@@ -40,6 +40,7 @@ class MessageType(StrEnum):
     ACK = "ack"
     SUBSCRIBE = "subscribe"
     UNSUBSCRIBE = "unsubscribe"
+    TELEMETRY = "telemetry"
 
 
 class BaseMessage(BaseModel):
@@ -105,6 +106,19 @@ class BaseMessage(BaseModel):
             raise ValueError(f"Unknown message type: {msg_type}")
 
         return model_cls.model_validate(raw)
+
+
+class TelemetryMessage(BaseMessage):
+    """Real-time DRL Policy Telemetry update.
+    
+    Tracks synaptic weight drifts, L2 norm drifts, and active action distributions.
+    """
+    type: MessageType = MessageType.TELEMETRY
+    model_id: str = Field(..., min_length=1)
+    weight_drift: float = Field(default=0.0)
+    l2_norm: float = Field(default=0.0)
+    action_distribution: list[float] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProgressMessage(BaseMessage):
@@ -279,6 +293,7 @@ Message = (
     | AckMessage
     | SubscribeMessage
     | UnsubscribeMessage
+    | TelemetryMessage
 )
 
 _MESSAGE_TYPE_MAP: dict[str, type[BaseMessage]] = {
@@ -290,4 +305,5 @@ _MESSAGE_TYPE_MAP: dict[str, type[BaseMessage]] = {
     "ack": AckMessage,
     "subscribe": SubscribeMessage,
     "unsubscribe": UnsubscribeMessage,
+    "telemetry": TelemetryMessage,
 }

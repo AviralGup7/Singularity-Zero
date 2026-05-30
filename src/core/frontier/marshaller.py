@@ -23,10 +23,11 @@ if not _MESH_SECRET_RAW:
         raise ValueError(
             "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
         )
-    _MESH_SECRET_RAW = "frontier-default-secret-change-in-prod"
-elif _IS_PROD and _MESH_SECRET_RAW == "frontier-default-secret-change-in-prod":
+    import secrets
+    _MESH_SECRET_RAW = secrets.token_hex(32)
+elif _IS_PROD and _MESH_SECRET_RAW in ("frontier-default-secret-change-in-prod", "frontier-default-secret"):
     raise ValueError(
-        "CRITICAL SECURITY RISK: MESH_SECRET must not be the default value in production."
+        "CRITICAL SECURITY RISK: MESH_SECRET must not be a default value in production."
     )
 
 _MESH_SECRET = _MESH_SECRET_RAW.encode()
@@ -107,11 +108,15 @@ class FrontierMarshaller:
     """
 
     def __init__(self) -> None:
-        pass
+        from src.core.accelerators import has_avx512
+        self._has_avx512 = has_avx512()
 
     def pack(self, data: Any) -> bytes:
         """Serialize data to binary MessagePack format."""
         try:
+            if self._has_avx512:
+                from src.core.accelerators import fast_msgpack_pack_simd
+                return fast_msgpack_pack_simd(data)
             return cast(bytes, msgpack.packb(data, use_bin_type=True))
         except Exception as e:
             logger.error("Marshaller: Packing failed: %s", e)

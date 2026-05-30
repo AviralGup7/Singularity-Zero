@@ -79,3 +79,19 @@ def compute_entropy_vectorized(data_list: list[str]) -> np.ndarray:
 
     vec_shannon = np.frompyfunc(shannon, 1, 1)
     return cast(np.ndarray, vec_shannon(np.array(data_list, dtype=object)).astype(float))
+
+
+def has_avx512() -> bool:
+    """Check if the current CPU supports AVX-512 instructions."""
+    # Simulation: check /proc/cpuinfo or use a native binding
+    # For prototype, we default to False unless overridden for testing
+    return False
+
+
+def fast_msgpack_pack_simd(data: Any) -> bytes:
+    """
+    Simulates offloading MessagePack serialization to an AVX-512/NEON SIMD pipeline.
+    In a real implementation, this would call a C extension using something like `msgpack-c-simd`.
+    """
+    import msgpack
+    return cast(bytes, msgpack.packb(data, use_bin_type=True))

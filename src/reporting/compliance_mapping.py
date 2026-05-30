@@ -103,7 +103,6 @@ PCI_DSS: dict[str, list[str]] = {
     "sql_injection": ["6.2.4"],
     "command_injection": ["6.2.4"],
     "xss": ["6.2.4"],
-    "xss_reflected": ["6.2.4"],
     "xss_stored": ["6.2.4"],
     "injection": ["6.2.4"],
     "broken_access_control": ["7.3", "6.3.1"],
@@ -116,6 +115,24 @@ PCI_DSS: dict[str, list[str]] = {
     "security_misconfiguration": ["2.2", "6.3"],
     "information_disclosure": ["6.4.1"],
     "logging_monitoring": ["10.2", "10.4"],
+}
+
+# ---------------------------------------------------------------------------
+# SOC2 Trust Services Criteria (TSC) 2017
+# ---------------------------------------------------------------------------
+SOC2_TSC: dict[str, list[str]] = {
+    "injection": ["CC6.1", "CC7.1"],
+    "sql_injection": ["CC6.1", "CC7.1"],
+    "xss": ["CC6.1", "CC7.1"],
+    "broken_access_control": ["CC6.1", "CC6.3"],
+    "idor": ["CC6.1", "CC6.3"],
+    "broken_authentication": ["CC6.1"],
+    "cryptographic_failures": ["CC6.1", "CC6.7"],
+    "ssrf": ["CC6.1", "CC7.1"],
+    "security_misconfiguration": ["CC7.1"],
+    "vulnerable_components": ["CC7.1"],
+    "logging_monitoring": ["CC7.2"],
+    "information_disclosure": ["CC6.1"],
 }
 
 
@@ -133,6 +150,7 @@ def map_finding_to_compliance(category: str) -> dict[str, list[str]]:
         "NIST SP 800-53": NIST_CONTROLS.get(category, []),
         "ISO 27001:2022": ISO_27001_CONTROLS.get(category, []),
         "PCI DSS v4.0": PCI_DSS.get(category, []),
+        "SOC2 TSC": SOC2_TSC.get(category, []),
     }
 
 
@@ -148,7 +166,13 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
     from src.reporting.compliance_maturity import (
         calculate_control_maturity,
         get_maturity_recommendation,
+        calculate_overall_grc_score,
     )
+    from src.reporting.sla_tracker import SLATracker
+
+    # 1. Run SLA check
+    sla_results = SLATracker.check_sla_compliance(findings)
+    overdue_ids = {f.get("id") for f in sla_results["overdue"]}
 
     framework_coverage: dict[str, dict[str, dict[str, Any]]] = {}
     category_counts: dict[str, int] = {}
@@ -173,28 +197,32 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
                         "findings": [],
                         "maturity": "UNKNOWN",
                         "recommendation": "",
+                        "sla_breached": False,
                     }
 
                 # Add findings to this control
                 for f in cat_findings:
+                    f_id = f.get("id")
                     f_summary = {
-                        "id": f.get("id"),
+                        "id": f_id,
                         "title": f.get("title"),
                         "severity": f.get("severity"),
                         "url": f.get("url"),
                     }
                     framework_coverage[framework][control]["findings"].append(f_summary)
+                    if f_id in overdue_ids:
+                        framework_coverage[framework][control]["sla_breached"] = True
 
     # Calculate maturity and recommendations for each control
     control_maturities = {}
     for framework, controls_dict in framework_coverage.items():
         for control_id, data in controls_dict.items():
-            maturity = calculate_control_maturity(data["findings"])
+            maturity = calculate_control_maturity(
+                data["findings"], sla_breached=data["sla_breached"]
+            )
             data["maturity"] = maturity.value
             data["recommendation"] = get_maturity_recommendation(maturity, control_id)
             control_maturities[control_id] = maturity
-
-    from src.reporting.compliance_maturity import calculate_overall_grc_score
 
     overall_grc = calculate_overall_grc_score(control_maturities)
 

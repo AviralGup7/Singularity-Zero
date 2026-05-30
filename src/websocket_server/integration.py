@@ -105,6 +105,28 @@ class WSServices:
             name=f"ws-progress-{job_id}",
         )
 
+    def broadcast_telemetry(
+        self,
+        model_id: str,
+        weight_drift: float,
+        l2_norm: float,
+        action_distribution: list[float],
+        metadata: dict[str, Any] | None = None,
+    ) -> asyncio.Task[int]:
+        """Broadcast DRL Policy Telemetry."""
+        from src.websocket_server.protocol import TelemetryMessage
+        msg = TelemetryMessage(
+            model_id=model_id,
+            weight_drift=weight_drift,
+            l2_norm=l2_norm,
+            action_distribution=action_distribution,
+            metadata=metadata or {},
+        )
+        return asyncio.create_task(
+            self.broadcaster.broadcast(msg, "global"),
+            name=f"ws-telemetry-{model_id}",
+        )
+
     def broadcast_status(
         self,
         job_id: str,
@@ -339,6 +361,10 @@ def setup_websocket_routes(
     async def ws_dashboard(websocket: WebSocket) -> None:
         await handler.handle_dashboard(websocket)
 
+    @app.websocket("/ws/evasion-telemetry")
+    async def ws_evasion_telemetry(websocket: WebSocket) -> None:
+        await handler.handle_evasion_telemetry(websocket)
+
     @asynccontextmanager
     async def lifespan(app: Any) -> Any:
         await services.start_cleanup_loop(interval=cleanup_interval)
@@ -348,6 +374,18 @@ def setup_websocket_routes(
         logger.info("WebSocket services cleaned up")
 
     app.router.lifespan_context = lifespan
+
+    # Hook DRL Telemetry
+    try:
+        from src.core.frontier.drl_evasion import set_telemetry_sink
+        
+        class WSTelemetrySink:
+            def emit(self, model_id: str, weight_drift: float, l2_norm: float, action_distribution: list[float]) -> None:
+                services.broadcast_telemetry(model_id, weight_drift, l2_norm, action_distribution)
+                
+        set_telemetry_sink(WSTelemetrySink())
+    except ImportError:
+        logger.warning("src.core.frontier.drl_evasion not available, skipping telemetry integration")
 
     return services
 
