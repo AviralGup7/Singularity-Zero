@@ -5,6 +5,7 @@ import inspect
 import logging
 import threading
 import uuid
+import weakref
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -56,7 +57,8 @@ class EventBus:
         self._lock = threading.Lock()
         self._running = False
         self._async_handlers: list[Callable[..., Any]] = []
-        self._pending_tasks: set[asyncio.Task[Any]] = set()
+        self._pending_tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
+        self.failed_handlers_count = 0
 
     def subscribe(self, event_type: EventType, handler: Callable[..., Any]) -> str:
         """Subscribe to an event type. Returns subscription_id."""
@@ -95,11 +97,13 @@ class EventBus:
                     self._schedule_async(handler, event)
                 else:
                     handler(event)
-            except (AttributeError, TypeError, ValueError, RuntimeError):
+            except Exception as exc:  # noqa: BLE001
+                self.failed_handlers_count += 1
                 logger.warning(
-                    "Handler error processing event %s from %s",
+                    "Handler error processing event %s from %s: %s",
                     event.event_type.value,
                     event.source,
+                    exc,
                     exc_info=True,
                 )
 
@@ -147,11 +151,13 @@ class EventBus:
                 else:
                     result = handler(event)
                     results.append(result)
-            except (AttributeError, TypeError, ValueError, RuntimeError):
+            except Exception as exc:  # noqa: BLE001
+                self.failed_handlers_count += 1
                 logger.warning(
-                    "Handler error processing sync event %s from %s",
+                    "Handler error processing sync event %s from %s: %s",
                     event.event_type.value,
                     event.source,
+                    exc,
                     exc_info=True,
                 )
                 results.append(None)
@@ -176,17 +182,20 @@ class EventBus:
                     if inspect.iscoroutinefunction(handler):
                         try:
                             await handler(event)
-                        except (AttributeError, TypeError, ValueError, RuntimeError):
+                        except Exception as exc:  # noqa: BLE001
+                            self.failed_handlers_count += 1
                             logger.warning(
-                                "Async handler error processing event %s from %s",
+                                "Async handler error processing event %s from %s: %s",
                                 event.event_type.value,
                                 event.source,
+                                exc,
                             )
                 self._async_queue.task_done()
             except TimeoutError:
                 continue
-            except (AttributeError, TypeError, ValueError, RuntimeError):
-                logger.warning("Error in async consumer loop")
+            except Exception as exc:  # noqa: BLE001
+                self.failed_handlers_count += 1
+                logger.warning("Error in async consumer loop: %s", exc)
 
     async def flush_pending(self, timeout: float = 2.0) -> None:
         """Wait for currently scheduled async handlers to finish."""

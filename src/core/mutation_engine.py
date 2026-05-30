@@ -240,8 +240,11 @@ def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
         ast_variants = mutator.mutate(decoded)
         for v in ast_variants:
             variants.append({"val": v, "reason": "json_ast_mutation"})
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logger.warning(
+            "JSONASTMutator import failed: %s. AST-guided mutations will be skipped.",
+            exc,
+        )
 
     if _looks_json(decoded):
         try:

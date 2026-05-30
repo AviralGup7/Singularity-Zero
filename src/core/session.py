@@ -68,7 +68,8 @@ class Session:
             )
             # Fix #225: Request cookies override session cookies.
             request_cookies = _parse_cookie_header(existing_cookie_value)
-            merged_cookies = {**self.cookies, **request_cookies}
+            merged_cookies = dict(self.cookies)
+            merged_cookies.update(request_cookies)
             # Sort alphabetically for deterministic, reproducible cookie header ordering.
             cookie_value = "; ".join(
                 f"{key}={value}" for key, value in sorted(merged_cookies.items())

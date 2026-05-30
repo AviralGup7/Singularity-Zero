@@ -128,22 +128,19 @@ def bid_from_mapping(
     sources = _nested_sources(payload, metadata)
 
     priority_norm = _scale_10(priority, 5.0)
-    exploitability = _scale_10(
-        _first_present(
-            *sources,
-            keys=("exploitability", "exploitability_score", "epss", "cvss", "risk_score"),
-            default=priority_norm,
-        ),
-        priority_norm,
+    raw_exploit = _first_present(
+        *sources,
+        keys=("exploitability", "exploitability_score", "epss", "cvss", "risk_score"),
+        default=None,
     )
-    business_criticality = _scale_10(
-        _first_present(
-            *sources,
-            keys=("business_criticality", "asset_criticality", "criticality", "business_impact"),
-            default=priority_norm,
-        ),
-        priority_norm,
+    exploitability = _scale_10(raw_exploit, priority_norm) if raw_exploit is not None else _clamp(priority_norm)
+
+    raw_crit = _first_present(
+        *sources,
+        keys=("business_criticality", "asset_criticality", "criticality", "business_impact"),
+        default=None,
     )
+    business_criticality = _scale_10(raw_crit, priority_norm) if raw_crit is not None else _clamp(priority_norm)
 
     deadline = _as_float(
         _first_present(

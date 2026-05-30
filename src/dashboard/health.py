@@ -75,11 +75,13 @@ async def check_redis(redis_url: str | None) -> DependencyHealth:
             socket_connect_timeout=1.0,
             **redis_tls_kwargs_from_env(),
         )
-        start = time.monotonic()
-        await cast(Awaitable[Any], client.ping())
-        latency = round((time.monotonic() - start) * 1000, 2)
-        await client.close()
-        return DependencyHealth(status=DependencyStatus.UP, latency_ms=latency)
+        try:
+            start = time.monotonic()
+            await cast(Awaitable[Any], client.ping())
+            latency = round((time.monotonic() - start) * 1000, 2)
+            return DependencyHealth(status=DependencyStatus.UP, latency_ms=latency)
+        finally:
+            await client.close()
     except Exception as exc:
         logger.warning("Redis health check failed: %s", exc)
         return DependencyHealth(status=DependencyStatus.DOWN, error=str(exc))
@@ -91,8 +93,10 @@ async def check_database(db_path: str) -> DependencyHealth:
 
         start = time.monotonic()
         conn = await aiosqlite.connect(db_path)
-        await conn.execute("SELECT 1")
-        await conn.close()
+        try:
+            await conn.execute("SELECT 1")
+        finally:
+            await conn.close()
         latency = round((time.monotonic() - start) * 1000, 2)
         return DependencyHealth(status=DependencyStatus.UP, latency_ms=latency)
     except Exception as exc:

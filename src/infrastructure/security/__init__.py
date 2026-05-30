@@ -27,6 +27,12 @@ Example:
 from src.infrastructure.security.audit import AuditEvent, AuditLogger, AuditSeverity
 from src.infrastructure.security.auth import APIKey, AuthManager, Role, TokenPayload
 from src.infrastructure.security.config import SecurityConfig
+from src.infrastructure.security.encryption import (
+    DataEncryptor,
+    generate_fernet_key,
+)
+from src.infrastructure.security.secret_manager import SecretManager
+from src.infrastructure.security.argon2id_aesgcm import Argon2idAESGCM, Argon2idParameters
 
 __version__ = "1.0.0"
 
@@ -39,5 +45,10 @@ __all__ = [
     "AuditLogger",
     "AuditEvent",
     "AuditSeverity",
+    "Argon2idAESGCM",
+    "Argon2idParameters",
+    "DataEncryptor",
+    "generate_fernet_key",
+    "SecretManager",
     "__version__",
 ]

@@ -84,11 +84,21 @@ def probe_open_services(
     limiter: RateLimiter,
     deadline_monotonic: float | None = None,
 ) -> list[dict[str, Any]]:
+    # Pre-build a set of (host, port) from live_records to avoid N+1 query loops
+    existing_ports = set()
+    for record in live_records:
+        h = record_host(record)
+        if h:
+            port_val = record.get("port")
+            inferred = infer_port_from_url(str(record.get("url", "")))
+            actual = int(port_val) if port_val is not None else inferred
+            existing_ports.add((h, actual))
+
     jobs = [
         (host, port)
         for host in scan_hosts
         for port in ports
-        if not host_has_port(live_records, host, port)
+        if (host, port) not in existing_ports
     ]
     open_services: list[dict[str, Any]] = []
     if not jobs:
@@ -128,7 +138,7 @@ def probe_open_services(
                 try:
                     result = future.result()
                 except Exception as e:
-                    logger.debug("Failed to get future result in concurrent port scan: %s", e)
+                    logger.warning("Failed to get future result in concurrent port scan: %s", e, exc_info=True)
                     result = None
                 if result:
                     open_services.append(result)
@@ -217,7 +227,7 @@ def fetch_http_details(url: str, timeout: int) -> dict[str, Any]:
         raw = resp.content[:12000]
         try:
             body = raw.decode("utf-8", errors="replace")
-        except UnicodeDecodeError, AttributeError, ValueError, TypeError:
+        except (UnicodeDecodeError, AttributeError, ValueError, TypeError):
             body = resp.text or ""
         resp_headers = {str(k).lower(): str(v) for k, v in dict(resp.headers).items()}
         return {

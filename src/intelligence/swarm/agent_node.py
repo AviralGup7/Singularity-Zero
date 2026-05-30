@@ -9,8 +9,31 @@ import time
 import uuid
 from typing import Any
 
-from src.core.frontier.state import NeuralState
-from src.core.logging.trace_logging import get_pipeline_logger
+try:
+    from src.core.frontier.state import NeuralState
+except ImportError:
+    class NeuralState:
+        """Fallback mock for environments without Cython/Frontier."""
+        def __init__(self) -> None:
+            class MockHLC:
+                def __init__(self, node_id: str | None = None) -> None:
+                    self.node_id = node_id
+            self.hlc = MockHLC()
+            self.urls = self
+            self.findings = self
+        def apply_delta(self, delta: dict[str, Any]) -> None:
+            pass
+        def to_set(self) -> set[str]:
+            return set()
+        def values(self) -> list[Any]:
+            return []
+
+try:
+    from src.core.logging.trace_logging import get_pipeline_logger
+except ImportError:
+    import logging
+    def get_pipeline_logger(name: str) -> Any:
+        return logging.getLogger(name)
 
 logger = get_pipeline_logger(__name__)
 

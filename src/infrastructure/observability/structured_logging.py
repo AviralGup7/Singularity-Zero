@@ -394,12 +394,6 @@ class AsyncLogHandler(logging.Handler):
             max_queue_size: Maximum number of log records to queue.
         """
         super().__init__()
-        """Initialize the async log handler.
-
-        Args:
-            wrapped_handler: The underlying handler to delegate to.
-            max_queue_size: Maximum number of log records to queue.
-        """
         self._queue: SimpleQueue[logging.LogRecord] = SimpleQueue()
         self._wrapped = wrapped_handler
         self._listener: QueueListener | None = None

@@ -16,6 +16,7 @@ from src.execution.validators.engine import (
     build_token_replay_summary,
     run_blackbox_validation_engine,
 )
+from src.execution.validators.validators.idor import promote_evidence_backed_results
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +120,7 @@ def execute_validation_runtime(
         promote_idor = resolve_plugin(VALIDATOR, "promote_idor_evidence")  # Not yet registered
         verified_exploits.extend(promote_idor(results.get("idor_validation", [])))
     except KeyError:
-        # Fallback to local import if not in registry yet (or just skip for now)
-        from src.execution.validators.validators.idor import promote_evidence_backed_results
-
+        # Fallback to module-level imported promote_evidence_backed_results
         verified_exploits.extend(
             promote_evidence_backed_results(results.get("idor_validation", []))
         )
@@ -129,7 +128,7 @@ def execute_validation_runtime(
     verified_exploits.extend(promote_behavior_confirmations(analysis_results))
 
     return {
-        "schema_version": engine_output.get("schema_version", VALIDATION_RUNTIME_SCHEMA_VERSION),
+        "schema_version": engine_output.get("schema_version", VALIDATION_RUNTIME_VERSION_OR_FALLBACK := VALIDATION_RUNTIME_SCHEMA_VERSION),
         "mode": mode,
         "results": results,
         "verified_exploits": verified_exploits,

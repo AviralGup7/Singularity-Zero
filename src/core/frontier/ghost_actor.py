@@ -30,7 +30,9 @@ try:
 except ImportError:
     psutil = None
 
-_LOGIC_REGISTRY: dict[str, Callable[[dict[str, Any], dict[str, Any]], Any]] = {}
+import weakref
+
+_LOGIC_REGISTRY: weakref.WeakValueDictionary[str, Callable[[dict[str, Any], dict[str, Any]], Any]] = weakref.WeakValueDictionary()
 
 
 class ScanActor(pykka.ThreadingActor):

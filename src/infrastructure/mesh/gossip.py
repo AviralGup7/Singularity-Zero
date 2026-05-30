@@ -586,4 +586,9 @@ class GossipProtocol(asyncio.DatagramProtocol):
             if msg_id:
                 self.engine._send_ack(addr, msg_id, ack_payload)
         except Exception as exc:
-            logger.debug("Dropped malformed gossip packet from %s: %s", addr, exc)
+            logger.warning("Dropped malformed gossip packet from %s: %s", addr, exc)
+            try:
+                from src.infrastructure.observability.metrics import get_metrics
+                get_metrics().counter("dropped_gossip_packets_total", "Total dropped gossip packets due to format errors").inc()
+            except Exception:
+                pass

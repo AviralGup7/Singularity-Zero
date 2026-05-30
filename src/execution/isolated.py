@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import multiprocessing as mp
 import os
 import pickle
@@ -16,6 +17,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.execution.active_manifest import ActiveCheckManifest
+
+logger = logging.getLogger(__name__)
+
+# Process join timeout configurable via environment variable (default: 0.5s)
+PROCESS_JOIN_TIMEOUT = float(os.getenv("PROCESS_JOIN_TIMEOUT", "0.5"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +69,12 @@ def replace_unpicklable_response_caches(value: Any) -> Any:
     try:
         pickle.dumps(value)
         return value
-    except Exception:
+    except Exception as exc:
+        logger.debug(
+            "replace_unpicklable_response_caches: detected unpicklable object (type=%s, error=%s). Replacing.",
+            type(value).__name__,
+            exc,
+        )
         if hasattr(value, "get") and hasattr(value, "prefetch"):
             return IsolatedResponseCacheFactory()
         if isinstance(value, tuple):
@@ -75,6 +86,8 @@ def replace_unpicklable_response_caches(value: Any) -> Any:
         return value
 
 
+# Note: The following test stub functions are required for spawn-based
+# child process serialization during unit test execution.
 def _isolated_test_return_findings(*_args: Any, **_kwargs: Any) -> list[dict[str, str]]:
     return [{"url": "https://example.com", "severity": "info"}]
 
@@ -130,14 +143,20 @@ def _terminate_process(process: Any) -> bool:
             os.kill(process.pid, signal.SIGTERM)
         else:
             process.terminate()
-        process.join(timeout=0.5)
+        process.join(timeout=PROCESS_JOIN_TIMEOUT)
         if process.is_alive():
+            logger.warning(
+                "Process %s (pid=%s) is still alive after SIGTERM timeout. Escalating to SIGKILL.",
+                process.name,
+                process.pid,
+            )
             process.kill()
-            process.join(timeout=0.5)
+            process.join(timeout=PROCESS_JOIN_TIMEOUT)
         return True
     finally:
         if process.is_alive():
             process.kill()
+
 
 
 def run_callable_isolated(

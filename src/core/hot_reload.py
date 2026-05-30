@@ -19,6 +19,7 @@ class HotReloadManager:
         self.output_dir = Path(output_dir)
         self.flags_dir = self.output_dir / ".suspend_flags"
         self.flags_dir.mkdir(parents=True, exist_ok=True)
+        self.suspend_trigger_count = 0
 
     def _get_flag_path(self, target: str) -> Path:
         safe_target = "".join(c if c.isalnum() or c in ".-_" else "_" for c in target)
@@ -29,8 +30,9 @@ class HotReloadManager:
         path = self._get_flag_path(target)
         try:
             path.touch()
+            self.suspend_trigger_count += 1
             logger.info("Suspend flag file written for target: %s", target)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     def clear_suspend(self, target: str) -> None:
@@ -40,11 +42,15 @@ class HotReloadManager:
             try:
                 path.unlink()
                 logger.info("Cleared suspend flag for target: %s", target)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
 
     def check_suspend_trigger(self, target: str, stage: str) -> bool:
         """Check if a suspend is requested for the target.
+
+        NOTE: This function flags whether a suspend is requested, returning True
+        if the flag is present. The caller (e.g. the pipeline orchestrator) is
+        responsible for performing the actual execution pause or mid-stage wait.
 
         If true, logs the pause event.
         """

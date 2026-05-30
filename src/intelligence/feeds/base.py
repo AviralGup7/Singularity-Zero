@@ -93,6 +93,9 @@ class BaseFeedConnector(ABC):
     def __init__(self, config: FeedConfig) -> None:
         self.config = config
         self._client: httpx.AsyncClient | None = None
+        self._circuit_state = "closed"
+        self._failure_count = 0
+        self._last_state_change = 0.0
 
     @property
     @abstractmethod
@@ -163,77 +166,104 @@ class BaseFeedConnector(ABC):
             FeedError: If the request fails after all retries.
         """
         import asyncio
+        import time
+
+        now = time.time()
+        if self._circuit_state == "open":
+            if now - self._last_state_change > 60.0:
+                self._circuit_state = "half-open"
+                self._last_state_change = now
+                logger.info("Circuit breaker for %s transitioned to HALF-OPEN", self.client_name)
+            else:
+                logger.warning("Circuit breaker is OPEN for %s. Bypassing request.", self.client_name)
+                raise FeedError(f"Circuit breaker is OPEN for {self.client_name}")
 
         client = await self._get_client()
 
-        for attempt in range(self.config.max_retries + 1):
-            try:
-                response = await client.request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    json=json_body,
-                    headers=headers,
-                )
-
-                if response.status_code == 429:
-                    retry_after = _parse_retry_after_seconds(
-                        response.headers.get("Retry-After"),
-                        self.config.retry_delay_seconds,
-                    )
-                    logger.warning(
-                        "Rate limited by %s, retrying after %.1fs",
-                        self.client_name,
-                        retry_after,
-                    )
-                    raise FeedRateLimitError(
-                        f"Rate limit exceeded for {self.client_name}",
-                        retry_after=retry_after,
+        try:
+            for attempt in range(self.config.max_retries + 1):
+                try:
+                    response = await client.request(
+                        method=method,
+                        url=url,
+                        params=params,
+                        json=json_body,
+                        headers=headers,
                     )
 
-                if response.status_code >= 500 and attempt < self.config.max_retries:
-                    delay = self.config.retry_delay_seconds * (2**attempt)
-                    logger.warning(
-                        "Server error %d from %s, retry %d/%d after %.1fs",
-                        response.status_code,
-                        self.client_name,
-                        attempt + 1,
-                        self.config.max_retries,
-                        delay,
-                    )
-                    await asyncio.sleep(delay)
-                    continue
+                    if response.status_code == 429:
+                        retry_after = _parse_retry_after_seconds(
+                            response.headers.get("Retry-After"),
+                            self.config.retry_delay_seconds,
+                        )
+                        logger.warning(
+                            "Rate limited by %s, retrying after %.1fs",
+                            self.client_name,
+                            retry_after,
+                        )
+                        raise FeedRateLimitError(
+                            f"Rate limit exceeded for {self.client_name}",
+                            retry_after=retry_after,
+                        )
 
-                return response
+                    if response.status_code >= 500 and attempt < self.config.max_retries:
+                        delay = self.config.retry_delay_seconds * (2**attempt)
+                        logger.warning(
+                            "Server error %d from %s, retry %d/%d after %.1fs",
+                            response.status_code,
+                            self.client_name,
+                            attempt + 1,
+                            self.config.max_retries,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
 
-            except FeedRateLimitError as exc:
-                if attempt < self.config.max_retries:
-                    delay = (
-                        max(1.0, float(exc.retry_after))
-                        if exc.retry_after is not None
-                        else max(1.0, self.config.retry_delay_seconds * (2**attempt))
-                    )
-                    await asyncio.sleep(delay)
-                    continue
-                raise
-            except httpx.RequestError as exc:
-                if attempt < self.config.max_retries:
-                    delay = self.config.retry_delay_seconds * (2**attempt)
-                    logger.warning(
-                        "Request error to %s, retry %d/%d after %.1fs: %s",
-                        self.client_name,
-                        attempt + 1,
-                        self.config.max_retries,
-                        delay,
-                        exc,
-                    )
-                    await asyncio.sleep(delay)
-                    continue
-                raise FeedError(
-                    f"Request to {self.client_name} failed after {self.config.max_retries + 1} attempts: {exc}",
-                ) from exc
+                    # On success
+                    if self._circuit_state == "half-open":
+                        self._circuit_state = "closed"
+                        self._failure_count = 0
+                        logger.info("Circuit breaker for %s transitioned to CLOSED (recovered)", self.client_name)
+                    elif self._circuit_state == "closed":
+                        self._failure_count = 0
 
-        assert False, "unreachable"  # noqa: RET503
+                    return response
+
+                except FeedRateLimitError as exc:
+                    if attempt < self.config.max_retries:
+                        delay = (
+                            max(1.0, float(exc.retry_after))
+                            if exc.retry_after is not None
+                            else max(1.0, self.config.retry_delay_seconds * (2**attempt))
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    raise
+                except httpx.RequestError as exc:
+                    if attempt < self.config.max_retries:
+                        delay = self.config.retry_delay_seconds * (2**attempt)
+                        logger.warning(
+                            "Request error to %s, retry %d/%d after %.1fs: %s",
+                            self.client_name,
+                            attempt + 1,
+                            self.config.max_retries,
+                            delay,
+                            exc,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    raise FeedError(
+                        f"Request to {self.client_name} failed after {self.config.max_retries + 1} attempts: {exc}",
+                    ) from exc
+
+            assert False, "unreachable"  # noqa: RET503
+        except Exception as exc:
+            self._failure_count += 1
+            if self._failure_count >= 5:
+                self._circuit_state = "open"
+                self._last_state_change = time.time()
+                logger.error("Circuit breaker for %s transitioned to OPEN due to consecutive failures: %s", self.client_name, exc)
+            raise
 
     async def _get(self, url: str, params: dict[str, Any] | None = None) -> httpx.Response:
         return await self._request("GET", url, params=params)

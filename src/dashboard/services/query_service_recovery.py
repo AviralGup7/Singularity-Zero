@@ -120,14 +120,7 @@ def mark_running_stage_entries_completed(
         completed_entry["updated_at"] = now
 
 
-def _truncate_lines(lines: list[str], *, limit: int = 10) -> list[str]:
-    deduped: list[str] = []
-    for line in lines:
-        text = str(line or "").strip()
-        if not text or text in deduped:
-            continue
-        deduped.append(text)
-    return deduped[-limit:]
+from src.dashboard.utils import truncate_lines as _truncate_lines
 
 
 def recover_job_from_launcher(

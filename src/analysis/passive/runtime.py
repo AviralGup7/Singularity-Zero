@@ -189,7 +189,7 @@ class ResponseCache:
         self.request_retry_policy = request_retry_policy or RetryPolicy()
         self._records: dict[str, dict[str, Any] | None] = {}
         # Fix Audit #6: Cache for active probes with headers/body
-        self._active_records: dict[tuple, dict[str, Any] | None] = {}
+        self._active_records: dict[tuple, tuple[dict[str, Any] | None, float]] = {}
         self._persistent_records = (
             load_cached_json(persistent_cache_path) if persistent_cache_path else {}
         )
@@ -235,7 +235,19 @@ class ResponseCache:
 
         # Fix Audit #6: Key for active probes to allow memoization of repeated identical probes
         header_key = frozenset((headers or {}).items())
-        body_key = hash(body) if body else None
+        
+        # Robust body_key parsing to distinguish empty values and prevent unhashable TypeError
+        if body is None:
+            body_key = None
+        elif isinstance(body, (str, bytes)):
+            body_key = hash(body)
+        else:
+            try:
+                import json
+                body_key = hash(json.dumps(body, sort_keys=True))
+            except Exception:
+                body_key = hash(str(body))
+                
         active_key = (normalized, method.upper(), header_key, body_key)
 
         if method.upper() == "GET" and not headers and body is None and not capture_forensics:
@@ -243,7 +255,11 @@ class ResponseCache:
 
         with self._lock:
             if active_key in self._active_records:
-                return self._active_records[active_key]
+                record, expiry = self._active_records[active_key]
+                if time.time() <= expiry:
+                    return record
+                else:
+                    self._active_records.pop(active_key, None)
 
         record = self._request_with_policy(
             normalized,
@@ -256,9 +272,14 @@ class ResponseCache:
         )
 
         with self._lock:
+            now = time.time()
+            # Prune expired entries to prevent accumulation
+            expired = [k for k, (_, exp) in list(self._active_records.items()) if now > exp]
+            for k in expired:
+                self._active_records.pop(k, None)
             if len(self._active_records) >= 1000:
                 self._active_records.clear()
-            self._active_records[active_key] = record
+            self._active_records[active_key] = (record, now + (self.cache_ttl_hours * 3600))
 
         return record
 
@@ -304,8 +325,18 @@ class ResponseCache:
             retry_after = 0.0
             if result.record and "headers" in result.record:
                 ra = result.record["headers"].get("Retry-After")
-                if ra and str(ra).isdigit():
-                    retry_after = float(ra)
+                if ra:
+                    if str(ra).isdigit():
+                        retry_after = float(ra)
+                    else:
+                        import email.utils
+                        from datetime import datetime, timezone
+                        try:
+                            dt = email.utils.parsedate_to_datetime(str(ra))
+                            if dt:
+                                retry_after = max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
+                        except Exception:
+                            pass
 
             self.scheduler.observe(
                 successful=result.successful,
@@ -521,9 +552,12 @@ def _fetch_response_once(
             successful=successful,
             retryable=retryable,
         )
-    except Exception as exc:
+    except urllib3.exceptions.HTTPError as exc:
         logger.debug("Error fetching %s: %s", url, exc)
         return FetchResponseResult(None, time.monotonic() - started_at, None, False, True)
+    except Exception as exc:
+        logger.warning("Unexpected error fetching %s: %s", url, exc, exc_info=True)
+        raise
 
 
 def build_response_record(

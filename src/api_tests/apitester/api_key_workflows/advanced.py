@@ -78,6 +78,15 @@ def advanced_api_key_test(
                     )
                 except Exception as exc:  # noqa: BLE001
                     print(f"   Simulation {index} failed: {exc}")
+                    results.append(
+                        {
+                            "test": "different_ip_device",
+                            "simulation": index,
+                            "status": "error",
+                            "user_agent": ua[:50],
+                            "error": str(exc),
+                        }
+                    )
 
             print("\n2. Modifying Request Parameters (IDOR / Other Users Data Exposure)")
             for test_id in ["123", "456", "789", "999999", "1", "0", "-1", "admin"]:
@@ -113,6 +122,15 @@ def advanced_api_key_test(
                     )
                 except Exception as exc:  # noqa: BLE001
                     print(f"   Error testing ID {test_id}: {exc}")
+                    results.append(
+                        {
+                            "test": "idor_parameter_tampering",
+                            "endpoint": f"users/{test_id}",
+                            "status": "error",
+                            "size": 0,
+                            "error": str(exc),
+                        }
+                    )
 
             print("\n3. Replay Same Request Multiple Times (Rate Limit Abuse Test)")
             print("   Sending 25 rapid requests to /users/me ...")

@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 from src.execution.exploiters.aeve import AEVE, VerificationStatus
 
 logger = logging.getLogger(__name__)
@@ -35,8 +34,10 @@ class RemediationScanner:
         target_name = finding.get("target_name") or finding.get("target") or ""
 
         # Enforce tenant isolation
-        if tenant_id and not is_target_owned_by_tenant(target_name, tenant_id):
-            raise PermissionError("Access denied: target does not belong to this tenant.")
+        if tenant_id:
+            from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+            if not is_target_owned_by_tenant(target_name, tenant_id):
+                raise PermissionError("Access denied: target does not belong to this tenant.")
 
         # Check and enforce adaptive 72h cooldown in Redis
         cooldown_key = f"remediation:cooldown:{tenant_id or 'default'}:{finding_id}"
@@ -59,7 +60,8 @@ class RemediationScanner:
                         "cooldown_remaining_seconds": ttl,
                     }
             except Exception as exc:
-                logger.warning("Failed to check remediation cooldown in Redis: %s", exc)
+                logger.error("Failed to check remediation cooldown in Redis: %s", exc)
+                raise RuntimeError(f"Database error during cooldown verification: {exc}") from exc
 
         # Run AEVE verification
         logger.info("RemediationScanner: Re-testing finding %s via AEVE", finding_id)
@@ -86,7 +88,8 @@ class RemediationScanner:
                 redis_client.execute_command("SET", cooldown_key, "active")
                 redis_client.execute_command("EXPIRE", cooldown_key, 259200)
             except Exception as exc:
-                logger.warning("Failed to set remediation cooldown in Redis: %s", exc)
+                logger.error("Failed to set remediation cooldown in Redis: %s", exc)
+                raise RuntimeError(f"Database error during cooldown update: {exc}") from exc
 
         return {
             "status": outcome,
