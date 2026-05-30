@@ -581,6 +581,12 @@ def get_metrics() -> MetricsRegistry:
     return _metrics_instance
 
 
+def reset_metrics_instance() -> None:
+    """Reset the global metrics registry instance. Useful for test isolation."""
+    global _metrics_instance
+    _metrics_instance = None
+
+
 def register_pipeline_metrics(metrics: MetricsRegistry | None = None) -> None:
     """Register pre-configured pipeline metrics.
 

@@ -59,7 +59,7 @@ class FileBackend:
         if index_path.exists():
             try:
                 self._index = json.loads(index_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError, OSError:
+            except (json.JSONDecodeError, OSError):
                 self._index = {}
 
     def _save_index(self) -> None:
@@ -106,12 +106,12 @@ class FileBackend:
             try:
                 data = gzip.decompress(gz_path.read_bytes())
                 entry = json.loads(data.decode("utf-8"))
-            except json.JSONDecodeError, OSError:
+            except (json.JSONDecodeError, OSError):
                 return None
         elif json_path.exists():
             try:
                 entry = json.loads(json_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError, OSError:
+            except (json.JSONDecodeError, OSError):
                 return None
         else:
             return None
@@ -157,8 +157,13 @@ class FileBackend:
             with os.fdopen(tmp_fd, "wb") as f:
                 f.write(data)
             os.replace(tmp_path, str(path))
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning("File cache write failed for key '%s': %s", key, exc)
+            try:
+                from src.infrastructure.observability.metrics import get_metrics
+                get_metrics().counter("file_cache_write_failures_total", "Total file cache write failures").inc()
+            except Exception:
+                pass
 
     def _delete_file(self, key: str) -> None:
         """Delete cache files for a key."""

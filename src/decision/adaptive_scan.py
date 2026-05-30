@@ -146,6 +146,14 @@ class AdaptiveScanCoordinator:
                 len(self._total_findings),
             )
 
+            # Record/emit structured batch telemetry
+            self._emit_batch_metrics(
+                batch_num,
+                len(urls),
+                self._queue.remaining,
+                len(self._total_findings),
+            )
+
             # Scan the batch
             batch_results = await self._scan_batch(urls)
             self._results.extend(batch_results)
@@ -176,6 +184,22 @@ class AdaptiveScanCoordinator:
             early_terminated=self._queue.should_terminate_early(),
             duration_ms=round(elapsed_ms, 1),
             results=self._results,
+        )
+
+    def _emit_batch_metrics(
+        self,
+        batch_num: int,
+        scanned_count: int,
+        remaining_count: int,
+        findings_count: int,
+    ) -> None:
+        """Emit structured telemetry metrics for batch scanning."""
+        logger.info(
+            "[Telemetry Metrics] batch=%d scanned=%d remaining=%d findings_total=%d",
+            batch_num,
+            scanned_count,
+            remaining_count,
+            findings_count,
         )
 
     async def _scan_batch(self, urls: list[str]) -> list[ScanResult]:

@@ -13,6 +13,12 @@ router = APIRouter()
 @router.get("/launcher/{job_id}/{filename}", include_in_schema=False)
 async def serve_launcher_artifact(job_id: str, filename: str, request: Request) -> Response:
     """Serve specific log and metadata files for a background job run."""
+    # Sanity check to prevent path traversal and null-byte injection
+    if any(char in job_id for char in ("/", "\\", "..", "\x00")) or any(
+        char in filename for char in ("/", "\\", "..", "\x00")
+    ):
+        return Response(status_code=400, content="Invalid parameters")
+
     config = request.app.state.config
     safe_path = (config.output_root / "launcher" / job_id / filename).resolve()
     if safe_path.is_file() and safe_path.is_relative_to(config.output_root.resolve()):

@@ -17,7 +17,12 @@ def generate_run_id_impl() -> str:
 
 
 def validate_checkpoint_state_impl(state: Any, *, checkpoint_state_cls: type[Any]) -> bool:
-    """Validate checkpoint state shape before selecting it for recovery."""
+    """Validate checkpoint state shape before selecting it for recovery.
+
+    NOTE: state.completed_stages can be either a list (if freshly initialized) or
+    a set (if deserialized/loaded from persistent storage). Both types are accepted
+    and validated here to maintain consistent type compatibility.
+    """
     if not isinstance(state, checkpoint_state_cls):
         return False
     if not state.pipeline_run_id:

@@ -192,6 +192,20 @@ class MitreAttackMapper(BaseFeedConnector):
     def client_name(self) -> str:
         return "MITRE ATT&CK"
 
+    def _get_mitre_id(self, obj: dict[str, Any]) -> str:
+        """Extract the MITRE ATT&CK external_id from an object."""
+        for ref in obj.get("external_references", []):
+            if ref.get("source_name") == "mitre-attack":
+                return str(ref.get("external_id", ""))
+        return ""
+
+    def _get_mitre_url(self, obj: dict[str, Any]) -> str:
+        """Extract the MITRE ATT&CK URL from an object."""
+        for ref in obj.get("external_references", []):
+            if ref.get("source_name") == "mitre-attack":
+                return str(ref.get("url", ""))
+        return ""
+
     async def _load_enterprise_data(self) -> dict[str, list[dict[str, Any]]]:
         """Load and cache the enterprise ATT&CK STIX bundle.
 
@@ -228,13 +242,8 @@ class MitreAttackMapper(BaseFeedConnector):
         attack_patterns = data.get("attack-pattern", [])
 
         for obj in attack_patterns:
-            external_refs = obj.get("external_references", [])
-            for ref in external_refs:
-                if (
-                    ref.get("source_name") == "mitre-attack"
-                    and ref.get("external_id") == technique_id
-                ):
-                    return self._parse_technique(obj, attack_patterns)
+            if self._get_mitre_id(obj) == technique_id:
+                return self._parse_technique(obj, attack_patterns)
 
         return None
 
@@ -276,15 +285,8 @@ class MitreAttackMapper(BaseFeedConnector):
 
         technique_obj = None
         for obj in attack_patterns:
-            external_refs = obj.get("external_references", [])
-            for ref in external_refs:
-                if (
-                    ref.get("source_name") == "mitre-attack"
-                    and ref.get("external_id") == technique_id
-                ):
-                    technique_obj = obj
-                    break
-            if technique_obj:
+            if self._get_mitre_id(obj) == technique_id:
+                technique_obj = obj
                 break
 
         if not technique_obj:
@@ -321,10 +323,8 @@ class MitreAttackMapper(BaseFeedConnector):
         intrusion_sets = data.get("intrusion-set", [])
 
         for obj in intrusion_sets:
-            external_refs = obj.get("external_references", [])
-            for ref in external_refs:
-                if ref.get("source_name") == "mitre-attack" and ref.get("external_id") == group_id:
-                    return self._parse_group(obj, data)
+            if self._get_mitre_id(obj) == group_id:
+                return self._parse_group(obj, data)
 
         return None
 
@@ -342,13 +342,8 @@ class MitreAttackMapper(BaseFeedConnector):
         tool_objs = data.get("tool", [])
 
         for obj in malware_objs + tool_objs:
-            external_refs = obj.get("external_references", [])
-            for ref in external_refs:
-                if (
-                    ref.get("source_name") == "mitre-attack"
-                    and ref.get("external_id") == software_id
-                ):
-                    return self._parse_software(obj, data)
+            if self._get_mitre_id(obj) == software_id:
+                return self._parse_software(obj, data)
 
         return None
 
@@ -379,14 +374,8 @@ class MitreAttackMapper(BaseFeedConnector):
         tactics: list[MitreTactic] = []
 
         for obj in x_mitre_tactics:
-            external_refs = obj.get("external_references", [])
-            tactic_id = ""
-            url = ""
-            for ref in external_refs:
-                if ref.get("source_name") == "mitre-attack":
-                    tactic_id = ref.get("external_id", "")
-                    url = ref.get("url", "")
-                    break
+            tactic_id = self._get_mitre_id(obj)
+            url = self._get_mitre_url(obj)
 
             if tactic_id:
                 tactics.append(
@@ -430,14 +419,8 @@ class MitreAttackMapper(BaseFeedConnector):
         Returns:
             Parsed MitreTechnique instance.
         """
-        external_refs = obj.get("external_references", [])
-        technique_id = ""
-        url = ""
-        for ref in external_refs:
-            if ref.get("source_name") == "mitre-attack":
-                technique_id = ref.get("external_id", "")
-                url = ref.get("url", "")
-                break
+        technique_id = self._get_mitre_id(obj)
+        url = self._get_mitre_url(obj)
 
         kill_chains = obj.get("kill_chain_phases", [])
         tactics: list[MitreTactic] = []
@@ -451,16 +434,14 @@ class MitreAttackMapper(BaseFeedConnector):
 
         x_mitre_platforms = obj.get("x_mitre_platforms", [])
         x_mitre_permissions = obj.get("x_mitre_permissions_required", [])
-        obj.get("x_mitre_detection", "")
 
         subtechniques: list[str] = []
         technique_stix_id = obj.get("id", "")
         for other in all_patterns:
             if other.get("id", "").startswith(technique_stix_id + "."):
-                for eref in other.get("external_references", []):
-                    if eref.get("source_name") == "mitre-attack":
-                        subtechniques.append(eref.get("external_id", ""))
-                        break
+                sub_id = self._get_mitre_id(other)
+                if sub_id:
+                    subtechniques.append(sub_id)
 
         return MitreTechnique(
             id=technique_id,
@@ -485,14 +466,8 @@ class MitreAttackMapper(BaseFeedConnector):
         Returns:
             Parsed MitreMitigation instance.
         """
-        external_refs = obj.get("external_references", [])
-        mit_id = ""
-        url = ""
-        for ref in external_refs:
-            if ref.get("source_name") == "mitre-attack":
-                mit_id = ref.get("external_id", "")
-                url = ref.get("url", "")
-                break
+        mit_id = self._get_mitre_id(obj)
+        url = self._get_mitre_url(obj)
 
         return MitreMitigation(
             id=mit_id,
@@ -515,16 +490,9 @@ class MitreAttackMapper(BaseFeedConnector):
         Returns:
             Parsed MitreGroup instance.
         """
-        external_refs = obj.get("external_references", [])
-        group_id = ""
-        url = ""
+        group_id = self._get_mitre_id(obj)
+        url = self._get_mitre_url(obj)
         aliases = obj.get("aliases", [])
-
-        for ref in external_refs:
-            if ref.get("source_name") == "mitre-attack":
-                group_id = ref.get("external_id", "")
-                url = ref.get("url", "")
-                break
 
         group_stix_id = obj.get("id", "")
         relationships = data.get("relationship", [])
@@ -536,10 +504,9 @@ class MitreAttackMapper(BaseFeedConnector):
                 if target_ref.startswith("attack-pattern--"):
                     for pat in data.get("attack-pattern", []):
                         if pat.get("id") == target_ref:
-                            for eref in pat.get("external_references", []):
-                                if eref.get("source_name") == "mitre-attack":
-                                    technique_ids.append(eref.get("external_id", ""))
-                                    break
+                            tech_id = self._get_mitre_id(pat)
+                            if tech_id:
+                                technique_ids.append(tech_id)
 
         return MitreGroup(
             id=group_id,
@@ -565,15 +532,8 @@ class MitreAttackMapper(BaseFeedConnector):
         Returns:
             Parsed MitreSoftware instance.
         """
-        external_refs = obj.get("external_references", [])
-        software_id = ""
-        url = ""
-
-        for ref in external_refs:
-            if ref.get("source_name") == "mitre-attack":
-                software_id = ref.get("external_id", "")
-                url = ref.get("url", "")
-                break
+        software_id = self._get_mitre_id(obj)
+        url = self._get_mitre_url(obj)
 
         software_type = obj.get("type", "")
         types = [software_type]
@@ -593,10 +553,9 @@ class MitreAttackMapper(BaseFeedConnector):
                 if target_ref.startswith("attack-pattern--"):
                     for pat in data.get("attack-pattern", []):
                         if pat.get("id") == target_ref:
-                            for eref in pat.get("external_references", []):
-                                if eref.get("source_name") == "mitre-attack":
-                                    technique_ids.append(eref.get("external_id", ""))
-                                    break
+                            tech_id = self._get_mitre_id(pat)
+                            if tech_id:
+                                technique_ids.append(tech_id)
 
         return MitreSoftware(
             id=software_id,

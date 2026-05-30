@@ -4,6 +4,7 @@ Handles job record creation, subprocess launching, stream consumption,
 and job lifecycle management for pipeline runs initiated from the dashboard.
 """
 
+import logging
 import os
 import subprocess
 import sys
@@ -12,6 +13,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from src.core.utils.safe_errors import safe_error_message
 from src.core.utils.stderr_classification import classify_stderr_text, extract_degraded_providers
@@ -60,8 +63,9 @@ def run_pipeline_job(
         job["_persist_last_epoch"] = now
         try:
             persist_callback(job)
-        except Exception:  # noqa: S110
-            pass
+        except Exception as exc:  # noqa: S110
+            logger.warning("Failed to persist job state: %s", exc)
+            job["persist_failures_count"] = job.get("persist_failures_count", 0) + 1
 
     def _capture_forensics() -> None:
         job_id = str(job.get("id", "") or "").strip()
@@ -78,9 +82,10 @@ def run_pipeline_job(
                 job_id,
                 persisted_job=job,
             )
-        except Exception:  # noqa: S110
+        except Exception as exc:  # noqa: S110
             # Forensic capture is best-effort and must not change job outcome.
-            pass
+            logger.debug("Forensic capture failed: %s", exc)
+            job["forensic_capture_failures_count"] = job.get("forensic_capture_failures_count", 0) + 1
 
     command = [
         sys.executable,
@@ -130,6 +135,7 @@ def run_pipeline_job(
             encoding="utf-8",
             errors="replace",
             env=env,
+            shell=False,
         )
         with lock:
             job["process"] = process

@@ -64,8 +64,9 @@ class JobStore:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._local = threading.local()
+        self._all_connections: list[sqlite3.Connection] = []  # Track all created connections
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -75,6 +76,8 @@ class JobStore:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA busy_timeout=5000")
             self._local._conn = conn
+            with self._lock:
+                self._all_connections.append(conn)
         return cast(sqlite3.Connection, self._local._conn)
 
     def _init_db(self) -> None:
@@ -84,12 +87,14 @@ class JobStore:
             conn.commit()
 
     def close(self) -> None:
-        """Close the database connection for the current thread."""
-        if hasattr(self._local, "_conn") and self._local._conn is not None:
-            try:
-                self._local._conn.close()
-            except Exception as exc:  # noqa: S110
-                logger.warning("Failed to close SQLite connection cleanly: %s", exc)
+        """Close all database connections created across all threads."""
+        with self._lock:
+            for conn in self._all_connections:
+                try:
+                    conn.close()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed to close SQLite connection cleanly: %s", exc)
+            self._all_connections.clear()
             self._local._conn = None
 
     def save(self, job: dict[str, Any]) -> None:
@@ -114,9 +119,10 @@ class JobStore:
                     ),
                 )
                 conn.commit()
-            except Exception:  # noqa: S110
+            except Exception as exc:
                 logger.exception("Failed to save job %s", job.get("id"))
                 conn.rollback()
+                raise RuntimeError(f"Failed to save job in store: {exc}") from exc
 
     def load_all(self) -> dict[str, dict[str, Any]]:
         """Load all jobs, returning a dict keyed by job_id."""

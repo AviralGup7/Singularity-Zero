@@ -9,10 +9,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from argon2.low_level import Type, hash_secret_raw
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+try:
+    from argon2.low_level import Type, hash_secret_raw
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    CRYPTOGRAPHY_AVAILABLE = True
+except ImportError:
+    Type = None
+    hash_secret_raw = None
+    hashes = None
+    AESGCM = None
+    HKDF = None
+    CRYPTOGRAPHY_AVAILABLE = False
 
 from src.core.logging.trace_logging import get_pipeline_logger
 

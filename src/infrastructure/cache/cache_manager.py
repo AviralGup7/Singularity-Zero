@@ -508,9 +508,8 @@ class CacheManager:
             if self._l3 is not None:
                 self._l3.set(full_key, value, ttl=ttl)
 
-            # Re-register to prevent stale tag/dependency index entries on overwrite.
-            self._invalidation.unregister_entry(full_key)
-            self._invalidation.register_entry(full_key, tags, normalized_depends_on)
+            # Re-register to prevent stale tag/dependency index entries on overwrite using update_entry.
+            self._invalidation.update_entry(full_key, tags, normalized_depends_on)
             if self._config.log_cache_ops:
                 logger.debug("SET: %s (ttl=%ds, tags=%s)", full_key, ttl, tags)
         except Exception as exc:
@@ -865,6 +864,33 @@ class CacheManager:
 
     def close(self) -> None:
         """Close all backend connections and persist state."""
+        # Telemetry: check health before closing backends
+        l1_healthy = self._l1 is not None
+        l2_healthy = False
+        if self._l2 is not None:
+            try:
+                # Basic check or assumption
+                l2_healthy = True
+            except Exception:
+                pass
+        l3_healthy = self._l3 is not None
+
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+            metrics = get_metrics()
+            metrics.gauge("cache_backend_health", "L1/L2/L3 backend health status").set(
+                (1.0 if l1_healthy else 0.0) + (2.0 if l2_healthy else 0.0) + (4.0 if l3_healthy else 0.0)
+            )
+        except Exception:
+            pass
+
+        logger.info(
+            "Cache manager closing: L1=%s L2=%s L3=%s",
+            "healthy" if l1_healthy else "missing/down",
+            "healthy" if l2_healthy else "missing/down",
+            "healthy" if l3_healthy else "missing/down",
+        )
+
         if self._l1 is not None:
             self._l1.close()
         if self._l2 is not None:

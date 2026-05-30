@@ -199,7 +199,12 @@ class VirusTotalClient(BaseFeedConnector):
         Returns:
             Parsed VirusTotalReport for the file.
         """
-        response = await self._get(f"/files/{file_hash}")
+        import re
+        hash_clean = str(file_hash or "").strip()
+        if not re.match(r"^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$", hash_clean):
+            raise FeedError(f"Invalid file hash format: {file_hash}")
+
+        response = await self._get(f"/files/{hash_clean}")
         if response.status_code == 404:
             return VirusTotalReport(
                 id=file_hash,

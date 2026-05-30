@@ -97,6 +97,10 @@ class ActiveManifestRegistry:
     def __init__(self) -> None:
         self._manifests: dict[str, ActiveCheckManifest] = {}
 
+    def reset(self) -> None:
+        """Clear all registered manifests to prevent test state leakage."""
+        self._manifests.clear()
+
     def register(self, manifest: ActiveCheckManifest) -> ActiveCheckManifest:
         manifest = replace(manifest, budget=manifest.budget.normalized())
         self._manifests[manifest.check_id] = manifest
@@ -241,3 +245,9 @@ def query_active_manifests(
         input_kind=input_kind,
         result_encoding=result_encoding,
     )
+
+
+def reset_active_manifest_registry() -> None:
+    """Reset the global registry to its default state for clean boundaries."""
+    global DEFAULT_ACTIVE_MANIFEST_REGISTRY
+    DEFAULT_ACTIVE_MANIFEST_REGISTRY = build_default_active_manifest_registry()

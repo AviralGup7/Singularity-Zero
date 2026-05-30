@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -26,6 +27,7 @@ class FallbackDB:
             db_path: Absolute or relative path to the SQLite DB file.
         """
         self.db_path = db_path
+        self._thread_local = threading.local()
         self._init_sqlite()
 
     def _init_sqlite(self) -> None:
@@ -51,13 +53,25 @@ class FallbackDB:
             logger.error("Failed to initialize SQLite fallback database: %s", exc)
 
     def _get_sqlite_conn(self) -> Any:
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
-        conn.row_factory = sqlite3.Row
-        try:
-            conn.execute("PRAGMA journal_mode=WAL")
-        except Exception:
-            pass
-        return conn
+        if not hasattr(self._thread_local, "conn") or self._thread_local.conn is None:
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+            except Exception:
+                pass
+            self._thread_local.conn = conn
+        return self._thread_local.conn
+
+    def close(self) -> None:
+        """Close the cached database connection for the current thread."""
+        conn = getattr(self._thread_local, "conn", None)
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            self._thread_local.conn = None
 
     def db_get(self, key: str) -> tuple[str | None, Any]:
         """Get key type and raw Python data from SQLite."""
@@ -66,7 +80,6 @@ class FallbackDB:
             cursor = conn.cursor()
             cursor.execute("SELECT type, value FROM fallback_store WHERE key = ?", (key,))
             row = cursor.fetchone()
-            conn.close()
             if row is None:
                 return None, None
 
@@ -102,7 +115,6 @@ class FallbackDB:
                 (key, val_type, val_raw),
             )
             conn.commit()
-            conn.close()
         except Exception as exc:
             logger.error("SQLite fallback set error for key '%s': %s", key, exc)
 
@@ -114,7 +126,6 @@ class FallbackDB:
             cursor.execute("DELETE FROM fallback_store WHERE key = ?", (key,))
             deleted = cursor.rowcount
             conn.commit()
-            conn.close()
             return int(deleted)
         except Exception as exc:
             logger.error("SQLite fallback del error for key '%s': %s", key, exc)
@@ -127,7 +138,6 @@ class FallbackDB:
             cursor = conn.cursor()
             cursor.execute("SELECT key FROM fallback_store")
             rows = cursor.fetchall()
-            conn.close()
             return [row["key"] for row in rows]
         except Exception as exc:
             logger.error("SQLite fallback scan error: %s", exc)

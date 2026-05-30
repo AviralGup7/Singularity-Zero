@@ -60,18 +60,31 @@ class ThreatIntelCorrelator:
         attribution = None
 
         # 1. Query MISP Feed
-        misp_key = os.environ.get("MISP_API_KEY", "misp_test_key_placeholder")
-        try:
-            misp_cfg = MISPConfig(api_key=misp_key)
-            async with MISPClient(misp_cfg) as misp_client:
-                misp_res = await misp_client.check_ioc(host_or_ip)
-                if misp_res.get("matched"):
-                    score = max(score, misp_res.get("reputation_score", 85))
-                    feed_sources.append("MISP Feed")
-                    intel_category = "active_c2_communication"
-                    attribution = "APT-Unknown"
-        except Exception as e:
-            logger.debug("MISP lookup failed: %s", e)
+        misp_key = os.environ.get("MISP_API_KEY")
+        if not misp_key:
+            logger.warning("MISP API key is missing. Skipping active MISP threat correlation.")
+        else:
+            try:
+                misp_cfg = MISPConfig(api_key=misp_key)
+                async with MISPClient(misp_cfg) as misp_client:
+                    misp_res = await misp_client.check_ioc(host_or_ip)
+                    if misp_res.get("matched"):
+                        score = max(score, misp_res.get("reputation_score", 85))
+                        feed_sources.append("MISP Feed")
+                        intel_category = "active_c2_communication"
+                        attribution = "APT-Unknown"
+                try:
+                    from src.infrastructure.observability.metrics import get_metrics
+                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "misp", "status": "success"}).inc()
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.warning("MISP lookup failed: %s", e)
+                try:
+                    from src.infrastructure.observability.metrics import get_metrics
+                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "misp", "status": "failed"}).inc()
+                except Exception:
+                    pass
 
         # 2. Query AlienVault OTX
         otx_key = os.environ.get("OTX_API_KEY")
@@ -90,8 +103,18 @@ class ThreatIntelCorrelator:
                         score = max(score, 75)
                         feed_sources.append("AlienVault OTX")
                         intel_category = "threat_pulse_match"
+                try:
+                    from src.infrastructure.observability.metrics import get_metrics
+                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "otx", "status": "success"}).inc()
+                except Exception:
+                    pass
             except Exception as e:
-                logger.debug("OTX lookup failed: %s", e)
+                logger.warning("OTX lookup failed: %s", e)
+                try:
+                    from src.infrastructure.observability.metrics import get_metrics
+                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "otx", "status": "failed"}).inc()
+                except Exception:
+                    pass
 
         # 3. Query VirusTotal
         vt_key = os.environ.get("VIRUSTOTAL_API_KEY")
@@ -109,8 +132,18 @@ class ThreatIntelCorrelator:
                     if vt_res and getattr(vt_res, "malicious_count", 0) > 0:
                         score = max(score, min(99, 50 + getattr(vt_res, "malicious_count", 0) * 10))
                         feed_sources.append("VirusTotal")
+                try:
+                    from src.infrastructure.observability.metrics import get_metrics
+                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "virustotal", "status": "success"}).inc()
+                except Exception:
+                    pass
             except Exception as e:
-                logger.debug("VirusTotal lookup failed: %s", e)
+                logger.warning("VirusTotal lookup failed: %s", e)
+                try:
+                    from src.infrastructure.observability.metrics import get_metrics
+                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "virustotal", "status": "failed"}).inc()
+                except Exception:
+                    pass
 
         # Local simulation fallback if no external matches but suspicious keywords exist
         suspicious_keywords = {"malicious", "botnet", "phishing", "c2-server", "tor-exit"}

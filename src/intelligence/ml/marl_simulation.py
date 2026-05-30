@@ -12,7 +12,13 @@ from typing import Any
 
 import numpy as np
 
-from src.core.logging.trace_logging import get_pipeline_logger
+try:
+    from src.core.logging.trace_logging import get_pipeline_logger
+except ImportError:
+    import logging
+    def get_pipeline_logger(name: str) -> Any:
+        return logging.getLogger(name)
+
 from src.intelligence.ml.gnn_predict import GNNPredictor
 
 logger = get_pipeline_logger(__name__)
@@ -110,6 +116,12 @@ class MARLSimulator:
                 "is_pivot": any(l["source"] == current_pos and l["target"] == target for l in predicted_links)
             })
             
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+            get_metrics().counter("marl_simulation_steps_total", "Total MARL simulation steps run").inc()
+        except Exception:
+            pass
+
         return actions
 
     def run_rollout(self, steps: int = 10) -> list[list[dict[str, Any]]]:

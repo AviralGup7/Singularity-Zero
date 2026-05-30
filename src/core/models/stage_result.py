@@ -6,7 +6,10 @@ import time
 from dataclasses import MISSING, dataclass, field
 from enum import Enum, StrEnum
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
+
+if TYPE_CHECKING:
+    from src.core.contracts.pipeline_runtime import StageInput, StageOutput
 
 from src.core.frontier.state import NeuralState
 
@@ -388,7 +391,7 @@ class PipelineContext:
         pipeline_input: Any,
         runtime: dict[str, Any] | None = None,
         previous_deltas: list[dict[str, Any]] | None = None,
-    ) -> Any:
+    ) -> StageInput:
         """Build an immutable stage input contract from current context state."""
         from src.core.contracts.pipeline_runtime import StageInput
 
@@ -414,7 +417,7 @@ class PipelineContext:
             previous_deltas=tuple(previous_deltas or []),
         )
 
-    def build_stage_output(self, stage_name: str, duration_seconds: float) -> Any:
+    def build_stage_output(self, stage_name: str, duration_seconds: float) -> StageOutput:
         """Build an immutable stage output contract from merged context state."""
         from src.core.contracts.pipeline_runtime import StageOutput
 

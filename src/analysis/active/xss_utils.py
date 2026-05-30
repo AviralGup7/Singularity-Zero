@@ -374,8 +374,7 @@ def generate_context_payloads(
             quote = signal.split("_")[-1]
 
     # Determine if angle brackets are reflected
-    any("lt" in s or "<" in s for s in context_signals[:0])  # simplified
-    any("gt" in s or ">" in s for s in context_signals[:0])  # simplified
+
 
     if has_non_executable:
         # Nothing can execute inside noscript/textarea/style

@@ -83,7 +83,11 @@ def generate_payload_suggestions(
                 max_payloads_per_param=max_payloads_per_param,
             )
             for item in payloads:
-                key = (str(item.get("parameter", "")), str(item.get("variant", "")))
+                key = (
+                    str(item.get("parameter", "")),
+                    str(item.get("variant", "")),
+                    str(item.get("reason", "")),
+                )
                 if key in seen_pair:
                     continue
                 seen_pair.add(key)

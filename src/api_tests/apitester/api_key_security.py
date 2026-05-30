@@ -105,4 +105,5 @@ def test_api_key_security(
             "results": results,
         }
     finally:
-        session.close()
+        if session is not None and hasattr(session, "close"):
+            session.close()
