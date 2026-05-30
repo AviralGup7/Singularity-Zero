@@ -89,7 +89,7 @@ def _coerce_bounded_int(
     """
     try:
         parsed = int(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         parsed = default
     return max(minimum, min(maximum, parsed))
 
@@ -114,7 +114,7 @@ def _coerce_bounded_float(
     """
     try:
         parsed = float(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         parsed = default
     return max(minimum, min(maximum, parsed))
 
@@ -131,7 +131,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     """
     try:
         return float(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default
 
 
@@ -559,7 +559,7 @@ async def run_post_analysis_enrichments(
 
     except FeedError as exc:
         logger.warning("Threat intelligence enrichment skipped: %s", exc)
-    except TypeError, ValueError, RuntimeError:
+    except (TypeError, ValueError, RuntimeError):
         import traceback
 
         traceback.print_exc()

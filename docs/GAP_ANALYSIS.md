@@ -25,3 +25,7 @@ For implementation and technical references, please consult the corresponding Si
 | **Recurring False-Positive Watchlist** | [architecture.md](architecture.md#8-recurring-false-positive-watchlist) | `FPWatchlistManager`, watchlist serializations, `check_reemergence()` watchdogs and alert triggers. |
 | **Local Dev System Doctor** | [commands.md](commands.md#5-system-maintenance--health) | `cyber system doctor` cli connections diagnostic, setup automation, auto-install platforms. |
 | **Continuous Quality Gates in CI** | [testing.md](testing.md#145-automated-quality-gates--pipeline-security-verification) | CycloneDX SBOM baseline audit, WCAG 2.2 AA accessibility scan, Version lockdown, OpenAPI spec sync gates. |
+| **Collaborative AI Swarm (Red Team)** | [architecture.md](architecture.md#2-cognitive-logic-analysis) | Specialized `AgentNode` swarm actors, gossip-based CRDT state synchronization, role-based target negotiation. |
+| **PPO DRL Evasion Chameleon** | [architecture.md](architecture.md#3-stealth--anti-forensics) | Neural-network-based PPO online policy gradients, greedy argmax action selection, WAF block/challenge probability safeguards. |
+| **Ephemeral Sandbox Proxies** | [architecture.md](architecture.md#5-sandbox-proxies--time-travel) | FastAPI `sandbox_service.py` proxies, timeline state snapshotting, interactive xterm.js terminals. |
+

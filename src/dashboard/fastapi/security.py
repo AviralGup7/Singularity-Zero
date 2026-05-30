@@ -25,7 +25,11 @@ def api_security_enabled() -> bool:
     return os.getenv("ENABLE_API_SECURITY", "false").strip().lower() == "true"
 
 
+_fallback_secret: str | None = None
+
+
 def app_secret_key() -> str:
+    global _fallback_secret
     key = os.getenv("APP_SECRET_KEY") or os.getenv("DASHBOARD_API_KEY")
     is_prod = os.getenv("APP_ENV") == "production"
 
@@ -35,7 +39,9 @@ def app_secret_key() -> str:
                 "CRITICAL SECURITY RISK: APP_SECRET_KEY is not set. "
                 "A high-entropy secret key must be configured in production via environment variables."
             )
-        return "dev-dashboard-secret"
+        if _fallback_secret is None:
+            _fallback_secret = secrets.token_hex(32)
+        return _fallback_secret
 
     if is_prod and key in ("change-me-in-production", "dev-dashboard-secret"):
         raise ValueError(

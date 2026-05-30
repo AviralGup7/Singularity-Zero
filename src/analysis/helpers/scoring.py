@@ -155,6 +155,15 @@ def token_shape(value: str) -> str:
     return "generic"
 
 
+# Replay likelihood weights
+_REPLAY_BASE_WEIGHT = 0.35
+_REPLAY_RESPONSE_BODY_BONUS = 0.3
+_REPLAY_REFERER_RISK_BONUS = 0.18
+_REPLAY_JWT_LIKE_BONUS = 0.15
+_REPLAY_REPEAT_BONUS_PER_COUNT = 0.04
+_REPLAY_MAX_LIKELIHOOD = 0.98
+
+
 def replay_likelihood(location: str, token_shapes: list[str], repeat_count: int) -> float:
     base = _REPLAY_BASE_WEIGHT
     if str(location).lower() == "response_body":
@@ -190,14 +199,6 @@ _SEVERITY_SCORE_MAP = {
     "low": 25,
     "info": 10,
 }
-
-# Replay likelihood weights
-_REPLAY_BASE_WEIGHT = 0.35
-_REPLAY_RESPONSE_BODY_BONUS = 0.3
-_REPLAY_REFERER_RISK_BONUS = 0.18
-_REPLAY_JWT_LIKE_BONUS = 0.15
-_REPLAY_REPEAT_BONUS_PER_COUNT = 0.04
-_REPLAY_MAX_LIKELIHOOD = 0.98
 
 
 def severity_score(severity: str) -> int:

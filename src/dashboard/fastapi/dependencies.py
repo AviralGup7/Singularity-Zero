@@ -162,17 +162,24 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
     query_token = request.query_params.get("token")
     if query_token:
         # Security Note: Tokens in query params can leak into server logs and
-        # browser history. Warn operators and prefer Authorization headers instead.
-        import logging as _logging
+        # browser history. Completely block unless ALLOW_QUERY_PARAMS_AUTH=true is explicitly set.
+        if os.getenv("ALLOW_QUERY_PARAMS_AUTH", "false").strip().lower() == "true":
+            import logging as _logging
 
-        _logging.getLogger(__name__).warning(
-            "Security: JWT token supplied via query parameter for %s. "
-            "Use Authorization: Bearer header instead to avoid token leakage.",
-            request.url.path,
-        )
-        principal = authenticate_jwt_token(query_token)
-        if principal:
-            return cast(Principal | None, principal)
+            _logging.getLogger(__name__).warning(
+                "Security: JWT token supplied via query parameter for %s. "
+                "Use Authorization: Bearer header instead to avoid token leakage.",
+                request.url.path,
+            )
+            principal = authenticate_jwt_token(query_token)
+            if principal:
+                return cast(Principal | None, principal)
+        else:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "Security: JWT token supplied via query parameter was BLOCKED by default policy for %s.",
+                request.url.path,
+            )
 
     header_key = api_key or request.headers.get("X-API-Key")
     if header_key:
@@ -248,8 +255,10 @@ class RateLimiter:
     """In-memory sliding window rate limiter."""
 
     def __init__(self) -> None:
+        import threading
         self._buckets: dict[str, list[float]] = {}
         self._window = 60.0
+        self._lock = threading.Lock()
 
     def check(self, key: str, limit: int) -> tuple[bool, int | None]:
         import time
@@ -257,18 +266,19 @@ class RateLimiter:
         now = time.monotonic()
         cutoff = now - self._window
 
-        if key not in self._buckets:
-            self._buckets[key] = []
+        with self._lock:
+            if key not in self._buckets:
+                self._buckets[key] = []
 
-        self._buckets[key] = [t for t in self._buckets[key] if t > cutoff]
+            self._buckets[key] = [t for t in self._buckets[key] if t > cutoff]
 
-        if len(self._buckets[key]) >= limit:
-            oldest = self._buckets[key][0]
-            retry_after = int(self._window - (now - oldest)) + 1
-            return False, max(retry_after, 1)
+            if len(self._buckets[key]) >= limit:
+                oldest = self._buckets[key][0]
+                retry_after = int(self._window - (now - oldest)) + 1
+                return False, max(retry_after, 1)
 
-        self._buckets[key].append(now)
-        return True, None
+            self._buckets[key].append(now)
+            return True, None
 
 
 _rate_limiter = RateLimiter()
