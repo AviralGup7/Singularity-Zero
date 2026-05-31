@@ -12,7 +12,7 @@ from typing import Any, cast
 class BaseRepo:
     """Base class providing thread-local connection management."""
 
-    _connections = set()
+    _connections: set[sqlite3.Connection] = set()
     _lock = threading.Lock()
 
     def __init__(self, db_path: Path, local: threading.local):

@@ -180,7 +180,7 @@ class DynamicPluginCatalog:
         manifest = record.manifest
         provider = ProcessSandboxCallable(manifest, record.path)
 
-        def runner(payload, _provider=provider):
+        def runner(payload: Any, _provider: ProcessSandboxCallable = provider) -> Any:
             return _provider(payload)
 
         plugin_spec = spec(

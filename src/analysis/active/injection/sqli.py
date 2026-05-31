@@ -19,7 +19,7 @@ SQLI_PAYLOADS: tuple[tuple[str, str], ...] = (
 
 def sqli_safe_probe(
     priority_urls: list[dict[str, Any]] | list[str],
-    response_cache: object | None,
+    response_cache: Any,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
     """Send low-impact SQLi payloads to SQL-relevant query parameters."""

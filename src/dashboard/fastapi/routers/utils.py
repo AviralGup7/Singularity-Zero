@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from fastapi import HTTPException
 
-from src.dashboard.fastapi.config import FeatureFlags
+from src.dashboard.feature_flags import FeatureFlags
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ def heartbeat_interval_seconds() -> float:
     interval = raw_value() if callable(raw_value) else raw_value
     try:
         parsed = float(interval)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         parsed = 25.0
     return max(5.0, parsed)
 

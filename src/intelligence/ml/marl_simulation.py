@@ -15,7 +15,7 @@ try:
 except ImportError:
     import logging
 
-    def get_pipeline_logger(name: str) -> Any:
+    def get_pipeline_logger(name: str) -> Any:  # type: ignore[misc]
         return logging.getLogger(name)
 
 

@@ -517,7 +517,7 @@ class JobQueue:
                 v = value.decode("utf-8") if isinstance(value, bytes) else value
                 try:
                     metrics[k] = int(v)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     metrics[k] = v
 
         queue_length = await self.get_queue_length()

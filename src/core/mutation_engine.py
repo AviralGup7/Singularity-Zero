@@ -6,9 +6,12 @@ and generates appropriate mutation payloads for security testing.
 
 import base64
 import json
+import logging
 import re
 from collections.abc import Iterable
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 from src.core.utils.param_types import (
     IDOR_PARAM_NAMES,

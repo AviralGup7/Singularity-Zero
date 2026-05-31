@@ -682,7 +682,7 @@ class LearningIntegration:
     def close(self) -> None:
         """Close the telemetry store and mesh sync."""
 
-        def run_coro(coro):
+        def run_coro(coro: Any) -> None:
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:

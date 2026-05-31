@@ -73,7 +73,7 @@ def generate_payload_suggestions(
         seen_endpoint_keys.add(endpoint_key)
 
         generated: list[dict[str, str]] = []
-        seen_pair: set[tuple[str, str]] = set()
+        seen_pair: set[tuple[str, str, str]] = set()
 
         for name, value in meaningful_query_pairs(url):
             payloads = generate_parameter_payloads(

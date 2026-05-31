@@ -32,7 +32,7 @@ try:
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
-    np = None
+    np = None  # type: ignore[assignment]
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import parse_qs, urlparse

@@ -97,7 +97,7 @@ class ApiSchemaReconstructor:
             parameterized, path_params = self.parameterize_path(path)
 
             # Infer method from path keywords
-            methods = {"get": {}}
+            methods: dict[str, dict[str, Any]] = {"get": {}}
             path_lower = path.lower()
             if any(k in path_lower for k in ["delete", "remove"]):
                 methods = {"delete": {}}

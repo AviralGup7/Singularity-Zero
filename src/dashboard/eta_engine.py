@@ -158,7 +158,7 @@ class ETAEngine:
         try:
             with open(summary_path, encoding="utf-8") as f:
                 summary = json.load(f)
-        except OSError, json.JSONDecodeError:
+        except (OSError, json.JSONDecodeError):
             logger.debug("Cannot read summary: %s", summary_path)
             return
 
@@ -281,10 +281,9 @@ _eta_engine: ETAEngine | None = None
 
 
 def get_eta_engine() -> ETAEngine:
-    """Return the global ETA engine singleton."""
     global _eta_engine
     if _eta_engine is None:
-        from src.dashboard.fastapi.config import FeatureFlags
+        from src.dashboard.feature_flags import FeatureFlags
 
         _eta_engine = ETAEngine(
             output_dir="output",

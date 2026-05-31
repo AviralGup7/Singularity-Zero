@@ -217,7 +217,8 @@ class WASMPluginHost:
     def _locked_down_wasi_config(self) -> Any:
         config = wasmtime.WasiConfig()
         # Do not inherit argv, environment, stdio, or preopened directories.
-        for name, value in (("argv", []), ("env", [])):
+        items: list[tuple[str, list[str]]] = [("argv", []), ("env", [])]
+        for name, value in items:
             if hasattr(config, name):
                 try:
                     setattr(config, name, value)
