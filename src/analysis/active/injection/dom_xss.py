@@ -418,6 +418,7 @@ def scan_dom_xss(
         try:
             findings = _scan_content(script_content, url, is_external_js=False, html_body=html_body)
             all_findings.extend(findings)
+            all_findings.extend(_scan_dom_xss_chain(script_content, url))
             if findings:
                 logger.debug(
                     "Found %d DOM XSS patterns in inline script #%d at %s",

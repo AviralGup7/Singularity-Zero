@@ -51,6 +51,9 @@ class AgentNode:
         self.state.hlc = self.state.hlc.__class__(node_id=self.node_id)
         
         # BFT & P2P Noise configuration
+        # NOTE: This uses a simulated symmetric PKI for simple prototype/simulation.
+        # A real production deployment must utilize asymmetric cryptographic signatures 
+        # (e.g., Ed25519) to securely verify messages in the P2P gossip network.
         self.secret_key = f"secret-{self.node_id}"
         self.public_key = self.secret_key  # Simulated symmetric PKI
         self.noise_channel = NoiseChannel()

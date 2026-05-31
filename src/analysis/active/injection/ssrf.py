@@ -69,6 +69,12 @@ SSRF_PATH_HINTS = {
 }
 
 
+def _entry_url(url_entry: dict[str, Any] | str) -> str:
+    if isinstance(url_entry, dict):
+        return str(url_entry.get("url", "")).strip()
+    return str(url_entry or "").strip()
+
+
 def _analyze_metadata_response(body: str, provider: str) -> list[str]:
     indicators = []
     if CLOUD_METADATA_RE.search(body):
@@ -93,13 +99,16 @@ def _analyze_metadata_response(body: str, provider: str) -> list[str]:
 
 
 def ssrf_active_probe(
-    priority_urls: list[dict[str, Any]],
+    priority_urls: list[dict[str, Any] | str],
     response_cache: ResponseCache,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Test for SSRF via URL parameters, header injection, and POST bodies. (Fix Audit #9, #10)"""
     findings: list[dict[str, Any]] = []
     seen: set[str] = set()
+
+    if response_cache is None:
+        return findings
 
     url_param_names = {
         "url",
@@ -153,7 +162,7 @@ def ssrf_active_probe(
     for url_entry in priority_urls:
         if len(findings) >= limit:
             break
-        url = str(url_entry.get("url", "")).strip()
+        url = _entry_url(url_entry)
         if not url:
             continue
 

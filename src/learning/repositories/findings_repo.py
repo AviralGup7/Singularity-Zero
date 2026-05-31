@@ -38,6 +38,18 @@ class FindingsRepo(BaseRepo):
             )
             return [dict(r) for r in cur.fetchall()]
 
+    def get_findings_for_runs(self, run_ids: list[str]) -> list[dict]:
+        """Get all findings for multiple runs in a single query."""
+        if not run_ids:
+            return []
+        placeholders = ",".join("?" for _ in run_ids)
+        with self._cursor() as cur:
+            cur.execute(
+                f"SELECT * FROM findings WHERE run_id IN ({placeholders}) ORDER BY confidence DESC",
+                list(run_ids),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
     def count_findings_for_target(self, target: str) -> int:
         """Count total findings for a target across all runs."""
         with self._cursor() as cur:

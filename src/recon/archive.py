@@ -7,6 +7,7 @@ URL set plus per-provider metadata.
 
 from __future__ import annotations
 
+import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, cast
@@ -15,6 +16,8 @@ from src.pipeline.tools import execute_command
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.common import parse_plain_lines
 from src.recon.filters import apply_url_filters
+
+logger = logging.getLogger(__name__)
 
 
 def run_archive_jobs(
@@ -132,6 +135,12 @@ def run_archive_jobs(
                     aggregate_meta[label]["duration_seconds"] += duration
                     aggregate_meta[label]["status"] = "error"
                     aggregate_meta[label]["error_count"] += 1
+                    logger.exception(
+                        "Archive job execute_command failed for provider '%s' with hostnames %s: %s",
+                        label,
+                        batch,
+                        exc,
+                    )
                     timeout_streak_by_provider[label] = timeout_streak_by_provider.get(label, 0) + 1
                     if timeout_streak_by_provider[label] >= max_timeout_streak:
                         disabled_providers.add(label)
@@ -158,23 +167,19 @@ def run_archive_jobs(
                 aggregate_meta[label]["attempt_count"] += max(1, int(outcome.attempt_count or 1))
                 aggregate_meta[label]["configured_timeout_seconds"] = configured_timeout_seconds
                 aggregate_meta[label]["effective_timeout_seconds"] = timeout_seconds
-                aggregate_meta[label]["warning_messages"] = [
-                    *aggregate_meta[label]["warning_messages"],
-                    *[
-                        warning
-                        for warning in outcome.warning_messages
-                        if warning not in aggregate_meta[label]["warning_messages"]
-                    ],
-                ]
-                aggregate_meta[label]["timeout_events"] = [
-                    *aggregate_meta[label]["timeout_events"],
-                    *[
-                        event
-                        for event in outcome.warning_messages
-                        if "timed out" in str(event or "").lower()
-                        and event not in aggregate_meta[label]["timeout_events"]
-                    ],
-                ]
+
+                existing_warnings = set(aggregate_meta[label]["warning_messages"])
+                for warning in outcome.warning_messages:
+                    if warning not in existing_warnings:
+                        aggregate_meta[label]["warning_messages"].append(warning)
+                        existing_warnings.add(warning)
+
+                existing_timeouts = set(aggregate_meta[label]["timeout_events"])
+                for event in outcome.warning_messages:
+                    if "timed out" in str(event or "").lower():
+                        if event not in existing_timeouts:
+                            aggregate_meta[label]["timeout_events"].append(event)
+                            existing_timeouts.add(event)
 
                 if outcome.timed_out:
                     aggregate_meta[label]["timeout_count"] += 1

@@ -104,10 +104,20 @@ def test_wal_aof_append_failure(monkeypatch, tmp_path):
         tmp_path  # a directory instead of file, which causes error when opened for appending
     )
 
-    # Should not raise exception, but should return aof-* ID or None
+    # Should not raise, but must not claim success when no durable backend accepted the entry.
     entry_id = wal.log_delta("stage_x", {"a": 1})
-    # Since AOF write fails and Redis is inactive, it might return aof-ts or None
-    assert entry_id is not None or entry_id is None
+    assert entry_id is None
+
+
+def test_wal_run_id_is_sanitized_for_aof_filename():
+    wal = FrontierWAL(None, r"..\..\outside/run:id")
+    try:
+        assert wal._aof_path.parent == Path(".pipeline") / "wal"
+        assert "\\" not in wal._aof_path.name
+        assert "/" not in wal._aof_path.name
+        assert wal._aof_path.name.startswith("local_wal_")
+    finally:
+        wal.cleanup()
 
 
 def test_wal_recovery_redis_failed_or_corrupt(monkeypatch, tmp_path):
@@ -299,6 +309,60 @@ def test_wal_recover_deltas_redis_exception(monkeypatch, tmp_path):
     recovered = wal.recover_deltas()
     assert len(recovered) == 1
     assert recovered[0]["stage"] == "fallback_stage"
+
+    wal.cleanup()
+
+
+def test_wal_recover_deltas_uses_aof_when_redis_stream_is_empty(monkeypatch, tmp_path):
+    mock_redis = MagicMock()
+    mock_redis.ping.return_value = True
+    mock_redis.xrange.return_value = []
+    monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
+
+    run_id = "test_run_empty_redis_with_aof"
+    wal = FrontierWAL("redis://localhost", run_id)
+    wal._aof_path = tmp_path / f"local_wal_{run_id}.aof"
+
+    raw_delta = msgpack.packb({"from": "aof"}, use_bin_type=True)
+    aof_entry = {
+        "ts": 123.456,
+        "stage": "fallback_stage",
+        "id": "aof-123",
+        "tx_id": "tx_aof_only",
+        "crc64": compute_crc64(raw_delta),
+        "delta": base64.b64encode(raw_delta).decode("utf-8"),
+    }
+    with open(wal._aof_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(aof_entry) + "\n")
+
+    recovered = wal.recover_deltas()
+    assert len(recovered) == 1
+    assert recovered[0]["id"] == "aof-123"
+    assert recovered[0]["stage"] == "fallback_stage"
+    assert recovered[0]["delta"] == {"from": "aof"}
+
+    wal.cleanup()
+
+
+def test_wal_aof_fallback_honors_stream_start_id(monkeypatch, tmp_path):
+    mock_redis = MagicMock()
+    mock_redis.ping.return_value = True
+    mock_redis.xadd.side_effect = [b"1-0", b"2-0"]
+    mock_redis.xrange.side_effect = Exception("Redis unavailable during recovery")
+    monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
+
+    run_id = "test_run_aof_stream_cursor"
+    wal = FrontierWAL("redis://localhost", run_id)
+    wal._aof_path = tmp_path / f"local_wal_{run_id}.aof"
+
+    assert wal.log_delta("stage_1", {"k1": "v1"}) == "1-0"
+    assert wal.log_delta("stage_2", {"k2": "v2"}) == "2-0"
+
+    recovered = wal.recover_deltas(start_id="1-0")
+    assert len(recovered) == 1
+    assert recovered[0]["id"] == "2-0"
+    assert recovered[0]["stream_id"] == "2-0"
+    assert recovered[0]["delta"] == {"k2": "v2"}
 
     wal.cleanup()
 

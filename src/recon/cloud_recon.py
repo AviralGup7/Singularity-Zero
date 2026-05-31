@@ -293,16 +293,5 @@ class CloudBucketScanner:
 
     def run_scan_sync(self, target: str) -> list[dict[str, Any]]:
         """Synchronous runner wrapper for the async scan."""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        if loop.is_running():
-            # If already running inside an active loop (e.g. uvicorn), run via a future
-            import nest_asyncio
-
-            nest_asyncio.apply()
-
-        return loop.run_until_complete(self.scan_all_candidates(target))
+        from src.recon.common import run_async_in_sync_context
+        return run_async_in_sync_context(self.scan_all_candidates(target))

@@ -36,6 +36,34 @@ class FpPatternsRepo(BaseRepo):
                 row,
             )
 
+    def upsert_fp_patterns(self, rows: list[dict[str, Any]]) -> None:
+        """Insert or update multiple FP patterns in a single transaction."""
+        if not rows:
+            return
+        processed_rows = []
+        for row in rows:
+            if "is_active" in row and isinstance(row["is_active"], bool):
+                row = dict(row)
+                row["is_active"] = self._bool_to_int(row["is_active"])
+            processed_rows.append(row)
+
+        with self._cursor() as cur:
+            cur.executemany(
+                """INSERT OR REPLACE INTO fp_patterns
+                   (pattern_id, category, status_code_pattern, body_pattern,
+                    header_pattern, response_similarity, first_seen, last_seen,
+                    occurrence_count, confirmed_fp_count, confirmed_tp_count,
+                    fp_probability, confidence, is_active, suppression_action,
+                    created_at, updated_at)
+                   VALUES (:pattern_id, :category, :status_code_pattern,
+                           :body_pattern, :header_pattern, :response_similarity,
+                           :first_seen, :last_seen, :occurrence_count,
+                           :confirmed_fp_count, :confirmed_tp_count,
+                           :fp_probability, :confidence, :is_active,
+                           :suppression_action, :created_at, :updated_at)""",
+                processed_rows,
+            )
+
     def get_fp_patterns(self, category: str | None = None, active_only: bool = True) -> list[dict]:
         """Get FP patterns, optionally filtered."""
         with self._cursor() as cur:

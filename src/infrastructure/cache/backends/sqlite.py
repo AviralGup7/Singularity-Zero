@@ -14,12 +14,17 @@ import shutil
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
 from .protocol import _ThreadLocalConnections
 
 logger = logging.getLogger(__name__)
+_CONNECT_TIMEOUT_SECONDS = 5.0
+_BUSY_TIMEOUT_MS = 5000
+_LOCK_RETRY_ATTEMPTS = 4
+_LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
 
 
 class SQLiteBackend:
@@ -54,7 +59,7 @@ class SQLiteBackend:
             / "cache_layer.db"
         )
         self._max_entries = max_entries
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._thread_local = _ThreadLocalConnections()
         self._init_db()
 
@@ -68,12 +73,48 @@ class SQLiteBackend:
         self._ensure_thread_local()
         if self._thread_local.conn is not None:
             return self._thread_local.conn
-        conn = sqlite3.connect(self._db_path)
+        conn = sqlite3.connect(
+            self._db_path,
+            timeout=_CONNECT_TIMEOUT_SECONDS,
+            check_same_thread=False,
+        )
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
         conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA foreign_keys=ON")
         self._thread_local.conn = conn
         return conn
+
+    @staticmethod
+    def _is_locked_error(exc: BaseException) -> bool:
+        message = str(exc).lower()
+        return "database is locked" in message or "database table is locked" in message
+
+    def _with_retry(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
+        last_exc: sqlite3.OperationalError | None = None
+        for attempt in range(_LOCK_RETRY_ATTEMPTS):
+            conn = self._get_conn()
+            try:
+                return operation(conn)
+            except sqlite3.OperationalError as exc:
+                last_exc = exc
+                try:
+                    conn.rollback()
+                except sqlite3.Error:
+                    pass
+                self._close_conn()
+                if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
+                    raise
+                time.sleep(_LOCK_RETRY_BASE_DELAY_SECONDS * (2**attempt))
+            except Exception:
+                try:
+                    conn.rollback()
+                except sqlite3.Error:
+                    pass
+                raise
+        if last_exc is not None:
+            raise last_exc
+        return None
 
     def _close_conn(self) -> None:
         """Close the cached per-thread connection."""
@@ -158,7 +199,7 @@ class SQLiteBackend:
                 if row is None:
                     return None
                 value_str, expires_at = row
-                if expires_at is not None and now > expires_at:
+                if expires_at is not None and now >= expires_at:
                     conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
                     conn.commit()
                     return None
@@ -180,8 +221,8 @@ class SQLiteBackend:
             ttl: Optional time-to-live in seconds.
         """
         with self._lock:
-            conn = self._get_conn()
-            try:
+
+            def _op(conn: sqlite3.Connection) -> None:
                 now = time.time()
                 expires_at = now + ttl if ttl is not None else None
                 value_str = json.dumps(value, default=str)
@@ -199,6 +240,10 @@ class SQLiteBackend:
                     (key, value_str, now, expires_at, now),
                 )
                 conn.commit()
+
+            try:
+                self._with_retry(_op)
+                self.evict_lru(max(0, self.size() - self._max_entries))
             finally:
                 self._close_conn()
 
@@ -250,6 +295,7 @@ class SQLiteBackend:
                     (key, value_str, now, expires_at, now, tags_str, namespace, deps_str, meta_str),
                 )
                 conn.commit()
+                self.evict_lru(max(0, self.size() - self._max_entries))
             finally:
                 self._close_conn()
 
@@ -322,7 +368,9 @@ class SQLiteBackend:
                 if row is None:
                     return False
                 expires_at = row[0]
-                if expires_at is not None and now > expires_at:
+                if expires_at is not None and now >= expires_at:
+                    conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                    conn.commit()
                     return False
                 return True
             finally:
@@ -374,7 +422,7 @@ class SQLiteBackend:
             try:
                 now = time.time()
                 cursor = conn.execute(
-                    "DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
+                    "DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at <= ?",
                     (now,),
                 )
                 conn.commit()
@@ -471,12 +519,15 @@ class SQLiteBackend:
                     """
                     SELECT key
                     FROM cache_entries
-                    WHERE tags = ?
-                        OR tags LIKE ?
-                        OR tags LIKE ?
-                        OR tags LIKE ?
+                    WHERE (expires_at IS NULL OR expires_at > ?)
+                        AND (
+                            tags = ?
+                            OR tags LIKE ?
+                            OR tags LIKE ?
+                            OR tags LIKE ?
+                        )
                     """,
-                    (tag, f"{tag},%", f"%,{tag},%", f"%,{tag}"),
+                    (time.time(), tag, f"{tag},%", f"%,{tag},%", f"%,{tag}"),
                 )
                 return [row[0] for row in cursor.fetchall()]
             finally:
@@ -485,6 +536,50 @@ class SQLiteBackend:
     def get_keys_by_tag(self, tag: str) -> list[str]:
         """Compatibility alias for tag lookup."""
         return self.get_by_tag(tag)
+
+    def get_ttl_remaining(self, key: str) -> float | None:
+        """Return remaining TTL for an active key, or None for no expiry/missing."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cursor = conn.execute(
+                    "SELECT expires_at FROM cache_entries WHERE key = ?",
+                    (key,),
+                )
+                row = cursor.fetchone()
+                if row is None or row[0] is None:
+                    return None
+                remaining = row[0] - time.time()
+                if remaining <= 0:
+                    conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                    conn.commit()
+                    return 0.0
+                return remaining
+            finally:
+                self._close_conn()
+
+    def get_keys_matching_roots(self, roots: builtins.set[str]) -> list[str]:
+        """Return active keys matching exact roots or unqualified root suffixes."""
+        if not roots:
+            return []
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cursor = conn.execute(
+                    "SELECT key FROM cache_entries WHERE expires_at IS NULL OR expires_at > ?",
+                    (time.time(),),
+                )
+                matches: list[str] = []
+                for row in cursor.fetchall():
+                    candidate = row[0]
+                    if candidate in roots:
+                        matches.append(candidate)
+                        continue
+                    if any(":" not in root and candidate.endswith(f":{root}") for root in roots):
+                        matches.append(candidate)
+                return matches
+            finally:
+                self._close_conn()
 
     def get_dependents(self, key: str) -> list[str]:
         """Find all entries that depend on a given key.
@@ -498,12 +593,18 @@ class SQLiteBackend:
         with self._lock:
             conn = self._get_conn()
             try:
-                pattern = f"%{key}%"
                 cursor = conn.execute(
-                    "SELECT key FROM cache_entries WHERE depends_on LIKE ?",
-                    (pattern,),
+                    "SELECT key, depends_on FROM cache_entries WHERE expires_at IS NULL OR expires_at > ?",
+                    (time.time(),),
                 )
-                return [row[0] for row in cursor.fetchall()]
+                dependents = []
+                for row in cursor.fetchall():
+                    deps = {dep for dep in str(row[1] or "").split(",") if dep}
+                    if key in deps or (
+                        ":" not in key and any(dep.endswith(f":{key}") for dep in deps)
+                    ):
+                        dependents.append(row[0])
+                return dependents
             finally:
                 self._close_conn()
 

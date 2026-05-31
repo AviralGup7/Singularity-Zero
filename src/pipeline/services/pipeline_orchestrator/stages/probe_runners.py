@@ -46,7 +46,8 @@ def _run_jwt_attack_suite(
 ) -> list[dict[str, Any]]:
     try:
         import requests
-    except (ImportError, TypeError, ValueError, AttributeError):
+    except (ImportError, TypeError, ValueError, AttributeError) as exc:
+        logger.warning("Failed to import requests in JWT attack suite: %s", exc)
         return []
 
     findings: list[dict[str, Any]] = []
@@ -67,11 +68,11 @@ def _run_jwt_attack_suite(
             continue
 
         token = tokens[0]
-        session = requests.Session()
-        tested += 1
-        result = probes["run_jwt_attack_suite"](token, url, session, config=None)
-        if not isinstance(result, dict):
-            continue
+        with requests.Session() as session:
+            tested += 1
+            result = probes["run_jwt_attack_suite"](token, url, session, config=None)
+            if not isinstance(result, dict):
+                continue
 
         vulnerable_attacks = int(result.get("vulnerable_attacks", 0) or 0)
         if vulnerable_attacks <= 0:
@@ -223,6 +224,17 @@ async def _try_probe(
     **kwargs: Any,
 ) -> tuple[str, list[dict[str, Any]], bool]:
     """Run a probe, return (name, findings, success)."""
+    import time
+    from src.pipeline.services.instrumentation import event_bus, StageEvent, get_memory_usage
+
+    start_time = time.perf_counter()
+    start_mem = get_memory_usage()
+
+    findings_list: list[dict[str, Any]] = []
+    success = False
+    termination_code = 0
+    failure_reason = ""
+
     emit_progress(
         "active_scan",
         f"Starting active check {name}",
@@ -234,6 +246,9 @@ async def _try_probe(
     )
 
     def _record_failure(reason: str, message: str) -> tuple[str, list[dict[str, Any]], bool]:
+        nonlocal failure_reason, termination_code
+        failure_reason = reason
+        termination_code = 1
         logger.warning(message)
         emit_progress(
             "active_scan",
@@ -251,45 +266,80 @@ async def _try_probe(
         return name, [], False
 
     try:
-        active_manifest = (manifest or get_active_manifest(name)).with_timeout(timeout_seconds)
-    except KeyError:
-        active_manifest = None
+        try:
+            active_manifest = (manifest or get_active_manifest(name)).with_timeout(timeout_seconds)
+        except KeyError:
+            active_manifest = None
 
-    if active_manifest is not None and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off":
-        isolated_args = args
-        isolated_kwargs = kwargs
-        if ActiveCapability.RESPONSE_CACHE in active_manifest.required_capabilities:
-            isolated_args = replace_unpicklable_response_caches(args)
-            isolated_kwargs = replace_unpicklable_response_caches(kwargs)
-        result = await asyncio.to_thread(
-            run_callable_isolated,
-            probe_fn,
-            isolated_args,
-            isolated_kwargs,
-            active_manifest,
-        )
-        if result.reason == "serialization_error" and os.environ.get("PYTEST_CURRENT_TEST"):
-            logger.debug("Falling back to in-process probe execution for pytest-local callable")
-        elif result.reason == "serialization_error":
-            return _record_failure(
-                "serialization_error",
-                f"Probe '{name}' could not enter isolated execution: {result.error}",
+        if active_manifest is not None and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off":
+            isolated_args = args
+            isolated_kwargs = kwargs
+            if ActiveCapability.RESPONSE_CACHE in active_manifest.required_capabilities:
+                isolated_args = replace_unpicklable_response_caches(args)
+                isolated_kwargs = replace_unpicklable_response_caches(kwargs)
+            result = await asyncio.to_thread(
+                run_callable_isolated,
+                probe_fn,
+                isolated_args,
+                isolated_kwargs,
+                active_manifest,
             )
-        else:
-            if not result.ok:
-                reason = result.reason or "error"
-                message = (
-                    f"Probe '{name}' failed in isolated process: {result.error}"
-                    if reason != "timeout"
-                    else f"Probe '{name}' timed out after {active_manifest.budget.timeout_seconds}s"
+            if result.reason == "serialization_error" and os.environ.get("PYTEST_CURRENT_TEST"):
+                logger.debug("Falling back to in-process probe execution for pytest-local callable")
+            elif result.reason == "serialization_error":
+                return _record_failure(
+                    "serialization_error",
+                    f"Probe '{name}' could not enter isolated execution: {result.error}",
                 )
-                return _record_failure(reason, message)
+            else:
+                if not result.ok:
+                    reason = result.reason or "error"
+                    message = (
+                        f"Probe '{name}' failed in isolated process: {result.error}"
+                        if reason != "timeout"
+                        else f"Probe '{name}' timed out after {active_manifest.budget.timeout_seconds}s"
+                    )
+                    return _record_failure(reason, message)
 
+                findings = cast(
+                    list[dict[str, Any]],
+                    result.value
+                    if isinstance(result.value, list)
+                    else ([result.value] if result.value else []),
+                )
+                emit_progress(
+                    "active_scan",
+                    f"Completed active check {name} with {len(findings)} findings",
+                    92,
+                    check_id=name,
+                    sub_stage=name,
+                    telemetry_event_type="check.completed",
+                    targets_done=len(findings),
+                    stage_status="running",
+                )
+                findings_list = findings
+                success = True
+                return name, findings, True
+
+        async def _execute_probe() -> object:
+            if inspect.iscoroutinefunction(probe_fn):
+                return await probe_fn(*args, **kwargs)
+
+            result = await asyncio.to_thread(probe_fn, *args, **kwargs)
+            if inspect.isawaitable(result):
+                return await result
+            return result
+
+        try:
+            if timeout_seconds is not None and timeout_seconds > 0:
+                probe_result = await asyncio.wait_for(_execute_probe(), timeout=timeout_seconds)
+            else:
+                probe_result = await _execute_probe()
             findings = cast(
                 list[dict[str, Any]],
-                result.value
-                if isinstance(result.value, list)
-                else ([result.value] if result.value else []),
+                probe_result
+                if isinstance(probe_result, list)
+                else ([probe_result] if probe_result else []),
             )
             emit_progress(
                 "active_scan",
@@ -301,45 +351,33 @@ async def _try_probe(
                 targets_done=len(findings),
                 stage_status="running",
             )
+            findings_list = findings
+            success = True
             return name, findings, True
-
-    async def _execute_probe() -> object:
-        if inspect.iscoroutinefunction(probe_fn):
-            return await probe_fn(*args, **kwargs)
-
-        result = await asyncio.to_thread(probe_fn, *args, **kwargs)
-        if inspect.isawaitable(result):
-            return await result
-        return result
-
-    try:
-        if timeout_seconds is not None and timeout_seconds > 0:
-            probe_result = await asyncio.wait_for(_execute_probe(), timeout=timeout_seconds)
-        else:
-            probe_result = await _execute_probe()
-        findings = cast(
-            list[dict[str, Any]],
-            probe_result
-            if isinstance(probe_result, list)
-            else ([probe_result] if probe_result else []),
+        except TimeoutError:
+            msg = f"Probe '{name}' timed out after {timeout_seconds}s"
+            return _record_failure("timeout", msg)
+        except Exception as exc:
+            msg = f"Probe '{name}' failed: {exc}"
+            return _record_failure("error", msg)
+    finally:
+        latency = time.perf_counter() - start_time
+        mem_footprint = max(0.0, get_memory_usage() - start_mem)
+        details = {
+            "probe_name": name,
+            "findings_count": len(findings_list),
+            "success": success,
+        }
+        if failure_reason:
+            details["reason"] = failure_reason
+        event = StageEvent(
+            stage_name=f"active_scan.probe.{name}",
+            latency_seconds=latency,
+            memory_footprint_mb=mem_footprint,
+            termination_code=termination_code,
+            details=details,
         )
-        emit_progress(
-            "active_scan",
-            f"Completed active check {name} with {len(findings)} findings",
-            92,
-            check_id=name,
-            sub_stage=name,
-            telemetry_event_type="check.completed",
-            targets_done=len(findings),
-            stage_status="running",
-        )
-        return name, findings, True
-    except TimeoutError:
-        msg = f"Probe '{name}' timed out after {timeout_seconds}s"
-        return _record_failure("timeout", msg)
-    except Exception as exc:
-        msg = f"Probe '{name}' failed: {exc}"
-        return _record_failure("error", msg)
+        event_bus(event)
 
 
 async def _run_fuzzing_campaign_probe(

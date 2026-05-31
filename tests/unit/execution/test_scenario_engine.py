@@ -367,6 +367,36 @@ class ScenarioEngineTests(unittest.TestCase):
         self.assertTrue(result_by_name["gate"].skipped)
         self.assertTrue(result_by_name["dependent"].skipped)
 
+    def test_session_persistence_is_triggered(self) -> None:
+        persisted_calls = []
+
+        def handle_persistence(sessions: dict[str, Session]) -> None:
+            persisted_calls.append(sessions)
+
+        def fake_transport(request: Request, _: CookieJar) -> Response:
+            return Response(
+                requested_url=request.url,
+                final_url=request.url,
+                status_code=200,
+                headers={},
+                body="ok",
+            )
+
+        engine = ScenarioExecutionEngine(
+            transport=fake_transport,
+            session_persistence_handler=handle_persistence
+        )
+        steps = [
+            ScenarioStep(
+                name="step1",
+                request=Request(method="GET", url="https://api.example.com/step1"),
+            )
+        ]
+        result = engine.execute(steps)
+        self.assertTrue(result.success)
+        self.assertEqual(len(persisted_calls), 2)  # called on startup ready states, and finally
+        self.assertIn("default", persisted_calls[-1])
+
 
 if __name__ == "__main__":
     unittest.main()

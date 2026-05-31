@@ -115,11 +115,11 @@ class BaselineTracker:
             mean = sum(values) / len(values)
             std = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
 
-            if std == 0:
-                continue
-
             current_val = getattr(current, attr_name)
-            z_score = abs(current_val - mean) / max(std, 0.001)
+            if std == 0:
+                z_score = 999.0 if current_val != mean else 0.0
+            else:
+                z_score = abs(current_val - mean) / std
 
             if z_score > threshold:
                 anomaly_score += min(z_score / (threshold * 3), 1.0)

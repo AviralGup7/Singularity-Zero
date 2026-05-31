@@ -4,23 +4,90 @@ from collections.abc import Callable
 from typing import Any
 
 from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
+from src.analysis.active.injection.command_injection import command_injection_active_probe
 from src.analysis.active.injection.csrf import csrf_active_probe
+from src.analysis.active.injection.crlf import crlf_injection_probe
+from src.analysis.active.injection.deserialization import deserialization_probe
+from src.analysis.active.injection.host_header import host_header_injection_probe
 from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
+from src.analysis.active.injection.nosql import nosql_injection_probe
+from src.analysis.active.injection.open_redirect import open_redirect_active_probe
 from src.analysis.active.injection.parameter_pollution import hpp_active_probe
+from src.analysis.active.injection.path_traversal import path_traversal_active_probe
 from src.analysis.active.injection.proxy_ssrf import proxy_ssrf_probe
+from src.analysis.active.injection.sqli import sqli_safe_probe
+from src.analysis.active.injection.ssrf import ssrf_active_probe
+from src.analysis.active.injection.ssti import ssti_active_probe
 from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
 from src.analysis.active.injection.xpath import xpath_injection_active_probe
+from src.analysis.active.injection.xxe import xxe_active_probe
+from src.analysis.active.param_mining import param_mining_probe
 from src.analysis.behavior.flow_prober import run_cognitive_flow_analysis
+from src.analysis.checks.active._impl import (
+    dom_xss_signal_detector,
+    reflected_xss_probe,
+    server_side_injection_surface_analyzer,
+    stored_xss_signal_detector,
+)
 from src.analysis.checks.active.access_control_analyzer import access_control_analyzer
 from src.analysis.checks.active.auth_bypass_check import auth_bypass_check
+from src.analysis.checks.active.email_header_injection import email_header_injection_probe
 from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
 from src.analysis.checks.active.idor_probe import idor_active_probe
+from src.analysis.checks.active.jwt import jwt_security_analyzer
+from src.analysis.checks.active.ssrf_oob_validator import ssrf_oob_validator
+from src.analysis.checks.active.xml_bomb_detector import xml_bomb_detector
+from src.analysis.checks.exposure._impl import (
+    backup_file_exposure_checker,
+    cache_poisoning_indicator_checker,
+    cdn_waf_fingerprint_gap_checker,
+    environment_file_exposure_checker,
+    hsts_weakness_checker,
+    http_method_exposure_checker,
+    locale_debug_toggle_checker,
+    log_file_exposure_checker,
+    parameter_pollution_indicator_checker,
+    public_repo_exposure_checker,
+    rate_limit_header_analyzer,
+    referrer_policy_weakness_checker,
+    service_worker_misconfiguration_checker,
+    third_party_key_exposure_checker,
+)
+from src.analysis.checks.passive._impl import (
+    cache_control_checker,
+    cookie_security_checker,
+    cors_misconfig_checker,
+    debug_artifact_checker,
+    directory_listing_checker,
+    frontend_config_exposure_checker,
+    header_checker,
+    jsonp_endpoint_checker,
+)
+from src.analysis.json._core.json_analysis import (
+    access_boundary_tracker,
+    bulk_endpoint_detector,
+    cross_tenant_pii_risk_analyzer,
+    cross_user_access_simulation,
+    endpoint_resource_groups,
+    json_response_parser,
+    json_schema_inference,
+    nested_object_traversal,
+    privilege_escalation_detector,
+    response_structure_validator,
+    role_based_endpoint_comparison,
+    role_context_diff,
+    sensitive_field_detector,
+)
 from src.analysis.passive.detectors.detector_app_ssrf import scan_responses as app_ssrf_scan
 from src.analysis.passive.detectors.detector_clickjacking import clickjacking_detector
+from src.analysis.passive.detectors.detector_csrf import csrf_protection_checker
 from src.analysis.passive.detectors.detector_graphql import graphql_introspection_detector
 from src.analysis.passive.detectors.detector_logging import logging_security_detector
 from src.analysis.passive.detectors.detector_oauth import oauth_misconfiguration_detector
 from src.analysis.passive.detectors.detector_open_redirect import open_redirect_detector
+from src.analysis.passive.detectors.detector_sqli import sql_error_exposure_detector
+from src.analysis.passive.detectors.detector_ssti import ssti_surface_detector
+from src.analysis.passive.detectors.detector_upload import file_upload_surface_detector
 from src.analysis.passive.detectors.detector_vulnerable_components import (
     vulnerable_component_detector,
 )
@@ -66,32 +133,52 @@ def _register_bindings() -> None:
 
     bindings = {
         "sensitive_data_scanner": _binding("responses_only"),
-        "header_checker": _binding("header_targets_and_cache"),
-        "cookie_security_checker": _binding("responses_only"),
-        "cors_misconfig_checker": _binding("responses_only"),
-        "cache_control_checker": _binding("responses_only"),
-        "jsonp_endpoint_checker": _binding("responses_only"),
-        "frontend_config_exposure_checker": _binding("responses_only"),
-        "directory_listing_checker": _binding("responses_only"),
-        "debug_artifact_checker": _binding("responses_only"),
-        "stored_xss_signal_detector": _binding("responses_only"),
+        "header_checker": _binding("header_targets_and_cache", header_checker),
+        "cookie_security_checker": _binding("responses_only", cookie_security_checker),
+        "cors_misconfig_checker": _binding("responses_only", cors_misconfig_checker),
+        "cache_control_checker": _binding("responses_only", cache_control_checker),
+        "jsonp_endpoint_checker": _binding("responses_only", jsonp_endpoint_checker),
+        "frontend_config_exposure_checker": _binding(
+            "responses_only", frontend_config_exposure_checker
+        ),
+        "directory_listing_checker": _binding("responses_only", directory_listing_checker),
+        "debug_artifact_checker": _binding("urls_and_responses", debug_artifact_checker),
+        "stored_xss_signal_detector": _binding("responses_only", stored_xss_signal_detector),
+        "dom_xss_signal_detector": _binding("responses_only", dom_xss_signal_detector),
         "token_leak_detector": _binding("responses_only"),
         "graphql_introspection_detector": _binding(
             "urls_and_responses", graphql_introspection_detector
         ),
-        "csrf_protection_checker": _binding("responses_only"),
-        "ssti_surface_detector": _binding("responses_only"),
-        "file_upload_surface_detector": _binding("responses_only"),
+        "csrf_protection_checker": _binding(
+            "urls_and_responses",
+            csrf_protection_checker,
+        ),
+        "ssti_surface_detector": _binding("urls_and_responses", ssti_surface_detector),
+        "file_upload_surface_detector": _binding(
+            "responses_only", file_upload_surface_detector
+        ),
         "vulnerable_component_detector": _binding(
             "urls_and_responses", vulnerable_component_detector
         ),
         "business_logic_tampering_detector": _binding("responses_only"),
+        "sql_error_exposure_detector": _binding(
+            "responses_only",
+            sql_error_exposure_detector,
+            phase="discover",
+            consumes=("responses",),
+            produces=("finding",),
+        ),
         "rate_limit_bypass_detector": _binding(
             "ranked_items_and_cache",
             limit_key="rate_limit_probe_limit",
             default_limit=10,
         ),
-        "jwt_security_analyzer": _binding("urls_and_responses"),
+        "jwt_security_analyzer": _binding(
+            "priority_urls_and_cache",
+            jwt_security_analyzer,
+            limit_key="jwt_analysis_limit",
+            default_limit=20,
+        ),
         "http_smuggling_detector": _binding(
             "ranked_items_and_cache",
             limit_key="smuggling_probe_limit",
@@ -110,19 +197,25 @@ def _register_bindings() -> None:
         "post_body_mutation_attacks": _binding("priority_urls_and_cache"),
         "flow_detector": _binding("urls_and_responses"),
         "multi_step_flow_breaking_probe": _binding("priority_urls_and_cache"),
-        "cross_user_access_simulation": _binding("priority_urls_and_cache"),
-        "role_based_endpoint_comparison": _binding("priority_urls_and_cache"),
-        "privilege_escalation_detector": _binding("priority_urls_and_cache"),
-        "access_boundary_tracker": _binding("priority_urls_and_cache"),
+        "cross_user_access_simulation": _binding(
+            "responses_only", cross_user_access_simulation
+        ),
+        "role_based_endpoint_comparison": _binding(
+            "responses_only", role_based_endpoint_comparison
+        ),
+        "privilege_escalation_detector": _binding(
+            "priority_urls_and_cache", privilege_escalation_detector
+        ),
+        "access_boundary_tracker": _binding("responses_only", access_boundary_tracker),
         "session_reuse_detection": _binding("responses_only"),
         "logout_invalidation_check": _binding("responses_only"),
         "multi_endpoint_auth_consistency_check": _binding("responses_only"),
         "token_scope_analyzer": _binding("responses_only"),
         "referer_propagation_tracking": _binding("responses_only"),
-        "sensitive_field_detector": _binding("responses_only"),
-        "nested_object_traversal": _binding("responses_only"),
-        "endpoint_resource_groups": _binding("responses_only"),
-        "bulk_endpoint_detector": _binding("responses_only"),
+        "sensitive_field_detector": _binding("responses_only", sensitive_field_detector),
+        "nested_object_traversal": _binding("responses_only", nested_object_traversal),
+        "endpoint_resource_groups": _binding("urls_only", endpoint_resource_groups),
+        "bulk_endpoint_detector": _binding("urls_only", bulk_endpoint_detector),
         "pagination_walker": _binding("responses_only"),
         "filter_parameter_fuzzer": _binding("responses_only"),
         "error_based_inference": _binding("responses_only"),
@@ -131,12 +224,14 @@ def _register_bindings() -> None:
         "flow_integrity_checker": _binding("responses_only"),
         "race_condition_signal_analyzer": _binding("responses_only"),
         "version_diffing": _binding("responses_only"),
-        "role_context_diff": _binding("responses_only"),
+        "role_context_diff": _binding("responses_only", role_context_diff),
         "unauth_access_check": _binding("responses_only"),
         "rate_limit_signal_analyzer": _binding("responses_and_bulk_items"),
         "rate_limit_header_analyzer": _binding("responses_only"),
         "response_size_anomaly_detector": _binding("responses_only"),
-        "response_structure_validator": _binding("responses_only"),
+        "response_structure_validator": _binding(
+            "responses_only", response_structure_validator
+        ),
         "payment_flow_intelligence": _binding("responses_only"),
         "payment_provider_detection": _binding("responses_only"),
         "behavior_analysis_layer": _binding("behavior_analysis"),
@@ -176,17 +271,34 @@ def _register_bindings() -> None:
         "parameter_pollution_indicator_checker": _binding("responses_only"),
         "locale_debug_toggle_checker": _binding("responses_only"),
         "third_party_key_exposure_checker": _binding("responses_only"),
-        "json_response_parser": _binding("responses_only"),
-        "json_schema_inference": _binding("responses_only"),
-        "cross_tenant_pii_risk_analyzer": _binding("responses_only"),
-        "server_side_injection_surface_analyzer": _binding("responses_only"),
+        "json_response_parser": _binding("responses_only", json_response_parser),
+        "json_schema_inference": _binding("responses_only", json_schema_inference),
+        "cross_tenant_pii_risk_analyzer": _binding(
+            "responses_only", cross_tenant_pii_risk_analyzer
+        ),
+        "server_side_injection_surface_analyzer": _binding(
+            "urls_and_responses", server_side_injection_surface_analyzer
+        ),
         "options_method_probe": _binding("priority_urls_and_cache"),
         "origin_reflection_probe": _binding("priority_urls_and_cache"),
         "head_method_probe": _binding("priority_urls_and_cache"),
         "cors_preflight_probe": _binding("priority_urls_and_cache"),
         "trace_method_probe": _binding("priority_urls_and_cache"),
-        "reflected_xss_probe": _binding("priority_urls_and_cache"),
-        "sqli_safe_probe": _binding("priority_urls_and_cache"),
+        "reflected_xss_probe": _binding(
+            "priority_urls_and_cache",
+            reflected_xss_probe,
+            limit_key="reflected_xss_probe_limit",
+            default_limit=6,
+        ),
+        "sqli_safe_probe": _binding(
+            "priority_urls_and_cache",
+            sqli_safe_probe,
+            limit_key="sqli_probe_limit",
+            default_limit=12,
+            phase="validate",
+            consumes=("priority_urls", "response_cache"),
+            produces=("finding",),
+        ),
         "graphql_active_probe": _binding("priority_urls_and_cache"),
         "graphql_introspection_check": _binding(
             "priority_urls_and_cache",
@@ -222,17 +334,25 @@ def _register_bindings() -> None:
             "priority_urls_and_cache",
             limit_key="path_traversal_limit",
             default_limit=12,
+            runner=path_traversal_active_probe,
         ),
         "command_injection_active_probe": _binding(
             "priority_urls_and_cache",
             limit_key="command_injection_limit",
             default_limit=10,
+            runner=command_injection_active_probe,
         ),
         "xxe_active_probe": _binding(
-            "priority_urls_and_cache", limit_key="xxe_probe_limit", default_limit=8
+            "priority_urls_and_cache",
+            limit_key="xxe_probe_limit",
+            default_limit=8,
+            runner=xxe_active_probe,
         ),
         "ssrf_active_probe": _binding(
-            "priority_urls_and_cache", limit_key="ssrf_probe_limit", default_limit=10
+            "priority_urls_and_cache",
+            limit_key="ssrf_probe_limit",
+            default_limit=10,
+            runner=ssrf_active_probe,
         ),
         "proxy_ssrf_probe": _binding(
             "priority_urls_and_cache",
@@ -245,29 +365,37 @@ def _register_bindings() -> None:
             "priority_urls_and_cache",
             limit_key="open_redirect_limit",
             default_limit=10,
+            runner=open_redirect_active_probe,
         ),
         "crlf_injection_probe": _binding(
             "priority_urls_and_cache",
             limit_key="crlf_injection_limit",
             default_limit=10,
+            runner=crlf_injection_probe,
         ),
         "host_header_injection_probe": _binding(
             "priority_urls_and_cache",
             limit_key="host_header_limit",
             default_limit=8,
+            runner=host_header_injection_probe,
         ),
         "ssti_active_probe": _binding(
-            "priority_urls_and_cache", limit_key="ssti_probe_limit", default_limit=10
+            "priority_urls_and_cache",
+            limit_key="ssti_probe_limit",
+            default_limit=10,
+            runner=ssti_active_probe,
         ),
         "nosql_injection_probe": _binding(
             "priority_urls_and_cache",
             limit_key="nosql_injection_limit",
             default_limit=10,
+            runner=nosql_injection_probe,
         ),
         "deserialization_probe": _binding(
             "priority_urls_and_cache",
             limit_key="deserialization_limit",
             default_limit=8,
+            runner=deserialization_probe,
         ),
         "dns_record_analyzer": _binding("urls_and_responses"),
         "clickjacking_test": _binding(
@@ -276,7 +404,10 @@ def _register_bindings() -> None:
             default_limit=20,
         ),
         "ssrf_oob_validator": _binding(
-            "priority_urls_and_cache", limit_key="ssrf_oob_limit", default_limit=15
+            "urls_and_responses",
+            limit_key="ssrf_oob_limit",
+            default_limit=15,
+            runner=ssrf_oob_validator,
         ),
         "ldap_injection_surface_analyzer": _binding("responses_only"),
         "token_lifetime_analyzer": _binding("responses_only"),
@@ -294,9 +425,13 @@ def _register_bindings() -> None:
             "priority_urls_and_cache",
             limit_key="email_injection_limit",
             default_limit=10,
+            runner=email_header_injection_probe,
         ),
         "xml_bomb_detector": _binding(
-            "priority_urls_and_cache", limit_key="xml_bomb_limit", default_limit=8
+            "priority_urls_and_cache",
+            limit_key="xml_bomb_limit",
+            default_limit=8,
+            runner=xml_bomb_detector,
         ),
         "deserialization_language_probe": _binding(
             "priority_urls_and_cache",

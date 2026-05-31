@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from copy import deepcopy
 from typing import Any
 
 from src.core.frontier.marshaller import mesh_marshal, mesh_unmarshal
@@ -51,6 +52,8 @@ class ActorState:
     def unpack(cls, payload: bytes) -> ActorState:
         """Binary deserialization via MessagePack."""
         data = mesh_unmarshal(payload)
+        if not isinstance(data, dict):
+            raise TypeError(f"actor state payload must decode to a mapping, not {type(data).__name__}")
         data.setdefault("snapshot_format", "ghost-actor-snapshot-v1")
         data.setdefault("last_wal_id", None)
         data.setdefault("migration_id", "")
@@ -60,7 +63,12 @@ class ActorState:
         data.setdefault("serialized_logic_fn", None)
         valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in valid_keys}
-        return cls(**filtered)
+        state = cls(**filtered)
+        expected_digest = stable_digest(state.data)
+        if state.state_digest and state.state_digest != expected_digest:
+            raise ValueError("actor state digest mismatch")
+        state.state_digest = expected_digest
+        return state
 
     def dehydrate(self) -> bytes:
         """Serialize actor state into a binary format."""
@@ -70,8 +78,14 @@ class ActorState:
     def rehydrate(cls, payload: Any) -> ActorState:
         """De-serialize actor state from a binary format."""
         if isinstance(payload, cls):
-            return payload
+            state = deepcopy(payload)
+            expected_digest = stable_digest(state.data)
+            if state.state_digest and state.state_digest != expected_digest:
+                raise ValueError("actor state digest mismatch")
+            state.state_digest = expected_digest
+            return state
         if isinstance(payload, dict):
+            payload = deepcopy(payload)
             payload.setdefault("actor_id", "actor-unknown")
             payload.setdefault("stage", "stage-unknown")
             payload.setdefault("data", {})
@@ -81,13 +95,18 @@ class ActorState:
             payload.setdefault("snapshot_format", "ghost-actor-snapshot-v3")
             payload.setdefault("last_wal_id", None)
             payload.setdefault("migration_id", "")
-            payload.setdefault("state_digest", "")
+            payload.setdefault("state_digest", stable_digest(payload.get("data", {})))
             payload.setdefault("applied_wal_ids", [])
             payload.setdefault("compaction_budget", {})
             payload.setdefault("serialized_logic_fn", None)
             valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
             filtered = {k: v for k, v in payload.items() if k in valid_keys}
-            return cls(**filtered)
+            state = cls(**filtered)
+            expected_digest = stable_digest(state.data)
+            if state.state_digest and state.state_digest != expected_digest:
+                raise ValueError("actor state digest mismatch")
+            state.state_digest = expected_digest
+            return state
         if isinstance(payload, bytes):
             return cls.unpack(payload)
         raise TypeError(f"a bytes-like object is required, not {type(payload).__name__}")

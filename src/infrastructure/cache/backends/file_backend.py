@@ -7,6 +7,7 @@ gzip compression.
 
 import builtins
 import gzip
+import hashlib
 import json
 import logging
 import os
@@ -49,7 +50,7 @@ class FileBackend:
         )
         self._max_entries = max_entries
         self._enable_compression = enable_compression
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._index: dict[str, dict[str, Any]] = {}
         self._load_index()
 
@@ -66,17 +67,37 @@ class FileBackend:
         """Persist the cache index to disk."""
         index_path = Path(self._cache_dir) / ".cache_index.json"
         Path(self._cache_dir).mkdir(parents=True, exist_ok=True)
+        tmp_fd: int | None = None
+        tmp_path: str | None = None
         try:
             tmp_fd, tmp_path = tempfile.mkstemp(dir=self._cache_dir, suffix=".tmp")
             os.chmod(tmp_path, 0o600)
             with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                json.dump(self._index, f)
+                tmp_fd = None
+                json.dump(self._index, f, default=str)
             os.replace(tmp_path, str(index_path))
+            tmp_path = None
         except OSError:
+            if tmp_fd is not None:
+                try:
+                    os.close(tmp_fd)
+                except OSError:
+                    pass
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
             pass
 
     def _file_path(self, key: str) -> Path:
         """Get the file path for a cache key."""
+        safe_prefix = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in key)[:80]
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        return Path(self._cache_dir) / f"{safe_prefix}.{digest}.json"
+
+    def _legacy_file_path(self, key: str) -> Path:
+        """Return the pre-hash filename used by older cache versions."""
         safe_key = key.replace(":", "_").replace("/", "_").replace("\\", "_")
         return Path(self._cache_dir) / f"{safe_key}.json"
 
@@ -99,25 +120,32 @@ class FileBackend:
 
     def _load_from_file(self, key: str) -> Any | None:
         """Load a value directly from disk."""
-        gz_path = self._file_path_compressed(key)
-        json_path = self._file_path(key)
+        candidate_paths = [
+            self._file_path_compressed(key),
+            self._file_path(key),
+            self._legacy_file_path(key).with_suffix(".json.gz"),
+            self._legacy_file_path(key),
+        ]
 
-        if gz_path.exists():
+        entry = None
+        for path in candidate_paths:
+            if not path.exists():
+                continue
             try:
-                data = gzip.decompress(gz_path.read_bytes())
-                entry = json.loads(data.decode("utf-8"))
-            except (json.JSONDecodeError, OSError):
-                return None
-        elif json_path.exists():
-            try:
-                entry = json.loads(json_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                return None
-        else:
+                if path.suffix == ".gz":
+                    data = gzip.decompress(path.read_bytes())
+                    entry = json.loads(data.decode("utf-8"))
+                else:
+                    entry = json.loads(path.read_text(encoding="utf-8"))
+                break
+            except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError):
+                continue
+
+        if entry is None:
             return None
 
         expires_at = entry.get("expires_at")
-        if expires_at is not None and time.time() > expires_at:
+        if expires_at is not None and time.time() >= expires_at:
             self._delete_file(key)
             return None
 
@@ -139,6 +167,8 @@ class FileBackend:
             self._index[key] = entry
             self._write_file(key, entry)
             self._save_index()
+            if len(self._index) > self._max_entries:
+                self.evict_lru(len(self._index) - self._max_entries)
 
     def _write_file(self, key: str, entry: dict[str, Any]) -> None:
         """Write an entry to a file."""
@@ -151,38 +181,61 @@ class FileBackend:
         else:
             path = self._file_path(key)
 
+        tmp_path: str | None = None
+        tmp_fd: int | None = None
         try:
             tmp_fd, tmp_path = tempfile.mkstemp(dir=self._cache_dir, suffix=".tmp")
             os.chmod(tmp_path, 0o600)
             with os.fdopen(tmp_fd, "wb") as f:
+                tmp_fd = None
                 f.write(data)
             os.replace(tmp_path, str(path))
+            tmp_path = None
         except OSError as exc:
             logger.warning("File cache write failed for key '%s': %s", key, exc)
+            if tmp_fd is not None:
+                try:
+                    os.close(tmp_fd)
+                except OSError:
+                    pass
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
             try:
                 from src.infrastructure.observability.metrics import get_metrics
                 get_metrics().counter("file_cache_write_failures_total", "Total file cache write failures").inc()
             except Exception:
                 pass
 
-    def _delete_file(self, key: str) -> None:
+    def _delete_file(self, key: str) -> bool:
         """Delete cache files for a key."""
-        for path in [self._file_path(key), self._file_path_compressed(key)]:
+        deleted = False
+        paths = [
+            self._file_path(key),
+            self._file_path_compressed(key),
+            self._legacy_file_path(key),
+            self._legacy_file_path(key).with_suffix(".json.gz"),
+        ]
+        for path in paths:
             try:
                 if path.exists():
                     path.unlink()
+                    deleted = True
             except OSError:
                 pass
+        return deleted
 
     def delete(self, key: str) -> bool:
         """Remove a cache entry."""
         with self._lock:
             existed = key in self._index
-            self._delete_file(key)
+            file_deleted = self._delete_file(key)
             self._index.pop(key, None)
-            if existed:
+            if existed or file_deleted:
                 self._save_index()
-            return existed
+            return existed or file_deleted
 
     def delete_many(self, keys: list[str] | builtins.set[str]) -> int:
         """Remove multiple cache entries in a single index write."""
@@ -205,11 +258,13 @@ class FileBackend:
         with self._lock:
             entry = self._index.get(key)
             if entry is None:
-                gz_path = self._file_path_compressed(key)
-                json_path = self._file_path(key)
-                return gz_path.exists() or json_path.exists()
+                self._load_from_file(key)
+                return key in self._index
             expires_at = entry.get("expires_at")
-            if expires_at is not None and time.time() > expires_at:
+            if expires_at is not None and time.time() >= expires_at:
+                self._delete_file(key)
+                self._index.pop(key, None)
+                self._save_index()
                 return False
             return True
 
@@ -220,6 +275,14 @@ class FileBackend:
             for key in list(self._index):
                 self._delete_file(key)
             self._index.clear()
+            cache_path = Path(self._cache_dir)
+            if cache_path.exists():
+                for path in cache_path.iterdir():
+                    if path.is_file() and path.name != ".cache_index.json":
+                        try:
+                            path.unlink()
+                        except OSError:
+                            pass
             self._save_index()
             return count
 
@@ -240,7 +303,7 @@ class FileBackend:
             expired = [
                 key
                 for key, entry in self._index.items()
-                if entry.get("expires_at") is not None and entry["expires_at"] < now
+                if entry.get("expires_at") is not None and entry["expires_at"] <= now
             ]
             for key in expired:
                 self._delete_file(key)
@@ -248,6 +311,43 @@ class FileBackend:
             if expired:
                 self._save_index()
             return len(expired)
+
+    def evict_lru(self, count: int) -> int:
+        """Evict the least recently used entries."""
+        if count <= 0:
+            return 0
+        with self._lock:
+            sorted_keys = sorted(
+                self._index.keys(),
+                key=lambda k: self._index[k].get("last_accessed", 0),
+            )
+            to_evict = sorted_keys[:count]
+            for key in to_evict:
+                self._delete_file(key)
+                self._index.pop(key, None)
+            if to_evict:
+                self._save_index()
+            return len(to_evict)
+
+    def get_ttl_remaining(self, key: str) -> float | None:
+        """Return remaining TTL for an active key, or None for no expiry/missing."""
+        with self._lock:
+            entry = self._index.get(key)
+            if entry is None:
+                self._load_from_file(key)
+                entry = self._index.get(key)
+            if entry is None:
+                return None
+            expires_at = entry.get("expires_at")
+            if expires_at is None:
+                return None
+            remaining = expires_at - time.time()
+            if remaining <= 0:
+                self._delete_file(key)
+                self._index.pop(key, None)
+                self._save_index()
+                return 0.0
+            return remaining
 
     def get_stats(self) -> dict[str, Any]:
         """Return file backend statistics."""
@@ -279,6 +379,17 @@ class FileBackend:
         """Return all keys in a namespace."""
         prefix = f"{namespace}:"
         with self._lock:
+            now = time.time()
+            expired = [
+                key
+                for key, entry in self._index.items()
+                if entry.get("expires_at") is not None and entry["expires_at"] <= now
+            ]
+            for key in expired:
+                self._delete_file(key)
+                self._index.pop(key, None)
+            if expired:
+                self._save_index()
             return [k for k in self._index if k.startswith(prefix)]
 
     def get_keys_by_tag(self, tag: str) -> list[str]:

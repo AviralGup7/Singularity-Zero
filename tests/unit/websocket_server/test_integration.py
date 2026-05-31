@@ -188,3 +188,33 @@ async def test_websocket_broadcast_metrics() -> None:
     )
     result = await services._broadcast_to_job_and_global(msg2, "job_id")
     assert result == 2
+
+
+def test_rest_endpoints() -> None:
+    app = FastAPI()
+    services = setup_websocket_routes(app)
+    services.broadcaster._redis_enabled = False
+    
+    with TestClient(app) as client:
+        # Test health endpoint
+        resp = client.get("/health/ws")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "healthy"
+        assert data["connections"] == 0
+
+        # Test metrics endpoint
+        resp = client.get("/metrics")
+        assert resp.status_code == 200
+        assert "ws_active_connections" in resp.text
+
+        # Test stats endpoint
+        resp = client.get("/admin/websocket/stats")
+        assert resp.status_code == 200
+        assert resp.json()["active_connections"] == 0
+
+        # Test config update endpoint
+        resp = client.post("/admin/websocket/config", json={"max_connections_per_user": 15})
+        assert resp.status_code == 200
+        assert resp.json()["config"]["max_connections_per_user"] == 15
+        assert services.manager.max_connections_per_user == 15

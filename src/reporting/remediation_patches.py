@@ -105,18 +105,8 @@ class RemediationPatchGenerator:
 
                 try:
                     coro = llm.generate_patch(finding, req_payload, resp_body)
-                    try:
-                        loop = asyncio.get_running_loop()
-                        if loop.is_running():
-                            import concurrent.futures
-
-                            with concurrent.futures.ThreadPoolExecutor() as executor:
-                                future = executor.submit(lambda: asyncio.run(coro))
-                                patch_data = future.result()
-                        else:
-                            patch_data = asyncio.run(coro)
-                    except RuntimeError:
-                        patch_data = asyncio.run(coro)
+                    from src.recon.common import run_async_in_sync_context
+                    patch_data = run_async_in_sync_context(coro)
 
                     patches.append(
                         {
@@ -153,7 +143,7 @@ class RemediationPatchGenerator:
         try:
             with open(patches_path, "w", encoding="utf-8") as f:
                 json.dump(patches, f, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to write remediation patches file to %s: %s", patches_path, exc)
 
         return patches

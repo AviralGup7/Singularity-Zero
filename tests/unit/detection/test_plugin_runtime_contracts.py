@@ -17,6 +17,7 @@ _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
     "responses_and_bulk_items": ("responses", "bulk_items"),
     "header_targets_and_cache": ("header_targets", "response_cache"),
     "urls_and_cache": ("urls", "response_cache"),
+    "dynamic_analysis_context": ("payload",),
 }
 
 

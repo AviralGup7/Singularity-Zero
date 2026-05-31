@@ -279,6 +279,7 @@ def setup_websocket_routes(
     redis_url: str | None = None,
     redis_channel: str = "ws:broadcasts",
     allowed_origins: set[str] | None = None,
+    compression_options: dict[str, Any] | None = None,
 ) -> WSServices:
     """Set up WebSocket routes on a FastAPI application.
 
@@ -300,6 +301,7 @@ def setup_websocket_routes(
         reconnect_window: Seconds a reconnection token remains valid.
         cleanup_interval: Seconds between stale connection cleanup runs.
         allowed_origins: Set of allowed origin URIs to mitigate CSWSH.
+        compression_options: Optional compression options (e.g. permessage-deflate).
 
     Returns:
         WSServices instance for emitting events programmatically.
@@ -336,6 +338,7 @@ def setup_websocket_routes(
         required_roles=required_roles,
         allowed_origins=allowed_origins,
     )
+    handler.compression_options = compression_options
 
     services = WSServices(
         manager=manager,
@@ -364,6 +367,104 @@ def setup_websocket_routes(
     @app.websocket("/ws/evasion-telemetry")
     async def ws_evasion_telemetry(websocket: WebSocket) -> None:
         await handler.handle_evasion_telemetry(websocket)
+
+    @app.get("/health/ws")
+    async def ws_health():
+        import json
+        redis_ok = True
+        if broadcaster._redis_enabled and broadcaster._redis_url:
+            if broadcaster._redis_client is not None:
+                try:
+                    await broadcaster._redis_client.ping()
+                except Exception:
+                    redis_ok = False
+            else:
+                redis_ok = False
+        connections = await manager.get_active_count()
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=200 if redis_ok else 503,
+            content={"status": "healthy" if redis_ok else "degraded", "connections": connections}
+        )
+
+    @app.get("/metrics")
+    async def get_metrics():
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        from fastapi import Response
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+    @app.get("/admin/websocket/connections")
+    async def admin_list_connections():
+        conns = await manager.get_all_connections()
+        return [
+            {
+                "connection_id": conn.connection_id,
+                "user_id": conn.user_id,
+                "client_ip": conn.client_ip,
+                "connected_at": conn.connected_at,
+                "last_activity": conn.last_activity,
+                "groups": list(conn.groups),
+            }
+            for conn in conns
+        ]
+
+    @app.delete("/admin/websocket/connections/{connection_id}")
+    async def admin_disconnect(connection_id: str):
+        from starlette.websockets import WebSocketState
+        from fastapi import HTTPException
+        conn = await manager.get_connection(connection_id)
+        if conn is None:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        if conn.websocket.client_state == WebSocketState.CONNECTED:
+            try:
+                await conn.websocket.close(code=1001, reason="Forced disconnect by admin")
+            except Exception:
+                pass
+        await manager.disconnect(connection_id)
+        return {"status": "disconnected", "connection_id": connection_id}
+
+    @app.post("/admin/websocket/broadcast")
+    async def admin_broadcast(payload: dict[str, Any]):
+        from fastapi import HTTPException
+        from src.websocket_server.protocol import StatusMessage
+        channel = payload.get("channel")
+        message_text = payload.get("message")
+        if not channel or not message_text:
+            raise HTTPException(status_code=400, detail="Missing channel or message")
+        msg = StatusMessage(
+            job_id="admin",
+            status="announcement",
+            metadata={"message": message_text}
+        )
+        sent = await broadcaster.broadcast_to_group(channel, msg)
+        return {"status": "broadcasted", "channel": channel, "connections_reached": sent}
+
+    @app.get("/admin/websocket/stats")
+    async def admin_stats():
+        stats = broadcaster.get_stats()
+        active_count = await manager.get_active_count()
+        stats["active_connections"] = active_count
+        return stats
+
+    @app.post("/admin/websocket/config")
+    async def admin_config(payload: dict[str, Any]):
+        if "max_connections_per_user" in payload:
+            manager.max_connections_per_user = int(payload["max_connections_per_user"])
+        if "max_connections_per_ip" in payload:
+            manager.max_connections_per_ip = int(payload["max_connections_per_ip"])
+        if "stale_timeout" in payload:
+            manager.stale_timeout = float(payload["stale_timeout"])
+        if "max_connection_attempts_per_minute" in payload:
+            manager.max_connection_attempts_per_minute = int(payload["max_connection_attempts_per_minute"])
+        return {
+            "status": "updated",
+            "config": {
+                "max_connections_per_user": manager.max_connections_per_user,
+                "max_connections_per_ip": manager.max_connections_per_ip,
+                "stale_timeout": manager.stale_timeout,
+                "max_connection_attempts_per_minute": manager.max_connection_attempts_per_minute,
+            }
+        }
 
     @asynccontextmanager
     async def lifespan(app: Any) -> Any:

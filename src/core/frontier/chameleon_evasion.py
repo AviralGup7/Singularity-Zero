@@ -19,6 +19,22 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
 
+_MAX_BODY_SCAN_CHARS = 8192
+_MAX_METRIC_ID_CHARS = 256
+
+
+def _coerce_body_text(body: Any) -> str:
+    if body is None:
+        return ""
+    if isinstance(body, bytes):
+        return body[:_MAX_BODY_SCAN_CHARS].decode("utf-8", errors="ignore").lower()
+    return str(body)[:_MAX_BODY_SCAN_CHARS].lower()
+
+
+def _bounded_metric_id(value: str | None, default: str) -> str:
+    text = str(value or default).strip()
+    return text[:_MAX_METRIC_ID_CHARS] or default
+
 
 class TimingPermutator:
     """
@@ -41,17 +57,22 @@ class TimingPermutator:
         Generate exponentially distributed delay (human-like).
         Mean = base_ms, StdDev = variance_ms.
         """
+        base_ms = max(0.0, float(base_ms))
+        variance_ms = max(0.0, float(variance_ms))
+        max_delay_ms = max(0.0, float(max_delay_ms))
         u = self._rng.random()
         while u == 0:
             u = self._rng.random()
         delay = -math.log(u) * (variance_ms / 2) + base_ms
-        return min(delay / 1000.0, max_delay_ms / 1000.0)
+        return max(0.0, min(delay / 1000.0, max_delay_ms / 1000.0))
 
     def burst_pattern(self, count: int = 5, initial_delay_ms: float = 20.0) -> list[float]:
         """
         Generate burst timing (human scrolling through search results).
         Rapid first few, then slowing down.
         """
+        count = max(0, min(int(count), 100))
+        initial_delay_ms = max(0.0, float(initial_delay_ms))
         delays = []
         for i in range(count):
             if i == 0:
@@ -88,6 +109,7 @@ class TimingPermutator:
 
     def wait_if_needed(self, min_interval_ms: float = 50.0) -> float:
         """Block until minimum interval has passed since last call."""
+        min_interval_ms = max(0.0, float(min_interval_ms))
         now = time.time()
         wait_time = max(0.0, self._next_allowed - now)
         if wait_time > 0:
@@ -175,10 +197,10 @@ class JA3FingerprintModel:
         return profile, self.get_signature(profile)
 
 
-class PPOEvasionModel:
+class HMMEvasionModel:
     """
-    Hidden Markov Model for WAF evasion state transitions.
-    Models the hidden state of WAF detection and selects optimal evasion actions.
+    Hidden Markov Model for WAF WMM evasion state transitions.
+    Models the WMM WAF hidden state and WMM evasion actions.
     """
 
     STATE_UNDETECTED = 0
@@ -190,6 +212,9 @@ class PPOEvasionModel:
     OBS_CHALLENGE = 1
     OBS_BLOCK = 2
     OBS_RATE_LIMIT = 3
+    _VALID_OBSERVATIONS = frozenset((OBS_SUCCESS, OBS_CHALLENGE, OBS_BLOCK, OBS_RATE_LIMIT))
+    _VALID_STATES = frozenset((STATE_UNDETECTED, STATE_SUSPECTED, STATE_BLOCKED, STATE_EVADING))
+    _MAX_STATE_HISTORY = 256
 
     def __init__(self) -> None:
         self._current_state = self.STATE_UNDETECTED
@@ -276,7 +301,15 @@ class PPOEvasionModel:
 
     def observe(self, observation: int) -> None:
         """Update model based on observed response."""
+        if observation not in self._VALID_OBSERVATIONS:
+            raise ValueError(f"invalid HMM observation: {observation!r}")
+        if self._current_state not in self._VALID_STATES:
+            logger.warning("Resetting corrupted HMM state %r to undetected", self._current_state)
+            self._current_state = self.STATE_UNDETECTED
+
         self._state_history.append(self._current_state)
+        if len(self._state_history) > self._MAX_STATE_HISTORY:
+            del self._state_history[: -self._MAX_STATE_HISTORY]
 
         # 1. Performance-Hardened Vectorized transition lookup fallback
         if getattr(self, "_use_np", False):
@@ -356,8 +389,6 @@ class PPOEvasionModel:
         return names.get(s, "unknown")
 
 
-from src.core.frontier.drl_evasion import PPOEvasionModel
-
 class ChameleonEvasionEngine:
     """
     Main evasion engine combining PPO state tracking, JA3 fingerprinting,
@@ -365,7 +396,7 @@ class ChameleonEvasionEngine:
     """
 
     def __init__(self) -> None:
-        self.hmm = PPOEvasionModel()
+        self.hmm = HMMEvasionModel()
         self.ja3 = JA3FingerprintModel()
         self.timing = TimingPermutator()
         self._waf_detected = False
@@ -381,25 +412,48 @@ class ChameleonEvasionEngine:
         detected_waf: str | None = None,
     ) -> None:
         """Update HMM based on HTTP response and record telemetry metrics."""
-        if "captcha" in (body or "").lower() or "challenge" in (body or "").lower():
+        try:
+            status = int(response_status)
+        except (TypeError, ValueError):
+            logger.debug("Invalid response status for Chameleon observation: %r", response_status)
+            status = 0
+
+        body_lower = _coerce_body_text(body)
+        challenge_markers = (
+            "captcha",
+            "challenge",
+            "checking your browser",
+            "bot detection",
+        )
+        block_markers = (
+            "access denied",
+            "blocked",
+            "forbidden",
+            "request rejected",
+            "waf",
+        )
+
+        if any(marker in body_lower for marker in challenge_markers):
             self._waf_detected = True
-            obs = PPOEvasionModel.OBS_CHALLENGE
-        elif response_status == 200:
-            obs = PPOEvasionModel.OBS_SUCCESS
-        elif response_status in (403, 406, 418, 429, 503):
+            obs = HMMEvasionModel.OBS_CHALLENGE
+        elif status == 429:
             self._waf_detected = True
-            if response_status == 429:
-                obs = PPOEvasionModel.OBS_RATE_LIMIT
-            else:
-                obs = PPOEvasionModel.OBS_BLOCK
+            obs = HMMEvasionModel.OBS_RATE_LIMIT
+        elif status in (401, 403, 406, 418, 451, 503) or any(
+            marker in body_lower for marker in block_markers
+        ):
+            self._waf_detected = True
+            obs = HMMEvasionModel.OBS_BLOCK
+        elif 200 <= status < 400:
+            obs = HMMEvasionModel.OBS_SUCCESS
         else:
-            obs = PPOEvasionModel.OBS_SUCCESS
+            obs = HMMEvasionModel.OBS_BLOCK
 
         self.hmm.observe(obs)
 
         # Telemetry / metrics tracking logic
-        s_id = session_id or "default"
-        t_id = target or "unknown"
+        s_id = _bounded_metric_id(session_id, "default")
+        t_id = _bounded_metric_id(target, "unknown")
         metric_key = f"{s_id}:{t_id}"
 
         with self._lock:
@@ -425,13 +479,13 @@ class ChameleonEvasionEngine:
             if detected_waf:
                 entry["detected_waf"] = detected_waf
 
-            if obs == PPOEvasionModel.OBS_SUCCESS:
+            if obs == HMMEvasionModel.OBS_SUCCESS:
                 entry["successes"] += 1
-                if self.hmm.get_current_state() == PPOEvasionModel.STATE_EVADING:
+                if self.hmm.get_current_state() == HMMEvasionModel.STATE_EVADING:
                     entry["evaded_requests"] += 1
-            elif obs in (PPOEvasionModel.OBS_BLOCK, PPOEvasionModel.OBS_RATE_LIMIT):
+            elif obs in (HMMEvasionModel.OBS_BLOCK, HMMEvasionModel.OBS_RATE_LIMIT):
                 entry["blocks"] += 1
-            elif obs == PPOEvasionModel.OBS_CHALLENGE:
+            elif obs == HMMEvasionModel.OBS_CHALLENGE:
                 entry["challenges"] += 1
 
     def get_metrics(self) -> dict[str, Any]:
@@ -476,3 +530,7 @@ class ChameleonEvasionEngine:
         profile = action.get("ja3_profile")
         sig = self.ja3.get_signature(profile)
         return self.ja3.mutate_signature(sig)
+
+
+# Backward compatibility alias for tests
+PPOEvasionModel = HMMEvasionModel

@@ -46,12 +46,6 @@ section code{font-family:Consolas,Monaco,monospace;font-size:.86rem}
 .export-btn:hover{filter:brightness(1.06)}
 .export-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .export-row .export-btn{background:#1e3a52;padding:8px 12px;font-size:.82rem}
-.export-bar{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0;align-items:center}
-.export-label{color:var(--muted);font-size:.9rem;font-weight:600}
-.export-btn{background:#16324a;border:0;border-radius:14px;color:var(--text);padding:10px 14px;cursor:pointer;font-weight:600;text-decoration:none;font-size:.88rem}
-.export-btn:hover{filter:brightness(1.06)}
-.export-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-.export-row .export-btn{background:#1e3a52;padding:8px 12px;font-size:.82rem}
 """
 
 REPORT_SCRIPT = """

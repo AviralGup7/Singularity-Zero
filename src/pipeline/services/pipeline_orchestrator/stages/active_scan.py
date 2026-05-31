@@ -170,6 +170,41 @@ async def run_active_scanning(
 
     probe_errors: list[dict[str, Any]] = []
 
+    async def gather_with_progress(
+        tasks: list[Any],
+        *,
+        stage_name: str,
+        progress_message: str,
+        base_progress: int,
+        progress_span: int,
+        initial_processed: int,
+        total_planned: int,
+    ) -> list[Any]:
+        completed = 0
+        total_tasks = len(tasks)
+        if not total_tasks:
+            return []
+
+        async def wrap_task(task: Any) -> Any:
+            nonlocal completed
+            try:
+                res = await task
+                return res
+            finally:
+                completed += 1
+                current_processed = initial_processed + completed
+                progress = base_progress + int((completed / total_tasks) * progress_span)
+                emit_progress(
+                    stage_name,
+                    progress_message,
+                    progress,
+                    processed=current_processed,
+                    total=total_planned,
+                )
+
+        wrapped_tasks = [wrap_task(task) for task in tasks]
+        return await asyncio.gather(*wrapped_tasks, return_exceptions=True)
+
     def _run_probe(name: str, probe_fn: Any, *probe_args: Any, **kwargs: Any) -> Any:
         return _try_probe(
             name,
@@ -216,22 +251,6 @@ async def run_active_scanning(
             6,
         ),
     ]
-
-    emit_progress("active_scan", "Running CSRF and injection probes", 78, processed=1, total=6)
-    results1 = await asyncio.gather(*group1, return_exceptions=True)
-
-    for r in results1:
-        if isinstance(r, BaseException):
-            probes_failed += 1
-            probes_executed += 1
-        else:
-            _, findings, ok = r
-            probes_executed += 1
-            if ok:
-                probes_succeeded += 1
-                all_findings.extend(findings)
-            else:
-                probes_failed += 1
 
     # Fix Audit #32: Handoff passive IDOR candidates to active probe
     passive_idor_candidates = []
@@ -319,30 +338,6 @@ async def run_active_scanning(
         _run_probe("response_diff", probes["response_diff_engine"], urls_l, response_cache),
     ]
 
-    planned_probe_count = len(group1) + len(group2) + 5
-
-    emit_progress(
-        "active_scan",
-        "Running GraphQL and cloud metadata probes",
-        85,
-        processed=probes_executed,
-        total=planned_probe_count,
-    )
-    results2 = await asyncio.gather(*group2, return_exceptions=True)
-
-    for r in results2:
-        if isinstance(r, BaseException):
-            probes_failed += 1
-            probes_executed += 1
-        else:
-            _, findings, ok = r
-            probes_executed += 1
-            if ok:
-                probes_succeeded += 1
-                all_findings.extend(findings)
-            else:
-                probes_failed += 1
-
     # Group 3: Host-focused probes
     group3 = [
         _run_probe("cors", probes["cors_preflight_probe"], host_priority_items, response_cache),
@@ -360,14 +355,61 @@ async def run_active_scanning(
 
     total_probe_count = len(group1) + len(group2) + len(group3)
 
-    emit_progress(
-        "active_scan",
-        "Running mutation/fuzzing probes",
-        88,
-        processed=probes_executed,
-        total=total_probe_count,
+    results1 = await gather_with_progress(
+        group1,
+        stage_name="active_scan",
+        progress_message="Running CSRF and injection probes",
+        base_progress=75,
+        progress_span=5,
+        initial_processed=0,
+        total_planned=total_probe_count,
     )
-    results3 = await asyncio.gather(*group3, return_exceptions=True)
+
+    for r in results1:
+        if isinstance(r, BaseException):
+            probes_failed += 1
+            probes_executed += 1
+        else:
+            _, findings, ok = r
+            probes_executed += 1
+            if ok:
+                probes_succeeded += 1
+                all_findings.extend(findings)
+            else:
+                probes_failed += 1
+
+    results2 = await gather_with_progress(
+        group2,
+        stage_name="active_scan",
+        progress_message="Running GraphQL and cloud metadata probes",
+        base_progress=80,
+        progress_span=6,
+        initial_processed=len(group1),
+        total_planned=total_probe_count,
+    )
+
+    for r in results2:
+        if isinstance(r, BaseException):
+            probes_failed += 1
+            probes_executed += 1
+        else:
+            _, findings, ok = r
+            probes_executed += 1
+            if ok:
+                probes_succeeded += 1
+                all_findings.extend(findings)
+            else:
+                probes_failed += 1
+
+    results3 = await gather_with_progress(
+        group3,
+        stage_name="active_scan",
+        progress_message="Running mutation/fuzzing probes",
+        base_progress=86,
+        progress_span=4,
+        initial_processed=len(group1) + len(group2),
+        total_planned=total_probe_count,
+    )
 
     for r in results3:
         if isinstance(r, BaseException):

@@ -6,6 +6,7 @@ RAM-only Volatile Virtual File System for anti-forensic scan artifacts.
 from __future__ import annotations
 
 import os
+import posixpath
 import tempfile
 import threading
 import time
@@ -50,39 +51,107 @@ class VFSEncryptionPolicy:
             return False
 
         # Restrict critical paths and file formats to admin or system
-        cleaned_path = os.path.normpath(path).lower()
-        if "secrets/" in cleaned_path or cleaned_path.endswith((".pem", ".key")):
+        cleaned_path = os.path.normpath(path).replace("\\", "/").lower()
+        path_parts = [part for part in cleaned_path.split("/") if part]
+        if "secrets" in path_parts or cleaned_path.endswith((".pem", ".key")):
             return principal in ["admin", "system"]
 
         return True
 
 
 class HardwareEnclaveProvider:
-    """Simulates Intel SGX / AMD SEV secure enclave integrations."""
+    """Intel SGX / AMD SEV secure enclave integrations.
+
+    [STUB]: Secure hardware enclaves are currently not supported in this environment.
+    """
+
     @staticmethod
     def is_available() -> bool:
-        # In a real environment, this checks CPU flags or /dev/sgx
+        # Hardware enclaves not supported yet
         return False
-        
+
     @staticmethod
     def seal_data(data: bytes) -> bytes:
-        # Hardware encryption bounded to CPU
+        # Hardware encryption bounded to CPU (Unsupported stub)
         return data
 
     @staticmethod
     def unseal_data(data: bytes) -> bytes:
         return data
 
-class eBPFHookManager:
-    """Manages eBPF hooks for memory isolation and anti-dumping."""
+
+class eBPFHookManager:  # noqa: N801 - keep compatibility with existing public name.
+    """eBPF hooks for memory isolation and anti-dumping.
+
+    [STUB]: eBPF hooks for memory pinning are currently not supported.
+    """
+
     @staticmethod
     def pin_memory(address_space: Any) -> None:
-        """Lock memory using eBPF to prevent swapping and dumping."""
+        """Lock memory using eBPF to prevent swapping and dumping (Unsupported)."""
         pass
-        
+
     @staticmethod
     def unpin_memory(address_space: Any) -> None:
         pass
+
+
+class _DecryptingChunkIterator:
+    """Iterator that wipes its derived file key as soon as it is no longer needed."""
+
+    def __init__(self, raw: bytes, file_key: bytearray) -> None:
+        self._raw = raw
+        self._file_key = file_key
+        self._aesgcm = AESGCM(bytes(file_key))
+        self._offset = 16
+        self._idx = 0
+        self._closed = False
+
+    def __iter__(self) -> _DecryptingChunkIterator:
+        return self
+
+    def __next__(self) -> bytes:
+        if self._closed:
+            raise StopIteration
+
+        try:
+            if self._offset >= len(self._raw):
+                self.close()
+                raise StopIteration
+            if self._offset + 4 > len(self._raw):
+                raise ValueError("Ghost-VFS: Corrupt chunk length header")
+            length = int.from_bytes(self._raw[self._offset : self._offset + 4], byteorder="big")
+            self._offset += 4
+
+            if length < 28 or self._offset + length > len(self._raw):
+                raise ValueError("Ghost-VFS: Corrupt chunk payload")
+            chunk_payload = self._raw[self._offset : self._offset + length]
+            self._offset += length
+
+            nonce = chunk_payload[:12]
+            ciphertext = chunk_payload[12:]
+            aad = f"chunk:{self._idx}".encode()
+
+            try:
+                decrypted_chunk = self._aesgcm.decrypt(nonce, ciphertext, aad)
+            except Exception as exc:
+                raise ValueError("Ghost-VFS: chunk decryption failed") from exc
+
+            self._idx += 1
+            return decrypted_chunk
+        except StopIteration:
+            raise
+        except Exception:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        if not self._closed:
+            secure_wipe(self._file_key)
+            self._closed = True
+
+    def __del__(self) -> None:
+        self.close()
 
 
 class GhostVFS:
@@ -90,6 +159,27 @@ class GhostVFS:
     Volatile Encrypted Storage using eBPF & Hardware-Protected Secure Enclaves.
     Maintains all scan artifacts in RAM, protected from memory dumps.
     """
+
+    def _validate_path(self, path: str) -> str:
+        """Validate virtual path to prevent traversal and absolute paths."""
+        raw_path = os.fspath(path)
+        if not isinstance(raw_path, str) or not raw_path:
+            raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
+        if "\x00" in raw_path:
+            raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
+
+        virtual_path = raw_path.replace("\\", "/")
+        parts = virtual_path.split("/")
+        cleaned_path = posixpath.normpath(virtual_path)
+        if (
+            cleaned_path in ("", ".")
+            or ".." in parts
+            or posixpath.isabs(cleaned_path)
+            or cleaned_path.startswith("/")
+            or (len(cleaned_path) > 1 and cleaned_path[1] == ":")
+        ):
+            raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
+        return cleaned_path
 
     def __init__(
         self,
@@ -99,18 +189,24 @@ class GhostVFS:
         enable_ebpf: bool = True,
         enable_sgx: bool = True,
     ) -> None:
-        self._files: dict[str, bytes] = {}
+        self._files: dict[str, bytearray | bytes] = {}
         self._key = bytearray(AESGCM.generate_key(bit_length=256))
         self._aesgcm = AESGCM(bytes(self._key))
         self._lock = threading.RLock()
         self._file_metadata: dict[str, dict[str, Any]] = {}
+        self._memory_pinned = False
+        self._destroyed = False
 
         # Hardware Enclave & eBPF integration
         self._hw_enclave_active = enable_sgx and HardwareEnclaveProvider.is_available()
         self._ebpf_active = enable_ebpf
-        
+
         if self._ebpf_active:
-            eBPFHookManager.pin_memory(id(self))
+            try:
+                eBPFHookManager.pin_memory(id(self))
+                self._memory_pinned = True
+            except Exception as exc:
+                logger.warning("Ghost-VFS eBPF hook failure during initialization: %s", exc)
 
         # Use explicit rotation interval constant if hours not specified
         if rotation_interval_hours is not None:
@@ -136,18 +232,12 @@ class GhostVFS:
 
     def write_file_stream(self, path: str, stream: Iterator[bytes]) -> None:
         """Encrypt and store file content in RAM via chunked stream."""
-        cleaned_path = os.path.normpath(path)
-        if (
-            cleaned_path.startswith("..")
-            or os.path.isabs(cleaned_path)
-            or cleaned_path.startswith(("/", "\\"))
-            or (len(cleaned_path) > 1 and cleaned_path[1] == ":")
-        ):
-            raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
+        self._ensure_active()
+        cleaned_path = self._validate_path(path)
 
         with self._lock:
             # Policy enforcement
-            if not self._policy_engine.is_allowed(self._principal, "write", path):
+            if not self._policy_engine.is_allowed(self._principal, "write", cleaned_path):
                 raise PermissionError(
                     f"Ghost-VFS: Principal '{self._principal}' is not allowed to write '{path}'"
                 )
@@ -161,25 +251,33 @@ class GhostVFS:
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=salt,
-                info=path.encode("utf-8"),
+                info=cleaned_path.encode("utf-8"),
             )
             file_key = bytearray(hkdf.derive(bytes(self._key)))
 
             payload_parts = [salt]
+            file_aesgcm = AESGCM(bytes(file_key))
             try:
                 for idx, chunk in enumerate(stream):
+                    if not isinstance(chunk, (bytes, bytearray, memoryview)):
+                        raise TypeError("Ghost-VFS: stream chunks must be bytes-like")
+                    chunk_bytes = bytes(chunk)
                     nonce = os.urandom(12)
                     # Associated data prevents block reordering/injection attacks
                     aad = f"chunk:{idx}".encode()
-                    ciphertext = AESGCM(bytes(file_key)).encrypt(nonce, chunk, aad)
+                    ciphertext = file_aesgcm.encrypt(nonce, chunk_bytes, aad)
                     chunk_payload = nonce + ciphertext
                     length_bytes = len(chunk_payload).to_bytes(4, byteorder="big")
                     payload_parts.append(length_bytes + chunk_payload)
             finally:
                 secure_wipe(file_key)
 
-            self._files[path] = b"".join(payload_parts)
-            self._file_metadata[path] = {
+            old_raw = self._files.get(cleaned_path)
+            if old_raw is not None:
+                self._wipe_raw_buffer(old_raw)
+
+            self._files[cleaned_path] = bytearray(b"".join(payload_parts))
+            self._file_metadata[cleaned_path] = {
                 "created_at": time.time(),
             }
 
@@ -189,25 +287,20 @@ class GhostVFS:
 
     def read_file_stream(self, path: str) -> Iterator[bytes]:
         """Decrypt and retrieve file from RAM via chunked streaming iterator."""
-        cleaned_path = os.path.normpath(path)
-        if (
-            cleaned_path.startswith("..")
-            or os.path.isabs(cleaned_path)
-            or cleaned_path.startswith(("/", "\\"))
-            or (len(cleaned_path) > 1 and cleaned_path[1] == ":")
-        ):
-            raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
+        self._ensure_active()
+        cleaned_path = self._validate_path(path)
 
         # Policy enforcement
-        if not self._policy_engine.is_allowed(self._principal, "read", path):
+        if not self._policy_engine.is_allowed(self._principal, "read", cleaned_path):
             raise PermissionError(
                 f"Ghost-VFS: Principal '{self._principal}' is not allowed to read '{path}'"
             )
 
         with self._lock:
-            raw = self._files.get(path)
-            if not raw:
+            stored_raw = self._files.get(cleaned_path)
+            if stored_raw is None:
                 raise FileNotFoundError(f"Ghost-VFS: {path} not found")
+            raw = bytes(stored_raw)
 
             if len(raw) < 16:
                 raise ValueError("Ghost-VFS: Corrupt virtual file (too small)")
@@ -217,36 +310,11 @@ class GhostVFS:
                 algorithm=hashes.SHA256(),
                 length=32,
                 salt=salt,
-                info=path.encode("utf-8"),
+                info=cleaned_path.encode("utf-8"),
             )
             file_key = bytearray(hkdf.derive(bytes(self._key)))
 
-        try:
-            offset = 16
-            idx = 0
-            while True:
-                with self._lock:
-                    if offset >= len(raw):
-                        break
-                    if offset + 4 > len(raw):
-                        raise ValueError("Ghost-VFS: Corrupt chunk length header")
-                    length = int.from_bytes(raw[offset : offset + 4], byteorder="big")
-                    offset += 4
-
-                    if offset + length > len(raw):
-                        raise ValueError("Ghost-VFS: Corrupt chunk payload")
-                    chunk_payload = raw[offset : offset + length]
-                    offset += length
-
-                nonce = chunk_payload[:12]
-                ciphertext = chunk_payload[12:]
-                aad = f"chunk:{idx}".encode()
-
-                decrypted_chunk = AESGCM(bytes(file_key)).decrypt(nonce, ciphertext, aad)
-                yield decrypted_chunk
-                idx += 1
-        finally:
-            secure_wipe(file_key)
+        return _DecryptingChunkIterator(raw, file_key)
 
     @contextmanager
     def lease_file(self, path: str) -> Iterator[SecretLease]:
@@ -260,17 +328,24 @@ class GhostVFS:
 
     def delete_file(self, path: str) -> None:
         """Securely remove a file from RAM and metadata."""
+        self._ensure_active()
+        cleaned_path = self._validate_path(path)
+
+        if not self._policy_engine.is_allowed(self._principal, "delete", cleaned_path):
+            raise PermissionError(
+                f"Ghost-VFS: Principal '{self._principal}' is not allowed to delete '{path}'"
+            )
+
         with self._lock:
-            if path in self._files:
-                raw = self._files[path]
+            if cleaned_path in self._files:
+                raw = self._files[cleaned_path]
                 try:
-                    buf = bytearray(raw)
-                    secure_wipe(buf)
+                    self._wipe_raw_buffer(raw)
                 except Exception as e:
                     logger.debug("Failed to wipe raw encrypted buffer: %s", e)
-                del self._files[path]
-            if path in self._file_metadata:
-                del self._file_metadata[path]
+                del self._files[cleaned_path]
+            if cleaned_path in self._file_metadata:
+                del self._file_metadata[cleaned_path]
 
     def rotate_key(self) -> None:
         """
@@ -280,15 +355,14 @@ class GhostVFS:
         logger.info("Ghost-VFS: Initiating temporal key rotation...")
         start_ts = time.monotonic()
 
-        old_key = self._key
-        new_key = bytearray(AESGCM.generate_key(bit_length=256))
-
-        new_files: dict[str, bytes] = {}
-
         with self._lock:
+            self._ensure_active()
+            old_key = self._key
+            new_key = bytearray(AESGCM.generate_key(bit_length=256))
+            new_files: dict[str, bytearray | bytes] = {}
             try:
                 for path in list(self._files.keys()):
-                    raw = self._files[path]
+                    raw = bytes(self._files[path])
                     if len(raw) < 16:
                         raise ValueError("Corrupt file")
                     old_salt = raw[:16]
@@ -314,13 +388,15 @@ class GhostVFS:
                     try:
                         offset = 16
                         idx = 0
+                        old_file_aesgcm = AESGCM(bytes(old_file_key))
+                        new_file_aesgcm = AESGCM(bytes(new_file_key))
                         while offset < len(raw):
                             if offset + 4 > len(raw):
                                 raise ValueError("Corrupt chunk length header")
                             length = int.from_bytes(raw[offset : offset + 4], byteorder="big")
                             offset += 4
 
-                            if offset + length > len(raw):
+                            if length < 28 or offset + length > len(raw):
                                 raise ValueError("Corrupt chunk payload")
                             chunk_payload = raw[offset : offset + length]
                             offset += length
@@ -330,12 +406,12 @@ class GhostVFS:
                             aad = f"chunk:{idx}".encode()
 
                             decrypted_chunk = bytearray(
-                                AESGCM(bytes(old_file_key)).decrypt(nonce, ciphertext, aad)
+                                old_file_aesgcm.decrypt(nonce, ciphertext, aad)
                             )
 
                             try:
                                 new_nonce = os.urandom(12)
-                                new_ciphertext = AESGCM(bytes(new_file_key)).encrypt(
+                                new_ciphertext = new_file_aesgcm.encrypt(
                                     new_nonce, bytes(decrypted_chunk), aad
                                 )
                                 new_chunk_payload = new_nonce + new_ciphertext
@@ -348,16 +424,20 @@ class GhostVFS:
 
                             idx += 1
 
-                        new_files[path] = b"".join(payload_parts)
+                        new_files[path] = bytearray(b"".join(payload_parts))
                     finally:
                         secure_wipe(old_file_key)
                         secure_wipe(new_file_key)
             except Exception as e:
                 logger.error("Ghost-VFS: Key rotation failed: %s", e)
+                for raw in new_files.values():
+                    self._wipe_raw_buffer(raw)
                 secure_wipe(new_key)
                 raise RuntimeError("Key rotation aborted") from e
 
             # Phase 3: Update state (Atomic swap)
+            for raw in self._files.values():
+                self._wipe_raw_buffer(raw)
             self._files = new_files
             self._key = new_key
             self._aesgcm = AESGCM(bytes(new_key))
@@ -386,6 +466,20 @@ class GhostVFS:
             except Exception as e:
                 logger.warning("Ghost-VFS: Diagnostic warning in secure wipe bytes: %s", e)
 
+    def _wipe_raw_buffer(self, raw: bytearray | bytes | None) -> None:
+        """Best-effort wipe for encrypted file buffers."""
+        if raw is None:
+            return
+        if isinstance(raw, bytearray):
+            secure_wipe(raw)
+        else:
+            secure_wipe(bytearray(raw))
+
+    def _ensure_active(self) -> None:
+        """Reject cryptographic operations after terminal purge."""
+        if self._destroyed:
+            raise RuntimeError("Ghost-VFS: data plane has been purged")
+
     def list_files(self) -> list[str]:
         """List all files in the virtual filesystem."""
         with self._lock:
@@ -393,6 +487,7 @@ class GhostVFS:
 
     def flush_to_disk(self, physical_path: str, master_key: str) -> None:
         """Persist RAM state to disk using Argon2id-derived AES-256-GCM envelopes securely and atomically."""
+        self._ensure_active()
         logger.info("Ghost-VFS: Flushing volatile state to %s", physical_path)
 
         # Canonicalize base path
@@ -401,6 +496,7 @@ class GhostVFS:
         count = 0
         for path in self.list_files():
             try:
+                path = self._validate_path(path)
                 # 1. Prevent Path Traversal by checking commonpath
                 full_path = os.path.abspath(os.path.join(base_abs, path))
                 if os.path.commonpath([base_abs, full_path]) != base_abs:
@@ -456,6 +552,7 @@ class GhostVFS:
 
     def load_from_disk(self, physical_path: str, master_key: str) -> None:
         """Decrypt physical files and re-hydrate virtual filesystem RAM state securely."""
+        self._ensure_active()
         logger.info("Ghost-VFS: Loading volatile state from %s", physical_path)
 
         base_abs = os.path.abspath(physical_path)
@@ -473,7 +570,13 @@ class GhostVFS:
                     continue
 
                 # Calculate relative virtual path
-                rel_path = os.path.relpath(full_path, base_abs).replace("\\", "/")
+                try:
+                    rel_path = self._validate_path(os.path.relpath(full_path, base_abs))
+                except ValueError:
+                    logger.error(
+                        "Ghost-VFS: Invalid virtual path during load for path: %s", full_path
+                    )
+                    continue
 
                 # Policy enforcement
                 if not self._policy_engine.is_allowed(self._principal, "import", rel_path):
@@ -509,8 +612,17 @@ class GhostVFS:
         self, output_path: str, master_key: str, *, name: str = "ghost-vfs"
     ) -> None:
         """Export all virtual files as one sealed, integrity-bound bundle securely."""
+        self._ensure_active()
         records: dict[str, str] = {}
         for path in self.list_files():
+            try:
+                path = self._validate_path(path)
+            except ValueError:
+                logger.error(
+                    "Ghost-VFS: Invalid virtual path blocked during bundle export: %s", path
+                )
+                continue
+
             # Policy enforcement
             if not self._policy_engine.is_allowed(self._principal, "export", path):
                 logger.error("Ghost-VFS: Policy blocked bundle export of path: %s", path)
@@ -557,37 +669,50 @@ class GhostVFS:
 
     def import_sealed_bundle(self, bundle_path: str, master_key: str) -> None:
         """Load files from a sealed bundle created for air-gapped runners."""
+        self._ensure_active()
         with open(bundle_path, encoding="utf-8") as fh:
             payload = sealed_bundle_decrypt(
                 fh.read(), master_key, aad=b"csp:ghost-vfs:sealed-bundle"
             )
         for path, encrypted in payload["records"].items():
-            cleaned_path = os.path.normpath(str(path))
-            if cleaned_path.startswith("..") or os.path.isabs(cleaned_path):
+            try:
+                cleaned_path = self._validate_path(str(path))
+            except ValueError:
                 logger.error(
                     "Ghost-VFS: Path traversal blocked during bundle import for path: %s", path
                 )
                 continue
 
             # Policy enforcement
-            if not self._policy_engine.is_allowed(self._principal, "import", str(path)):
+            if not self._policy_engine.is_allowed(self._principal, "import", cleaned_path):
                 logger.error("Ghost-VFS: Policy blocked bundle import of path: %s", path)
                 continue
 
             decrypted = Argon2idAESGCM(master_key).decrypt(
                 str(encrypted),
-                f"ghost-vfs-bundle:{path}".encode(),
+                f"ghost-vfs-bundle:{cleaned_path}".encode(),
             )
             try:
-                self.write_file(str(path), decrypted)
+                self.write_file(cleaned_path, decrypted)
             finally:
                 secure_wipe(bytearray(decrypted))
 
     def self_destruct(self) -> None:
         """Wipe all data and keys from RAM securely."""
         with self._lock:
+            for raw in self._files.values():
+                self._wipe_raw_buffer(raw)
             self._files.clear()
             self._file_metadata.clear()
             self._secure_wipe_bytes(self._key)
             self._key = bytearray()
+            self._aesgcm = None  # type: ignore[assignment]
+            self._destroyed = True
+            if self._memory_pinned:
+                try:
+                    eBPFHookManager.unpin_memory(id(self))
+                except Exception as exc:
+                    logger.warning("Ghost-VFS eBPF hook failure during self-destruct: %s", exc)
+                finally:
+                    self._memory_pinned = False
         logger.warning("Ghost-VFS: Data plane PURGED")

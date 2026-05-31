@@ -21,40 +21,80 @@ def _find_finding_by_id(
     output_root: Any, finding_id: str, tenant_id: str | None = None
 ) -> dict[str, Any] | None:
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+    from pathlib import Path
 
-    for target_entry in output_root.iterdir():
-        if not target_entry.is_dir():
-            continue
-        if not is_target_owned_by_tenant(target_entry.name, tenant_id):
-            continue
-        for run_entry in target_entry.iterdir():
-            if not run_entry.is_dir():
+    index_path = Path(output_root) / "findings_index.json"
+    if index_path.exists():
+        try:
+            index_data = json.loads(index_path.read_text(encoding="utf-8"))
+            if finding_id in index_data:
+                entry = index_data[finding_id]
+                target_name = entry.get("target_name")
+                run_name = entry.get("run_name")
+                idx = entry.get("index")
+                
+                if is_target_owned_by_tenant(target_name, tenant_id):
+                    finding_path = Path(output_root) / target_name / run_name / "findings.json"
+                    if finding_path.exists():
+                        findings = json.loads(finding_path.read_text(encoding="utf-8"))
+                        if isinstance(findings, list) and 0 < idx <= len(findings):
+                            finding = findings[idx - 1]
+                            return _normalize_finding_payload(
+                                finding,
+                                target_name=target_name,
+                                run_name=run_name,
+                                index=idx,
+                            )
+        except Exception:
+            pass
+
+    # Fallback to full iteration and lazily build the index
+    index_data = {}
+    result = None
+    if Path(output_root).exists():
+        for target_entry in Path(output_root).iterdir():
+            if not target_entry.is_dir() or target_entry.name.startswith("_"):
                 continue
-            findings_path = run_entry / "findings.json"
-            if not findings_path.exists():
-                continue
-            try:
-                findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: S112
-                continue
-            if not isinstance(findings, list):
-                continue
-            for idx, finding in enumerate(findings, start=1):
-                if not isinstance(finding, dict):
+            for run_entry in target_entry.iterdir():
+                if not run_entry.is_dir():
                     continue
-                fid = (
-                    finding.get("id")
-                    or finding.get("finding_id")
-                    or f"{target_entry.name}-{run_entry.name}-{idx}"
-                )
-                if str(fid) == finding_id:
-                    return _normalize_finding_payload(
-                        finding,
-                        target_name=target_entry.name,
-                        run_name=run_entry.name,
-                        index=idx,
+                findings_path = run_entry / "findings.json"
+                if not findings_path.exists():
+                    continue
+                try:
+                    findings = json.loads(findings_path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                if not isinstance(findings, list):
+                    continue
+                for idx, finding in enumerate(findings, start=1):
+                    if not isinstance(finding, dict):
+                        continue
+                    fid = (
+                        finding.get("id")
+                        or finding.get("finding_id")
+                        or f"{target_entry.name}-{run_entry.name}-{idx}"
                     )
-    return None
+                    index_data[str(fid)] = {
+                        "target_name": target_entry.name,
+                        "run_name": run_entry.name,
+                        "index": idx
+                    }
+                    if str(fid) == finding_id and is_target_owned_by_tenant(target_entry.name, tenant_id):
+                        result = _normalize_finding_payload(
+                            finding,
+                            target_name=target_entry.name,
+                            run_name=run_entry.name,
+                            index=idx,
+                        )
+        
+        # Save the lazily built index
+        try:
+            index_path.write_text(json.dumps(index_data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    return result
 
 
 def _seeded_timeline_events(limit: int, offset: int) -> list[dict[str, Any]]:

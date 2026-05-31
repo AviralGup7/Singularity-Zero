@@ -38,13 +38,14 @@ def dummy_logic(task_input, state):
 
 
 @pytest.mark.asyncio
-async def test_actor_wal_recovery(monkeypatch):
+async def test_actor_wal_recovery(monkeypatch, tmp_path):
     # 1. Setup Mock Redis and WAL
     mock_redis = MockRedis()
     monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
 
     run_id = "test-recovery-run"
     wal = FrontierWAL("redis://localhost", run_id)
+    wal._aof_path = tmp_path / f"local_wal_{run_id}.aof"
 
     # 2. Log some deltas
     wal.log_delta("recon", {"discovered_urls": ["http://a.com"]})
@@ -56,7 +57,7 @@ async def test_actor_wal_recovery(monkeypatch):
 
     try:
         # Initial state should be empty
-        state = actor.ask({"command": "_get_attribute", "name": "state"}, block=True)
+        state = actor.proxy().state.get()
         assert "discovered_urls" not in state
 
         # Trigger recovery
@@ -68,20 +69,22 @@ async def test_actor_wal_recovery(monkeypatch):
         assert recovery_result["applied_count"] == 2
 
         # Verify state is recovered
-        recovered_state = actor.ask({"command": "_get_attribute", "name": "state"}, block=True)
+        recovered_state = actor.proxy().state.get()
         assert "http://a.com" in recovered_state["discovered_urls"]
         assert "xss-1" in recovered_state["vulnerabilities"]
 
     finally:
         actor.stop()
+        wal.cleanup()
 
 
 @pytest.mark.asyncio
-async def test_incremental_wal_recovery(monkeypatch):
+async def test_incremental_wal_recovery(monkeypatch, tmp_path):
     mock_redis = MockRedis()
     monkeypatch.setattr("redis.from_url", lambda *a, **k: mock_redis)
 
     wal = FrontierWAL("redis://localhost", "test-incremental")
+    wal._aof_path = tmp_path / "local_wal_test-incremental.aof"
 
     # Log first delta
     id1 = wal.log_delta("stage1", {"k1": "v1"})
@@ -93,3 +96,5 @@ async def test_incremental_wal_recovery(monkeypatch):
     deltas = wal.recover_deltas(start_id=id1)
     assert len(deltas) == 1
     assert deltas[0]["delta"] == {"k2": "v2"}
+
+    wal.cleanup()

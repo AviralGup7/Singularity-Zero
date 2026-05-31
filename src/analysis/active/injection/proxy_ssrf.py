@@ -87,6 +87,12 @@ INTERNAL_URLS = [
 ]
 
 
+def _entry_url(url_entry: dict[str, Any] | str) -> str:
+    if isinstance(url_entry, dict):
+        return str(url_entry.get("url", "")).strip()
+    return str(url_entry or "").strip()
+
+
 def _is_proxy_endpoint(url: str) -> bool:
     """Heuristic: does a URL look like a proxy/relay endpoint?"""
     parsed = urlparse(url)
@@ -185,7 +191,7 @@ def _analyze_proxy_response(
 
 
 def proxy_ssrf_probe(
-    priority_urls: list[dict[str, Any]],
+    priority_urls: list[dict[str, Any] | str],
     response_cache: ResponseCache,
     test_urls: list[str] | None = None,
     limit: int = 10,
@@ -204,13 +210,16 @@ def proxy_ssrf_probe(
     findings: list[dict[str, Any]] = []
     seen: set[str] = set()
 
+    if response_cache is None:
+        return findings
+
     test_urls = test_urls or INTERNAL_URLS
 
     for url_entry in priority_urls:
         if len(findings) >= limit:
             break
 
-        url = str(url_entry.get("url", "")).strip()
+        url = _entry_url(url_entry)
         if not url:
             continue
 

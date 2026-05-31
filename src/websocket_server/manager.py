@@ -6,6 +6,7 @@ stale connections, and configurable connection limits.
 """
 
 import asyncio
+import os
 import itertools
 import threading
 import time
@@ -14,6 +15,8 @@ from typing import Any, cast
 
 from starlette.websockets import WebSocket, WebSocketState
 
+from src.websocket_server.metrics import WS_CONNECTIONS
+
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
@@ -21,7 +24,7 @@ logger = get_pipeline_logger(__name__)
 # Fix #308: use project-wide structured logger
 
 
-@dataclass
+@dataclass(slots=True)
 class ConnectionInfo:
     """Metadata about a single WebSocket connection.
 
@@ -84,6 +87,25 @@ class ConnectionInfo:
         """
         return time.time() - self.last_activity > timeout_seconds
 
+    async def send_ack(self, ack_id: str, accepted: bool = True) -> None:
+        """Send an acknowledgment message back to the client.
+
+        Args:
+            ack_id: The ID of the message being acknowledged.
+            accepted: Whether the action was accepted.
+        """
+        from src.websocket_server.protocol import AckMessage
+        ack = AckMessage(ack_id=ack_id, accepted=accepted)
+        ack.sequence = self.next_sequence()
+        try:
+            await self.message_queue.put(ack.to_json())
+        except asyncio.QueueFull:
+            logger.warning(
+                "Failed to send ack '%s': connection %s queue full",
+                ack_id,
+                self.connection_id,
+            )
+
 
 class ConnectionManager:
     """Manages all active WebSocket connections.
@@ -122,9 +144,11 @@ class ConnectionManager:
         # for every group lookup (memory leak when groups are queried but not used).
         self.group_connections: dict[str, set[str]] = {}
         self.ip_connections: dict[str, set[str]] = {}
-        self.max_connections_per_user = max_connections_per_user
-        self.max_connections_per_ip = max_connections_per_ip
-        self.stale_timeout = stale_timeout
+        self.max_connections_per_user = int(os.environ.get("WS_MAX_CONNECTIONS_PER_USER", max_connections_per_user))
+        self.max_connections_per_ip = int(os.environ.get("WS_MAX_CONNECTIONS_PER_IP", max_connections_per_ip))
+        self.stale_timeout = float(os.environ.get("WS_STALE_TIMEOUT", stale_timeout))
+        self.ip_connection_attempts: dict[str, list[float]] = {}
+        self.max_connection_attempts_per_minute = int(os.environ.get("WS_MAX_IP_CONN_ATTEMPTS_PER_MIN", "30"))
         self._lock = asyncio.Lock()
 
     async def connect(
@@ -149,6 +173,19 @@ class ConnectionManager:
             ConnectionInfo if accepted, None if rejected due to limits.
         """
         async with self._lock:
+            # IP rate limiting on connection attempts
+            now = time.time()
+            attempts = self.ip_connection_attempts.setdefault(client_ip, [])
+            attempts[:] = [t for t in attempts if t > now - 60.0]
+            if len(attempts) >= self.max_connection_attempts_per_minute:
+                logger.warning(
+                    "Connection attempt rate limit exceeded for IP %s (%d attempts in last minute)",
+                    client_ip,
+                    len(attempts),
+                )
+                return None
+            attempts.append(now)
+
             user_connections = self.user_connections.setdefault(user_id, set())
             ip_connections = self.ip_connections.setdefault(client_ip, set())
 
@@ -181,6 +218,8 @@ class ConnectionManager:
             user_connections.add(connection_id)
             ip_connections.add(connection_id)
 
+            WS_CONNECTIONS.labels(user_id=user_id).inc()
+
             logger.info(
                 "Connection registered: id=%s user=%s ip=%s (total=%d)",
                 connection_id,
@@ -202,6 +241,8 @@ class ConnectionManager:
                 return
 
             info.closed = True
+
+            WS_CONNECTIONS.labels(user_id=info.user_id).dec()
 
             self.user_connections[info.user_id].discard(connection_id)
             if not self.user_connections[info.user_id]:
@@ -340,6 +381,8 @@ class ConnectionManager:
 
                 info.closed = True
 
+                WS_CONNECTIONS.labels(user_id=info.user_id).dec()
+
                 self.user_connections[info.user_id].discard(conn_id)
                 if not self.user_connections[info.user_id]:
                     del self.user_connections[info.user_id]
@@ -358,7 +401,7 @@ class ConnectionManager:
 
         return stale_ids
 
-    async def close_all(self) -> None:
+    async def close_all(self, timeout: float = 5.0) -> None:
         """Close all active WebSocket connections.
 
         Sends a close frame to every connected client and removes all
@@ -368,6 +411,22 @@ class ConnectionManager:
         # connections register concurrently during shutdown.
         async with self._lock:
             conns = list(self.connections.values())
+
+        # Connection draining: wait briefly for queues to drain
+        if conns:
+            logger.info("Draining outbound message queues for %d connections...", len(conns))
+            drain_tasks = []
+            for info in conns:
+                if not info.closed and info._message_queue is not None:
+                    async def wait_for_drain(q: asyncio.Queue) -> None:
+                        try:
+                            while not q.empty():
+                                await asyncio.sleep(0.05)
+                        except Exception:
+                            pass
+                    drain_tasks.append(asyncio.wait_for(wait_for_drain(info.message_queue), timeout=timeout))
+            if drain_tasks:
+                await asyncio.gather(*drain_tasks, return_exceptions=True)
 
         for info in conns:
             if info.websocket.client_state == WebSocketState.CONNECTED:

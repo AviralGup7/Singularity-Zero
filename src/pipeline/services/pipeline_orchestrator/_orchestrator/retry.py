@@ -152,6 +152,16 @@ async def run_stage_with_retry(
         try:
             stage_output = await _execute_stage()
             metrics.record_success()
+            if stage_output is not None:
+                import dataclasses
+                from src.core.contracts.pipeline_runtime import _thaw_value
+                new_metrics = dict(_thaw_value(stage_output.metrics))
+                new_metrics["retry_metrics"] = {
+                    "attempts": metrics.total_attempts,
+                    "transient_errors": metrics.transient_errors,
+                    "backoff_seconds": round(metrics.total_backoff_seconds, 2),
+                }
+                stage_output = dataclasses.replace(stage_output, metrics=new_metrics)
             if attempt > 1:
                 progress_emitter(
                     stage_name,

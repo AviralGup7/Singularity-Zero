@@ -11,6 +11,10 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from src.core.contracts.pipeline import scope_match
 from src.execution.validators.validators.token import analyze_token_exposures
 
+_UUID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
 
 def collect_scope_hosts(
     analysis_results: dict[str, list[dict[str, Any]]],
@@ -69,12 +73,9 @@ def mutate_identifier(url: str) -> str:
             return urlunparse(parsed._replace(query=urlencode(updated, doseq=True)))
 
     # Strategy 2: UUID mutation in query parameters
-    uuid_pattern = re.compile(
-        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-    )
     for index, (key, value) in enumerate(query_pairs):
         trimmed = value.strip()
-        if uuid_pattern.match(trimmed):
+        if _UUID_PATTERN.match(trimmed):
             updated = list(query_pairs)
             last_char = trimmed[-1]
             flipped = "0" if last_char != "0" else "1"
@@ -85,7 +86,7 @@ def mutate_identifier(url: str) -> str:
     # Strategy 3: String ID mutation in query parameters
     for index, (key, value) in enumerate(query_pairs):
         trimmed = value.strip()
-        if trimmed and not trimmed.isdigit() and not uuid_pattern.match(trimmed):
+        if trimmed and not trimmed.isdigit() and not _UUID_PATTERN.match(trimmed):
             updated = list(query_pairs)
             if trimmed.endswith("_test") or trimmed.endswith("_prod"):
                 suffix = "_prod" if trimmed.endswith("_test") else "_test"
@@ -114,7 +115,7 @@ def mutate_identifier(url: str) -> str:
     # Strategy 5: UUID in path segments
     path_segments = path.strip("/").split("/")
     for i, segment in enumerate(reversed(path_segments)):
-        if uuid_pattern.match(segment):
+        if _UUID_PATTERN.match(segment):
             last_char = segment[-1]
             flipped = "0" if last_char != "0" else "1"
             mutated_uuid = segment[:-1] + flipped

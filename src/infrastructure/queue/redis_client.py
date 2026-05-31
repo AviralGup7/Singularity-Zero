@@ -21,6 +21,11 @@ from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
 
 logger = get_pipeline_logger(__name__)
 
+DEFAULT_REDIS_TIMEOUT_SECONDS = 5
+DEFAULT_REDIS_RETRIES = 2
+DEFAULT_REDIS_BACKOFF_SECONDS = 0.1
+DEFAULT_RECONNECT_INTERVAL_SECONDS = 30.0
+
 
 class RedisClient:
     """Manages Redis connections with pooling, health checks, and fallback.
@@ -68,6 +73,8 @@ class RedisClient:
         self._lock = threading.Lock()
         self._fallback_lock = threading.Lock()
         self._use_fallback = False
+        self._fallback_since = 0.0
+        self._reconnect_interval = DEFAULT_RECONNECT_INTERVAL_SECONDS
         self._scripts: dict[str, Any] = {}
         self._breaker = CircuitBreaker("redis-client", failure_threshold=3, recovery_timeout=10.0)
 
@@ -113,6 +120,8 @@ class RedisClient:
                 socket_timeout=5,
                 socket_connect_timeout=5,
                 retry_on_timeout=True,
+                socket_keepalive=True,
+                health_check_interval=30,
                 **redis_tls_kwargs_from_env(),
             )
             self._client = redis.Redis(connection_pool=self._pool)
@@ -208,14 +217,18 @@ class RedisClient:
                     args = (prefix_bytes + key,) + args[1:]
 
         if self._use_fallback or self._client is None:
+            self._maybe_recover()
+        if self._use_fallback or self._client is None:
             return self._fallback_emulator.fallback_command(command, *args, **kwargs)
 
         try:
-            return self._breaker.call(self._client.execute_command, command, *args, **kwargs)
+            return self._breaker.call(
+                self._with_retries,
+                lambda: self._client.execute_command(command, *args, **kwargs),
+            )
         except Exception as exc:
             logger.warning("Redis command '%s' failed: %s, using fallback", command, exc)
-            self._healthy = False
-            self._use_fallback = True
+            self._enter_fallback()
             return self._fallback_emulator.fallback_command(command, *args, **kwargs)
 
     def execute_batch(self, commands: list[tuple[str, list[Any]]]) -> list[Any]:
@@ -243,6 +256,8 @@ class RedisClient:
             processed_commands.append((cmd_name, args))
 
         if self._use_fallback or self._client is None:
+            self._maybe_recover()
+        if self._use_fallback or self._client is None:
             return [
                 self._fallback_emulator.fallback_command(cmd_name, *args)
                 for cmd_name, args in processed_commands
@@ -255,11 +270,10 @@ class RedisClient:
                     pipe.execute_command(cmd_name, *args)
                 return pipe.execute()
 
-            return self._breaker.call(run_pipeline)
+            return self._breaker.call(self._with_retries, run_pipeline)
         except Exception as exc:
             logger.warning("Pipelined execution failed: %s, using fallback", exc)
-            self._healthy = False
-            self._use_fallback = True
+            self._enter_fallback()
             return [
                 self._fallback_emulator.fallback_command(cmd_name, *args)
                 for cmd_name, args in processed_commands
@@ -327,6 +341,8 @@ class RedisClient:
             keys = prefixed_keys
 
         if self._use_fallback or self._client is None:
+            self._maybe_recover()
+        if self._use_fallback or self._client is None:
             return self._fallback_emulator.fallback_script_exec(name, keys, args)
 
         script_info = self._scripts.get(name)
@@ -341,11 +357,10 @@ class RedisClient:
                     return script_obj(keys=keys, args=args)
                 return self._client.evalsha(script_info["hash"], len(keys), *(keys + args))
 
-            return self._breaker.call(run_script)
+            return self._breaker.call(self._with_retries, run_script)
         except Exception as exc:
             logger.warning("Script execution failed for '%s': %s, using fallback", name, exc)
-            self._healthy = False
-            self._use_fallback = True
+            self._enter_fallback()
             return self._fallback_emulator.fallback_script_exec(name, keys, args)
 
     def close(self) -> None:
@@ -358,6 +373,10 @@ class RedisClient:
             self._pool = None
             self._client = None
             self._healthy = False
+        try:
+            self._fallback_db.close()
+        except Exception as exc:
+            logger.debug("Fallback DB close failed: %s", exc)
 
     def __enter__(self) -> RedisClient:
         """Support context manager entry."""
@@ -366,3 +385,37 @@ class RedisClient:
     def __exit__(self, *args: Any) -> None:
         """Support context manager exit with cleanup."""
         self.close()
+
+    def _with_retries(self, fn: Any) -> Any:
+        delay = DEFAULT_REDIS_BACKOFF_SECONDS
+        last_error: Exception | None = None
+        for attempt in range(DEFAULT_REDIS_RETRIES + 1):
+            try:
+                return fn()
+            except Exception as exc:
+                last_error = exc
+                if attempt >= DEFAULT_REDIS_RETRIES:
+                    break
+                time.sleep(delay)
+                delay *= 2
+        raise last_error or RuntimeError("Redis operation failed")
+
+    def _enter_fallback(self) -> None:
+        self._healthy = False
+        self._use_fallback = True
+        self._fallback_since = time.time()
+
+    def _maybe_recover(self) -> None:
+        if not self.url or not self._use_fallback:
+            return
+        if time.time() - self._fallback_since < self._reconnect_interval:
+            return
+        with self._lock:
+            if not self._use_fallback:
+                return
+            self._use_fallback = False
+            self._initialize()
+            if self._healthy:
+                logger.info("Redis recovered; leaving SQLite fallback mode")
+            else:
+                self._enter_fallback()

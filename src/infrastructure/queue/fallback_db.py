@@ -10,11 +10,18 @@ import json
 import os
 import sqlite3
 import threading
+import time
+from collections.abc import Callable
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
+
+_CONNECT_TIMEOUT_SECONDS = 5.0
+_BUSY_TIMEOUT_MS = 5000
+_LOCK_RETRY_ATTEMPTS = 4
+_LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
 
 
 class FallbackDB:
@@ -28,7 +35,42 @@ class FallbackDB:
         """
         self.db_path = db_path
         self._thread_local = threading.local()
+        self._lock = threading.RLock()
+        self._available = False
+        self._read_only = False
+        self.last_error: str | None = None
         self._init_sqlite()
+
+    @staticmethod
+    def _is_locked_error(exc: BaseException) -> bool:
+        message = str(exc).lower()
+        return "database is locked" in message or "database table is locked" in message
+
+    def _configure_conn(self, conn: sqlite3.Connection, *, read_only: bool = False) -> None:
+        conn.row_factory = sqlite3.Row
+        conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
+        conn.execute("PRAGMA foreign_keys=ON")
+        if not read_only:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+
+    def _with_retry(self, operation: Callable[[], Any], *, write: bool = False) -> Any:
+        last_exc: Exception | None = None
+        for attempt in range(_LOCK_RETRY_ATTEMPTS):
+            try:
+                return operation()
+            except sqlite3.OperationalError as exc:
+                last_exc = exc
+                self.last_error = str(exc)
+                self.close()
+                if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
+                    if write:
+                        self._read_only = True
+                    raise
+                time.sleep(_LOCK_RETRY_BASE_DELAY_SECONDS * (2**attempt))
+        if last_exc is not None:
+            raise last_exc
+        return None
 
     def _init_sqlite(self) -> None:
         """Initialize the SQLite fallback database schema."""
@@ -36,31 +78,44 @@ class FallbackDB:
             db_dir = os.path.dirname(self.db_path)
             if db_dir:
                 os.makedirs(db_dir, exist_ok=True)
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS fallback_store (
-                    key TEXT PRIMARY KEY,
-                    type TEXT,
-                    value TEXT
+            conn = sqlite3.connect(self.db_path, timeout=_CONNECT_TIMEOUT_SECONDS)
+            try:
+                self._configure_conn(conn)
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS fallback_store (
+                        key TEXT PRIMARY KEY,
+                        type TEXT,
+                        value TEXT
+                    )
+                    """
                 )
-                """
-            )
-            conn.commit()
-            conn.close()
+                conn.commit()
+                self._available = True
+                self._read_only = False
+                self.last_error = None
+            finally:
+                conn.close()
         except Exception as exc:
+            self._available = False
+            self._read_only = True
+            self.last_error = str(exc)
             logger.error("Failed to initialize SQLite fallback database: %s", exc)
 
     def _get_sqlite_conn(self) -> Any:
+        if not self._available and not os.path.exists(self.db_path):
+            self._init_sqlite()
+        if not self._available:
+            raise RuntimeError(f"SQLite fallback database unavailable: {self.last_error}")
         if not hasattr(self._thread_local, "conn") or self._thread_local.conn is None:
-            conn = sqlite3.connect(self.db_path, timeout=30.0)
-            conn.row_factory = sqlite3.Row
-            try:
-                conn.execute("PRAGMA journal_mode=WAL")
-            except Exception:
-                pass
+            uri = f"file:{self.db_path}?mode=ro" if self._read_only else self.db_path
+            conn = sqlite3.connect(
+                uri,
+                timeout=_CONNECT_TIMEOUT_SECONDS,
+                uri=self._read_only,
+            )
             self._thread_local.conn = conn
+            self._configure_conn(conn, read_only=self._read_only)
         return self._thread_local.conn
 
     def close(self) -> None:
@@ -76,10 +131,14 @@ class FallbackDB:
     def db_get(self, key: str) -> tuple[str | None, Any]:
         """Get key type and raw Python data from SQLite."""
         try:
-            conn = self._get_sqlite_conn()
-            cursor = conn.cursor()
-            cursor.execute("SELECT type, value FROM fallback_store WHERE key = ?", (key,))
-            row = cursor.fetchone()
+
+            def _op() -> Any:
+                conn = self._get_sqlite_conn()
+                return conn.execute(
+                    "SELECT type, value FROM fallback_store WHERE key = ?", (key,)
+                ).fetchone()
+
+            row = self._with_retry(_op)
             if row is None:
                 return None, None
 
@@ -93,52 +152,81 @@ class FallbackDB:
                 return val_type, set(data)
             return val_type, data
         except Exception as exc:
+            self.last_error = str(exc)
             logger.error("SQLite fallback get error for key '%s': %s", key, exc)
             return None, None
 
     def db_set(self, key: str, val_type: str, data: Any) -> None:
         """Save key type and raw Python data to SQLite."""
+        if self._read_only:
+            logger.warning("SQLite fallback is read-only; dropping write for key '%s'", key)
+            return
         try:
             if val_type == "set":
                 data = list(data)
             val_raw = json.dumps(data)
-            conn = self._get_sqlite_conn()
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO fallback_store (key, type, value)
-                VALUES (?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    type=excluded.type,
-                    value=excluded.value
-                """,
-                (key, val_type, val_raw),
-            )
-            conn.commit()
+
+            def _op() -> None:
+                with self._lock:
+                    conn = self._get_sqlite_conn()
+                    try:
+                        conn.execute(
+                            """
+                            INSERT INTO fallback_store (key, type, value)
+                            VALUES (?, ?, ?)
+                            ON CONFLICT(key) DO UPDATE SET
+                                type=excluded.type,
+                                value=excluded.value
+                            """,
+                            (key, val_type, val_raw),
+                        )
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+                        raise
+
+            self._with_retry(_op, write=True)
         except Exception as exc:
+            self.last_error = str(exc)
             logger.error("SQLite fallback set error for key '%s': %s", key, exc)
 
     def db_del(self, key: str) -> int:
         """Delete key from SQLite."""
+        if self._read_only:
+            logger.warning("SQLite fallback is read-only; delete skipped for key '%s'", key)
+            return 0
         try:
-            conn = self._get_sqlite_conn()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM fallback_store WHERE key = ?", (key,))
-            deleted = cursor.rowcount
-            conn.commit()
+
+            def _op() -> int:
+                with self._lock:
+                    conn = self._get_sqlite_conn()
+                    try:
+                        cursor = conn.execute("DELETE FROM fallback_store WHERE key = ?", (key,))
+                        deleted = cursor.rowcount
+                        conn.commit()
+                        return int(deleted)
+                    except Exception:
+                        conn.rollback()
+                        raise
+
+            deleted = self._with_retry(_op, write=True)
             return int(deleted)
         except Exception as exc:
+            self.last_error = str(exc)
             logger.error("SQLite fallback del error for key '%s': %s", key, exc)
             return 0
 
     def db_scan(self) -> list[str]:
         """Get all keys in fallback store."""
         try:
-            conn = self._get_sqlite_conn()
-            cursor = conn.cursor()
-            cursor.execute("SELECT key FROM fallback_store")
-            rows = cursor.fetchall()
+
+            def _op() -> Any:
+                conn = self._get_sqlite_conn()
+                return conn.execute("SELECT key FROM fallback_store").fetchall()
+
+            rows = self._with_retry(_op)
             return [row["key"] for row in rows]
         except Exception as exc:
+            self.last_error = str(exc)
             logger.error("SQLite fallback scan error: %s", exc)
             return []

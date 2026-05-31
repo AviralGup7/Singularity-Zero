@@ -98,10 +98,14 @@ INTERNAL_IP_PREFIXES = (
 )
 
 
-def _is_internal_url(value: str) -> bool:
+def _is_internal_url(
+    value: str,
+    internal_ip_prefixes: tuple[str, ...] | None = None,
+) -> bool:
     """Check if a parameter value references an internal/metadata host."""
     lowered = value.lower().strip()
-    if any(lowered.startswith(prefix) for prefix in INTERNAL_IP_PREFIXES):
+    prefixes = internal_ip_prefixes if internal_ip_prefixes is not None else INTERNAL_IP_PREFIXES
+    if any(lowered.startswith(prefix) for prefix in prefixes):
         return True
     cloud_metadata = (
         "169.254.169.254",
@@ -142,17 +146,23 @@ def _is_internal_url(value: str) -> bool:
     return False
 
 
-def _assess_parameter_ssrf_risk(param_name: str, param_value: str) -> tuple[str, float]:
+def _assess_parameter_ssrf_risk(
+    param_name: str,
+    param_value: str,
+    strong_ssrf_params: set[str] | None = None,
+    internal_ip_prefixes: tuple[str, ...] | None = None,
+) -> tuple[str, float]:
     """Assess SSRF risk for a specific parameter name/value pair."""
     lowered_name = param_name.lower().strip()
-    if lowered_name in STRONG_SSRF_PARAMS:
-        if _is_internal_url(param_value):
+    strong_params = strong_ssrf_params if strong_ssrf_params is not None else STRONG_SSRF_PARAMS
+    if lowered_name in strong_params:
+        if _is_internal_url(param_value, internal_ip_prefixes=internal_ip_prefixes):
             return ("strong_sink", 0.9)
         return ("strong_sink", 0.7)
     if any(
         kw in lowered_name for kw in ("callback", "webhook", "postback", "hook", "notify", "ping")
     ):
-        if _is_internal_url(param_value):
+        if _is_internal_url(param_value, internal_ip_prefixes=internal_ip_prefixes):
             return ("moderate_sink", 0.8)
         return ("moderate_sink", 0.6)
     try:
@@ -161,7 +171,7 @@ def _assess_parameter_ssrf_risk(param_name: str, param_value: str) -> tuple[str,
             parsed.scheme in ("http", "https", "ftp", "file", "gopher", "dict", "ldap")
             and parsed.netloc
         ):
-            if _is_internal_url(param_value):
+            if _is_internal_url(param_value, internal_ip_prefixes=internal_ip_prefixes):
                 return ("moderate_sink", 0.75)
             return ("weak_indicator", 0.4)
     except Exception as exc:  # noqa: BLE001
@@ -172,6 +182,8 @@ def _assess_parameter_ssrf_risk(param_name: str, param_value: str) -> tuple[str,
 def validate_ssrf_candidates(
     analysis_results: dict[str, list[dict[str, Any]]],
     callback_context: dict[str, Any] | None = None,
+    strong_ssrf_params: set[str] | None = None,
+    internal_ip_prefixes: tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
     callback_ready = (
         str((callback_context or {}).get("validation_state", "passive_only")).lower()
@@ -204,7 +216,12 @@ def validate_ssrf_candidates(
         param_values = item.get("param_values", {})
         for param in parameters:
             param_value = str(param_values.get(param, "")).strip()
-            risk_level, risk_score = _assess_parameter_ssrf_risk(param, param_value)
+            risk_level, risk_score = _assess_parameter_ssrf_risk(
+                param,
+                param_value,
+                strong_ssrf_params=strong_ssrf_params,
+                internal_ip_prefixes=internal_ip_prefixes,
+            )
             risk_assessments.append(
                 {"parameter": param, "risk_level": risk_level, "risk_score": risk_score}
             )
@@ -342,9 +359,33 @@ def validate_ssrf_candidates(
 def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResult:
     analysis_results = {"ssrf_candidate_finder": [target]}
     callback_context = context.get("callback_context") if isinstance(context, dict) else None
-    items = validate_ssrf_candidates(analysis_results, callback_context)
+
+    settings = {}
+    if isinstance(context, dict):
+        settings = context.get("settings", {}) or context.get("selector_config", {}) or {}
+    elif hasattr(context, "selector_config"):
+        settings = getattr(context, "selector_config") or {}
+
+    custom_params = settings.get("ssrf", {}).get("strong_params")
+    strong_ssrf_params = set(custom_params) if custom_params else None
+
+    custom_prefixes = settings.get("ssrf", {}).get("internal_prefixes")
+    internal_ip_prefixes = tuple(custom_prefixes) if custom_prefixes else None
+
+    items = validate_ssrf_candidates(
+        analysis_results,
+        callback_context,
+        strong_ssrf_params=strong_ssrf_params,
+        internal_ip_prefixes=internal_ip_prefixes,
+    )
     if not items:
         return to_validation_result(
             {"url": target.get("url", ""), "status": "failed"}, validator="ssrf", category="ssrf"
         )
-    return to_validation_result(items[0], validator="ssrf", category="ssrf")
+    item = items[0]
+    item["evidence"] = {
+        "risk_assessments": item.get("risk_assessments", []),
+        "strong_sink_count": item.get("strong_sink_count", 0),
+        "notes": item.get("notes", []),
+    }
+    return to_validation_result(item, validator="ssrf", category="ssrf")

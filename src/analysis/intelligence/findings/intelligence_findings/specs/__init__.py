@@ -106,6 +106,7 @@ from . import (  # noqa: E402
     server_side_injection,
     service_worker,
     session_reuse,
+    sql_error_exposure,
     sqli_safe,
     state_transition,
     stored_xss,

@@ -19,7 +19,7 @@ from src.core.models import DEFAULT_USER_AGENT
 from src.core.plugins import list_plugins, register_plugin
 from src.pipeline.retry import retry_ready, sleep_before_retry
 from src.pipeline.tools import RetryPolicy, build_retry_policy, tool_available
-from src.recon.common import normalize_scope_entry, parse_plain_lines, run_commands_parallel
+from src.recon.common import normalize_scope_entry, parse_plain_lines, run_commands_parallel, run_async_in_sync_context
 
 SUBDOMAIN_ENUMERATOR = "subdomain_enumerator"
 
@@ -117,6 +117,17 @@ try:
 except ImportError:
     pass
 
+# Dynamic customizable passive subdomain sources registry
+for source in ["dnsdumpster", "bufferover", "certspotter", "spyse", "securitytrails", "chaos"]:
+    try:
+        import importlib
+        module = importlib.import_module(f"src.recon.sources.{source}")
+        func = getattr(module, f"query_{source}", None)
+        if func:
+            register_plugin(SUBDOMAIN_ENUMERATOR, source, contract=SubdomainEnumeratorProtocol)(func)
+    except ImportError:
+        pass
+
 
 # CLI Tools registered as plugins
 register_plugin(
@@ -134,6 +145,11 @@ register_plugin(
     type="command",
     args=["amass", "enum", "-passive", "-norecursive", "-d", "{root}"],
 )(None)
+
+
+def _run_async_provider(provider: Any, root: str) -> Any:
+    """Run an async subdomain provider safely within a synchronous context."""
+    return run_async_in_sync_context(provider(root))
 
 
 def enumerate_subdomains(
@@ -169,33 +185,8 @@ def enumerate_subdomains(
         for root in roots:
             try:
                 if asyncio.iscoroutinefunction(reg.provider):
-                    # For async providers, run in a temporary loop safely
-                    try:
-                        running_loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        running_loop = None
-
-                    if running_loop is not None and running_loop.is_running():
-                        import concurrent.futures
-
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-
-                            def _run_in_thread() -> Any:
-                                new_loop = asyncio.new_event_loop()
-                                try:
-                                    return new_loop.run_until_complete(reg.provider(root))
-                                finally:
-                                    new_loop.close()
-
-                            res = executor.submit(_run_in_thread).result()
-                            subdomains.update(res)
-                    else:
-                        loop = asyncio.new_event_loop()
-                        try:
-                            res = loop.run_until_complete(reg.provider(root))
-                            subdomains.update(res)
-                        finally:
-                            loop.close()
+                    res = _run_async_provider(reg.provider, root)
+                    subdomains.update(res)
                 elif reg.key == "crtsh":
                     res = reg.provider(
                         root,

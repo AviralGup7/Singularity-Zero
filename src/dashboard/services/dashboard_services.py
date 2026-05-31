@@ -102,8 +102,9 @@ class DashboardServices:
                 reconciled_count,
             )
 
-        # Clean up old jobs (older than 30 days)
-        self._job_store.cleanup_old(max_age_days=30)
+        # Clean up old jobs (older than config-defined days)
+        from src.dashboard.feature_flags import FeatureFlags
+        self._job_store.cleanup_old(max_age_days=FeatureFlags.JOB_CLEANUP_AGE_DAYS())
 
     def close_persistence(self) -> None:
         """Close SQLite connections."""

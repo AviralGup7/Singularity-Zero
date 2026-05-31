@@ -7,6 +7,7 @@ incrementally.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -15,6 +16,8 @@ from src.core.models.config import Config
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.providers import commoncrawl, crawler, otx, urlscan, wayback
+
+logger = logging.getLogger(__name__)
 
 
 def collect_urls(
@@ -51,126 +54,137 @@ def collect_urls(
 
     urls: set[str] = set()
 
-    # Wayback provider (archive): respect config flag
-    try:
-        if config.tools.get("waybackurls", True):
-            timeout = int(getattr(config, "waybackurls", {}).get("timeout_seconds", 120))
-            per_host = (
-                int(config.filters.get("per_host_archive_limit", 1000)) if config.filters else 1000
-            )
-            discovered, meta = wayback.collect_for_hosts(
-                hostnames,
-                timeout_seconds=timeout,
-                per_host_limit=per_host,
-                progress_callback=progress_callback,
-            )
-            urls.update(discovered)
-            stage_meta["wayback"] = meta
-        else:
-            stage_meta["wayback"] = {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
-    except Exception:
-        stage_meta["wayback"] = {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
+    import concurrent.futures
 
-    # CommonCrawl provider: run if enabled
-    try:
-        if config.tools.get("commoncrawl", True):
-            timeout = int(getattr(config, "commoncrawl", {}).get("timeout_seconds", 120))
-            per_host = (
-                int(config.filters.get("per_host_archive_limit", 1000)) if config.filters else 1000
-            )
-            discovered_cc, meta_cc = commoncrawl.collect_for_hosts(
-                hostnames,
-                timeout_seconds=timeout,
-                per_host_limit=per_host,
-                progress_callback=progress_callback,
-            )
-            urls.update(discovered_cc)
-            stage_meta["commoncrawl"] = meta_cc
-        else:
-            stage_meta["commoncrawl"] = {
-                "status": "disabled",
-                "duration_seconds": 0.0,
-                "new_urls": 0,
-            }
-    except Exception:
-        stage_meta["commoncrawl"] = {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
-
-    # Crawler (katana-like): run if enabled and we have live hosts
-    try:
-        if config.tools.get("katana", True) and hostnames:
-            kat_cfg = getattr(config, "katana", {}) or {}
-            timeout = int(kat_cfg.get("timeout_seconds", 30))
-            extra_args = kat_cfg.get("extra_args", []) or []
-            # basic heuristic: if any extra arg references js, enable JS discovery
-            any("js" in str(arg).lower() for arg in extra_args)
-            max_pages = (
-                int(
-                    config.filters.get(
-                        "crawler_max_pages_per_host", kat_cfg.get("max_pages_per_host", 12)
-                    )
+    def run_wayback():
+        try:
+            if config.tools.get("waybackurls", True):
+                timeout = int(getattr(config, "waybackurls", {}).get("timeout_seconds", 120))
+                per_host = (
+                    int(config.filters.get("per_host_archive_limit", 1000)) if config.filters else 1000
                 )
-                if config.filters is not None
-                else int(kat_cfg.get("max_pages_per_host", 12))
-            )
-            workers = (
-                int(config.filters.get("crawler_workers", kat_cfg.get("workers", 6)))
-                if config.filters is not None
-                else int(kat_cfg.get("workers", 6))
-            )
+                discovered, meta = wayback.collect_for_hosts(
+                    hostnames,
+                    timeout_seconds=timeout,
+                    per_host_limit=per_host,
+                    progress_callback=progress_callback,
+                )
+                return "wayback", discovered, meta
+            else:
+                return "wayback", set(), {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
+        except Exception as exc:
+            logger.warning("Wayback collection failed: %s", exc, exc_info=True)
+            return "wayback", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
 
-            discovered_crawl, meta_crawl = crawler.collect_for_hosts(
-                hostnames,
-                timeout_seconds=timeout,
-                per_host_limit=max_pages,
-                max_workers=workers,
-                progress_callback=progress_callback,
-            )
-            urls.update(discovered_crawl)
-            stage_meta["crawler"] = meta_crawl
-        else:
-            stage_meta["crawler"] = {"status": "skipped", "duration_seconds": 0.0, "new_urls": 0}
-    except Exception:
-        stage_meta["crawler"] = {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
+    def run_commoncrawl():
+        try:
+            if config.tools.get("commoncrawl", True):
+                timeout = int(getattr(config, "commoncrawl", {}).get("timeout_seconds", 120))
+                per_host = (
+                    int(config.filters.get("per_host_archive_limit", 1000)) if config.filters else 1000
+                )
+                discovered_cc, meta_cc = commoncrawl.collect_for_hosts(
+                    hostnames,
+                    timeout_seconds=timeout,
+                    per_host_limit=per_host,
+                    progress_callback=progress_callback,
+                )
+                return "commoncrawl", discovered_cc, meta_cc
+            else:
+                return "commoncrawl", set(), {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
+        except Exception as exc:
+            logger.warning("CommonCrawl collection failed: %s", exc, exc_info=True)
+            return "commoncrawl", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
 
-    # URLScan provider
-    try:
-        if config.tools.get("urlscan", True):
-            timeout = int(getattr(config, "urlscan", {}).get("timeout_seconds", 30))
-            per_host = (
-                int(config.filters.get("per_host_archive_limit", 100)) if config.filters else 100
-            )
-            discovered_us, meta_us = urlscan.collect_for_hosts(
-                hostnames,
-                timeout_seconds=timeout,
-                per_host_limit=per_host,
-                progress_callback=progress_callback,
-            )
-            urls.update(discovered_us)
-            stage_meta["urlscan"] = meta_us
-        else:
-            stage_meta["urlscan"] = {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
-    except Exception:
-        stage_meta["urlscan"] = {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
+    def run_crawler():
+        try:
+            if config.tools.get("katana", True) and hostnames:
+                kat_cfg = getattr(config, "katana", {}) or {}
+                timeout = int(kat_cfg.get("timeout_seconds", 30))
+                extra_args = kat_cfg.get("extra_args", []) or []
+                js_enabled = any("js" in str(arg).lower() for arg in extra_args)
+                logger.info("Crawler JS discovery flag calculated: %s (based on extra_args: %s)", js_enabled, extra_args)
+                max_pages = (
+                    int(
+                        config.filters.get(
+                            "crawler_max_pages_per_host", kat_cfg.get("max_pages_per_host", 12)
+                        )
+                    )
+                    if config.filters is not None
+                    else int(kat_cfg.get("max_pages_per_host", 12))
+                )
+                workers = (
+                    int(config.filters.get("crawler_workers", kat_cfg.get("workers", 6)))
+                    if config.filters is not None
+                    else int(kat_cfg.get("workers", 6))
+                )
 
-    # AlienVault OTX provider
-    try:
-        if config.tools.get("otx", True):
-            timeout = int(getattr(config, "otx", {}).get("timeout_seconds", 30))
-            per_host = (
-                int(config.filters.get("per_host_archive_limit", 100)) if config.filters else 100
-            )
-            discovered_otx, meta_otx = otx.collect_for_hosts(
-                hostnames,
-                timeout_seconds=timeout,
-                per_host_limit=per_host,
-                progress_callback=progress_callback,
-            )
-            urls.update(discovered_otx)
-            stage_meta["otx"] = meta_otx
-        else:
-            stage_meta["otx"] = {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
-    except Exception:
-        stage_meta["otx"] = {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
+                discovered_crawl, meta_crawl = crawler.collect_for_hosts(
+                    hostnames,
+                    timeout_seconds=timeout,
+                    per_host_limit=max_pages,
+                    max_workers=workers,
+                    progress_callback=progress_callback,
+                )
+                return "crawler", discovered_crawl, meta_crawl
+            else:
+                return "crawler", set(), {"status": "skipped", "duration_seconds": 0.0, "new_urls": 0}
+        except Exception as exc:
+            logger.warning("Crawler collection failed: %s", exc, exc_info=True)
+            return "crawler", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
+
+    def run_urlscan():
+        try:
+            if config.tools.get("urlscan", True):
+                timeout = int(getattr(config, "urlscan", {}).get("timeout_seconds", 30))
+                per_host = (
+                    int(config.filters.get("per_host_archive_limit", 100)) if config.filters else 100
+                )
+                discovered_us, meta_us = urlscan.collect_for_hosts(
+                    hostnames,
+                    timeout_seconds=timeout,
+                    per_host_limit=per_host,
+                    progress_callback=progress_callback,
+                )
+                return "urlscan", discovered_us, meta_us
+            else:
+                return "urlscan", set(), {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
+        except Exception as exc:
+            logger.warning("URLScan collection failed: %s", exc, exc_info=True)
+            return "urlscan", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
+
+    def run_otx():
+        try:
+            if config.tools.get("otx", True):
+                timeout = int(getattr(config, "otx", {}).get("timeout_seconds", 30))
+                per_host = (
+                    int(config.filters.get("per_host_archive_limit", 100)) if config.filters else 100
+                )
+                discovered_otx, meta_otx = otx.collect_for_hosts(
+                    hostnames,
+                    timeout_seconds=timeout,
+                    per_host_limit=per_host,
+                    progress_callback=progress_callback,
+                )
+                return "otx", discovered_otx, meta_otx
+            else:
+                return "otx", set(), {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
+        except Exception as exc:
+            logger.warning("OTX collection failed: %s", exc, exc_info=True)
+            return "otx", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [
+            executor.submit(run_wayback),
+            executor.submit(run_commoncrawl),
+            executor.submit(run_crawler),
+            executor.submit(run_urlscan),
+            executor.submit(run_otx),
+        ]
+        for fut in concurrent.futures.as_completed(futures):
+            prov, discovered, meta = fut.result()
+            urls.update(discovered)
+            stage_meta[prov] = meta
 
     emit_collection_progress(
         progress_callback, f"In-house collection complete: {len(urls)} urls", 68

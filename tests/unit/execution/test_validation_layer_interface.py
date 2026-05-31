@@ -78,6 +78,54 @@ class ValidationLayerInterfaceTests(unittest.TestCase):
         self.assertEqual(findings[0]["score"], 8)
         self.assertEqual(findings[0]["validator"], "demo_dynamic_check")
 
+    def test_ssrf_validator_custom_config(self) -> None:
+        # Verify custom params and internal prefixes are respected in SSRF validation
+        target = {
+            "url": "https://app.example.com/fetch?custom_sink=http://192.168.1.1",
+            "score": 8,
+            "signals": ["custom_signal"],
+            "parameters": ["custom_sink"],
+            "param_values": {"custom_sink": "http://192.168.1.1"},
+        }
+        context = {
+            "callback_context": {"validation_state": "passive_only"},
+            "selector_config": {
+                "ssrf": {
+                    "strong_params": ["custom_sink"],
+                    "internal_prefixes": ["192.168."]
+                }
+            }
+        }
+        result = validate_target(target, context, validator_name="ssrf")
+        self.assertEqual(result.validator, "ssrf")
+        # Ensure it recognized the custom param and evaluated the internal IP correctly
+        evidence = result.evidence or {}
+        risk_assessments = evidence.get("risk_assessments", [])
+        self.assertTrue(any(r["parameter"] == "custom_sink" and r["risk_level"] == "strong_sink" for r in risk_assessments))
+
+    def test_token_reuse_masking(self) -> None:
+        # Verify tokens are masked when executing validation
+        target = {"url": "https://app.example.com/api"}
+        context = {
+            "analysis_results": {
+                "token_leak_detector": [
+                    {
+                        "url": "https://app.example.com/api",
+                        "token_value": "secret_token_123456",
+                        "location": "header",
+                    }
+                ]
+            }
+        }
+        result = validate_target(target, context, validator_name="token_reuse")
+        self.assertEqual(result.validator, "token_reuse")
+        evidence = result.evidence or {}
+        # Ensure masked_token is in the evidence and correctly obfuscated
+        masked = evidence.get("masked_token", "")
+        self.assertTrue(masked.startswith("secr"))
+        self.assertTrue(masked.endswith("3456"))
+        self.assertNotIn("secret_token_123456", str(evidence))
+
 
 if __name__ == "__main__":
     unittest.main()

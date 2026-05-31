@@ -55,9 +55,10 @@ class HeartbeatMonitor:
             interval_seconds: Interval between heartbeat pings.
             timeout_seconds: Inactivity timeout before disconnection.
         """
+        import os
         self.manager = manager
-        self.interval_seconds = interval_seconds
-        self.timeout_seconds = timeout_seconds
+        self.interval_seconds = float(os.environ.get("WS_HEARTBEAT_INTERVAL", str(interval_seconds)))
+        self.timeout_seconds = float(os.environ.get("WS_HEARTBEAT_TIMEOUT", str(timeout_seconds)))
         self.broadcaster = broadcaster
         self._tasks: dict[str, asyncio.Task[None]] = {}
         # Fix #357: per-connection stop events instead of a single shared _running flag
@@ -138,6 +139,11 @@ class HeartbeatMonitor:
                         connection_id,
                         time.time() - info.last_activity,
                     )
+                    try:
+                        from src.websocket_server.metrics import WS_HEARTBEATS
+                        WS_HEARTBEATS.inc()
+                    except Exception:
+                        pass
                     await self._disconnect_client(info)
                     break
 

@@ -1,5 +1,6 @@
 from src.analysis.checks.active._impl import (
     ai_endpoint_exposure_analyzer,
+    dom_xss_signal_detector,
     race_condition_signal_analyzer,
     reflected_xss_probe,
     server_side_injection_surface_analyzer,
@@ -23,6 +24,7 @@ from src.analysis.checks.active.xml_bomb_detector import xml_bomb_detector
 __all__ = [
     "access_control_analyzer",
     "ai_endpoint_exposure_analyzer",
+    "dom_xss_signal_detector",
     "race_condition_signal_analyzer",
     "reflected_xss_probe",
     "server_side_injection_surface_analyzer",

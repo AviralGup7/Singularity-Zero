@@ -31,6 +31,7 @@ _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
     "responses_and_bulk_items": ("responses", "bulk_items"),
     "header_targets_and_cache": ("header_targets", "response_cache"),
     "urls_and_cache": ("urls", "response_cache"),
+    "dynamic_analysis_context": ("payload",),
 }
 
 
@@ -320,6 +321,19 @@ def _resolve_input_kwargs(
         return {
             "urls": context.urls,
             "response_cache": context.response_cache,
+        }
+    if kind == "dynamic_analysis_context":
+        return {
+            "payload": {
+                "urls": sorted(context.urls),
+                "priority_urls": sorted(context.priority_urls),
+                "live_hosts": sorted(context.live_hosts),
+                "responses": context.responses,
+                "response_map": context.response_map,
+                "analysis_config": context.analysis_config,
+                "ranked_items": context.ranked_items,
+                "header_targets": context.header_targets,
+            }
         }
 
     return {}

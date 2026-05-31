@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 import threading
+import time
 import uuid
 from collections import OrderedDict
 from typing import Any
@@ -17,9 +18,48 @@ from starlette.websockets import WebSocketState  # Fix #369: top-level import
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.websocket_server.manager import ConnectionManager
 from src.websocket_server.protocol import BaseMessage
+from src.websocket_server.metrics import WS_MESSAGES, WS_LATENCY, WS_REDIS_FANOUT
 
 # Fix #362: use project-wide structured logger
 logger = get_pipeline_logger(__name__)
+
+REDIS_TIMEOUT_SECONDS = 5.0
+REDIS_PUBLISH_RETRIES = 2
+REDIS_RECONNECT_SECONDS = 30.0
+
+
+class CircuitBreaker:
+    """Circuit breaker pattern for Redis Pub/Sub integration."""
+
+    def __init__(self, failure_threshold: int = 5, recovery_timeout: float = 30.0):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.failures = 0
+        self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+        self.last_state_change = 0.0
+
+    def record_success(self) -> None:
+        self.failures = 0
+        self.state = "CLOSED"
+
+    def record_failure(self) -> None:
+        self.failures += 1
+        if self.failures >= self.failure_threshold:
+            self.state = "OPEN"
+            self.last_state_change = time.time()
+            logger.error("Redis Pub/Sub circuit breaker is now OPEN due to %d consecutive failures", self.failures)
+
+    def allow_request(self) -> bool:
+        if self.state == "CLOSED":
+            return True
+        if self.state == "OPEN":
+            if time.time() - self.last_state_change > self.recovery_timeout:
+                self.state = "HALF_OPEN"
+                self.last_state_change = time.time()
+                logger.info("Redis Pub/Sub circuit breaker entered HALF_OPEN state; attempting retry")
+                return True
+            return False
+        return True  # HALF_OPEN
 
 
 class Broadcaster:
@@ -57,11 +97,11 @@ class Broadcaster:
             backpressure_drain_fraction: Fraction of the queue to drain on overflow.
         """
         self.manager = manager
-        self.dedup_window = dedup_window
+        self.dedup_window = int(os.environ.get("WS_DEDUP_WINDOW", str(dedup_window)))
         self.backpressure_drop_oldest = backpressure_drop_oldest
         if not 0 < backpressure_drain_fraction <= 1:
             raise ValueError("backpressure_drain_fraction must be between 0 and 1")
-        self.backpressure_drain_fraction = backpressure_drain_fraction
+        self.backpressure_drain_fraction = float(os.environ.get("WS_BACKPRESSURE_DRAIN_FRACTION", str(backpressure_drain_fraction)))
         # Fix #363: Use OrderedDict for FIFO dedup window eviction.
         # set.pop() removes an arbitrary element, not the oldest.
         self._seen_ids: OrderedDict[str, None] = OrderedDict()
@@ -77,6 +117,8 @@ class Broadcaster:
         self._subscriber_task: asyncio.Task[None] | None = None
         self._dispatch_tasks: dict[str, asyncio.Task[None]] = {}
         self._worker_id = uuid.uuid4().hex
+        self._redis_breaker = CircuitBreaker()
+        self._redis_degraded_until = 0.0
 
     def _dedup_key(self, message_id: str, scope: str = "") -> str:
         return f"{scope}:{message_id}" if scope else message_id
@@ -97,7 +139,11 @@ class Broadcaster:
 
     async def start(self) -> None:
         """Start Redis Pub/Sub fan-out when configured."""
-        if not self._redis_enabled or self._subscriber_task is not None:
+        current_task = asyncio.current_task()
+        reconnecting_from_subscriber = (
+            self._subscriber_task is not None and current_task is self._subscriber_task
+        )
+        if not self._redis_enabled or (self._subscriber_task is not None and not reconnecting_from_subscriber):
             return
 
         if self._redis_url is None:
@@ -112,22 +158,28 @@ class Broadcaster:
             self._redis_client = redis.from_url(
                 self._redis_url,
                 decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
+                socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+                socket_timeout=REDIS_TIMEOUT_SECONDS,
                 retry_on_timeout=True,
+                health_check_interval=30,
+                max_connections=20,
             )
-            await self._redis_client.ping()
+            await asyncio.wait_for(self._redis_client.ping(), timeout=REDIS_TIMEOUT_SECONDS)
             self._redis_pubsub = self._redis_client.pubsub()
-            await self._redis_pubsub.subscribe(self._redis_channel)
-            self._subscriber_task = asyncio.create_task(
-                self._redis_subscribe_loop(),
-                name="ws-redis-broadcaster",
+            await asyncio.wait_for(
+                self._redis_pubsub.subscribe(self._redis_channel),
+                timeout=REDIS_TIMEOUT_SECONDS,
             )
+            if not reconnecting_from_subscriber:
+                self._subscriber_task = asyncio.create_task(
+                    self._redis_subscribe_loop(),
+                    name="ws-redis-broadcaster",
+                )
             logger.info("Redis WebSocket broadcaster subscribed to %s", self._redis_channel)
         except Exception as exc:
-            logger.warning("Redis WebSocket broadcaster disabled: %s", exc)
+            logger.warning("Redis WebSocket broadcaster degraded: %s", exc)
+            self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
             await self.stop()
-            self._redis_enabled = False
 
     async def stop(self) -> None:
         """Stop Redis Pub/Sub resources."""
@@ -141,15 +193,20 @@ class Broadcaster:
 
         if self._redis_pubsub is not None:
             try:
-                await self._redis_pubsub.unsubscribe(self._redis_channel)
-                await self._redis_pubsub.close()
+                await asyncio.wait_for(
+                    self._redis_pubsub.unsubscribe(self._redis_channel),
+                    timeout=REDIS_TIMEOUT_SECONDS,
+                )
+                close = getattr(self._redis_pubsub, "aclose", self._redis_pubsub.close)
+                await close()
             except Exception as exc:
                 logger.debug("Redis Pub/Sub close failed: %s", exc)
             self._redis_pubsub = None
 
         if self._redis_client is not None:
             try:
-                await self._redis_client.close()
+                close = getattr(self._redis_client, "aclose", self._redis_client.close)
+                await close()
             except Exception as exc:
                 logger.debug("Redis client close failed: %s", exc)
             self._redis_client = None
@@ -178,6 +235,12 @@ class Broadcaster:
         if not self._redis_enabled or not self._redis_url:
             return False
 
+        if not self._redis_breaker.allow_request():
+            logger.debug("Redis circuit breaker is OPEN; skipping publish to Redis")
+            return False
+        if time.monotonic() < self._redis_degraded_until:
+            return False
+
         await self.start()
         if self._redis_client is None:
             return False
@@ -190,9 +253,13 @@ class Broadcaster:
             "exclude": sorted(exclude or set()),
         }
         try:
-            await self._redis_client.publish(self._redis_channel, json.dumps(envelope))
+            await self._publish_with_retries(json.dumps(envelope))
+            WS_REDIS_FANOUT.labels(direction="publish").inc()
+            self._redis_breaker.record_success()
             return True
         except Exception as exc:
+            self._redis_breaker.record_failure()
+            self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
             logger.warning("Redis WebSocket publish failed; falling back locally: %s", exc)
             return False
 
@@ -219,6 +286,7 @@ class Broadcaster:
 
                     try:
                         envelope = json.loads(raw)
+                        WS_REDIS_FANOUT.labels(direction="subscribe").inc()
                         # Fix #364: track fire-and-forget task; add error-logging done-callback.
                         task = asyncio.create_task(
                             self._deliver_envelope(envelope),
@@ -226,6 +294,7 @@ class Broadcaster:
                         )
                         task.add_done_callback(self._log_task_error)
                         backoff = 1.0  # Reset backoff on successful message
+                        self._redis_breaker.record_success()
                     except (TypeError, ValueError, json.JSONDecodeError) as exc:
                         logger.warning("Malformed Redis WS envelope: %s", exc)
 
@@ -233,8 +302,11 @@ class Broadcaster:
                 logger.info("Redis WebSocket subscribe loop cancelled")
                 break
             except Exception as exc:
+                self._redis_breaker.record_failure()
                 logger.error("Redis WS loop failure (retrying in %.1fs): %s", backoff, exc)
+                await self._close_redis_handles()
                 self._redis_pubsub = None
+                self._redis_degraded_until = time.monotonic() + min(backoff, REDIS_RECONNECT_SECONDS)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2.0, max_backoff)
 
@@ -271,6 +343,40 @@ class Broadcaster:
         except Exception as exc:
             logger.error("Redis WS envelope delivery task failed: %s", exc)
 
+    async def _publish_with_retries(self, payload: str) -> None:
+        delay = 0.1
+        last_error: Exception | None = None
+        for attempt in range(REDIS_PUBLISH_RETRIES + 1):
+            try:
+                await asyncio.wait_for(
+                    self._redis_client.publish(self._redis_channel, payload),
+                    timeout=REDIS_TIMEOUT_SECONDS,
+                )
+                return
+            except Exception as exc:
+                last_error = exc
+                if attempt >= REDIS_PUBLISH_RETRIES:
+                    break
+                await asyncio.sleep(delay)
+                delay *= 2
+        raise last_error or RuntimeError("Redis publish failed")
+
+    async def _close_redis_handles(self) -> None:
+        if self._redis_pubsub is not None:
+            try:
+                close = getattr(self._redis_pubsub, "aclose", self._redis_pubsub.close)
+                await close()
+            except Exception as exc:
+                logger.debug("Redis Pub/Sub close after failure failed: %s", exc)
+            self._redis_pubsub = None
+        if self._redis_client is not None:
+            try:
+                close = getattr(self._redis_client, "aclose", self._redis_client.close)
+                await close()
+            except Exception as exc:
+                logger.debug("Redis client close after failure failed: %s", exc)
+            self._redis_client = None
+
     async def _deliver_local(
         self,
         scope: str,
@@ -281,12 +387,10 @@ class Broadcaster:
     ) -> int:
         """Internal delivery logic for connections on this process instance."""
         if not skip_redis and self._redis_enabled:
-            # If we are in distributed mode, the primary path is always via Redis
-            # to ensure consistent ordering across all workers.
-            await self._publish(scope=scope, target=target, message=message, exclude=exclude)
-            # We return 1 to indicate 'accepted for delivery', though actual delivery
-            # happens via the subscribe loop.
-            return 1
+            # Prefer Redis in distributed mode, but fall through to local delivery
+            # when Redis is degraded so the sender does not silently drop messages.
+            if await self._publish(scope=scope, target=target, message=message, exclude=exclude):
+                return 1
 
         exclude = exclude or set()
         dedup_scope = f"{scope}:{target}"
@@ -313,6 +417,7 @@ class Broadcaster:
                 sent += 1
 
         if sent > 0:
+            WS_MESSAGES.labels(scope=scope).inc(sent)
             async with self._lock:
                 self._broadcast_count += 1
         return sent
@@ -357,7 +462,7 @@ class Broadcaster:
         """
         if await self._publish(scope="connection", target=connection_id, message=message):
             return True
-        return bool(await self._deliver_local("connection", connection_id, message))
+        return bool(await self._deliver_local("connection", connection_id, message, skip_redis=True))
 
     async def broadcast_to_group(
         self,
@@ -377,7 +482,7 @@ class Broadcaster:
         """
         if await self._publish(scope="group", target=group, message=message, exclude=exclude):
             return 1
-        return await self._deliver_local("group", group, message, exclude)
+        return await self._deliver_local("group", group, message, exclude, skip_redis=True)
 
     async def broadcast_to_user(
         self,
@@ -397,7 +502,7 @@ class Broadcaster:
         """
         if await self._publish(scope="user", target=user_id, message=message, exclude=exclude):
             return 1
-        return await self._deliver_local("user", user_id, message, exclude)
+        return await self._deliver_local("user", user_id, message, exclude, skip_redis=True)
 
     async def broadcast_to_all(
         self,
@@ -415,7 +520,7 @@ class Broadcaster:
         """
         if await self._publish(scope="all", target="*", message=message, exclude=exclude):
             return 1
-        return await self._deliver_local("all", "*", message, exclude)
+        return await self._deliver_local("all", "*", message, exclude, skip_redis=True)
 
     async def _handle_backpressure(
         self,
@@ -498,18 +603,19 @@ class Broadcaster:
         Args:
             connection_id: Connection to dispatch for.
         """
+        info = await self.manager.get_connection(connection_id)
+        if info is None:
+            return
 
-        while True:
-            info = await self.manager.get_connection(connection_id)
-            if info is None or info.closed:
-                break
-
+        while not info.closed:
             if info.websocket.client_state != WebSocketState.CONNECTED:
                 break
 
             try:
                 json_data = await info.message_queue.get()
+                start_time = time.monotonic()
                 await info.websocket.send_text(json_data)
+                WS_LATENCY.observe(time.monotonic() - start_time)
                 info.touch()
             except asyncio.CancelledError:
                 break

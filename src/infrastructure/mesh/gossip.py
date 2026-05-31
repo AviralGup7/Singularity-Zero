@@ -63,6 +63,29 @@ class PeerHealthStats:
     inbound_throughput: int = 0
 
 
+@dataclass(frozen=True)
+class MeshHealthSnapshot:
+    """Small mesh health summary consumable by shared API layers."""
+
+    node_count: int
+    healthy_node_count: int
+    unhealthy_node_count: int
+    suspect_node_count: int
+    dead_node_count: int
+    gossip_sync_failures_total: int
+    heartbeat_misses_total: int
+    avg_latency_ms: float
+    drop_rate: float
+    active_heartbeats: bool
+    partition_signal: bool
+    split_brain_signal: bool
+    leader_id: str
+    generated_at: float
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 class GossipEngine:
     """
     SWIM-based peer-to-peer gossip engine with HMAC authentication.
@@ -88,6 +111,7 @@ class GossipEngine:
         self._peer_stats: dict[str, PeerHealthStats] = {}
         self._total_sent = 0
         self._total_failed = 0
+        self._gossip_sync_failures_total = 0
 
         self.retry_base_ms = _env_int("MESH_RETRY_BASE_MS", 100)
         self.retry_max_ms = _env_int("MESH_RETRY_MAX_MS", 2000)
@@ -205,6 +229,12 @@ class GossipEngine:
 
             stats.failed += 1
             self._total_failed += 1
+            if message_type == "gossip":
+                self._gossip_sync_failures_total += 1
+                _inc_metric(
+                    "mesh_gossip_sync_failures_total",
+                    "Total exhausted mesh gossip sync attempts",
+                )
             if mark_suspect_on_failure and peer.id in self.peers:
                 self.peers[peer.id].status = "suspect"
                 logger.warning("Peer '%s' marked suspect after retry exhaustion", peer.id)
@@ -475,12 +505,30 @@ class GossipEngine:
                 }
             )
 
+        snapshot = self.health_snapshot(
+            active_nodes=active_nodes,
+            all_nodes=nodes,
+            avg_latency_ms=round(sum(latencies) / len(latencies), 2) if latencies else 0.0,
+            drop_rate=round(self._total_failed / sent, 4),
+        )
+        _observe_mesh_health_metrics(snapshot)
+
         return {
             "peer_count": len(active_nodes),
+            "node_count": snapshot.node_count,
+            "healthy_node_count": snapshot.healthy_node_count,
+            "unhealthy_node_count": snapshot.unhealthy_node_count,
+            "suspect_node_count": snapshot.suspect_node_count,
+            "dead_node_count": snapshot.dead_node_count,
             "leader_id": self.leader_id,
-            "avg_latency_ms": round(sum(latencies) / len(latencies), 2) if latencies else 0.0,
-            "drop_rate": round(self._total_failed / sent, 4),
+            "avg_latency_ms": snapshot.avg_latency_ms,
+            "drop_rate": snapshot.drop_rate,
             "active_heartbeats": self._running,
+            "gossip_sync_failures_total": snapshot.gossip_sync_failures_total,
+            "heartbeat_misses_total": snapshot.heartbeat_misses_total,
+            "partition_signal": snapshot.partition_signal,
+            "split_brain_signal": snapshot.split_brain_signal,
+            "health_snapshot": snapshot.as_dict(),
             "nodes": [asdict(node) for node in nodes],
             "edges": edges,
             "retry": {
@@ -507,6 +555,105 @@ class GossipEngine:
                 for peer_id, stats in self._peer_stats.items()
             },
         }
+
+    def health_snapshot(
+        self,
+        *,
+        active_nodes: list[MeshNode] | None = None,
+        all_nodes: list[MeshNode] | None = None,
+        avg_latency_ms: float | None = None,
+        drop_rate: float | None = None,
+    ) -> MeshHealthSnapshot:
+        """Return a stable subsystem-owned mesh health summary."""
+        nodes = all_nodes if all_nodes is not None else self.mesh_nodes(include_dead=True)
+        active = active_nodes if active_nodes is not None else [
+            self.local_node,
+            *[p for p in self.peers.values() if p.status != "dead"],
+        ]
+        healthy = [node for node in active if node.status == "alive"]
+        suspect = [node for node in nodes if node.status == "suspect"]
+        dead = [node for node in nodes if node.status == "dead"]
+        unhealthy_node_count = len(suspect) + len(dead)
+        heartbeat_misses_total = sum(stats.heartbeat_misses for stats in self._peer_stats.values())
+        if avg_latency_ms is None:
+            latencies = [
+                stats.last_latency_ms
+                for stats in self._peer_stats.values()
+                if stats.last_latency_ms is not None
+            ]
+            avg_latency_ms = round(sum(latencies) / len(latencies), 2) if latencies else 0.0
+        if drop_rate is None:
+            drop_rate = round(self._total_failed / max(1, self._total_sent), 4)
+
+        live_ids = {node.id for node in active if node.status == "alive"}
+        partition_signal = unhealthy_node_count > 0 or any(
+            stats.heartbeat_misses >= self.heartbeat_fail_threshold
+            for stats in self._peer_stats.values()
+        )
+        split_brain_signal = bool(self.leader_id and self.leader_id not in live_ids)
+        return MeshHealthSnapshot(
+            node_count=len(nodes),
+            healthy_node_count=len(healthy),
+            unhealthy_node_count=unhealthy_node_count,
+            suspect_node_count=len(suspect),
+            dead_node_count=len(dead),
+            gossip_sync_failures_total=self._gossip_sync_failures_total,
+            heartbeat_misses_total=heartbeat_misses_total,
+            avg_latency_ms=float(avg_latency_ms),
+            drop_rate=float(drop_rate),
+            active_heartbeats=self._running,
+            partition_signal=partition_signal,
+            split_brain_signal=split_brain_signal,
+            leader_id=self.leader_id,
+            generated_at=time.time(),
+        )
+
+
+def _inc_metric(name: str, description: str) -> None:
+    try:
+        from src.infrastructure.observability.metrics import get_metrics
+
+        get_metrics().counter(name, description).inc()
+    except Exception:
+        logger.debug("Mesh metric increment skipped for %s", name, exc_info=True)
+
+
+def _set_metric(name: str, value: float | int | bool, description: str) -> None:
+    try:
+        from src.infrastructure.observability.metrics import get_metrics
+
+        get_metrics().gauge(name, description).set(float(value))
+    except Exception:
+        logger.debug("Mesh metric gauge skipped for %s", name, exc_info=True)
+
+
+def _observe_mesh_health_metrics(snapshot: MeshHealthSnapshot) -> None:
+    _set_metric("mesh_node_count", snapshot.node_count, "Total known mesh nodes")
+    _set_metric("mesh_healthy_node_count", snapshot.healthy_node_count, "Healthy mesh nodes")
+    _set_metric(
+        "mesh_unhealthy_node_count",
+        snapshot.unhealthy_node_count,
+        "Unhealthy mesh nodes",
+    )
+    _set_metric("mesh_suspect_node_count", snapshot.suspect_node_count, "Suspect mesh nodes")
+    _set_metric("mesh_dead_node_count", snapshot.dead_node_count, "Dead mesh nodes")
+    _set_metric(
+        "mesh_heartbeat_misses_total",
+        snapshot.heartbeat_misses_total,
+        "Current total heartbeat misses across peers",
+    )
+    _set_metric("mesh_avg_latency_ms", snapshot.avg_latency_ms, "Average mesh peer latency")
+    _set_metric("mesh_drop_rate", snapshot.drop_rate, "Mesh send drop rate")
+    _set_metric(
+        "mesh_partition_signal",
+        snapshot.partition_signal,
+        "Whether the local view indicates a mesh partition",
+    )
+    _set_metric(
+        "mesh_split_brain_signal",
+        snapshot.split_brain_signal,
+        "Whether the local leader is absent from live membership",
+    )
 
 
 class GossipProtocol(asyncio.DatagramProtocol):
@@ -588,7 +735,9 @@ class GossipProtocol(asyncio.DatagramProtocol):
         except Exception as exc:
             logger.warning("Dropped malformed gossip packet from %s: %s", addr, exc)
             try:
-                from src.infrastructure.observability.metrics import get_metrics
-                get_metrics().counter("dropped_gossip_packets_total", "Total dropped gossip packets due to format errors").inc()
+                _inc_metric(
+                    "dropped_gossip_packets_total",
+                    "Total dropped gossip packets due to format errors",
+                )
             except Exception:
                 pass

@@ -97,7 +97,7 @@ class FPTracker:
                     await self._redis_repo.upsert_pattern(pattern)
                 logger.info("FP tracker synced mesh pattern %s", pattern.pattern_id)
         except Exception as e:
-            logger.debug("FP tracker failed to process mesh update: %s", e)
+            logger.warning("FP tracker failed to process mesh update: %s", e, exc_info=True)
 
     def _ensure_loaded(self) -> None:
         """Load FP patterns from the store into cache (synchronous)."""
@@ -150,6 +150,9 @@ class FPTracker:
             return 0
 
         updated_count = 0
+        patterns_created = 0
+        patterns_updated = 0
+        patterns_to_upsert = []
 
         for finding in findings:
             response_status = finding.get("response_status")
@@ -159,15 +162,22 @@ class FPTracker:
             is_fp = finding.get("decision") == "DROP"
             is_tp = finding.get("lifecycle_state") in ("VALIDATED", "EXPLOITABLE")
 
+            headers = finding.get("headers", {})
+            if isinstance(headers, str):
+                import json
+                try:
+                    headers = json.loads(headers)
+                except Exception:
+                    headers = {}
+
             # Match against existing patterns
-            matched = self._match_pattern(response_status or 0, body, {}, category)
+            matched = self._match_pattern(response_status or 0, body, headers, category)
 
             if matched:
                 matched.update(is_fp=is_fp, is_tp=is_tp)
                 self._cache[matched.pattern_id] = matched
-                self.store.upsert_fp_pattern(matched.to_db_row())
-                if self._redis_repo:
-                    await self._redis_repo.upsert_pattern(matched)
+                patterns_to_upsert.append(matched)
+                patterns_updated += 1
                 updated_count += 1
                 if self._mesh_sync:
                     await self._mesh_sync.publish(matched.to_db_row())
@@ -180,19 +190,37 @@ class FPTracker:
                 )
                 pattern.update(is_fp=True, is_tp=is_tp)
                 self._cache[pattern.pattern_id] = pattern
-                self.store.upsert_fp_pattern(pattern.to_db_row())
-                if self._redis_repo:
-                    await self._redis_repo.upsert_pattern(pattern)
+                patterns_to_upsert.append(pattern)
+                patterns_created += 1
                 updated_count += 1
                 if self._mesh_sync:
                     await self._mesh_sync.publish(pattern.to_db_row())
 
+        if patterns_to_upsert:
+            try:
+                self.store.upsert_fp_patterns([p.to_db_row() for p in patterns_to_upsert])
+                if self._redis_repo:
+                    for p in patterns_to_upsert:
+                        await self._redis_repo.upsert_pattern(p)
+            except Exception as e:
+                logger.error("FP tracker failed to batch upsert patterns: %s", e, exc_info=True)
+
         if updated_count > 0:
             logger.info(
-                "FP tracker updated %d patterns from run %s",
+                "FP tracker updated %d patterns (%d created, %d updated) from run %s",
                 updated_count,
+                patterns_created,
+                patterns_updated,
                 run_id,
             )
+
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+            m = get_metrics()
+            m.counter("fp_tracker_patterns_created_total").inc(patterns_created)
+            m.counter("fp_tracker_patterns_updated_total").inc(patterns_updated)
+        except Exception:
+            pass
 
         return updated_count
 
@@ -260,10 +288,30 @@ class FPTracker:
             if status_code not in pattern.status_codes:
                 continue
 
-            # Check body indicators
-            body_match = any(indicator in body_lower for indicator in pattern.body_indicators)
+            # Check body indicators if defined
+            if pattern.body_indicators:
+                body_match = any(indicator in body_lower for indicator in pattern.body_indicators)
+            else:
+                body_match = True
 
-            if body_match:
+            # Check header indicators if defined
+            if pattern.header_indicators:
+                header_match = True
+                for hk, hv in pattern.header_indicators.items():
+                    hk_lower = hk.lower()
+                    matched_val = False
+                    for real_k, real_v in headers.items():
+                        if real_k.lower() == hk_lower:
+                            if str(hv).lower() in str(real_v).lower():
+                                matched_val = True
+                                break
+                    if not matched_val:
+                        header_match = False
+                        break
+            else:
+                header_match = True
+
+            if body_match and header_match:
                 return pattern
 
         return None

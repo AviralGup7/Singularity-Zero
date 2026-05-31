@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.common import normalize_scope_entry, normalize_url
+from src.recon.js_parsers import _JS_ENDPOINT_RE
 
 logger = logging.getLogger(__name__)
 
@@ -33,19 +34,6 @@ CRAWL_TIMEOUT_SECONDS = 2
 # Limit JS file parsing to 10 per host to prevent CPU exhaustion on single-page apps
 # that bundle hundreds of massive, minified chunk files.
 MAX_JS_FILES_PER_HOST = 10
-
-
-# Simple JS endpoint pattern (captures common absolute and relative forms)
-_JS_ENDPOINT_RE = re.compile(
-    r"['\"]("
-    r"(?:https?:)?//[^'\"\\\s]{4,}"
-    r"|/[A-Za-z0-9][^'\"\\\s]{1,}"
-    r"|\./[A-Za-z0-9][^'\"\\\s]{1,}"
-    r"|\.\./[A-Za-z0-9][^'\"\\\s]{1,}"
-    r"|[A-Za-z0-9_\-./]{2,}\\.(?:php|asp|aspx|jsp|json|action|html|js|txt|xml)(?:\?[^'\"\\\s]*)?"
-    r")['\"]",
-    re.IGNORECASE,
-)
 
 
 def _normalized_scope_roots(scope_entries: Iterable[str]) -> set[str]:
