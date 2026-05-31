@@ -62,6 +62,12 @@ class ZeroCopyRouter:
         self.buffer_size = buffer_size
         self._shm: Optional[SharedMemoryBuffer] = None
 
+    def close(self) -> None:
+        """Close the underlying SharedMemoryBuffer if initialized."""
+        if self._shm is not None:
+            self._shm.close()
+            self._shm = None
+
     def _get_buffer(self, create: bool = False) -> SharedMemoryBuffer:
         if self._shm is None:
             self._shm = SharedMemoryBuffer(self.buffer_name, self.buffer_size, create=create)

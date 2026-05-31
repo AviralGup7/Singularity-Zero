@@ -116,6 +116,7 @@ class Broadcaster:
         self._redis_pubsub: Any = None
         self._subscriber_task: asyncio.Task[None] | None = None
         self._dispatch_tasks: dict[str, asyncio.Task[None]] = {}
+        self._delivery_tasks: set[asyncio.Task[Any]] = set()
         self._worker_id = uuid.uuid4().hex
         self._redis_breaker = CircuitBreaker()
         self._redis_degraded_until = 0.0
@@ -183,6 +184,15 @@ class Broadcaster:
 
     async def stop(self) -> None:
         """Stop Redis Pub/Sub resources."""
+        if self._delivery_tasks:
+            for task in list(self._delivery_tasks):
+                task.cancel()
+            try:
+                await asyncio.gather(*self._delivery_tasks, return_exceptions=True)
+            except Exception:
+                pass
+            self._delivery_tasks.clear()
+
         if self._subscriber_task:
             self._subscriber_task.cancel()
             try:
@@ -287,11 +297,12 @@ class Broadcaster:
                     try:
                         envelope = json.loads(raw)
                         WS_REDIS_FANOUT.labels(direction="subscribe").inc()
-                        # Fix #364: track fire-and-forget task; add error-logging done-callback.
                         task = asyncio.create_task(
                             self._deliver_envelope(envelope),
                             name=f"ws-deliver-{uuid.uuid4().hex[:8]}",
                         )
+                        self._delivery_tasks.add(task)
+                        task.add_done_callback(self._delivery_tasks.discard)
                         task.add_done_callback(self._log_task_error)
                         backoff = 1.0  # Reset backoff on successful message
                         self._redis_breaker.record_success()
