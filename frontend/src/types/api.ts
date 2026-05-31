@@ -393,6 +393,7 @@ export interface Finding {
   fpStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   fpJustification?: string;
   kanbanStatus?: 'new' | 'in-progress' | 'resolved';
+  _deleted?: boolean;
 }
 
 export interface TargetSummary {
