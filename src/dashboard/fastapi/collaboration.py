@@ -208,7 +208,7 @@ class TriageCollaborationService:
                 for line in handle:
                     if line.strip():
                         latest = str(json.loads(line).get("hash") or latest)
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return latest
         return latest
 

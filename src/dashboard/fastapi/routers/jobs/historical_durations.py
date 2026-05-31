@@ -5,9 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.eta_engine import get_eta_engine
-from src.dashboard.feature_flags import FeatureFlags
 from src.dashboard.fastapi.dependencies import require_auth
 from src.dashboard.fastapi.schemas import ErrorResponse
+from src.dashboard.feature_flags import FeatureFlags
 
 router = APIRouter(prefix="/api/jobs")
 

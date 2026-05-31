@@ -114,7 +114,7 @@ def post_body_mutation_attacks(
         body_text = baseline.get("body_text") or ""
         try:
             original_body = json.loads(body_text)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             continue
         if not isinstance(original_body, dict):
             continue
