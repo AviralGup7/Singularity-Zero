@@ -21,7 +21,10 @@ def load_triage_events(output_root: Path, run_id: str | None = None) -> list[dic
                 event = json.loads(line)
             except json.JSONDecodeError as exc:
                 import logging
-                logging.getLogger(__name__).warning("Malformed JSONL line in triage audit log: %s", exc)
+
+                logging.getLogger(__name__).warning(
+                    "Malformed JSONL line in triage audit log: %s", exc
+                )
                 continue
             if run_id and event.get("run_id") != run_id:
                 continue

@@ -26,6 +26,7 @@ from src.recon.js_parsers import (
     _normalized_scope_roots,
 )
 
+
 def _load_secret_patterns(config_path: str | None = None) -> list[tuple[re.Pattern[str], str]]:
     """Load secret regex patterns from a JSON file if configured/exists, falling back to static list."""
     import json

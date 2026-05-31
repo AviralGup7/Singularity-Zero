@@ -248,7 +248,11 @@ def correlate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 )
 
     total_chains = sum(1 for f in findings if f.get("attack_chains"))
-    logger.info("CorrelationEngine completed: processed %d findings, detected %d attack chains", len(findings), total_chains)
+    logger.info(
+        "CorrelationEngine completed: processed %d findings, detected %d attack chains",
+        len(findings),
+        total_chains,
+    )
     return findings
 
 

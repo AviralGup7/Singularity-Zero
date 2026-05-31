@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from src.core.frontier.chameleon_evasion import (
     ChameleonEvasionEngine,
-    PPOEvasionModel,
     JA3FingerprintModel,
+    PPOEvasionModel,
     TimingPermutator,
 )
 

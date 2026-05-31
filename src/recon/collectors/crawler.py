@@ -9,7 +9,6 @@ candidates. It returns a set of normalized URLs and a metadata dict.
 from __future__ import annotations
 
 import logging
-import re
 import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor

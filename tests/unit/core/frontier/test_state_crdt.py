@@ -94,7 +94,9 @@ def test_neural_state_replay_is_idempotent_for_duplicate_wal_ids() -> None:
 def test_neural_state_skips_malformed_string_members() -> None:
     state = NeuralState()
 
-    state.apply_delta({"subdomains": ["ok.example", {"bad": "example"}], "urls": [123, "https://ok.test"]})
+    state.apply_delta(
+        {"subdomains": ["ok.example", {"bad": "example"}], "urls": [123, "https://ok.test"]}
+    )
 
     assert state.get_snapshot()["subdomains"] == ["ok.example"]
     assert state.get_snapshot()["urls"] == ["https://ok.test"]

@@ -176,6 +176,7 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
                 return cast(Principal | None, principal)
         else:
             import logging as _logging
+
             _logging.getLogger(__name__).warning(
                 "Security: JWT token supplied via query parameter was BLOCKED by default policy for %s.",
                 request.url.path,
@@ -256,6 +257,7 @@ class RateLimiter:
 
     def __init__(self) -> None:
         import threading
+
         self._buckets: dict[str, list[float]] = {}
         self._window = 60.0
         self._lock = threading.Lock()

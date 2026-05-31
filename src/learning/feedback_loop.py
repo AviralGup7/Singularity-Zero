@@ -92,6 +92,7 @@ class FeedbackLoopEngine:
             lookback_runs: Number of historical runs to consider.
         """
         import time
+
         start_time = time.perf_counter()
 
         runs = self.store.get_recent_runs(target=target, limit=lookback_runs)
@@ -128,15 +129,24 @@ class FeedbackLoopEngine:
         # Emit metrics for monitoring
         try:
             from src.infrastructure.observability.metrics import get_metrics
+
             m = get_metrics()
             m.counter("feedback_loop_runs_analyzed_total").inc(len(runs))
             m.counter("feedback_loop_adaptations_computed_duration_ms").inc(duration_ms)
             m.counter("feedback_loop_boosts_total").inc(len(adaptations.target_boosts))
             m.counter("feedback_loop_suppressions_total").inc(len(adaptations.target_suppressions))
-            m.counter("feedback_loop_plugin_overrides_total").inc(len(adaptations.plugin_intensity_overrides))
-            m.counter("feedback_loop_threshold_adjustments_total").inc(len(adaptations.threshold_adjustments))
-            m.counter("feedback_loop_nuclei_boosts_total").inc(len(adaptations.nuclei_template_boosts))
-            m.counter("feedback_loop_exploit_queue_total").inc(len(adaptations.active_exploit_queue))
+            m.counter("feedback_loop_plugin_overrides_total").inc(
+                len(adaptations.plugin_intensity_overrides)
+            )
+            m.counter("feedback_loop_threshold_adjustments_total").inc(
+                len(adaptations.threshold_adjustments)
+            )
+            m.counter("feedback_loop_nuclei_boosts_total").inc(
+                len(adaptations.nuclei_template_boosts)
+            )
+            m.counter("feedback_loop_exploit_queue_total").inc(
+                len(adaptations.active_exploit_queue)
+            )
         except Exception:
             pass
 

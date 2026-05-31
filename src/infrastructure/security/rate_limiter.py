@@ -355,7 +355,11 @@ class RateLimiter:
                 logger.warning("Redis rate limiter failed, falling back to local counters: %s", exc)
                 try:
                     from src.infrastructure.observability.metrics import get_metrics
-                    get_metrics().counter("rate_limiter_redis_fallback_total", "Total rate limiter fallback to local due to Redis failure").inc()
+
+                    get_metrics().counter(
+                        "rate_limiter_redis_fallback_total",
+                        "Total rate limiter fallback to local due to Redis failure",
+                    ).inc()
                 except Exception:
                     pass
 

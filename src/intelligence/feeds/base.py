@@ -25,13 +25,13 @@ def _parse_retry_after_seconds(raw_value: str | None, fallback: float) -> float:
     text = str(raw_value).strip()
     try:
         return max(1.0, float(text))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         pass
     try:
         retry_at = datetime.fromisoformat(text.replace("Z", "+00:00"))
         seconds = (retry_at - datetime.now(UTC)).total_seconds()
         return max(1.0, seconds)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return max(1.0, fallback)
 
 
@@ -175,7 +175,9 @@ class BaseFeedConnector(ABC):
                 self._last_state_change = now
                 logger.info("Circuit breaker for %s transitioned to HALF-OPEN", self.client_name)
             else:
-                logger.warning("Circuit breaker is OPEN for %s. Bypassing request.", self.client_name)
+                logger.warning(
+                    "Circuit breaker is OPEN for %s. Bypassing request.", self.client_name
+                )
                 raise FeedError(f"Circuit breaker is OPEN for {self.client_name}")
 
         client = await self._get_client()
@@ -223,7 +225,10 @@ class BaseFeedConnector(ABC):
                     if self._circuit_state == "half-open":
                         self._circuit_state = "closed"
                         self._failure_count = 0
-                        logger.info("Circuit breaker for %s transitioned to CLOSED (recovered)", self.client_name)
+                        logger.info(
+                            "Circuit breaker for %s transitioned to CLOSED (recovered)",
+                            self.client_name,
+                        )
                     elif self._circuit_state == "closed":
                         self._failure_count = 0
 
@@ -262,7 +267,11 @@ class BaseFeedConnector(ABC):
             if self._failure_count >= 5:
                 self._circuit_state = "open"
                 self._last_state_change = time.time()
-                logger.error("Circuit breaker for %s transitioned to OPEN due to consecutive failures: %s", self.client_name, exc)
+                logger.error(
+                    "Circuit breaker for %s transitioned to OPEN due to consecutive failures: %s",
+                    self.client_name,
+                    exc,
+                )
             raise
 
     async def _get(self, url: str, params: dict[str, Any] | None = None) -> httpx.Response:

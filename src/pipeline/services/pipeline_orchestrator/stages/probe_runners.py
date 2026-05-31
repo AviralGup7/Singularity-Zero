@@ -225,7 +225,8 @@ async def _try_probe(
 ) -> tuple[str, list[dict[str, Any]], bool]:
     """Run a probe, return (name, findings, success)."""
     import time
-    from src.pipeline.services.instrumentation import event_bus, StageEvent, get_memory_usage
+
+    from src.pipeline.services.instrumentation import StageEvent, event_bus, get_memory_usage
 
     start_time = time.perf_counter()
     start_mem = get_memory_usage()
@@ -271,7 +272,10 @@ async def _try_probe(
         except KeyError:
             active_manifest = None
 
-        if active_manifest is not None and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off":
+        if (
+            active_manifest is not None
+            and os.environ.get("ACTIVE_CHECK_ISOLATION", "process") != "off"
+        ):
             isolated_args = args
             isolated_kwargs = kwargs
             if ActiveCapability.RESPONSE_CACHE in active_manifest.required_capabilities:

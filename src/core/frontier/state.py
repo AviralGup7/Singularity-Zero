@@ -268,7 +268,7 @@ class LWWset[T]:
                 continue
             try:
                 ts = float(v.get("ts", 0.0))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
             hlc_data = v.get("hlc")
             if hlc_data:
@@ -537,7 +537,7 @@ def _wal_id_is_later(candidate: str, existing: str) -> bool:
         candidate_ms, candidate_seq = candidate.split("-", 1)
         existing_ms, existing_seq = existing.split("-", 1)
         return (int(candidate_ms), int(candidate_seq)) > (int(existing_ms), int(existing_seq))
-    except (AttributeError, TypeError, ValueError):
+    except AttributeError, TypeError, ValueError:
         return candidate > existing
 
 

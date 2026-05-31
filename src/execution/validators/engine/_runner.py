@@ -196,22 +196,32 @@ def run_blackbox_validation_engine(
     results: dict[str, list[dict[str, Any]]] = {}
     errors: list[dict[str, Any]] = list(selection_errors)
 
-    def _run_validator_spec(spec: ValidationStrategySpec) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+    def _run_validator_spec(
+        spec: ValidationStrategySpec,
+    ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
         try:
             validator = spec.strategy_factory()
             validator_findings, validator_errors = validator.run(context)
             return spec.result_key, validator_findings, validator_errors
         except Exception as exc:
-            return spec.result_key, [], [{
-                "validator": spec.name,
-                "url": "",
-                "error": {
-                    "code": "validator_crash",
-                    "message": f"Validator crashed during parallel run: {exc}",
-                }
-            }]
+            return (
+                spec.result_key,
+                [],
+                [
+                    {
+                        "validator": spec.name,
+                        "url": "",
+                        "error": {
+                            "code": "validator_crash",
+                            "message": f"Validator crashed during parallel run: {exc}",
+                        },
+                    }
+                ],
+            )
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(validator_specs))) as executor:
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=max(1, len(validator_specs))
+    ) as executor:
         futures = [executor.submit(_run_validator_spec, spec) for spec in validator_specs]
         for fut in concurrent.futures.as_completed(futures):
             res_key, findings, errs = fut.result()

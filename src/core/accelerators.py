@@ -88,7 +88,7 @@ def has_avx512() -> bool:
     system = platform.system().lower()
     if system == "linux":
         try:
-            with open("/proc/cpuinfo", "r", encoding="utf-8") as f:
+            with open("/proc/cpuinfo", encoding="utf-8") as f:
                 content = f.read()
                 return "avx512" in content
         except Exception:  # noqa: BLE001
@@ -107,7 +107,7 @@ def fast_msgpack_pack_simd(data: Any) -> bytes:
     Serialize data using MessagePack with C-extension acceleration.
 
     While full AVX-512/NEON vectorization requires specific hardware compilers,
-    this implementation leverages high-performance standard C-MessagePack bindings 
+    this implementation leverages high-performance standard C-MessagePack bindings
     under the hood to achieve near-native throughput.
     """
     return cast(bytes, msgpack.packb(data, use_bin_type=True))

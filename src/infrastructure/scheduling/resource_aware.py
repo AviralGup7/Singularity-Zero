@@ -54,7 +54,7 @@ class ResourceAwareScheduler:
                         self._capability_index[cap].remove(worker_id)
 
             self.workers[worker_id] = info
-            
+
             # Index new capabilities
             for cap in info.capabilities:
                 if cap not in self._capability_index:

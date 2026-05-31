@@ -98,4 +98,3 @@ LEGACY_STAGE_ATTRS: dict[str, str] = {
     "intelligence": "run_post_analysis_enrichments",
     "reporting": "run_reporting",
 }
-

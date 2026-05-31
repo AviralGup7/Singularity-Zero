@@ -5,8 +5,8 @@ from typing import Any
 
 from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
 from src.analysis.active.injection.command_injection import command_injection_active_probe
-from src.analysis.active.injection.csrf import csrf_active_probe
 from src.analysis.active.injection.crlf import crlf_injection_probe
+from src.analysis.active.injection.csrf import csrf_active_probe
 from src.analysis.active.injection.deserialization import deserialization_probe
 from src.analysis.active.injection.host_header import host_header_injection_probe
 from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
@@ -21,7 +21,6 @@ from src.analysis.active.injection.ssti import ssti_active_probe
 from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
 from src.analysis.active.injection.xpath import xpath_injection_active_probe
 from src.analysis.active.injection.xxe import xxe_active_probe
-from src.analysis.active.param_mining import param_mining_probe
 from src.analysis.behavior.flow_prober import run_cognitive_flow_analysis
 from src.analysis.checks.active._impl import (
     dom_xss_signal_detector,
@@ -37,22 +36,6 @@ from src.analysis.checks.active.idor_probe import idor_active_probe
 from src.analysis.checks.active.jwt import jwt_security_analyzer
 from src.analysis.checks.active.ssrf_oob_validator import ssrf_oob_validator
 from src.analysis.checks.active.xml_bomb_detector import xml_bomb_detector
-from src.analysis.checks.exposure._impl import (
-    backup_file_exposure_checker,
-    cache_poisoning_indicator_checker,
-    cdn_waf_fingerprint_gap_checker,
-    environment_file_exposure_checker,
-    hsts_weakness_checker,
-    http_method_exposure_checker,
-    locale_debug_toggle_checker,
-    log_file_exposure_checker,
-    parameter_pollution_indicator_checker,
-    public_repo_exposure_checker,
-    rate_limit_header_analyzer,
-    referrer_policy_weakness_checker,
-    service_worker_misconfiguration_checker,
-    third_party_key_exposure_checker,
-)
 from src.analysis.checks.passive._impl import (
     cache_control_checker,
     cookie_security_checker,
@@ -154,9 +137,7 @@ def _register_bindings() -> None:
             csrf_protection_checker,
         ),
         "ssti_surface_detector": _binding("urls_and_responses", ssti_surface_detector),
-        "file_upload_surface_detector": _binding(
-            "responses_only", file_upload_surface_detector
-        ),
+        "file_upload_surface_detector": _binding("responses_only", file_upload_surface_detector),
         "vulnerable_component_detector": _binding(
             "urls_and_responses", vulnerable_component_detector
         ),
@@ -197,9 +178,7 @@ def _register_bindings() -> None:
         "post_body_mutation_attacks": _binding("priority_urls_and_cache"),
         "flow_detector": _binding("urls_and_responses"),
         "multi_step_flow_breaking_probe": _binding("priority_urls_and_cache"),
-        "cross_user_access_simulation": _binding(
-            "responses_only", cross_user_access_simulation
-        ),
+        "cross_user_access_simulation": _binding("responses_only", cross_user_access_simulation),
         "role_based_endpoint_comparison": _binding(
             "responses_only", role_based_endpoint_comparison
         ),
@@ -229,9 +208,7 @@ def _register_bindings() -> None:
         "rate_limit_signal_analyzer": _binding("responses_and_bulk_items"),
         "rate_limit_header_analyzer": _binding("responses_only"),
         "response_size_anomaly_detector": _binding("responses_only"),
-        "response_structure_validator": _binding(
-            "responses_only", response_structure_validator
-        ),
+        "response_structure_validator": _binding("responses_only", response_structure_validator),
         "payment_flow_intelligence": _binding("responses_only"),
         "payment_provider_detection": _binding("responses_only"),
         "behavior_analysis_layer": _binding("behavior_analysis"),

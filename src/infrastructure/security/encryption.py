@@ -23,8 +23,8 @@ from src.infrastructure.security.sealed_bundle import (
     sealed_bundle_decrypt,
     sealed_bundle_encrypt,
 )
-from src.infrastructure.security.tls_config import TLSConfig
 from src.infrastructure.security.secret_manager import SecretManager
+from src.infrastructure.security.tls_config import TLSConfig
 
 __all__ = [
     "Argon2idAESGCM",

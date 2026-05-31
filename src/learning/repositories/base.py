@@ -3,7 +3,6 @@
 import json
 import sqlite3
 import threading
-import weakref
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path

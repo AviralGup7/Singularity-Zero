@@ -75,14 +75,24 @@ class ThreatIntelCorrelator:
                         attribution = "APT-Unknown"
                 try:
                     from src.infrastructure.observability.metrics import get_metrics
-                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "misp", "status": "success"}).inc()
+
+                    get_metrics().counter(
+                        "threat_intel_queries_total",
+                        "Threat intel queries",
+                        labels={"feed": "misp", "status": "success"},
+                    ).inc()
                 except Exception:
                     pass
             except Exception as e:
                 logger.warning("MISP lookup failed: %s", e)
                 try:
                     from src.infrastructure.observability.metrics import get_metrics
-                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "misp", "status": "failed"}).inc()
+
+                    get_metrics().counter(
+                        "threat_intel_queries_total",
+                        "Threat intel queries",
+                        labels={"feed": "misp", "status": "failed"},
+                    ).inc()
                 except Exception:
                     pass
 
@@ -105,14 +115,24 @@ class ThreatIntelCorrelator:
                         intel_category = "threat_pulse_match"
                 try:
                     from src.infrastructure.observability.metrics import get_metrics
-                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "otx", "status": "success"}).inc()
+
+                    get_metrics().counter(
+                        "threat_intel_queries_total",
+                        "Threat intel queries",
+                        labels={"feed": "otx", "status": "success"},
+                    ).inc()
                 except Exception:
                     pass
             except Exception as e:
                 logger.warning("OTX lookup failed: %s", e)
                 try:
                     from src.infrastructure.observability.metrics import get_metrics
-                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "otx", "status": "failed"}).inc()
+
+                    get_metrics().counter(
+                        "threat_intel_queries_total",
+                        "Threat intel queries",
+                        labels={"feed": "otx", "status": "failed"},
+                    ).inc()
                 except Exception:
                     pass
 
@@ -134,14 +154,24 @@ class ThreatIntelCorrelator:
                         feed_sources.append("VirusTotal")
                 try:
                     from src.infrastructure.observability.metrics import get_metrics
-                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "virustotal", "status": "success"}).inc()
+
+                    get_metrics().counter(
+                        "threat_intel_queries_total",
+                        "Threat intel queries",
+                        labels={"feed": "virustotal", "status": "success"},
+                    ).inc()
                 except Exception:
                     pass
             except Exception as e:
                 logger.warning("VirusTotal lookup failed: %s", e)
                 try:
                     from src.infrastructure.observability.metrics import get_metrics
-                    get_metrics().counter("threat_intel_queries_total", "Threat intel queries", labels={"feed": "virustotal", "status": "failed"}).inc()
+
+                    get_metrics().counter(
+                        "threat_intel_queries_total",
+                        "Threat intel queries",
+                        labels={"feed": "virustotal", "status": "failed"},
+                    ).inc()
                 except Exception:
                     pass
 

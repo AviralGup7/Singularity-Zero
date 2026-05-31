@@ -235,7 +235,7 @@ class AdaptiveScanCoordinator:
 
         tasks = [bounded_scan(url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         processed_results: list[ScanResult] = []
         for url, r in zip(urls, results):
             if isinstance(r, ScanResult):
@@ -252,7 +252,9 @@ class AdaptiveScanCoordinator:
                     )
                 )
             else:
-                logger.error("Target scan task returned invalid result type: url=%s got=%s", url, type(r))
+                logger.error(
+                    "Target scan task returned invalid result type: url=%s got=%s", url, type(r)
+                )
                 processed_results.append(
                     ScanResult(
                         target=url,

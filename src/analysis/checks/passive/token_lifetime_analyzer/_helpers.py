@@ -14,7 +14,7 @@ def decode_jwt_segment(segment: str) -> dict[str, Any] | None:
         decoded = base64.urlsafe_b64decode(segment)
         result = json.loads(decoded)
         return result if isinstance(result, dict) else None
-    except (ValueError, TypeError, json.JSONDecodeError):
+    except ValueError, TypeError, json.JSONDecodeError:
         return None
 
 

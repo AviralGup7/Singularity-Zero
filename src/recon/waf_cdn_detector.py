@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 # Uses a benign-looking but detectable SQLi-like pattern that most WAFs flag.
 _ACTIVE_PROBE_PATH_SUFFIX = "/?__waf_probe__=1%27+OR+1%3D1--"
 
+
 def _load_active_probe_indicators(config_path: str | None = None) -> dict[str, list[str]]:
     """Load active probe indicators from a JSON file if configured/exists, falling back to static dict."""
     import json

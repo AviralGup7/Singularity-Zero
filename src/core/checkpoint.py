@@ -10,8 +10,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import time
 import threading
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -200,7 +200,7 @@ class CheckpointManager:
 
             json_str_base = json.dumps(data, indent=2, sort_keys=True)
             checksum = _compute_checksum(json_str_base)
-            
+
             # Inject checksum into base JSON string
             json_str = json_str_base.replace('"checksum": ""', f'"checksum": "{checksum}"', 1)
             json_bytes = json_str.encode("utf-8")
@@ -227,8 +227,9 @@ class CheckpointManager:
 
                 def _log_replication_failure(exc: Exception | BaseException) -> None:
                     logger.warning(
-                        "Distributed replication failed for checkpoint %s: %s. Local checkpoint remains intact.", 
-                        checkpoint_path, exc
+                        "Distributed replication failed for checkpoint %s: %s. Local checkpoint remains intact.",
+                        checkpoint_path,
+                        exc,
                     )
 
                 try:
@@ -248,9 +249,7 @@ class CheckpointManager:
                         try:
                             loop = asyncio.new_event_loop()
                             try:
-                                loop.run_until_complete(
-                                    dist.save_checkpoint(state, self.run_id)
-                                )
+                                loop.run_until_complete(dist.save_checkpoint(state, self.run_id))
                             finally:
                                 try:
                                     loop.close()

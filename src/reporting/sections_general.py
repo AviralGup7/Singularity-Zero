@@ -46,7 +46,8 @@ def diff_cards(diff_summary: dict[str, Any] | None) -> str:
         f"<div class='value'>+{info.get('added_count', 0)} / -{info.get('removed_count', 0)}</div>"
         f"<div class='meta'>prev {info.get('previous_count', 0)} | now {info.get('current_count', 0)}</div>"
         "</div>"
-        for label, info in artifacts_dict.items() if isinstance(info, dict)
+        for label, info in artifacts_dict.items()
+        if isinstance(info, dict)
     )
 
 

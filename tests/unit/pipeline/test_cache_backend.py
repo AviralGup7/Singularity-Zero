@@ -591,11 +591,14 @@ class TestCacheBypassMiddleware(unittest.TestCase):
     def test_process_request_accepts_none(self) -> None:
         middleware = CacheBypassMiddleware()
 
-        self.assertEqual(middleware.process_request_with_cache_bypass(None), {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        })
+        self.assertEqual(
+            middleware.process_request_with_cache_bypass(None),
+            {
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
 
 
 if __name__ == "__main__":

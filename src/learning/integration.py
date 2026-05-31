@@ -681,6 +681,7 @@ class LearningIntegration:
 
     def close(self) -> None:
         """Close the telemetry store and mesh sync."""
+
         def run_coro(coro):
             try:
                 loop = asyncio.get_running_loop()
@@ -689,6 +690,7 @@ class LearningIntegration:
 
             if loop is not None and loop.is_running():
                 import threading
+
                 loop_thread = getattr(loop, "_thread", None)
                 if loop_thread is not None and threading.current_thread() is not loop_thread:
                     future = asyncio.run_coroutine_threadsafe(coro, loop)

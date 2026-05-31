@@ -31,13 +31,17 @@ class _FailingAsyncRedis:
 
 
 @pytest.mark.asyncio
-async def test_redis_fp_repo_uses_local_fallback_when_redis_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_redis_fp_repo_uses_local_fallback_when_redis_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         "src.learning.repositories.redis_fp_repo.redis.from_url",
         lambda *_args, **_kwargs: _FailingAsyncRedis(),
     )
     monkeypatch.setattr("src.learning.repositories.redis_fp_repo.DEFAULT_REDIS_RETRIES", 0)
-    monkeypatch.setattr("src.learning.repositories.redis_fp_repo.DEFAULT_REDIS_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(
+        "src.learning.repositories.redis_fp_repo.DEFAULT_REDIS_TIMEOUT_SECONDS", 0.01
+    )
 
     repo = RedisFPRepository("redis://unreachable")
     pattern = FPPattern.create("xss", status_codes={200}, body_indicators=["reflected"])

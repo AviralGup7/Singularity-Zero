@@ -699,12 +699,15 @@ async def trigger_cockpit_probe(
 
 from pydantic import BaseModel
 
+
 class SandboxLaunchRequest(BaseModel):
     target_node: str
     image: str = "ubuntu:latest"
 
+
 class TerminalCommandRequest(BaseModel):
     command: str
+
 
 @router.post(
     "/sandbox/launch",
@@ -715,8 +718,10 @@ async def launch_sandbox(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     from src.dashboard.fastapi.sandbox_service import sandbox_manager
+
     sandbox_id = sandbox_manager.launch_sandbox(request.target_node, request.image)
     return {"status": "success", "sandbox_id": sandbox_id}
+
 
 @router.get(
     "/sandbox/{sandbox_id}/state",
@@ -727,8 +732,10 @@ async def get_sandbox_state(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     from src.dashboard.fastapi.sandbox_service import sandbox_manager
+
     history = sandbox_manager.get_chronological_state(sandbox_id)
     return {"status": "success", "history": history}
+
 
 @router.post(
     "/sandbox/{sandbox_id}/terminal",
@@ -740,9 +747,9 @@ async def execute_terminal(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     from src.dashboard.fastapi.sandbox_service import sandbox_manager
+
     try:
         output = sandbox_manager.execute_terminal_command(sandbox_id, request.command)
         return {"status": "success", "output": output}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-

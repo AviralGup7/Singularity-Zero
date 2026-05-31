@@ -221,10 +221,12 @@ def _resolve_aaaa(domain: str) -> list[str]:
 
 async def _run_nslookup(domain: str, record_type: str) -> Any:
     """Run nslookup asynchronously. (Mock target for tests)."""
+
     class FakeResult:
         ok = False
         timed_out = False
         stdout = ""
+
     return FakeResult()
 
 
@@ -254,7 +256,11 @@ def _parse_nslookup_output(output: str, record_type: str) -> list[str]:
             # Fallback for standard matches
             if "=" in line:
                 val = line.split("=")[-1].strip().rstrip(".")
-                if val and not val.startswith("nameserver") and not val.startswith("mail exchanger"):
+                if (
+                    val
+                    and not val.startswith("nameserver")
+                    and not val.startswith("mail exchanger")
+                ):
                     values.append(val)
             else:
                 parts = line.split()
@@ -271,7 +277,11 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
     Uses standard socket getaddrinfo for A/AAAA (via run_in_executor to support mocks),
     and dnspython resolver/nslookup fallback for generic types.
     """
-    is_mocked = hasattr(_run_nslookup, "mock_calls") or hasattr(_run_nslookup, "assert_called") or "Mock" in type(_run_nslookup).__name__
+    is_mocked = (
+        hasattr(_run_nslookup, "mock_calls")
+        or hasattr(_run_nslookup, "assert_called")
+        or "Mock" in type(_run_nslookup).__name__
+    )
     if is_mocked:
         try:
             result = await _run_nslookup(domain, record_type)
@@ -363,7 +373,7 @@ def _socket_resolve(domain: str, family: int) -> list[str]:
     """Resolve A or AAAA records using the stdlib socket module."""
     try:
         return [str(a[4][0]) for a in socket.getaddrinfo(domain, None, family)]
-    except (socket.gaierror, socket.herror, OSError):
+    except socket.gaierror, socket.herror, OSError:
         return []
 
 

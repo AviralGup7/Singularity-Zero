@@ -18,7 +18,9 @@ def compose_signals(*parts: object) -> list[str]:
         if isinstance(part, (list, tuple, set)):
             for item in part:
                 if item is None:
-                    logger.warning("Received None value nested inside a collection in compose_signals.")
+                    logger.warning(
+                        "Received None value nested inside a collection in compose_signals."
+                    )
                     continue
                 value = str(item).strip()
                 if value:

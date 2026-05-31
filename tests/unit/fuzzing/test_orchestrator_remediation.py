@@ -1,13 +1,14 @@
 """Dedicated unit tests verifying FuzzingOrchestrator refactoring and remediations."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
+
 import httpx
+import pytest
 
 from src.fuzzing.orchestrator import (
+    FuzzingFeedbackTracker,
     FuzzingOrchestrator,
     FuzzingRequestSender,
-    FuzzingFeedbackTracker,
 )
 
 
@@ -66,7 +67,7 @@ def test_grammar_mutate_index_error_prevention():
 async def test_run_fuzzing_campaign_remediated():
     orch = FuzzingOrchestrator(target_endpoints=["/api"])
     mock_client = AsyncMock(spec=httpx.AsyncClient)
-    
+
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
     mock_response.text = "Normal clean response"
@@ -77,7 +78,7 @@ async def test_run_fuzzing_campaign_remediated():
         client=mock_client,
         max_payloads=2,
     )
-    
+
     assert isinstance(findings, list)
     assert len(findings) == 0  # Clean run, no issues leaked
     assert orch.feedback_tracker.metrics["total_requests_sent"] > 0

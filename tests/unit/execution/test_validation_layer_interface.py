@@ -90,18 +90,20 @@ class ValidationLayerInterfaceTests(unittest.TestCase):
         context = {
             "callback_context": {"validation_state": "passive_only"},
             "selector_config": {
-                "ssrf": {
-                    "strong_params": ["custom_sink"],
-                    "internal_prefixes": ["192.168."]
-                }
-            }
+                "ssrf": {"strong_params": ["custom_sink"], "internal_prefixes": ["192.168."]}
+            },
         }
         result = validate_target(target, context, validator_name="ssrf")
         self.assertEqual(result.validator, "ssrf")
         # Ensure it recognized the custom param and evaluated the internal IP correctly
         evidence = result.evidence or {}
         risk_assessments = evidence.get("risk_assessments", [])
-        self.assertTrue(any(r["parameter"] == "custom_sink" and r["risk_level"] == "strong_sink" for r in risk_assessments))
+        self.assertTrue(
+            any(
+                r["parameter"] == "custom_sink" and r["risk_level"] == "strong_sink"
+                for r in risk_assessments
+            )
+        )
 
     def test_token_reuse_masking(self) -> None:
         # Verify tokens are masked when executing validation

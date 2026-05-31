@@ -5,7 +5,7 @@ Pydantic models for GRC (Governance, Risk, and Compliance) Telemetry.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -32,7 +32,7 @@ class GRCControl(BaseModel):
     maturity: ControlMaturity = ControlMaturity.UNKNOWN
     findings_count: int = 0
     sla_breached: bool = False
-    recommendation: Optional[str] = None
+    recommendation: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

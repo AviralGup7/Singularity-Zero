@@ -165,8 +165,8 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
     """
     from src.reporting.compliance_maturity import (
         calculate_control_maturity,
-        get_maturity_recommendation,
         calculate_overall_grc_score,
+        get_maturity_recommendation,
     )
     from src.reporting.sla_tracker import SLATracker
 

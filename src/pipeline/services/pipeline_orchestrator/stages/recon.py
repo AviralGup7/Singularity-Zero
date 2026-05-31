@@ -70,7 +70,6 @@ def _tool_diagnostics(config: Any, tools: tuple[str, ...]) -> None:
     _ = (config, tools)
 
 
-
 async def run_subdomain_enumeration(
     args: Any,
     config: Any,

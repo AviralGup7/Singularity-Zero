@@ -312,7 +312,9 @@ def _match_cname_pattern(cname: str, pattern: str) -> bool:
     return cname.lower().endswith(pattern.lower())
 
 
-async def _check_http_indicators(subdomain: str, service_or_indicators: str | list[str], timeout: float = 10.0) -> list[str]:
+async def _check_http_indicators(
+    subdomain: str, service_or_indicators: str | list[str], timeout: float = 10.0
+) -> list[str]:
     """Probe subdomain over HTTP/HTTPS and match compiled indicator regexes."""
     if httpx is None:
         return []

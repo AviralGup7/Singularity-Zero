@@ -170,6 +170,7 @@ class FuzzingOrchestrator:
         if param_type == "json":
             try:
                 from src.fuzzing.ast_mutator import JSONASTMutator
+
                 ast_mutator = JSONASTMutator()
                 for v in ast_mutator.mutate(base_value):
                     payloads.append(
@@ -304,12 +305,16 @@ class FuzzingOrchestrator:
                     mutated_url = urlunparse(parsed._replace(query=mutated_query))
 
                     if not is_safe_url_with_dns_check(mutated_url):
-                        logger.warning("Fuzzer: Mutated URL failed SSRF check, skipping: %s", mutated_url)
+                        logger.warning(
+                            "Fuzzer: Mutated URL failed SSRF check, skipping: %s", mutated_url
+                        )
                         continue
 
                     try:
                         self.feedback_tracker.record_payload()
-                        resp = await self.request_sender.get_url(client, mutated_url, timeout_seconds)
+                        resp = await self.request_sender.get_url(
+                            client, mutated_url, timeout_seconds
+                        )
                         self.feedback_tracker.record_request()
                         status = resp.status_code
                         body = resp.text

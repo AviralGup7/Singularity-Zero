@@ -125,13 +125,20 @@ class VulnCorrelationEngine:
         if rules_file:
             try:
                 import json
-                with open(rules_file, "r") as f:
+
+                with open(rules_file) as f:
                     custom_rules = json.load(f)
                     if isinstance(custom_rules, list):
                         self.rules = custom_rules
-                        logger.info("VulnCorrelationEngine: Loaded %d rules from %s", len(self.rules), rules_file)
+                        logger.info(
+                            "VulnCorrelationEngine: Loaded %d rules from %s",
+                            len(self.rules),
+                            rules_file,
+                        )
             except Exception as e:
-                logger.error("VulnCorrelationEngine: Failed to load custom rules from %s: %s", rules_file, e)
+                logger.error(
+                    "VulnCorrelationEngine: Failed to load custom rules from %s: %s", rules_file, e
+                )
 
     def analyze_findings(self, findings: list[dict[str, Any]]) -> list[AttackChain]:
         """Analyze findings for correlated vulnerabilities.

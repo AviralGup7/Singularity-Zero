@@ -11,6 +11,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Any
 
+
 class BaseASTMutator(ABC):
     """Abstract base class for all AST-based mutators."""
 
@@ -25,12 +26,16 @@ class JSONASTMutator(BaseASTMutator):
 
     def __init__(self, strategies: list[Any] | None = None):
         super().__init__()
-        self.strategies = strategies if strategies is not None else [
-            self._mutate_values,
-            self._swap_keys,
-            self._nest_deeply,
-            self._type_confusion,
-        ]
+        self.strategies = (
+            strategies
+            if strategies is not None
+            else [
+                self._mutate_values,
+                self._swap_keys,
+                self._nest_deeply,
+                self._type_confusion,
+            ]
+        )
 
     def mutate(self, base_json: str) -> list[str]:
         """Generate syntactic mutations of the input JSON string."""
@@ -43,7 +48,7 @@ class JSONASTMutator(BaseASTMutator):
         for strategy in self.strategies:
             mutated_ast = strategy(copy.deepcopy(ast))  # Work on a fresh copy
             results.append(json.dumps(mutated_ast, separators=(",", ":")))
-        
+
         return results
 
     def _mutate_values(self, node: Any) -> Any:

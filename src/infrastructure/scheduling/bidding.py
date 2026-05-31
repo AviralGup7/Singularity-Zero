@@ -23,7 +23,7 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         if value is None or value == "":
             return default
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -133,14 +133,18 @@ def bid_from_mapping(
         keys=("exploitability", "exploitability_score", "epss", "cvss", "risk_score"),
         default=None,
     )
-    exploitability = _scale_10(raw_exploit, priority_norm) if raw_exploit is not None else _clamp(priority_norm)
+    exploitability = (
+        _scale_10(raw_exploit, priority_norm) if raw_exploit is not None else _clamp(priority_norm)
+    )
 
     raw_crit = _first_present(
         *sources,
         keys=("business_criticality", "asset_criticality", "criticality", "business_impact"),
         default=None,
     )
-    business_criticality = _scale_10(raw_crit, priority_norm) if raw_crit is not None else _clamp(priority_norm)
+    business_criticality = (
+        _scale_10(raw_crit, priority_norm) if raw_crit is not None else _clamp(priority_norm)
+    )
 
     deadline = _as_float(
         _first_present(

@@ -22,7 +22,6 @@ from src.websocket_server.broadcaster import Broadcaster
 from src.websocket_server.heartbeat import HeartbeatMonitor
 from src.websocket_server.manager import ConnectionInfo, ConnectionManager
 from src.websocket_server.protocol import (
-    AckMessage,
     BaseMessage,
     ErrorMessage,
     MessageType,
@@ -97,6 +96,7 @@ class WebSocketHandler:
         self.hooks: list[WebSocketHook] = []
 
         import os
+
         self.max_message_size = int(os.environ.get("WS_MAX_MESSAGE_SIZE", "131072"))
         self.rate_limit_capacity = float(os.environ.get("WS_RATE_LIMIT_CAPACITY", "100.0"))
         self.rate_limit_refill_rate = float(os.environ.get("WS_RATE_LIMIT_REFILL_RATE", "50.0"))
@@ -251,6 +251,7 @@ class WebSocketHandler:
         # Structured logging correlation: bind connection_id context variable if structlog is used
         try:
             import structlog
+
             structlog.context_var.bind_contextvars(connection_id=connection_id)
         except ImportError:
             pass
@@ -264,7 +265,9 @@ class WebSocketHandler:
                     await websocket.close(code=4003, reason="Forbidden by event hook")
                     return
             except Exception as hook_exc:
-                logger.error("Error in on_connect hook for connection %s: %s", connection_id, hook_exc)
+                logger.error(
+                    "Error in on_connect hook for connection %s: %s", connection_id, hook_exc
+                )
 
         await self.broadcaster.start_message_dispatch(connection_id)
         await self.heartbeat.start(connection_id)
@@ -327,7 +330,8 @@ class WebSocketHandler:
             elapsed = now - info.last_rate_limit_time
             info.last_rate_limit_time = now
             info.rate_limit_tokens = min(
-                self.rate_limit_capacity, info.rate_limit_tokens + elapsed * self.rate_limit_refill_rate
+                self.rate_limit_capacity,
+                info.rate_limit_tokens + elapsed * self.rate_limit_refill_rate,
             )  # refill rate
 
             if info.rate_limit_tokens < 1.0:
