@@ -6,10 +6,12 @@ Ensures bounded-size distributed causality tracking for cross-datacenter replica
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import time
 from dataclasses import dataclass, field
+from threading import RLock
 from types import MappingProxyType
 from typing import Any, TypeVar
 
@@ -107,7 +109,8 @@ class VectorClock:
 
     def is_later_than(self, other: VectorClock) -> bool:
         at_least_one_greater = False
-        for nid, v in self.versions.items():
+        for nid in set(self.versions) | set(other.versions):
+            v = self.versions.get(nid, 0)
             other_v = other.versions.get(nid, 0)
             if v < other_v:
                 return False
@@ -142,6 +145,8 @@ class LWWset[T]:
 
     def __init__(self) -> None:
         self._elements: dict[Any, LWWElement] = {}
+        self._clock = HybridLogicalClock(0.0, 0, "local")
+        self._lock = RLock()
 
     def add(
         self,
@@ -150,14 +155,13 @@ class LWWset[T]:
         hlc: HybridLogicalClock | None = None,
         vclock: VectorClock | None = None,
     ) -> None:
-        ts = timestamp if timestamp is not None else time.time()
-        clock = hlc if hlc is not None else HybridLogicalClock(ts, 0, "local").tick(ts)
+        ts, clock = self._event_clock(timestamp, hlc)
         key = self._key(item)
-        existing = self._elements.get(key)
-        if existing is None or clock.is_later_than(existing.hlc):
-            self._elements[key] = LWWElement(
-                item, clock, vclock or VectorClock(), ts, deleted=False
-            )
+        element = LWWElement(_clone_value(item), clock, vclock or VectorClock(), ts, deleted=False)
+        with self._lock:
+            existing = self._elements.get(key)
+            if existing is None or _element_wins(element, existing):
+                self._elements[key] = element
 
     def remove(
         self,
@@ -166,43 +170,41 @@ class LWWset[T]:
         hlc: HybridLogicalClock | None = None,
         vclock: VectorClock | None = None,
     ) -> None:
-        ts = timestamp if timestamp is not None else time.time()
-        clock = hlc if hlc is not None else HybridLogicalClock(ts, 0, "local").tick(ts)
+        ts, clock = self._event_clock(timestamp, hlc)
         key = self._key(item)
-        existing = self._elements.get(key)
-        if existing is None or clock.is_later_than(existing.hlc):
-            self._elements[key] = LWWElement(item, clock, vclock or VectorClock(), ts, deleted=True)
+        element = LWWElement(_clone_value(item), clock, vclock or VectorClock(), ts, deleted=True)
+        with self._lock:
+            existing = self._elements.get(key)
+            if existing is None or _element_wins(element, existing):
+                self._elements[key] = element
 
     def merge(self, other: LWWset[T]) -> None:
         """Commutative, Associative, and Idempotent merge using Hybrid Logical Clocks."""
-        for item, element in other._elements.items():
-            existing = self._elements.get(item)
-            if existing is None or element.hlc.is_later_than(existing.hlc):
-                self._elements[item] = element
-            elif (
-                element.hlc.physical_time == existing.hlc.physical_time
-                and element.hlc.logical_counter == existing.hlc.logical_counter
-            ):
-                # Tie-breaker on node_id and JSON stable value string content
-                if element.hlc.node_id > existing.hlc.node_id or (
-                    element.hlc.node_id == existing.hlc.node_id
-                    and _stable_json(element.value) > _stable_json(existing.value)
-                ):
-                    self._elements[item] = element
+        with other._lock:
+            incoming = list(other._elements.items())
+            other_clock = other._clock
+        with self._lock:
+            self._clock = self._clock.update(other_clock)
+            for item, element in incoming:
+                existing = self._elements.get(item)
+                if existing is None or _element_wins(element, existing):
+                    self._elements[item] = _clone_element(element)
 
     @property
     def tombstone_count(self) -> int:
-        return sum(1 for el in self._elements.values() if el.deleted)
+        with self._lock:
+            return sum(1 for el in self._elements.values() if el.deleted)
 
     def compact(self, max_tombstone_age_seconds: float = 86400.0) -> int:
         now = time.time()
-        to_remove = [
-            k
-            for k, el in self._elements.items()
-            if el.deleted and (now - el.timestamp) > max_tombstone_age_seconds
-        ]
-        for k in to_remove:
-            del self._elements[k]
+        with self._lock:
+            to_remove = [
+                k
+                for k, el in self._elements.items()
+                if el.deleted and (now - el.timestamp) > max_tombstone_age_seconds
+            ]
+            for k in to_remove:
+                del self._elements[k]
         return len(to_remove)
 
     def compact_with_budget(
@@ -212,11 +214,12 @@ class LWWset[T]:
         start_time: float,
     ) -> int:
         now = time.time()
-        tombstones = [
-            (k, el.timestamp)
-            for k, el in self._elements.items()
-            if el.deleted and (now - el.timestamp) > max_tombstone_age_seconds
-        ]
+        with self._lock:
+            tombstones = [
+                (k, el.timestamp)
+                for k, el in self._elements.items()
+                if el.deleted and (now - el.timestamp) > max_tombstone_age_seconds
+            ]
         if not tombstones:
             return 0
 
@@ -229,48 +232,81 @@ class LWWset[T]:
         for k, _ in sorted_tombstones:
             if (time.time() - start_time) * 1000.0 >= budget_ms:
                 break
-            del self._elements[k]
-            purged += 1
+            with self._lock:
+                if k in self._elements:
+                    del self._elements[k]
+                    purged += 1
         return purged
 
     def to_set(self) -> set[T]:
-        return {el.value for el in self._elements.values() if not el.deleted}
+        with self._lock:
+            return {_clone_value(el.value) for el in self._elements.values() if not el.deleted}
 
     def values(self) -> list[T]:
-        return [el.value for el in self._elements.values() if not el.deleted]
+        with self._lock:
+            return [_clone_value(el.value) for el in self._elements.values() if not el.deleted]
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize for state_delta transfer, preserving HLC, vclock and physical timestamps."""
-        return {
-            str(k): {
-                "v": el.value,
-                "hlc": el.hlc.to_dict(),
-                "vc": el.vclock.to_dict(),
-                "ts": el.timestamp,
-                "d": el.deleted,
+        with self._lock:
+            return {
+                str(k): {
+                    "v": _clone_value(el.value),
+                    "hlc": el.hlc.to_dict(),
+                    "vc": el.vclock.to_dict(),
+                    "ts": el.timestamp,
+                    "d": el.deleted,
+                }
+                for k, el in self._elements.items()
             }
-            for k, el in self._elements.items()
-        }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> LWWset[T]:
         lww = cls()
         for k, v in data.items():
+            if not isinstance(v, dict) or "v" not in v:
+                continue
+            try:
+                ts = float(v.get("ts", 0.0))
+            except (TypeError, ValueError):
+                continue
             hlc_data = v.get("hlc")
-            ts = v["ts"]
             if hlc_data:
                 hlc = HybridLogicalClock.from_dict(hlc_data)
             else:
                 hlc = HybridLogicalClock(ts, 0, "local")
 
-            lww._elements[k] = LWWElement(
-                v["v"],
+            element = LWWElement(
+                _clone_value(v["v"]),
                 hlc,
                 VectorClock.from_dict(v.get("vc", {})),
                 ts,
-                v["d"],
+                bool(v.get("d", False)),
             )
+            lww._elements[k] = element
+            if hlc.is_later_than(lww._clock):
+                lww._clock = hlc
         return lww
+
+    def _event_clock(
+        self, timestamp: float | None, hlc: HybridLogicalClock | None
+    ) -> tuple[float, HybridLogicalClock]:
+        if hlc is not None:
+            with self._lock:
+                if hlc.is_later_than(self._clock):
+                    self._clock = hlc
+            return (timestamp if timestamp is not None else hlc.physical_time), hlc
+        if timestamp is not None:
+            ts = float(timestamp)
+            clock = HybridLogicalClock(ts, 0, "local")
+            with self._lock:
+                if clock.is_later_than(self._clock):
+                    self._clock = clock
+            return ts, clock
+        ts = time.time()
+        with self._lock:
+            self._clock = self._clock.tick(ts)
+            return ts, self._clock
 
     @staticmethod
     def _key(item: Any) -> Any:
@@ -334,19 +370,22 @@ class NeuralState:
             subdomains = delta["subdomains"]
             if isinstance(subdomains, list):
                 for sub in subdomains:
-                    self.subdomains.add(sub, ts, self.hlc, vclock)
+                    if isinstance(sub, str):
+                        self.subdomains.add(sub, ts, self.hlc, vclock)
 
         if "urls" in delta:
             urls = delta["urls"]
             if isinstance(urls, list):
                 for url in urls:
-                    self.urls.add(url, ts, self.hlc, vclock)
+                    if isinstance(url, str):
+                        self.urls.add(url, ts, self.hlc, vclock)
 
         if "discovered_urls" in delta:
             urls = delta["discovered_urls"]
             if isinstance(urls, list):
                 for url in urls:
-                    self.urls.add(url, ts, self.hlc, vclock)
+                    if isinstance(url, str):
+                        self.urls.add(url, ts, self.hlc, vclock)
 
         if "findings" in delta:
             findings = delta["findings"]
@@ -415,8 +454,9 @@ class NeuralState:
             state.subdomains = LWWset.from_dict(sets.get("subdomains", {}) or {})
             state.urls = LWWset.from_dict(sets.get("urls", {}) or {})
             state.findings = LWWset.from_dict(sets.get("findings", {}) or {})
-            state.metadata = dict(snapshot.get("metadata", {}) or {})
-            state.last_wal_id = snapshot.get("last_wal_id")
+            state.metadata = _clone_value(dict(snapshot.get("metadata", {}) or {}))
+            last_wal_id = snapshot.get("last_wal_id")
+            state.last_wal_id = last_wal_id if isinstance(last_wal_id, str) else None
             state.applied_wal_ids = {
                 str(item) for item in snapshot.get("applied_wal_ids", []) if item is not None
             }
@@ -444,15 +484,61 @@ class NeuralState:
         self.subdomains.merge(other.subdomains)
         self.urls.merge(other.urls)
         self.findings.merge(other.findings)
-        self.metadata.update(other.metadata)
+        self.metadata = _merge_metadata(self.metadata, other.metadata)
         self.applied_wal_ids.update(other.applied_wal_ids)
         self.hlc = self.hlc.update(other.hlc)
-        if other.last_wal_id:
+        if other.last_wal_id and (
+            self.last_wal_id is None or _wal_id_is_later(other.last_wal_id, self.last_wal_id)
+        ):
             self.last_wal_id = other.last_wal_id
 
 
 def _stable_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _clone_value[T](value: T) -> T:
+    try:
+        return copy.deepcopy(value)
+    except Exception:
+        return value
+
+
+def _clone_element(element: LWWElement) -> LWWElement:
+    return LWWElement(
+        _clone_value(element.value),
+        element.hlc,
+        element.vclock,
+        element.timestamp,
+        element.deleted,
+    )
+
+
+def _element_wins(candidate: LWWElement, existing: LWWElement) -> bool:
+    if candidate.hlc.is_later_than(existing.hlc):
+        return True
+    if existing.hlc.is_later_than(candidate.hlc):
+        return False
+    if candidate.deleted != existing.deleted:
+        return candidate.deleted
+    return _stable_json(candidate.value) > _stable_json(existing.value)
+
+
+def _merge_metadata(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    merged = _clone_value(left)
+    for key, value in right.items():
+        if key not in merged or _stable_json(value) > _stable_json(merged[key]):
+            merged[key] = _clone_value(value)
+    return merged
+
+
+def _wal_id_is_later(candidate: str, existing: str) -> bool:
+    try:
+        candidate_ms, candidate_seq = candidate.split("-", 1)
+        existing_ms, existing_seq = existing.split("-", 1)
+        return (int(candidate_ms), int(candidate_seq)) > (int(existing_ms), int(existing_seq))
+    except (AttributeError, TypeError, ValueError):
+        return candidate > existing
 
 
 def stable_digest(value: Any) -> str:
@@ -519,18 +605,16 @@ def compact_state(
         max_tombstone_age_seconds, budget_ms, start_time
     )
 
-    elapsed_so_far = (time.time() - start_time) * 1000.0
     purged_urls = 0
-    if elapsed_so_far < budget_ms:
+    if (time.time() - start_time) * 1000.0 < budget_ms:
         purged_urls = state.urls.compact_with_budget(
-            max_tombstone_age_seconds, budget_ms - elapsed_so_far, start_time
+            max_tombstone_age_seconds, budget_ms, start_time
         )
 
-    elapsed_so_far = (time.time() - start_time) * 1000.0
     purged_findings = 0
-    if elapsed_so_far < budget_ms:
+    if (time.time() - start_time) * 1000.0 < budget_ms:
         purged_findings = state.findings.compact_with_budget(
-            max_tombstone_age_seconds, budget_ms - elapsed_so_far, start_time
+            max_tombstone_age_seconds, budget_ms, start_time
         )
 
     total_elapsed_ms = (time.time() - start_time) * 1000.0

@@ -23,8 +23,9 @@ if not _MESH_SECRET_RAW:
         raise ValueError(
             "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
         )
-    import secrets
-    _MESH_SECRET_RAW = secrets.token_hex(32)
+    # Keep the development default stable across processes so process-pool IPC can verify
+    # payloads created by a parent or sibling worker. Production still requires an explicit secret.
+    _MESH_SECRET_RAW = "frontier-default-secret-change-in-prod"
 elif _IS_PROD and _MESH_SECRET_RAW in ("frontier-default-secret-change-in-prod", "frontier-default-secret"):
     raise ValueError(
         "CRITICAL SECURITY RISK: MESH_SECRET must not be a default value in production."

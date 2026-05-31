@@ -81,3 +81,21 @@ def pipeline_flow_manifest() -> list[dict[str, object]]:
         }
         for stage in PIPELINE_STAGES
     ]
+
+
+LEGACY_STAGE_ATTRS: dict[str, str] = {
+    "subdomains": "run_subdomain_enumeration",
+    "live_hosts": "run_live_hosts",
+    "urls": "run_url_collection",
+    "parameters": "run_parameter_extraction",
+    "ranking": "run_priority_ranking",
+    "passive_scan": "run_passive_scanning",
+    "active_scan": "run_active_scanning",
+    "nuclei": "run_nuclei_stage",
+    "semgrep": "run_semgrep_stage",
+    "access_control": "run_access_control_testing",
+    "validation": "run_validation",
+    "intelligence": "run_post_analysis_enrichments",
+    "reporting": "run_reporting",
+}
+

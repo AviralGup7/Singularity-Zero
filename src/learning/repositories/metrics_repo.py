@@ -62,3 +62,15 @@ class MetricsRepo(BaseRepo):
             else:
                 cur.execute("SELECT * FROM plugin_stats ORDER BY recorded_at DESC")
             return [dict(r) for r in cur.fetchall()]
+
+    def get_plugin_stats_for_runs(self, run_ids: list[str]) -> list[dict]:
+        """Get plugin statistics for multiple runs in a single query."""
+        if not run_ids:
+            return []
+        placeholders = ",".join("?" for _ in run_ids)
+        with self._cursor() as cur:
+            cur.execute(
+                f"SELECT * FROM plugin_stats WHERE run_id IN ({placeholders}) ORDER BY plugin_name",
+                list(run_ids),
+            )
+            return [dict(r) for r in cur.fetchall()]

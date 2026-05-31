@@ -29,22 +29,24 @@ def _render_collapsible_text(text: str, *, label: str = "details") -> str:
 
 
 def count_cards(summary: dict[str, Any]) -> str:
+    counts_dict = summary.get("counts", {}) if isinstance(summary, dict) else {}
     return "".join(
         f"<div class='card'><div class='label'>{html.escape(label.replace('_', ' '))}</div><div class='value'>{html.escape(str(value))}</div></div>"
-        for label, value in summary["counts"].items()
+        for label, value in counts_dict.items()
     )
 
 
 def diff_cards(diff_summary: dict[str, Any] | None) -> str:
-    if not diff_summary:
+    if not diff_summary or "artifacts" not in diff_summary:
         return "<p class='muted'>No previous run available for diffing yet.</p>"
+    artifacts_dict = diff_summary.get("artifacts", {})
     return "".join(
         "<div class='card diff-card'>"
         f"<div class='label'>{html.escape(label.replace('_', ' '))}</div>"
-        f"<div class='value'>+{info['added_count']} / -{info['removed_count']}</div>"
-        f"<div class='meta'>prev {info['previous_count']} | now {info['current_count']}</div>"
+        f"<div class='value'>+{info.get('added_count', 0)} / -{info.get('removed_count', 0)}</div>"
+        f"<div class='meta'>prev {info.get('previous_count', 0)} | now {info.get('current_count', 0)}</div>"
         "</div>"
-        for label, info in diff_summary["artifacts"].items()
+        for label, info in artifacts_dict.items() if isinstance(info, dict)
     )
 
 

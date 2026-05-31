@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "src/main/java/example/XmlController.java",
+      "content": "import javax.xml.parsers.DocumentBuilderFactory;\nclass XmlController {\n  void parse(String xml) throws Exception {\n    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\n    factory.newDocumentBuilder().parse(new org.xml.sax.InputSource(new java.io.StringReader(xml)));\n  }\n}\n"
+    },
+    {
+      "path": "app/parsers/xml_loader.py",
+      "content": "from lxml import etree\nparser = etree.XMLParser(resolve_entities=True, load_dtd=True)\netree.fromstring(user_xml, parser)\n"
+    }
+  ]
+}

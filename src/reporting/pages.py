@@ -1,9 +1,12 @@
 import html
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from src.core.utils import IST_LABEL, format_iso_to_ist
+
+logger = logging.getLogger(__name__)
 from src.reporting.assets import INDEX_STYLES, REPORT_SCRIPT, RUN_REPORT_STYLES
 from src.reporting.report_artifacts import (
     report_library_index_html,
@@ -334,8 +337,8 @@ def generate_run_report(
             loaded_findings = json.loads(findings_path.read_text(encoding="utf-8"))
             if isinstance(loaded_findings, list):
                 findings = [item for item in loaded_findings if isinstance(item, dict)]
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to load findings.json from %s: %s", findings_path, exc)
     write_report_package(
         run_dir=run_dir,
         target_name=target_name,

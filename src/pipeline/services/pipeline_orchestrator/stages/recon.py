@@ -61,9 +61,14 @@ def _record_recon_failure(
 
 
 def _tool_diagnostics(config: Any, tools: tuple[str, ...]) -> None:
-    """Check if required tools are available."""
+    """Check if required tools are available.
+
+    TODO: Implement complete environment path verification for external
+    security analysis tools (httpx, gau, katana, etc.).
+    """
     # Simple diagnostic placeholder
     _ = (config, tools)
+
 
 
 async def run_subdomain_enumeration(

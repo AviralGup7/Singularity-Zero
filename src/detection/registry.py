@@ -71,7 +71,11 @@ def get_detection_plugin(plugin_key: str) -> DetectionPlugin:
     normalized = plugin_key.strip()
     plugin = DETECTION_PLUGINS_BY_KEY.get(normalized)
     if plugin is None:
-        available = ", ".join(sorted(DETECTION_PLUGINS_BY_KEY.keys()))
+        plugin = {candidate.key: candidate for candidate in list_detection_plugins()}.get(
+            normalized
+        )
+    if plugin is None:
+        available = ", ".join(sorted(candidate.key for candidate in list_detection_plugins()))
         logger.warning(
             "Failed to resolve detection plugin key: '%s' (normalized: '%s'). Available keys: %s",
             plugin_key,

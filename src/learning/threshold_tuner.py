@@ -51,8 +51,7 @@ class ThresholdUpdate:
     reason: str | None = None
 
 
-def _clamp(value: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, value))
+from src.learning.utils import clamp as _clamp
 
 
 class ThresholdTuner:
@@ -177,6 +176,20 @@ class ThresholdTuner:
 
         # Check convergence
         self._check_convergence()
+
+        # Emit calibration and convergence metrics for observability
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+            m = get_metrics()
+            m.gauge("threshold_observed_fp_rate").set(observed_fp_rate)
+            m.gauge("threshold_calibration_error").set(error)
+            m.gauge("threshold_calibration_adjustment").set(adjustment)
+            m.gauge("threshold_low_value").set(new_thresholds["low"])
+            m.gauge("threshold_medium_value").set(new_thresholds["medium"])
+            m.gauge("threshold_high_value").set(new_thresholds["high"])
+            m.gauge("threshold_is_converged").set(1.0 if self.is_converged else 0.0)
+        except Exception:
+            pass
 
         self.current_thresholds = new_thresholds
         return new_thresholds

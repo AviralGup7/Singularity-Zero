@@ -41,12 +41,9 @@ def clear_probe_cache() -> None:
     _probe_cache.clear()
 
 
-def _emit_live_host_progress(callback: Any, message: str, percent: int, **meta: object) -> None:
-    if callback:
-        try:
-            callback(message, percent, **meta)
-        except TypeError:
-            callback(message, percent)
+from src.recon.collectors.observability import emit_collection_progress
+
+_emit_live_host_progress = emit_collection_progress
 
 
 def _normalized_probe_hosts(subdomains: set[str]) -> list[str]:

@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import threading
+import weakref
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,6 +13,9 @@ from typing import Any, cast
 class BaseRepo:
     """Base class providing thread-local connection management."""
 
+    _connections = set()
+    _lock = threading.Lock()
+
     def __init__(self, db_path: Path, local: threading.local):
         self.db_path = db_path
         self._local = local
@@ -19,13 +23,25 @@ class BaseRepo:
     def _get_conn(self) -> sqlite3.Connection:
         """Get a thread-local database connection."""
         if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = sqlite3.connect(
+            conn = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
             )
-            self._local.conn.row_factory = sqlite3.Row
-            self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA foreign_keys=ON")
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+            self._local.conn = conn
+            with BaseRepo._lock:
+                # Clean up any closed connections to prevent accumulation
+                to_remove = set()
+                for c in BaseRepo._connections:
+                    try:
+                        # Try to execute a simple PRAGMA to see if it is closed
+                        c.execute("SELECT 1")
+                    except sqlite3.ProgrammingError:
+                        to_remove.add(c)
+                BaseRepo._connections.difference_update(to_remove)
+                BaseRepo._connections.add(conn)
         return cast(sqlite3.Connection, self._local.conn)
 
     @contextmanager

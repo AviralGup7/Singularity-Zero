@@ -66,6 +66,12 @@ _PLUGIN_DATA: tuple[tuple[str, str, str, str], ...] = (
         "exposure",
     ),
     (
+        "dom_xss_signal_detector",
+        "DOM XSS Signals",
+        "Find client-side source-to-sink DOM XSS patterns in HTML responses and inline scripts.",
+        "exposure",
+    ),
+    (
         "token_leak_detector",
         "Token Leak Detector",
         "Hunt for token-like values and referer leakage across URLs and responses.",
@@ -100,6 +106,12 @@ _PLUGIN_DATA: tuple[tuple[str, str, str, str], ...] = (
         "Business Logic Tampering Detector",
         "Detect endpoints with price, quantity, and discount parameters vulnerable to client-side manipulation.",
         "session",
+    ),
+    (
+        "sql_error_exposure_detector",
+        "SQL Error Exposure Detector",
+        "Detect SQL/database error disclosures in captured responses and correlate them with SQL-relevant parameters.",
+        "exposure",
     ),
     (
         "jwt_security_analyzer",

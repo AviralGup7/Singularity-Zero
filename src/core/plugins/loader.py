@@ -38,7 +38,7 @@ class DynamicPluginCatalog:
         self._records: dict[str, DynamicPluginRecord] = {}
         self._invalid: dict[str, PluginManifest] = {}
         self._file_signatures: dict[Path, tuple[int, int]] = {}
-        self._registered: dict[str, tuple[str, str]] = {}
+        self._registered: dict[str, tuple[tuple[str, str], ...]] = {}
         self._watch_started = False
 
     def refresh(self) -> tuple[DynamicPluginRecord, ...]:
@@ -146,9 +146,12 @@ class DynamicPluginCatalog:
         for plugin_id, record in tuple(self._records.items()):
             if record.path != path:
                 continue
-            registration = self._registered.pop(plugin_id, None)
-            if registration is not None:
+            registrations = self._registered.pop(plugin_id, ())
+            for registration in registrations:
                 unregister_plugin(*registration)
+                if registration[0] == "analyzer_binding":
+                    self._remove_analyzer_binding(record.manifest.key)
+                    self._invalidate_detection_cache()
             unregister_plugin(DYNAMIC_PLUGIN, record.manifest.key)
             self._records.pop(plugin_id, None)
 
@@ -166,13 +169,17 @@ class DynamicPluginCatalog:
         register_plugin(registry_kind, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
             provider
         )
-        self._registered[manifest.id] = (registry_kind, manifest.key)
+        self._registered[manifest.id] = ((registry_kind, manifest.key),)
 
     def _register_analysis(self, record: DynamicPluginRecord) -> None:
+        from src.analysis.plugin_runtime import ANALYZER_BINDING
+        from src.analysis.plugin_runtime_models import AnalyzerBinding
         from src.analysis.plugins._main import DETECTOR_SPEC
         from src.analysis.plugins.base import spec
 
         manifest = record.manifest
+        provider = ProcessSandboxCallable(manifest, record.path)
+        runner = lambda payload, _provider=provider: _provider(payload)
         plugin_spec = spec(
             manifest.key,
             manifest.name,
@@ -185,7 +192,49 @@ class DynamicPluginCatalog:
         register_plugin(DETECTOR_SPEC, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
             plugin_spec
         )
-        self._registered[manifest.id] = (DETECTOR_SPEC, manifest.key)
+        binding = AnalyzerBinding(
+            input_kind="dynamic_analysis_context",
+            runner=runner,
+            phase="discover",
+            consumes=manifest.consumes,
+            produces=manifest.produces,
+        )
+        register_plugin(
+            ANALYZER_BINDING, manifest.key, manifest=manifest.to_dict(), dynamic=True
+        )(binding)
+        self._upsert_analyzer_binding(manifest.key, binding)
+        self._invalidate_detection_cache()
+        self._registered[manifest.id] = (
+            (DETECTOR_SPEC, manifest.key),
+            (ANALYZER_BINDING, manifest.key),
+        )
+
+    @staticmethod
+    def _upsert_analyzer_binding(key: str, binding: Any) -> None:
+        try:
+            from src.analysis.plugin_runtime import _bindings
+
+            _bindings.ANALYZER_BINDINGS[key] = binding
+        except Exception as exc:
+            logger.debug("Unable to update analyzer binding cache for %s: %s", key, exc)
+
+    @staticmethod
+    def _remove_analyzer_binding(key: str) -> None:
+        try:
+            from src.analysis.plugin_runtime import _bindings
+
+            _bindings.ANALYZER_BINDINGS.pop(key, None)
+        except Exception as exc:
+            logger.debug("Unable to remove analyzer binding cache for %s: %s", key, exc)
+
+    @staticmethod
+    def _invalidate_detection_cache() -> None:
+        try:
+            from src.detection import registry
+
+            registry._DETECTION_PLUGIN_OPTIONS = None
+        except Exception as exc:
+            logger.debug("Unable to invalidate detection plugin cache: %s", exc)
 
     @staticmethod
     def _signature(path: Path) -> tuple[int, int]:

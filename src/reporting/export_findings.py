@@ -69,18 +69,13 @@ _CSV_COLUMNS = [
 
 
 def export_findings_csv(findings: list[dict[str, Any]]) -> str:
-    if not findings:
-        buf = io.StringIO()
+    rows = [flatten_finding_for_export(f) for f in findings] if findings else []
+    with io.StringIO() as buf:
         writer = csv.DictWriter(buf, fieldnames=_CSV_COLUMNS)
         writer.writeheader()
+        if rows:
+            writer.writerows(rows)
         return buf.getvalue()
-
-    rows = [flatten_finding_for_export(f) for f in findings]
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=_CSV_COLUMNS)
-    writer.writeheader()
-    writer.writerows(rows)
-    return buf.getvalue()
 
 
 def export_findings_json(findings: list[dict[str, Any]]) -> str:

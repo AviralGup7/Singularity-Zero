@@ -74,6 +74,7 @@ async def test_active_scan_wires_response_cache_to_cache_dependent_probes(
         "cloud_metadata_active_probe": _mock_probe_factory("cloud_metadata"),
         "http_smuggling_probe": lambda *a, **k: [],
         "http2_probe": lambda *a, **k: [],
+        "race_condition_probe": _mock_probe_factory("race"),
     }
 
     monkeypatch.setattr(active_scan, "_load_active_probe_functions", lambda: mock_probes)

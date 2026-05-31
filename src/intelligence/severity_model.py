@@ -205,7 +205,8 @@ class CalibratedSeverityModel:
         self.plugin_rates: dict[str, tuple[int, int]] = {}
         self.param_rates: dict[str, tuple[int, int]] = {}
 
-        # Initialize thread-safe registry and pipeline
+        # Initialize thread-safe registry and pipeline using lazy imports to prevent circular dependencies
+        from src.intelligence.ml import ModelVersionRegistry, XGBoostSeverityPipeline
         self.registry = ModelVersionRegistry()
         self.pipeline = XGBoostSeverityPipeline()
 
@@ -216,9 +217,11 @@ class CalibratedSeverityModel:
         return get_default_severity_model()
 
     def predict(self, finding: dict[str, Any]) -> SeverityPrediction:
-        # Check for active pipeline registered in registry
-        pipeline = self.pipeline
-        active_ver = MODEL_VERSION
+        start_time = time.time()
+
+        # Safely obtain active pipeline from registry
+        pipeline = getattr(self, "pipeline", None)
+        active_ver = "severity-logreg-v1"
         if hasattr(self, "registry") and self.registry:
             active_pipeline = self.registry._pipelines.get("severity_model")
             if active_pipeline:
@@ -227,8 +230,11 @@ class CalibratedSeverityModel:
             if active_model:
                 active_ver = active_model.version
 
-        # Get raw probability from the pipeline
-        raw_probability = pipeline.predict_probability(finding)
+        # Get raw probability from the pipeline (safeguarded)
+        if pipeline is not None and hasattr(pipeline, "predict_probability"):
+            raw_probability = pipeline.predict_probability(finding)
+        else:
+            raw_probability = self._sigmoid(sum(self.weights.get(k, 0.0) * v for k, v in _feature_vector(finding).items()))
 
         calibrated_tp, calibration = self._calibrate(raw_probability, finding)
         input_impact = (
@@ -246,7 +252,8 @@ class CalibratedSeverityModel:
             3,
         )
         features = _feature_vector(finding)
-        return SeverityPrediction(
+
+        prediction = SeverityPrediction(
             score=score,
             severity=severity,
             true_positive_probability=round(calibrated_tp, 4),
@@ -258,7 +265,19 @@ class CalibratedSeverityModel:
             top_features=self._top_features(features),
         )
 
+        latency = time.time() - start_time
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+            get_metrics().counter("severity_predictions_total", "Total model predictions made").inc()
+        except Exception:
+            pass
+        logger.info("SeverityModel: predicted in %.4fs", latency)
+
+        return prediction
+
     def enrich_finding(self, finding: dict[str, Any]) -> dict[str, Any]:
+        if "severity_score" in finding:
+            return finding
         prediction = self.predict(finding)
         metadata = prediction.as_metadata()
         return {
@@ -313,6 +332,7 @@ class CalibratedSeverityModel:
 
         # Train new XGBoost/fallback pipeline
         try:
+            from src.intelligence.ml import ModelVersion
             findings_list = [ex.finding for ex in examples]
             labels_list = [ex.label for ex in examples]
             success = self.pipeline.fit(findings_list, labels_list)
@@ -329,6 +349,11 @@ class CalibratedSeverityModel:
                 self.registry.register(mv, activate=True, pipeline=self.pipeline)
         except Exception as e:
             logger.warning("SeverityModel: Pipeline retraining failed: %s", e)
+            try:
+                from src.infrastructure.observability.metrics import get_metrics
+                get_metrics().counter("severity_retraining_failures_total", "Total model retraining failures").inc()
+            except Exception:
+                pass
 
     def _load_training_examples(self) -> list[_TrainingExample]:
         if not self.db_path.exists():

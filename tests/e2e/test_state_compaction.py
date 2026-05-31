@@ -69,7 +69,11 @@ def test_compaction_preserves_new_items():
     # Manually backdate it (even if old, it's not a tombstone, so it should stay)
     el = state.urls._elements["https://active.com"]
     state.urls._elements["https://active.com"] = type(el)(
-        el.value, el.vclock, time.time() - 10000, deleted=False
+        value=el.value,
+        hlc=el.hlc,
+        vclock=el.vclock,
+        timestamp=time.time() - 10000,
+        deleted=False,
     )
 
     state.compact(max_tombstone_age_seconds=10)

@@ -358,7 +358,7 @@ def write_report_package(
 
         pdf_path = generate_compliance_pdf(summary=summary, run_dir=run_dir)
     except Exception as exc:
-        logger.debug("Failed to set file permissions: %s", exc)
+        logger.warning("Failed to generate compliance PDF: %s", exc)
 
     if pdf_path is None or not pdf_path.exists():
         _write_simple_pdf(

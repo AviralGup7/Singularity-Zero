@@ -47,7 +47,7 @@ def _read_cached_payload(path: Path) -> Any | None:
             return json.loads(data.decode("utf-8"))
         else:
             return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
+    except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError) as exc:
         logger.warning("Failed to read cache file (%s): %s", exc.__class__.__name__, path)
         return None
 
@@ -78,9 +78,14 @@ def save_cached_set(path: Path, items: set[str], *, compress: bool = True) -> No
     ensure_dir(path.parent)
     data = json.dumps(sorted(items)).encode("utf-8")
     if compress:
+        original_path = path
         path = path.with_suffix(path.suffix + ".gz")
         data = gzip.compress(data, compresslevel=6)
     _atomic_write(path, data)
+    if compress:
+        _remove_stale_alternate(original_path)
+    else:
+        _remove_stale_alternate(path.with_suffix(path.suffix + ".gz"))
 
 
 def load_cached_json(path: Path) -> dict[str, Any]:
@@ -107,9 +112,14 @@ def save_cached_json(path: Path, payload: dict[str, Any], *, compress: bool = Tr
     ensure_dir(path.parent)
     data = json.dumps(payload).encode("utf-8")
     if compress:
+        original_path = path
         path = path.with_suffix(path.suffix + ".gz")
         data = gzip.compress(data, compresslevel=6)
     _atomic_write(path, data)
+    if compress:
+        _remove_stale_alternate(original_path)
+    else:
+        _remove_stale_alternate(path.with_suffix(path.suffix + ".gz"))
 
 
 def _atomic_write(path: Path, data: bytes) -> None:
@@ -148,6 +158,15 @@ def _atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
+def _remove_stale_alternate(path: Path) -> None:
+    """Remove an older cache representation after its replacement is durable."""
+    try:
+        if path.exists():
+            path.unlink()
+    except OSError as exc:
+        logger.warning("Failed to remove stale cache file %s: %s", path, exc)
+
+
 def response_cache_fresh(
     record: dict[str, Any], ttl_hours: int, content_hash: str | None = None
 ) -> bool:
@@ -163,7 +182,10 @@ def response_cache_fresh(
     """
     if ttl_hours <= 0:
         return False
-    fetched_at = float(record.get("cached_at_epoch", 0))
+    try:
+        fetched_at = float(record.get("cached_at_epoch", 0))
+    except (TypeError, ValueError):
+        return False
     if fetched_at <= 0:
         return False
     if content_hash and record.get("content_hash") != content_hash:

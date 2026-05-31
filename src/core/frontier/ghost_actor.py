@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable
+from copy import deepcopy
 from typing import Any, cast
 
 import pykka
@@ -35,6 +36,11 @@ import weakref
 _LOGIC_REGISTRY: weakref.WeakValueDictionary[str, Callable[[dict[str, Any], dict[str, Any]], Any]] = weakref.WeakValueDictionary()
 
 
+def _copy_mailbox_value(value: Any) -> Any:
+    """Copy values crossing the actor mailbox so callers cannot retain state aliases."""
+    return deepcopy(value)
+
+
 class ScanActor(pykka.ThreadingActor):
     """Frontier Task Actor.
 
@@ -60,7 +66,7 @@ class ScanActor(pykka.ThreadingActor):
     def dehydrate(self, migration_id: str = "") -> bytes:
         """Freeze actor mutating work and dehydrate its state to packed bytes."""
         self.is_migrating = True
-        state_data = dict(self.state)
+        state_data = _copy_mailbox_value(self.state)
 
         compaction_budget_data = {
             "budget_ms": getattr(self.compaction_budget, "budget_ms", 50.0),
@@ -94,7 +100,7 @@ class ScanActor(pykka.ThreadingActor):
     def rehydrate(self, payload: bytes) -> None:
         """Restore actor state from packed binary payload."""
         unpacked = ActorState.rehydrate(payload)
-        self.state = unpacked.data
+        self.state = _copy_mailbox_value(unpacked.data)
         self._applied_wal_ids = set(unpacked.data.get("_applied_wal_ids", []))
         if unpacked.applied_wal_ids:
             self._applied_wal_ids.update(unpacked.applied_wal_ids)
@@ -145,7 +151,7 @@ class ScanActor(pykka.ThreadingActor):
                 continue
             delta = delta_entry.get("delta", {})
             if isinstance(delta, dict):
-                self._merge_recovered_delta(delta)
+                self._merge_recovered_delta(_copy_mailbox_value(delta))
                 if isinstance(wal_id, str):
                     self._applied_wal_ids.add(wal_id)
                     self.state["_last_wal_id"] = wal_id
@@ -169,6 +175,7 @@ class ScanActor(pykka.ThreadingActor):
             "rehydrate",
             "cold_start",
             "warm_rejoin",
+            "abort_migration",
         }
         if command not in known_commands:
             logger.error("Ghost-Actor [%s] failure: Unknown command %s", self.actor_id, command)
@@ -196,7 +203,7 @@ class ScanActor(pykka.ThreadingActor):
             return self._execute_logic(message.get("input", {}))
 
         elif command == "snapshot":
-            data = dict(self.state)
+            data = _copy_mailbox_value(self.state)
             return ActorState(
                 actor_id=self.actor_id,
                 stage=self.state.get("current_stage", "init"),
@@ -221,7 +228,7 @@ class ScanActor(pykka.ThreadingActor):
                     continue
                 delta = delta_entry.get("delta", {})
                 if isinstance(delta, dict):
-                    self._merge_recovered_delta(delta)
+                    self._merge_recovered_delta(_copy_mailbox_value(delta))
                     if isinstance(wal_id, str):
                         self._applied_wal_ids.add(wal_id)
                         self.state["_last_wal_id"] = wal_id
@@ -249,6 +256,10 @@ class ScanActor(pykka.ThreadingActor):
         elif command == "warm_rejoin":
             wal_deltas = message.get("deltas", [])
             self.warm_rejoin(wal_deltas)
+            return {"status": "success"}
+
+        elif command == "abort_migration":
+            self.is_migrating = False
             return {"status": "success"}
 
         elif command == "prepare_migration":
@@ -324,8 +335,9 @@ class ScanActor(pykka.ThreadingActor):
         """Runs the encapsulated security logic."""
         logger.info("Ghost-Actor [%s]: Executing logic...", self.actor_id)
         try:
-            result = self.logic_fn(task_input, self.state)
-            return {"status": "success", "output": result}
+            isolated_input = _copy_mailbox_value(task_input)
+            result = self.logic_fn(isolated_input, self.state)
+            return {"status": "success", "output": _copy_mailbox_value(result)}
         except Exception as e:  # pylint: disable=W0718
             logger.error("Ghost-Actor [%s] failure: %s", self.actor_id, e)
             return {"status": "error", "error": str(e)}
@@ -337,20 +349,28 @@ class ScanActor(pykka.ThreadingActor):
                 continue
             current = self.state.get(key)
             if isinstance(current, dict) and isinstance(value, dict):
-                current.update(value)
+                def deep_merge(target: dict[str, Any], source: dict[str, Any]) -> None:
+                    for k, v in source.items():
+                        if k in target and isinstance(target[k], dict) and isinstance(v, dict):
+                            deep_merge(target[k], v)
+                        else:
+                            target[k] = _copy_mailbox_value(v)
+                deep_merge(current, value)
             elif isinstance(current, list) and isinstance(value, list):
                 seen = {stable_digest(item) for item in current}
                 for item in value:
                     digest = stable_digest(item)
                     if digest not in seen:
-                        current.append(item)
+                        current.append(_copy_mailbox_value(item))
                         seen.add(digest)
             elif isinstance(current, set) and isinstance(value, (list, set, tuple, frozenset)):
                 current.update(value)
             elif current is None:
-                self.state[key] = list(value) if isinstance(value, tuple) else value
+                self.state[key] = _copy_mailbox_value(
+                    list(value) if isinstance(value, tuple) else value
+                )
             else:
-                self.state[key] = value
+                self.state[key] = _copy_mailbox_value(value)
 
 
 class GhostMeshCoordinator(BaseMeshCoordinator):

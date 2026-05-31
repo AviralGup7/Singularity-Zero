@@ -7,7 +7,7 @@ from typing import Any, TypedDict, cast
 
 from src.core.checkpoint import (
     StageCheckpointGuard,
-    attempt_recovery,  # noqa: F401 – module-namespace seam used by security.py via getattr
+    attempt_recovery,  # noqa: F401 – module-namespace seam
     create_checkpoint_manager,  # noqa: F401 – module-namespace seam
     generate_run_id,  # noqa: F401 – module-namespace seam
 )
@@ -36,6 +36,7 @@ from src.pipeline.services.output_store import PipelineOutputStore  # noqa: F401
 from src.pipeline.services.plugin_catalog import resolve_stage_runner
 from src.pipeline.services.stage_registry import pipeline_flow_manifest  # noqa: F401 – seam
 from src.pipeline.storage import read_scope  # noqa: F401 – module-namespace seam
+from ._orchestrator.security import find_previous_run  # noqa: F401 – monkeypatch seam
 
 from . import parallel
 from ._constants import (

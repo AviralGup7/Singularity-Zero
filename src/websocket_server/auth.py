@@ -98,6 +98,17 @@ async def authenticate_websocket(
 
         allowed = set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
     allowed = {o.strip() for o in allowed if o.strip()}
+    
+    import os
+    is_production = os.environ.get("ENV") == "production" or os.environ.get("NODE_ENV") == "production"
+    if not allowed and is_production:
+        logger.error("Strict origin validation failed: no allowed origins configured in production mode!")
+        raise AuthenticationError(
+            code="auth_invalid_origin",
+            detail="Origin validation failed: no allowed origins configured in production mode",
+            status_code=4003,
+        )
+
     if allowed and "*" not in allowed:
         if not origin or origin not in allowed:
             logger.warning("WebSocket CSWSH blocked: invalid or missing origin %s", origin)

@@ -6,6 +6,7 @@ Implements a high-throughput, no-allocation event plane for frontier security op
 from __future__ import annotations
 
 import asyncio
+import msgpack
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -81,9 +82,9 @@ class FrontierRingBus:
             if self._enable_shm and self._shm_router:
                 try:
                     # Offload data to shared memory for large payloads
-                    import msgpack
                     payload = msgpack.packb(data)
-                    if len(payload) > 1024: # Only offload if > 1KB
+                    has_pending_shm = any(event.shm_ref for event in self._buffer)
+                    if len(payload) > 1024 and not has_pending_shm: # Only offload if > 1KB
                         shm_ref = self._shm_router.route_payload(payload)
                         data = {"_shm": True} # Placeholder for small in-memory state
                 except Exception as e:
@@ -118,14 +119,8 @@ class FrontierRingBus:
 
             for event in events:
                 # 2. Shared Memory Retrieval
-                if event.shm_ref and self._shm_router:
-                    try:
-                        import msgpack
-                        raw_payload = self._shm_router.retrieve_payload(event.shm_ref)
-                        event.data = msgpack.unpackb(raw_payload, raw=False)
-                    except Exception as e:
-                        logger.error("Failed to retrieve event data from SHM: %s", e)
-                        continue
+                if not self._hydrate_event_payload(event):
+                    continue
 
                 # Fix Audit #125: Create a new combined list to avoid mutation during iteration
                 specific = self._subscribers.get(event.type, [])
@@ -157,6 +152,9 @@ class FrontierRingBus:
                 events = [self._buffer.popleft() for _ in range(batch_size)]
 
             for event in events:
+                if not self._hydrate_event_payload(event):
+                    continue
+
                 specific = self._subscribers.get(event.type, [])
                 wildcard = self._subscribers.get("*", [])
                 handlers = list(specific) + list(wildcard)
@@ -185,6 +183,21 @@ class FrontierRingBus:
             pass
         except Exception as e:
             logger.error("Bus async handler task failed: %s", e)
+
+    def _hydrate_event_payload(self, event: NeuralEvent) -> bool:
+        """Load a shared-memory payload back into the event before dispatch."""
+        if not event.shm_ref:
+            return True
+        if not self._shm_router:
+            logger.error("Failed to retrieve event data from SHM: router unavailable")
+            return False
+        try:
+            raw_payload = self._shm_router.retrieve_payload(event.shm_ref)
+            event.data = msgpack.unpackb(raw_payload, raw=False)
+            return True
+        except Exception as e:
+            logger.error("Failed to retrieve event data from SHM: %s", e)
+            return False
 
     def stop(self) -> None:
         """Gracefully stop the dispatch loop."""

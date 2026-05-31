@@ -28,6 +28,7 @@ class FindingDeduplicator:
 
     def __init__(self) -> None:
         self._groups: list[FindingGroup] = []
+        self._unique_count = 0
 
     def deduplicate(
         self, findings: list[dict[str, Any]]
@@ -63,6 +64,7 @@ class FindingDeduplicator:
                 unique_findings.append(finding)
 
         self._groups = [g for g in seen_hashes.values() if g.count > 1]
+        self._unique_count = len(unique_findings)
 
         # Add dedup metadata to unique findings
         for finding in unique_findings:
@@ -89,11 +91,16 @@ class FindingDeduplicator:
         url = finding.get("url", finding.get("target", ""))
         if url:
             try:
+                if not isinstance(url, str):
+                    raise ValueError(f"URL must be a string, got {type(url)}")
                 parsed = urlparse(url)
+                if not parsed.netloc and not parsed.path:
+                    raise ValueError("Parsed URL has empty netloc and path")
                 normalized_url = f"{parsed.netloc}{parsed.path}"
                 key_parts.append(normalized_url.lower())
-            except Exception:
-                key_parts.append(url.lower())
+            except ValueError as e:
+                logger.warning("Failed to parse URL '%s' for fingerprinting: %s", url, e)
+                key_parts.append(str(url).lower())
 
         key_string = "|".join(key_parts)
         # Use SHA-256 for deterministic, collision-resistant fingerprints.
@@ -104,7 +111,7 @@ class FindingDeduplicator:
         total_duplicates = sum(g.count - 1 for g in self._groups)
 
         return {
-            "unique_findings": len([g for g in self._groups]) + 0,  # Will be set externally
+            "unique_findings": self._unique_count,
             "duplicate_groups": len(self._groups),
             "total_duplicates_removed": total_duplicates,
             "groups": [

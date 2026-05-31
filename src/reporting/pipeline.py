@@ -164,7 +164,7 @@ def build_summary(
         "attack_campaigns": campaign_summary.get("summary", {}).get("total_campaigns", 0),
     }
     for label, findings in analysis_results.items():
-        counts[label] = len(findings)
+        counts[label] = len(findings) if isinstance(findings, list) else 0
     validation_results = (
         validation_summary.get("results", {}) if isinstance(validation_summary, dict) else {}
     )

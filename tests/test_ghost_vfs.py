@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from src.core.frontier.ghost_vfs import GhostVFS
+from src.core.frontier.ghost_vfs import GhostVFS, eBPFHookManager
 
 
 def _envelope_salt(raw: bytes) -> str:
@@ -24,7 +24,7 @@ def test_ghost_vfs_lifecycle():
     vfs.self_destruct()
     assert "test.txt" not in vfs.list_files()
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(RuntimeError, match="data plane has been purged"):
         vfs.read_file("test.txt")
 
 
@@ -96,6 +96,28 @@ def test_ghost_vfs_path_traversal_prevention(tmp_path):
     # Assert the traversal file did NOT escape the sandbox and was NOT written
     assert not (tmp_path / "hacked.txt").exists()
     assert not (disk_dir / "../hacked.txt").exists()
+
+
+def test_ghost_vfs_canonicalizes_paths_and_rejects_hidden_traversal():
+    vfs = GhostVFS()
+
+    vfs.write_file(r"reports\summary.txt", "canonical")
+    assert "reports/summary.txt" in vfs.list_files()
+    assert r"reports\summary.txt" not in vfs.list_files()
+    assert vfs.read_file("reports/summary.txt") == b"canonical"
+    assert vfs.read_file(r"reports\summary.txt") == b"canonical"
+
+    for bad_path in (
+        "",
+        ".",
+        "../escape.txt",
+        "safe/../escape.txt",
+        r"safe\..\escape.txt",
+        "C:relative.txt",
+        "safe/\x00bad.txt",
+    ):
+        with pytest.raises(ValueError, match="Invalid virtual path"):
+            vfs.write_file(bad_path, "blocked")
 
 
 def test_ghost_vfs_roundtrip_persistence(tmp_path):
@@ -214,6 +236,87 @@ def test_ghost_vfs_policy_enforcement():
 
     with pytest.raises(PermissionError, match="not allowed to read"):
         audit_vfs.read_file("secrets/app.pem")
+
+    # Secret directories are protected even when the file extension itself is not sensitive.
+    audit_vfs._files["secrets/password.txt"] = system_vfs._files["scans/subdomains.txt"]
+    with pytest.raises(PermissionError, match="not allowed to read"):
+        audit_vfs.read_file("secrets/password.txt")
+
+
+def test_ghost_vfs_delete_validates_policy_and_wipes_buffer():
+    vfs = GhostVFS()
+    vfs.write_file("volatile.txt", "erase me")
+    raw_ref = vfs._files["volatile.txt"]
+    assert any(raw_ref)
+
+    vfs.delete_file("volatile.txt")
+
+    assert "volatile.txt" not in vfs.list_files()
+    assert all(byte == 0 for byte in raw_ref)
+
+    with pytest.raises(ValueError, match="Invalid virtual path"):
+        vfs.delete_file("../escape.txt")
+
+    analyst_vfs = GhostVFS(principal="analyst")
+    with pytest.raises(PermissionError, match="not allowed to delete"):
+        analyst_vfs.delete_file("visible.txt")
+
+
+def test_ghost_vfs_self_destruct_wipes_buffers_and_unpins(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(
+        eBPFHookManager,
+        "pin_memory",
+        staticmethod(lambda address_space: calls.append(("pin", address_space))),
+    )
+    monkeypatch.setattr(
+        eBPFHookManager,
+        "unpin_memory",
+        staticmethod(lambda address_space: calls.append(("unpin", address_space))),
+    )
+
+    vfs = GhostVFS()
+    vfs.write_file("session.bin", b"sensitive")
+    raw_ref = vfs._files["session.bin"]
+    key_ref = vfs._key
+
+    vfs.self_destruct()
+
+    assert vfs.list_files() == []
+    assert all(byte == 0 for byte in raw_ref)
+    assert all(byte == 0 for byte in key_ref)
+    assert vfs._memory_pinned is False
+    assert [name for name, _ in calls] == ["pin", "unpin"]
+
+    with pytest.raises(RuntimeError, match="data plane has been purged"):
+        vfs.write_file("after-purge.txt", "must not resurrect")
+
+
+def test_ghost_vfs_read_stream_uses_snapshot_when_file_is_deleted():
+    vfs = GhostVFS()
+    chunks = [b"alpha", b"beta"]
+    vfs.write_file_stream("stream.log", iter(chunks))
+
+    stream = vfs.read_file_stream("stream.log")
+    vfs.delete_file("stream.log")
+
+    assert list(stream) == chunks
+
+
+def test_ghost_vfs_read_stream_close_wipes_derived_file_key():
+    vfs = GhostVFS()
+    vfs.write_file_stream("stream.log", iter([b"alpha", b"beta"]))
+
+    stream = vfs.read_file_stream("stream.log")
+    assert next(stream) == b"alpha"
+    file_key = stream._file_key
+    assert any(file_key)
+
+    stream.close()
+
+    assert all(byte == 0 for byte in file_key)
+    assert list(stream) == []
 
 
 def test_ghost_vfs_retention_policy():

@@ -33,6 +33,7 @@ class TestPassivePluginsMapping(unittest.TestCase):
             "directory_listing_checker",
             "debug_artifact_checker",
             "stored_xss_signal_detector",
+            "dom_xss_signal_detector",
             "technology_fingerprint",
             "anomaly_detector",
         }

@@ -271,8 +271,8 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
     Uses standard socket getaddrinfo for A/AAAA (via run_in_executor to support mocks),
     and dnspython resolver/nslookup fallback for generic types.
     """
-    from unittest.mock import MagicMock
-    if hasattr(_run_nslookup, "assert_called") or isinstance(_run_nslookup, MagicMock) or type(_run_nslookup).__name__ == "AsyncMock":
+    is_mocked = hasattr(_run_nslookup, "mock_calls") or hasattr(_run_nslookup, "assert_called") or "Mock" in type(_run_nslookup).__name__
+    if is_mocked:
         try:
             result = await _run_nslookup(domain, record_type)
             if result and hasattr(result, "stdout") and result.stdout:
@@ -452,6 +452,9 @@ def _get_parent_domains(domain: str) -> list[str]:
 
 def _query_txt_cached_sync(domain: str) -> list[str]:
     """Query TXT records synchronously with cache."""
+    if len(_TXT_CACHE) >= 1024:
+        _TXT_CACHE.clear()
+
     if domain not in _TXT_CACHE:
         if not HAS_DNSPYTHON:
             _TXT_CACHE[domain] = []

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 import os
+import threading
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
@@ -62,8 +63,14 @@ class NeuralBloomFilter:
     """
 
     def __init__(self, capacity: int = 1000000, error_rate: float = 0.01) -> None:
+        if capacity <= 0:
+            raise ValueError("Bloom filter capacity must be positive")
+        if not 0.0 < error_rate < 1.0:
+            raise ValueError("Bloom filter error_rate must be between 0 and 1")
+
         self.capacity = capacity
         self.error_rate = error_rate
+        self._lock = threading.RLock()
 
         # Calculate bit array size and number of hash functions
         self.bit_size = -int((capacity * math.log(error_rate)) / (math.log(2) ** 2))
@@ -81,6 +88,8 @@ class NeuralBloomFilter:
         h1, h2 = mmh3_impl.hash64(item)
         h1_u = np.uint64(h1 & ((1 << 64) - 1))
         h2_u = np.uint64(h2 & ((1 << 64) - 1))
+        if h2_u == 0:
+            h2_u = np.uint64(0x9E3779B97F4A7C15)
         for i in range(self.hash_count):
             # Kirsch-Mitzenmacher optimization: generate k hashes from 2
             offset = int((h1_u + np.uint64(i) * h2_u) % np.uint64(self.bit_size))
@@ -145,7 +154,14 @@ class NeuralBloomFilter:
         """Choose a chunk size from available RAM while avoiding tiny temp arrays."""
         env_override = os.getenv("BLOOM_CHUNK_SIZE")
         if env_override:
-            return max(min_chunk_size, int(env_override))
+            try:
+                override = int(env_override)
+            except ValueError:
+                get_pipeline_logger(__name__).warning(
+                    "Ignoring invalid BLOOM_CHUNK_SIZE=%r", env_override
+                )
+            else:
+                return max(min_chunk_size, min(max_chunk_size, override))
 
         available = psutil.virtual_memory().available if psutil else 4 * GIB
         working = max(256 * 1024 * 1024, available - safety_buffer_bytes)
@@ -158,19 +174,24 @@ class NeuralBloomFilter:
 
     def add(self, item: str) -> None:
         """Add an item to the filter."""
-        for offset in self._get_offsets(item):
-            byte_idx = offset // 8
-            bit_idx = offset % 8
-            self.bits[byte_idx] |= 1 << bit_idx
+        with self._lock:
+            already_present = item in self
+            for offset in self._get_offsets(item):
+                byte_idx = offset // 8
+                bit_idx = offset % 8
+                self.bits[byte_idx] |= 1 << bit_idx
+            if not already_present:
+                self.element_count += 1
 
     def __contains__(self, item: str) -> bool:
         """Check if an item is likely in the filter."""
-        for offset in self._get_offsets(item):
-            byte_idx = offset // 8
-            bit_idx = offset % 8
-            if not (self.bits[byte_idx] & (1 << bit_idx)):
-                return False
-        return True
+        with self._lock:
+            for offset in self._get_offsets(item):
+                byte_idx = offset // 8
+                bit_idx = offset % 8
+                if not (self.bits[byte_idx] & (1 << bit_idx)):
+                    return False
+            return True
 
     def contains_many(
         self, items: Sequence[str] | np.ndarray, *, normalize: bool = True
@@ -179,27 +200,25 @@ class NeuralBloomFilter:
         arr = self.normalize_urls(items) if normalize else np.asarray(items, dtype=np.str_)
         if arr.size == 0:
             return np.array([], dtype=np.bool_)
-        byte_idx, masks = self._byte_and_mask_arrays(arr)
-        hits = np.bitwise_and(self.bits[byte_idx], masks) == masks
-        return cast(np.ndarray, np.all(hits, axis=1))
+        with self._lock:
+            byte_idx, masks = self._byte_and_mask_arrays(arr)
+            hits = np.bitwise_and(self.bits[byte_idx], masks) == masks
+            return cast(np.ndarray, np.all(hits, axis=1))
 
     def add_many(self, items: Sequence[str] | np.ndarray, *, normalize: bool = True) -> int:
         """Add a batch of URLs with vectorized byte and bit writes."""
         arr = self.normalize_urls(items) if normalize else np.asarray(items, dtype=np.str_)
         if arr.size == 0:
             return 0
-        duplicates = self.contains_many(arr, normalize=False)
-        new_urls = arr[np.logical_not(duplicates)]
-        if new_urls.size == 0:
-            return 0
-        byte_idx, masks = self._byte_and_mask_arrays(new_urls)
-        np.bitwise_or.at(self.bits, byte_idx.ravel(), masks.ravel())
-        # Fix Q-15: Do not increment element_count here if process_urls is also doing it.
-        # Decisions: delegated to caller or managed strictly here.
-        # For consistency with the distributed model, we manage it locally in add_many
-        # but fix the caller's double-addition.
-        self.element_count += int(new_urls.size)
-        return int(new_urls.size)
+        with self._lock:
+            duplicates = self.contains_many(arr, normalize=False)
+            new_urls = np.unique(arr[np.logical_not(duplicates)])
+            if new_urls.size == 0:
+                return 0
+            byte_idx, masks = self._byte_and_mask_arrays(new_urls)
+            np.bitwise_or.at(self.bits, byte_idx.ravel(), masks.ravel())
+            self.element_count += int(new_urls.size)
+            return int(new_urls.size)
 
     def process_urls(
         self,
@@ -224,6 +243,10 @@ class NeuralBloomFilter:
             if chunk.size == 0:
                 continue
             duplicates = self.contains_many(chunk, normalize=False)
+            _, first_indices = np.unique(chunk, return_index=True)
+            first_seen = np.zeros(chunk.size, dtype=np.bool_)
+            first_seen[first_indices] = True
+            duplicates = np.logical_or(duplicates, np.logical_not(first_seen))
             new_mask = np.logical_not(duplicates)
             new_urls = chunk[new_mask]
             known_total += int(np.count_nonzero(duplicates))
@@ -253,28 +276,30 @@ class NeuralBloomFilter:
 
     def get_stats(self) -> dict[str, Any]:  # Fix #231: typed return hint
         """Return filter diagnostics."""
-        ones = int(np.bitwise_count(self.bits).sum())
-        fill_ratio = float(ones / self.bit_size)
-        # Fix S0-2: Use standard theoretical formula for Bloom filter FP probability
-        false_positive_probability = float(
-            (1.0 - math.exp(-self.element_count * self.hash_count / self.bit_size))
-            ** self.hash_count
-        )
-        return {
-            "capacity": int(self.capacity),
-            "error_rate": float(self.error_rate),
-            "element_count": self.element_count,
-            "memory_mb": round(self.bits.nbytes / 1024 / 1024, 2),
-            "bit_size_mb": round(self.bit_size / 8 / 1024 / 1024, 2),
-            "fill_ratio": round(fill_ratio, 4),
-            "false_positive_probability": false_positive_probability,
-            "hash_count": self.hash_count,
-        }
+        with self._lock:
+            ones = int(np.unpackbits(self.bits).sum())
+            fill_ratio = float(ones / self.bit_size)
+            # Fix S0-2: Use standard theoretical formula for Bloom filter FP probability
+            false_positive_probability = float(
+                (1.0 - math.exp(-self.element_count * self.hash_count / self.bit_size))
+                ** self.hash_count
+            )
+            return {
+                "capacity": int(self.capacity),
+                "error_rate": float(self.error_rate),
+                "element_count": self.element_count,
+                "memory_mb": round(self.bits.nbytes / 1024 / 1024, 2),
+                "bit_size_mb": round(self.bit_size / 8 / 1024 / 1024, 2),
+                "fill_ratio": round(fill_ratio, 4),
+                "false_positive_probability": false_positive_probability,
+                "hash_count": self.hash_count,
+            }
 
     def reset(self) -> None:
         """Clear all bits while preserving capacity and error-rate configuration."""
-        self.bits.fill(0)
-        self.element_count = 0
+        with self._lock:
+            self.bits.fill(0)
+            self.element_count = 0
 
     def merge(self, other: NeuralBloomFilter) -> None:
         """Perform a fast bitwise OR to merge filters from different workers."""
@@ -286,25 +311,55 @@ class NeuralBloomFilter:
                 f"Cannot merge Bloom Filters with different hash_count "
                 f"({self.hash_count} vs {other.hash_count})"
             )
-        self.bits |= other.bits
-        # Fix #229: Use addition as an upper-bound estimate (max() undercounts after merge).
-        self.element_count = self.element_count + other.element_count
+        first, second = (
+            (self._lock, other._lock)
+            if id(self._lock) <= id(other._lock)
+            else (other._lock, self._lock)
+        )
+        with first, second:
+            self.bits |= other.bits
+            # Fix #229: Use addition as an upper-bound estimate (max() undercounts after merge).
+            self.element_count = self.element_count + other.element_count
 
-    def merge_bits(self, bits: np.ndarray, *, element_count: int = 0) -> None:
+    def merge_bits(
+        self,
+        bits: np.ndarray,
+        *,
+        element_count: int = 0,
+        added_count: int = 0,
+    ) -> None:
         """Merge a serialized bit array into this filter."""
         if bits.shape != self.bits.shape:
             raise ValueError("Cannot merge Bloom Filter snapshot with different bit layout")
-        self.bits |= bits
-        self.element_count = max(self.element_count, int(element_count))
+        with self._lock:
+            self.bits |= bits
+            self.element_count = max(
+                self.element_count + max(0, int(added_count)),
+                int(element_count),
+            )
 
     def snapshot_bytes(self) -> bytes:
         """Return a compact binary snapshot of the packed bit array."""
-        return self.bits.tobytes()
+        with self._lock:
+            return self.bits.tobytes()
 
-    def load_snapshot_bytes(self, payload: bytes) -> np.ndarray:
-        """Decode a Bloom snapshot into an owned NumPy array."""
+    def snapshot_payload(self) -> tuple[bytes, dict[str, Any]]:
+        """Return packed bits and diagnostics from the same locked state."""
+        with self._lock:
+            return self.bits.tobytes(), self.get_stats()
+
+    def decode_snapshot_bytes(self, payload: bytes) -> np.ndarray:
+        """Decode a Bloom snapshot without mutating the current filter."""
+        if len(payload) != self.bits.nbytes:
+            raise ValueError("Snapshot bit array does not match this filter")
         bits = cast(np.ndarray, np.frombuffer(payload, dtype=np.uint8).copy())
         if bits.shape != self.bits.shape:
             raise ValueError("Snapshot bit array does not match this filter")
-        self.bits = bits
+        return bits
+
+    def load_snapshot_bytes(self, payload: bytes) -> np.ndarray:
+        """Decode a Bloom snapshot into an owned NumPy array."""
+        bits = self.decode_snapshot_bytes(payload)
+        with self._lock:
+            self.bits = bits
         return bits

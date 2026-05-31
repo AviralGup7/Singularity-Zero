@@ -122,10 +122,26 @@ class TelemetryStore:
         logger.info("Telemetry store initialized at %s", self.db_path)
 
     def close(self) -> None:
-        """Close the thread-local connection."""
+        """Close all thread-local database connections.
+
+        Callers must call this explicitly if not using the 'with' statement context manager
+        to prevent resource and connection leaks.
+        """
         if hasattr(self._local, "conn") and self._local.conn:
-            self._local.conn.close()
+            try:
+                self._local.conn.close()
+            except Exception:
+                pass
             self._local.conn = None
+
+        from .base import BaseRepo
+        with BaseRepo._lock:
+            for conn in list(BaseRepo._connections):
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            BaseRepo._connections.clear()
 
     def __enter__(self) -> TelemetryStore:
         self.initialize()
@@ -133,13 +149,6 @@ class TelemetryStore:
 
     def __exit__(self, *args: Any) -> None:
         self.close()
-
-    def __del__(self) -> None:
-        """Best-effort connection cleanup when store is garbage collected."""
-        try:
-            self.close()
-        except Exception:  # noqa: S110
-            pass
 
     def record_scan_run(self, row: dict[str, Any]) -> None:
         """Record a scan run."""
@@ -165,6 +174,10 @@ class TelemetryStore:
         """Get all findings for a run."""
         return self.findings.get_findings_for_run(run_id)
 
+    def get_findings_for_runs(self, run_ids: list[str]) -> list[dict]:
+        """Get all findings for multiple runs in a single query."""
+        return self.findings.get_findings_for_runs(run_ids)
+
     def count_findings_for_target(self, target: str) -> int:
         """Count total findings for a target across all runs."""
         return self.findings.count_findings_for_target(target)
@@ -180,6 +193,10 @@ class TelemetryStore:
     def get_feedback_events_for_run(self, run_id: str) -> list[dict]:
         """Get feedback events for a run."""
         return self.feedback.get_feedback_events_for_run(run_id)
+
+    def get_feedback_events_for_runs(self, run_ids: list[str]) -> list[dict]:
+        """Get feedback events for multiple runs in a single query."""
+        return self.feedback.get_feedback_events_for_runs(run_ids)
 
     def get_feedback_events(self, limit: int = 1000) -> list[dict]:
         """Get the most recent feedback events across all runs."""
@@ -201,6 +218,10 @@ class TelemetryStore:
     def upsert_fp_pattern(self, row: dict[str, Any]) -> None:
         """Insert or update an FP pattern."""
         self.fp_patterns.upsert_fp_pattern(row)
+
+    def upsert_fp_patterns(self, rows: list[dict[str, Any]]) -> None:
+        """Insert or update multiple FP patterns in a single transaction."""
+        self.fp_patterns.upsert_fp_patterns(rows)
 
     def get_fp_patterns(self, category: str | None = None, active_only: bool = True) -> list[dict]:
         """Get FP patterns, optionally filtered."""
@@ -257,6 +278,10 @@ class TelemetryStore:
     def get_plugin_stats(self, run_id: str | None = None) -> list[dict]:
         """Get plugin statistics."""
         return self.metrics.get_plugin_stats(run_id)
+
+    def get_plugin_stats_for_runs(self, run_ids: list[str]) -> list[dict]:
+        """Get plugin statistics for multiple runs in a single query."""
+        return self.metrics.get_plugin_stats_for_runs(run_ids)
 
     def record_metric(
         self, run_id: str, name: str, value: float, category: str | None = None

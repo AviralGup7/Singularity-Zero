@@ -420,9 +420,17 @@ class VersionInvalidation(InvalidationStrategy):
             version: Version string. Defaults to current_version.
         """
         ver = version or self.current_version
+        self.unregister_entry(key)
         if ver not in self.version_index:
             self.version_index[ver] = set()
         self.version_index[ver].add(key)
+
+    def unregister_entry(self, key: str) -> None:
+        """Remove a key from every version index."""
+        for ver in list(self.version_index.keys()):
+            self.version_index[ver].discard(key)
+            if not self.version_index[ver] and ver != self.current_version:
+                del self.version_index[ver]
 
     def bump_version(self) -> str:
         """Increment the cache version.
@@ -682,9 +690,9 @@ class InvalidationEngine:
             key: Cache key.
             tags: Entry tags (for tag index cleanup).
         """
-        if tags:
-            self._tag_strategy.unregister_entry(key, tags)
+        self._tag_strategy.unregister_entry(key, tags)
         self._dep_strategy.unregister_key(key)
+        self._version_strategy.unregister_entry(key)
 
     def update_entry(
         self,

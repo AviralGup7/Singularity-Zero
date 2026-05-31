@@ -9,10 +9,13 @@ reuse.
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from src.core.models import Config
 from src.recon.collectors.observability import emit_collection_progress
@@ -23,7 +26,44 @@ from src.recon.js_parsers import (
     _normalized_scope_roots,
 )
 
-_SECRET_PATTERNS = [
+def _load_secret_patterns(config_path: str | None = None) -> list[tuple[re.Pattern[str], str]]:
+    """Load secret regex patterns from a JSON file if configured/exists, falling back to static list."""
+    import json
+    from pathlib import Path
+
+    path = None
+    if config_path:
+        path = Path(config_path)
+    else:
+        possible_paths = [
+            Path("configs/secret_patterns.json"),
+            Path("src/recon/configs/secret_patterns.json"),
+        ]
+        for p in possible_paths:
+            if p.exists():
+                path = p
+                break
+
+    if path and path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                patterns_data = json.load(f)
+                if isinstance(patterns_data, list):
+                    compiled = []
+                    for item in patterns_data:
+                        pat_str = item.get("pattern")
+                        label = item.get("label")
+                        if pat_str and label:
+                            flags = re.IGNORECASE if item.get("ignore_case", True) else 0
+                            compiled.append((re.compile(pat_str, flags), label))
+                    return compiled
+        except Exception as exc:
+            logger.warning("Failed to load secret patterns from %s: %s", path, exc)
+
+    return _STATIC_SECRET_PATTERNS
+
+
+_STATIC_SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (
         re.compile(
             r"(?:api_key|apikey|access_token|secret_key|secretToken)[\"']?\s*[:=]\s*[\"']([a-zA-Z0-9_\-]{20,})[\"']",
@@ -37,6 +77,8 @@ _SECRET_PATTERNS = [
     (re.compile(r"gh[po]_[a-zA-Z0-9]{36}", re.IGNORECASE), "GitHub Token"),
     (re.compile(r"xox[baprs]-[a-zA-Z0-9\-]{10,}", re.IGNORECASE), "Slack Token"),
 ]
+
+_SECRET_PATTERNS = _load_secret_patterns()
 
 
 def _extract_secrets(content: str) -> list[dict[str, str]]:
@@ -177,7 +219,8 @@ def _collect_js_discovery_urls(
                 try:
                     host_urls, host_script_refs, host_js_files, h_secrets = future.result()
                     all_secrets.extend(h_secrets)
-                except Exception:
+                except Exception as exc:
+                    logger.warning("JS discovery scan failed for host: %s", exc, exc_info=True)
                     host_urls, host_script_refs, host_js_files = set(), 0, 0
                     errors += 1
                 hosts_scanned += 1

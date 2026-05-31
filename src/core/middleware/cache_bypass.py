@@ -20,18 +20,21 @@ class CacheBypassMiddleware:
         "if-range",
     ]
 
-    def process_request(self, headers: dict[str, str]) -> dict[str, str]:
+    def process_request(self, headers: dict[str, str] | None) -> dict[str, str]:
         """Strip cache headers from request."""
+        if not headers:
+            return {}
         return {k: v for k, v in headers.items() if k.lower() not in self.CACHE_HEADERS}
 
-    def add_cache_busting(self, headers: dict[str, str]) -> dict[str, str]:
+    def add_cache_busting(self, headers: dict[str, str] | None) -> dict[str, str]:
         """Add cache-busting headers to request."""
-        headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        headers["Pragma"] = "no-cache"
-        headers["Expires"] = "0"
-        return headers
+        updated = dict(headers or {})
+        updated["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        updated["Pragma"] = "no-cache"
+        updated["Expires"] = "0"
+        return updated
 
-    def process_request_with_cache_bypass(self, headers: dict[str, str]) -> dict[str, str]:
+    def process_request_with_cache_bypass(self, headers: dict[str, str] | None) -> dict[str, str]:
         """Full cache bypass: strip cache headers + add cache-busting."""
         headers = self.process_request(headers)
         headers = self.add_cache_busting(headers)

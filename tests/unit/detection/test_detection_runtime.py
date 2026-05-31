@@ -139,6 +139,55 @@ class TestDetectionDispatch:
 
         assert set(result.keys()) == set(ANALYZER_BINDINGS.keys())
 
+    def test_access_control_and_idor_plugins_emit_findings_from_representative_fixtures(
+        self,
+    ) -> None:
+        responses = [
+            {
+                "url": "https://api.example.com/v1/users?user_id=100&role=user",
+                "status_code": 200,
+                "body_text": '{"user_id":100,"email":"user@example.com","role":"user"}',
+                "body_length": 59,
+            },
+            {
+                "url": "https://api.example.com/v1/users?user_id=200&role=user",
+                "status_code": 200,
+                "body_text": '{"user_id":200,"email":"other@example.com","role":"user","ssn":"123-45-6789"}',
+                "body_length": 82,
+            },
+            {
+                "url": "https://api.example.com/v1/users?user_id=100&role=admin",
+                "status_code": 200,
+                "body_text": (
+                    '{"user_id":100,"email":"user@example.com","role":"admin",'
+                    '"permissions":["read","write"],"api_key":"sk_test_123"}'
+                ),
+                "body_length": 116,
+            },
+            {
+                "url": "https://api.example.com/v1/accounts/100/orders",
+                "status_code": 200,
+                "body_text": (
+                    '{"account_id":100,"orders":[{"order_id":501,'
+                    '"invoice_id":9001,"total":42}]}'
+                ),
+                "body_length": 82,
+            },
+        ]
+        urls = {str(item["url"]) for item in responses} | {
+            "https://api.example.com/v1/accounts?limit=100"
+        }
+        ctx = prime_detection_context(urls=urls, responses=responses)
+
+        result = run_detection_plugins(ctx)
+
+        assert result["cross_user_access_simulation"]
+        assert result["role_based_endpoint_comparison"]
+        assert result["access_boundary_tracker"]
+        assert result["sensitive_field_detector"]
+        assert result["nested_object_traversal"]
+        assert result["bulk_endpoint_detector"]
+
 
 class TestDetectionRuntimeErrorHandling:
     def test_runtime_handles_empty_urls(self) -> None:

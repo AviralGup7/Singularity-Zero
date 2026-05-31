@@ -40,7 +40,7 @@ class ToolExecutionServiceTests(unittest.TestCase):
         self.assertAlmostEqual(sleep_mock.call_args[0][0], 0.5, delta=0.15)
         self.assertRegex(
             stderr.getvalue(),
-            r"Warning: command echo hi timed out after 9 seconds; retrying attempt 2/2 in 0\.[4-6]s\n",
+            r"Warning: Retrying command echo hi \(attempt 1/2\) after 0\.[4-6]0s . reason: timed out after 9 seconds\n",
         )
 
     def test_run_command_retries_after_nonzero_exit_and_preserves_warning_text(self) -> None:
@@ -67,7 +67,7 @@ class ToolExecutionServiceTests(unittest.TestCase):
         self.assertAlmostEqual(sleep_mock.call_args[0][0], 0.5, delta=0.15)
         self.assertRegex(
             stderr.getvalue(),
-            r"Warning: command echo hi failed with exit code 2; retrying attempt 2/2 in 0\.[4-6]s\n",
+            r"Warning: Retrying command echo hi \(attempt 1/2\) after 0\.[4-6]0s . reason: failed with exit code 2\n",
         )
 
     def test_run_command_raises_timeout_after_exhausting_retries(self) -> None:
@@ -94,7 +94,7 @@ class ToolExecutionServiceTests(unittest.TestCase):
         self.assertAlmostEqual(sleep_mock.call_args[0][0], 0.5, delta=0.15)
         self.assertRegex(
             stderr.getvalue(),
-            r"Warning: command echo hi timed out after 9 seconds; retrying attempt 2/2 in 0\.[4-6]s\n",
+            r"Warning: Retrying command echo hi \(attempt 1/2\) after 0\.[4-6]0s . reason: timed out after 9 seconds\n",
         )
 
     def test_run_command_raises_tool_execution_error_after_exhausting_retries(self) -> None:
@@ -121,7 +121,7 @@ class ToolExecutionServiceTests(unittest.TestCase):
         self.assertAlmostEqual(sleep_mock.call_args[0][0], 0.5, delta=0.15)
         self.assertRegex(
             stderr.getvalue(),
-            r"Warning: command echo hi failed with exit code 2; retrying attempt 2/2 in 0\.[4-6]s\n",
+            r"Warning: Retrying command echo hi \(attempt 1/2\) after 0\.[4-6]0s . reason: failed with exit code 2\n",
         )
 
     def test_execute_command_returns_timeout_outcome_with_partial_stdout(self) -> None:

@@ -82,71 +82,122 @@ class GhostMeshCoordinator:
                 )
 
                 migration_id = str(uuid.uuid4())
+                committed = False
 
-                # 1. Freeze the actor and capture a stable snapshot while it is still alive.
-                packed_state = actor_ref.ask(
-                    {"command": "dehydrate", "migration_id": migration_id},
-                    block=True,
-                )
-                unpacked = ActorState.rehydrate(packed_state)
-                if not isinstance(packed_state, bytes):
-                    packed_state = unpacked.pack()
+                try:
+                    # 1. Freeze the actor and capture a stable snapshot while it is still alive.
+                    packed_state = actor_ref.ask(
+                        {"command": "dehydrate", "migration_id": migration_id},
+                        block=True,
+                    )
+                    unpacked = ActorState.rehydrate(packed_state)
+                    if not isinstance(packed_state, bytes):
+                        packed_state = unpacked.pack()
 
-                # 2. Store the serialized state in the registry for transmission
-                await self.registry.store_actor_state(actor_id, packed_state)
-                await self.registry.prepare_migration(
-                    actor_id=actor_id,
-                    migration_id=migration_id,
-                    source_node=current_node_id,
-                    target_node=target_node_id,
-                    state_digest=unpacked.state_digest,
-                )
+                    # 2. Store the serialized state in the registry for transmission
+                    durable_state = await self.registry.store_actor_state(actor_id, packed_state)
+                    durable_prepare = await self.registry.prepare_migration(
+                        actor_id=actor_id,
+                        migration_id=migration_id,
+                        source_node=current_node_id,
+                        target_node=target_node_id,
+                        state_digest=unpacked.state_digest,
+                    )
 
-                # 3. Update Registry only after the snapshot is durably visible.
-                await self.registry.register_actor(actor_id, target_node_id)
-                await self.registry.commit_migration(actor_id, migration_id)
+                    # 3. Update Registry only after the snapshot is durably visible.
+                    durable_registration = await self.registry.register_actor(
+                        actor_id, target_node_id
+                    )
+                    durable_commit = await self.registry.commit_migration(actor_id, migration_id)
+                    if not all(
+                        (
+                            durable_state,
+                            durable_prepare,
+                            durable_registration,
+                            durable_commit,
+                        )
+                    ):
+                        raise RuntimeError(
+                            "migration state was not durably visible to the target node"
+                        )
+                    committed = True
+                except Exception:
+                    if not committed:
+                        try:
+                            await self.registry.register_actor(actor_id, current_node_id)
+                            await self.registry.clear_actor_state(actor_id)
+                            await self.registry.clear_migration(actor_id)
+                        except Exception as rollback_exc:  # pylint: disable=broad-exception-caught
+                            logger.debug(
+                                "Ghost-Coordinator: Failed to roll back registry for [%s]: %s",
+                                actor_id,
+                                rollback_exc,
+                            )
+                        try:
+                            actor_ref.ask({"command": "abort_migration"}, timeout=0.5)
+                        except Exception as abort_exc:  # pylint: disable=broad-exception-caught
+                            logger.debug(
+                                "Ghost-Coordinator: Failed to abort migration for [%s]: %s",
+                                actor_id,
+                                abort_exc,
+                            )
+                    raise
 
                 # 4. Stop the source actor after commit; a target can now rehydrate on restart.
                 actor_ref.stop()
 
                 # 5. Emit Migration Event for Observability
-                from src.core.events import EventType, get_event_bus  # pylint: disable=C0415
+                try:
+                    from src.core.events import EventType, get_event_bus  # pylint: disable=C0415
 
-                get_event_bus().emit(
-                    EventType.GHOST_ACTOR_MIGRATED,
-                    source=f"ghost-coordinator-{self.gossip.local_node.id}",
-                    data={
-                        "actor_id": actor_id,
-                        "source_node": current_node_id,
-                        "target_node": target_node_id,
-                        "reason": "resource_pressure",
-                        "migration_id": migration_id,
-                        "state_digest": unpacked.state_digest,
-                    },
-                )
+                    get_event_bus().emit(
+                        EventType.GHOST_ACTOR_MIGRATED,
+                        source=f"ghost-coordinator-{self.gossip.local_node.id}",
+                        data={
+                            "actor_id": actor_id,
+                            "source_node": current_node_id,
+                            "target_node": target_node_id,
+                            "reason": "resource_pressure",
+                            "migration_id": migration_id,
+                            "state_digest": unpacked.state_digest,
+                        },
+                    )
+                except Exception as obs_exc:  # pylint: disable=broad-exception-caught
+                    logger.debug(
+                        "Ghost-Coordinator: Migration event emission failed for [%s]: %s",
+                        actor_id,
+                        obs_exc,
+                    )
 
                 # 6. Live Actor Migration Handoff (Network Handoff)
-                is_mock = self.gossip.__class__.__name__ in ("MagicMock", "Mock")
-                if (
-                    not is_mock
-                    and hasattr(self.gossip, "peers")
-                    and isinstance(self.gossip.peers, dict)
-                ):
-                    target_peer = self.gossip.peers.get(target_node_id)
-                    if target_peer and hasattr(self.gossip, "_send_reliable"):
-                        logic_fn_name = unpacked.logic_fn_name or "dummy_logic"
+                try:
+                    is_mock = self.gossip.__class__.__name__ in ("MagicMock", "Mock")
+                    if (
+                        not is_mock
+                        and hasattr(self.gossip, "peers")
+                        and isinstance(self.gossip.peers, dict)
+                    ):
+                        target_peer = self.gossip.peers.get(target_node_id)
+                        if target_peer and hasattr(self.gossip, "_send_reliable"):
+                            logic_fn_name = unpacked.logic_fn_name or "dummy_logic"
 
-                        # Send migration trigger over gossip UDP sync
-                        await self.gossip._send_reliable(
-                            target_peer,
-                            "ghost_actor_spawn",
-                            {
-                                "actor_id": actor_id,
-                                "logic_fn_name": logic_fn_name,
-                                "migration_id": migration_id,
-                                "state_digest": unpacked.state_digest,
-                            },
-                        )
+                            # Send migration trigger over gossip UDP sync
+                            await self.gossip._send_reliable(
+                                target_peer,
+                                "ghost_actor_spawn",
+                                {
+                                    "actor_id": actor_id,
+                                    "logic_fn_name": logic_fn_name,
+                                    "migration_id": migration_id,
+                                    "state_digest": unpacked.state_digest,
+                                },
+                            )
+                except Exception as handoff_exc:  # pylint: disable=broad-exception-caught
+                    logger.debug(
+                        "Ghost-Coordinator: Live handoff failed for [%s]: %s",
+                        actor_id,
+                        handoff_exc,
+                    )
 
                 return True
 
@@ -247,4 +298,4 @@ class GhostMeshCoordinator:
                     e,
                 )
 
-        return cast(pykka.ActorRef[Any], actor_ref)
+        return cast(pykka.ActorRef, actor_ref)

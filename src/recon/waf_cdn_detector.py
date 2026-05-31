@@ -38,8 +38,37 @@ logger = logging.getLogger(__name__)
 # Uses a benign-looking but detectable SQLi-like pattern that most WAFs flag.
 _ACTIVE_PROBE_PATH_SUFFIX = "/?__waf_probe__=1%27+OR+1%3D1--"
 
-# Additional patterns to check in active-probe responses
-_ACTIVE_PROBE_INDICATORS: dict[str, list[str]] = {
+def _load_active_probe_indicators(config_path: str | None = None) -> dict[str, list[str]]:
+    """Load active probe indicators from a JSON file if configured/exists, falling back to static dict."""
+    import json
+    from pathlib import Path
+
+    path = None
+    if config_path:
+        path = Path(config_path)
+    else:
+        possible_paths = [
+            Path("configs/waf_active_indicators.json"),
+            Path("src/recon/configs/waf_active_indicators.json"),
+        ]
+        for p in possible_paths:
+            if p.exists():
+                path = p
+                break
+
+    if path and path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                indicators = json.load(f)
+                if isinstance(indicators, dict):
+                    return indicators
+        except Exception as exc:
+            logger.warning("Failed to load WAF active indicators from %s: %s", path, exc)
+
+    return _STATIC_ACTIVE_PROBE_INDICATORS
+
+
+_STATIC_ACTIVE_PROBE_INDICATORS: dict[str, list[str]] = {
     "Cloudflare": ["cloudflare", "cf-ray", "attention required"],
     "Akamai": ["akamai", "reference #", "access denied"],
     "Imperva (Incapsula)": ["incapsula", "incident id", "_incap_"],
@@ -50,6 +79,8 @@ _ACTIVE_PROBE_INDICATORS: dict[str, list[str]] = {
     "AWS WAF": ["aws waf", "x-amzn-requestid"],
     "Fastly WAF": ["fastly", "x-served-by"],
 }
+
+_ACTIVE_PROBE_INDICATORS = _load_active_probe_indicators()
 
 
 # ---------------------------------------------------------------------------

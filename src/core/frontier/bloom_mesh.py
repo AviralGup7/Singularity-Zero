@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 BLOOM_REDIS_CHANNEL = "cyber-pipeline:bloom:sync"
 DEFAULT_SYNC_INTERVAL_SECONDS = 15.0
+REDIS_TIMEOUT_SECONDS = 3.0
+REDIS_MAX_FAILURES = 3
+REDIS_RECONNECT_SECONDS = 30.0
+INTERVAL_PARSE_ERRORS = (TypeError, ValueError)
+SNAPSHOT_VALIDATION_ERRORS = (KeyError, TypeError, ValueError)
 
 
 @dataclass
@@ -53,11 +58,7 @@ class NeuralBloomMesh:
         self.filter = bloom_filter
         self.node_id = node_id
         self.redis_url = redis_url or os.getenv("REDIS_URL")
-        self.sync_interval_seconds = float(
-            sync_interval_seconds
-            if sync_interval_seconds is not None
-            else os.getenv("BLOOM_SYNC_INTERVAL_SEC", DEFAULT_SYNC_INTERVAL_SECONDS)
-        )
+        self.sync_interval_seconds = self._resolve_sync_interval(sync_interval_seconds)
         self.channel = channel
         self.clock = VectorClock(MappingProxyType({node_id: 0}))
         self.snapshot_index: LWWset[str] = LWWset()
@@ -68,6 +69,36 @@ class NeuralBloomMesh:
         self._tasks: list[asyncio.Task[Any]] = []
         self._running = False
         self._last_sync_time = 0.0
+        self._sync_failures_total = 0
+        self._snapshot_apply_failures_total = 0
+        self._sync_lock = asyncio.Lock()
+        self._redis_failures = 0
+        self._redis_degraded_until = 0.0
+
+    @staticmethod
+    def _resolve_sync_interval(sync_interval_seconds: float | None) -> float:
+        raw_value = (
+            sync_interval_seconds
+            if sync_interval_seconds is not None
+            else os.getenv("BLOOM_SYNC_INTERVAL_SEC", DEFAULT_SYNC_INTERVAL_SECONDS)
+        )
+        try:
+            interval = float(raw_value)
+        except INTERVAL_PARSE_ERRORS:
+            logger.warning(
+                "Invalid BLOOM_SYNC_INTERVAL_SEC=%r; using default %.1fs",
+                raw_value,
+                DEFAULT_SYNC_INTERVAL_SECONDS,
+            )
+            return DEFAULT_SYNC_INTERVAL_SECONDS
+        if interval <= 0:
+            logger.warning(
+                "Non-positive BLOOM_SYNC_INTERVAL_SEC=%r; using default %.1fs",
+                raw_value,
+                DEFAULT_SYNC_INTERVAL_SECONDS,
+            )
+            return DEFAULT_SYNC_INTERVAL_SECONDS
+        return interval
 
     async def start(self) -> None:
         """Start background pub/sub if Redis is configured."""
@@ -83,11 +114,20 @@ class NeuralBloomMesh:
         try:
             import redis.asyncio as redis
 
-            self._redis = redis.from_url(self.redis_url, decode_responses=False)
-            await self._redis.ping()
+            self._redis = redis.from_url(
+                self.redis_url,
+                decode_responses=False,
+                socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+                socket_timeout=REDIS_TIMEOUT_SECONDS,
+                health_check_interval=30,
+                max_connections=10,
+                retry_on_timeout=True,
+            )
+            await asyncio.wait_for(self._redis.ping(), timeout=REDIS_TIMEOUT_SECONDS)
         except Exception as exc:
             logger.warning("Bloom mesh Redis initialization failed: %s", exc)
-            self._redis = None
+            await self._close_redis()
+            self._running = False
             return
 
         self._tasks = [
@@ -103,9 +143,7 @@ class NeuralBloomMesh:
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks.clear()
-        if self._redis is not None:
-            await self._redis.aclose()
-            self._redis = None
+        await self._close_redis()
 
     async def force_reconcile(self) -> dict[str, Any]:
         """Publish an immediate snapshot to all online nodes."""
@@ -121,11 +159,12 @@ class NeuralBloomMesh:
 
     async def flush_overflowing_filter(self, *, reason: str = "self_healing") -> dict[str, Any]:
         """Clear a saturated local filter and publish a fresh empty snapshot."""
-        before = self.filter.get_stats()
-        self.filter.reset()
-        self.remote_health.clear()
-        self.remote_clocks.clear()
-        self.saturation_history.clear()
+        async with self._sync_lock:
+            before = self.filter.get_stats()
+            self.filter.reset()
+            self.remote_health.clear()
+            self.remote_clocks.clear()
+            self.saturation_history.clear()
         self._record_saturation()
         published = await self.publish_snapshot(reason=reason)
         return {
@@ -158,55 +197,107 @@ class NeuralBloomMesh:
 
     async def publish_snapshot(self, *, reason: str = "gossip") -> bool:
         """Serialize and publish the local filter snapshot."""
-        now = time.time()
-        self.clock = self.clock.increment(self.node_id)
-        self.snapshot_index.add(self.node_id, timestamp=now, vclock=self.clock)
-        self._last_sync_time = now
-        self._record_saturation()
+        async with self._sync_lock:
+            now = time.time()
+            self.clock = self.clock.increment(self.node_id)
+            self.snapshot_index.add(self.node_id, timestamp=now, vclock=self.clock)
+            self._last_sync_time = now
+            self._record_saturation()
 
-        if self._redis is None:
+            if self._redis is None:
+                return False
+
+            payload = self._encode_snapshot(reason=reason, timestamp=now)
+        try:
+            await asyncio.wait_for(
+                self._redis.publish(self.channel, payload),
+                timeout=REDIS_TIMEOUT_SECONDS,
+            )
+            self._record_redis_success()
+        except Exception as exc:
+            self._sync_failures_total += 1
+            _inc_metric(
+                "bloom_mesh_sync_failures_total",
+                "Total Bloom mesh snapshot publish failures",
+            )
+            await self._record_redis_failure("publish", exc)
             return False
-
-        payload = self._encode_snapshot(reason=reason, timestamp=now)
-        await self._redis.publish(self.channel, payload)
         return True
 
     async def apply_snapshot(self, payload: bytes) -> bool:
         """Apply a remote snapshot when its vector clock is newer."""
-        data = msgspec.msgpack.decode(payload)
-        node_id = str(data["node_id"])
-        if node_id == self.node_id:
+        try:
+            data = msgspec.msgpack.decode(payload)
+            if not isinstance(data, dict):
+                raise ValueError("Bloom snapshot must decode to a mapping")
+        except Exception as exc:
+            self._snapshot_apply_failures_total += 1
+            _inc_metric(
+                "bloom_mesh_snapshot_apply_failures_total",
+                "Total Bloom mesh snapshot apply failures",
+            )
+            logger.warning("Ignoring malformed Bloom snapshot: %s", exc)
             return False
 
-        remote_clock = VectorClock(MappingProxyType(dict(data.get("vclock", {}))))
-        existing_clock = self.remote_clocks.get(node_id, VectorClock())
-        if not remote_clock.is_later_than(existing_clock):
-            return False
+        async with self._sync_lock:
+            try:
+                node_id = str(data["node_id"])
+                if node_id == self.node_id:
+                    return False
 
-        if (
-            int(data["bit_size"]) != self.filter.bit_size
-            or int(data["hash_count"]) != self.filter.hash_count
-        ):
-            logger.warning("Ignoring incompatible Bloom snapshot from %s", node_id)
-            return False
+                remote_clock = VectorClock(MappingProxyType(dict(data.get("vclock", {}))))
+                existing_clock = self.remote_clocks.get(node_id, VectorClock())
+                if not remote_clock.is_later_than(existing_clock):
+                    return False
 
-        remote_bits = self.filter.load_snapshot_bytes(data["bits"])
-        self.filter.merge_bits(remote_bits, element_count=int(data.get("element_count", 0)))
-        self.remote_clocks[node_id] = remote_clock
-        self.clock = self.clock.merge(remote_clock)
-        self.snapshot_index.add(node_id, timestamp=float(data["timestamp"]), vclock=remote_clock)
-        self.remote_health[node_id] = BloomNodeHealth(
-            node_id=node_id,
-            memory_mb=float(data["stats"].get("memory_mb", 0.0)),
-            element_count=int(data.get("element_count", 0)),
-            false_positive_probability=float(data["stats"].get("false_positive_probability", 0.0)),
-            fill_ratio=float(data["stats"].get("fill_ratio", 0.0)),
-            last_sync_time=float(data["timestamp"]),
-            capacity=int(data["capacity"]),
-            hash_count=int(data["hash_count"]),
-            clock=dict(remote_clock.versions),
-            stale=False,
-        )
+                if (
+                    int(data["bit_size"]) != self.filter.bit_size
+                    or int(data["hash_count"]) != self.filter.hash_count
+                ):
+                    logger.warning("Ignoring incompatible Bloom snapshot from %s", node_id)
+                    self._snapshot_apply_failures_total += 1
+                    _inc_metric(
+                        "bloom_mesh_snapshot_apply_failures_total",
+                        "Total Bloom mesh snapshot apply failures",
+                    )
+                    return False
+
+                remote_bits = self.filter.decode_snapshot_bytes(data["bits"])
+                remote_count = int(data.get("element_count", 0))
+                previous_remote = self.remote_health.get(node_id)
+                previous_count = previous_remote.element_count if previous_remote else 0
+                self.filter.merge_bits(
+                    remote_bits,
+                    element_count=remote_count,
+                    added_count=max(0, remote_count - previous_count),
+                )
+                self.remote_clocks[node_id] = remote_clock
+                self.clock = self.clock.merge(remote_clock)
+                self.snapshot_index.add(
+                    node_id, timestamp=float(data["timestamp"]), vclock=remote_clock
+                )
+                self.remote_health[node_id] = BloomNodeHealth(
+                    node_id=node_id,
+                    memory_mb=float(data["stats"].get("memory_mb", 0.0)),
+                    element_count=remote_count,
+                    false_positive_probability=float(
+                        data["stats"].get("false_positive_probability", 0.0)
+                    ),
+                    fill_ratio=float(data["stats"].get("fill_ratio", 0.0)),
+                    last_sync_time=float(data["timestamp"]),
+                    capacity=int(data["capacity"]),
+                    hash_count=int(data["hash_count"]),
+                    clock=dict(remote_clock.versions),
+                    stale=False,
+                )
+            except SNAPSHOT_VALIDATION_ERRORS as exc:
+                logger.warning("Ignoring invalid Bloom snapshot: %s", exc)
+                self._snapshot_apply_failures_total += 1
+                _inc_metric(
+                    "bloom_mesh_snapshot_apply_failures_total",
+                    "Total Bloom mesh snapshot apply failures",
+                )
+                return False
         self._record_saturation()
         return True
 
@@ -228,14 +319,35 @@ class NeuralBloomMesh:
         )
         nodes = [local, *self.remote_health.values()]
         stale_after = self.sync_interval_seconds * 3
+        node_dicts = [
+            {
+                **node.__dict__,
+                "stale": bool(node.last_sync_time and now - node.last_sync_time > stale_after),
+            }
+            for node in nodes
+        ]
+        stale_node_count = sum(1 for node in node_dicts if node["stale"])
+        _set_metric("bloom_mesh_node_count", len(node_dicts), "Total Bloom mesh nodes")
+        _set_metric("bloom_mesh_stale_node_count", stale_node_count, "Stale Bloom mesh nodes")
+        _set_metric(
+            "bloom_mesh_sync_failures",
+            self._sync_failures_total,
+            "Current Bloom mesh sync failures",
+        )
+        _set_metric(
+            "bloom_mesh_snapshot_apply_failures",
+            self._snapshot_apply_failures_total,
+            "Current Bloom mesh snapshot apply failures",
+        )
         return {
-            "nodes": [
-                {
-                    **node.__dict__,
-                    "stale": bool(node.last_sync_time and now - node.last_sync_time > stale_after),
-                }
-                for node in nodes
-            ],
+            "nodes": node_dicts,
+            "node_count": len(node_dicts),
+            "stale_node_count": stale_node_count,
+            "sync_failures_total": self._sync_failures_total,
+            "snapshot_apply_failures_total": self._snapshot_apply_failures_total,
+            "last_sync_age_seconds": round(now - self._last_sync_time, 3)
+            if self._last_sync_time
+            else None,
             "saturation_history": self.saturation_history[-60:],
             "sync_interval_seconds": self.sync_interval_seconds,
             "redis_enabled": self._redis is not None,
@@ -243,7 +355,7 @@ class NeuralBloomMesh:
         }
 
     def _encode_snapshot(self, *, reason: str, timestamp: float) -> bytes:
-        stats = self.filter.get_stats()
+        bits, stats = self.filter.snapshot_payload()
         return msgspec.msgpack.encode(
             {
                 "schema": 1,
@@ -254,16 +366,17 @@ class NeuralBloomMesh:
                 "error_rate": self.filter.error_rate,
                 "bit_size": self.filter.bit_size,
                 "hash_count": self.filter.hash_count,
-                "element_count": self.filter.element_count,
+                "element_count": int(stats["element_count"]),
                 "vclock": dict(self.clock.versions),
                 "stats": stats,
-                "bits": self.filter.snapshot_bytes(),
+                "bits": bits,
             }
         )
 
     async def _publish_loop(self) -> None:
         while self._running:
             try:
+                await self._ensure_redis()
                 await self.publish_snapshot()
             except asyncio.CancelledError:
                 raise
@@ -272,19 +385,46 @@ class NeuralBloomMesh:
             await asyncio.sleep(self.sync_interval_seconds)
 
     async def _subscribe_loop(self) -> None:
-        pubsub = self._redis.pubsub()
-        await pubsub.subscribe(self.channel)
-        try:
-            while self._running:
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if not message:
+        while self._running:
+            pubsub = None
+            try:
+                await self._ensure_redis()
+                if self._redis is None:
+                    await asyncio.sleep(min(self.sync_interval_seconds, 5.0))
                     continue
-                data = message.get("data")
-                if isinstance(data, bytes):
-                    await self.apply_snapshot(data)
-        finally:
-            await pubsub.unsubscribe(self.channel)
-            await pubsub.aclose()
+                pubsub = self._redis.pubsub()
+                await asyncio.wait_for(
+                    pubsub.subscribe(self.channel), timeout=REDIS_TIMEOUT_SECONDS
+                )
+                while self._running:
+                    message = await asyncio.wait_for(
+                        pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0),
+                        timeout=REDIS_TIMEOUT_SECONDS,
+                    )
+                    if not message:
+                        continue
+                    data = message.get("data")
+                    if isinstance(data, bytes):
+                        try:
+                            await self.apply_snapshot(data)
+                            self._record_redis_success()
+                        except Exception as exc:
+                            logger.debug("Bloom snapshot apply failed: %s", exc)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                await self._record_redis_failure("subscribe", exc)
+                await asyncio.sleep(min(self.sync_interval_seconds, 5.0))
+            finally:
+                if pubsub is not None:
+                    try:
+                        await asyncio.wait_for(
+                            pubsub.unsubscribe(self.channel),
+                            timeout=REDIS_TIMEOUT_SECONDS,
+                        )
+                        await pubsub.aclose()
+                    except Exception as exc:
+                        logger.debug("Bloom mesh pubsub close failed: %s", exc)
 
     def _record_saturation(self) -> None:
         stats = self.filter.get_stats()
@@ -296,6 +436,57 @@ class NeuralBloomMesh:
             }
         )
         del self.saturation_history[:-120]
+
+    def _record_redis_success(self) -> None:
+        self._redis_failures = 0
+        self._redis_degraded_until = 0.0
+
+    async def _record_redis_failure(self, operation: str, exc: Exception) -> None:
+        self._redis_failures += 1
+        logger.warning(
+            "Bloom mesh Redis %s failed (%d/%d): %s",
+            operation,
+            self._redis_failures,
+            REDIS_MAX_FAILURES,
+            exc,
+        )
+        if self._redis_failures >= REDIS_MAX_FAILURES:
+            self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
+            await self._close_redis()
+
+    async def _ensure_redis(self) -> None:
+        if self._redis is not None or not self.redis_url:
+            return
+        if time.monotonic() < self._redis_degraded_until:
+            return
+        try:
+            import redis.asyncio as redis
+
+            self._redis = redis.from_url(
+                self.redis_url,
+                decode_responses=False,
+                socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+                socket_timeout=REDIS_TIMEOUT_SECONDS,
+                health_check_interval=30,
+                max_connections=10,
+                retry_on_timeout=True,
+            )
+            await asyncio.wait_for(self._redis.ping(), timeout=REDIS_TIMEOUT_SECONDS)
+            self._record_redis_success()
+        except Exception as exc:
+            logger.warning("Bloom mesh Redis reconnect failed: %s", exc)
+            await self._close_redis()
+            self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
+
+    async def _close_redis(self) -> None:
+        if self._redis is None:
+            return
+        try:
+            await self._redis.aclose()
+        except Exception as exc:
+            logger.debug("Bloom mesh Redis close failed: %s", exc)
+        finally:
+            self._redis = None
 
 
 BloomMeshSynchronizer = NeuralBloomMesh
@@ -314,3 +505,21 @@ class ReconcileBloom:
     async def flush(self, reason: str = "self_healing") -> dict[str, Any]:
         """Clear a saturated local filter and publish a fresh empty snapshot."""
         return await self.synchronizer.flush_overflowing_filter(reason=reason)
+
+
+def _inc_metric(name: str, description: str) -> None:
+    try:
+        from src.infrastructure.observability.metrics import get_metrics
+
+        get_metrics().counter(name, description).inc()
+    except Exception:
+        logger.debug("Bloom mesh metric increment skipped for %s", name, exc_info=True)
+
+
+def _set_metric(name: str, value: float | int | bool, description: str) -> None:
+    try:
+        from src.infrastructure.observability.metrics import get_metrics
+
+        get_metrics().gauge(name, description).set(float(value))
+    except Exception:
+        logger.debug("Bloom mesh metric gauge skipped for %s", name, exc_info=True)

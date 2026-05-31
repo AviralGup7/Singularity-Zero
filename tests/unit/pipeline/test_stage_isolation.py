@@ -76,6 +76,7 @@ class TestStageIsolationContracts:
             "cloud_metadata_active_probe": _mock_noop,
             "http_smuggling_probe": lambda *a, **k: [],
             "http2_probe": lambda *a, **k: [],
+            "race_condition_probe": _mock_noop,
         }
 
         config = argparse.Namespace(

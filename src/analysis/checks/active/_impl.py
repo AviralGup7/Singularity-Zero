@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+from src.analysis.active.injection.dom_xss import scan_dom_xss
 from src.analysis.helpers import ensure_endpoint_key, meaningful_query_pairs
 from src.analysis.passive.extended_shared import (
     AI_MODEL_RE,
@@ -35,6 +36,25 @@ def stored_xss_signal_detector(responses: list[dict[str, Any]]) -> list[dict[str
         url = str(response.get("url", ""))
         body = (response.get("body_text") or "")[:12000]
         content_type = str(response.get("content_type", "")).lower()
+        if _is_xss_markup_response(content_type, body):
+            match = XSS_DANGEROUS_VALUE_RE.search(body)
+            if match:
+                dedupe_key = (url, "html_body")
+                if dedupe_key not in seen:
+                    seen.add(dedupe_key)
+                    preview_start = max(0, match.start() - 40)
+                    preview_end = min(len(body), match.end() + 80)
+                    findings.append(
+                        record(
+                            url,
+                            status_code=response.get("status_code"),
+                            indicator="stored_xss_candidate",
+                            field="html_body",
+                            xss_signals=xss_signals(body[preview_start:preview_end]),
+                            value_preview=body[preview_start:preview_end][:120],
+                            content_type=response.get("content_type", ""),
+                        )
+                    )
         if "json" not in content_type and not body.lstrip().startswith(("{", "[")):
             continue
         # Check HTML-style field patterns
@@ -65,6 +85,16 @@ def stored_xss_signal_detector(responses: list[dict[str, Any]]) -> list[dict[str
             except (json.JSONDecodeError, ValueError):
                 pass
     return findings[:80]
+
+
+def _is_xss_markup_response(content_type: str, body: str) -> bool:
+    if not body:
+        return False
+    normalized = content_type.lower()
+    if any(token in normalized for token in ("text/html", "application/xhtml", "image/svg+xml")):
+        return True
+    stripped = body.lstrip().lower()
+    return stripped.startswith(("<!doctype html", "<html", "<svg"))
 
 
 def _scan_json_for_xss(
@@ -100,15 +130,17 @@ def _scan_json_for_xss(
 
 
 def reflected_xss_probe(
-    priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 6
+    priority_urls: list[dict[str, Any]] | list[str], response_cache: ResponseCache | None, limit: int = 6
 ) -> list[dict[str, Any]]:
     findings = []
+    if response_cache is None:
+        return findings
     seen: set[str] = set()
     for item in priority_urls:
-        url = str(item.get("url", "")).strip()
+        url = str(item.get("url", "") if isinstance(item, dict) else item).strip()
         if not url:
             continue
-        endpoint_key = ensure_endpoint_key(item, url)
+        endpoint_key = ensure_endpoint_key(item, url) if isinstance(item, dict) else url
         if endpoint_key in seen:
             continue
         seen.add(endpoint_key)
@@ -138,6 +170,44 @@ def reflected_xss_probe(
         )
         if len(findings) >= limit:
             break
+    return findings
+
+
+def dom_xss_signal_detector(responses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, str]] = set()
+    for response in responses:
+        url = str(response.get("url", ""))
+        body = (response.get("body_text") or "")[:120000]
+        content_type = str(response.get("content_type", "")).lower()
+        if not url or not body:
+            continue
+        if "html" not in content_type and "<script" not in body.lower():
+            continue
+
+        for item in scan_dom_xss(url, body):
+            dedupe_key = (item.url, item.line, item.pattern)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            findings.append(
+                record(
+                    item.url,
+                    status_code=response.get("status_code"),
+                    indicator="dom_xss_candidate",
+                    line=item.line,
+                    pattern_type=item.pattern_type,
+                    pattern=item.pattern,
+                    severity=item.severity,
+                    confidence=item.confidence,
+                    context=item.context,
+                    has_sanitizer=item.has_sanitizer,
+                    sanitizer_name=item.sanitizer_name,
+                    xss_signals=[item.pattern_type, item.pattern],
+                )
+            )
+            if len(findings) >= 80:
+                return findings
     return findings
 
 

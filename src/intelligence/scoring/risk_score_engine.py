@@ -25,12 +25,50 @@ class RiskScore:
     factors: list[str]
     recommendations: list[str]
 
+    def to_dashboard_json(self) -> dict[str, Any]:
+        """Convert risk score to JSON schema structure for dashboard exposure.
+
+        Returns:
+            Dictionary matching the frontend dashboard metrics contract.
+        """
+        return {
+            "overallScore": self.overall_score,
+            "riskLevel": self.risk_level,
+            "categoryScores": self.category_scores,
+            "factors": self.factors,
+            "recommendations": self.recommendations,
+        }
+
 
 class RiskScoringEngine:
-    """Automated risk scoring based on calibrated model severity."""
+    """Automated risk scoring based on calibrated model severity.
+
+    API Schema Documentation:
+        GET /api/v1/intelligence/risk/latest -> Returns latest RiskScore JSON
+        GET /api/v1/intelligence/risk/history -> Returns list of past RiskScore JSONs
+        WS  /ws/v1/intelligence/risk/stream   -> Real-time JSON WebSocket broadcast
+    """
 
     def __init__(self) -> None:
         self._scores: list[RiskScore] = []
+
+    def get_dashboard_summary(self) -> dict[str, Any]:
+        """Expose current scoring state formatted specifically for the frontend API/dashboard.
+
+        Returns:
+            JSON-serializable summary of all calculated risk profiles.
+        """
+        latest = self.get_latest_score()
+        return {
+            "latestScore": latest.to_dashboard_json() if latest else None,
+            "historyCount": len(self._scores),
+            "historicalScores": [s.to_dashboard_json() for s in self._scores[-20:]],
+            "apiEndpoints": {
+                "get_latest_risk": "/api/v1/intelligence/risk/latest",
+                "get_risk_history": "/api/v1/intelligence/risk/history",
+                "websocket_updates": "/ws/v1/intelligence/risk/stream"
+            }
+        }
 
     def calculate_risk(
         self,

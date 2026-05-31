@@ -7,9 +7,12 @@ Analyzes findings across modules to identify:
 - Temporal correlation (findings that persist or evolve across runs)
 """
 
+import logging
 from collections import defaultdict
 from typing import Any
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 # Attack chain patterns: combinations of categories that indicate higher risk
 ATTACK_CHAINS: dict[str, tuple[tuple[str, ...], str, float]] = {
@@ -204,6 +207,12 @@ def correlate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if all(cat in non_empty_categories for cat in required_categories):
                 detected_chains.append(chain_name)
                 total_chain_bonus += bonus
+                logger.info(
+                    "CorrelationEngine: Detected attack chain pattern '%s' on endpoint '%s' (required: %s)",
+                    chain_name,
+                    endpoint_key,
+                    required_categories,
+                )
 
         # Correlation bonus: scales with number of independent modules
         module_count = max(len(non_empty_modules), 1)
@@ -238,6 +247,8 @@ def correlate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     f"{chain_text}. {existing_explanation}" if existing_explanation else chain_text
                 )
 
+    total_chains = sum(1 for f in findings if f.get("attack_chains"))
+    logger.info("CorrelationEngine completed: processed %d findings, detected %d attack chains", len(findings), total_chains)
     return findings
 
 

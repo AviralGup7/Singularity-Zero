@@ -51,6 +51,9 @@ class _DummyLearning:
     def apply_adaptations(self, _ctx: dict[str, object], _adaptations: list[object]) -> None:
         return None
 
+    async def run_learning_update(self, _ctx: dict[str, object]) -> None:
+        return None
+
 
 def _make_args(config: SimpleNamespace) -> argparse.Namespace:
     return argparse.Namespace(
@@ -78,19 +81,30 @@ def _make_config(tmp_path: Path) -> SimpleNamespace:
 
 
 def _patch_runtime_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
     monkeypatch.setattr(orch_mod, "emit_progress", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(sec_mod, "emit_progress", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(orch_mod, "emit_error", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(sec_mod, "emit_error", lambda *_args, **_kwargs: None, raising=False)
     monkeypatch.setattr(orch_mod, "pipeline_flow_manifest", lambda: [])
     monkeypatch.setattr(orch_mod, "build_tool_status", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(orch_mod, "cache_enabled", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(orch_mod, "find_previous_run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(sec_mod, "find_previous_run", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(orch_mod, "generate_run_id", lambda: "run-events")
+    monkeypatch.setattr(sec_mod, "generate_run_id", lambda: "run-events")
     monkeypatch.setattr(
         orch_mod,
         "create_checkpoint_manager",
         lambda *_args, **_kwargs: _DummyCheckpointManager(tmp_path),
     )
+    monkeypatch.setattr(
+        sec_mod,
+        "create_checkpoint_manager",
+        lambda *_args, **_kwargs: _DummyCheckpointManager(tmp_path),
+    )
     monkeypatch.setattr(orch_mod, "attempt_recovery", lambda *_args, **_kwargs: (False, None))
+    monkeypatch.setattr(sec_mod, "attempt_recovery", lambda *_args, **_kwargs: (False, None))
     monkeypatch.setattr(orch_mod, "StageCheckpointGuard", _NoopCheckpointGuard)
     monkeypatch.setattr(
         orch_mod,
@@ -114,7 +128,9 @@ async def test_orchestrator_emits_domain_events(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _patch_runtime_environment(monkeypatch, tmp_path)
+    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
+    monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains"])
 
     from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 

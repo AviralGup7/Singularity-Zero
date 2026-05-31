@@ -124,7 +124,7 @@ async def test_run_priority_ranking_stage_allows_zero_selected(
     monkeypatch.setattr(
         recon_service,
         "rank_urls",
-        lambda urls, filters, scoring, mode, target_profile, history_feedback: [
+        lambda urls, filters, scoring, mode, target_profile, history_feedback, *args: [
             {"url": "https://example.com/a", "score": 10}
         ],
     )

@@ -97,3 +97,19 @@ class FeatureFlags:
     @classmethod
     def SSE_MAX_FINDINGS_PER_BATCH(cls) -> int:  # noqa: N802
         return cls.sse_max_findings_per_batch()
+
+    @classmethod
+    def stalled_threshold_seconds(cls) -> int:
+        return int(os.getenv("STALLED_THRESHOLD_SECONDS", "75"))
+
+    @classmethod
+    def STALLED_THRESHOLD_SECONDS(cls) -> int:  # noqa: N802
+        return cls.stalled_threshold_seconds()
+
+    @classmethod
+    def job_cleanup_age_days(cls) -> int:
+        return int(os.getenv("JOB_CLEANUP_AGE_DAYS", "30"))
+
+    @classmethod
+    def JOB_CLEANUP_AGE_DAYS(cls) -> int:  # noqa: N802
+        return cls.job_cleanup_age_days()

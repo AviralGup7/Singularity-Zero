@@ -365,7 +365,11 @@ def build_p1_vrt_coverage(config: Config) -> dict[str, Any]:
     }
 
 
+_CHECK_MAPPING = {
+    "validate_idor_candidates": "idor_candidate_finder",
+}
+
+
 def _check_enabled(config: Config, check_name: str) -> bool:
-    if check_name == "validate_idor_candidates":
-        return bool(config.analysis.get("idor_candidate_finder", True))
-    return bool(config.analysis.get(check_name, True))
+    config_key = _CHECK_MAPPING.get(check_name, check_name)
+    return bool(config.analysis.get(config_key, True))

@@ -39,7 +39,38 @@ logger = logging.getLogger(__name__)
 #   provider_url     – link for remediation context
 # ---------------------------------------------------------------------------
 
-TAKEOVER_PATTERNS: list[dict[str, Any]] = [
+
+def load_takeover_patterns(config_path: str | None = None) -> list[dict[str, Any]]:
+    """Load takeover patterns from a JSON file if configured/exists, falling back to static list."""
+    import json
+    from pathlib import Path
+
+    path = None
+    if config_path:
+        path = Path(config_path)
+    else:
+        possible_paths = [
+            Path("configs/takeover_patterns.json"),
+            Path("src/recon/configs/takeover_patterns.json"),
+        ]
+        for p in possible_paths:
+            if p.exists():
+                path = p
+                break
+
+    if path and path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                patterns = json.load(f)
+                if isinstance(patterns, list):
+                    return patterns
+        except Exception as exc:
+            logger.warning("Failed to load takeover patterns from %s: %s", path, exc)
+
+    return STATIC_TAKEOVER_PATTERNS
+
+
+STATIC_TAKEOVER_PATTERNS: list[dict[str, Any]] = [
     {
         "service": "AWS S3",
         "cname_pattern": ".s3.amazonaws.com",
@@ -120,7 +151,6 @@ TAKEOVER_PATTERNS: list[dict[str, Any]] = [
         "confidence": 0.9,
         "provider_url": "https://support.zendesk.com/hc/en-us/articles/203664356",
     },
-    # --- New providers (v2) ---
     {
         "service": "GCP Cloud Run / Firebase Hosting",
         "cname_pattern": ".run.app",
@@ -148,74 +178,72 @@ TAKEOVER_PATTERNS: list[dict[str, Any]] = [
     {
         "service": "Netlify",
         "cname_pattern": ".netlify.app",
-        "http_indicators": [r"Not found - Request ID", r"Page Not Found.*Netlify"],
+        "http_indicators": [
+            r"Not Found - Request ID",
+            r"404 Not Found.*Netlify",
+            r"netlify.*404",
+        ],
         "confidence": 0.9,
         "provider_url": "https://docs.netlify.com/domains-https/custom-domains/",
     },
     {
         "service": "Fly.io",
-        "cname_pattern": ".fly.dev",
-        "http_indicators": [r"404.*fly\.dev", r"Application not found"],
+        "cname_pattern": ".edgeapp.net",
+        "http_indicators": [r"Fly.*404", r"No such app on Fly\.io"],
         "confidence": 0.85,
         "provider_url": "https://fly.io/docs/app-guides/custom-domains-with-fly/",
     },
     {
         "service": "Render",
         "cname_pattern": ".onrender.com",
-        "http_indicators": [r"Service (Unavailable|Not Found).*Render", r"render\.com.*404"],
-        "confidence": 0.85,
+        "http_indicators": [r"Render.*404", r"No service found at this address"],
+        "confidence": 0.9,
         "provider_url": "https://render.com/docs/custom-domains",
     },
     {
         "service": "Railway",
-        "cname_pattern": ".railway.app",
-        "http_indicators": [r"Application Error.*railway", r"404.*railway\.app"],
-        "confidence": 0.8,
-        "provider_url": "https://docs.railway.app/deploy/exposing-your-app",
+        "cname_pattern": ".up.railway.app",
+        "http_indicators": [r"Railway.*404", r"This service is not available"],
+        "confidence": 0.85,
+        "provider_url": "https://docs.railway.app/guides/custom-domains",
     },
     {
         "service": "Fastly",
-        "cname_pattern": ".fastly.net",
-        "http_indicators": [
-            r"Fastly error.*Unknown domain",
-            r"please check that this domain has been added",
-        ],
-        "confidence": 0.85,
-        "provider_url": "https://developer.fastly.com/reference/api/services/domain/",
+        "cname_pattern": ".global.prod.fastly.net",
+        "http_indicators": [r"Fastly.*404", r"Unknown domain:", r"Fastly error: unknown domain"],
+        "confidence": 0.75,
+        "provider_url": "https://docs.fastly.com/en/guides/adding-and-configuring-domains",
     },
     {
         "service": "Surge.sh",
         "cname_pattern": ".surge.sh",
-        "http_indicators": [r"project not found"],
+        "http_indicators": [r"project not found", r"Surge.*404"],
         "confidence": 0.9,
         "provider_url": "https://surge.sh/help/adding-a-custom-domain",
     },
     {
-        "service": "Strikingly",
-        "cname_pattern": ".strikingly.com",
-        "http_indicators": [
-            r"But if you are the owner of this website",
-            r"page not found.*strikingly",
-        ],
-        "confidence": 0.75,
-        "provider_url": "https://support.strikingly.com/hc/en-us/articles/214364928",
-    },
-    {
-        "service": "Ghost (Ghost.io)",
+        "service": "Ghost.io",
         "cname_pattern": ".ghost.io",
-        "http_indicators": [r"Site not found.*ghost", r"404.*ghost\.io"],
-        "confidence": 0.8,
-        "provider_url": "https://ghost.org/docs/hosting/",
-    },
-    {
-        "service": "HubSpot",
-        "cname_pattern": ".hubspot.net",
-        "http_indicators": [r"Domain not found.*HubSpot", r"does not exist in our system"],
+        "http_indicators": [r"No such site.*Ghost", r"ghost\.io.*404"],
         "confidence": 0.85,
-        "provider_url": "https://knowledge.hubspot.com/website-pages/set-up-a-custom-domain",
+        "provider_url": "https://ghost.org/help/custom-domains/",
     },
     {
-        "service": "WP Engine",
+        "service": "Webflow",
+        "cname_pattern": ".proxy.webflow.com",
+        "http_indicators": [r"The page you are looking for doesn.t exist", r"webflow.*404"],
+        "confidence": 0.7,
+        "provider_url": "https://university.webflow.com/lesson/connect-a-custom-domain",
+    },
+    {
+        "service": "Intercom",
+        "cname_pattern": ".customdomains.intercom.com",
+        "http_indicators": [r"This page doesn.t exist.*Intercom", r"intercom\.com.*404"],
+        "confidence": 0.85,
+        "provider_url": "https://help.intercom.com/en/articles/296-setup-your-custom-domain",
+    },
+    {
+        "service": "WPEngine",
         "cname_pattern": ".wpengine.com",
         "http_indicators": [r"Installation not found", r"error.*wpengine"],
         "confidence": 0.8,
@@ -229,6 +257,8 @@ TAKEOVER_PATTERNS: list[dict[str, Any]] = [
         "provider_url": "https://docs.readthedocs.io/en/stable/custom_domains.html",
     },
 ]
+
+TAKEOVER_PATTERNS = load_takeover_patterns()
 
 # Pre-compile all indicator patterns for performance
 _COMPILED_PATTERNS: dict[str, list[re.Pattern[str]]] = {
@@ -282,37 +312,44 @@ def _match_cname_pattern(cname: str, pattern: str) -> bool:
     return cname.lower().endswith(pattern.lower())
 
 
-async def _check_http_indicators(subdomain: str, service: str, timeout: float = 10.0) -> list[str]:
+async def _check_http_indicators(subdomain: str, service_or_indicators: str | list[str], timeout: float = 10.0) -> list[str]:
     """Probe subdomain over HTTP/HTTPS and match compiled indicator regexes."""
     if httpx is None:
         return []
 
-    compiled = _COMPILED_PATTERNS.get(service, [])
+    if isinstance(service_or_indicators, list):
+        compiled = [re.compile(ind, re.IGNORECASE) for ind in service_or_indicators]
+    else:
+        compiled = _COMPILED_PATTERNS.get(service_or_indicators, [])
+
     if not compiled:
         return []
 
     matched: list[str] = []
-    for scheme in ("https", "http"):
-        url = f"{scheme}://{subdomain}"
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                follow_redirects=True,
-                verify=False,  # noqa: S501 – deliberate for recon
-            ) as client:
-                response = await client.get(url)
-                body = response.text
-                for pattern in compiled:
-                    if pattern.search(body):
-                        matched.append(pattern.pattern)
-            if matched:
-                break
-        except httpx.RequestError as exc:
-            logger.debug("HTTP probe failed for %s (%s): %s", url, service, exc)
-            continue
-        except Exception as exc:
-            logger.debug("Unexpected error probing %s: %s", url, exc)
-            continue
+    try:
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+            verify=False,  # noqa: S501 – deliberate for recon
+        ) as client:
+            for scheme in ("https", "http"):
+                url = f"{scheme}://{subdomain}"
+                try:
+                    response = await client.get(url)
+                    body = response.text
+                    for pattern in compiled:
+                        if pattern.search(body):
+                            matched.append(pattern.pattern)
+                    if matched:
+                        break
+                except httpx.RequestError as exc:
+                    logger.debug("HTTP probe failed for %s: %s", url, exc)
+                    continue
+                except Exception as exc:
+                    logger.debug("Unexpected error probing %s: %s", url, exc)
+                    continue
+    except Exception as exc:
+        logger.debug("HTTP client creation failed: %s", exc)
 
     return matched
 
@@ -425,14 +462,10 @@ async def detect_takeover(
         community_patterns = await _fetch_community_patterns()
         if community_patterns:
             patterns.extend(community_patterns)
-            # Compile new patterns dynamically into the global cache
-            import re
-
-            for p in community_patterns:
-                if p["service"] not in _COMPILED_PATTERNS:
-                    _COMPILED_PATTERNS[p["service"]] = [
-                        re.compile(ind, re.IGNORECASE) for ind in p["http_indicators"]
-                    ]
+            for p in patterns:
+                _COMPILED_PATTERNS[p["service"]] = [
+                    re.compile(ind, re.IGNORECASE) for ind in p["http_indicators"]
+                ]
 
     all_findings: list[dict[str, Any]] = []
     failed_count = 0

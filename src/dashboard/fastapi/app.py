@@ -589,6 +589,17 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "uptime_seconds": round(time.time() - (_START_TIME or time.time()), 1),
         }
 
+    @app.get("/metrics", tags=["System"])
+    async def get_metrics():
+        """Prometheus metrics endpoint."""
+        try:
+            from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+            from fastapi import Response
+            return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+        except ImportError:
+            from fastapi import Response
+            return Response(content="# prometheus_client not installed", media_type="text/plain")
+
     @app.websocket("/ws/triage/{run_id}")
     async def ws_triage(websocket: Any, run_id: str) -> None:
         from src.dashboard.fastapi.routers.triage import handle_triage_websocket
@@ -602,6 +613,12 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     @app.get("/api/dashboard", response_model=DashboardStatsResponse, tags=["Analytics"])
     async def get_dashboard_stats() -> dict[str, Any]:
         """Compute and return global pipeline health and risk metrics."""
+        now = time.time()
+        cached = getattr(app.state, "cached_dashboard_stats", None)
+        cache_time = getattr(app.state, "dashboard_stats_cache_time", 0.0)
+        if cached is not None and now - cache_time < 5.0:
+            return cached
+
         services = app.state.services
         targets = services.list_targets()
         jobs = services.list_jobs()
@@ -629,7 +646,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             "Healthy" if health_score >= 80 else ("Warning" if health_score >= 50 else "Critical")
         )
 
-        return {
+        stats = {
             "total_targets": len(targets),
             "completed_targets": len(targets),
             "total_findings": total_findings,
@@ -667,6 +684,10 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                 ),
             },
         }
+
+        app.state.cached_dashboard_stats = stats
+        app.state.dashboard_stats_cache_time = now
+        return stats
 
     # SPA Fallback and static assets setup
     setup_spa_routes(app)

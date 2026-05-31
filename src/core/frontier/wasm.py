@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 import time
 from typing import Any, cast
 
@@ -67,6 +68,13 @@ else:
 
 logger = get_pipeline_logger(__name__)
 
+_DEFAULT_WASM_TIMEOUT_SECONDS = 5.0
+_DEFAULT_WASM_FUEL = 50_000_000
+_DEFAULT_WASM_MEMORY_BYTES = 128 * 1024 * 1024
+_DEFAULT_WASM_MAX_INPUT_BYTES = 1_000_000
+_DEFAULT_WASM_MAX_OUTPUT_BYTES = 1_000_000
+_ALLOWED_WASM_IMPORT_MODULES = {"wasi_snapshot_preview1", "wasi_unstable"}
+
 _SENSITIVE_KEYS = {
     "api_key",
     "apikey",
@@ -124,14 +132,98 @@ class WASMPluginHost:
     Enforces memory limits and CPU timeouts for execution.
     """
 
-    def __init__(self, wasm_path: str) -> None:
-        self._engine = wasmtime.Engine()
+    def __init__(
+        self,
+        wasm_path: str,
+        *,
+        timeout_seconds: float = _DEFAULT_WASM_TIMEOUT_SECONDS,
+        memory_limit_bytes: int = _DEFAULT_WASM_MEMORY_BYTES,
+        fuel: int = _DEFAULT_WASM_FUEL,
+        max_input_bytes: int = _DEFAULT_WASM_MAX_INPUT_BYTES,
+        max_output_bytes: int = _DEFAULT_WASM_MAX_OUTPUT_BYTES,
+    ) -> None:
+        self._timeout_seconds = max(0.05, float(timeout_seconds))
+        self._memory_limit_bytes = max(64 * 1024, int(memory_limit_bytes))
+        self._fuel = max(1_000, int(fuel))
+        self._max_input_bytes = max(1024, int(max_input_bytes))
+        self._max_output_bytes = max(1024, int(max_output_bytes))
+
+        self._engine = self._build_engine()
         self._linker = wasmtime.Linker(self._engine)
         self._linker.define_wasi()
 
         self._module = wasmtime.Module.from_file(self._engine, wasm_path)
+        self._validate_module_imports()
         self._store = wasmtime.Store(self._engine)
-        self._store.set_wasi(wasmtime.WasiConfig())
+        self._configure_store()
+        self._store.set_wasi(self._locked_down_wasi_config())
+
+    def _build_engine(self) -> Any:
+        config_type = getattr(wasmtime, "Config", None)
+        if config_type is None:
+            return wasmtime.Engine()
+        try:
+            config = config_type()
+            for name, value in (
+                ("consume_fuel", True),
+                ("epoch_interruption", True),
+                ("debug_info", False),
+                ("cache", False),
+            ):
+                if hasattr(config, name):
+                    try:
+                        setattr(config, name, value)
+                    except Exception:
+                        logger.debug("Failed to set wasmtime config.%s", name, exc_info=True)
+            return wasmtime.Engine(config)
+        except TypeError:
+            return wasmtime.Engine()
+
+    def _validate_module_imports(self) -> None:
+        imports = getattr(self._module, "imports", None)
+        if imports is None:
+            return
+        imports = imports() if callable(imports) else imports
+        for item in imports or ():
+            module = str(getattr(item, "module", "") or "")
+            name = str(getattr(item, "name", "") or "")
+            if module in _ALLOWED_WASM_IMPORT_MODULES or module.startswith("wasi:"):
+                continue
+            raise RuntimeError(f"WASM import '{module}.{name}' is not allowed")
+
+    def _configure_store(self) -> None:
+        set_limits = getattr(self._store, "set_limits", None)
+        if callable(set_limits):
+            set_limits(
+                memory_size=self._memory_limit_bytes,
+                table_elements=10_000,
+                instances=1,
+                tables=8,
+                memories=1,
+            )
+        set_fuel = getattr(self._store, "set_fuel", None)
+        if callable(set_fuel):
+            try:
+                set_fuel(self._fuel)
+            except Exception:
+                logger.debug("Failed to set WASM fuel budget", exc_info=True)
+        set_epoch_deadline = getattr(self._store, "set_epoch_deadline", None)
+        if callable(set_epoch_deadline):
+            try:
+                set_epoch_deadline(1)
+            except Exception:
+                logger.debug("Failed to set WASM epoch deadline", exc_info=True)
+
+    def _locked_down_wasi_config(self) -> Any:
+        config = wasmtime.WasiConfig()
+        # Do not inherit argv, environment, stdio, or preopened directories.
+        for name, value in (("argv", []), ("env", [])):
+            if hasattr(config, name):
+                try:
+                    setattr(config, name, value)
+                except Exception:
+                    logger.debug("Failed to clear WASI %s", name, exc_info=True)
+        return config
 
     def run_detector(self, stage_input: dict[str, Any]) -> dict[str, Any]:
         """
@@ -161,37 +253,33 @@ class WASMPluginHost:
         safe_stage_input = cast(dict[str, Any], _redact_sensitive_input(stage_input))
         _audit_wasm_secret_boundary(safe_stage_input)
         input_json = json.dumps(safe_stage_input).encode()
+        if len(input_json) > self._max_input_bytes:
+            raise RuntimeError(f"WASM input exceeded {self._max_input_bytes} bytes")
         input_ptr = cast(Any, allocate)(self._store, len(input_json))
+        if int(input_ptr) < 0:
+            raise RuntimeError("WASM allocator returned an invalid input pointer")
 
         # Write to WASM memory - use memory.write for efficiency
         # Fix #215: The wasmtime Python binding uses memory.write(store, data, offset)
         cast(Any, memory).write(self._store, input_json, int(input_ptr))
 
         # 2. Execute
-        import signal
-        import sys
-        import threading
-
         logger.info("Executing WASM Plugin...")
         start = time.monotonic()
 
-        # Setup process-level budget wall watchdog timer
         timer_fired = False
 
-        def watchdog_kill() -> None:
+        def interrupt_wasm() -> None:
             nonlocal timer_fired
             timer_fired = True
-            try:
-                pid = os.getpid()
-                if sys.platform == "win32":
-                    os.kill(pid, signal.SIGTERM)
-                else:
-                    os.kill(pid, signal.SIGKILL)
-            except Exception:
-                pass
+            increment_epoch = getattr(self._engine, "increment_epoch", None)
+            if callable(increment_epoch):
+                try:
+                    increment_epoch()
+                except Exception:
+                    logger.debug("Failed to interrupt WASM engine epoch", exc_info=True)
 
-        # 5.0 seconds maximum wall budget per module run
-        watchdog_timer = threading.Timer(5.0, watchdog_kill)
+        watchdog_timer = threading.Timer(self._timeout_seconds, interrupt_wasm)
         watchdog_timer.daemon = True
         watchdog_timer.start()
 
@@ -201,20 +289,31 @@ class WASMPluginHost:
             watchdog_timer.cancel()
 
         duration = time.monotonic() - start
+        if timer_fired or duration > self._timeout_seconds:
+            raise TimeoutError(f"WASM detector exceeded {self._timeout_seconds}s budget")
 
         # 3. Retrieve Output
         # (Assuming the first 4 bytes at output_ptr contain the length)
         ptr = int(output_ptr)
+        if ptr < 0:
+            raise RuntimeError("WASM detector returned an invalid output pointer")
         output_len_bytes = cast(Any, memory).read(self._store, ptr, ptr + 4)
+        if len(output_len_bytes) != 4:
+            raise RuntimeError("WASM detector returned a truncated output length")
         output_len = int.from_bytes(output_len_bytes, "little")
 
         if output_len == 0:
             return {"verified": False, "error": "empty_output"}
+        if output_len > self._max_output_bytes:
+            raise RuntimeError(f"WASM output exceeded {self._max_output_bytes} bytes")
 
         output_json_bytes = cast(Any, memory).read(self._store, ptr + 4, ptr + 4 + output_len)
         output_json = output_json_bytes.decode()
 
-        result = cast(dict[str, Any], json.loads(output_json))
+        decoded = json.loads(output_json)
+        if not isinstance(decoded, dict):
+            raise RuntimeError("WASM detector returned non-object JSON")
+        result = cast(dict[str, Any], decoded)
         result["_wasm_duration"] = duration
 
         # 4. Cleanup
@@ -225,8 +324,17 @@ class WASMPluginHost:
         return result
 
 
-def _execute_sandboxed_plugin_inline(wasm_path: str, stage_input: dict[str, Any]) -> dict[str, Any]:
-    host = WASMPluginHost(wasm_path)
+def _execute_sandboxed_plugin_inline(
+    wasm_path: str,
+    stage_input: dict[str, Any],
+    timeout_seconds: float,
+    max_output_bytes: int,
+) -> dict[str, Any]:
+    host = WASMPluginHost(
+        wasm_path,
+        timeout_seconds=timeout_seconds,
+        max_output_bytes=max_output_bytes,
+    )
     return host.run_detector(stage_input)
 
 
@@ -246,9 +354,11 @@ def execute_sandboxed_plugin(
     else:
         manifest = manifest.with_timeout(ActiveExecutionBudget().timeout_seconds)
 
+    budget = manifest.budget.normalized()
+
     result = run_callable_isolated(
         _execute_sandboxed_plugin_inline,
-        (wasm_path, stage_input),
+        (wasm_path, stage_input, budget.timeout_seconds, budget.max_output_bytes),
         {},
         manifest,
     )

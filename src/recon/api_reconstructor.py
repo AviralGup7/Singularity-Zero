@@ -96,39 +96,74 @@ class ApiSchemaReconstructor:
             path = parsed.path or "/"
             parameterized, path_params = self.parameterize_path(path)
 
+            # Infer method from path keywords
+            methods = {"get": {}}
+            path_lower = path.lower()
+            if any(k in path_lower for k in ["delete", "remove"]):
+                methods = {"delete": {}}
+            elif any(k in path_lower for k in ["create", "add", "insert", "upload", "submit"]):
+                methods = {"post": {}}
+            elif any(k in path_lower for k in ["update", "modify", "edit", "save"]):
+                methods = {"put": {}, "patch": {}}
+
             if parameterized not in paths_dict:
                 paths_dict[parameterized] = {
                     "parameters": [],
-                    "methods": {"get": {}},  # Default to GET, since URL listing has no verb info
+                    "methods": methods,
                 }
 
                 # Construct path parameter schema
                 for param in path_params:
+                    param_type = "string"
+                    param_format = None
+                    if param.startswith("uuid"):
+                        param_format = "uuid"
+                    elif param.startswith("id"):
+                        param_type = "integer"
+
+                    schema = {"type": param_type}
+                    if param_format:
+                        schema["format"] = param_format
+
                     paths_dict[parameterized]["parameters"].append(
                         {
                             "name": param,
                             "in": "path",
                             "required": True,
-                            "schema": {"type": "string"},
+                            "schema": schema,
                             "description": f"Extracted dynamic {param} parameter",
                         }
                     )
 
             # Process query parameters
             query_params = parse_qsl(parsed.query)
-            for key, _ in query_params:
+            for key, val in query_params:
                 # Avoid duplicate query parameters
                 existing = [
                     p["name"] for p in paths_dict[parameterized]["parameters"] if p["in"] == "query"
                 ]
                 if key not in existing:
+                    # Parameter type inference
+                    param_type = "string"
+                    param_format = None
+                    if key.lower().endswith("id") or key.lower() in {"page", "limit", "offset", "size", "count"}:
+                        if val.isdigit() or not val:
+                            param_type = "integer"
+                    elif key.lower() in {"force", "active", "enabled", "checked", "debug"}:
+                        if val.lower() in {"true", "false", "1", "0"}:
+                            param_type = "boolean"
+
+                    schema = {"type": param_type}
+                    if param_format:
+                        schema["format"] = param_format
+
                     paths_dict[parameterized]["parameters"].append(
                         {
                             "name": key,
                             "in": "query",
                             "required": False,
-                            "schema": {"type": "string"},
-                            "description": "Extracted dynamic query parameter",
+                            "schema": schema,
+                            "description": f"Extracted dynamic query parameter {key}",
                         }
                     )
 
@@ -152,7 +187,9 @@ class ApiSchemaReconstructor:
         try:
             with open(spec_path, "w", encoding="utf-8") as f:
                 json.dump(spec, f, indent=2, ensure_ascii=False)
-        except Exception:  # noqa: S110
-            pass
+        except Exception as exc:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("Failed to write OpenAPI spec to %s: %s", spec_path, exc)
 
         return spec
