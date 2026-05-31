@@ -1,7 +1,6 @@
 """Backend startup script for Replit."""
 # Trigger pipeline build or update verification.
 
-
 from pathlib import Path
 
 from src.dashboard.fastapi.app import create_app
