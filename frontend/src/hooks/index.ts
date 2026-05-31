@@ -29,8 +29,8 @@ export function useJobs(options?: { refetchInterval?: number }) {
 /**
  * Get targets list with reactive state.
  */
-export function useTargets() {
-  return useApi<{ targets: Target[] }>('/api/targets');
+export function useTargets(options?: { enabled?: boolean }) {
+  return useApi<{ targets: Target[] }>('/api/targets', options);
 }
 
 /**

@@ -133,7 +133,7 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
   const [compareError, setCompareError] = useState<string | null>(null);
 
   // Fetch targets if not provided via props
-  const { data: fetchedTargets } = useTargets();
+  const { data: fetchedTargets } = useTargets({ enabled: !propTargets });
   const safeTargets = useMemo(() => {
     return Array.isArray(propTargets) ? propTargets : (fetchedTargets?.targets ?? []);
   }, [propTargets, fetchedTargets?.targets]);
@@ -180,7 +180,7 @@ export function TargetComparison({ targets: propTargets }: TargetComparisonProps
     const calc = (t: Target): string => {
       const counts = t.severity_counts ?? {};
       for (const sev of order) {
-        if (((Reflect.get(counts, sev) as number | undefined) || 0) > 0) return sev;
+        if ((counts[sev as keyof typeof counts] || 0) > 0) return sev;
       }
       return 'info';
     };
