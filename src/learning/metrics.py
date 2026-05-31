@@ -167,7 +167,7 @@ class MetricsCollector:
         run_ids = [run["run_id"] for run in runs]
         all_findings_list = self.store.get_findings_for_runs(run_ids)
 
-        findings_by_run = {}
+        findings_by_run: dict[Any, list[dict[str, Any]]] = {}
         for f in all_findings_list:
             findings_by_run.setdefault(f.get("run_id"), []).append(f)
 
@@ -298,7 +298,7 @@ class MetricsCollector:
                 start = datetime.fromisoformat(run["start_time"])
                 end = datetime.fromisoformat(run["end_time"])
                 duration = (end - start).total_seconds() / 60
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 duration = run.get("scan_duration_sec", 0) / 60
 
         return RunMetrics(

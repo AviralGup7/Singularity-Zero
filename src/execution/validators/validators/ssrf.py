@@ -360,7 +360,7 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
     analysis_results = {"ssrf_candidate_finder": [target]}
     callback_context = context.get("callback_context") if isinstance(context, dict) else None
 
-    settings = {}
+    settings: dict[str, Any] = {}
     if isinstance(context, dict):
         settings = context.get("settings", {}) or context.get("selector_config", {}) or {}
     elif hasattr(context, "selector_config"):

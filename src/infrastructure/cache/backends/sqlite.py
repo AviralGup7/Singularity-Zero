@@ -554,7 +554,7 @@ class SQLiteBackend:
                     conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
                     conn.commit()
                     return 0.0
-                return remaining
+                return float(remaining)
             finally:
                 self._close_conn()
 

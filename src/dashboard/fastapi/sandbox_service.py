@@ -10,8 +10,8 @@ from typing import Any
 class SandboxService:
     """Service to manage safe dockerized sandbox environments and time-travel replay."""
 
-    def __init__(self):
-        self._sandboxes = {}
+    def __init__(self) -> None:
+        self._sandboxes: dict[str, dict[str, Any]] = {}
 
     def launch_sandbox(self, target_node: str, image: str = "ubuntu:latest") -> str:
         """Launch a mock dockerized sandbox for a specific graph node."""
@@ -28,19 +28,22 @@ class SandboxService:
         self._record_event(sandbox_id, "Sandbox launched")
         return sandbox_id
 
-    def _record_event(self, sandbox_id: str, action: str, output: str = ""):
+    def _record_event(self, sandbox_id: str, action: str, output: str = "") -> None:
         sandbox = self._sandboxes.get(sandbox_id)
         if sandbox:
-            sandbox["history"].append(
-                {"timestamp": time.time(), "action": action, "output": output}
-            )
+            history = sandbox.setdefault("history", [])
+            if isinstance(history, list):
+                history.append(
+                    {"timestamp": time.time(), "action": action, "output": output}
+                )
 
     def get_chronological_state(self, sandbox_id: str) -> list[dict[str, Any]]:
         """Retrieve the time-travel replay history of the sandbox."""
         sandbox = self._sandboxes.get(sandbox_id)
         if not sandbox:
             return []
-        return sandbox["history"]
+        history = sandbox.get("history", [])
+        return history if isinstance(history, list) else []
 
     def execute_terminal_command(self, sandbox_id: str, command: str) -> str:
         """Take over the terminal manually and execute a command."""

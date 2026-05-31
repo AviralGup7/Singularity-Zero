@@ -78,7 +78,9 @@ _HARDENING_MARKERS = (
 )
 
 
-def _source_items(payload):
+from typing import Any, Generator
+
+def _source_items(payload: dict[str, Any]) -> Generator[dict[str, str], None, None]:
     files = payload.get("files", [])
     if isinstance(files, list) and files:
         for index, item in enumerate(files):
@@ -98,18 +100,18 @@ def _source_items(payload):
     }
 
 
-def _line_number(content, offset):
+def _line_number(content: str, offset: int) -> int:
     return content[:offset].count("\n") + 1
 
 
-def _has_hardening(content):
+def _has_hardening(content: str) -> bool:
     compact = content.lower().replace(" ", "")
     lowered = content.lower()
     return any(marker in compact or marker in lowered for marker in _HARDENING_MARKERS)
 
 
-def run(payload):
-    findings = []
+def run(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
     if not isinstance(payload, dict):
         return findings
 

@@ -115,7 +115,7 @@ async def run_active_scanning(
         analysis_settings = {}
     try:
         probe_timeout_seconds = float(analysis_settings.get("active_probe_timeout_seconds", 180))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         probe_timeout_seconds = 180.0
     probe_timeout_seconds = max(30.0, probe_timeout_seconds)
 
