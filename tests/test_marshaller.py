@@ -1,6 +1,7 @@
-import pytest
 import subprocess
 import sys
+
+import pytest
 
 from src.core.frontier.marshaller import (
     FrontierMarshaller,
@@ -122,8 +123,7 @@ def test_default_pickle_secret_is_stable_across_processes():
     result = subprocess.run(
         [sys.executable, "-c", code],
         input=payload,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     assert result.returncode == 0, result.stderr.decode()

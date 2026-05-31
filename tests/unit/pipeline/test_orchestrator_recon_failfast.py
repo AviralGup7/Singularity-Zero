@@ -110,8 +110,8 @@ def _patch_runtime_environment(
     def _capture_progress(stage: str, message: str, percent: int, **_meta: object) -> None:
         emitted_progress.append((stage, message, int(percent)))
 
-    from src.pipeline.services.plugin_catalog import resolve_stage_runner
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+    from src.pipeline.services.plugin_catalog import resolve_stage_runner
 
     try:
         resolve_stage_runner("subdomains")
@@ -174,6 +174,7 @@ async def test_stage_status_only_failure_forces_non_zero_exit(
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains"])
 
     async def _stage_sets_failed_status_only(*args: Any, **kwargs: Any) -> StageOutput:
@@ -213,6 +214,7 @@ async def test_recon_fail_fast_blocks_downstream_stage_and_avoids_completion_pro
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
 
     async def _failing_recon_stage(*args: Any, **kwargs: Any) -> StageOutput:
@@ -260,6 +262,7 @@ async def test_recon_fail_fast_ignores_explicit_non_fatal_timeout_metrics(
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 
     async def _non_fatal_subdomain_timeout(*args: Any, **kwargs: Any) -> StageOutput:
@@ -326,6 +329,7 @@ async def test_incompatible_checkpoint_recovery_keeps_loaded_scope_entries(
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains"])
     monkeypatch.setattr(
         orch_mod,
@@ -369,6 +373,7 @@ async def test_live_hosts_success_transitions_to_urls_stage(
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 
     async def _subdomains_ok(*args: Any, **kwargs: Any) -> StageOutput:
@@ -449,6 +454,7 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 
     class _MetricPayload:

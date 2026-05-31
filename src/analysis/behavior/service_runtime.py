@@ -95,10 +95,7 @@ def probe_open_services(
             existing_ports.add((h, actual))
 
     jobs = [
-        (host, port)
-        for host in scan_hosts
-        for port in ports
-        if (host, port) not in existing_ports
+        (host, port) for host in scan_hosts for port in ports if (host, port) not in existing_ports
     ]
     open_services: list[dict[str, Any]] = []
     if not jobs:
@@ -138,7 +135,9 @@ def probe_open_services(
                 try:
                     result = future.result()
                 except Exception as e:
-                    logger.warning("Failed to get future result in concurrent port scan: %s", e, exc_info=True)
+                    logger.warning(
+                        "Failed to get future result in concurrent port scan: %s", e, exc_info=True
+                    )
                     result = None
                 if result:
                     open_services.append(result)
@@ -227,7 +226,7 @@ def fetch_http_details(url: str, timeout: int) -> dict[str, Any]:
         raw = resp.content[:12000]
         try:
             body = raw.decode("utf-8", errors="replace")
-        except (UnicodeDecodeError, AttributeError, ValueError, TypeError):
+        except UnicodeDecodeError, AttributeError, ValueError, TypeError:
             body = resp.text or ""
         resp_headers = {str(k).lower(): str(v) for k, v in dict(resp.headers).items()}
         return {

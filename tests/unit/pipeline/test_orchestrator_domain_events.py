@@ -82,6 +82,7 @@ def _make_config(tmp_path: Path) -> SimpleNamespace:
 
 def _patch_runtime_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
     monkeypatch.setattr(orch_mod, "emit_progress", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(sec_mod, "emit_progress", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(orch_mod, "emit_error", lambda *_args, **_kwargs: None)
@@ -129,6 +130,7 @@ async def test_orchestrator_emits_domain_events(
 ) -> None:
     _patch_runtime_environment(monkeypatch, tmp_path)
     from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains"])
 

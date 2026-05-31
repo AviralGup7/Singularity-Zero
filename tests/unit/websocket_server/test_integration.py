@@ -194,7 +194,7 @@ def test_rest_endpoints() -> None:
     app = FastAPI()
     services = setup_websocket_routes(app)
     services.broadcaster._redis_enabled = False
-    
+
     with TestClient(app) as client:
         # Test health endpoint
         resp = client.get("/health/ws")

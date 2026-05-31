@@ -180,6 +180,7 @@ class ThresholdTuner:
         # Emit calibration and convergence metrics for observability
         try:
             from src.infrastructure.observability.metrics import get_metrics
+
             m = get_metrics()
             m.gauge("threshold_observed_fp_rate").set(observed_fp_rate)
             m.gauge("threshold_calibration_error").set(error)

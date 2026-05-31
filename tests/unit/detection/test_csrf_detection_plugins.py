@@ -91,6 +91,8 @@ def test_csrf_plugin_wiring_is_ast_parseable_and_auto_discoverable() -> None:
 
     binding_source = bindings.read_text(encoding="utf-8")
     spec_source = specs.read_text(encoding="utf-8")
-    assert '"csrf_protection_checker": _binding(\n            "urls_and_responses"' in binding_source
+    assert (
+        '"csrf_protection_checker": _binding(\n            "urls_and_responses"' in binding_source
+    )
     assert "csrf_protection_checker" in spec_source
     assert "csrf_active_probe" in spec_source

@@ -90,7 +90,9 @@ async def test_mesh_sync_health_snapshot_counts_publish_failures(
         async def publish(self, channel: str, message: str) -> None:
             raise RuntimeError("redis unavailable")
 
-    monkeypatch.setattr("src.infrastructure.mesh.sync.redis.from_url", lambda *a, **k: FailingRedis())
+    monkeypatch.setattr(
+        "src.infrastructure.mesh.sync.redis.from_url", lambda *a, **k: FailingRedis()
+    )
     sync = MeshSync("redis://example.invalid/0", "mesh:test")
 
     await sync.publish({"event": "update"})

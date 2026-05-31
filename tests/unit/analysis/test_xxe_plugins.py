@@ -8,7 +8,6 @@ import pytest
 from src.core.plugins.loader import DynamicPluginCatalog
 from src.core.plugins.sandbox import ProcessSandboxCallable
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -19,8 +18,7 @@ def _runtime_imports():
     except (IndentationError, SyntaxError) as exc:
         filename = str(getattr(exc, "filename", "") or "")
         is_runtime_file = (
-            "src\\analysis\\plugin_runtime" in filename
-            or "src/analysis/plugin_runtime" in filename
+            "src\\analysis\\plugin_runtime" in filename or "src/analysis/plugin_runtime" in filename
         )
         if not is_runtime_file:
             pytest.skip(f"plugin runtime import is blocked by unrelated syntax error in {filename}")

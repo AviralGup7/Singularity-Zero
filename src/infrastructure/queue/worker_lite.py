@@ -129,7 +129,10 @@ def setup_tools(dest_dir: str | None = None) -> None:
             logger.error("[✗] Failed to install %s: %s", tool_name, exc)
             try:
                 from src.infrastructure.observability.metrics import get_metrics
-                get_metrics().counter("lite_worker_tool_setup_failures_total", "Total tool setup failures").inc()
+
+                get_metrics().counter(
+                    "lite_worker_tool_setup_failures_total", "Total tool setup failures"
+                ).inc()
             except Exception:
                 pass
             raise exc

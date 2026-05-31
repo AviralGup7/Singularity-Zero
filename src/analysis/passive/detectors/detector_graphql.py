@@ -34,18 +34,20 @@ def graphql_introspection_detector(
                 continue
             seen.add(endpoint_key)
 
-            findings.append({
-                "url": url,
-                "endpoint_key": endpoint_key,
-                "endpoint_base_key": endpoint_base_key(url),
-                "endpoint_type": "API",
-                "category": "graphql_discovery",
-                "title": f"GraphQL endpoint discovered at {url}",
-                "severity": "info",
-                "confidence": 0.90,
-                "signals": ["graphql_path_match"],
-                "explanation": f"Passive scan identified a potential GraphQL endpoint based on URL pattern: {path}",
-            })
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base_key(url),
+                    "endpoint_type": "API",
+                    "category": "graphql_discovery",
+                    "title": f"GraphQL endpoint discovered at {url}",
+                    "severity": "info",
+                    "confidence": 0.90,
+                    "signals": ["graphql_path_match"],
+                    "explanation": f"Passive scan identified a potential GraphQL endpoint based on URL pattern: {path}",
+                }
+            )
 
     # 2. Response-based detection (Introspection exposure)
     for response in responses:
@@ -64,18 +66,20 @@ def graphql_introspection_detector(
                 existing["signals"].append("introspection_data_found")
                 existing["explanation"] += " Introspection data was found in the response body!"
             else:
-                findings.append({
-                    "url": url,
-                    "endpoint_key": endpoint_key,
-                    "endpoint_base_key": endpoint_base_key(url),
-                    "endpoint_type": "API",
-                    "category": "graphql_exposure",
-                    "title": f"GraphQL introspection exposed at {url}",
-                    "severity": "high",
-                    "confidence": 0.98,
-                    "signals": ["introspection_data_found"],
-                    "explanation": "Passive scan detected GraphQL introspection results in the response body.",
-                    "status_code": response.get("status_code"),
-                })
+                findings.append(
+                    {
+                        "url": url,
+                        "endpoint_key": endpoint_key,
+                        "endpoint_base_key": endpoint_base_key(url),
+                        "endpoint_type": "API",
+                        "category": "graphql_exposure",
+                        "title": f"GraphQL introspection exposed at {url}",
+                        "severity": "high",
+                        "confidence": 0.98,
+                        "signals": ["introspection_data_found"],
+                        "explanation": "Passive scan detected GraphQL introspection results in the response body.",
+                        "status_code": response.get("status_code"),
+                    }
+                )
 
     return findings

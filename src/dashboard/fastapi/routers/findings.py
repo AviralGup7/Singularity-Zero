@@ -20,8 +20,9 @@ router = APIRouter(prefix="/api/findings", tags=["Findings"])
 def _find_finding_by_id(
     output_root: Any, finding_id: str, tenant_id: str | None = None
 ) -> dict[str, Any] | None:
-    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
     from pathlib import Path
+
+    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
     index_path = Path(output_root) / "findings_index.json"
     if index_path.exists():
@@ -32,7 +33,7 @@ def _find_finding_by_id(
                 target_name = entry.get("target_name")
                 run_name = entry.get("run_name")
                 idx = entry.get("index")
-                
+
                 if is_target_owned_by_tenant(target_name, tenant_id):
                     finding_path = Path(output_root) / target_name / run_name / "findings.json"
                     if finding_path.exists():
@@ -78,16 +79,18 @@ def _find_finding_by_id(
                     index_data[str(fid)] = {
                         "target_name": target_entry.name,
                         "run_name": run_entry.name,
-                        "index": idx
+                        "index": idx,
                     }
-                    if str(fid) == finding_id and is_target_owned_by_tenant(target_entry.name, tenant_id):
+                    if str(fid) == finding_id and is_target_owned_by_tenant(
+                        target_entry.name, tenant_id
+                    ):
                         result = _normalize_finding_payload(
                             finding,
                             target_name=target_entry.name,
                             run_name=run_entry.name,
                             index=idx,
                         )
-        
+
         # Save the lazily built index
         try:
             index_path.write_text(json.dumps(index_data, indent=2), encoding="utf-8")
@@ -178,7 +181,7 @@ def _collect_timeline_events(
                 try:
                     parsed = json.loads(findings_path.read_text(encoding="utf-8"))
                     findings_data = parsed if isinstance(parsed, list) else []
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     findings_data = []
 
             if not findings_data and summary_path.exists():
@@ -190,7 +193,7 @@ def _collect_timeline_events(
                         else []
                     )
                     findings_data = top_findings if isinstance(top_findings, list) else []
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     findings_data = []
 
             run_generated_at = run_entry.name
@@ -203,7 +206,7 @@ def _collect_timeline_events(
                             or summary.get("generated_at_ist")
                             or run_entry.name
                         )
-                except (OSError, json.JSONDecodeError):
+                except OSError, json.JSONDecodeError:
                     run_generated_at = run_entry.name
 
             for idx, finding in enumerate(findings_data, start=1):

@@ -232,10 +232,11 @@ def _jwt_none_token() -> str:
 def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
     decoded = decode_candidate_value(value)
     variants = []
-    
+
     # AST-Guided Mutations
     try:
         from src.fuzzing.ast_mutator import JSONASTMutator
+
         mutator = JSONASTMutator()
         ast_variants = mutator.mutate(decoded)
         for v in ast_variants:
@@ -262,7 +263,9 @@ def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
         {"payload": base_obj, "override": {"enabled": True}},
     ]
     for sv in static_variants:
-        variants.append({"val": json.dumps(sv, separators=(",", ":")), "reason": "json_nested_mutation"})
+        variants.append(
+            {"val": json.dumps(sv, separators=(",", ":")), "reason": "json_nested_mutation"}
+        )
 
     return [
         {

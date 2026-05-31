@@ -95,7 +95,7 @@ def score_from_severity(severity: object) -> float:
 def _numeric(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -182,7 +182,7 @@ def _load_json(value: object) -> dict[str, Any]:
         return {}
     try:
         loaded = json.loads(str(value))
-    except (TypeError, ValueError, json.JSONDecodeError):
+    except TypeError, ValueError, json.JSONDecodeError:
         return {}
     return loaded if isinstance(loaded, dict) else {}
 
@@ -207,6 +207,7 @@ class CalibratedSeverityModel:
 
         # Initialize thread-safe registry and pipeline using lazy imports to prevent circular dependencies
         from src.intelligence.ml import ModelVersionRegistry, XGBoostSeverityPipeline
+
         self.registry = ModelVersionRegistry()
         self.pipeline = XGBoostSeverityPipeline()
 
@@ -234,7 +235,9 @@ class CalibratedSeverityModel:
         if pipeline is not None and hasattr(pipeline, "predict_probability"):
             raw_probability = pipeline.predict_probability(finding)
         else:
-            raw_probability = self._sigmoid(sum(self.weights.get(k, 0.0) * v for k, v in _feature_vector(finding).items()))
+            raw_probability = self._sigmoid(
+                sum(self.weights.get(k, 0.0) * v for k, v in _feature_vector(finding).items())
+            )
 
         calibrated_tp, calibration = self._calibrate(raw_probability, finding)
         input_impact = (
@@ -268,7 +271,10 @@ class CalibratedSeverityModel:
         latency = time.time() - start_time
         try:
             from src.infrastructure.observability.metrics import get_metrics
-            get_metrics().counter("severity_predictions_total", "Total model predictions made").inc()
+
+            get_metrics().counter(
+                "severity_predictions_total", "Total model predictions made"
+            ).inc()
         except Exception:
             pass
         logger.info("SeverityModel: predicted in %.4fs", latency)
@@ -333,6 +339,7 @@ class CalibratedSeverityModel:
         # Train new XGBoost/fallback pipeline
         try:
             from src.intelligence.ml import ModelVersion
+
             findings_list = [ex.finding for ex in examples]
             labels_list = [ex.label for ex in examples]
             success = self.pipeline.fit(findings_list, labels_list)
@@ -351,7 +358,10 @@ class CalibratedSeverityModel:
             logger.warning("SeverityModel: Pipeline retraining failed: %s", e)
             try:
                 from src.infrastructure.observability.metrics import get_metrics
-                get_metrics().counter("severity_retraining_failures_total", "Total model retraining failures").inc()
+
+                get_metrics().counter(
+                    "severity_retraining_failures_total", "Total model retraining failures"
+                ).inc()
             except Exception:
                 pass
 

@@ -67,7 +67,7 @@ class PPOEvasionModel:
         self._obs_history: list[int] = []
         self._model_id = f"ppo-evader-{id(self)}"
         self._rng = random.SystemRandom()
-        
+
         # Simple Neural Network Weights for Policy (Action Probabilities)
         # Input: 4-dim (one-hot observation), Hidden: 8, Output: 4
         self._w1 = [[self._rng.uniform(-0.1, 0.1) for _ in range(8)] for _ in range(4)]

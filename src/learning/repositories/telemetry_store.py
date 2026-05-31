@@ -135,6 +135,7 @@ class TelemetryStore:
             self._local.conn = None
 
         from .base import BaseRepo
+
         with BaseRepo._lock:
             for conn in list(BaseRepo._connections):
                 try:

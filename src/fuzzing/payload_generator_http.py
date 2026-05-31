@@ -9,7 +9,7 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
-from src.analysis.helpers import endpoint_signature, is_noise_url, classify_endpoint
+from src.analysis.helpers import classify_endpoint, endpoint_signature, is_noise_url
 from src.core.mutation_engine import generate_payloads_for_parameter
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,6 @@ HEADER_PAYLOADS: dict[str, list[dict[str, str]]] = {
 }
 
 INJECTABLE_HEADERS = sorted(list(set(list(HEADER_PAYLOADS.keys()) + EXTRA_INJECTABLE_HEADERS)))
-
 
 
 def generate_header_payloads(

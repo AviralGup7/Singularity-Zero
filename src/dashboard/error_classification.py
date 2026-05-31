@@ -32,9 +32,6 @@ def _classify_stderr(stderr_content: str, returncode: int) -> str | None:
     return None
 
 
-from src.dashboard.utils import truncate_lines as _truncate_lines
-
-
 def _extract_stdout_error_detail(stdout_text: str) -> str:
     """Extract recent traceback or error lines from stdout stream, ignoring progress JSON."""
     if not stdout_text:

@@ -146,6 +146,10 @@ class SLATracker:
             escalated_count += 1
 
         if escalated_count > 0:
-            logger.info("GRC Auto-Escalation: Fired %d SLA breach notifications for target %s.", escalated_count, target_name)
+            logger.info(
+                "GRC Auto-Escalation: Fired %d SLA breach notifications for target %s.",
+                escalated_count,
+                target_name,
+            )
 
         return escalated_count

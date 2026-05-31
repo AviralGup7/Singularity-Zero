@@ -158,7 +158,6 @@ def _terminate_process(process: Any) -> bool:
             process.kill()
 
 
-
 def run_callable_isolated(
     func: Callable[..., Any],
     args: tuple[Any, ...],

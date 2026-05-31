@@ -5,10 +5,10 @@ Provides centralized storage for learned false-positive patterns.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
-import asyncio
 from typing import Any, cast
 
 import redis.asyncio as redis
@@ -74,7 +74,9 @@ class RedisFPRepository:
             if data:
                 return FPPattern.from_db_row(json.loads(data))
         except Exception as e:
-            logger.warning("RedisFPRepo degraded: reading pattern %s from local fallback: %s", pattern_id, e)
+            logger.warning(
+                "RedisFPRepo degraded: reading pattern %s from local fallback: %s", pattern_id, e
+            )
         data = self._fallback.get(pattern_id)
         if data:
             return FPPattern.from_db_row(json.loads(data))
@@ -97,7 +99,9 @@ class RedisFPRepository:
         try:
             await self._redis_call("hdel", self.key, pattern_id)
         except Exception as e:
-            logger.warning("RedisFPRepo degraded: delete pattern %s applied only locally: %s", pattern_id, e)
+            logger.warning(
+                "RedisFPRepo degraded: delete pattern %s applied only locally: %s", pattern_id, e
+            )
 
     async def clear(self) -> None:
         """Clear all patterns from Redis."""

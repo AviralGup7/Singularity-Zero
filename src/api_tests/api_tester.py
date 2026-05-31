@@ -1,8 +1,5 @@
 from .apitester.api_key_checklist import run_api_key_checklist
 from .apitester.api_key_security import test_api_key_security
-from .apitester.baseline_variant import test_api_baseline_vs_variant
-from .apitester.cli import main
-from .apitester.results import build_api_test_result
 from .apitester.api_key_workflows import (
     WORKFLOW_SPECS,
     WORKFLOW_SPECS_BY_KEY,
@@ -14,6 +11,9 @@ from .apitester.api_key_workflows import (
     subdomain_privilege_methods_test,
     write_flexible_chaining_test,
 )
+from .apitester.baseline_variant import test_api_baseline_vs_variant
+from .apitester.cli import main
+from .apitester.results import build_api_test_result
 
 __all__ = [
     "advanced_api_key_test",

@@ -56,8 +56,11 @@ class HeartbeatMonitor:
             timeout_seconds: Inactivity timeout before disconnection.
         """
         import os
+
         self.manager = manager
-        self.interval_seconds = float(os.environ.get("WS_HEARTBEAT_INTERVAL", str(interval_seconds)))
+        self.interval_seconds = float(
+            os.environ.get("WS_HEARTBEAT_INTERVAL", str(interval_seconds))
+        )
         self.timeout_seconds = float(os.environ.get("WS_HEARTBEAT_TIMEOUT", str(timeout_seconds)))
         self.broadcaster = broadcaster
         self._tasks: dict[str, asyncio.Task[None]] = {}
@@ -141,6 +144,7 @@ class HeartbeatMonitor:
                     )
                     try:
                         from src.websocket_server.metrics import WS_HEARTBEATS
+
                         WS_HEARTBEATS.inc()
                     except Exception:
                         pass

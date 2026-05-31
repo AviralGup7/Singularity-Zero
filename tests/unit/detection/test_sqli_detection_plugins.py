@@ -48,7 +48,7 @@ def test_sql_error_exposure_detector_emits_passive_finding() -> None:
             {
                 "url": "https://app.example.test/search?query=books",
                 "status_code": 500,
-                "body_text": "psycopg2.errors.SyntaxError: syntax error at or near \"books\"",
+                "body_text": 'psycopg2.errors.SyntaxError: syntax error at or near "books"',
             }
         ]
     )

@@ -71,7 +71,7 @@ try:
 
     def compute_crc64(data: bytes) -> str:
         return f"{_crc64_func(data):016x}"
-except (ImportError, ValueError):
+except ImportError, ValueError:
 
     def compute_crc64(data: bytes) -> str:
         return f"{crc64_pure(data):016x}"

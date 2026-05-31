@@ -61,7 +61,9 @@ def collect_urls(
             if config.tools.get("waybackurls", True):
                 timeout = int(getattr(config, "waybackurls", {}).get("timeout_seconds", 120))
                 per_host = (
-                    int(config.filters.get("per_host_archive_limit", 1000)) if config.filters else 1000
+                    int(config.filters.get("per_host_archive_limit", 1000))
+                    if config.filters
+                    else 1000
                 )
                 discovered, meta = wayback.collect_for_hosts(
                     hostnames,
@@ -71,7 +73,11 @@ def collect_urls(
                 )
                 return "wayback", discovered, meta
             else:
-                return "wayback", set(), {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
+                return (
+                    "wayback",
+                    set(),
+                    {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0},
+                )
         except Exception as exc:
             logger.warning("Wayback collection failed: %s", exc, exc_info=True)
             return "wayback", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
@@ -81,7 +87,9 @@ def collect_urls(
             if config.tools.get("commoncrawl", True):
                 timeout = int(getattr(config, "commoncrawl", {}).get("timeout_seconds", 120))
                 per_host = (
-                    int(config.filters.get("per_host_archive_limit", 1000)) if config.filters else 1000
+                    int(config.filters.get("per_host_archive_limit", 1000))
+                    if config.filters
+                    else 1000
                 )
                 discovered_cc, meta_cc = commoncrawl.collect_for_hosts(
                     hostnames,
@@ -91,7 +99,11 @@ def collect_urls(
                 )
                 return "commoncrawl", discovered_cc, meta_cc
             else:
-                return "commoncrawl", set(), {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
+                return (
+                    "commoncrawl",
+                    set(),
+                    {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0},
+                )
         except Exception as exc:
             logger.warning("CommonCrawl collection failed: %s", exc, exc_info=True)
             return "commoncrawl", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
@@ -103,7 +115,11 @@ def collect_urls(
                 timeout = int(kat_cfg.get("timeout_seconds", 30))
                 extra_args = kat_cfg.get("extra_args", []) or []
                 js_enabled = any("js" in str(arg).lower() for arg in extra_args)
-                logger.info("Crawler JS discovery flag calculated: %s (based on extra_args: %s)", js_enabled, extra_args)
+                logger.info(
+                    "Crawler JS discovery flag calculated: %s (based on extra_args: %s)",
+                    js_enabled,
+                    extra_args,
+                )
                 max_pages = (
                     int(
                         config.filters.get(
@@ -128,7 +144,11 @@ def collect_urls(
                 )
                 return "crawler", discovered_crawl, meta_crawl
             else:
-                return "crawler", set(), {"status": "skipped", "duration_seconds": 0.0, "new_urls": 0}
+                return (
+                    "crawler",
+                    set(),
+                    {"status": "skipped", "duration_seconds": 0.0, "new_urls": 0},
+                )
         except Exception as exc:
             logger.warning("Crawler collection failed: %s", exc, exc_info=True)
             return "crawler", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
@@ -138,7 +158,9 @@ def collect_urls(
             if config.tools.get("urlscan", True):
                 timeout = int(getattr(config, "urlscan", {}).get("timeout_seconds", 30))
                 per_host = (
-                    int(config.filters.get("per_host_archive_limit", 100)) if config.filters else 100
+                    int(config.filters.get("per_host_archive_limit", 100))
+                    if config.filters
+                    else 100
                 )
                 discovered_us, meta_us = urlscan.collect_for_hosts(
                     hostnames,
@@ -148,7 +170,11 @@ def collect_urls(
                 )
                 return "urlscan", discovered_us, meta_us
             else:
-                return "urlscan", set(), {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0}
+                return (
+                    "urlscan",
+                    set(),
+                    {"status": "disabled", "duration_seconds": 0.0, "new_urls": 0},
+                )
         except Exception as exc:
             logger.warning("URLScan collection failed: %s", exc, exc_info=True)
             return "urlscan", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
@@ -158,7 +184,9 @@ def collect_urls(
             if config.tools.get("otx", True):
                 timeout = int(getattr(config, "otx", {}).get("timeout_seconds", 30))
                 per_host = (
-                    int(config.filters.get("per_host_archive_limit", 100)) if config.filters else 100
+                    int(config.filters.get("per_host_archive_limit", 100))
+                    if config.filters
+                    else 100
                 )
                 discovered_otx, meta_otx = otx.collect_for_hosts(
                     hostnames,

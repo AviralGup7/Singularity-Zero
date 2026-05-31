@@ -19,7 +19,12 @@ from src.core.models import DEFAULT_USER_AGENT
 from src.core.plugins import list_plugins, register_plugin
 from src.pipeline.retry import retry_ready, sleep_before_retry
 from src.pipeline.tools import RetryPolicy, build_retry_policy, tool_available
-from src.recon.common import normalize_scope_entry, parse_plain_lines, run_commands_parallel, run_async_in_sync_context
+from src.recon.common import (
+    normalize_scope_entry,
+    parse_plain_lines,
+    run_async_in_sync_context,
+    run_commands_parallel,
+)
 
 SUBDOMAIN_ENUMERATOR = "subdomain_enumerator"
 
@@ -121,10 +126,13 @@ except ImportError:
 for source in ["dnsdumpster", "bufferover", "certspotter", "spyse", "securitytrails", "chaos"]:
     try:
         import importlib
+
         module = importlib.import_module(f"src.recon.sources.{source}")
         func = getattr(module, f"query_{source}", None)
         if func:
-            register_plugin(SUBDOMAIN_ENUMERATOR, source, contract=SubdomainEnumeratorProtocol)(func)
+            register_plugin(SUBDOMAIN_ENUMERATOR, source, contract=SubdomainEnumeratorProtocol)(
+                func
+            )
     except ImportError:
         pass
 

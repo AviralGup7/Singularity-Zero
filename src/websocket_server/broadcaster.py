@@ -17,8 +17,8 @@ from starlette.websockets import WebSocketState  # Fix #369: top-level import
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.websocket_server.manager import ConnectionManager
+from src.websocket_server.metrics import WS_LATENCY, WS_MESSAGES, WS_REDIS_FANOUT
 from src.websocket_server.protocol import BaseMessage
-from src.websocket_server.metrics import WS_MESSAGES, WS_LATENCY, WS_REDIS_FANOUT
 
 # Fix #362: use project-wide structured logger
 logger = get_pipeline_logger(__name__)
@@ -47,7 +47,10 @@ class CircuitBreaker:
         if self.failures >= self.failure_threshold:
             self.state = "OPEN"
             self.last_state_change = time.time()
-            logger.error("Redis Pub/Sub circuit breaker is now OPEN due to %d consecutive failures", self.failures)
+            logger.error(
+                "Redis Pub/Sub circuit breaker is now OPEN due to %d consecutive failures",
+                self.failures,
+            )
 
     def allow_request(self) -> bool:
         if self.state == "CLOSED":
@@ -56,7 +59,9 @@ class CircuitBreaker:
             if time.time() - self.last_state_change > self.recovery_timeout:
                 self.state = "HALF_OPEN"
                 self.last_state_change = time.time()
-                logger.info("Redis Pub/Sub circuit breaker entered HALF_OPEN state; attempting retry")
+                logger.info(
+                    "Redis Pub/Sub circuit breaker entered HALF_OPEN state; attempting retry"
+                )
                 return True
             return False
         return True  # HALF_OPEN
@@ -101,7 +106,9 @@ class Broadcaster:
         self.backpressure_drop_oldest = backpressure_drop_oldest
         if not 0 < backpressure_drain_fraction <= 1:
             raise ValueError("backpressure_drain_fraction must be between 0 and 1")
-        self.backpressure_drain_fraction = float(os.environ.get("WS_BACKPRESSURE_DRAIN_FRACTION", str(backpressure_drain_fraction)))
+        self.backpressure_drain_fraction = float(
+            os.environ.get("WS_BACKPRESSURE_DRAIN_FRACTION", str(backpressure_drain_fraction))
+        )
         # Fix #363: Use OrderedDict for FIFO dedup window eviction.
         # set.pop() removes an arbitrary element, not the oldest.
         self._seen_ids: OrderedDict[str, None] = OrderedDict()
@@ -144,7 +151,9 @@ class Broadcaster:
         reconnecting_from_subscriber = (
             self._subscriber_task is not None and current_task is self._subscriber_task
         )
-        if not self._redis_enabled or (self._subscriber_task is not None and not reconnecting_from_subscriber):
+        if not self._redis_enabled or (
+            self._subscriber_task is not None and not reconnecting_from_subscriber
+        ):
             return
 
         if self._redis_url is None:
@@ -317,7 +326,9 @@ class Broadcaster:
                 logger.error("Redis WS loop failure (retrying in %.1fs): %s", backoff, exc)
                 await self._close_redis_handles()
                 self._redis_pubsub = None
-                self._redis_degraded_until = time.monotonic() + min(backoff, REDIS_RECONNECT_SECONDS)
+                self._redis_degraded_until = time.monotonic() + min(
+                    backoff, REDIS_RECONNECT_SECONDS
+                )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2.0, max_backoff)
 
@@ -473,7 +484,9 @@ class Broadcaster:
         """
         if await self._publish(scope="connection", target=connection_id, message=message):
             return True
-        return bool(await self._deliver_local("connection", connection_id, message, skip_redis=True))
+        return bool(
+            await self._deliver_local("connection", connection_id, message, skip_redis=True)
+        )
 
     async def broadcast_to_group(
         self,

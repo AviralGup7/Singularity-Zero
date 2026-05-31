@@ -3,8 +3,8 @@
 from src.core.frontier.chameleon import RequestChameleon, wrap_polymorphic_request
 from src.core.frontier.chameleon_evasion import (
     ChameleonEvasionEngine,
-    PPOEvasionModel,
     JA3FingerprintModel,
+    PPOEvasionModel,
     TimingPermutator,
 )
 

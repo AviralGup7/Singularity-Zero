@@ -1,9 +1,9 @@
+import logging
+
 from src.execution.active_manifest import *  # noqa: F403
 from src.execution.exploiters import *  # noqa: F403
 from src.execution.isolated import *  # noqa: F403
 from src.execution.scenario_engine import *  # noqa: F403
-
-import logging
 
 logger = logging.getLogger(__name__)
 

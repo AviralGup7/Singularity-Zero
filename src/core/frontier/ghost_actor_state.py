@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any
 
 from src.core.frontier.marshaller import mesh_marshal, mesh_unmarshal
@@ -53,7 +53,9 @@ class ActorState:
         """Binary deserialization via MessagePack."""
         data = mesh_unmarshal(payload)
         if not isinstance(data, dict):
-            raise TypeError(f"actor state payload must decode to a mapping, not {type(data).__name__}")
+            raise TypeError(
+                f"actor state payload must decode to a mapping, not {type(data).__name__}"
+            )
         data.setdefault("snapshot_format", "ghost-actor-snapshot-v1")
         data.setdefault("last_wal_id", None)
         data.setdefault("migration_id", "")

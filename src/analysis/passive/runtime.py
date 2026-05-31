@@ -24,6 +24,8 @@ _HTTP_POOL = urllib3.PoolManager(
     timeout=urllib3.util.Timeout(connect=10, read=10),
 )
 
+from datetime import UTC
+
 from src.analysis.passive.patterns import TEXTUAL_CONTENT_TYPES
 from src.analysis.text_utils import (
     extract_key_fields,
@@ -235,7 +237,7 @@ class ResponseCache:
 
         # Fix Audit #6: Key for active probes to allow memoization of repeated identical probes
         header_key = frozenset((headers or {}).items())
-        
+
         # Robust body_key parsing to distinguish empty values and prevent unhashable TypeError
         if body is None:
             body_key = None
@@ -244,10 +246,11 @@ class ResponseCache:
         else:
             try:
                 import json
+
                 body_key = hash(json.dumps(body, sort_keys=True))
             except Exception:
                 body_key = hash(str(body))
-                
+
         active_key = (normalized, method.upper(), header_key, body_key)
 
         if method.upper() == "GET" and not headers and body is None and not capture_forensics:
@@ -330,11 +333,12 @@ class ResponseCache:
                         retry_after = float(ra)
                     else:
                         import email.utils
-                        from datetime import datetime, timezone
+                        from datetime import datetime
+
                         try:
                             dt = email.utils.parsedate_to_datetime(str(ra))
                             if dt:
-                                retry_after = max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
+                                retry_after = max(0.0, (dt - datetime.now(UTC)).total_seconds())
                         except Exception:
                             pass
 

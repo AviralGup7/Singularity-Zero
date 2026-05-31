@@ -1,7 +1,7 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import urlparse
-from concurrent.futures import ThreadPoolExecutor
 
 from .api_key_candidates import discover_api_key_candidates
 from .client import build_base_headers, normalize_base_url, safe_request, summarize_response
@@ -203,7 +203,11 @@ def _check_different_device(
                 session,
                 "GET",
                 f"{base_url}users/me",
-                headers={**auth_headers, "User-Agent": user_agent, "X-Forwarded-For": forwarded_for},
+                headers={
+                    **auth_headers,
+                    "User-Agent": user_agent,
+                    "X-Forwarded-For": forwarded_for,
+                },
                 params=auth_params,
                 timeout=timeout,
             )
@@ -583,7 +587,11 @@ def _check_write_actions(
             )
             if result.get("status_code") in {200, 201, 204}:
                 write_hits.append(
-                    {"method": method, "endpoint": endpoint, "status_code": result.get("status_code")}
+                    {
+                        "method": method,
+                        "endpoint": endpoint,
+                        "status_code": result.get("status_code"),
+                    }
                 )
         except Exception:  # noqa: BLE001
             pass
@@ -661,7 +669,11 @@ def _check_parameter_chaining(
             )
         except Exception as exc:  # noqa: BLE001
             chaining_results.append(
-                {"params": ",".join(sorted(extra_params)), "status_code": "error", "error": str(exc)}
+                {
+                    "params": ",".join(sorted(extra_params)),
+                    "status_code": "error",
+                    "error": str(exc),
+                }
             )
     return _record(
         "parameter_chaining",
@@ -690,9 +702,7 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
     checks.append(direct_record)
 
     # 2. Sensitive Endpoints Check
-    checks.append(
-        _check_sensitive_endpoints(session, base_url, auth_headers, auth_params, timeout)
-    )
+    checks.append(_check_sensitive_endpoints(session, base_url, auth_headers, auth_params, timeout))
 
     # 3. Key Alone Check
     checks.append(
@@ -706,24 +716,16 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
     )
 
     # 4. Different Device Check
-    checks.append(
-        _check_different_device(session, base_url, auth_headers, auth_params, timeout)
-    )
+    checks.append(_check_different_device(session, base_url, auth_headers, auth_params, timeout))
 
     # 5. ID Tampering Check
-    checks.append(
-        _check_id_tampering(session, base_url, auth_headers, auth_params, timeout)
-    )
+    checks.append(_check_id_tampering(session, base_url, auth_headers, auth_params, timeout))
 
     # 6. Rate Limit Replay Check
-    checks.append(
-        _check_rate_limit_replay(session, base_url, auth_headers, auth_params, timeout)
-    )
+    checks.append(_check_rate_limit_replay(session, base_url, auth_headers, auth_params, timeout))
 
     # 7. Subdomain Scope Check
-    checks.append(
-        _check_subdomain_scope(session, base_url, auth_headers, auth_params, timeout)
-    )
+    checks.append(_check_subdomain_scope(session, base_url, auth_headers, auth_params, timeout))
 
     # 8. Privilege Escalation Check
     checks.append(
@@ -731,29 +733,23 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
     )
 
     # 9. HTTP Methods Check
-    checks.append(
-        _check_http_methods(session, base_url, auth_headers, auth_params, timeout)
-    )
+    checks.append(_check_http_methods(session, base_url, auth_headers, auth_params, timeout))
 
     # 10. Present vs Absent Check
     checks.append(
-        _check_present_vs_absent(session, base_url, auth_headers, auth_params, no_auth_headers, timeout)
+        _check_present_vs_absent(
+            session, base_url, auth_headers, auth_params, no_auth_headers, timeout
+        )
     )
 
     # 11. Invalid Key Check
-    checks.append(
-        _check_invalid_key(session, base_url, candidate_copy, base_hdrs, timeout)
-    )
+    checks.append(_check_invalid_key(session, base_url, candidate_copy, base_hdrs, timeout))
 
     # 12. Browser vs Curl Check
-    checks.append(
-        _check_browser_vs_curl(session, base_url, auth_headers, auth_params, timeout)
-    )
+    checks.append(_check_browser_vs_curl(session, base_url, auth_headers, auth_params, timeout))
 
     # 13. Write Actions Check
-    checks.append(
-        _check_write_actions(session, base_url, auth_headers, auth_params, timeout)
-    )
+    checks.append(_check_write_actions(session, base_url, auth_headers, auth_params, timeout))
 
     # 14. Placement Flexibility Check
     checks.append(
@@ -762,7 +758,9 @@ def _run_candidate(session: Any, candidate: dict[str, str], timeout: int) -> dic
 
     # 15. Parameter Chaining Check
     checks.append(
-        _check_parameter_chaining(session, base_url, candidate_copy, auth_headers, auth_params, timeout)
+        _check_parameter_chaining(
+            session, base_url, candidate_copy, auth_headers, auth_params, timeout
+        )
     )
 
     risk_count = sum(1 for item in checks if item["outcome"] == "risk")

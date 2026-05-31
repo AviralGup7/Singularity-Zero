@@ -26,7 +26,10 @@ if not _MESH_SECRET_RAW:
     # Keep the development default stable across processes so process-pool IPC can verify
     # payloads created by a parent or sibling worker. Production still requires an explicit secret.
     _MESH_SECRET_RAW = "frontier-default-secret-change-in-prod"
-elif _IS_PROD and _MESH_SECRET_RAW in ("frontier-default-secret-change-in-prod", "frontier-default-secret"):
+elif _IS_PROD and _MESH_SECRET_RAW in (
+    "frontier-default-secret-change-in-prod",
+    "frontier-default-secret",
+):
     raise ValueError(
         "CRITICAL SECURITY RISK: MESH_SECRET must not be a default value in production."
     )
@@ -110,6 +113,7 @@ class FrontierMarshaller:
 
     def __init__(self) -> None:
         from src.core.accelerators import has_avx512
+
         self._has_avx512 = has_avx512()
 
     def pack(self, data: Any) -> bytes:
@@ -117,6 +121,7 @@ class FrontierMarshaller:
         try:
             if self._has_avx512:
                 from src.core.accelerators import fast_msgpack_pack_simd
+
                 return fast_msgpack_pack_simd(data)
             return cast(bytes, msgpack.packb(data, use_bin_type=True))
         except Exception as e:
