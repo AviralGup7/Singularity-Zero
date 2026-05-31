@@ -23,6 +23,10 @@ from src.infrastructure.cache.invalidation import (
     VersionInvalidation,
 )
 from src.infrastructure.cache.models import CacheEntry, CacheKey, CacheMetrics, CacheStats
+from src.infrastructure.cache.telemetry import (
+    CACHE_EFFICIENCY_FIELDS,
+    build_cache_efficiency_snapshot,
+)
 
 __all__ = [
     "CacheConfig",
@@ -37,6 +41,8 @@ __all__ = [
     "FileBackend",
     "MemoryBackend",
     "CacheManager",
+    "CACHE_EFFICIENCY_FIELDS",
+    "build_cache_efficiency_snapshot",
     "InvalidationStrategy",
     "TTLInvalidation",
     "LRUInvalidation",

@@ -1,9 +1,10 @@
 import time
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from src.core.frontier.ghost_actor import ActorState, ScanActor
+from src.core.frontier.ghost_actor import ActorState, GhostMeshCoordinator, ScanActor
 from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
 
 
@@ -88,6 +89,60 @@ def test_actor_recovery_deduplicates_wal_lists():
         actor.stop()
 
 
+def test_actor_snapshot_does_not_expose_mutable_state_references():
+    actor = ScanActor.start(actor_id="actor-snapshot-isolation", logic_fn=mock_logic)
+
+    try:
+        actor.ask(
+            {
+                "command": "recover",
+                "deltas": [{"id": "1-0", "delta": {"findings": [{"id": "f1"}]}}],
+            },
+            block=True,
+        )
+
+        snapshot = actor.ask({"command": "snapshot"}, block=True)
+        snapshot.data["findings"].append({"id": "external"})
+
+        fresh_snapshot = actor.ask({"command": "snapshot"}, block=True)
+        assert fresh_snapshot.data["findings"] == [{"id": "f1"}]
+    finally:
+        actor.stop()
+
+
+def test_actor_execute_copies_input_and_output_across_mailbox_boundary():
+    def aliasing_logic(task_input, state):
+        state["task"] = task_input
+        return {"task": state["task"]}
+
+    actor = ScanActor.start(actor_id="actor-execute-isolation", logic_fn=aliasing_logic)
+    caller_input = {"nested": {"items": ["owned-by-caller"]}}
+
+    try:
+        result = actor.ask({"command": "execute", "input": caller_input}, block=True)
+        caller_input["nested"]["items"].append("mutated-after-execute")
+        result["output"]["task"]["nested"]["items"].append("mutated-output")
+
+        snapshot = actor.ask({"command": "snapshot"}, block=True)
+        assert snapshot.data["task"] == {"nested": {"items": ["owned-by-caller"]}}
+    finally:
+        actor.stop()
+
+
+def test_actor_recovery_copies_wal_delta_values():
+    actor = ScanActor.start(actor_id="actor-recover-isolation", logic_fn=mock_logic)
+    delta = {"id": "1-0", "delta": {"findings": [{"id": "f1"}]}}
+
+    try:
+        actor.ask({"command": "recover", "deltas": [delta]}, block=True)
+        delta["delta"]["findings"].append({"id": "mutated-after-recover"})
+
+        snapshot = actor.ask({"command": "snapshot"}, block=True)
+        assert snapshot.data["findings"] == [{"id": "f1"}]
+    finally:
+        actor.stop()
+
+
 class _AsyncRedis:
     def __init__(self) -> None:
         self.data: dict[tuple[str, str], Any] = {}
@@ -103,6 +158,43 @@ class _AsyncRedis:
 
     async def expire(self, key: str, seconds: int) -> None:
         pass
+
+
+class _FailingStateRedis(_AsyncRedis):
+    async def hset(self, key: str, field: str, value: Any) -> None:
+        if ":state:" in key:
+            raise RuntimeError("state store unavailable")
+        await super().hset(key, field, value)
+
+
+def _pressured_gossip() -> Any:
+    return SimpleNamespace(
+        local_node=SimpleNamespace(
+            id="node-a",
+            cpu_usage=99.0,
+            ram_available_mb=100.0,
+            active_jobs=0,
+        ),
+        peers={},
+    )
+
+
+@pytest.mark.asyncio
+async def test_failed_migration_unfreezes_source_actor():
+    registry = GhostMeshRegistry(_FailingStateRedis(), run_id="rollback")
+    coordinator = GhostMeshCoordinator(registry, _pressured_gossip())
+    coordinator.balancer.select_best_node_from_gossip = lambda _g, _m: "node-b"
+    actor = ScanActor.start(actor_id="actor-rollback", logic_fn=mock_logic)
+
+    try:
+        migrated = await coordinator.migrate_if_needed(actor, {"actor_id": "actor-rollback"})
+        assert migrated is False
+
+        result = actor.ask({"command": "execute", "input": {"step": "after-failure"}}, block=True)
+        assert result["status"] == "success"
+    finally:
+        if actor.is_alive():
+            actor.stop()
 
 
 @pytest.mark.asyncio

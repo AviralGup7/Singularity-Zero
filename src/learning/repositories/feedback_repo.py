@@ -54,6 +54,18 @@ class FeedbackRepo(BaseRepo):
             )
             return [dict(r) for r in cur.fetchall()]
 
+    def get_feedback_events_for_runs(self, run_ids: list[str]) -> list[dict]:
+        """Get feedback events for multiple runs in a single query."""
+        if not run_ids:
+            return []
+        placeholders = ",".join("?" for _ in run_ids)
+        with self._cursor() as cur:
+            cur.execute(
+                f"SELECT * FROM feedback_events WHERE run_id IN ({placeholders})",
+                list(run_ids),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
     def get_feedback_events(self, limit: int = 1000) -> list[dict]:
         """Get the most recent feedback events across all runs."""
         with self._cursor() as cur:

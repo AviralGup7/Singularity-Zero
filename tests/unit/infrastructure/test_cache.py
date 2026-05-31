@@ -24,6 +24,7 @@ from src.infrastructure.cache.models import (
     CacheMetrics,
     CacheStats,
 )
+from src.infrastructure.cache.telemetry import build_cache_efficiency_snapshot
 
 
 @pytest.mark.unit
@@ -165,6 +166,35 @@ class TestCacheMetrics(unittest.TestCase):
         m = CacheMetrics(hits=5)
         snap = m.snapshot()
         assert snap["hits"] == 5
+        assert snap["total_gets"] == 5
+        assert snap["hit_ratio"] == 1.0
+        assert snap["backend_errors"] == 0
+
+    def test_efficiency_snapshot_fields(self) -> None:
+        m = CacheMetrics(hits=3, misses=1, sets=2, deletes=1, evictions=1, expirations=1)
+        m.record_error()
+        snapshot = build_cache_efficiency_snapshot(
+            metrics=m,
+            stats={
+                "backend": "memory",
+                "total_entries": 4,
+                "active_entries": 3,
+                "expired_entries": 1,
+                "healthy": True,
+            },
+        )
+        assert snapshot["subsystem"] == "cache"
+        assert snapshot["backend_type"] == "memory"
+        assert snapshot["hits"] == 3
+        assert snapshot["misses"] == 1
+        assert snapshot["total_gets"] == 4
+        assert snapshot["hit_ratio"] == pytest.approx(0.75)
+        assert snapshot["sets"] == 2
+        assert snapshot["deletes"] == 1
+        assert snapshot["evictions"] == 1
+        assert snapshot["expirations"] == 1
+        assert snapshot["backend_errors"] == 1
+        assert snapshot["backend_health"]["healthy"] is True
 
 
 @pytest.mark.unit
@@ -248,6 +278,13 @@ class TestMemoryBackend(unittest.TestCase):
         backend.get("k2")
         removed = backend.evict_lru(1)
         assert removed == 1
+
+    def test_max_entries_is_enforced_on_set(self) -> None:
+        backend = MemoryBackend(max_entries=2)
+        backend.set("k1", "v1")
+        backend.set("k2", "v2")
+        backend.set("k3", "v3")
+        assert backend.size() == 2
 
     def test_get_all(self) -> None:
         backend = MemoryBackend()
@@ -356,6 +393,21 @@ class TestSQLiteBackend(CacheTestBase):
         assert "k1" in keys
         backend.close()
 
+    def test_get_by_tag_skips_expired_entries(self) -> None:
+        backend = SQLiteBackend(db_path=str(self.tmp_path / "test.db"))
+        backend.set_with_metadata("k1", "v1", ttl=0, tags={"tag1"})
+        time.sleep(0.1)
+        assert backend.get_by_tag("tag1") == []
+        backend.close()
+
+    def test_get_dependents_matches_dependency_tokens(self) -> None:
+        backend = SQLiteBackend(db_path=str(self.tmp_path / "test.db"))
+        backend.set_with_metadata("child", "v1", depends_on={"ns:root"})
+        backend.set_with_metadata("false-positive", "v2", depends_on={"ns:root2"})
+        assert backend.get_dependents("root") == ["child"]
+        assert backend.get_dependents("ns:root") == ["child"]
+        backend.close()
+
     def test_evict_lru(self) -> None:
         backend = SQLiteBackend(db_path=str(self.tmp_path / "test.db"))
         backend.set("k1", "v1")
@@ -435,6 +487,33 @@ class TestFileBackend(CacheTestBase):
         backend.set("ns2:k2", "v2")
         keys = backend.get_keys_by_namespace("ns1")
         assert "ns1:k1" in keys
+        backend.close()
+
+    def test_key_filenames_do_not_collide_when_index_is_missing(self) -> None:
+        backend = FileBackend(cache_dir=str(self.tmp_path))
+        backend.set("a:b", "colon")
+        backend.set("a_b", "underscore")
+        (self.tmp_path / ".cache_index.json").unlink()
+        backend = FileBackend(cache_dir=str(self.tmp_path))
+        assert backend.get("a:b") == "colon"
+        assert backend.get("a_b") == "underscore"
+        backend.close()
+
+    def test_delete_returns_true_for_orphaned_file(self) -> None:
+        backend = FileBackend(cache_dir=str(self.tmp_path))
+        backend.set("orphan", "value")
+        (self.tmp_path / ".cache_index.json").unlink()
+        backend = FileBackend(cache_dir=str(self.tmp_path))
+        assert backend.delete("orphan") is True
+        assert backend.exists("orphan") is False
+        backend.close()
+
+    def test_exists_handles_orphaned_none_value(self) -> None:
+        backend = FileBackend(cache_dir=str(self.tmp_path))
+        backend.set("none-value", None)
+        (self.tmp_path / ".cache_index.json").unlink()
+        backend = FileBackend(cache_dir=str(self.tmp_path))
+        assert backend.exists("none-value") is True
         backend.close()
 
 
@@ -726,6 +805,37 @@ class TestCacheManager(CacheTestBase):
         assert isinstance(metrics, CacheMetrics)
         manager.close()
 
+    def test_efficiency_snapshot_tracks_operations(self) -> None:
+        config = CacheConfig(
+            enabled=True,
+            enable_l1=True,
+            enable_l2=True,
+            enable_l3=False,
+            l2_backend="sqlite",
+            sqlite_db_path=str(self.tmp_path / "cache.db"),
+            cache_dir=str(self.tmp_path / "cache_files"),
+            warm_on_init=False,
+            log_cache_ops=False,
+        )
+        manager = CacheManager(config)
+        manager.set("hit", "value", namespace="test", ttl=60)
+        assert manager.get("hit", namespace="test") == "value"
+        assert manager.get("miss", namespace="test") is None
+        assert manager.delete("hit", namespace="test") is True
+
+        snapshot = manager.get_efficiency_snapshot()
+
+        assert snapshot["hits"] == 1
+        assert snapshot["misses"] == 1
+        assert snapshot["total_gets"] == 2
+        assert snapshot["hit_ratio"] == pytest.approx(0.5)
+        assert snapshot["sets"] == 1
+        assert snapshot["deletes"] == 1
+        assert snapshot["backend_errors"] == 0
+        assert snapshot["avg_get_latency_ms"] >= 0.0
+        assert snapshot["backend_type"] == "multi-tier"
+        manager.close()
+
     def test_reset_metrics(self) -> None:
         config = CacheConfig(
             enabled=True,
@@ -843,6 +953,76 @@ class TestCacheManager(CacheTestBase):
         assert "deps:child" in removed
         assert manager.get("root", namespace="deps") is None
         assert manager.get("child", namespace="deps") is None
+        manager.close()
+
+    def test_tag_invalidation_survives_manager_restart(self) -> None:
+        config = CacheConfig(
+            enabled=True,
+            enable_l1=True,
+            enable_l2=True,
+            enable_l3=False,
+            l2_backend="sqlite",
+            sqlite_db_path=str(self.tmp_path / "cache.db"),
+            cache_dir=str(self.tmp_path / "cache_files"),
+            warm_on_init=False,
+            log_cache_ops=False,
+        )
+        manager = CacheManager(config)
+        manager.set("tagged", "v1", namespace="persist", tags={"group:test"})
+        manager.close()
+
+        manager = CacheManager(config)
+        removed = manager.invalidate_by_tags({"group:test"}, namespace="persist")
+
+        assert removed == ["persist:tagged"]
+        assert manager.get("tagged", namespace="persist") is None
+        manager.close()
+
+    def test_dependency_invalidation_survives_manager_restart(self) -> None:
+        config = CacheConfig(
+            enabled=True,
+            enable_l1=True,
+            enable_l2=True,
+            enable_l3=False,
+            l2_backend="sqlite",
+            sqlite_db_path=str(self.tmp_path / "cache.db"),
+            cache_dir=str(self.tmp_path / "cache_files"),
+            warm_on_init=False,
+            log_cache_ops=False,
+        )
+        manager = CacheManager(config)
+        manager.set("root", "root-value", namespace="deps")
+        manager.set("child", "child-value", namespace="deps", depends_on={"root"})
+        manager.close()
+
+        manager = CacheManager(config)
+        removed = manager.invalidate_by_dependencies({"root"})
+
+        assert removed == ["deps:child", "deps:root"]
+        assert manager.get("root", namespace="deps") is None
+        assert manager.get("child", namespace="deps") is None
+        manager.close()
+
+    def test_l2_backfill_to_l1_preserves_remaining_ttl(self) -> None:
+        config = CacheConfig(
+            enabled=True,
+            enable_l1=True,
+            enable_l2=True,
+            enable_l3=False,
+            l2_backend="sqlite",
+            sqlite_db_path=str(self.tmp_path / "cache.db"),
+            cache_dir=str(self.tmp_path / "cache_files"),
+            warm_on_init=False,
+            log_cache_ops=False,
+        )
+        manager = CacheManager(config)
+        manager.set("short", "value", namespace="ttl", ttl=1)
+        manager.close()
+
+        manager = CacheManager(config)
+        assert manager.get("short", namespace="ttl") == "value"
+        time.sleep(1.1)
+        assert manager.get("short", namespace="ttl") is None
         manager.close()
 
     def test_bloom_aware_routing(self) -> None:

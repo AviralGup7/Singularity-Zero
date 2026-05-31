@@ -4,11 +4,23 @@ Tests whether tokens can be replayed across sessions, endpoints, or identity
 boundaries. Validates token expiration, scope enforcement, and replay protection.
 """
 
+import logging
 from typing import Any
 
 from src.core.models import ValidationResult
 from src.execution.validators.validators.shared import to_validation_result
 from src.execution.validators.validators.token import analyze_token_exposures
+
+logger = logging.getLogger(__name__)
+
+
+def _mask_token(value: str) -> str:
+    """Mask a sensitive token value to prevent plain-text exposure in logs or results."""
+    if not value:
+        return ""
+    if len(value) <= 8:
+        return "****"
+    return f"{value[:4]}...{value[-4:]}"
 
 
 def _replay_token_on_endpoint(
@@ -27,6 +39,9 @@ def _replay_token_on_endpoint(
     """
     if not http_client:
         return {"status": "skipped", "reason": "no_http_client"}
+
+    masked = _mask_token(token_value)
+    logger.info("Attempting to replay token %s on endpoint %s", masked, target_url)
 
     headers = {}
     if token_location in ("header", "authorization"):
@@ -120,6 +135,7 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
         token_value = str(token_target.get("token_value", ""))
         token_location = str(token_target.get("location", "unknown"))
         token_type = _assess_token_type(token_value)
+        masked_token = _mask_token(token_value)
 
         # Test replay on the original endpoint
         original_url = str(token_target.get("url", target.get("url", "")))
@@ -175,6 +191,7 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
                 "url": original_url,
                 "token_type": token_type,
                 "token_location": token_location,
+                "masked_token": masked_token,
                 "replay_result": replay_result,
                 "cross_endpoint_results": cross_endpoint_results,
                 "cross_endpoint_replay_risk": cross_endpoint_accepted,
@@ -202,6 +219,7 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
         "cross_endpoint_tested": len(cross_results_list) > 0
         if isinstance(cross_results_list, list)
         else False,
+        "masked_token": top_finding.get("masked_token", ""),
     }
 
     return to_validation_result(top_finding, validator="token_reuse", category="token_reuse")

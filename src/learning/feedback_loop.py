@@ -91,59 +91,95 @@ class FeedbackLoopEngine:
             mode: Scan mode (fast, deep, idor, ssrf).
             lookback_runs: Number of historical runs to consider.
         """
+        import time
+        start_time = time.perf_counter()
+
         runs = self.store.get_recent_runs(target=target, limit=lookback_runs)
         if not runs:
             return ScanAdaptation()
 
+        run_ids = [run["run_id"] for run in runs]
+        all_feedback_events = self.store.get_feedback_events_for_runs(run_ids)
+        all_plugin_stats = self.store.get_plugin_stats_for_runs(run_ids)
+        all_findings = self.store.get_findings_for_runs(run_ids)
+
         adaptations = ScanAdaptation()
 
         # 1. Compute target boosts/suppressions from endpoint feedback
-        self._compute_target_adaptations(adaptations, runs)
+        self._compute_target_adaptations(adaptations, all_feedback_events)
 
         # 2. Compute plugin overrides from plugin performance
-        self._compute_plugin_adaptations(adaptations, runs)
+        self._compute_plugin_adaptations(adaptations, all_plugin_stats)
 
         # 3. Compute payload strategy updates
-        self._compute_payload_adaptations(adaptations, runs)
+        self._compute_payload_adaptations(adaptations, all_feedback_events)
 
         # 4. Compute threshold adjustments
-        self._compute_threshold_adaptations(adaptations, runs)
+        self._compute_threshold_adaptations(adaptations, all_feedback_events)
 
         # 5. Compute nuclei template boosts
-        self._compute_nuclei_adaptations(adaptations, runs)
+        self._compute_nuclei_adaptations(adaptations, all_feedback_events)
 
         # 6. Queue active exploitation targets
-        self._queue_active_exploits(adaptations, runs, mode)
+        self._queue_active_exploits(adaptations, all_findings, mode)
+
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+
+        # Emit metrics for monitoring
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+            m = get_metrics()
+            m.counter("feedback_loop_runs_analyzed_total").inc(len(runs))
+            m.counter("feedback_loop_adaptations_computed_duration_ms").inc(duration_ms)
+            m.counter("feedback_loop_boosts_total").inc(len(adaptations.target_boosts))
+            m.counter("feedback_loop_suppressions_total").inc(len(adaptations.target_suppressions))
+            m.counter("feedback_loop_plugin_overrides_total").inc(len(adaptations.plugin_intensity_overrides))
+            m.counter("feedback_loop_threshold_adjustments_total").inc(len(adaptations.threshold_adjustments))
+            m.counter("feedback_loop_nuclei_boosts_total").inc(len(adaptations.nuclei_template_boosts))
+            m.counter("feedback_loop_exploit_queue_total").inc(len(adaptations.active_exploit_queue))
+        except Exception:
+            pass
+
+        logger.info(
+            "Computed adaptations for target %s in %.2fms: %d boosts, %d suppressions, %d plugin overrides, "
+            "%d threshold adjustments, %d nuclei boosts, %d exploit targets",
+            target,
+            duration_ms,
+            len(adaptations.target_boosts),
+            len(adaptations.target_suppressions),
+            len(adaptations.plugin_intensity_overrides),
+            len(adaptations.threshold_adjustments),
+            len(adaptations.nuclei_template_boosts),
+            len(adaptations.active_exploit_queue),
+        )
 
         return adaptations
 
     def _compute_target_adaptations(
-        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+        self, adaptations: ScanAdaptation, events: list[dict[str, Any]]
     ) -> None:
         """Compute target endpoint boosts and suppressions."""
         # Aggregate feedback by endpoint
         endpoint_stats: dict[str, dict[str, Any]] = {}
 
-        for run in runs:
-            events = self.store.get_feedback_events_for_run(run["run_id"])
-            for event in events:
-                ep = event.get("target_endpoint", "")
-                if not ep:
-                    continue
-                if ep not in endpoint_stats:
-                    endpoint_stats[ep] = {
-                        "findings": 0,
-                        "validated": 0,
-                        "fp": 0,
-                        "total_weight": 0.0,
-                    }
-                stats = endpoint_stats[ep]
-                stats["findings"] += 1
-                if event.get("was_validated") and not event.get("was_false_positive"):
-                    stats["validated"] += 1
-                if event.get("was_false_positive"):
-                    stats["fp"] += 1
-                stats["total_weight"] += event.get("feedback_weight", 1.0)
+        for event in events:
+            ep = event.get("target_endpoint", "")
+            if not ep:
+                continue
+            if ep not in endpoint_stats:
+                endpoint_stats[ep] = {
+                    "findings": 0,
+                    "validated": 0,
+                    "fp": 0,
+                    "total_weight": 0.0,
+                }
+            stats = endpoint_stats[ep]
+            stats["findings"] += 1
+            if event.get("was_validated") and not event.get("was_false_positive"):
+                stats["validated"] += 1
+            if event.get("was_false_positive"):
+                stats["fp"] += 1
+            stats["total_weight"] += event.get("feedback_weight", 1.0)
 
         for ep, stats in endpoint_stats.items():
             total = stats["findings"]
@@ -163,28 +199,26 @@ class FeedbackLoopEngine:
                 adaptations.target_suppressions[ep] = round(suppression, 2)
 
     def _compute_plugin_adaptations(
-        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+        self, adaptations: ScanAdaptation, plugin_stats_list: list[dict[str, Any]]
     ) -> None:
         """Compute plugin enable/disable and intensity overrides."""
         plugin_stats: dict[str, dict[str, int]] = {}
 
-        for run in runs:
-            run_plugin_stats = self.store.get_plugin_stats(run["run_id"])
-            for ps in run_plugin_stats:
-                name = ps.get("plugin_name", "")
-                if not name:
-                    continue
-                if name not in plugin_stats:
-                    plugin_stats[name] = {
-                        "findings": 0,
-                        "tp": 0,
-                        "fp": 0,
-                        "runs": 0,
-                    }
-                plugin_stats[name]["findings"] += int(ps.get("findings_produced", 0))
-                plugin_stats[name]["tp"] += int(ps.get("true_positives", 0))
-                plugin_stats[name]["fp"] += int(ps.get("false_positives", 0))
-                plugin_stats[name]["runs"] += 1
+        for ps in plugin_stats_list:
+            name = ps.get("plugin_name", "")
+            if not name:
+                continue
+            if name not in plugin_stats:
+                plugin_stats[name] = {
+                    "findings": 0,
+                    "tp": 0,
+                    "fp": 0,
+                    "runs": 0,
+                }
+            plugin_stats[name]["findings"] += int(ps.get("findings_produced", 0))
+            plugin_stats[name]["tp"] += int(ps.get("true_positives", 0))
+            plugin_stats[name]["fp"] += int(ps.get("false_positives", 0))
+            plugin_stats[name]["runs"] += 1
 
         for name, stats in plugin_stats.items():
             if stats["runs"] < 2:
@@ -200,26 +234,24 @@ class FeedbackLoopEngine:
                 adaptations.plugin_intensity_overrides[name] = "light"
 
     def _compute_payload_adaptations(
-        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+        self, adaptations: ScanAdaptation, events: list[dict[str, Any]]
     ) -> None:
         """Compute payload strategy updates based on historical success."""
         category_stats: dict[str, dict[str, int]] = {}
 
-        for run in runs:
-            events = self.store.get_feedback_events_for_run(run["run_id"])
-            for event in events:
-                cat = event.get("finding_category", "")
-                param_type = event.get("parameter_type", "")
-                if not cat or not param_type:
-                    continue
+        for event in events:
+            cat = event.get("finding_category", "")
+            param_type = event.get("parameter_type", "")
+            if not cat or not param_type:
+                continue
 
-                key = f"{cat}:{param_type}"
-                if key not in category_stats:
-                    category_stats[key] = {"success": 0, "total": 0}
+            key = f"{cat}:{param_type}"
+            if key not in category_stats:
+                category_stats[key] = {"success": 0, "total": 0}
 
-                category_stats[key]["total"] += 1
-                if event.get("was_validated") and not event.get("was_false_positive"):
-                    category_stats[key]["success"] += 1
+            category_stats[key]["total"] += 1
+            if event.get("was_validated") and not event.get("was_false_positive"):
+                category_stats[key]["success"] += 1
 
         for key, stats in category_stats.items():
             if stats["total"] < 3:
@@ -234,22 +266,20 @@ class FeedbackLoopEngine:
             adaptations.payload_strategy_updates[cat][param_type] = round(success_rate, 4)
 
     def _compute_threshold_adaptations(
-        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+        self, adaptations: ScanAdaptation, events: list[dict[str, Any]]
     ) -> None:
         """Compute threshold adjustments per category."""
         category_stats: dict[str, dict[str, int]] = {}
 
-        for run in runs:
-            events = self.store.get_feedback_events_for_run(run["run_id"])
-            for event in events:
-                cat = event.get("finding_category", "")
-                if not cat:
-                    continue
-                if cat not in category_stats:
-                    category_stats[cat] = {"total": 0, "fp": 0}
-                category_stats[cat]["total"] += 1
-                if event.get("was_false_positive"):
-                    category_stats[cat]["fp"] += 1
+        for event in events:
+            cat = event.get("finding_category", "")
+            if not cat:
+                continue
+            if cat not in category_stats:
+                category_stats[cat] = {"total": 0, "fp": 0}
+            category_stats[cat]["total"] += 1
+            if event.get("was_false_positive"):
+                category_stats[cat]["fp"] += 1
 
         for cat, stats in category_stats.items():
             if stats["total"] < 3:
@@ -264,52 +294,48 @@ class FeedbackLoopEngine:
                 adaptations.threshold_adjustments[cat] = round(-0.02, 4)
 
     def _compute_nuclei_adaptations(
-        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]]
+        self, adaptations: ScanAdaptation, events: list[dict[str, Any]]
     ) -> None:
         """Compute nuclei template tag boosts."""
         category_boosts: dict[str, float] = {}
 
-        for run in runs:
-            events = self.store.get_feedback_events_for_run(run["run_id"])
-            for event in events:
-                cat = event.get("finding_category", "")
-                if not cat:
-                    continue
-                if event.get("was_validated") and not event.get("was_false_positive"):
-                    category_boosts[cat] = category_boosts.get(cat, 0) + event.get(
-                        "feedback_weight", 1.0
-                    )
+        for event in events:
+            cat = event.get("finding_category", "")
+            if not cat:
+                continue
+            if event.get("was_validated") and not event.get("was_false_positive"):
+                category_boosts[cat] = category_boosts.get(cat, 0) + event.get(
+                    "feedback_weight", 1.0
+                )
 
         for cat, boost in category_boosts.items():
             if boost > 2.0:
                 adaptations.nuclei_template_boosts[cat] = round(min(boost, 5.0), 2)
 
     def _queue_active_exploits(
-        self, adaptations: ScanAdaptation, runs: list[dict[str, Any]], mode: str
+        self, adaptations: ScanAdaptation, findings: list[dict[str, Any]], mode: str
     ) -> None:
         """Queue endpoints for active exploitation."""
         # Find high-confidence unvalidated findings
-        for run in runs:
-            findings = self.store.get_findings_for_run(run["run_id"])
-            for finding in findings:
-                lifecycle = finding.get("lifecycle_state", "")
-                confidence = finding.get("confidence", 0)
-                category = finding.get("category", "")
+        for finding in findings:
+            lifecycle = finding.get("lifecycle_state", "")
+            confidence = finding.get("confidence", 0)
+            category = finding.get("category", "")
 
-                # Queue for active testing if high confidence but not validated
-                if (
-                    confidence > 0.7
-                    and lifecycle not in ("VALIDATED", "EXPLOITABLE")
-                    and category in ("xss", "idor", "ssrf", "sqli", "rce")
-                ):
-                    adaptations.active_exploit_queue.append(
-                        ExploitTarget(
-                            endpoint=finding.get("url", ""),
-                            category=category,
-                            priority="high" if confidence > 0.85 else "medium",
-                            validation_action=f"validate_{category}",
-                        )
+            # Queue for active testing if high confidence but not validated
+            if (
+                confidence > 0.7
+                and lifecycle not in ("VALIDATED", "EXPLOITABLE")
+                and category in ("xss", "idor", "ssrf", "sqli", "rce")
+            ):
+                adaptations.active_exploit_queue.append(
+                    ExploitTarget(
+                        endpoint=finding.get("url", ""),
+                        category=category,
+                        priority="high" if confidence > 0.85 else "medium",
+                        validation_action=f"validate_{category}",
                     )
+                )
 
         # Deduplicate by endpoint
         seen = set()

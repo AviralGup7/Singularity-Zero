@@ -43,6 +43,10 @@ detect_multi_vector_endpoints = _detect_multi_vector_endpoints
 calculate_compound_risk = _calculate_compound_risk
 
 
+class PluginNotFoundError(KeyError):
+    """Raised when a post-analysis enrichment plugin cannot be resolved."""
+
+
 ENRICHMENT_PROVIDER = "enrichment_provider"
 
 # Concurrency limits for parallel feed lookups (CVE, MITRE)
@@ -245,12 +249,13 @@ async def run_post_analysis_enrichments(
     try:
         api_security_started = time.monotonic()
         emit_progress("intelligence", "Running API security analysis", 84)
-        try:
-            api_analyzer = resolve_plugin(ENRICHMENT_PROVIDER, "api_security")
-        except KeyError:
-            if api_security_analyzer is None:
-                raise
+        if api_security_analyzer is not None:
             api_analyzer = api_security_analyzer
+        else:
+            try:
+                api_analyzer = resolve_plugin(ENRICHMENT_PROVIDER, "api_security")
+            except KeyError as exc:
+                raise PluginNotFoundError("API Security plugin not found in registry") from exc
 
         all_responses: list[dict[str, Any]] = []
         for records in ctx.analysis_results.values():
@@ -290,12 +295,13 @@ async def run_post_analysis_enrichments(
     try:
         dns_security_started = time.monotonic()
         emit_progress("intelligence", "Running DNS security analysis", 86)
-        try:
-            dns_analyzer = resolve_plugin(ENRICHMENT_PROVIDER, "dns_security")
-        except KeyError:
-            if dns_security_analyzer is None:
-                raise
+        if dns_security_analyzer is not None:
             dns_analyzer = dns_security_analyzer
+        else:
+            try:
+                dns_analyzer = resolve_plugin(ENRICHMENT_PROVIDER, "dns_security")
+            except KeyError as exc:
+                raise PluginNotFoundError("DNS Security plugin not found in registry") from exc
 
         domains_to_analyze: set[str] = set()
         for sub in ctx.subdomains:
@@ -446,6 +452,9 @@ async def run_post_analysis_enrichments(
 
         cve_config = CVEConfig(timeout_seconds=cve_timeout_seconds, max_retries=cve_max_retries)
 
+        from src.intelligence.threat_intel import ThreatIntelCorrelator
+        correlator = ThreatIntelCorrelator(enable_threat_intel=True)
+
         async with (
             CVESyncClient(cve_config) as cve_feed,
             MitreAttackMapper(MitreConfig()) as mitre_feed,
@@ -501,9 +510,6 @@ async def run_post_analysis_enrichments(
                         )
 
                     try:
-                        from src.intelligence.threat_intel import ThreatIntelCorrelator
-
-                        correlator = ThreatIntelCorrelator(enable_threat_intel=True)
                         target_url = finding.get("url")
                         if target_url:
                             from urllib.parse import urlparse
@@ -559,10 +565,10 @@ async def run_post_analysis_enrichments(
 
     except FeedError as exc:
         logger.warning("Threat intelligence enrichment skipped: %s", exc)
-    except (TypeError, ValueError, RuntimeError):
-        import traceback
-
-        traceback.print_exc()
+        threat_intel_metrics = {"status": "skipped", "reason": str(exc)}
+    except (TypeError, ValueError, RuntimeError) as exc:
+        logger.error("Threat intelligence enrichment failed: %s", exc)
+        threat_intel_metrics = {"status": "error", "error": str(exc)}
 
     # Threat Graph and Campaigns Generation
     try:

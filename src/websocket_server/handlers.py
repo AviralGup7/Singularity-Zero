@@ -34,6 +34,19 @@ from src.websocket_server.reconnect import ReconnectionManager
 logger = get_pipeline_logger(__name__)
 
 
+class WebSocketHook:
+    """Base class / interface for custom WebSocket event hooks (middleware)."""
+
+    async def on_connect(self, info: ConnectionInfo) -> bool:
+        return True
+
+    async def on_message(self, info: ConnectionInfo, msg: BaseMessage) -> BaseMessage | None:
+        return msg
+
+    async def on_broadcast(self, channel: str, msg: BaseMessage) -> None:
+        pass
+
+
 class WebSocketHandler:
     """Central handler for all WebSocket endpoint connections.
 
@@ -81,12 +94,22 @@ class WebSocketHandler:
         self.api_keys = api_keys
         self.required_roles = required_roles
         self.allowed_origins = allowed_origins
+        self.hooks: list[WebSocketHook] = []
+
+        import os
+        self.max_message_size = int(os.environ.get("WS_MAX_MESSAGE_SIZE", "131072"))
+        self.rate_limit_capacity = float(os.environ.get("WS_RATE_LIMIT_CAPACITY", "100.0"))
+        self.rate_limit_refill_rate = float(os.environ.get("WS_RATE_LIMIT_REFILL_RATE", "50.0"))
 
         if not jwt_secret and not api_keys:
             logger.warning(
                 "WebSocket security alert: Neither jwt_secret nor api_keys are configured. "
                 "Anonymous WebSocket access will be permitted if ALLOW_ANONYMOUS_WS is enabled."
             )
+
+    def register_hook(self, hook: WebSocketHook) -> None:
+        """Register a custom WebSocket hook/middleware."""
+        self.hooks.append(hook)
 
     async def handle_scan_progress(self, websocket: WebSocket) -> None:
         """Handle WebSocket connection for real-time scan progress.
@@ -225,6 +248,24 @@ class WebSocketHandler:
                 logger.warning("Failed to send limit reached message to %s: %s", client_ip, e)
             return
 
+        # Structured logging correlation: bind connection_id context variable if structlog is used
+        try:
+            import structlog
+            structlog.context_var.bind_contextvars(connection_id=connection_id)
+        except ImportError:
+            pass
+
+        # Execute on_connect hooks
+        for hook in self.hooks:
+            try:
+                allowed = await hook.on_connect(info)
+                if not allowed:
+                    logger.warning("Connection %s rejected by on_connect hook", connection_id)
+                    await websocket.close(code=4003, reason="Forbidden by event hook")
+                    return
+            except Exception as hook_exc:
+                logger.error("Error in on_connect hook for connection %s: %s", connection_id, hook_exc)
+
         await self.broadcaster.start_message_dispatch(connection_id)
         await self.heartbeat.start(connection_id)
 
@@ -234,18 +275,7 @@ class WebSocketHandler:
             await self.manager.add_to_group(connection_id, channel)
             self.reconnect.record_subscriptions(reconnect_token, {channel})
 
-        welcome = AckMessage(
-            ack_id="connect",
-            accepted=True,
-        )
-        welcome.sequence = info.next_sequence()
-        try:
-            await info.message_queue.put(welcome.to_json())
-        except asyncio.QueueFull:
-            # Fix Audit #86: Log queue full
-            logger.warning(
-                "Failed to send welcome message: connection %s queue full", connection_id
-            )
+        await info.send_ack("connect", accepted=True)
 
         try:
             await self._message_loop(info, auth.user_id)
@@ -289,7 +319,7 @@ class WebSocketHandler:
                 break
 
             # SEC-8 / SEC-10: Cap inbound message size
-            if len(raw) > 131072:  # 128 KB limit
+            if len(raw) > self.max_message_size:
                 await info.websocket.close(code=1009, reason="Message too large")
                 break
 
@@ -297,8 +327,8 @@ class WebSocketHandler:
             elapsed = now - info.last_rate_limit_time
             info.last_rate_limit_time = now
             info.rate_limit_tokens = min(
-                100.0, info.rate_limit_tokens + elapsed * 50.0
-            )  # 50 msg/sec
+                self.rate_limit_capacity, info.rate_limit_tokens + elapsed * self.rate_limit_refill_rate
+            )  # refill rate
 
             if info.rate_limit_tokens < 1.0:
                 error = ErrorMessage(
@@ -334,6 +364,21 @@ class WebSocketHandler:
                         "Failed to send invalid message notice to %s: %s", info.connection_id, e
                     )
                     break
+                continue
+
+            # Execute on_message hooks
+            hook_swallowed = False
+            for hook in self.hooks:
+                try:
+                    processed_message = await hook.on_message(info, message)
+                    if processed_message is None:
+                        hook_swallowed = True
+                        break
+                    message = processed_message
+                except Exception as hook_exc:
+                    logger.error("Error in on_message hook: %s", hook_exc)
+
+            if hook_swallowed:
                 continue
 
             if message.type == MessageType.SUBSCRIBE:
@@ -383,18 +428,7 @@ class WebSocketHandler:
             target_channel = f"target:{message.target}"
             await self.manager.add_to_group(info.connection_id, target_channel)
 
-        ack = AckMessage(
-            ack_id=message.id,
-            accepted=True,
-        )
-        ack.sequence = info.next_sequence()
-        try:
-            await info.message_queue.put(ack.to_json())
-        except asyncio.QueueFull:
-            # Fix Audit #86: Log queue full
-            logger.warning(
-                "Failed to send subscribe ack: connection %s queue full", info.connection_id
-            )
+        await info.send_ack(message.id, accepted=True)
 
         if message.resume_from is not None:
             token = self.reconnect.get_token_for_user(info.user_id)
@@ -436,18 +470,7 @@ class WebSocketHandler:
         """
         await self.manager.remove_from_group(info.connection_id, message.channel)
 
-        ack = AckMessage(
-            ack_id=message.id,
-            accepted=True,
-        )
-        ack.sequence = info.next_sequence()
-        try:
-            await info.message_queue.put(ack.to_json())
-        except asyncio.QueueFull:
-            # Fix Audit #86: Log queue full
-            logger.warning(
-                "Failed to send unsubscribe ack: connection %s queue full", info.connection_id
-            )
+        await info.send_ack(message.id, accepted=True)
 
         logger.info(
             "Connection %s unsubscribed from channel %s",

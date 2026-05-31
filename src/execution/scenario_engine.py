@@ -31,6 +31,8 @@ from src.execution.scenario_models import (
 
 logger = logging.getLogger(__name__)
 
+_TEMPLATE_PATTERN = re.compile(r"\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}")
+
 Transport = Callable[[Request, CookieJar], Response]
 
 
@@ -44,6 +46,7 @@ class ScenarioExecutionEngine:
         resolve_dns_for_ssrf_protection: bool = True,
         default_headers: dict[str, str] | None = None,
         transport: Transport | None = None,
+        session_persistence_handler: Callable[[dict[str, Session]], None] | None = None,
     ) -> None:
         self.default_timeout_seconds = max(1, int(default_timeout_seconds))
         self.max_response_bytes = max(1_024, int(max_response_bytes))
@@ -56,6 +59,8 @@ class ScenarioExecutionEngine:
         self._transport = transport or self._default_transport
         self._openers: weakref.WeakKeyDictionary[CookieJar, Any] = weakref.WeakKeyDictionary()
         self.truncations_count = 0
+        self.session_persistence_handler = session_persistence_handler
+        self.last_persisted_sessions: dict[str, Session] = {}
 
     def execute(
         self,
@@ -276,6 +281,12 @@ class ScenarioExecutionEngine:
             "Batch-persisting %d sessions to prevent N+1 storage queries.",
             len(registry.sessions),
         )
+        self.last_persisted_sessions = {k: replace(v) for k, v in registry.sessions.items()}
+        if self.session_persistence_handler:
+            try:
+                self.session_persistence_handler(self.last_persisted_sessions)
+            except Exception as exc:
+                logger.error("Failed to execute session persistence handler: %s", exc)
 
     def _should_run_step(
         self, step: ScenarioStep, variables: dict[str, str], results: dict[str, ScenarioStepResult]
@@ -467,7 +478,7 @@ class ScenarioExecutionEngine:
                 logger.warning("Template variable '%s' not found; replacing with empty string", key)
             return str(variables.get(key, ""))
 
-        return re.sub(r"\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}", replacement, template)
+        return _TEMPLATE_PATTERN.sub(replacement, template)
 
     def _default_transport(self, request: Request, cookie_jar: CookieJar) -> Response:
         opener = self._openers.get(cookie_jar)

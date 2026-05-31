@@ -17,6 +17,12 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
+GRC_MAPPINGS = {
+    "nist_sp_800_53": "Violates SI-10 (Information Input Validation) and SC-28 (Protection of Information at Rest).",
+    "pci_dss": "Breaches Requirement 6.2 (Secure development controls) and 6.5 (Prevent common injection flaws).",
+}
+
+
 class LLMConfig(BaseModel):
     """Configuration schema for LLM Service integrations."""
 
@@ -134,6 +140,14 @@ class LLMService:
 
         raise NotImplementedError(f"Provider '{self.config.provider}' is unsupported")
 
+    def _handle_failure(self, operation: str, error: Exception) -> None:
+        logger.warning("LLM service query failed for operation '%s', triggering fallback: %s", operation, error)
+        try:
+            from src.infrastructure.observability.metrics import get_metrics
+            get_metrics().counter("llm_fallback_total", "Total LLM query fallback events", labels={"operation": operation}).inc()
+        except Exception:
+            pass
+
     async def explain_finding(self, finding: dict[str, Any]) -> dict[str, str]:
         """Generate finding explanations tailored separately to developer vs. auditor personas."""
         title = finding.get("title") or finding.get("type") or "Vulnerability"
@@ -166,7 +180,7 @@ class LLMService:
                 "auditor": str(data.get("auditor", "")),
             }
         except Exception as e:
-            logger.debug("LLM explain failed, triggering rule fallback: %s", e)
+            self._handle_failure("explain_finding", e)
             return self._fallback_explain(finding)
 
     async def generate_patch(
@@ -212,7 +226,7 @@ class LLMService:
                 "remediation_code": str(data.get("remediation_code", "")),
             }
         except Exception as e:
-            logger.debug("LLM patch failed, triggering fallback: %s", e)
+            self._handle_failure("generate_patch", e)
             return self._fallback_patch(finding, request_payload, response_body)
 
     async def triage_false_positive(
@@ -258,7 +272,7 @@ class LLMService:
                 "reasoning": str(data.get("reasoning", "HTTP response analysis completed.")),
             }
         except Exception as e:
-            logger.debug("LLM FP review failed, triggering rule fallback: %s", e)
+            self._handle_failure("triage_false_positive", e)
             return self._fallback_triage(finding, request_payload, response_body)
 
     async def generate_executive_summary(
@@ -295,7 +309,7 @@ class LLMService:
         try:
             return await self._query_provider(system_prompt, user_prompt)
         except Exception as e:
-            logger.debug("LLM summary failed, triggering rule fallback: %s", e)
+            self._handle_failure("generate_executive_summary", e)
             return self._fallback_summary(findings, compliance_report)
 
     @staticmethod
@@ -326,13 +340,15 @@ class LLMService:
             f"3. Apply robust output encoding before rendering dynamic structures."
         )
 
+        nist = GRC_MAPPINGS.get("nist_sp_800_53", "")
+        pci = GRC_MAPPINGS.get("pci_dss", "")
         auditor_desc = (
             f"### Regulatory Impact & GRC Posture for {title}\n\n"
             f"**Risk Severity**: {severity}\n"
             f"**Framework Alignments**:\n"
             f"- **OWASP Top 10**: Mapped to active category based on classification ({category}).\n"
-            f"- **NIST SP 800-53**: Violates SI-10 (Information Input Validation) and SC-28 (Protection of Information at Rest).\n"
-            f"- **PCI DSS v4.0**: Breaches Requirement 6.2 (Secure development controls) and 6.5 (Prevent common injection flaws).\n\n"
+            f"- **NIST SP 800-53**: {nist}\n"
+            f"- **PCI DSS v4.0**: {pci}\n\n"
             f"**Operational Business Risk**: Exploitability could lead to unauthorized data exposure, system tampering, or audit-trail evasion."
         )
 

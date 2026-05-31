@@ -282,7 +282,15 @@ async def run_parallel_group(
         # Less than 2 tasks — no real parallelism to gain, skip
         return
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    except asyncio.CancelledError:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
     for stage_name, result in zip(stage_labels, results, strict=False):
         if isinstance(result, asyncio.CancelledError):
             raise result

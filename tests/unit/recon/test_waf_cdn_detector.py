@@ -78,7 +78,7 @@ class TestWafCdnDetector:
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = [mock_resp1, mock_resp2]
 
-            results = await detect_waf_cdn([url1, url2])
+            results = await detect_waf_cdn([url1, url2], active_probe=False)
 
             assert len(results) == 2
             providers = [r["provider"] for r in results]

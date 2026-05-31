@@ -5,6 +5,7 @@ with retry support, and re-exports normalization helpers from src.core.utils.
 """
 
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from src.core.utils import normalize_scope_entry, normalize_url, parse_plain_lines
 from src.pipeline.tools import RetryPolicy, ToolExecutionOutcome, execute_command, try_command
@@ -19,6 +20,7 @@ __all__ = [
     "ToolExecutionOutcome",
     "execute_command",
     "try_command",
+    "run_async_in_sync_context",
 ]
 
 
@@ -89,3 +91,29 @@ def run_commands_parallel_outcomes(
             for command, stdin_text, timeout, retry_policy in normalized_jobs
         ]
         return [future.result() for future in futures]
+
+
+def run_async_in_sync_context(coro: Any) -> Any:
+    """Run an async coroutine from a synchronous context, safely handling nested event loops."""
+    import asyncio
+    try:
+        running_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        running_loop = None
+
+    if running_loop is not None and running_loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            def _run_in_thread() -> Any:
+                new_loop = asyncio.new_event_loop()
+                try:
+                    return new_loop.run_until_complete(coro)
+                finally:
+                    new_loop.close()
+            return executor.submit(_run_in_thread).result()
+    else:
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()

@@ -2,6 +2,8 @@
 
 import re
 
+from src.analysis.sqli_signals import SQL_ERROR_RE
+
 __all__ = [
     "PATH_TRAVERSAL_ERROR_RE",
     "ETC_PASSWD_RE",
@@ -16,6 +18,7 @@ __all__ = [
     "SSTI_MATH_PROBES",
     "SSTI_ERROR_RE",
     "NOSQL_ERROR_RE",
+    "SQL_ERROR_RE",
     "LDAP_ERROR_RE",
     "DESER_ERROR_RE",
     "CLASS_NAME_RE",

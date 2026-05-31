@@ -59,6 +59,7 @@ def analyze_token_exposures(analysis_results: dict[str, list[dict[str, Any]]]) -
                 "repeat_count": 0,
                 "endpoint_type": item.get("endpoint_type", "GENERAL"),
                 "context_severity": context_severity,
+                "token_value": item.get("token_value", ""),
             },
         )
         group["leak_count"] += int(item.get("leak_count", 1))
@@ -118,6 +119,7 @@ def analyze_token_exposures(analysis_results: dict[str, list[dict[str, Any]]]) -
             "replay_likelihood": replay_score,
             "context_severity": group.get("context_severity", 0),
             "signals": signals,
+            "token_value": group.get("token_value", ""),
         }
         if "jwt_like_token" in signals and replay_score >= 0.8:
             high_replay_jwt_targets.append(item)

@@ -147,8 +147,7 @@ class GoldenSetEvaluation:
         }
 
 
-def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
-    return max(low, min(high, value))
+from src.learning.utils import clamp as _clamp
 
 
 def _numeric(value: Any, default: float = 0.0) -> float:

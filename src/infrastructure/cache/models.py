@@ -321,7 +321,17 @@ class CacheMetrics(BaseModel):
         Returns:
             Dict with all metric field values.
         """
-        return self.model_dump()
+        data = self.model_dump()
+        data.update(
+            {
+                "total_gets": self.hits + self.misses,
+                "hit_ratio": self.hit_rate,
+                "avg_get_latency_ms": self.avg_get_time_ms,
+                "avg_set_latency_ms": self.avg_set_time_ms,
+                "backend_errors": self.errors,
+            }
+        )
+        return data
 
 
 class CacheStats(BaseModel):

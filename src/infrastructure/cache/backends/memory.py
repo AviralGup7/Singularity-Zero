@@ -28,7 +28,7 @@ class MemoryBackend:
         """
         self._store: dict[str, dict[str, Any]] = {}
         self._max_entries = max_entries
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def get(self, key: str) -> Any | None:
         """Retrieve a value from memory."""
@@ -37,7 +37,7 @@ class MemoryBackend:
             if entry is None:
                 return None
             expires_at = entry.get("expires_at")
-            if expires_at is not None and time.time() > expires_at:
+            if expires_at is not None and time.time() >= expires_at:
                 del self._store[key]
                 return None
             entry["last_accessed"] = time.time()
@@ -56,6 +56,8 @@ class MemoryBackend:
                 "last_accessed": now,
                 "access_count": 0,
             }
+            if len(self._store) > self._max_entries:
+                self.evict_lru(len(self._store) - self._max_entries)
 
     def delete(self, key: str) -> bool:
         """Remove a key from memory."""
@@ -82,7 +84,8 @@ class MemoryBackend:
             if entry is None:
                 return False
             expires_at = entry.get("expires_at")
-            if expires_at is not None and time.time() > expires_at:
+            if expires_at is not None and time.time() >= expires_at:
+                del self._store[key]
                 return False
             return True
 
@@ -110,7 +113,7 @@ class MemoryBackend:
             expired = [
                 key
                 for key, entry in self._store.items()
-                if entry.get("expires_at") is not None and entry["expires_at"] < now
+                if entry.get("expires_at") is not None and entry["expires_at"] <= now
             ]
             for key in expired:
                 del self._store[key]
@@ -135,7 +138,7 @@ class MemoryBackend:
             result = {}
             expired = []
             for key, entry in self._store.items():
-                if entry.get("expires_at") is not None and entry["expires_at"] < now:
+                if entry.get("expires_at") is not None and entry["expires_at"] <= now:
                     expired.append(key)
                 else:
                     result[key] = entry.get("value")
@@ -147,6 +150,14 @@ class MemoryBackend:
         """Return all keys in a namespace."""
         prefix = f"{namespace}:"
         with self._lock:
+            now = time.time()
+            expired = [
+                key
+                for key, entry in self._store.items()
+                if entry.get("expires_at") is not None and entry["expires_at"] <= now
+            ]
+            for key in expired:
+                del self._store[key]
             return [k for k in self._store if k.startswith(prefix)]
 
     def get_keys_by_tag(self, tag: str) -> list[str]:
@@ -161,7 +172,7 @@ class MemoryBackend:
             expired = sum(
                 1
                 for entry in self._store.values()
-                if entry.get("expires_at") is not None and entry["expires_at"] < now
+                if entry.get("expires_at") is not None and entry["expires_at"] <= now
             )
             return {
                 "backend": "memory",

@@ -6,10 +6,13 @@ import shutil
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.cache.models import CacheMetrics
+from src.infrastructure.cache.telemetry import build_cache_efficiency_snapshot
 
 logger = get_pipeline_logger(__name__)
 
@@ -17,6 +20,10 @@ _DEFAULT_DB_PATH = os.environ.get(
     "RECON_CACHE_DB_PATH",
     str(Path(__file__).resolve().parent.parent / "output" / "cache" / "probe_cache.db"),
 )
+_CONNECT_TIMEOUT_SECONDS = 5.0
+_BUSY_TIMEOUT_MS = 5000
+_LOCK_RETRY_ATTEMPTS = 4
+_LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
 
 
 class _ThreadLocalConnections(threading.local):
@@ -35,7 +42,14 @@ class PersistentCache:
         self._lock = threading.RLock()
         self._thread_local = _ThreadLocalConnections()
         self._all_conns: set[sqlite3.Connection] = set()
+        self._metrics = CacheMetrics()
         self._init_db()
+
+    def __del__(self) -> None:
+        try:
+            self.close_all()
+        except Exception:
+            pass
 
     def _ensure_thread_local(self) -> None:
         """Ensure _thread_local is initialized (handles __new__ bypass)."""
@@ -47,15 +61,59 @@ class PersistentCache:
         self._ensure_thread_local()
         if self._thread_local.conn is not None:
             return self._thread_local.conn
-        conn = sqlite3.connect(self._db_path)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn = sqlite3.connect(
+            self._db_path,
+            timeout=_CONNECT_TIMEOUT_SECONDS,
+            check_same_thread=False,
+        )
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+        except Exception:
+            conn.close()
+            raise
         self._thread_local.conn = conn
         with self._lock:
             if not hasattr(self, "_all_conns"):
                 self._all_conns = set()
             self._all_conns.add(conn)
         return conn
+
+    @staticmethod
+    def _is_locked_error(exc: BaseException) -> bool:
+        message = str(exc).lower()
+        return "database is locked" in message or "database table is locked" in message
+
+    def _with_retry(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
+        last_exc: sqlite3.OperationalError | None = None
+        for attempt in range(_LOCK_RETRY_ATTEMPTS):
+            conn = self._get_conn()
+            try:
+                return operation(conn)
+            except sqlite3.OperationalError as exc:
+                last_exc = exc
+                try:
+                    conn.rollback()
+                except sqlite3.Error:
+                    pass
+                self._close_conn()
+                if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
+                    self._metrics.record_error()
+                    raise
+                time.sleep(_LOCK_RETRY_BASE_DELAY_SECONDS * (2**attempt))
+            except Exception:
+                try:
+                    conn.rollback()
+                except sqlite3.Error:
+                    pass
+                self._close_conn()
+                self._metrics.record_error()
+                raise
+        if last_exc is not None:
+            raise last_exc
+        return None
 
     def _close_conn(self) -> None:
         """Close the cached per-thread connection if it exists."""
@@ -124,71 +182,117 @@ class PersistentCache:
         Returns None if the key does not exist or the entry has expired.
         Expired entries are deleted on read.
         """
+        start = time.monotonic()
         with self._lock:
-            conn = self._get_conn()
-            now = time.time()
-            cursor = conn.execute(
-                "SELECT value, expires_at FROM cache_entries WHERE key = ?",
-                (key,),
-            )
-            row = cursor.fetchone()
-            if row is None:
-                return None
-            value_str, expires_at = row
-            if expires_at is not None and now >= expires_at:
-                conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
-                conn.commit()
-                return None
-            return json.loads(value_str)
+
+            def _op(conn: sqlite3.Connection) -> Any | None:
+                now = time.time()
+                cursor = conn.execute(
+                    "SELECT value, expires_at FROM cache_entries WHERE key = ?",
+                    (key,),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    elapsed = (time.monotonic() - start) * 1000
+                    self._metrics.record_miss(elapsed)
+                    return None
+                value_str, expires_at = row
+                if expires_at is not None and now >= expires_at:
+                    conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                    conn.commit()
+                    elapsed = (time.monotonic() - start) * 1000
+                    self._metrics.record_miss(elapsed)
+                    self._metrics.record_expiration()
+                    return None
+                try:
+                    value = json.loads(value_str)
+                except json.JSONDecodeError as exc:
+                    logger.warning("Deleting corrupt cache entry for key %s: %s", key, exc)
+                    conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                    conn.commit()
+                    elapsed = (time.monotonic() - start) * 1000
+                    self._metrics.record_miss(elapsed)
+                    self._metrics.record_error()
+                    return None
+                elapsed = (time.monotonic() - start) * 1000
+                self._metrics.record_hit(elapsed)
+                return value
+
+            return self._with_retry(_op)
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
+        start = time.monotonic()
         with self._lock:
-            conn = self._get_conn()
-            now = time.time()
-            expires_at = now + ttl if ttl is not None else None
-            value_str = json.dumps(value)
-            conn.execute(
-                """
-                INSERT INTO cache_entries (key, value, created_at, expires_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    value = excluded.value,
-                    created_at = excluded.created_at,
-                    expires_at = excluded.expires_at
-                """,
-                (key, value_str, now, expires_at),
-            )
-            conn.commit()
+
+            def _op(conn: sqlite3.Connection) -> None:
+                now = time.time()
+                expires_at = now + ttl if ttl is not None else None
+                value_str = json.dumps(value)
+                conn.execute(
+                    """
+                    INSERT INTO cache_entries (key, value, created_at, expires_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        created_at = excluded.created_at,
+                        expires_at = excluded.expires_at
+                    """,
+                    (key, value_str, now, expires_at),
+                )
+                conn.commit()
+                elapsed = (time.monotonic() - start) * 1000
+                self._metrics.record_set(elapsed)
+
+            self._with_retry(_op)
 
     def delete(self, key: str) -> None:
         with self._lock:
-            conn = self._get_conn()
-            conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
-            conn.commit()
+
+            def _op(conn: sqlite3.Connection) -> None:
+                conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                conn.commit()
+                self._metrics.record_delete()
+
+            self._with_retry(_op)
 
     def clear(self) -> None:
         with self._lock:
-            conn = self._get_conn()
-            conn.execute("DELETE FROM cache_entries")
-            conn.commit()
+
+            def _op(conn: sqlite3.Connection) -> None:
+                cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
+                row = cursor.fetchone()
+                count = row[0] if row else 0
+                conn.execute("DELETE FROM cache_entries")
+                conn.commit()
+                self._metrics.deletes += count
+
+            self._with_retry(_op)
 
     def cleanup_expired(self) -> int:
         with self._lock:
-            conn = self._get_conn()
-            now = time.time()
-            cursor = conn.execute(
-                "DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
-                (now,),
-            )
-            conn.commit()
-            return cursor.rowcount
+
+            def _op(conn: sqlite3.Connection) -> int:
+                now = time.time()
+                cursor = conn.execute(
+                    "DELETE FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at <= ?",
+                    (now,),
+                )
+                conn.commit()
+                if cursor.rowcount > 0:
+                    self._metrics.expirations += cursor.rowcount
+                return int(cursor.rowcount)
+
+            return int(self._with_retry(_op))
 
     def size(self) -> int:
         with self._lock:
-            conn = self._get_conn()
-            cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
-            row = cursor.fetchone()
-            return row[0] if row else 0
+
+            def _op(conn: sqlite3.Connection) -> int:
+                cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
+                row = cursor.fetchone()
+                return int(row[0]) if row else 0
+
+            return int(self._with_retry(_op))
 
     def validate_integrity(self) -> dict[str, Any]:
         """Check SQLite database health and return a status dict."""
@@ -208,31 +312,29 @@ class PersistentCache:
 
         result["db_size_bytes"] = db_path.stat().st_size
 
-        try:
-            conn = sqlite3.connect(self._db_path)
+        with self._lock:
             try:
-                cursor = conn.execute("PRAGMA integrity_check")
-                check_result = cursor.fetchone()
-                if check_result and check_result[0] != "ok":
+                conn = self._get_conn()
+                try:
+                    cursor = conn.execute("PRAGMA integrity_check")
+                    check_result = cursor.fetchone()
+                    if check_result and check_result[0] != "ok":
+                        result["healthy"] = False
+                        result["issues"].append(f"Integrity check failed: {check_result[0]}")
+                except sqlite3.DatabaseError as exc:
                     result["healthy"] = False
-                    result["issues"].append(f"Integrity check failed: {check_result[0]}")
-            finally:
-                conn.close()
-        except sqlite3.DatabaseError as exc:
-            result["healthy"] = False
-            result["issues"].append(f"Database error during integrity check: {exc}")
+                    result["issues"].append(f"Database error during integrity check: {exc}")
 
-        try:
-            conn = sqlite3.connect(self._db_path)
-            try:
-                cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
-                row = cursor.fetchone()
-                result["entry_count"] = row[0] if row else 0
-            finally:
-                conn.close()
-        except (sqlite3.OperationalError, sqlite3.DatabaseError) as exc:
-            result["healthy"] = False
-            result["issues"].append(f"Cannot query cache_entries: {exc}")
+                try:
+                    cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
+                    row = cursor.fetchone()
+                    result["entry_count"] = row[0] if row else 0
+                except (sqlite3.OperationalError, sqlite3.DatabaseError) as exc:
+                    result["healthy"] = False
+                    result["issues"].append(f"Cannot query cache_entries: {exc}")
+            except sqlite3.DatabaseError as exc:
+                result["healthy"] = False
+                result["issues"].append(f"Failed to get thread-local connection: {exc}")
 
         if result["db_size_bytes"] > 100 * 1024 * 1024:
             result["issues"].append(
@@ -261,6 +363,7 @@ class PersistentCache:
             return True
 
         backup_path = db_path.with_suffix(".db.corrupted.bak")
+        self.close_all()
         try:
             if backup_path.exists():
                 backup_path.unlink()
@@ -271,7 +374,9 @@ class PersistentCache:
             return False
 
         try:
-            db_path.unlink()
+            for path in (db_path, Path(f"{db_path}-wal"), Path(f"{db_path}-shm")):
+                if path.exists():
+                    path.unlink()
         except OSError as exc:
             logger.error("Failed to remove corrupted cache: %s", exc)
             return False
@@ -290,7 +395,11 @@ class PersistentCache:
         }
         if db_path.exists():
             usage["db_size_bytes"] = db_path.stat().st_size
-        usage["entry_count"] = self.size()
+        try:
+            usage["entry_count"] = self.size()
+        except sqlite3.DatabaseError as exc:
+            logger.warning("Failed to calculate cache disk usage entry count: %s", exc)
+            usage["error"] = str(exc)
         return usage
 
     _DEFAULT_TTL = 86400
@@ -315,35 +424,54 @@ class PersistentCache:
             expired_count, db_size_bytes, and oldest_entry_age_seconds.
         """
         with self._lock:
-            conn = self._get_conn()
-            now = time.time()
 
-            cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
-            total = cursor.fetchone()[0]
+            def _op(conn: sqlite3.Connection) -> dict[str, Any]:
+                now = time.time()
 
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
-                (now,),
-            )
-            expired = cursor.fetchone()[0]
+                cursor = conn.execute("SELECT COUNT(*) FROM cache_entries")
+                total = cursor.fetchone()[0]
 
-            cursor = conn.execute("SELECT MIN(created_at) FROM cache_entries")
-            row = cursor.fetchone()
-            oldest_age = round(now - row[0], 1) if row and row[0] else 0
+                cursor = conn.execute(
+                    "SELECT COUNT(*) FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
+                    (now,),
+                )
+                expired = cursor.fetchone()[0]
 
-            db_size = 0
-            db_path = Path(self._db_path)
-            if db_path.exists():
-                db_size = db_path.stat().st_size
+                cursor = conn.execute("SELECT MIN(created_at) FROM cache_entries")
+                row = cursor.fetchone()
+                oldest_age = round(now - row[0], 1) if row and row[0] else 0
 
-            return {
-                "total_entries": total,
-                "active_entries": total - expired,
-                "expired_entries": expired,
-                "db_size_bytes": db_size,
-                "oldest_entry_age_seconds": oldest_age,
-                "db_path": self._db_path,
-            }
+                db_size = 0
+                db_path = Path(self._db_path)
+                if db_path.exists():
+                    db_size = db_path.stat().st_size
+
+                return {
+                    "total_entries": total,
+                    "active_entries": total - expired,
+                    "expired_entries": expired,
+                    "db_size_bytes": db_size,
+                    "oldest_entry_age_seconds": oldest_age,
+                    "db_path": self._db_path,
+                }
+
+            return dict(self._with_retry(_op))
+
+    def get_metrics(self) -> CacheMetrics:
+        """Return runtime cache metrics."""
+        return self._metrics
+
+    def get_metrics_snapshot(self) -> dict[str, Any]:
+        """Return runtime cache metrics as a plain dict."""
+        return self._metrics.snapshot()
+
+    def get_efficiency_snapshot(self) -> dict[str, Any]:
+        """Return cache efficiency telemetry for shared API consumers."""
+        return build_cache_efficiency_snapshot(self, backend_type="sqlite")
+
+    def reset_metrics(self) -> None:
+        """Reset runtime cache metrics."""
+        self._metrics.reset()
 
     def save_historical_scores(self, target_id: str, scores: list[dict[str, Any]]) -> None:
         """Persist historical endpoint scores for a target.

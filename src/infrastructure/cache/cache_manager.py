@@ -30,6 +30,7 @@ from src.infrastructure.cache.backends import (
 from src.infrastructure.cache.config import CacheConfig, get_default_config
 from src.infrastructure.cache.invalidation import InvalidationEngine
 from src.infrastructure.cache.models import CacheMetrics, CacheStats
+from src.infrastructure.cache.telemetry import build_cache_efficiency_snapshot
 
 from ._warmers import warm_from_directory, warm_from_json, warm_from_sqlite
 
@@ -218,6 +219,33 @@ class CacheManager:
 
         for key in keys:
             backend.delete(key)
+
+    def _get_ttl_remaining(self, backend: Any, full_key: str) -> float | None:
+        """Return a backend key's remaining TTL when the backend exposes it."""
+        ttl_getter = getattr(backend, "get_ttl_remaining", None)
+        if not callable(ttl_getter):
+            return None
+        ttl = ttl_getter(full_key)
+        if ttl is None:
+            return None
+        return max(0.0, float(ttl))
+
+    def _set_backend_value(
+        self,
+        backend: Any,
+        full_key: str,
+        value: Any,
+        *,
+        ttl: float | None,
+        namespace: str,
+    ) -> None:
+        """Backfill a backend while preserving remaining TTL when available."""
+        if ttl is not None and ttl <= 0:
+            return
+        if hasattr(backend, "set_with_metadata"):
+            backend.set_with_metadata(full_key, value, ttl=ttl, namespace=namespace)
+        else:
+            backend.set(full_key, value, ttl=ttl)
 
     def _distributed_lock_key(self, lock_name: str, namespace: str) -> str:
         raw = str(lock_name or "").strip().lower()
@@ -415,8 +443,15 @@ class CacheManager:
                 if value is not None:
                     elapsed = (time.monotonic() - start) * 1000
                     self._metrics.record_hit(elapsed)
+                    ttl = self._get_ttl_remaining(self._l2, full_key)
                     if self._l1 is not None:
-                        self._l1.set(full_key, value)
+                        self._set_backend_value(
+                            self._l1,
+                            full_key,
+                            value,
+                            ttl=ttl,
+                            namespace=namespace,
+                        )
                     if self._config.log_cache_ops:
                         logger.debug("L2 HIT (backfilled to L1): %s", full_key)
                     return value
@@ -426,10 +461,25 @@ class CacheManager:
                 if value is not None:
                     elapsed = (time.monotonic() - start) * 1000
                     self._metrics.record_hit(elapsed)
+                    ttl = self._get_ttl_remaining(self._l3, full_key)
                     if self._l1 is not None:
-                        self._l1.set(full_key, value)
+                        self._set_backend_value(
+                            self._l1,
+                            full_key,
+                            value,
+                            ttl=ttl,
+                            namespace=namespace,
+                        )
+                    if self._l2 is not None:
+                        self._set_backend_value(
+                            self._l2,
+                            full_key,
+                            value,
+                            ttl=ttl,
+                            namespace=namespace,
+                        )
                     if self._config.log_cache_ops:
-                        logger.debug("L3 HIT (backfilled to L1): %s", full_key)
+                        logger.debug("L3 HIT (backfilled to higher tiers): %s", full_key)
                     return value
 
             elapsed = (time.monotonic() - start) * 1000
@@ -483,6 +533,7 @@ class CacheManager:
 
         full_key = self._make_key(key, namespace)
 
+        start = time.monotonic()
         try:
             bf = self.bloom_filter
             if bf is not None:
@@ -510,6 +561,8 @@ class CacheManager:
 
             # Re-register to prevent stale tag/dependency index entries on overwrite using update_entry.
             self._invalidation.update_entry(full_key, tags, normalized_depends_on)
+            elapsed = (time.monotonic() - start) * 1000
+            self._metrics.record_set(elapsed)
             if self._config.log_cache_ops:
                 logger.debug("SET: %s (ttl=%ds, tags=%s)", full_key, ttl, tags)
         except Exception as exc:
@@ -540,6 +593,7 @@ class CacheManager:
                     deleted = True
             if deleted:
                 self._invalidation.unregister_entry(full_key)
+            self._metrics.record_delete()
             return deleted
         except Exception as exc:
             logger.warning("Cache delete error for %s: %s", full_key, exc)
@@ -639,6 +693,8 @@ class CacheManager:
             for removed_key in removed_keys:
                 self._invalidation.unregister_entry(removed_key)
 
+            if total:
+                self._metrics.deletes += total
             return total
         except Exception as exc:
             logger.warning("Cache clear error: %s", exc)
@@ -664,6 +720,9 @@ class CacheManager:
             indexed_keys: builtins.set[str] = builtins.set()
             for tag in tags:
                 indexed_keys.update(self._invalidation.tag_strategy.get_keys_by_tag(tag))
+                for backend in (self._l1, self._l2, self._l3):
+                    if backend is not None and hasattr(backend, "get_keys_by_tag"):
+                        indexed_keys.update(backend.get_keys_by_tag(tag))
 
             keys_to_invalidate = self._filter_keys_by_namespace(indexed_keys, namespace)
             if not keys_to_invalidate:
@@ -679,6 +738,7 @@ class CacheManager:
             for key in keys_to_invalidate:
                 self._invalidation.unregister_entry(key)
 
+            self._metrics.deletes += len(keys_to_invalidate)
             return sorted(keys_to_invalidate)
         except Exception as exc:
             logger.warning("Tag invalidation error: %s", exc)
@@ -701,16 +761,37 @@ class CacheManager:
             dep_index = self._invalidation.dep_strategy.reverse_deps
             normalized_roots: builtins.set[str] = builtins.set()
             for root in keys:
-                normalized_roots.add(root)
-                if ":" not in root:
+                if ":" in root:
+                    normalized_roots.add(root)
+                else:
                     suffix = f":{root}"
                     for candidate in dep_index:
                         if candidate.endswith(suffix):
                             normalized_roots.add(candidate)
+                    for version_keys in self._invalidation.version_strategy.version_index.values():
+                        for candidate in version_keys:
+                            if candidate.endswith(suffix):
+                                normalized_roots.add(candidate)
+
+            for backend in (self._l1, self._l2, self._l3):
+                if backend is not None and hasattr(backend, "get_keys_matching_roots"):
+                    normalized_roots.update(backend.get_keys_matching_roots(keys))
 
             keys_to_invalidate = self._invalidation.dep_strategy.collect_invalidation_set(
                 normalized_roots
             )
+            queue = list(keys_to_invalidate or normalized_roots)
+            seen = set(queue)
+            while queue:
+                current = queue.pop(0)
+                for backend in (self._l1, self._l2, self._l3):
+                    if backend is None or not hasattr(backend, "get_dependents"):
+                        continue
+                    for dependent in backend.get_dependents(current):
+                        if dependent not in seen:
+                            seen.add(dependent)
+                            queue.append(dependent)
+            keys_to_invalidate = seen
             if not keys_to_invalidate:
                 return []
 
@@ -724,6 +805,7 @@ class CacheManager:
             for key in keys_to_invalidate:
                 self._invalidation.unregister_entry(key)
 
+            self._metrics.deletes += len(keys_to_invalidate)
             return sorted(keys_to_invalidate)
         except Exception as exc:
             logger.warning("Dependency invalidation error: %s", exc)
@@ -756,6 +838,8 @@ class CacheManager:
                 total += self._l2.cleanup_expired()
             if self._l3 is not None:
                 total += self._l3.cleanup_expired()
+            if total:
+                self._metrics.expirations += total
             return total
         except Exception as exc:
             logger.warning("Cleanup error: %s", exc)
@@ -815,6 +899,10 @@ class CacheManager:
             Dict with all metric values.
         """
         return self._metrics.snapshot()
+
+    def get_efficiency_snapshot(self) -> dict[str, Any]:
+        """Return cache efficiency telemetry for shared API consumers."""
+        return build_cache_efficiency_snapshot(self)
 
     def reset_metrics(self) -> None:
         """Reset all metrics to zero."""
@@ -877,9 +965,12 @@ class CacheManager:
 
         try:
             from src.infrastructure.observability.metrics import get_metrics
+
             metrics = get_metrics()
             metrics.gauge("cache_backend_health", "L1/L2/L3 backend health status").set(
-                (1.0 if l1_healthy else 0.0) + (2.0 if l2_healthy else 0.0) + (4.0 if l3_healthy else 0.0)
+                (1.0 if l1_healthy else 0.0)
+                + (2.0 if l2_healthy else 0.0)
+                + (4.0 if l3_healthy else 0.0)
             )
         except Exception:
             pass

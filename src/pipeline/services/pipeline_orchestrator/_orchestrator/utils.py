@@ -55,21 +55,7 @@ logger = get_pipeline_logger(__name__)
 # Legacy stage attribute map (for monkeypatch seams in tests)
 # ---------------------------------------------------------------------------
 
-LEGACY_STAGE_ATTRS: dict[str, str] = {
-    "subdomains": "run_subdomain_enumeration",
-    "live_hosts": "run_live_hosts",
-    "urls": "run_url_collection",
-    "parameters": "run_parameter_extraction",
-    "ranking": "run_priority_ranking",
-    "passive_scan": "run_passive_scanning",
-    "active_scan": "run_active_scanning",
-    "nuclei": "run_nuclei_stage",
-    "semgrep": "run_semgrep_stage",
-    "access_control": "run_access_control_testing",
-    "validation": "run_validation",
-    "intelligence": "run_post_analysis_enrichments",
-    "reporting": "run_reporting",
-}
+from src.pipeline.services.stage_registry import LEGACY_STAGE_ATTRS
 
 # ---------------------------------------------------------------------------
 # Timeout constants
@@ -170,20 +156,28 @@ class StageOutputValidationError(ValueError):
     """Raised when a StageOutput fails strict schema validation before merge."""
 
 
-@lru_cache(maxsize=1)
+_stage_output_validator_instance: Draft7Validator | None = None
+_finding_validator_instance: Draft7Validator | None = None
+
+
 def _stage_output_schema_validator() -> Draft7Validator:
-    schema_path = (
-        Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "stage_output.schema.json"
-    )
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    return Draft7Validator(schema)
+    global _stage_output_validator_instance
+    if _stage_output_validator_instance is None:
+        schema_path = (
+            Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "stage_output.schema.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        _stage_output_validator_instance = Draft7Validator(schema)
+    return _stage_output_validator_instance
 
 
-@lru_cache(maxsize=1)
 def _finding_schema_validator() -> Draft7Validator:
-    schema_path = Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    return Draft7Validator(schema)
+    global _finding_validator_instance
+    if _finding_validator_instance is None:
+        schema_path = Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        _finding_validator_instance = Draft7Validator(schema)
+    return _finding_validator_instance
 
 
 def _validate_stage_output_contract(stage_name: str, stage_output: StageOutput) -> None:

@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from typing import Any
 
 from src.analysis.behavior.service_findings import (
@@ -7,7 +8,11 @@ from src.analysis.behavior.service_findings import (
     port_scan_integration,
     tls_ssl_misconfiguration_checks,
 )
-from src.analysis.checks.active import stored_xss_signal_detector
+from src.analysis.checks.active import (
+    dom_xss_signal_detector,
+    reflected_xss_probe,
+    stored_xss_signal_detector,
+)
 from src.analysis.checks.exposure import (
     environment_file_exposure_checker,
     public_repo_exposure_checker,
@@ -130,6 +135,75 @@ class AdditionalSecurityDetectorTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["indicator"], "stored_xss_candidate")
         self.assertIn("event_handler", findings[0]["xss_signals"])
+
+    def test_stored_xss_signal_detector_flags_html_response_markup(self) -> None:
+        findings = stored_xss_signal_detector(
+            [
+                make_response(
+                    "https://app.example.com/profile",
+                    body="<html><body><h1>Profile</h1><svg onload=alert(1)></svg></body></html>",
+                    content_type="text/html",
+                )
+            ]
+        )
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["field"], "html_body")
+        self.assertIn("event_handler", findings[0]["xss_signals"])
+
+    def test_dom_xss_signal_detector_flags_source_to_sink_chain(self) -> None:
+        findings = dom_xss_signal_detector(
+            [
+                make_response(
+                    "https://app.example.com/search",
+                    body="""
+                    <html><body>
+                    <script>
+                    const term = location.hash;
+                    document.getElementById("out").innerHTML = term;
+                    </script>
+                    </body></html>
+                    """,
+                    content_type="text/html",
+                )
+            ]
+        )
+
+        self.assertTrue(findings)
+        self.assertEqual(findings[0]["indicator"], "dom_xss_candidate")
+        self.assertIn(findings[0]["severity"], {"high", "critical"})
+
+    def test_reflected_xss_probe_accepts_runtime_string_priority_urls(self) -> None:
+        class FakeResponseCache:
+            def request(self, url: str, **_: Any) -> dict[str, Any]:
+                return make_response(
+                    url,
+                    body="<html><body>xssprobeq123</body></html>",
+                    content_type="text/html",
+                )
+
+        findings = reflected_xss_probe(
+            ["https://app.example.com/search?q=hello"],
+            FakeResponseCache(),  # type: ignore[arg-type]
+        )
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["indicator"], "reflected_input_candidate")
+        self.assertEqual(findings[0]["parameter"], "q")
+
+    def test_xss_plugins_have_runtime_runners(self) -> None:
+        from src.analysis.plugins import ANALYSIS_PLUGIN_SPECS_BY_KEY
+
+        bindings_source = Path("src/analysis/plugin_runtime/_bindings.py").read_text(
+            encoding="utf-8"
+        )
+        for key in (
+            "stored_xss_signal_detector",
+            "dom_xss_signal_detector",
+            "reflected_xss_probe",
+        ):
+            self.assertIn(key, ANALYSIS_PLUGIN_SPECS_BY_KEY)
+            self.assertIn(f'"{key}": _binding(', bindings_source)
 
     def test_public_repo_and_environment_exposure_checkers_flag_sensitive_artifacts(self) -> None:
         repo_findings = public_repo_exposure_checker(

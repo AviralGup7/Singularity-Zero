@@ -271,29 +271,35 @@ class CheckpointManager:
         Returns None if no checkpoint exists.
         """
         with self._lock:
-            return self.load_latest_for_run(self.run_id)
+            try:
+                return self.load_latest_for_run(self.run_id)
+            except CheckpointIntegrityError:
+                return None
 
     def load_latest_for_run(self, run_id: str | None = None) -> CheckpointState | None:
         """Load the latest checkpoint, optionally for a different run_id."""
         with self._lock:
-            target_run_id = run_id or self.run_id
-            target_dir = self.checkpoint_dir / target_run_id
+            try:
+                target_run_id = run_id or self.run_id
+                target_dir = self.checkpoint_dir / target_run_id
 
-            if not target_dir.is_dir():
-                payload = self._store.read_latest(target_run_id)
-                if payload is None:
-                    return None
-                return self._load_from_payload(payload)
+                if not target_dir.is_dir():
+                    payload = self._store.read_latest(target_run_id)
+                    if payload is None:
+                        return None
+                    return self._load_from_payload(payload)
 
-            checkpoint_files = sorted(target_dir.glob("checkpoint_v*.json"))
-            if not checkpoint_files:
-                payload = self._store.read_latest(target_run_id)
-                if payload is None:
-                    return None
-                return self._load_from_payload(payload)
+                checkpoint_files = sorted(target_dir.glob("checkpoint_v*.json"))
+                if not checkpoint_files:
+                    payload = self._store.read_latest(target_run_id)
+                    if payload is None:
+                        return None
+                    return self._load_from_payload(payload)
 
-            latest_path = checkpoint_files[-1]
-            return self._load_from_file(latest_path)
+                latest_path = checkpoint_files[-1]
+                return self._load_from_file(latest_path)
+            except CheckpointIntegrityError:
+                return None
 
     def _load_from_payload(self, data: dict[str, Any]) -> CheckpointState | None:
         """Load and validate a checkpoint from a payload dictionary."""

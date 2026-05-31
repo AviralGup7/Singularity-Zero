@@ -1,5 +1,6 @@
 """Health check endpoint returning service status, uptime, and dependencies health."""
 
+import asyncio
 import logging
 import time
 from collections.abc import Awaitable
@@ -15,6 +16,8 @@ from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
 logger = logging.getLogger(__name__)
 
 _START_TIME: float = time.time()
+_SQLITE_HEALTH_TIMEOUT_SECONDS = 2.0
+_SQLITE_BUSY_TIMEOUT_MS = 1000
 
 
 class HealthStatus(StrEnum):
@@ -88,17 +91,36 @@ async def check_redis(redis_url: str | None) -> DependencyHealth:
 
 
 async def check_database(db_path: str) -> DependencyHealth:
-    try:
+    async def _probe() -> DependencyHealth:
         import aiosqlite
 
         start = time.monotonic()
-        conn = await aiosqlite.connect(db_path)
+        conn = await aiosqlite.connect(db_path, timeout=1.0)
         try:
+            await conn.execute(f"PRAGMA busy_timeout={_SQLITE_BUSY_TIMEOUT_MS}")
             await conn.execute("SELECT 1")
+            try:
+                await conn.execute("CREATE TEMP TABLE IF NOT EXISTS health_probe (ok INTEGER)")
+                status = DependencyStatus.UP
+                details: dict[str, Any] = {}
+            except Exception as exc:
+                status = DependencyStatus.DEGRADED
+                details = {"mode": "read_only", "write_error": str(exc)}
         finally:
             await conn.close()
         latency = round((time.monotonic() - start) * 1000, 2)
-        return DependencyHealth(status=DependencyStatus.UP, latency_ms=latency)
+        return DependencyHealth(status=status, latency_ms=latency, details=details)
+
+    try:
+        return await asyncio.wait_for(_probe(), timeout=_SQLITE_HEALTH_TIMEOUT_SECONDS)
+    except TimeoutError:
+        logger.warning(
+            "Database health check timed out after %.1fs", _SQLITE_HEALTH_TIMEOUT_SECONDS
+        )
+        return DependencyHealth(
+            status=DependencyStatus.DOWN,
+            error=f"timed out after {_SQLITE_HEALTH_TIMEOUT_SECONDS:.1f}s",
+        )
     except Exception as exc:
         logger.warning("Database health check failed: %s", exc)
         return DependencyHealth(status=DependencyStatus.DOWN, error=str(exc))

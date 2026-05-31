@@ -9,6 +9,8 @@ import os
 import secrets
 import sqlite3
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -19,6 +21,10 @@ from fastapi import HTTPException, Request, status
 
 ROLE_ORDER = {"read_only": 1, "worker": 2, "admin": 3}
 VALID_ROLES = frozenset(ROLE_ORDER)
+_CONNECT_TIMEOUT_SECONDS = 5.0
+_BUSY_TIMEOUT_MS = 5000
+_LOCK_RETRY_ATTEMPTS = 4
+_LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
 
 
 def api_security_enabled() -> bool:
@@ -86,13 +92,45 @@ class SecurityStore:
         self._lock = threading.RLock()
         self._initialized = False
 
+    @staticmethod
+    def _is_locked_error(exc: BaseException) -> bool:
+        message = str(exc).lower()
+        return "database is locked" in message or "database table is locked" in message
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, timeout=_CONNECT_TIMEOUT_SECONDS)
+        try:
+            conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+        except Exception:
+            conn.close()
+            raise
+        return conn
+
+    def _with_conn(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
+        last_exc: sqlite3.OperationalError | None = None
+        for attempt in range(_LOCK_RETRY_ATTEMPTS):
+            with self._lock:
+                try:
+                    with self._connect() as conn:
+                        return operation(conn)
+                except sqlite3.OperationalError as exc:
+                    last_exc = exc
+                    if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
+                        raise
+            time.sleep(_LOCK_RETRY_BASE_DELAY_SECONDS * (2**attempt))
+        if last_exc is not None:
+            raise last_exc
+        return None
+
     def init(self) -> None:
         with self._lock:
             if self._initialized:
                 return
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("PRAGMA journal_mode=WAL")
+            with self._connect() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS api_keys (
@@ -153,7 +191,8 @@ class SecurityStore:
         key_hash = hash_api_key(api_key)
         prefix = api_key[:8]
         key_id = key_id or f"key_{secrets.token_hex(8)}"
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+
+        def _op(conn: sqlite3.Connection) -> Any:
             try:
                 conn.execute(
                     """
@@ -169,6 +208,9 @@ class SecurityStore:
                 "SELECT id, prefix, role, created_at, last_used_at, revoked_at FROM api_keys WHERE key_hash = ?",
                 (key_hash,),
             ).fetchone()
+            return row
+
+        row = self._with_conn(_op)
         return self._row_to_key(row)
 
     def generate_key(self, role: str) -> dict[str, Any]:
@@ -181,7 +223,8 @@ class SecurityStore:
     def authenticate_key(self, api_key: str) -> Principal | None:
         key_hash = hash_api_key(api_key)
         now = utc_now()
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+
+        def _op(conn: sqlite3.Connection) -> Any:
             row = conn.execute(
                 """
                 SELECT id, role, revoked_at FROM api_keys
@@ -192,26 +235,34 @@ class SecurityStore:
             if row is None or row[2] is not None:
                 return None
             conn.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?", (now, row[0]))
+            return row
+
+        row = self._with_conn(_op)
+        if row is None:
+            return None
         return Principal(user=row[0], role=row[1], api_key_id=row[0], auth_method="api_key")
 
     def list_keys(self) -> list[dict[str, Any]]:
-        with self._lock, sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(
+        rows = self._with_conn(
+            lambda conn: conn.execute(
                 """
                 SELECT id, prefix, role, created_at, last_used_at, revoked_at
                 FROM api_keys
                 ORDER BY created_at DESC
                 """
             ).fetchall()
+        )
         return [self._row_to_key(row) for row in rows]
 
     def revoke_key(self, key_id: str) -> bool:
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        def _op(conn: sqlite3.Connection) -> int:
             cur = conn.execute(
                 "UPDATE api_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL",
                 (utc_now(), key_id),
             )
-            return cur.rowcount > 0
+            return int(cur.rowcount)
+
+        return int(self._with_conn(_op)) > 0
 
     def record_event(
         self,
@@ -229,7 +280,8 @@ class SecurityStore:
             if isinstance(detail, dict)
             else detail
         )
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+
+        def _op(conn: sqlite3.Connection) -> None:
             conn.execute(
                 """
                 INSERT INTO security_events
@@ -248,9 +300,11 @@ class SecurityStore:
                 ),
             )
 
+        self._with_conn(_op)
+
     def list_events(self, limit: int = 100) -> list[dict[str, Any]]:
-        with self._lock, sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(
+        rows = self._with_conn(
+            lambda conn: conn.execute(
                 """
                 SELECT id, timestamp, event_type, status_code, method, path, client_ip, api_key_id, detail
                 FROM security_events
@@ -259,6 +313,7 @@ class SecurityStore:
                 """,
                 (limit,),
             ).fetchall()
+        )
         return [
             {
                 "id": row[0],
@@ -276,7 +331,8 @@ class SecurityStore:
 
     def record_csp_report(self, request: Request, report: dict[str, Any]) -> None:
         client_ip = request.client.host if request.client else "unknown"
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+
+        def _op(conn: sqlite3.Connection) -> None:
             conn.execute(
                 """
                 INSERT INTO csp_reports (timestamp, client_ip, user_agent, report_json)
@@ -289,6 +345,8 @@ class SecurityStore:
                     json.dumps(report, separators=(",", ":"), default=str),
                 ),
             )
+
+        self._with_conn(_op)
         self.record_event(
             "csp_violation",
             status_code=204,
@@ -299,8 +357,8 @@ class SecurityStore:
         )
 
     def list_csp_reports(self, limit: int = 50) -> list[dict[str, Any]]:
-        with self._lock, sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(
+        rows = self._with_conn(
+            lambda conn: conn.execute(
                 """
                 SELECT id, timestamp, client_ip, user_agent, report_json
                 FROM csp_reports
@@ -309,6 +367,7 @@ class SecurityStore:
                 """,
                 (limit,),
             ).fetchall()
+        )
         return [
             {
                 "id": row[0],

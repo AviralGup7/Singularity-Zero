@@ -236,7 +236,7 @@ def csrf_active_probe(
         if not _is_state_changing_endpoint(url):
             continue
 
-        original_resp = response_cache.get(url)
+        original_resp = response_cache.get(url) if response_cache is not None else None
         if not original_resp:
             original_resp = _safe_request(url, timeout=8)
         if not original_resp or original_resp.get("status") in (404, 405, 410, 503):
@@ -254,7 +254,9 @@ def csrf_active_probe(
         url_probes: list[dict[str, Any]] = []
 
         # Confirm POST is allowed via OPTIONS (Fix Audit #11)
-        options_resp = response_cache.request(url, method="OPTIONS")
+        options_resp = (
+            response_cache.request(url, method="OPTIONS") if response_cache is not None else None
+        )
         post_allowed = True
         if options_resp:
             allow_header = str(options_resp.get("headers", {}).get("Allow", "")).upper()

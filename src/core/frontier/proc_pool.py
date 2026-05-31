@@ -162,10 +162,21 @@ class FrontierProcessPool:
         self._base_args_map: dict[str, list[str]] = {}
         self._binary_task_cache: dict[str, Any] = {}
         self._watchdog = ResourceWatchdog(self, max_memory_mb=max_memory_mb)
+        self._watchdog_started = False
+
+    def _ensure_watchdog_started(self) -> None:
+        if self._watchdog_started:
+            return
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
         self._watchdog.start()
+        self._watchdog_started = True
 
     async def warm_pool(self, tool_name: str, base_args: list[str]) -> None:
         """Spawn initial process set."""
+        self._ensure_watchdog_started()
         self._base_args_map[tool_name] = base_args
         # Fix Audit #14: Windows compatibility for preexec_fn
         spawn_kwargs: dict[str, Any] = {
@@ -273,11 +284,17 @@ class FrontierProcessPool:
             # Fix #209: Check if process is dead using returncode instead of stdin.is_closing()
             if p.process.returncode is not None:
                 logger.warning("Process %d is dead, cannot execute task", p.id)
-                return ""
+                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
+                    stable_task_id, tool_name, "interrupted", error="pooled process already exited"
+                )
+                raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} already exited")
 
             if p.process.stdin is None or p.process.stdout is None:
                 logger.error("Process %d missing stdin/stdout", p.id)
-                return ""
+                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
+                    stable_task_id, tool_name, "interrupted", error="pooled process missing pipes"
+                )
+                raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
 
             # Send task to pre-warmed process stdin
             p.process.stdin.write(f"{task_data}\n".encode())
@@ -395,11 +412,17 @@ class FrontierProcessPool:
         try:
             if p.process.returncode is not None:
                 logger.warning("Process %d is dead, cannot execute task", p.id)
-                return None
+                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
+                    stable_task_id, tool_name, "interrupted", error="pooled process already exited"
+                )
+                raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} already exited")
 
             if p.process.stdin is None or p.process.stdout is None:
                 logger.error("Process %d missing stdin/stdout", p.id)
-                return None
+                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
+                    stable_task_id, tool_name, "interrupted", error="pooled process missing pipes"
+                )
+                raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
 
             packed_data = mesh_marshal_pickle(task_obj)
             p.process.stdin.write(struct.pack("!I", len(packed_data)) + packed_data)
@@ -461,6 +484,7 @@ class FrontierProcessPool:
         """Gracefully terminate the pool."""
         if hasattr(self, "_watchdog") and self._watchdog:
             await self._watchdog.stop()
+            self._watchdog_started = False
         for p in self._processes:
             try:
                 if p.current_task_id:
@@ -475,6 +499,7 @@ class FrontierProcessPool:
                     os.killpg(os.getpgid(p.process.pid), signal.SIGTERM)
                 else:
                     p.process.terminate()
+                await p.process.wait()
             except Exception as e:
                 logger.debug("Failed to terminate process %d: %s", p.id, e)
         self._processes = []

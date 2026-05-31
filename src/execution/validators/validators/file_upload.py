@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from src.core.models import ValidationResult
 
 import logging
+import uuid
 
 from src.analysis.helpers import (
     endpoint_signature,
@@ -257,8 +258,6 @@ def _build_multipart_body(
     Returns:
         Tuple of (body bytes, content-type header value).
     """
-    import uuid
-
     boundary = uuid.uuid4().hex
     body = (
         f"--{boundary}\r\n"
@@ -270,7 +269,11 @@ def _build_multipart_body(
     return body, f"multipart/form-data; boundary={boundary}"
 
 
-def _active_file_upload_test(target_url: str, http_client: Any) -> dict[str, Any]:
+def _active_file_upload_test(
+    target_url: str,
+    http_client: Any,
+    dangerous_extensions: set[str] | None = None,
+) -> dict[str, Any]:
     """Perform active file upload testing against a target endpoint.
 
     Tests dangerous file types, extension bypass techniques, MIME type
@@ -279,6 +282,7 @@ def _active_file_upload_test(target_url: str, http_client: Any) -> dict[str, Any
     Args:
         target_url: The URL to test.
         http_client: HTTP client for making requests.
+        dangerous_extensions: Optional customizable set of dangerous extensions to test.
 
     Returns:
         Dict with active test results.
@@ -293,7 +297,11 @@ def _active_file_upload_test(target_url: str, http_client: Any) -> dict[str, Any
     path_traversal_results: list[str] = []
     size_limit_results: list[str] = []
 
-    for ext, content in DANGEROUS_FILE_CONTENTS.items():
+    extensions_to_test = (
+        dangerous_extensions if dangerous_extensions is not None else DANGEROUS_EXTENSIONS
+    )
+    for ext in sorted(extensions_to_test):
+        content = DANGEROUS_FILE_CONTENTS.get(ext, b"VULNERABLE_TEST_PAYLOAD")
         filename = f"test.{ext}"
         try:
             body, content_type = _build_multipart_body(
@@ -556,7 +564,18 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
     active_result: dict[str, Any] = {"status": "skipped", "reason": "not_active_ready"}
 
     if validation_state == "active_ready" and http_client:
-        active_result = _active_file_upload_test(target_url, http_client)
+        settings = {}
+        if isinstance(context, dict):
+            settings = context.get("settings", {}) or context.get("selector_config", {}) or {}
+        elif hasattr(context, "selector_config"):
+            settings = getattr(context, "selector_config") or {}
+
+        custom_exts = settings.get("file_upload", {}).get("dangerous_extensions")
+        dangerous_extensions = set(custom_exts) if custom_exts else None
+
+        active_result = _active_file_upload_test(
+            target_url, http_client, dangerous_extensions=dangerous_extensions
+        )
 
     active_status = active_result.get("status", "skipped")
     dangerous_count = active_result.get("dangerous_count", 0)

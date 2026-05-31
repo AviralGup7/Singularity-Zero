@@ -164,9 +164,17 @@ class MetricsCollector:
         if not runs:
             return PipelineKPIs()
 
+        run_ids = [run["run_id"] for run in runs]
+        all_findings_list = self.store.get_findings_for_runs(run_ids)
+
+        findings_by_run = {}
+        for f in all_findings_list:
+            findings_by_run.setdefault(f.get("run_id"), []).append(f)
+
         run_metrics = []
         for run in runs:
-            rm = self._compute_run_metrics(run)
+            findings = findings_by_run.get(run["run_id"], [])
+            rm = self._compute_run_metrics(run, findings)
             run_metrics.append(rm)
 
         # Aggregate detection metrics
@@ -218,7 +226,7 @@ class MetricsCollector:
         learning = self._compute_learning_metrics()
 
         # Coverage
-        coverage = self._compute_coverage_metrics(runs)
+        coverage = self._compute_coverage_metrics(runs, all_findings_list)
 
         return PipelineKPIs(
             detection_rate=round(detection_rate, 4),
@@ -262,10 +270,8 @@ class MetricsCollector:
             safety_violations=coverage.safety_violations,
         )
 
-    def _compute_run_metrics(self, run: dict) -> RunMetrics:
+    def _compute_run_metrics(self, run: dict, findings: list[dict]) -> RunMetrics:
         """Compute metrics for a single run."""
-        findings = self.store.get_findings_for_run(run["run_id"])
-
         tp = 0
         fp = 0
         fn = 0
@@ -330,15 +336,10 @@ class MetricsCollector:
             active_suppression_rules=fp_count,  # Each active FP pattern is a suppression rule
         )
 
-    def _compute_coverage_metrics(self, runs: list[dict]) -> CoverageMetrics:
+    def _compute_coverage_metrics(self, runs: list[dict], all_findings: list[dict]) -> CoverageMetrics:
         """Compute coverage metrics."""
         if not runs:
             return CoverageMetrics()
-
-        # Count unique categories with findings
-        all_findings = []
-        for run in runs:
-            all_findings.extend(self.store.get_findings_for_run(run["run_id"]))
 
         categories_with_findings = set(f.get("category") for f in all_findings if f.get("category"))
         total_known_categories = 42  # OWASP + custom categories

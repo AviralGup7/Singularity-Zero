@@ -210,7 +210,7 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
                         "url": f.get("url"),
                     }
                     framework_coverage[framework][control]["findings"].append(f_summary)
-                    if f_id in overdue_ids:
+                    if f_id and f_id in overdue_ids:
                         framework_coverage[framework][control]["sla_breached"] = True
 
     # Calculate maturity and recommendations for each control

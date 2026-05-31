@@ -369,7 +369,7 @@ class TestCacheIntegrity:
         Path(tmp_path / "nonexistent.db").unlink(missing_ok=True)
         cache2 = PersistentCache.__new__(PersistentCache)
         cache2._db_path = str(tmp_path / "nonexistent.db")
-        cache2._lock = __import__("threading").Lock()
+        cache2._lock = __import__("threading").RLock()
         result = cache2.validate_integrity()
         assert result["healthy"] is False
         assert any("not exist" in issue for issue in result["issues"])
@@ -379,7 +379,7 @@ class TestCacheIntegrity:
         db_path.write_bytes(b"this is not a valid sqlite database")
         cache = PersistentCache.__new__(PersistentCache)
         cache._db_path = str(db_path)
-        cache._lock = __import__("threading").Lock()
+        cache._lock = __import__("threading").RLock()
         result = cache.validate_integrity()
         assert result["healthy"] is False
         assert len(result["issues"]) > 0
@@ -389,7 +389,7 @@ class TestCacheIntegrity:
         db_path.write_bytes(b"this is not a valid sqlite database")
         cache = PersistentCache.__new__(PersistentCache)
         cache._db_path = str(db_path)
-        cache._lock = __import__("threading").Lock()
+        cache._lock = __import__("threading").RLock()
         recovered = cache.recover_from_corruption()
         assert recovered is True
         assert (tmp_path / "corrupt.db.corrupted.bak").exists()
@@ -400,7 +400,7 @@ class TestCacheIntegrity:
     def test_recover_from_corruption_no_file(self, tmp_path: Path) -> None:
         cache = PersistentCache.__new__(PersistentCache)
         cache._db_path = str(tmp_path / "missing.db")
-        cache._lock = __import__("threading").Lock()
+        cache._lock = __import__("threading").RLock()
         recovered = cache.recover_from_corruption()
         assert recovered is True
 

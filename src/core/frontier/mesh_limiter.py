@@ -22,9 +22,11 @@ class MeshRateLimiter:
     """
 
     def __init__(self, global_rps_limit: float = 50.0) -> None:
+        if global_rps_limit <= 0:
+            raise ValueError("global_rps_limit must be positive")
         self.global_rps_limit = global_rps_limit
         self._local_budget = global_rps_limit
-        self._last_calc = time.time()
+        self._last_calc = time.monotonic()
         self._tokens = global_rps_limit
         self._lock = asyncio.Lock()
 
@@ -32,6 +34,8 @@ class MeshRateLimiter:
         """Re-calculate the local share of the global budget."""
         count = max(1, active_worker_count)
         self._local_budget = self.global_rps_limit / count
+        self._tokens = min(self._tokens, self._local_budget)
+        self._last_calc = time.monotonic()
         logger.info(
             "Mesh Limiter: Local budget updated to %.2f RPS (Mesh Size: %d)",
             self._local_budget,
@@ -43,8 +47,8 @@ class MeshRateLimiter:
         while True:
             async with self._lock:
                 # Refill tokens based on local budget
-                now = time.time()
-                elapsed = now - self._last_calc
+                now = time.monotonic()
+                elapsed = max(0.0, now - self._last_calc)
                 self._tokens = min(
                     self._local_budget, self._tokens + (elapsed * self._local_budget)
                 )

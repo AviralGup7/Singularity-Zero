@@ -26,6 +26,7 @@ import asyncio
 import atexit
 import logging
 import os
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 # Global singleton for the integration instance
 _integration_instance: LearningIntegration | None = None
+_integration_lock = threading.Lock()
 
 
 def _resolve_db_path(config_path: str | None = None) -> Path:
@@ -116,41 +118,45 @@ class LearningIntegration:
         if _integration_instance is not None:
             return _integration_instance
 
-        # Load config from pipeline context if available
-        if ctx and not config:
-            learning_cfg = ctx.get("learning", {})
-            if learning_cfg:
-                config = LearningConfig.from_dict(learning_cfg)
+        with _integration_lock:
+            if _integration_instance is not None:
+                return _integration_instance
 
-        if not config:
-            config = LearningConfig()
+            # Load config from pipeline context if available
+            if ctx and not config:
+                learning_cfg = ctx.get("learning", {})
+                if learning_cfg:
+                    config = LearningConfig.from_dict(learning_cfg)
 
-        if not config.enabled:
-            # Return a no-op instance
-            store = TelemetryStore(_resolve_db_path())
+            if not config:
+                config = LearningConfig()
+
+            if not config.enabled:
+                # Return a no-op instance
+                store = TelemetryStore(_resolve_db_path())
+                store.initialize()
+                _integration_instance = cls(store, config)
+                return _integration_instance
+
+            db_path = _resolve_db_path(config.database_path)
+            store = TelemetryStore(db_path)
             store.initialize()
+
             _integration_instance = cls(store, config)
+
+            # Start mesh synchronization if available and in an event loop
+            if _integration_instance._mesh_sync:
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(_integration_instance._start_mesh_sync())
+                except RuntimeError as exc:
+                    # No running event loop
+                    logger.debug(
+                        "Mesh sync skipped because no asyncio event loop is running (e.g. synchronous context).",
+                        exc_info=exc,
+                    )
+
             return _integration_instance
-
-        db_path = _resolve_db_path(config.database_path)
-        store = TelemetryStore(db_path)
-        store.initialize()
-
-        _integration_instance = cls(store, config)
-
-        # Start mesh synchronization if available and in an event loop
-        if _integration_instance._mesh_sync:
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(_integration_instance._start_mesh_sync())
-            except RuntimeError as exc:
-                # No running event loop
-                logger.debug(
-                    "Mesh sync skipped because no asyncio event loop is running (e.g. synchronous context).",
-                    exc_info=exc,
-                )
-
-        return _integration_instance
 
     async def get_active_fp_patterns(self) -> list[dict[str, Any]]:
         """Fetch currently active FP patterns from the tracker or repository."""

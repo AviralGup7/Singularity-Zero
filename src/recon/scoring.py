@@ -95,28 +95,7 @@ def resolve_priority_limit(
     return _coerce_limit(configured)
 
 
-def score_mode_bonus(url: str, scoring: dict[str, Any], mode: str) -> int:
-    mode_config = scoring.get("modes", {}).get(mode.lower(), {})
-    if not mode_config:
-        return 0
-
-    param_bonus = int(mode_config.get("param_bonus", 0))
-    parameter_keywords = [item.lower() for item in mode_config.get("parameter_keywords", [])]
-    path_keywords = [item.lower() for item in mode_config.get("path_keywords", [])]
-    parameter_names = query_parameter_names(url)
-    lowered = url.lower()
-    score = 0
-
-    if param_bonus and parameter_keywords:
-        if any(keyword in name for name in parameter_names for keyword in parameter_keywords):
-            score += param_bonus
-    if param_bonus and path_keywords:
-        if any(keyword in lowered for keyword in path_keywords):
-            score += param_bonus
-    return score
-
-
-def score_mode_bonus_precomputed(
+def _score_mode_bonus_core(
     lowered: str, parameter_names: list[str], scoring: dict[str, Any], mode: str
 ) -> int:
     mode_config = scoring.get("modes", {}).get(mode.lower(), {})
@@ -137,21 +116,19 @@ def score_mode_bonus_precomputed(
     return score
 
 
-def score_context_bonus(url: str, scoring: dict[str, Any], profile: dict[str, int | bool]) -> int:
-    lowered = url.lower()
-    score = 0
-    for label, enabled in profile.items():
-        if not isinstance(enabled, bool) or not enabled:
-            continue
-        context = scoring.get("contexts", {}).get(label, {})
-        bonus = int(context.get("bonus", 0))
-        keywords = [str(item).lower() for item in context.get("keywords", [])]
-        if bonus and keywords and any(keyword in lowered for keyword in keywords):
-            score += bonus
-    return score
+def score_mode_bonus(url: str, scoring: dict[str, Any], mode: str) -> int:
+    return _score_mode_bonus_core(
+        url.lower(), query_parameter_names(url), scoring, mode
+    )
 
 
-def score_context_bonus_precomputed(
+def score_mode_bonus_precomputed(
+    lowered: str, parameter_names: list[str], scoring: dict[str, Any], mode: str
+) -> int:
+    return _score_mode_bonus_core(lowered, parameter_names, scoring, mode)
+
+
+def _score_context_bonus_core(
     lowered: str, scoring: dict[str, Any], profile: dict[str, int | bool]
 ) -> int:
     score = 0
@@ -166,6 +143,16 @@ def score_context_bonus_precomputed(
     return score
 
 
+def score_context_bonus(url: str, scoring: dict[str, Any], profile: dict[str, int | bool]) -> int:
+    return _score_context_bonus_core(url.lower(), scoring, profile)
+
+
+def score_context_bonus_precomputed(
+    lowered: str, scoring: dict[str, Any], profile: dict[str, int | bool]
+) -> int:
+    return _score_context_bonus_core(lowered, scoring, profile)
+
+
 def score_url(
     url: str,
     filters: dict[str, Any],
@@ -173,46 +160,26 @@ def score_url(
     mode: str,
     profile: dict[str, int | bool] | None = None,
 ) -> int:
-    score = 0
     lowered = url.lower()
     keyword_weights = {
         str(keyword).lower(): int(weight) for keyword, weight in scoring.get("weights", {}).items()
     }
-    for keyword, weight in keyword_weights.items():
-        if keyword == "param":
-            continue
-        if keyword in lowered:
-            score += weight
-
-    parameter_names = query_parameter_names(url)
-    if parameter_names:
-        score += int(keyword_weights.get("param", 0))
-        score += sum(parameter_weight(name) - 1 for name in parameter_names)
-
-    score += score_mode_bonus(url, scoring, mode)
-    if profile:
-        score += score_context_bonus(url, scoring, profile)
+    custom_priority_keywords = [str(item).lower() for item in filters.get("priority_keywords", [])]
     custom_keyword_bonus = int(scoring.get("custom_keyword_bonus", 2))
-    for custom_keyword in filters.get("priority_keywords", []):
-        if custom_keyword.lower() in lowered:
-            score += custom_keyword_bonus
-    endpoint_type = classify_endpoint(url)
-    if endpoint_type == "API":
-        score += 2
-    if endpoint_type == "REDIRECT":
-        score += 2
-    if is_auth_flow_endpoint(url):
-        score += 3
-    if is_auth_flow_endpoint(url) and any(
-        name in {"next", "redirect", "return", "return_to", "state", "url"}
-        for name in parameter_names
-    ):
-        score += 4
-    if is_low_value_endpoint(url):
-        score -= 4
-    if not has_meaningful_parameters(url):
-        score -= 6
-    return score
+    return score_url_precomputed(
+        lowered=lowered,
+        parameter_names=query_parameter_names(url),
+        endpoint_type=classify_endpoint(url),
+        is_auth_flow=is_auth_flow_endpoint(url),
+        has_meaningful_params=has_meaningful_parameters(url),
+        filters=filters,
+        mode=mode,
+        profile=profile,
+        keyword_weights=keyword_weights,
+        custom_priority_keywords=custom_priority_keywords,
+        custom_keyword_bonus=custom_keyword_bonus,
+        scoring=scoring,
+    )
 
 
 def score_url_precomputed(
@@ -266,27 +233,11 @@ def score_url_precomputed(
 
 
 def flow_score(url: str) -> int:
-    lowered = url.lower()
-    parameter_names = query_parameter_names(url)
-    score = 0
-    if "/access" in lowered:
-        score += 2
-    if any(token in lowered for token in ["/auth", "/login", "/signin"]):
-        score += 4
-    if "/oauth" in lowered:
-        score += 5
-    if any(
-        name in {"next", "redirect", "return", "return_to", "state", "url", "callback"}
-        for name in parameter_names
-    ):
-        score += 5
-    if is_auth_flow_endpoint(url):
-        score += 3
-    if len(parameter_names) >= 2 and any(
-        name in {"token", "state", "code"} for name in parameter_names
-    ):
-        score += 2
-    return score
+    return flow_score_precomputed(
+        url.lower(),
+        query_parameter_names(url),
+        is_auth_flow_endpoint(url)
+    )
 
 
 def flow_score_precomputed(lowered: str, parameter_names: list[str], is_auth_flow: bool) -> int:

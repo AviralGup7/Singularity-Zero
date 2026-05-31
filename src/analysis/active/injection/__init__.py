@@ -21,6 +21,7 @@ from .open_redirect import open_redirect_active_probe
 from .parameter_pollution import hpp_active_probe
 from .path_traversal import path_traversal_active_probe
 from .proxy_ssrf import proxy_ssrf_probe
+from .sqli import sqli_safe_probe
 from .ssrf import ssrf_active_probe
 from .ssti import ssti_active_probe
 from .websocket_hijacking import websocket_hijacking_probe
@@ -34,6 +35,7 @@ __all__ = [
     "ssrf_active_probe",
     "grafana_ssrf",
     "proxy_ssrf_probe",
+    "sqli_safe_probe",
     "open_redirect_active_probe",
     "crlf_injection_probe",
     "host_header_injection_probe",

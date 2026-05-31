@@ -4,6 +4,7 @@ Analyzes responses for missing CSRF tokens, weak SameSite cookie attributes,
 and state-changing endpoints without proper CSRF protections.
 """
 
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -31,6 +32,102 @@ CSRF_PROTECTION_HEADERS = {
 # Cookie attributes that mitigate CSRF risk
 CSRF_SAFE_SAMESITE = {"strict", "lax"}
 
+CSRF_TOKEN_NAMES = {
+    "_csrf",
+    "_csrf_token",
+    "_token",
+    "__requestverificationtoken",
+    "authenticity_token",
+    "csrf",
+    "csrf-token",
+    "csrf_token",
+    "csrfmiddlewaretoken",
+    "csrftoken",
+    "token_csrf",
+    "x-csrf-token",
+    "x-xsrf-token",
+    "xsrf",
+    "xsrf-token",
+    "xsrf_token",
+    "xsrftoken",
+}
+
+STATE_CHANGING_PATH_HINTS = (
+    "/update",
+    "/delete",
+    "/create",
+    "/modify",
+    "/change",
+    "/set",
+    "/add",
+    "/remove",
+    "/edit",
+    "/save",
+    "/submit",
+    "/process",
+    "/execute",
+    "/run",
+    "/action",
+    "/perform",
+    "/checkout",
+    "/payment",
+    "/transfer",
+    "/profile",
+    "/account",
+    "/settings",
+)
+
+FORM_RE = re.compile(r"<form\b(?P<attrs>[^>]*)>(?P<body>.*?)</form>", re.IGNORECASE | re.DOTALL)
+ATTR_RE = re.compile(
+    r"(?P<name>[A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*(?P<quote>['\"])(?P<value>.*?)(?P=quote)",
+    re.DOTALL,
+)
+
+
+def _normalize_headers(headers: dict[str, Any]) -> dict[str, Any]:
+    return {str(key).lower(): value for key, value in headers.items()}
+
+
+def _attrs(raw_attrs: str) -> dict[str, str]:
+    return {
+        match.group("name").lower(): match.group("value")
+        for match in ATTR_RE.finditer(raw_attrs or "")
+    }
+
+
+def _has_csrf_token_markup(fragment: str) -> bool:
+    lowered = fragment.lower()
+    return any(token in lowered for token in CSRF_TOKEN_NAMES)
+
+
+def _is_state_changing_path(value: str) -> bool:
+    path = urlparse(value).path.lower() if value else ""
+    return any(hint in path for hint in STATE_CHANGING_PATH_HINTS)
+
+
+def _extract_form_signals(body: str) -> dict[str, int]:
+    form_count = 0
+    state_changing_forms = 0
+    unprotected_state_changing_forms = 0
+
+    for match in FORM_RE.finditer(body or ""):
+        form_count += 1
+        attrs = _attrs(match.group("attrs"))
+        method = attrs.get("method", "get").strip().upper() or "GET"
+        action = attrs.get("action", "")
+        is_state_changing = method in STATE_CHANGING_METHODS or _is_state_changing_path(action)
+        if not is_state_changing:
+            continue
+        state_changing_forms += 1
+        if not _has_csrf_token_markup(match.group(0)):
+            unprotected_state_changing_forms += 1
+
+    return {
+        "form_count": form_count,
+        "state_changing_forms": state_changing_forms,
+        "unprotected_state_changing_forms": unprotected_state_changing_forms,
+    }
+
 
 def _check_csrf_in_body(body: str) -> list[str]:
     """Check response body for CSRF token indicators.
@@ -45,7 +142,7 @@ def _check_csrf_in_body(body: str) -> list[str]:
     body_lower = body.lower()
 
     # Check for hidden CSRF token fields in forms
-    if 'name="csrf' in body_lower or 'name="xsrf' in body_lower or 'name="_token"' in body_lower:
+    if _has_csrf_token_markup(body_lower):
         signals.append("csrf_hidden_field")
 
     # Check for CSRF meta tags
@@ -135,10 +232,8 @@ def csrf_protection_checker(
             continue
         seen.add(endpoint_key)
 
-        body = str(response.get("body_text") or "")
-        headers = {
-            str(key).lower(): str(value) for key, value in (response.get("headers") or {}).items()
-        }
+        body = str(response.get("body_text") or response.get("body") or "")
+        headers = _normalize_headers(response.get("headers") or {})
         # Method may be in response metadata or we infer from URL patterns
         method = str(response.get("method", "")).upper()
         status_code = int(response.get("status_code") or 0)
@@ -150,6 +245,15 @@ def csrf_protection_checker(
         # Collect CSRF signals
         csrf_signals: list[str] = []
         missing_protections: list[str] = []
+        form_signals = (
+            _extract_form_signals(body)
+            if is_html and body
+            else {
+                "form_count": 0,
+                "state_changing_forms": 0,
+                "unprotected_state_changing_forms": 0,
+            }
+        )
 
         # Check for CSRF tokens in response body
         if is_html and body:
@@ -168,30 +272,13 @@ def csrf_protection_checker(
         # Determine if this endpoint needs CSRF protection
         # Since we can't reliably know the HTTP method from passive responses,
         # we check URL patterns and endpoint classification
-        path = urlparse(url).path.lower()
-        is_state_changing_path = any(
-            kw in path
-            for kw in (
-                "/update",
-                "/delete",
-                "/create",
-                "/modify",
-                "/change",
-                "/set",
-                "/add",
-                "/remove",
-                "/edit",
-                "/save",
-                "/submit",
-                "/process",
-                "/execute",
-                "/run",
-                "/action",
-                "/perform",
-            )
-        )
+        is_state_changing_path = _is_state_changing_path(url)
+        is_state_changing_method = method in STATE_CHANGING_METHODS
+        has_state_changing_form = form_signals["state_changing_forms"] > 0
         needs_csrf = (
             is_state_changing_path
+            or is_state_changing_method
+            or has_state_changing_form
             or is_auth_flow_endpoint(url)
             or classify_endpoint(url) in {"AUTH", "API"}
         )
@@ -200,9 +287,21 @@ def csrf_protection_checker(
             continue
 
         # Identify missing protections for state-changing endpoints
-        has_any_csrf = bool(csrf_signals)
+        has_token_or_header = any(
+            signal
+            in {
+                "csrf_hidden_field",
+                "csrf_meta_tag",
+                "csrf_js_variable",
+                "csrf_data_attribute",
+                "csrf_protection_header",
+            }
+            for signal in csrf_signals
+        )
 
-        if not has_any_csrf:
+        if form_signals["unprotected_state_changing_forms"]:
+            missing_protections.append("form_without_csrf_token")
+        if not has_token_or_header:
             missing_protections.append("no_csrf_token")
 
         if not any(s.startswith("samesite_") for s in csrf_signals):
@@ -216,6 +315,8 @@ def csrf_protection_checker(
         risk_score = 0
         if "no_csrf_token" in missing_protections:
             risk_score += 5
+        if "form_without_csrf_token" in missing_protections:
+            risk_score += 4
         if "no_samesite_cookie" in missing_protections:
             risk_score += 3
 
@@ -237,6 +338,8 @@ def csrf_protection_checker(
         explanation_parts = []
         if "no_csrf_token" in missing_protections:
             explanation_parts.append("No CSRF token found in request or response")
+        if "form_without_csrf_token" in missing_protections:
+            explanation_parts.append("State-changing form lacks a CSRF token field")
         if "no_samesite_cookie" in missing_protections:
             explanation_parts.append("Missing SameSite cookie attribute for CSRF mitigation")
         if is_auth_flow_endpoint(url):
@@ -262,6 +365,11 @@ def csrf_protection_checker(
                 "status_code": status_code,
                 "csrf_signals": sorted(csrf_signals),
                 "missing_protections": sorted(missing_protections),
+                "form_count": form_signals["form_count"],
+                "state_changing_forms": form_signals["state_changing_forms"],
+                "unprotected_state_changing_forms": form_signals[
+                    "unprotected_state_changing_forms"
+                ],
                 "risk_score": risk_score,
                 "severity": severity,
                 "confidence": round(confidence, 2),
@@ -274,6 +382,7 @@ def csrf_protection_checker(
                         "csrf_protection_gap",
                         "auth_endpoint" if is_auth_flow_endpoint(url) else "",
                         "state_changing_path" if is_state_changing_path else "",
+                        "state_changing_form" if has_state_changing_form else "",
                         *csrf_signals,
                     }
                     - {""}

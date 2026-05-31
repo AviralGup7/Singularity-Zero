@@ -119,8 +119,19 @@ class VulnCorrelationEngine:
         },
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, rules_file: str | None = None) -> None:
         self._chains: list[AttackChain] = []
+        self.rules = self.CORRELATION_RULES
+        if rules_file:
+            try:
+                import json
+                with open(rules_file, "r") as f:
+                    custom_rules = json.load(f)
+                    if isinstance(custom_rules, list):
+                        self.rules = custom_rules
+                        logger.info("VulnCorrelationEngine: Loaded %d rules from %s", len(self.rules), rules_file)
+            except Exception as e:
+                logger.error("VulnCorrelationEngine: Failed to load custom rules from %s: %s", rules_file, e)
 
     def analyze_findings(self, findings: list[dict[str, Any]]) -> list[AttackChain]:
         """Analyze findings for correlated vulnerabilities.
@@ -142,7 +153,7 @@ class VulnCorrelationEngine:
             findings_by_type[ftype].append(finding)
 
         # Apply correlation rules
-        for rule in self.CORRELATION_RULES:
+        for rule in self.rules:
             type1, type2 = rule["types"]
 
             if type1 in findings_by_type and type2 in findings_by_type:
@@ -181,8 +192,16 @@ class VulnCorrelationEngine:
             domain1 = urlparse(url1).netloc or url1
             domain2 = urlparse(url2).netloc or url2
             return bool(domain1 == domain2)
-        except Exception:
-            return bool(url1.split("/")[0] == url2.split("/")[0])
+        except Exception as e:
+            logger.warning("Failed to compare domains for findings: %s", e)
+            try:
+                parts1 = url1.split("/")
+                parts2 = url2.split("/")
+                if parts1 and parts2:
+                    return bool(parts1[0] == parts2[0])
+            except Exception:
+                pass
+            return False
 
     def _deduplicate_chains(self, chains: list[AttackChain]) -> list[AttackChain]:
         """Remove duplicate chains."""

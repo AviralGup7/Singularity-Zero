@@ -1,4 +1,6 @@
 import pytest
+import subprocess
+import sys
 
 from src.core.frontier.marshaller import (
     FrontierMarshaller,
@@ -107,3 +109,21 @@ def test_mesh_pickle_helpers_roundtrip():
     assert isinstance(packed_uncomp, bytes)
     unpacked_uncomp = mesh_unmarshal_pickle(packed_uncomp, decompress=False)
     assert unpacked_uncomp == data
+
+
+def test_default_pickle_secret_is_stable_across_processes():
+    payload = mesh_marshal_pickle({"worker": "child", "ok": True})
+    code = (
+        "import sys;"
+        "from src.core.frontier.marshaller import mesh_unmarshal_pickle;"
+        "data=mesh_unmarshal_pickle(sys.stdin.buffer.read());"
+        "assert data == {'worker': 'child', 'ok': True}"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        input=payload,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr.decode()
