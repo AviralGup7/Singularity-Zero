@@ -225,7 +225,7 @@ def validate_manifest_data(data: dict[str, Any]) -> list[str]:
 
     try:
         timeout = int(data.get("timeout_seconds", 20))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         errors.append("PLUGIN_MANIFEST.timeout_seconds must be an integer")
     else:
         if timeout < 1 or timeout > 300:
@@ -287,6 +287,7 @@ def _extract_manifest(tree: ast.AST) -> dict[str, Any] | None:
             raise PluginValidationError("PLUGIN_MANIFEST must be a dict")
         return value
     return None
+
 
 def _is_safe_ast_literal(node: ast.AST) -> bool:
     classes: list[type[ast.AST]] = [ast.Constant]

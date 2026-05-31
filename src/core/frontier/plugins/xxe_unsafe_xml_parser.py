@@ -78,9 +78,11 @@ _HARDENING_MARKERS = (
 )
 
 
-from typing import Any, Generator
+from collections.abc import Generator
+from typing import Any
 
-def _source_items(payload: dict[str, Any]) -> Generator[dict[str, str], None, None]:
+
+def _source_items(payload: dict[str, Any]) -> Generator[dict[str, str]]:
     files = payload.get("files", [])
     if isinstance(files, list) and files:
         for index, item in enumerate(files):

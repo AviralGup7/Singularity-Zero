@@ -33,9 +33,7 @@ class SandboxService:
         if sandbox:
             history = sandbox.setdefault("history", [])
             if isinstance(history, list):
-                history.append(
-                    {"timestamp": time.time(), "action": action, "output": output}
-                )
+                history.append({"timestamp": time.time(), "action": action, "output": output})
 
     def get_chronological_state(self, sandbox_id: str) -> list[dict[str, Any]]:
         """Retrieve the time-travel replay history of the sandbox."""
