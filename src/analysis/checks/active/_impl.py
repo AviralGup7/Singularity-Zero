@@ -82,7 +82,7 @@ def stored_xss_signal_detector(responses: list[dict[str, Any]]) -> list[dict[str
             try:
                 data = json.loads(body)
                 _scan_json_for_xss(data, url, response.get("status_code"), findings, seen)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 pass
     return findings[:80]
 
@@ -134,7 +134,7 @@ def reflected_xss_probe(
     response_cache: ResponseCache | None,
     limit: int = 6,
 ) -> list[dict[str, Any]]:
-    findings = []
+    findings: list[dict[str, Any]] = []
     if response_cache is None:
         return findings
     seen: set[str] = set()

@@ -178,9 +178,9 @@ class CircuitBreaker:
             self.last_state_change = now
             self._state_version += 1
 
-    def _fallback_or_raise(self, *args: Any, **kwargs: Any) -> T:
+    def _fallback_or_raise(self, *args: Any, **kwargs: Any) -> Any:
         if self.fallback_fn:
-            return cast(T, self.fallback_fn(*args, **kwargs))
+            return self.fallback_fn(*args, **kwargs)
         raise CircuitBreakerOpenException(
             f"Circuit Breaker [{self.name}] is currently OPEN. Failing fast."
         )

@@ -1,40 +1,40 @@
-"""Prometheus metrics for WebSocket monitoring."""
+from typing import Any
 
 try:
     from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 except ImportError:
 
     class MockMetric:
-        def labels(self, *args, **kwargs):
+        def labels(self, *args: Any, **kwargs: Any) -> "MockMetric":
             return self
 
-        def inc(self, *args, **kwargs):
+        def inc(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def dec(self, *args, **kwargs):
+        def dec(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def set(self, *args, **kwargs):
+        def set(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def observe(self, *args, **kwargs):
+        def observe(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def time(self):
+        def time(self) -> Any:
             class DummyContext:
-                def __enter__(self):
+                def __enter__(self) -> None:
                     pass
 
-                def __exit__(self, exc_type, exc_val, exc_tb):
+                def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
                     pass
 
             return DummyContext()
 
-    Counter = Gauge = Histogram = lambda *args, **kwargs: MockMetric()
-    REGISTRY = None
+    Counter = Gauge = Histogram = lambda *args, **kwargs: MockMetric()  # type: ignore
+    REGISTRY = None  # type: ignore
 
 
-def _safe_metric(cls, name, documentation, labelnames=()):
+def _safe_metric(cls: Any, name: str, documentation: str, labelnames: Any = ()) -> Any:
     if REGISTRY is not None:
         try:
             if name in REGISTRY._names_to_collectors:

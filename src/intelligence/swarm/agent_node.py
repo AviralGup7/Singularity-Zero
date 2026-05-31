@@ -13,7 +13,7 @@ try:
     from src.core.frontier.state import NeuralState
 except ImportError:
 
-    class NeuralState:
+    class NeuralState:  # type: ignore[no-redef]
         """Fallback mock for environments without Cython/Frontier."""
 
         def __init__(self) -> None:
@@ -40,7 +40,7 @@ try:
 except ImportError:
     import logging
 
-    def get_pipeline_logger(name: str) -> Any:
+    def get_pipeline_logger(name: str) -> Any:  # type: ignore[misc]
         return logging.getLogger(name)
 
 

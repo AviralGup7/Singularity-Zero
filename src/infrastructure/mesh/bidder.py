@@ -67,7 +67,7 @@ class MeshBidder:
                     # Fallback for Windows
                     load_avg = psutil.cpu_percent() / 100.0 * (psutil.cpu_count() or 1)
 
-                return min(1.0, load_avg / (psutil.cpu_count() or 1))
+                return float(min(1.0, load_avg / (psutil.cpu_count() or 1)))
             except Exception:
                 return 0.5
         else:
@@ -118,5 +118,5 @@ def find_winning_bid(bids: dict[str, str]) -> str | None:
         winner_id, winner_val = sorted_bids[0]
         logger.info("Bid Winner: %s (Score: %s)", winner_id, winner_val)
         return winner_id
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return None

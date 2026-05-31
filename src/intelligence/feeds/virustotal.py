@@ -23,7 +23,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig
+from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig, FeedError
 
 logger = logging.getLogger(__name__)
 

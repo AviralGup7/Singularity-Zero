@@ -18,7 +18,8 @@ from fastapi.responses import JSONResponse
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.bloom_mesh import NeuralBloomMesh, ReconcileBloom
 from src.dashboard.fastapi.collaboration import TriageCollaborationService
-from src.dashboard.fastapi.config import DashboardConfig, FeatureFlags
+from src.dashboard.fastapi.config import DashboardConfig
+from src.dashboard.feature_flags import FeatureFlags
 from src.dashboard.fastapi.middleware import (
     AuditLoggingMiddleware,
     CSRFProtectionMiddleware,

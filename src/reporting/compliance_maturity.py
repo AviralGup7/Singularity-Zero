@@ -12,7 +12,7 @@ try:
     from src.core.models.grc import ControlMaturity
 except ImportError:
 
-    class ControlMaturity(StrEnum):
+    class ControlMaturity(StrEnum):  # type: ignore[no-redef]
         """Maturity levels for a security control."""
 
         PASS = "PASS"

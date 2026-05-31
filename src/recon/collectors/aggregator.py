@@ -56,7 +56,7 @@ def collect_urls(
 
     import concurrent.futures
 
-    def run_wayback():
+    def run_wayback() -> tuple[str, set[str], dict[str, Any]]:
         try:
             if config.tools.get("waybackurls", True):
                 timeout = int(getattr(config, "waybackurls", {}).get("timeout_seconds", 120))
@@ -82,7 +82,7 @@ def collect_urls(
             logger.warning("Wayback collection failed: %s", exc, exc_info=True)
             return "wayback", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
 
-    def run_commoncrawl():
+    def run_commoncrawl() -> tuple[str, set[str], dict[str, Any]]:
         try:
             if config.tools.get("commoncrawl", True):
                 timeout = int(getattr(config, "commoncrawl", {}).get("timeout_seconds", 120))
@@ -108,7 +108,7 @@ def collect_urls(
             logger.warning("CommonCrawl collection failed: %s", exc, exc_info=True)
             return "commoncrawl", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
 
-    def run_crawler():
+    def run_crawler() -> tuple[str, set[str], dict[str, Any]]:
         try:
             if config.tools.get("katana", True) and hostnames:
                 kat_cfg = getattr(config, "katana", {}) or {}
@@ -153,7 +153,7 @@ def collect_urls(
             logger.warning("Crawler collection failed: %s", exc, exc_info=True)
             return "crawler", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
 
-    def run_urlscan():
+    def run_urlscan() -> tuple[str, set[str], dict[str, Any]]:
         try:
             if config.tools.get("urlscan", True):
                 timeout = int(getattr(config, "urlscan", {}).get("timeout_seconds", 30))
@@ -179,7 +179,7 @@ def collect_urls(
             logger.warning("URLScan collection failed: %s", exc, exc_info=True)
             return "urlscan", set(), {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
 
-    def run_otx():
+    def run_otx() -> tuple[str, set[str], dict[str, Any]]:
         try:
             if config.tools.get("otx", True):
                 timeout = int(getattr(config, "otx", {}).get("timeout_seconds", 30))
