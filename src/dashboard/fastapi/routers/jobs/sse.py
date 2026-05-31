@@ -10,7 +10,6 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from src.dashboard.feature_flags import FeatureFlags
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.dashboard.fastapi.routers.sse_events import SSEEventEmitter
 from src.dashboard.fastapi.routers.utils import (
@@ -21,6 +20,7 @@ from src.dashboard.fastapi.routers.utils import (
     snapshot_job_api,
 )
 from src.dashboard.fastapi.schemas import ErrorResponse
+from src.dashboard.feature_flags import FeatureFlags
 
 logger = logging.getLogger(__name__)
 

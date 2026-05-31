@@ -5,7 +5,7 @@ try:
 except ImportError:
 
     class MockMetric:
-        def labels(self, *args: Any, **kwargs: Any) -> "MockMetric":
+        def labels(self, *args: Any, **kwargs: Any) -> MockMetric:
             return self
 
         def inc(self, *args: Any, **kwargs: Any) -> None:

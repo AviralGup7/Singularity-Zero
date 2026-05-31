@@ -19,7 +19,6 @@ from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.bloom_mesh import NeuralBloomMesh, ReconcileBloom
 from src.dashboard.fastapi.collaboration import TriageCollaborationService
 from src.dashboard.fastapi.config import DashboardConfig
-from src.dashboard.feature_flags import FeatureFlags
 from src.dashboard.fastapi.middleware import (
     AuditLoggingMiddleware,
     CSRFProtectionMiddleware,
@@ -33,6 +32,7 @@ from src.dashboard.fastapi.schemas import (
 )
 from src.dashboard.fastapi.security import SecurityStore, api_security_enabled, app_secret_key
 from src.dashboard.fastapi.spa import setup_mimetypes, setup_spa_routes
+from src.dashboard.feature_flags import FeatureFlags
 from src.dashboard.rate_limiter import RateLimitConfig, RateLimitMiddleware
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.sharding import MeshShardManager
