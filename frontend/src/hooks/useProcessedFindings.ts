@@ -18,7 +18,7 @@ export function useProcessedFindings(
   sort: SortOptions
 ) {
    
-  const [processed, setProcessed] = useState<Finding[]>([]);
+  const [processed, setProcessed] = useState<Finding[]>(rawFindings);
    
   const [isProcessing, setIsProcessing] = useState(false);
   const workerRef = useRef<Worker | null>(null);
@@ -30,13 +30,6 @@ export function useProcessedFindings(
       { type: 'module' }
     );
 
-    workerRef.current.onmessage = (event) => {
-      if (event.data.type === 'PROCESS_COMPLETE') {
-        setProcessed(event.data.result);
-        setIsProcessing(false);
-      }
-    };
-
     return () => {
       workerRef.current?.terminate();
     };
@@ -45,14 +38,26 @@ export function useProcessedFindings(
   useEffect(() => {
     if (!workerRef.current) return;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    let isCurrent = true;
     setIsProcessing(true);
+
+    workerRef.current.onmessage = (event) => {
+      if (isCurrent && event.data.type === 'PROCESS_COMPLETE') {
+        setProcessed(event.data.result);
+        setIsProcessing(false);
+      }
+    };
+
     workerRef.current.postMessage({
       type: 'PROCESS_FINDINGS',
       findings: rawFindings,
       filters,
       sort
     });
+
+    return () => {
+      isCurrent = false;
+    };
    
   }, [rawFindings, filters, sort]);
 
