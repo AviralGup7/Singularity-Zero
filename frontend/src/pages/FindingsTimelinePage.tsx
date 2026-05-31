@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CalendarClock, Filter, RefreshCw } from 'lucide-react';
@@ -61,28 +61,28 @@ export function FindingsTimelinePage() {
     offset,
   });
 
-  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
-  if (filterKey !== prevFilterKey) {
-    setPrevFilterKey(filterKey);
+  // Reset pagination state when filters change
+  useEffect(() => {
     setOffset(0);
     setEvents([]);
     setSelectedEvent(null);
-  }
+  }, [filterKey]);
 
-  const [prevData, setPrevData] = useState<FindingTimelineEvent[] | null>(null);
-  if (timeline.data !== prevData) {
-    setPrevData(timeline.data);
-    const incoming = timeline.events;
-    setEvents((current) => {
-      const merged = offset === 0 ? incoming : [...current, ...incoming];
-      const seen = new Set<string>();
-      return merged.filter((event) => {
-        if (seen.has(event.id)) return false;
-        seen.add(event.id);
-        return true;
+  // Append new events when timeline data arrives/changes
+  useEffect(() => {
+    if (timeline.data) {
+      const incoming = timeline.events;
+      setEvents((current) => {
+        const merged = offset === 0 ? incoming : [...current, ...incoming];
+        const seen = new Set<string>();
+        return merged.filter((event) => {
+          if (seen.has(event.id)) return false;
+          seen.add(event.id);
+          return true;
+        });
       });
-    });
-  }
+    }
+  }, [timeline.data, timeline.events, offset]);
 
   const targetOptions = useMemo(() => {
     const names = new Set<string>();

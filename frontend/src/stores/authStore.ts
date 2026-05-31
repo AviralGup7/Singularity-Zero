@@ -65,7 +65,7 @@ export type AuthStore = AuthContextType;
 
 export const useAuthStore = create<AuthStore>((set, get) => {
   const initialUser = getInitialUser();
-  const initialPermissions = initialUser ? Reflect.get(ROLE_PERMISSIONS, initialUser.role) : ROLE_PERMISSIONS.viewer;
+  const initialPermissions = initialUser ? ROLE_PERMISSIONS[initialUser.role] : ROLE_PERMISSIONS.viewer;
 
   return {
     user: initialUser,
@@ -76,7 +76,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
       set({
         user: newUser,
-        permissions: Reflect.get(ROLE_PERMISSIONS, role),
+        permissions: ROLE_PERMISSIONS[role],
       });
     },
 
@@ -88,7 +88,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
       set({
         user: newUser,
-        permissions: Reflect.get(ROLE_PERMISSIONS, role),
+        permissions: ROLE_PERMISSIONS[role],
       });
     },
 
@@ -103,7 +103,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
 
     hasPermission: (permission: keyof Permission) => {
       const state = get();
-      return Reflect.get(state.permissions, permission) === true;
+      return state.permissions[permission] === true;
     },
 
     hasRole: (role: UserRole) => {

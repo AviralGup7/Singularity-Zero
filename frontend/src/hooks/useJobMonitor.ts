@@ -39,6 +39,9 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const bufferDispatch = useCallback((action: JobMonitorAction) => {
+    // Immediately predict next state and update ref to avoid stale closures in buffered updates
+    stateRef.current = jobMonitorReducer(stateRef.current, action);
+
     // Immediate dispatch for critical actions (loading, errors, explicit user actions)
     if (action.type === 'START_LOADING' || action.type === 'SET_ERROR' || action.type === 'SET_ACTION_LOADING') {
       dispatch(action);

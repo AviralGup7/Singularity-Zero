@@ -1,7 +1,6 @@
-import { type ReactNode, useEffect, useMemo } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { VisualContext } from './visual-context';
-import { useVisualStore } from '@/stores/visualStore';
-import { type VisualState } from '@/lib/visualState';
+import { DEFAULT_VISUAL_STATE, type VisualState } from '@/lib/visualState';
 
 export type { VisualContextValue } from './visual-context';
 
@@ -11,8 +10,7 @@ interface VisualProviderProps {
 }
 
 export function VisualProvider({ children, initialValue }: VisualProviderProps) {
-  const state = useVisualStore((s) => s.state);
-  const setState = useVisualStore((s) => s.setState);
+  const [state, setState] = useState<VisualState>(initialValue || DEFAULT_VISUAL_STATE);
 
   useEffect(() => {
     if (initialValue) {
@@ -26,7 +24,7 @@ export function VisualProvider({ children, initialValue }: VisualProviderProps) 
         setState(initialValue);
       }
     }
-  }, [initialValue, setState, state]);
+  }, [initialValue, state]);
 
   const contextValue = useMemo(() => ({ state, setState }), [state, setState]);
 

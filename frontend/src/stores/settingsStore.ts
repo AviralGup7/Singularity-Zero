@@ -6,7 +6,7 @@ import type { AppSettings, SettingsUpdater } from '@/context/settings-context';
 const defaultSettings: AppSettings = AppSettingsSchema.parse({});
 
 function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
-  const result: Record<string, unknown> = { ...target };
+  const result = { ...target } as Record<string, unknown>;
   for (const key of Object.keys(source)) {
     const sourceVal = source[key as keyof T];
     const targetVal = target[key as keyof T];
@@ -14,9 +14,9 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
     if (sourceVal !== undefined) {
       if (sourceVal !== null && typeof sourceVal === 'object' && !Array.isArray(sourceVal) &&
           targetVal !== null && typeof targetVal === 'object' && !Array.isArray(targetVal)) {
-        Object.assign(result, { [key]: deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>) });
+        result[key] = deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
       } else {
-        Object.assign(result, { [key]: sourceVal });
+        result[key] = sourceVal;
       }
     }
   }
@@ -34,6 +34,13 @@ const persistSettingsDebounced = (settings: AppSettings) => {
   }, DEBOUNCE_MS);
 };
 
+const clearSettingsDebounce = () => {
+  if (debounceTimeout) {
+    clearTimeout(debounceTimeout);
+    debounceTimeout = null;
+  }
+};
+
 function getInitialSettings(): AppSettings {
   const stored = safeStorage.get(STORAGE_KEY);
   if (stored) {
@@ -49,7 +56,7 @@ function getInitialSettings(): AppSettings {
 
 export interface SettingsStore {
   settings: AppSettings;
-  updater: SettingsUpdater;
+  updater: SettingsUpdater & { clearDebounce?: () => void };
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => {
@@ -58,7 +65,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
   const updateSection = <T extends keyof AppSettings>(section: T, partial: Partial<AppSettings[T]>) => {
     set((state) => {
       let nextSection = partial as AppSettings[T];
-      const existingSection = Reflect.get(state.settings, section);
+      const existingSection = state.settings[section];
 
       if (existingSection !== null && existingSection !== undefined && typeof existingSection === 'object' && !Array.isArray(existingSection)) {
         nextSection = deepMerge(existingSection as Record<string, unknown>, partial as Record<string, unknown>) as AppSettings[T];
@@ -156,6 +163,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
       loadProfile,
       deleteProfile,
       setActiveProfile,
+      clearDebounce: clearSettingsDebounce,
     },
   };
 });
