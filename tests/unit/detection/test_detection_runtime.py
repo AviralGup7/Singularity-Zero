@@ -168,8 +168,7 @@ class TestDetectionDispatch:
                 "url": "https://api.example.com/v1/accounts/100/orders",
                 "status_code": 200,
                 "body_text": (
-                    '{"account_id":100,"orders":[{"order_id":501,'
-                    '"invoice_id":9001,"total":42}]}'
+                    '{"account_id":100,"orders":[{"order_id":501,"invoice_id":9001,"total":42}]}'
                 ),
                 "body_length": 82,
             },

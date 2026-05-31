@@ -36,6 +36,7 @@ class RemediationScanner:
         # Enforce tenant isolation
         if tenant_id:
             from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+
             if not is_target_owned_by_tenant(target_name, tenant_id):
                 raise PermissionError("Access denied: target does not belong to this tenant.")
 

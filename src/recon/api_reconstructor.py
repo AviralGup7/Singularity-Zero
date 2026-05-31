@@ -146,7 +146,13 @@ class ApiSchemaReconstructor:
                     # Parameter type inference
                     param_type = "string"
                     param_format = None
-                    if key.lower().endswith("id") or key.lower() in {"page", "limit", "offset", "size", "count"}:
+                    if key.lower().endswith("id") or key.lower() in {
+                        "page",
+                        "limit",
+                        "offset",
+                        "size",
+                        "count",
+                    }:
                         if val.isdigit() or not val:
                             param_type = "integer"
                     elif key.lower() in {"force", "active", "enabled", "checked", "debug"}:
@@ -189,6 +195,7 @@ class ApiSchemaReconstructor:
                 json.dump(spec, f, indent=2, ensure_ascii=False)
         except Exception as exc:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning("Failed to write OpenAPI spec to %s: %s", spec_path, exc)
 

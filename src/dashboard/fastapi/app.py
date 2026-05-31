@@ -593,11 +593,13 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     async def get_metrics():
         """Prometheus metrics endpoint."""
         try:
-            from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
             from fastapi import Response
+            from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
             return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
         except ImportError:
             from fastapi import Response
+
             return Response(content="# prometheus_client not installed", media_type="text/plain")
 
     @app.websocket("/ws/triage/{run_id}")

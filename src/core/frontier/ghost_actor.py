@@ -33,7 +33,9 @@ except ImportError:
 
 import weakref
 
-_LOGIC_REGISTRY: weakref.WeakValueDictionary[str, Callable[[dict[str, Any], dict[str, Any]], Any]] = weakref.WeakValueDictionary()
+_LOGIC_REGISTRY: weakref.WeakValueDictionary[
+    str, Callable[[dict[str, Any], dict[str, Any]], Any]
+] = weakref.WeakValueDictionary()
 
 
 def _copy_mailbox_value(value: Any) -> Any:
@@ -349,12 +351,14 @@ class ScanActor(pykka.ThreadingActor):
                 continue
             current = self.state.get(key)
             if isinstance(current, dict) and isinstance(value, dict):
+
                 def deep_merge(target: dict[str, Any], source: dict[str, Any]) -> None:
                     for k, v in source.items():
                         if k in target and isinstance(target[k], dict) and isinstance(v, dict):
                             deep_merge(target[k], v)
                         else:
                             target[k] = _copy_mailbox_value(v)
+
                 deep_merge(current, value)
             elif isinstance(current, list) and isinstance(value, list):
                 seen = {stable_digest(item) for item in current}

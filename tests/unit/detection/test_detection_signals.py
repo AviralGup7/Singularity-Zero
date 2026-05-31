@@ -1,4 +1,5 @@
 import logging
+
 from src.detection.signals import compose_signals
 
 

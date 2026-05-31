@@ -298,7 +298,7 @@ class MetricsCollector:
                 start = datetime.fromisoformat(run["start_time"])
                 end = datetime.fromisoformat(run["end_time"])
                 duration = (end - start).total_seconds() / 60
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 duration = run.get("scan_duration_sec", 0) / 60
 
         return RunMetrics(
@@ -336,7 +336,9 @@ class MetricsCollector:
             active_suppression_rules=fp_count,  # Each active FP pattern is a suppression rule
         )
 
-    def _compute_coverage_metrics(self, runs: list[dict], all_findings: list[dict]) -> CoverageMetrics:
+    def _compute_coverage_metrics(
+        self, runs: list[dict], all_findings: list[dict]
+    ) -> CoverageMetrics:
         """Compute coverage metrics."""
         if not runs:
             return CoverageMetrics()

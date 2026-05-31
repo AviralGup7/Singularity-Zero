@@ -14,6 +14,7 @@ try:
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
     CRYPTOGRAPHY_AVAILABLE = True
 except ImportError:
     Type = None

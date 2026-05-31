@@ -383,8 +383,7 @@ class ScenarioEngineTests(unittest.TestCase):
             )
 
         engine = ScenarioExecutionEngine(
-            transport=fake_transport,
-            session_persistence_handler=handle_persistence
+            transport=fake_transport, session_persistence_handler=handle_persistence
         )
         steps = [
             ScenarioStep(

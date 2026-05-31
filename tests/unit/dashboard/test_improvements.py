@@ -1,15 +1,11 @@
-import os
 import json
-import time
 from pathlib import Path
 from unittest.mock import MagicMock
-from fastapi import FastAPI
+
 from fastapi.testclient import TestClient
-import pytest
 
 from src.dashboard.fastapi.app import create_app
 from src.dashboard.fastapi.config import DashboardConfig
-from src.dashboard.feature_flags import FeatureFlags
 from src.dashboard.fastapi.routers.findings import _find_finding_by_id
 
 
@@ -24,7 +20,9 @@ def test_dashboard_stats_caching(tmp_path: Path) -> None:
 
     with TestClient(app) as client:
         # Mock list_targets and list_jobs after lifespan startup has initialized state.services
-        app.state.services.list_targets = MagicMock(return_value=[{"severity_counts": {"critical": 2}}])
+        app.state.services.list_targets = MagicMock(
+            return_value=[{"severity_counts": {"critical": 2}}]
+        )
         app.state.services.list_jobs = MagicMock(return_value=[])
 
         # First call calculates and caches
@@ -75,10 +73,10 @@ def test_findings_indexing_fallback_and_lookup(tmp_path: Path) -> None:
     target_dir = tmp_path / "test_target"
     run_dir = target_dir / "run_abc"
     run_dir.mkdir(parents=True, exist_ok=True)
-    
+
     findings_data = [
         {"id": "finding_1", "severity": "high", "title": "Test Finding 1"},
-        {"id": "finding_2", "severity": "low", "title": "Test Finding 2"}
+        {"id": "finding_2", "severity": "low", "title": "Test Finding 2"},
     ]
     (run_dir / "findings.json").write_text(json.dumps(findings_data), encoding="utf-8")
 
@@ -90,7 +88,7 @@ def test_findings_indexing_fallback_and_lookup(tmp_path: Path) -> None:
     # Verify findings_index.json was created
     index_file = tmp_path / "findings_index.json"
     assert index_file.exists()
-    
+
     index_content = json.loads(index_file.read_text(encoding="utf-8"))
     assert "finding_1" in index_content
     assert index_content["finding_2"]["index"] == 2

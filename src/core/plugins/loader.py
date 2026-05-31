@@ -179,7 +179,10 @@ class DynamicPluginCatalog:
 
         manifest = record.manifest
         provider = ProcessSandboxCallable(manifest, record.path)
-        runner = lambda payload, _provider=provider: _provider(payload)
+
+        def runner(payload, _provider=provider):
+            return _provider(payload)
+
         plugin_spec = spec(
             manifest.key,
             manifest.name,
@@ -199,9 +202,9 @@ class DynamicPluginCatalog:
             consumes=manifest.consumes,
             produces=manifest.produces,
         )
-        register_plugin(
-            ANALYZER_BINDING, manifest.key, manifest=manifest.to_dict(), dynamic=True
-        )(binding)
+        register_plugin(ANALYZER_BINDING, manifest.key, manifest=manifest.to_dict(), dynamic=True)(
+            binding
+        )
         self._upsert_analyzer_binding(manifest.key, binding)
         self._invalidate_detection_cache()
         self._registered[manifest.id] = (

@@ -36,7 +36,6 @@ from src.pipeline.services.output_store import PipelineOutputStore  # noqa: F401
 from src.pipeline.services.plugin_catalog import resolve_stage_runner
 from src.pipeline.services.stage_registry import pipeline_flow_manifest  # noqa: F401 – seam
 from src.pipeline.storage import read_scope  # noqa: F401 – module-namespace seam
-from ._orchestrator.security import find_previous_run  # noqa: F401 – monkeypatch seam
 
 from . import parallel
 from ._constants import (
@@ -56,6 +55,7 @@ from ._orchestrator import (
     safe_checkpoint_stage_outcome,
     stage_baseline,
 )
+from ._orchestrator.security import find_previous_run  # noqa: F401 – monkeypatch seam
 from ._run_execution import execute_remaining_stages, resolve_pipeline_exit_code
 from .migration_handler import ProactiveMigrationHandler
 

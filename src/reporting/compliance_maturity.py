@@ -11,8 +11,10 @@ from typing import Any
 try:
     from src.core.models.grc import ControlMaturity
 except ImportError:
+
     class ControlMaturity(StrEnum):
         """Maturity levels for a security control."""
+
         PASS = "PASS"
         PARTIAL = "PARTIAL"
         AT_RISK = "AT_RISK"
@@ -30,7 +32,9 @@ class MaturityScore(IntEnum):
     UNKNOWN = -1
 
 
-def calculate_control_maturity(findings: list[dict[str, Any]], sla_breached: bool = False) -> ControlMaturity:
+def calculate_control_maturity(
+    findings: list[dict[str, Any]], sla_breached: bool = False
+) -> ControlMaturity:
     """Calculate the maturity level for a set of findings mapped to a control.
 
     Args:

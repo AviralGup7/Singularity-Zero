@@ -6,11 +6,12 @@ Implements a high-throughput, no-allocation event plane for frontier security op
 from __future__ import annotations
 
 import asyncio
-import msgpack
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+import msgpack
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -53,6 +54,7 @@ class FrontierRingBus:
         if enable_shm:
             try:
                 from src.core.frontier.shared_memory import ZeroCopyRouter
+
                 self._shm_router = ZeroCopyRouter()
             except Exception as e:
                 logger.warning("Shared memory router initialization failed: %s", e)
@@ -84,9 +86,9 @@ class FrontierRingBus:
                     # Offload data to shared memory for large payloads
                     payload = msgpack.packb(data)
                     has_pending_shm = any(event.shm_ref for event in self._buffer)
-                    if len(payload) > 1024 and not has_pending_shm: # Only offload if > 1KB
+                    if len(payload) > 1024 and not has_pending_shm:  # Only offload if > 1KB
                         shm_ref = self._shm_router.route_payload(payload)
-                        data = {"_shm": True} # Placeholder for small in-memory state
+                        data = {"_shm": True}  # Placeholder for small in-memory state
                 except Exception as e:
                     logger.debug("SHM offload failed, falling back to in-memory: %s", e)
 

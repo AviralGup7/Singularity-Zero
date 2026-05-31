@@ -200,6 +200,7 @@ class VirusTotalClient(BaseFeedConnector):
             Parsed VirusTotalReport for the file.
         """
         import re
+
         hash_clean = str(file_hash or "").strip()
         if not re.match(r"^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$", hash_clean):
             raise FeedError(f"Invalid file hash format: {file_hash}")

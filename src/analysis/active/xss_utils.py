@@ -375,7 +375,6 @@ def generate_context_payloads(
 
     # Determine if angle brackets are reflected
 
-
     if has_non_executable:
         # Nothing can execute inside noscript/textarea/style
         return vectors
@@ -546,7 +545,7 @@ def detect_reflection_efficiency(
             # Simple character overlap score
             score = _simple_fuzzy_match(reflected, check_lower)
             efficiencies.append(score)
-        except (IndexError, ValueError):
+        except IndexError, ValueError:
             efficiencies.append(0)
 
     return efficiencies

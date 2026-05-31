@@ -6,8 +6,8 @@ stale connections, and configurable connection limits.
 """
 
 import asyncio
-import os
 import itertools
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -15,9 +15,8 @@ from typing import Any, cast
 
 from starlette.websockets import WebSocket, WebSocketState
 
-from src.websocket_server.metrics import WS_CONNECTIONS
-
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.websocket_server.metrics import WS_CONNECTIONS
 
 logger = get_pipeline_logger(__name__)
 
@@ -95,6 +94,7 @@ class ConnectionInfo:
             accepted: Whether the action was accepted.
         """
         from src.websocket_server.protocol import AckMessage
+
         ack = AckMessage(ack_id=ack_id, accepted=accepted)
         ack.sequence = self.next_sequence()
         try:
@@ -144,11 +144,17 @@ class ConnectionManager:
         # for every group lookup (memory leak when groups are queried but not used).
         self.group_connections: dict[str, set[str]] = {}
         self.ip_connections: dict[str, set[str]] = {}
-        self.max_connections_per_user = int(os.environ.get("WS_MAX_CONNECTIONS_PER_USER", max_connections_per_user))
-        self.max_connections_per_ip = int(os.environ.get("WS_MAX_CONNECTIONS_PER_IP", max_connections_per_ip))
+        self.max_connections_per_user = int(
+            os.environ.get("WS_MAX_CONNECTIONS_PER_USER", max_connections_per_user)
+        )
+        self.max_connections_per_ip = int(
+            os.environ.get("WS_MAX_CONNECTIONS_PER_IP", max_connections_per_ip)
+        )
         self.stale_timeout = float(os.environ.get("WS_STALE_TIMEOUT", stale_timeout))
         self.ip_connection_attempts: dict[str, list[float]] = {}
-        self.max_connection_attempts_per_minute = int(os.environ.get("WS_MAX_IP_CONN_ATTEMPTS_PER_MIN", "30"))
+        self.max_connection_attempts_per_minute = int(
+            os.environ.get("WS_MAX_IP_CONN_ATTEMPTS_PER_MIN", "30")
+        )
         self._lock = asyncio.Lock()
 
     async def connect(
@@ -418,13 +424,17 @@ class ConnectionManager:
             drain_tasks = []
             for info in conns:
                 if not info.closed and info._message_queue is not None:
+
                     async def wait_for_drain(q: asyncio.Queue) -> None:
                         try:
                             while not q.empty():
                                 await asyncio.sleep(0.05)
                         except Exception:
                             pass
-                    drain_tasks.append(asyncio.wait_for(wait_for_drain(info.message_queue), timeout=timeout))
+
+                    drain_tasks.append(
+                        asyncio.wait_for(wait_for_drain(info.message_queue), timeout=timeout)
+                    )
             if drain_tasks:
                 await asyncio.gather(*drain_tasks, return_exceptions=True)
 

@@ -4,8 +4,7 @@ PLUGIN_MANIFEST = {
     "version": "1.0.0",
     "kind": "validator",
     "description": (
-        "Detect source snippets that enable DTDs, external entities, or unsafe XML parser "
-        "defaults."
+        "Detect source snippets that enable DTDs, external entities, or unsafe XML parser defaults."
     ),
     "group": "xxe",
     "entrypoint": "run",
@@ -17,7 +16,6 @@ PLUGIN_MANIFEST = {
 }
 
 import re  # noqa: E402 - manifest must stay static and easy for the plugin loader to extract.
-
 
 _PATTERNS = (
     (

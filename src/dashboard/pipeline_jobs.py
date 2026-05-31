@@ -85,7 +85,9 @@ def run_pipeline_job(
         except Exception as exc:  # noqa: S110
             # Forensic capture is best-effort and must not change job outcome.
             logger.debug("Forensic capture failed: %s", exc)
-            job["forensic_capture_failures_count"] = job.get("forensic_capture_failures_count", 0) + 1
+            job["forensic_capture_failures_count"] = (
+                job.get("forensic_capture_failures_count", 0) + 1
+            )
 
     command = [
         sys.executable,

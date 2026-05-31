@@ -75,7 +75,6 @@ class RemediationPatchGenerator:
 
         Dumps a `remediation_patches.json` file in output target root.
         """
-        import asyncio
         import logging
 
         from src.intelligence.ml.llm_service import LLMService
@@ -106,6 +105,7 @@ class RemediationPatchGenerator:
                 try:
                     coro = llm.generate_patch(finding, req_payload, resp_body)
                     from src.recon.common import run_async_in_sync_context
+
                     patch_data = run_async_in_sync_context(coro)
 
                     patches.append(

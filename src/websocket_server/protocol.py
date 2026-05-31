@@ -110,9 +110,10 @@ class BaseMessage(BaseModel):
 
 class TelemetryMessage(BaseMessage):
     """Real-time DRL Policy Telemetry update.
-    
+
     Tracks synaptic weight drifts, L2 norm drifts, and active action distributions.
     """
+
     type: MessageType = MessageType.TELEMETRY
     model_id: str = Field(..., min_length=1)
     weight_drift: float = Field(default=0.0)

@@ -264,6 +264,7 @@ class RedisClient:
             ]
 
         try:
+
             def run_pipeline() -> list[Any]:
                 pipe = self._client.pipeline()
                 for cmd_name, args in processed_commands:

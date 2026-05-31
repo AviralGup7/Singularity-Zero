@@ -93,7 +93,7 @@ def _coerce_bounded_int(
     """
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         parsed = default
     return max(minimum, min(maximum, parsed))
 
@@ -118,7 +118,7 @@ def _coerce_bounded_float(
     """
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         parsed = default
     return max(minimum, min(maximum, parsed))
 
@@ -135,7 +135,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     """
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -453,6 +453,7 @@ async def run_post_analysis_enrichments(
         cve_config = CVEConfig(timeout_seconds=cve_timeout_seconds, max_retries=cve_max_retries)
 
         from src.intelligence.threat_intel import ThreatIntelCorrelator
+
         correlator = ThreatIntelCorrelator(enable_threat_intel=True)
 
         async with (

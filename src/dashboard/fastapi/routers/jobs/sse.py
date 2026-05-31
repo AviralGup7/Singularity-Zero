@@ -198,7 +198,10 @@ async def stream_job_logs(
                 if now - last_heartbeat >= heartbeat_interval_seconds():
                     updated_at = _coerce_epoch(current_job.get("updated_at"), now)
                     since_update = max(0.0, now - updated_at)
-                    stalled = status == "running" and since_update >= FeatureFlags.STALLED_THRESHOLD_SECONDS()
+                    stalled = (
+                        status == "running"
+                        and since_update >= FeatureFlags.STALLED_THRESHOLD_SECONDS()
+                    )
                     yield emitter.heartbeat(
                         progress_percent=progress,
                         stage=stage,
@@ -465,7 +468,10 @@ async def stream_job_progress(
 
                     updated_at = _coerce_epoch(current_job.get("updated_at"), now)
                     since_update = now - updated_at
-                    stalled = status == "running" and since_update >= FeatureFlags.STALLED_THRESHOLD_SECONDS()
+                    stalled = (
+                        status == "running"
+                        and since_update >= FeatureFlags.STALLED_THRESHOLD_SECONDS()
+                    )
                     yield emitter.heartbeat(
                         progress_percent=progress,
                         stage=stage,

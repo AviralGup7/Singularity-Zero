@@ -18,7 +18,6 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Awaitable, Mapping
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -174,7 +173,9 @@ def _stage_output_schema_validator() -> Draft7Validator:
 def _finding_schema_validator() -> Draft7Validator:
     global _finding_validator_instance
     if _finding_validator_instance is None:
-        schema_path = Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
+        schema_path = (
+            Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
+        )
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         _finding_validator_instance = Draft7Validator(schema)
     return _finding_validator_instance
@@ -223,7 +224,7 @@ def coerce_positive_int(value: Any) -> int | None:
     """Coerce value to a positive integer, returning None if invalid."""
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return parsed if parsed > 0 else None
 
@@ -499,7 +500,7 @@ async def record_stage_post_run(
         if getrusage is not None and rusage_self is not None:
             mem_usage = getrusage(rusage_self).ru_maxrss / 1024
             ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         pass
 
     try:

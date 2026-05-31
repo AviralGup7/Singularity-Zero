@@ -141,10 +141,17 @@ class LLMService:
         raise NotImplementedError(f"Provider '{self.config.provider}' is unsupported")
 
     def _handle_failure(self, operation: str, error: Exception) -> None:
-        logger.warning("LLM service query failed for operation '%s', triggering fallback: %s", operation, error)
+        logger.warning(
+            "LLM service query failed for operation '%s', triggering fallback: %s", operation, error
+        )
         try:
             from src.infrastructure.observability.metrics import get_metrics
-            get_metrics().counter("llm_fallback_total", "Total LLM query fallback events", labels={"operation": operation}).inc()
+
+            get_metrics().counter(
+                "llm_fallback_total",
+                "Total LLM query fallback events",
+                labels={"operation": operation},
+            ).inc()
         except Exception:
             pass
 

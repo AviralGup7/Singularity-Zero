@@ -75,7 +75,7 @@ def resolve_priority_limit(
             value = value.get("default")
         try:
             return int(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
 
     configured = filters.get("priority_limit", 100)
@@ -117,9 +117,7 @@ def _score_mode_bonus_core(
 
 
 def score_mode_bonus(url: str, scoring: dict[str, Any], mode: str) -> int:
-    return _score_mode_bonus_core(
-        url.lower(), query_parameter_names(url), scoring, mode
-    )
+    return _score_mode_bonus_core(url.lower(), query_parameter_names(url), scoring, mode)
 
 
 def score_mode_bonus_precomputed(
@@ -234,9 +232,7 @@ def score_url_precomputed(
 
 def flow_score(url: str) -> int:
     return flow_score_precomputed(
-        url.lower(),
-        query_parameter_names(url),
-        is_auth_flow_endpoint(url)
+        url.lower(), query_parameter_names(url), is_auth_flow_endpoint(url)
     )
 
 

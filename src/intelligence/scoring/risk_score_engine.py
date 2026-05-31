@@ -66,8 +66,8 @@ class RiskScoringEngine:
             "apiEndpoints": {
                 "get_latest_risk": "/api/v1/intelligence/risk/latest",
                 "get_risk_history": "/api/v1/intelligence/risk/history",
-                "websocket_updates": "/ws/v1/intelligence/risk/stream"
-            }
+                "websocket_updates": "/ws/v1/intelligence/risk/stream",
+            },
         }
 
     def calculate_risk(

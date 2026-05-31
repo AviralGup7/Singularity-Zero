@@ -165,6 +165,7 @@ class FPTracker:
             headers = finding.get("headers", {})
             if isinstance(headers, str):
                 import json
+
                 try:
                     headers = json.loads(headers)
                 except Exception:
@@ -216,6 +217,7 @@ class FPTracker:
 
         try:
             from src.infrastructure.observability.metrics import get_metrics
+
             m = get_metrics()
             m.counter("fp_tracker_patterns_created_total").inc(patterns_created)
             m.counter("fp_tracker_patterns_updated_total").inc(patterns_updated)

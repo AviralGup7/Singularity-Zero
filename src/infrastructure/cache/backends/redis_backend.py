@@ -114,7 +114,9 @@ class RedisBackend:
             else:
                 self._call(lambda: self._client.set(self._full_key(key), data))
         except Exception as exc:
-            logger.warning("Redis set failed for key %s; value kept in local fallback: %s", key, exc)
+            logger.warning(
+                "Redis set failed for key %s; value kept in local fallback: %s", key, exc
+            )
 
     def delete(self, key: str) -> bool:
         """Remove a key from Redis."""
@@ -124,9 +126,14 @@ class RedisBackend:
             if self._client is None:
                 return fallback_deleted
         try:
-            return bool(self._call(lambda: self._client.delete(self._full_key(key)))) or fallback_deleted
+            return (
+                bool(self._call(lambda: self._client.delete(self._full_key(key))))
+                or fallback_deleted
+            )
         except Exception as exc:
-            logger.warning("Redis delete failed for key %s; applied local fallback only: %s", key, exc)
+            logger.warning(
+                "Redis delete failed for key %s; applied local fallback only: %s", key, exc
+            )
             return fallback_deleted
 
     def delete_many(self, keys: list[str] | builtins.set[str]) -> int:
@@ -154,9 +161,13 @@ class RedisBackend:
             if self._client is None:
                 return self._fallback.exists(key)
         try:
-            return bool(self._call(lambda: self._client.exists(self._full_key(key)))) or self._fallback.exists(key)
+            return bool(
+                self._call(lambda: self._client.exists(self._full_key(key)))
+            ) or self._fallback.exists(key)
         except Exception as exc:
-            logger.warning("Redis exists check failed for key %s; using local fallback: %s", key, exc)
+            logger.warning(
+                "Redis exists check failed for key %s; using local fallback: %s", key, exc
+            )
             return self._fallback.exists(key)
 
     def clear(self) -> int:
@@ -183,7 +194,10 @@ class RedisBackend:
             if self._client is None:
                 return fallback_size
         try:
-            return sum(1 for _ in self._client.scan_iter(match=f"{self._key_prefix}*", count=500)) + fallback_size
+            return (
+                sum(1 for _ in self._client.scan_iter(match=f"{self._key_prefix}*", count=500))
+                + fallback_size
+            )
         except Exception as exc:
             logger.warning("Redis size check failed; using local fallback size: %s", exc)
             return fallback_size
@@ -249,7 +263,9 @@ class RedisBackend:
             ]
             return sorted(set(redis_keys + fallback_keys))
         except Exception as exc:
-            logger.warning("Redis keys by namespace '%s' failed; using local fallback: %s", namespace, exc)
+            logger.warning(
+                "Redis keys by namespace '%s' failed; using local fallback: %s", namespace, exc
+            )
             return fallback_keys
 
     def get_keys_by_tag(self, tag: str) -> list[str]:

@@ -5,16 +5,13 @@ Implements zero-copy shared buffers for high-speed cross-process communication.
 
 from __future__ import annotations
 
-import logging
-import mmap
-import os
 import struct
 from multiprocessing import shared_memory
-from typing import Any, Optional
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
+
 
 class SharedMemoryBuffer:
     """Manages a named POSIX shared memory segment."""
@@ -57,10 +54,12 @@ class ZeroCopyRouter:
     to avoid heavy IPC serialization overhead.
     """
 
-    def __init__(self, buffer_name: str = "frontier_ring_bus", buffer_size: int = 10 * 1024 * 1024) -> None:
+    def __init__(
+        self, buffer_name: str = "frontier_ring_bus", buffer_size: int = 10 * 1024 * 1024
+    ) -> None:
         self.buffer_name = buffer_name
         self.buffer_size = buffer_size
-        self._shm: Optional[SharedMemoryBuffer] = None
+        self._shm: SharedMemoryBuffer | None = None
 
     def close(self) -> None:
         """Close the underlying SharedMemoryBuffer if initialized."""
@@ -85,14 +84,14 @@ class ZeroCopyRouter:
         """Reads payload from shared memory using a location reference."""
         if not location.startswith("shm://"):
             raise ValueError("Invalid location protocol")
-        
+
         # Parse shm://name@offset
         name_part, offset_part = location[6:].split("@")
         shm = self._get_buffer(create=False)
-        
+
         # Read header
         header = shm.read(4, offset=int(offset_part))
         length = struct.unpack("!I", header)[0]
-        
+
         # Read payload
         return shm.read(length, offset=int(offset_part) + 4)

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def _env_int(name: str, default: int, minimum: int = 1) -> int:
     try:
         return max(minimum, int(os.getenv(name, str(default))))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         logger.warning("Invalid %s value; using %d", name, default)
         return default
 
@@ -566,10 +566,14 @@ class GossipEngine:
     ) -> MeshHealthSnapshot:
         """Return a stable subsystem-owned mesh health summary."""
         nodes = all_nodes if all_nodes is not None else self.mesh_nodes(include_dead=True)
-        active = active_nodes if active_nodes is not None else [
-            self.local_node,
-            *[p for p in self.peers.values() if p.status != "dead"],
-        ]
+        active = (
+            active_nodes
+            if active_nodes is not None
+            else [
+                self.local_node,
+                *[p for p in self.peers.values() if p.status != "dead"],
+            ]
+        )
         healthy = [node for node in active if node.status == "alive"]
         suspect = [node for node in nodes if node.status == "suspect"]
         dead = [node for node in nodes if node.status == "dead"]
@@ -745,4 +749,9 @@ class GossipProtocol(asyncio.DatagramProtocol):
             if msg_id:
                 self.engine._send_ack(addr, msg_id, ack_payload)
         except Exception as exc:
-            logger.error("Error processing authenticated gossip message from %s: %s", addr, exc, exc_info=True)
+            logger.error(
+                "Error processing authenticated gossip message from %s: %s",
+                addr,
+                exc,
+                exc_info=True,
+            )

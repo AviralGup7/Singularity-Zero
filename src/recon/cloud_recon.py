@@ -294,4 +294,5 @@ class CloudBucketScanner:
     def run_scan_sync(self, target: str) -> list[dict[str, Any]]:
         """Synchronous runner wrapper for the async scan."""
         from src.recon.common import run_async_in_sync_context
+
         return run_async_in_sync_context(self.scan_all_candidates(target))

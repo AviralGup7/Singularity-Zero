@@ -1,6 +1,5 @@
 """Dashboard configuration using pydantic BaseSettings."""
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +61,3 @@ class DashboardConfig(BaseSettings):
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump()
-
-
-from src.dashboard.feature_flags import FeatureFlags

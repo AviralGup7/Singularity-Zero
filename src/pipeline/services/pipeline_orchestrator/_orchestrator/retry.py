@@ -88,7 +88,7 @@ async def run_stage_with_retry(
             try:
                 sig = inspect.signature(method)
                 accepts_stage_input = "stage_input" in sig.parameters
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 accepts_stage_input = True
             if stage_name == "nuclei":
                 if accepts_stage_input:
@@ -154,7 +154,9 @@ async def run_stage_with_retry(
             metrics.record_success()
             if stage_output is not None:
                 import dataclasses
+
                 from src.core.contracts.pipeline_runtime import _thaw_value
+
                 new_metrics = dict(_thaw_value(stage_output.metrics))
                 new_metrics["retry_metrics"] = {
                     "attempts": metrics.total_attempts,

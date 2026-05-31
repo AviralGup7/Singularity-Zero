@@ -128,7 +128,10 @@ def execute_validation_runtime(
     verified_exploits.extend(promote_behavior_confirmations(analysis_results))
 
     return {
-        "schema_version": engine_output.get("schema_version", VALIDATION_RUNTIME_VERSION_OR_FALLBACK := VALIDATION_RUNTIME_SCHEMA_VERSION),
+        "schema_version": engine_output.get(
+            "schema_version",
+            VALIDATION_RUNTIME_VERSION_OR_FALLBACK := VALIDATION_RUNTIME_SCHEMA_VERSION,
+        ),
         "mode": mode,
         "results": results,
         "verified_exploits": verified_exploits,
