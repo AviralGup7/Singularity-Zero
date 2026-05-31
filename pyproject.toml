@@ -44,7 +44,7 @@ dependencies = [
     # --- Performance ---
     "orjson==3.11.0",
     # --- System monitoring ---
-    "psutil==5.9.0",
+    "psutil>=5.9.1",
     # --- Database & migrations ---
     "sqlalchemy==2.0.30",
     "alembic==1.14.0",

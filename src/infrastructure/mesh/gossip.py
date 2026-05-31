@@ -669,7 +669,19 @@ class GossipProtocol(asyncio.DatagramProtocol):
             if not self.engine._verify(_canonical_json(body), envelope["sig"]):
                 logger.warning("Dropped unauthorized gossip packet from %s", addr)
                 return
+        except Exception as exc:
+            logger.warning("Dropped malformed gossip packet from %s: %s", addr, exc)
+            try:
+                _inc_metric(
+                    "dropped_gossip_packets_total",
+                    "Total dropped gossip packets due to format errors",
+                )
+            except Exception:
+                pass
+            return
 
+        # Authenticated and verified payload processing
+        try:
             message_type = body.get("type")
             payload = body.get("payload", {})
             source = body.get("source")
@@ -733,11 +745,4 @@ class GossipProtocol(asyncio.DatagramProtocol):
             if msg_id:
                 self.engine._send_ack(addr, msg_id, ack_payload)
         except Exception as exc:
-            logger.warning("Dropped malformed gossip packet from %s: %s", addr, exc)
-            try:
-                _inc_metric(
-                    "dropped_gossip_packets_total",
-                    "Total dropped gossip packets due to format errors",
-                )
-            except Exception:
-                pass
+            logger.error("Error processing authenticated gossip message from %s: %s", addr, exc, exc_info=True)

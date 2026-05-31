@@ -681,19 +681,44 @@ class LearningIntegration:
 
     def close(self) -> None:
         """Close the telemetry store and mesh sync."""
+        def run_coro(coro):
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop is not None and loop.is_running():
+                import threading
+                loop_thread = getattr(loop, "_thread", None)
+                if loop_thread is not None and threading.current_thread() is not loop_thread:
+                    future = asyncio.run_coroutine_threadsafe(coro, loop)
+                    try:
+                        future.result(timeout=5.0)
+                    except Exception:
+                        pass
+                else:
+                    loop.create_task(coro)
+            else:
+                try:
+                    new_loop = asyncio.new_event_loop()
+                    new_loop.run_until_complete(coro)
+                    new_loop.close()
+                except Exception:
+                    try:
+                        old_loop = asyncio.get_event_loop()
+                        old_loop.run_until_complete(coro)
+                    except Exception:
+                        pass
+
         if self._mesh_sync:
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self._mesh_sync.stop())
+                run_coro(self._mesh_sync.stop())
             except Exception as e:
                 logger.debug("MeshSync shutdown during close failed: %s", e)
 
         if self._redis_repo:
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self._redis_repo.close())
+                run_coro(self._redis_repo.close())
             except Exception as e:
                 logger.debug("Redis repository shutdown during close failed: %s", e)
 
