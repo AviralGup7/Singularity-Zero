@@ -42,7 +42,7 @@ dependencies = [
     "opentelemetry-sdk==1.40.0",
     "opentelemetry-exporter-otlp-proto-http==1.40.0",
     # --- Performance ---
-    "orjson==3.11.0",
+    "orjson>=3.11.0",
     # --- System monitoring ---
     "psutil>=5.9.1",
     # --- Database & migrations ---
@@ -64,7 +64,7 @@ dependencies = [
     "pykka==4.0.0",
     "wasmtime==44.0.0",
     # --- File watching ---
-    "watchfiles==1.0.0",
+    "watchfiles>=1.0.0",
 ]
 
 [project.scripts]
