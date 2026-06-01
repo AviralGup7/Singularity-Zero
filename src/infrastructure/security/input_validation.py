@@ -305,7 +305,7 @@ class URLValidator:
                 addr = ipaddress.ip_address(resolved_ip_str)
                 if any(addr in network for network in self.INTERNAL_IP_RANGES):
                     return True
-        except socket.gaierror, OSError:
+        except (socket.gaierror, OSError):
             # DNS resolution failed - treat as external (safe)
             pass
 

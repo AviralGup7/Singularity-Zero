@@ -142,7 +142,7 @@ class NeuralBloomFilter:
                 "Dropped %d non-HTTP URLs during normalization", dropped
             )
 
-        return lowered[valid_mask]
+        return cast(np.ndarray, lowered[valid_mask])
 
     @staticmethod
     def adaptive_chunk_size(
