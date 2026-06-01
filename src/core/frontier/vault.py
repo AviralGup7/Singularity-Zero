@@ -261,7 +261,7 @@ class CyberVault:
                 secure_wipe(bytearray(dek))
 
                 return SecretLease(plaintext)
-        except (json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature):
+        except json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature:
             pass
 
         # Compatibility fallback for Argon2idAESGCM envelopes

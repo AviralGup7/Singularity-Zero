@@ -84,7 +84,7 @@ class DashboardQueryService:
                 rel = path.relative_to(self.output_root.resolve())
                 return f"/{rel.as_posix()}"
             return path_str
-        except (ValueError, RuntimeError):
+        except ValueError, RuntimeError:
             return path_str
 
     def _recover_job_from_launcher(self, job_id: str) -> dict[str, Any] | None:

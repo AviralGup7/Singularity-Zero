@@ -225,7 +225,7 @@ def validate_manifest_data(data: dict[str, Any]) -> list[str]:
 
     try:
         timeout = int(data.get("timeout_seconds", 20))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         errors.append("PLUGIN_MANIFEST.timeout_seconds must be an integer")
     else:
         if timeout < 1 or timeout > 300:
