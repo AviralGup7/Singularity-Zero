@@ -7,7 +7,7 @@ license = {text = "MIT"}
 dependencies = [
     # HTTP clients
     "httpx==0.28.0",
-    "aiohttp==3.13.0",
+    "aiohttp==3.13.4",
     "urllib3==2.7.0",
     "requests==2.33.0",
     # Data validation & serialization
@@ -22,13 +22,14 @@ dependencies = [
     "loguru==0.7.3",
     # DNS & crypto
     "dnspython==2.8.0",
-    "cryptography==46.0.6",
+    "cryptography==46.0.7",
     # HTML parsing
     "beautifulsoup4==4.14.0",
     # --- FastAPI dashboard ---
     "fastapi==0.115.0",
+    "starlette>=0.40.0",
     "uvicorn[standard]==0.30.0",
-    "python-multipart==0.0.22",
+    "python-multipart==0.0.27",
     "email-validator==2.0.0",
     "sse-starlette==3.0.0",
     # --- Redis job queue ---
