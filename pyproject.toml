@@ -2,7 +2,7 @@
 name = "cyber-security-test-pipeline"
 version = "2.0.0"
 description = "Automated API security testing pipeline with intelligent analysis"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
     # HTTP clients
@@ -26,7 +26,7 @@ dependencies = [
     # HTML parsing
     "beautifulsoup4==4.14.0",
     # --- FastAPI dashboard ---
-    "fastapi==0.115.0",
+    "fastapi>=0.115.8",
     "starlette>=0.40.0",
     "uvicorn[standard]==0.30.0",
     "python-multipart==0.0.27",
