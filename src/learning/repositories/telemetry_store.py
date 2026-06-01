@@ -39,13 +39,13 @@ _KNOWN_TABLES = {
 _KNOWN_TIME_COLUMNS = {"created_at", "updated_at", "timestamp", "last_seen"}
 
 _DELETE_QUERIES = {
-    (t, c): f"DELETE FROM {t} WHERE {c} < ?"  # noqa: S608
+    (t, c): f"DELETE FROM {t} WHERE {c} < ?"  # nosec B608 noqa: S608
     for t in _KNOWN_TABLES
     for c in _KNOWN_TIME_COLUMNS
 }
 
 _COUNT_QUERIES = {
-    t: f"SELECT COUNT(*) FROM {t}"  # noqa: S608
+    t: f"SELECT COUNT(*) FROM {t}"  # nosec B608 noqa: S608
     for t in _KNOWN_TABLES
 }
 

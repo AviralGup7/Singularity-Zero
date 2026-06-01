@@ -87,7 +87,7 @@ def setup_tools(dest_dir: str | None = None) -> None:
 
         logger.info("Downloading %s v%s from %s...", tool_name, version, url)
         try:
-            req = urllib.request.Request(  # noqa: S310
+            req = urllib.request.Request(  # nosec B310 noqa: S310
                 url,
                 headers={
                     "User-Agent": (
@@ -100,7 +100,7 @@ def setup_tools(dest_dir: str | None = None) -> None:
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmp_archive = Path(tmpdir) / "archive.zip"
                 with (
-                    urllib.request.urlopen(req, timeout=60) as response,  # noqa: S310
+                    urllib.request.urlopen(req, timeout=60) as response,  # nosec B310 noqa: S310
                     open(tmp_archive, "wb") as out_file,
                 ):
                     shutil.copyfileobj(response, out_file)
@@ -121,7 +121,7 @@ def setup_tools(dest_dir: str | None = None) -> None:
 
             # Set execution permissions
             if os_name != "windows":
-                os.chmod(tool_dest, 0o755)  # noqa: S103
+                os.chmod(tool_dest, 0o755)  # nosec B103 noqa: S103
 
             logger.info("[✓] Successfully installed %s to %s", tool_name, tool_dest)
 
