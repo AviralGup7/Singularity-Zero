@@ -1,6 +1,6 @@
 import pytest
 
-from src.dashboard.fastapi.config import FeatureFlags
+from src.dashboard.feature_flags import FeatureFlags
 from src.dashboard.fastapi.routers import jobs as jobs_router
 
 
