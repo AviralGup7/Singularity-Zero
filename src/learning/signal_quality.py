@@ -153,7 +153,7 @@ from src.learning.utils import clamp as _clamp
 def _numeric(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 

@@ -1,6 +1,8 @@
-import sys
 import shutil
-from setuptools import setup, Extension
+import sys
+
+from setuptools import Extension, setup
+
 
 def has_compiler():
     # Defensive check for C compiler availability to avoid aborting builds on systems without compiler tools
@@ -9,6 +11,7 @@ def has_compiler():
             return True
         try:
             from distutils.ccompiler import new_compiler
+
             cc = new_compiler()
             cc.initialize()
             return True
@@ -20,10 +23,12 @@ def has_compiler():
                 return True
         return False
 
+
 ext_modules = []
 if has_compiler():
     try:
         from Cython.Build import cythonize
+
         ext_modules = cythonize(
             Extension(
                 "src.core.frontier._state_cython",

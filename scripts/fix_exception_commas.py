@@ -5,7 +5,6 @@ from pathlib import Path
 def fix_file(path: Path):
     content = path.read_text(encoding="utf-8")
 
-
     # We want to keep track of the leading indentation of the match
     # So let's write a line-by-line replacement instead, which is safer
     lines = content.splitlines()
@@ -26,6 +25,7 @@ def fix_file(path: Path):
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"Fixed exception syntax in {path}")
 
+
 def main():
     root = Path("src")
     for p in root.rglob("*.py"):
@@ -34,6 +34,7 @@ def main():
     if tests_root.exists():
         for p in tests_root.rglob("*.py"):
             fix_file(p)
+
 
 if __name__ == "__main__":
     main()
