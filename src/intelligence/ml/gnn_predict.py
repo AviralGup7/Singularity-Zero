@@ -45,6 +45,7 @@ class GNNPredictor:
 
         # D^-1/2 * A_loop * D^-1/2
         from typing import cast
+
         return cast(np.ndarray, D_inv_sqrt @ A_loop @ D_inv_sqrt)
 
     def predict_links(

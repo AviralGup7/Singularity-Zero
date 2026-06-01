@@ -373,7 +373,7 @@ def _socket_resolve(domain: str, family: int) -> list[str]:
     """Resolve A or AAAA records using the stdlib socket module."""
     try:
         return [str(a[4][0]) for a in socket.getaddrinfo(domain, None, family)]
-    except (socket.gaierror, socket.herror, OSError):
+    except socket.gaierror, socket.herror, OSError:
         return []
 
 

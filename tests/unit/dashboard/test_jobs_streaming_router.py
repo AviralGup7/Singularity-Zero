@@ -1,7 +1,7 @@
 import pytest
 
-from src.dashboard.feature_flags import FeatureFlags
 from src.dashboard.fastapi.routers import jobs as jobs_router
+from src.dashboard.feature_flags import FeatureFlags
 
 
 class _FakeRequest:

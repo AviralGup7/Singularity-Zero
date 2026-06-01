@@ -69,7 +69,7 @@ async def discover_oauth_config(
                             }
                         )
                         break
-                except (httpx.RequestError, ValueError):
+                except httpx.RequestError, ValueError:
                     continue
     return configs
 
