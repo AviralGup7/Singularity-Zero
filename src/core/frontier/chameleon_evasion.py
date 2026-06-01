@@ -323,7 +323,7 @@ class HMMEvasionModel:
                 if probs[max_idx] > 0.0:
                     self._current_state = max_idx
                 return
-            except Exception:
+            except Exception:  # noqa: S110
                 pass  # Fallback to pure-Python dictionary loop on any anomaly
 
         # 2. Pure-Python fallback loop

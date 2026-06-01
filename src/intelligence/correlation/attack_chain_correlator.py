@@ -206,7 +206,7 @@ class VulnCorrelationEngine:
                 parts2 = url2.split("/")
                 if parts1 and parts2:
                     return bool(parts1[0] == parts2[0])
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
             return False
 

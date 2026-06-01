@@ -124,7 +124,7 @@ class FallbackDB:
         if conn is not None:
             try:
                 conn.close()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
             self._thread_local.conn = None
 

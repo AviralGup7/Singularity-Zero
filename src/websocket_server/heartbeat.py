@@ -146,7 +146,7 @@ class HeartbeatMonitor:
                         from src.websocket_server.metrics import WS_HEARTBEATS
 
                         WS_HEARTBEATS.inc()
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
                     await self._disconnect_client(info)
                     break

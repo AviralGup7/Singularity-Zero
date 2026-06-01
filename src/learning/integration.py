@@ -696,7 +696,7 @@ class LearningIntegration:
                     future = asyncio.run_coroutine_threadsafe(coro, loop)
                     try:
                         future.result(timeout=5.0)
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
                 else:
                     loop.create_task(coro)
@@ -709,7 +709,7 @@ class LearningIntegration:
                     try:
                         old_loop = asyncio.get_event_loop()
                         old_loop.run_until_complete(coro)
-                    except Exception:
+                    except Exception:  # noqa: S110
                         pass
 
         if self._mesh_sync:

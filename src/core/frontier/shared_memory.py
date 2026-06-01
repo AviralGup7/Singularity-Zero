@@ -47,7 +47,7 @@ class SharedMemoryBuffer:
         if self._owner:
             try:
                 self.shm.unlink()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
 

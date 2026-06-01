@@ -275,7 +275,7 @@ def run_nuclei_adaptive(
             waf_threads,
         )
         # Jitter: 0.5–2.0 s before starting WAF scan
-        time.sleep(random.uniform(0.5, 2.0))
+        time.sleep(random.uniform(0.5, 2.0))  # noqa: S311
         _verify_templates(config)
         command = _build_nuclei_command(config, tags, waf_threads, None)
         output = try_command(

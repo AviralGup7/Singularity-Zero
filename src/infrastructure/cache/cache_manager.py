@@ -959,7 +959,7 @@ class CacheManager:
             try:
                 # Basic check or assumption
                 l2_healthy = True
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         l3_healthy = self._l3 is not None
 
@@ -972,7 +972,7 @@ class CacheManager:
                 + (2.0 if l2_healthy else 0.0)
                 + (4.0 if l3_healthy else 0.0)
             )
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         logger.info(

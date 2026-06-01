@@ -46,7 +46,7 @@ def _find_finding_by_id(
                                 run_name=run_name,
                                 index=idx,
                             )
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     # Fallback to full iteration and lazily build the index
@@ -64,7 +64,7 @@ def _find_finding_by_id(
                     continue
                 try:
                     findings = json.loads(findings_path.read_text(encoding="utf-8"))
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
                 if not isinstance(findings, list):
                     continue
@@ -94,7 +94,7 @@ def _find_finding_by_id(
         # Save the lazily built index
         try:
             index_path.write_text(json.dumps(index_data, indent=2), encoding="utf-8")
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     return result
