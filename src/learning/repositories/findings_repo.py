@@ -45,7 +45,7 @@ class FindingsRepo(BaseRepo):
         placeholders = ",".join("?" for _ in run_ids)
         with self._cursor() as cur:
             cur.execute(
-                f"SELECT * FROM findings WHERE run_id IN ({placeholders}) ORDER BY confidence DESC",  # noqa: S608
+                f"SELECT * FROM findings WHERE run_id IN ({placeholders}) ORDER BY confidence DESC",  # nosec B608 noqa: S608
                 list(run_ids),
             )
             return [dict(r) for r in cur.fetchall()]
