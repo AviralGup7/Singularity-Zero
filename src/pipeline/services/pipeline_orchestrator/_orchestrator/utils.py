@@ -224,7 +224,7 @@ def coerce_positive_int(value: Any) -> int | None:
     """Coerce value to a positive integer, returning None if invalid."""
     try:
         parsed = int(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
     return parsed if parsed > 0 else None
 
@@ -500,7 +500,7 @@ async def record_stage_post_run(
         if getrusage is not None and rusage_self is not None:
             mem_usage = getrusage(rusage_self).ru_maxrss / 1024
             ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
-    except ImportError, AttributeError:
+    except (ImportError, AttributeError):
         pass
 
     try:

@@ -129,7 +129,7 @@ def _extract_json_data(body: str) -> dict[str, Any] | list[Any] | None:
     if stripped.startswith(("{", "[")):
         try:
             return cast(dict[str, Any] | list[Any] | None, json.loads(stripped[:50000]))
-        except json.JSONDecodeError, ValueError:
+        except (json.JSONDecodeError, ValueError):
             pass
     return None
 

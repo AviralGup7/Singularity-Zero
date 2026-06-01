@@ -30,7 +30,7 @@ def parse_json_body(body: str) -> dict[str, Any] | list[Any] | None:
     """Safely parse a JSON body."""
     try:
         return cast(dict[str, Any] | list[Any] | None, json.loads(body))
-    except json.JSONDecodeError, ValueError:
+    except (json.JSONDecodeError, ValueError):
         return None
 
 
