@@ -130,7 +130,7 @@ class TelemetryStore:
         if hasattr(self._local, "conn") and self._local.conn:
             try:
                 self._local.conn.close()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
             self._local.conn = None
 
@@ -140,7 +140,7 @@ class TelemetryStore:
             for conn in list(BaseRepo._connections):
                 try:
                     conn.close()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
             BaseRepo._connections.clear()
 

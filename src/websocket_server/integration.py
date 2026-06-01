@@ -421,7 +421,7 @@ def setup_websocket_routes(
         if conn.websocket.client_state == WebSocketState.CONNECTED:
             try:
                 await conn.websocket.close(code=1001, reason="Forced disconnect by admin")
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         await manager.disconnect(connection_id)
         return {"status": "disconnected", "connection_id": connection_id}

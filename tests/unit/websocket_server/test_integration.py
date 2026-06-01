@@ -55,7 +55,7 @@ def test_websocket_origin_validation() -> None:
             with client.websocket_connect("/ws/scan-progress") as websocket:
                 _ = websocket.receive_json()
                 assert False, "Should have been closed/rejected due to missing Origin"
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         # Test unauthorized Origin header: should be rejected
@@ -65,7 +65,7 @@ def test_websocket_origin_validation() -> None:
             ) as websocket:
                 _ = websocket.receive_json()
                 assert False, "Should have been closed/rejected due to unauthorized Origin"
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         # Test authorized Origin header: should succeed
@@ -91,7 +91,7 @@ def test_websocket_frame_size_limit() -> None:
                 websocket.send_text(large_payload)
                 _ = websocket.receive_json()
                 assert False, "Should have disconnected due to large payload size limit"
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
 

@@ -593,6 +593,6 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
                 "source": "python-probe-ipv6" if "[" in candidate else "python-probe",
                 "resolved_host": host,
             }
-        except (urllib3.exceptions.HTTPError, Exception):
+        except (urllib3.exceptions.HTTPError, Exception):  # noqa: S112
             continue
     return None

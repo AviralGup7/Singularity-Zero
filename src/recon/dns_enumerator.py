@@ -287,7 +287,7 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
             result = await _run_nslookup(domain, record_type)
             if result and hasattr(result, "stdout") and result.stdout:
                 return _parse_nslookup_output(result.stdout, record_type)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     if record_type == "A":
@@ -302,7 +302,7 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
             result = await _run_nslookup(domain, record_type)
             if result and hasattr(result, "stdout") and result.stdout:
                 return _parse_nslookup_output(result.stdout, record_type)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
         return []
 
@@ -346,7 +346,7 @@ async def _check_axfr(domain: str, timeout: float) -> list[str]:
             )
             if result:
                 discovered.append(f"AXFR_SUCCESSFUL_VIA_{ns.rstrip('.')}")
-        except Exception:
+        except Exception:  # noqa: S112
             continue
 
     return discovered
@@ -364,7 +364,7 @@ def _axfr_attempt(domain: str, nameserver: str, timeout: float) -> bool:
             xfr_gen = dns.query.xfr(ip, domain, timeout=timeout)
             dns.zone.from_xfr(xfr_gen)
             return True
-        except Exception:
+        except Exception:  # noqa: S112
             continue
     return False
 

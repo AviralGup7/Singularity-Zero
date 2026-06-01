@@ -339,7 +339,7 @@ class ResponseCache:
                             dt = email.utils.parsedate_to_datetime(str(ra))
                             if dt:
                                 retry_after = max(0.0, (dt - datetime.now(UTC)).total_seconds())
-                        except Exception:
+                        except Exception:  # noqa: S110
                             pass
 
             self.scheduler.observe(

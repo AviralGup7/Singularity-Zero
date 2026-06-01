@@ -52,7 +52,7 @@ class MARLSimulator:
         self.compromised: set[str] = set()
 
         # Agent positions (node_ids)
-        self.agent_positions = [random.choice(self.node_ids) for _ in range(num_agents)]
+        self.agent_positions = [random.choice(self.node_ids) for _ in range(num_agents)]  # noqa: S311
         for pos in self.agent_positions:
             self.compromised.add(pos)
 
@@ -102,7 +102,7 @@ class MARLSimulator:
 
             # Agent picks a target (epsilon-greedy or simple softmax over rewards/GNN confidence)
             # For prototype: pick target with highest predicted similarity if it exists, else random
-            target = random.choice(targets)
+            target = random.choice(targets)  # noqa: S311
 
             # Update state
             reward = self._get_reward(target)
@@ -128,7 +128,7 @@ class MARLSimulator:
             get_metrics().counter(
                 "marl_simulation_steps_total", "Total MARL simulation steps run"
             ).inc()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         return actions

@@ -42,7 +42,7 @@ def _safe_metric(cls: Any, name: str, documentation: str, labelnames: Any = ()) 
             if name in REGISTRY._names_to_collectors:
                 return REGISTRY._names_to_collectors[name]
             return cls(name, documentation, labelnames)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
     return cls(name, documentation, labelnames)
 

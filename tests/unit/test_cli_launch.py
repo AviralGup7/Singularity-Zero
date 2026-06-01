@@ -28,7 +28,7 @@ class TestCliLaunch(unittest.TestCase):
             [
                 "launch",
                 "--host",
-                "0.0.0.0",
+                "0.0.0.0",  # noqa: S104
                 "--port",
                 "9000",
                 "--concurrency",
@@ -37,7 +37,7 @@ class TestCliLaunch(unittest.TestCase):
                 "custom-queue",
             ]
         )
-        assert args.host == "0.0.0.0"
+        assert args.host == "0.0.0.0"  # noqa: S104
         assert args.port == 9000
         assert args.concurrency == 4
         assert args.queue == "custom-queue"

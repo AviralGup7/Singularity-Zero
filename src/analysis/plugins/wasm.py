@@ -68,7 +68,7 @@ def execute_isolated_scanner(
                 os.kill(pid, signal.SIGTERM)
             else:
                 os.kill(pid, signal.SIGKILL)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     # Start the watchdog timer thread

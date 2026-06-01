@@ -253,7 +253,7 @@ class CheckpointManager:
                             finally:
                                 try:
                                     loop.close()
-                                except Exception:  # noqa: BLE001
+                                except Exception:  # noqa: BLE001, S110
                                     pass
                         except Exception as e:  # noqa: BLE001
                             _log_replication_failure(e)

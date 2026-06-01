@@ -87,7 +87,7 @@ async def verify_finding_remediation(
                             findings_list = findings
                             findings_file_path = findings_path
                             break
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
             if found:
                 break

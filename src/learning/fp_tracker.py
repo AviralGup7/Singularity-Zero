@@ -221,7 +221,7 @@ class FPTracker:
             m = get_metrics()
             m.counter("fp_tracker_patterns_created_total").inc(patterns_created)
             m.counter("fp_tracker_patterns_updated_total").inc(patterns_updated)
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         return updated_count

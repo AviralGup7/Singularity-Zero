@@ -48,7 +48,7 @@ class PersistentCache:
     def __del__(self) -> None:
         try:
             self.close_all()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def _ensure_thread_local(self) -> None:

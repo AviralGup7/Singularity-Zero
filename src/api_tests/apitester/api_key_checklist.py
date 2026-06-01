@@ -304,7 +304,7 @@ def _check_rate_limit_replay(
             if status in {403, 429}:
                 rate_limited += 1
                 break
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
         time.sleep(0.1)
     return _record(
@@ -346,7 +346,7 @@ def _check_subdomain_scope(
                     result = future.result()
                     if result.get("status_code") == 200:
                         subdomain_hits.append({"url": u, "status_code": 200})
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001, S110
                     pass
     return _record(
         "subdomain_scope",
@@ -378,7 +378,7 @@ def _check_privilege_escalation(
             )
             if result.get("status_code") == 200:
                 privilege_hits.append({"endpoint": endpoint, "status_code": 200})
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
     return _record(
         "privilege_escalation",
@@ -593,7 +593,7 @@ def _check_write_actions(
                         "status_code": result.get("status_code"),
                     }
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
     return _record(
         "write_actions",

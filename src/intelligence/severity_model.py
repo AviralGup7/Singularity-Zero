@@ -275,7 +275,7 @@ class CalibratedSeverityModel:
             get_metrics().counter(
                 "severity_predictions_total", "Total model predictions made"
             ).inc()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
         logger.info("SeverityModel: predicted in %.4fs", latency)
 
@@ -362,7 +362,7 @@ class CalibratedSeverityModel:
                 get_metrics().counter(
                     "severity_retraining_failures_total", "Total model retraining failures"
                 ).inc()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
     def _load_training_examples(self) -> list[_TrainingExample]:

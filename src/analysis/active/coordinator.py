@@ -392,7 +392,7 @@ def oauth_flow_analyzer(
             try:
                 body = str(response["request_body"])
                 combined_params.update(dict(parse_qsl(body)))
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
         query_keys_lower = {k.lower(): v for k, v in combined_params.items()}

@@ -64,9 +64,9 @@ class JSONASTMutator(BaseASTMutator):
                 new_list.append(self._mutate_values(item))
             return new_list
         elif isinstance(node, str):
-            return random.choice(["' OR '1'='1", "<script>alert(1)</script>", "null"])
+            return random.choice(["' OR '1'='1", "<script>alert(1)</script>", "null"])  # noqa: S311
         elif isinstance(node, (int, float)):
-            return random.choice([0, -1, 2147483647])
+            return random.choice([0, -1, 2147483647])  # noqa: S311
         return node
 
     def _swap_keys(self, node: Any) -> Any:
@@ -83,7 +83,7 @@ class JSONASTMutator(BaseASTMutator):
         """Recursively nest a value to test parser stack limits."""
         if isinstance(node, dict) and node:
             new_node = copy.deepcopy(node)
-            key = random.choice(list(new_node.keys()))
+            key = random.choice(list(new_node.keys()))  # noqa: S311
             val = new_node[key]
             for _ in range(20):
                 val = {"n": val}
@@ -95,7 +95,7 @@ class JSONASTMutator(BaseASTMutator):
         """Change the type of a node (e.g. string to list)."""
         if isinstance(node, dict) and node:
             new_node = copy.deepcopy(node)
-            key = random.choice(list(new_node.keys()))
+            key = random.choice(list(new_node.keys()))  # noqa: S311
             new_node[key] = [new_node[key], "type_confusion_probe"]
             return new_node
         return node

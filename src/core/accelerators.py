@@ -91,13 +91,13 @@ def has_avx512() -> bool:
             with open("/proc/cpuinfo", encoding="utf-8") as f:
                 content = f.read()
                 return "avx512" in content
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
     elif system == "windows":
         try:
             # Fallback to standard environment checks on Windows
             pass
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
     return False
 
