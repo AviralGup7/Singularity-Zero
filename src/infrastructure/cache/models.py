@@ -192,7 +192,7 @@ class CacheEntry(BaseModel):
         try:
             serialized = json.dumps(self.value)
             self.size_bytes = len(serialized.encode("utf-8"))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             self.size_bytes = 0
         return self.size_bytes
 

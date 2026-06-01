@@ -226,7 +226,7 @@ def fetch_http_details(url: str, timeout: int) -> dict[str, Any]:
         raw = resp.content[:12000]
         try:
             body = raw.decode("utf-8", errors="replace")
-        except (UnicodeDecodeError, AttributeError, ValueError, TypeError):
+        except UnicodeDecodeError, AttributeError, ValueError, TypeError:
             body = resp.text or ""
         resp_headers = {str(k).lower(): str(v) for k, v in dict(resp.headers).items()}
         return {
