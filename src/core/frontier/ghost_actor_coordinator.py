@@ -58,7 +58,7 @@ class GhostMeshCoordinator:
                     )
                     if not health.get("evacuation_recommended"):
                         return False
-                except pykka.Timeout, Exception:
+                except (pykka.Timeout, Exception):
                     return False
 
             try:
@@ -144,7 +144,7 @@ class GhostMeshCoordinator:
                     raise
 
                 # 4. Stop the source actor after commit; a target can now rehydrate on restart.
-                actor_ref.stop(False)
+                actor_ref.stop(block=False)
 
                 # 5. Emit Migration Event for Observability
                 try:

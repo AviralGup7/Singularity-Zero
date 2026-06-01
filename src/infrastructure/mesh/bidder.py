@@ -118,5 +118,5 @@ def find_winning_bid(bids: dict[str, str]) -> str | None:
         winner_id, winner_val = sorted_bids[0]
         logger.info("Bid Winner: %s (Score: %s)", winner_id, winner_val)
         return winner_id
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return None
