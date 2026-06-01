@@ -184,7 +184,7 @@ def response_cache_fresh(
         return False
     try:
         fetched_at = float(record.get("cached_at_epoch", 0))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
     if fetched_at <= 0:
         return False
