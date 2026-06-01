@@ -52,9 +52,17 @@ class PersistentCache:
             pass
 
     def _ensure_thread_local(self) -> None:
-        """Ensure _thread_local is initialized (handles __new__ bypass)."""
+        """Ensure all attributes are initialized (handles __new__ bypass)."""
+        if not hasattr(self, "_db_path"):
+            self._db_path = _DEFAULT_DB_PATH
+        if not hasattr(self, "_lock"):
+            self._lock = threading.RLock()
         if not hasattr(self, "_thread_local"):
             self._thread_local = _ThreadLocalConnections()
+        if not hasattr(self, "_all_conns"):
+            self._all_conns = set()
+        if not hasattr(self, "_metrics"):
+            self._metrics = CacheMetrics()
 
     def _get_conn(self) -> sqlite3.Connection:
         """Return a cached per-thread SQLite connection, creating one if needed."""

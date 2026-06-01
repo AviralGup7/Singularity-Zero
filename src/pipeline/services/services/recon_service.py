@@ -40,7 +40,7 @@ async def run_url_collection_service(
     stage_input: StageInput,
     *,
     collector: typing.Callable[..., Any],
-    progress_callback: typing.Callable[..., Any] | None = None,
+    progress_callback: Any = None,
 ) -> StageOutput:
     """Pure service implementation for URL collection with strict type guards."""
     started = time.monotonic()
@@ -86,7 +86,7 @@ async def run_live_hosts_service(
     stage_input: StageInput,
     *,
     prober: typing.Callable[..., Any],
-    enricher: typing.Callable[..., Any] | None = None,
+    enricher: Any = None,
     force_recheck: bool = False,
 ) -> StageOutput:
     """Pure service implementation for live host probing with strict type guards."""

@@ -76,7 +76,7 @@ async def test_active_fuzzing_campaign(monkeypatch: pytest.MonkeyPatch) -> None:
         def __init__(self, **kwargs: Any) -> None:
             self.calls = 0
 
-        async def get(self, url: str) -> MockResponse:
+        async def get(self, url: str, **kwargs: Any) -> MockResponse:
             self.calls += 1
             # If injecting single quote, return a simulated SQL error leak
             if "'" in url:
@@ -92,6 +92,7 @@ async def test_active_fuzzing_campaign(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Patch AsyncClient
     monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+    monkeypatch.setattr("src.fuzzing.orchestrator.is_safe_url_with_dns_check", lambda *args, **kwargs: True)
 
     findings = await orchestrator.run_fuzzing_campaign(url)
 

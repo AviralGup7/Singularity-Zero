@@ -136,8 +136,9 @@ async def test_llm_service_failover_graceful(mock_finding) -> None:
     assert "# Executive" in summary
 
 
-def test_fastapi_explain_route(tmp_path: Path, mock_finding) -> None:
+def test_fastapi_explain_route(tmp_path: Path, mock_finding, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify FastAPI GET /api/findings/{finding_id}/ai-explain endpoint executes cleanly."""
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.dependencies import get_queue_client
 
@@ -192,8 +193,9 @@ def test_fastapi_explain_route(tmp_path: Path, mock_finding) -> None:
     assert "developer" in data["explanations"]
 
 
-def test_fastapi_triage_review_route(tmp_path: Path, mock_finding) -> None:
+def test_fastapi_triage_review_route(tmp_path: Path, mock_finding, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify FastAPI POST /api/triage/runs/{run_id}/findings/{finding_id}/ai-review."""
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.dependencies import get_queue_client
 
@@ -241,8 +243,9 @@ def test_fastapi_triage_review_route(tmp_path: Path, mock_finding) -> None:
     assert "reasoning" in data["review"]
 
 
-def test_fastapi_ai_summary_route(tmp_path: Path, mock_finding) -> None:
+def test_fastapi_ai_summary_route(tmp_path: Path, mock_finding, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify FastAPI GET /api/reports/ai-summary and tenant-boundary scoping enforcement."""
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.dependencies import get_queue_client
 
