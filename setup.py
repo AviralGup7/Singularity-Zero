@@ -4,7 +4,7 @@ import sys
 from setuptools import Extension, setup
 
 
-def has_compiler():
+def has_compiler() -> bool:
     # Defensive check for C compiler availability to avoid aborting builds on systems without compiler tools
     if sys.platform == "win32":
         if shutil.which("cl.exe"):
