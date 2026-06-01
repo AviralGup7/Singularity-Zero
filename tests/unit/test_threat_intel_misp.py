@@ -77,7 +77,7 @@ async def test_threat_intel_correlator_async() -> None:
     ioc_res = await correlator.match_ioc_async("malicious-c2-server.com")
     assert ioc_res["malicious"] is True
     assert ioc_res["reputation_score"] == 85
-    assert "MISP Feed" in ioc_res["matched_feeds"]
+    assert "MISP Feed 42" in ioc_res["matched_feeds"]
 
     # Test enrich_findings_with_intel_async
     findings = [

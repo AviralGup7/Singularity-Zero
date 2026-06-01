@@ -42,6 +42,9 @@ class _DummyLearning:
     def apply_adaptations(self, _ctx: dict[str, object], _adaptations: list[object]) -> None:
         return None
 
+    async def run_learning_update(self, _ctx: dict[str, object]) -> None:
+        return None
+
 
 class _RecoveryCheckpointManager:
     def __init__(
@@ -106,6 +109,8 @@ def _patch_runtime_environment(
         emitted_progress.append(event)
 
     monkeypatch.setattr(orch_mod, "emit_progress", _capture_progress)
+    import src.pipeline.services.pipeline_orchestrator._orchestrator.security as security_mod
+    monkeypatch.setattr(security_mod, "emit_progress", _capture_progress)
     monkeypatch.setattr(orch_mod, "emit_error", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(orch_mod, "pipeline_flow_manifest", lambda: [])
     monkeypatch.setattr(orch_mod, "build_tool_status", lambda *_args, **_kwargs: {})
@@ -202,6 +207,21 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
     monkeypatch.setattr(orch_mod, "create_checkpoint_manager", _create_checkpoint_manager)
     monkeypatch.setattr(
         orch_mod,
+        "attempt_recovery",
+        lambda *_args, **_kwargs: (
+            True,
+            CheckpointState(
+                pipeline_run_id="run-old",
+                checkpoint_version=2,
+                completed_stages=["subdomains", "live_hosts"],
+            ),
+        ),
+    )
+
+    import src.pipeline.services.pipeline_orchestrator._orchestrator.security as security_mod
+    monkeypatch.setattr(security_mod, "create_checkpoint_manager", _create_checkpoint_manager)
+    monkeypatch.setattr(
+        security_mod,
         "attempt_recovery",
         lambda *_args, **_kwargs: (
             True,

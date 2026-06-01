@@ -774,6 +774,106 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/cockpit/sandbox/launch:
+    post:
+      tags:
+      - Cockpit
+      - Cockpit
+      summary: Launch a safe dockerized sandbox for a node
+      operationId: launch_sandbox_api_cockpit_sandbox_launch_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxLaunchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Launch Sandbox Api Cockpit Sandbox Launch Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+  /api/cockpit/sandbox/{sandbox_id}/state:
+    get:
+      tags:
+      - Cockpit
+      - Cockpit
+      summary: View chronological state of the sandbox for Time-Travel Replay
+      operationId: get_sandbox_state_api_cockpit_sandbox__sandbox_id__state_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: sandbox_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Sandbox Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Sandbox State Api Cockpit Sandbox  Sandbox Id  State
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/cockpit/sandbox/{sandbox_id}/terminal:
+    post:
+      tags:
+      - Cockpit
+      - Cockpit
+      summary: Execute manual command in the sandbox terminal
+      operationId: execute_terminal_api_cockpit_sandbox__sandbox_id__terminal_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: sandbox_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Sandbox Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminalCommandRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Execute Terminal Api Cockpit Sandbox  Sandbox Id  Terminal
+                  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/jobs:
     get:
       tags:
@@ -1602,7 +1702,7 @@ paths:
       tags:
       - Targets
       summary: Delete a target
-      description: Delete a target output directory.
+      description: Delete a target output directory. (SEC-FIX)
       operationId: delete_target_api_targets__target_name__delete
       security:
       - APIKeyHeader: []
@@ -1645,6 +1745,8 @@ paths:
       tags:
       - Targets
       summary: Get findings for a target
+      description: Retrieve findings for a specific target with traversal protection.
+        (SEC-FIX)
       operationId: get_target_findings_api_targets__target_name__findings_get
       security:
       - APIKeyHeader: []
@@ -1695,6 +1797,7 @@ paths:
       tags:
       - Targets
       summary: Get risk score for a target
+      description: Get risk score with traversal protection. (SEC-FIX)
       operationId: get_risk_score_api_targets__target_name__risk_score_get
       security:
       - APIKeyHeader: []
@@ -1735,6 +1838,7 @@ paths:
       tags:
       - Targets
       summary: Get timeline data for a target
+      description: Retrieve timeline with traversal protection. (SEC-FIX)
       operationId: get_timeline_api_targets__target_name__timeline_get
       security:
       - APIKeyHeader: []
@@ -1775,6 +1879,7 @@ paths:
       tags:
       - Targets
       summary: Get historical scores for a target
+      description: Get historical scores with traversal protection. (SEC-FIX)
       operationId: get_historical_scores_api_targets__target_name__historical_scores_get
       security:
       - APIKeyHeader: []
@@ -1815,7 +1920,7 @@ paths:
       tags:
       - Targets
       summary: Get compliance report for a target
-      description: Get the latest compliance coverage and maturity report (Phase 6).
+      description: Get the latest compliance report with traversal protection. (SEC-FIX)
       operationId: get_target_compliance_api_targets__target_name__compliance_get
       security:
       - APIKeyHeader: []
@@ -1859,7 +1964,7 @@ paths:
       tags:
       - Targets
       summary: List all findings with pagination
-      description: List all findings across all targets with pagination support.
+      description: List all findings with traversal protection on target filter. (SEC-FIX)
       operationId: list_all_findings_api_targets_findings_list_get
       security:
       - APIKeyHeader: []
@@ -1931,6 +2036,7 @@ paths:
       tags:
       - Targets
       summary: Compare two targets side by side
+      description: Compare targets with traversal protection. (SEC-FIX)
       operationId: compare_targets_api_targets_compare_get
       security:
       - APIKeyHeader: []
@@ -2326,6 +2432,50 @@ paths:
                 type: object
                 additionalProperties: true
                 title: Response Explain Finding Severity Api Findings  Finding Id  Explain
+                  Get
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/findings/{finding_id}/ai-explain:
+    get:
+      tags:
+      - Findings
+      - Findings
+      summary: Get AI persona-tailored (Developer/Auditor) explanations for a finding
+      operationId: explain_finding_ai_api_findings__finding_id__ai_explain_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Explain Finding Ai Api Findings  Finding Id  Ai Explain
                   Get
         '404':
           content:
@@ -3275,6 +3425,36 @@ paths:
                 title: Response Get Remediation Plan Api Remediation Planner Get
       security:
       - APIKeyHeader: []
+  /api/reports/ai-summary:
+    get:
+      tags:
+      - Reports
+      summary: Get AI executive security posture summary for a target
+      operationId: get_ai_executive_summary_api_reports_ai_summary_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: target
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Target
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Ai Executive Summary Api Reports Ai Summary Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/reports/library:
     get:
       tags:
@@ -3321,6 +3501,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/reports/sla/trending:
+    get:
+      tags:
+      - Reports
+      summary: Get GRC SLA trending telemetry and active breaches
+      description: Retrieve MTTR and active SLA breach trends for all tenant-scoped
+        targets.
+      operationId: get_sla_trending_api_reports_sla_trending_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Get Sla Trending Api Reports Sla Trending Get
+      security:
+      - APIKeyHeader: []
   /api/registry/modules:
     get:
       tags:
@@ -3708,7 +3907,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: Unprocessable Content
+          description: Unprocessable Entity
           content:
             application/json:
               schema:
@@ -4197,6 +4396,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/triage/runs/{run_id}/findings/{finding_id}/ai-review:
+    post:
+      tags:
+      - Triage Collaboration
+      - Triage Collaboration
+      summary: Ai Triage Finding
+      operationId: ai_triage_finding_api_triage_runs__run_id__findings__finding_id__ai_review_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Run Id
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Ai Triage Finding Api Triage Runs  Run Id  Findings  Finding
+                  Id  Ai Review Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/evasion/metrics:
     get:
       tags:
@@ -4253,6 +4490,20 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response Get Version Api Version Get
+  /metrics:
+    get:
+      tags:
+      - System
+      summary: Get Metrics
+      description: Prometheus metrics endpoint.
+      operationId: get_metrics_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Get Metrics Metrics Get
   /api/dashboard:
     get:
       tags:
@@ -6166,6 +6417,19 @@ components:
       type: object
       title: SQLiteCacheOverview
       description: SQLite cache file and query status.
+    SandboxLaunchRequest:
+      properties:
+        target_node:
+          type: string
+          title: Target Node
+        image:
+          type: string
+          title: Image
+          default: ubuntu:latest
+      type: object
+      required:
+      - target_node
+      title: SandboxLaunchRequest
     SecurityEventResponse:
       properties:
         id:
@@ -6630,6 +6894,15 @@ components:
       type: object
       title: TelemetryKpis
       description: FastAPI response schema for learning subsystem KPIs.
+    TerminalCommandRequest:
+      properties:
+        command:
+          type: string
+          title: Command
+      type: object
+      required:
+      - command
+      title: TerminalCommandRequest
     ThresholdHistoryEntry:
       properties:
         history_id:
