@@ -116,8 +116,8 @@ class MARLSimulator:
                     "to": target,
                     "reward": reward,
                     "is_pivot": any(
-                        l["source"] == current_pos and l["target"] == target
-                        for l in predicted_links
+                        link["source"] == current_pos and link["target"] == target
+                        for link in predicted_links
                     ),
                 }
             )

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import struct
 from multiprocessing import shared_memory
+from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -30,14 +31,16 @@ class SharedMemoryBuffer:
         """Write bytes to the shared buffer."""
         if offset + len(data) > self.size:
             raise ValueError("Data exceeds shared memory buffer size")
-        self.shm.buf[offset : offset + len(data)] = data
+        buf = cast(Any, self.shm.buf)
+        buf[offset : offset + len(data)] = data
         return len(data)
 
     def read(self, size: int, offset: int = 0) -> bytes:
         """Read bytes from the shared buffer."""
         if offset + size > self.size:
             raise ValueError("Read exceeds shared memory buffer size")
-        return bytes(self.shm.buf[offset : offset + size])
+        buf = cast(Any, self.shm.buf)
+        return bytes(buf[offset : offset + size])
 
     def close(self) -> None:
         self.shm.close()

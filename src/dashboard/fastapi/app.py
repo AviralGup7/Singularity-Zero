@@ -8,7 +8,7 @@ import time
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -591,7 +591,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         }
 
     @app.get("/metrics", tags=["System"])
-    async def get_metrics():
+    async def get_metrics() -> Any:
         """Prometheus metrics endpoint."""
         try:
             from fastapi import Response
@@ -620,7 +620,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         cached = getattr(app.state, "cached_dashboard_stats", None)
         cache_time = getattr(app.state, "dashboard_stats_cache_time", 0.0)
         if cached is not None and now - cache_time < 5.0:
-            return cached
+            return cast(dict[str, Any], cached)
 
         services = app.state.services
         targets = services.list_targets()

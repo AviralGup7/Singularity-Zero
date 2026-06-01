@@ -12,7 +12,7 @@ dispatches outbound messages from the connection's message queue.
 
 import asyncio
 import uuid
-from typing import cast
+from typing import Any, cast
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -94,6 +94,7 @@ class WebSocketHandler:
         self.required_roles = required_roles
         self.allowed_origins = allowed_origins
         self.hooks: list[WebSocketHook] = []
+        self.compression_options: dict[str, Any] | None = None
 
         import os
 
