@@ -61,7 +61,7 @@ class FeedbackRepo(BaseRepo):
         placeholders = ",".join("?" for _ in run_ids)
         with self._cursor() as cur:
             cur.execute(
-                f"SELECT * FROM feedback_events WHERE run_id IN ({placeholders})",  # noqa: S608
+                f"SELECT * FROM feedback_events WHERE run_id IN ({placeholders})",  # nosec B608 noqa: S608
                 list(run_ids),
             )
             return [dict(r) for r in cur.fetchall()]
