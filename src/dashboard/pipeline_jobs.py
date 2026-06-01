@@ -20,7 +20,6 @@ from src.core.utils.safe_errors import safe_error_message
 from src.core.utils.stderr_classification import classify_stderr_text, extract_degraded_providers
 from src.dashboard.error_classification import (
     _extract_stdout_error_detail,
-    _truncate_lines,
 )
 
 # Re-expose and leverage deconstructed modular components
@@ -33,6 +32,7 @@ from src.dashboard.stream_consumer import (
 from src.dashboard.stream_consumer import (
     consume_stream as consume_stream,
 )
+from src.dashboard.utils import truncate_lines as _truncate_lines
 
 __all__ = [
     "create_job_record",

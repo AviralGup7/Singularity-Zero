@@ -52,7 +52,7 @@ class CircuitBreaker:
         """Execute protected function, handling state transitions and fallbacks."""
         admitted, admission_state, state_version = self._try_admit_call()
         if not admitted:
-            return self._fallback_or_raise(*args, **kwargs)
+            return cast(T, self._fallback_or_raise(*args, **kwargs))
 
         # 2. Execute protected call
         try:

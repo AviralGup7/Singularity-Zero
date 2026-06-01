@@ -430,18 +430,18 @@ class GhostVFS:
                         secure_wipe(new_file_key)
             except Exception as e:
                 logger.error("Ghost-VFS: Key rotation failed: %s", e)
-                for raw in new_files.values():
-                    self._wipe_raw_buffer(raw)
+                for buf in new_files.values():
+                    self._wipe_raw_buffer(buf)
                 secure_wipe(new_key)
                 raise RuntimeError("Key rotation aborted") from e
 
             # Phase 3: Update state (Atomic swap)
-            for raw in self._files.values():
-                self._wipe_raw_buffer(raw)
+            for buf in self._files.values():
+                self._wipe_raw_buffer(buf)
             self._files = new_files
             self._key = new_key
             self._aesgcm = AESGCM(bytes(new_key))
-            self._last_rotation = time.time()
+            self._last_rotation = time.monotonic()
 
             # Wipe old key
             self._secure_wipe_bytes(old_key)

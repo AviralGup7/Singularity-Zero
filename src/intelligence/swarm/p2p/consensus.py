@@ -8,7 +8,7 @@ import hashlib
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, cast
 
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
@@ -32,7 +32,7 @@ class NoiseChannel:
         nonce = encrypted_data[:12]
         ciphertext = encrypted_data[12:]
         plaintext = self.cipher.decrypt(nonce, ciphertext, None)
-        return json.loads(plaintext.decode("utf-8"))
+        return cast(dict[str, Any], json.loads(plaintext.decode("utf-8")))
 
 
 class BFTMessageValidator:

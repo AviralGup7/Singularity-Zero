@@ -564,7 +564,7 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
     active_result: dict[str, Any] = {"status": "skipped", "reason": "not_active_ready"}
 
     if validation_state == "active_ready" and http_client:
-        settings = {}
+        settings: dict[str, Any] = {}
         if isinstance(context, dict):
             settings = context.get("settings", {}) or context.get("selector_config", {}) or {}
         elif hasattr(context, "selector_config"):

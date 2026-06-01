@@ -535,12 +535,8 @@ class ScenarioExecutionEngine:
                         url,
                         self.max_response_bytes,
                     )
-                    try:
-                        from src.core.telemetry import build_telemetry_event
-
-                        logger.debug("Emitting telemetry metric for response truncation event.")
-                    except ImportError:
-                        pass
+                    # Telemetry metric for response truncation event
+                    pass
                     body_bytes = body_bytes[: self.max_response_bytes]
 
                 body_text = body_bytes.decode(charset, errors="replace")

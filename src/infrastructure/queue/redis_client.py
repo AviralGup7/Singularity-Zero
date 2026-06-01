@@ -269,7 +269,7 @@ class RedisClient:
                 pipe = self._client.pipeline()
                 for cmd_name, args in processed_commands:
                     pipe.execute_command(cmd_name, *args)
-                return pipe.execute()
+                return cast(list[Any], pipe.execute())
 
             return self._breaker.call(self._with_retries, run_pipeline)
         except Exception as exc:
