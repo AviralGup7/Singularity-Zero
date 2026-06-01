@@ -89,7 +89,7 @@ def _source_items(payload: dict[str, Any]) -> Generator[dict[str, str]]:
             if not isinstance(item, dict):
                 continue
             yield {
-                "path": str(item.get("path") or "inline_%d" % index),
+                "path": str(item.get("path") or f"inline_{index}"),
                 "content": str(item.get("content") or item.get("source") or ""),
             }
         return

@@ -17,11 +17,11 @@ try:
 
     CRYPTOGRAPHY_AVAILABLE = True
 except ImportError:
-    Type: Any = None
-    hash_secret_raw: Any = None
-    hashes: Any = None
-    AESGCM: Any = None
-    HKDF: Any = None
+    Type: Any = None  # type: ignore[no-redef]
+    hash_secret_raw: Any = None  # type: ignore[no-redef]
+    hashes: Any = None  # type: ignore[no-redef]
+    AESGCM: Any = None  # type: ignore[no-redef]
+    HKDF: Any = None  # type: ignore[no-redef]
     CRYPTOGRAPHY_AVAILABLE = False
 
 from src.core.logging.trace_logging import get_pipeline_logger

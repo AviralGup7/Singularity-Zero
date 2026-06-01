@@ -124,7 +124,7 @@ class WSServices:
             metadata=metadata or {},
         )
         return asyncio.create_task(
-            self.broadcaster.broadcast(msg, "global"),
+            self.broadcaster.broadcast_to_group("global", msg),
             name=f"ws-telemetry-{model_id}",
         )
 
@@ -370,7 +370,7 @@ def setup_websocket_routes(
         await handler.handle_evasion_telemetry(websocket)
 
     @app.get("/health/ws")
-    async def ws_health():
+    async def ws_health() -> Any:
         redis_ok = True
         if broadcaster._redis_enabled and broadcaster._redis_url:
             if broadcaster._redis_client is not None:
@@ -389,14 +389,14 @@ def setup_websocket_routes(
         )
 
     @app.get("/metrics")
-    async def get_metrics():
+    async def get_metrics() -> Any:
         from fastapi import Response
         from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/admin/websocket/connections")
-    async def admin_list_connections():
+    async def admin_list_connections() -> list[dict[str, Any]]:
         conns = await manager.get_all_connections()
         return [
             {
@@ -411,7 +411,7 @@ def setup_websocket_routes(
         ]
 
     @app.delete("/admin/websocket/connections/{connection_id}")
-    async def admin_disconnect(connection_id: str):
+    async def admin_disconnect(connection_id: str) -> dict[str, Any]:
         from fastapi import HTTPException
         from starlette.websockets import WebSocketState
 
@@ -427,7 +427,7 @@ def setup_websocket_routes(
         return {"status": "disconnected", "connection_id": connection_id}
 
     @app.post("/admin/websocket/broadcast")
-    async def admin_broadcast(payload: dict[str, Any]):
+    async def admin_broadcast(payload: dict[str, Any]) -> dict[str, Any]:
         from fastapi import HTTPException
 
         from src.websocket_server.protocol import StatusMessage
@@ -443,14 +443,14 @@ def setup_websocket_routes(
         return {"status": "broadcasted", "channel": channel, "connections_reached": sent}
 
     @app.get("/admin/websocket/stats")
-    async def admin_stats():
+    async def admin_stats() -> dict[str, Any]:
         stats = broadcaster.get_stats()
         active_count = await manager.get_active_count()
         stats["active_connections"] = active_count
         return stats
 
     @app.post("/admin/websocket/config")
-    async def admin_config(payload: dict[str, Any]):
+    async def admin_config(payload: dict[str, Any]) -> dict[str, Any]:
         if "max_connections_per_user" in payload:
             manager.max_connections_per_user = int(payload["max_connections_per_user"])
         if "max_connections_per_ip" in payload:

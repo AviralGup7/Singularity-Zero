@@ -130,7 +130,7 @@ def execute_validation_runtime(
     return {
         "schema_version": engine_output.get(
             "schema_version",
-            VALIDATION_RUNTIME_VERSION_OR_FALLBACK := VALIDATION_RUNTIME_SCHEMA_VERSION,
+            VALIDATION_RUNTIME_SCHEMA_VERSION,
         ),
         "mode": mode,
         "results": results,
