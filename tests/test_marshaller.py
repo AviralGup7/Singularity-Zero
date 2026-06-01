@@ -120,7 +120,7 @@ def test_default_pickle_secret_is_stable_across_processes():
         "data=mesh_unmarshal_pickle(sys.stdin.buffer.read());"
         "assert data == {'worker': 'child', 'ok': True}"
     )
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603
         [sys.executable, "-c", code],
         input=payload,
         capture_output=True,
