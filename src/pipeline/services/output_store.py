@@ -193,7 +193,7 @@ class PipelineOutputStore:
             if isinstance(res, dict):
                 return res
             return None
-        except (json.JSONDecodeError, OSError):
+        except json.JSONDecodeError, OSError:
             return None
 
     def upload_file(self, local_path: Path, filename: str | None = None) -> str:

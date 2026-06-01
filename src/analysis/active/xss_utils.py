@@ -545,7 +545,7 @@ def detect_reflection_efficiency(
             # Simple character overlap score
             score = _simple_fuzzy_match(reflected, check_lower)
             efficiencies.append(score)
-        except (IndexError, ValueError):
+        except IndexError, ValueError:
             efficiencies.append(0)
 
     return efficiencies

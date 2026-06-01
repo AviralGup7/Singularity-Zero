@@ -254,7 +254,7 @@ async def handle_triage_websocket(
                         "state": service.build_finding_state(run_id, finding_id),
                     },
                 )
-    except (WebSocketDisconnect, json.JSONDecodeError):
+    except WebSocketDisconnect, json.JSONDecodeError:
         pass
     finally:
         await service.disconnect(run_id, connection.connection_id)
