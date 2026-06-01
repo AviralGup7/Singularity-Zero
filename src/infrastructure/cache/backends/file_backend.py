@@ -60,7 +60,7 @@ class FileBackend:
         if index_path.exists():
             try:
                 self._index = json.loads(index_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError, OSError:
+            except (json.JSONDecodeError, OSError):
                 self._index = {}
 
     def _save_index(self) -> None:
@@ -138,7 +138,7 @@ class FileBackend:
                 else:
                     entry = json.loads(path.read_text(encoding="utf-8"))
                 break
-            except EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError:
+            except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError):
                 continue
 
         if entry is None:
