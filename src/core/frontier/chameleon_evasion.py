@@ -414,7 +414,7 @@ class ChameleonEvasionEngine:
         """Update HMM based on HTTP response and record telemetry metrics."""
         try:
             status = int(response_status)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             logger.debug("Invalid response status for Chameleon observation: %r", response_status)
             status = 0
 

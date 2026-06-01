@@ -60,7 +60,7 @@ def _decode_jwt_part(part: str) -> dict | Any | None:
     try:
         decoded = _b64url_decode(part)
         return json.loads(decoded)
-    except ValueError, TypeError, json.JSONDecodeError:
+    except (ValueError, TypeError, json.JSONDecodeError):
         return None
 
 
