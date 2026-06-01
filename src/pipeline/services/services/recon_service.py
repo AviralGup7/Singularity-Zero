@@ -21,11 +21,6 @@ else:
     except ImportError:
         beartype = _identity
 
-from src.core.contracts.capabilities import (  # noqa: E402
-    EnrichmentProviderProtocol,
-    LiveHostProberProtocol,
-    UrlCollectorProtocol,
-)
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput  # noqa: E402
 from src.core.middleware import ScopeValidator  # noqa: E402
 from src.core.utils import normalize_scope_entry  # noqa: E402
@@ -44,7 +39,7 @@ from src.recon.urls import extract_parameters  # noqa: E402
 async def run_url_collection_service(
     stage_input: StageInput,
     *,
-    collector: UrlCollectorProtocol,
+    collector: typing.Callable[..., Any],
     progress_callback: typing.Callable[..., Any] | None = None,
 ) -> StageOutput:
     """Pure service implementation for URL collection with strict type guards."""
@@ -90,8 +85,8 @@ async def run_url_collection_service(
 async def run_live_hosts_service(
     stage_input: StageInput,
     *,
-    prober: LiveHostProberProtocol,
-    enricher: EnrichmentProviderProtocol | None = None,
+    prober: typing.Callable[..., Any],
+    enricher: typing.Callable[..., Any] | None = None,
     force_recheck: bool = False,
 ) -> StageOutput:
     """Pure service implementation for live host probing with strict type guards."""
