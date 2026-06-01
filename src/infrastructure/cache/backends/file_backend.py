@@ -209,7 +209,7 @@ class FileBackend:
                 get_metrics().counter(
                     "file_cache_write_failures_total", "Total file cache write failures"
                 ).inc()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
     def _delete_file(self, key: str) -> bool:

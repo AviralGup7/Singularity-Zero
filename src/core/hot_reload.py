@@ -32,7 +32,7 @@ class HotReloadManager:
             path.touch()
             self.suspend_trigger_count += 1
             logger.info("Suspend flag file written for target: %s", target)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
 
     def clear_suspend(self, target: str) -> None:
@@ -42,7 +42,7 @@ class HotReloadManager:
             try:
                 path.unlink()
                 logger.info("Cleared suspend flag for target: %s", target)
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     def check_suspend_trigger(self, target: str, stage: str) -> bool:

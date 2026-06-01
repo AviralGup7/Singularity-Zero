@@ -81,7 +81,7 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "misp", "status": "success"},
                     ).inc()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
             except Exception as e:
                 logger.warning("MISP lookup failed: %s", e)
@@ -93,7 +93,7 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "misp", "status": "failed"},
                     ).inc()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
         # 2. Query AlienVault OTX
@@ -121,7 +121,7 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "otx", "status": "success"},
                     ).inc()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
             except Exception as e:
                 logger.warning("OTX lookup failed: %s", e)
@@ -133,7 +133,7 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "otx", "status": "failed"},
                     ).inc()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
         # 3. Query VirusTotal
@@ -160,7 +160,7 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "virustotal", "status": "success"},
                     ).inc()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
             except Exception as e:
                 logger.warning("VirusTotal lookup failed: %s", e)
@@ -172,7 +172,7 @@ class ThreatIntelCorrelator:
                         "Threat intel queries",
                         labels={"feed": "virustotal", "status": "failed"},
                     ).inc()
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
         # Local simulation fallback if no external matches but suspicious keywords exist

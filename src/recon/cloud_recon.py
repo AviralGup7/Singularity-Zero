@@ -128,7 +128,7 @@ class CloudBucketScanner:
                         if acl_resp.status == 200:
                             finding["severity"] = "high"
                             finding["details"] += " ACL is publicly readable."
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
                 # Active Probe 2: Check Public Write (Upload)
@@ -144,7 +144,7 @@ class CloudBucketScanner:
                             finding["details"] += (
                                 " Bucket allows unauthenticated file uploads (Public Write)!"
                             )
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
                 return finding
@@ -195,7 +195,7 @@ class CloudBucketScanner:
                         if acl_resp.status == 200:
                             finding["severity"] = "high"
                             finding["details"] += " ACL is publicly readable."
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
                 # Active Probe 2: Check Public Write (Upload)
@@ -211,7 +211,7 @@ class CloudBucketScanner:
                             finding["details"] += (
                                 " Bucket allows unauthenticated file uploads (Public Write)!"
                             )
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
                 return finding

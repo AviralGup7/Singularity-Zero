@@ -680,7 +680,7 @@ class GossipProtocol(asyncio.DatagramProtocol):
                     "dropped_gossip_packets_total",
                     "Total dropped gossip packets due to format errors",
                 )
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
             return
 

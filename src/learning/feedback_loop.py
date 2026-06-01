@@ -147,7 +147,7 @@ class FeedbackLoopEngine:
             m.counter("feedback_loop_exploit_queue_total").inc(
                 len(adaptations.active_exploit_queue)
             )
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         logger.info(

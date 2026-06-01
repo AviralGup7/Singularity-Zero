@@ -133,7 +133,7 @@ def setup_tools(dest_dir: str | None = None) -> None:
                 get_metrics().counter(
                     "lite_worker_tool_setup_failures_total", "Total tool setup failures"
                 ).inc()
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
             raise exc
 

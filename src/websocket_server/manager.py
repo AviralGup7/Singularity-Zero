@@ -429,7 +429,7 @@ class ConnectionManager:
                         try:
                             while not q.empty():
                                 await asyncio.sleep(0.05)
-                        except Exception:
+                        except Exception:  # noqa: S110
                             pass
 
                     drain_tasks.append(

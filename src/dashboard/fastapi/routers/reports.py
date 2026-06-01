@@ -69,7 +69,7 @@ async def get_ai_executive_summary(
     if findings_path.exists():
         try:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     # 4. Load compliance report if available
@@ -78,7 +78,7 @@ async def get_ai_executive_summary(
     if compliance_path.exists():
         try:
             compliance_report = json.loads(compliance_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     # 5. Generate AI summary
@@ -204,7 +204,7 @@ async def get_sla_trending(
 
             try:
                 findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
 
             if not isinstance(findings, list):

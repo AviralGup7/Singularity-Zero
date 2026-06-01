@@ -36,7 +36,7 @@ if has_compiler():
             ),
             compiler_directives={"language_level": "3"},
         )
-    except Exception:
+    except Exception:  # noqa: S110
         pass
 
 setup(ext_modules=ext_modules)

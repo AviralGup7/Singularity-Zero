@@ -198,7 +198,7 @@ class Broadcaster:
                 task.cancel()
             try:
                 await asyncio.gather(*self._delivery_tasks, return_exceptions=True)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
             self._delivery_tasks.clear()
 

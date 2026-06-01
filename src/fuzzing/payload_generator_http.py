@@ -195,7 +195,7 @@ def generate_body_payloads(
                 endpoint_type = classify_endpoint(url)
                 if endpoint_type in ("api", "graphql", "rest"):
                     is_api = True
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
         if not is_api:
             continue

@@ -284,7 +284,7 @@ async def _resolve_cname(subdomain: str) -> str | None:
         answer = await resolver.resolve(subdomain, "CNAME")
         values = [str(rdata).rstrip(".") for rdata in answer]
         return values[0] if values else None
-    except Exception:
+    except Exception:  # noqa: S110
         pass
 
     # Fallback: nslookup via canonical tool runner

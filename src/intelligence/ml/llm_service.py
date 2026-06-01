@@ -152,7 +152,7 @@ class LLMService:
                 "Total LLM query fallback events",
                 labels={"operation": operation},
             ).inc()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     async def explain_finding(self, finding: dict[str, Any]) -> dict[str, str]:

@@ -72,7 +72,7 @@ class SignalQualityMLPipeline:
         if HAS_ML_LIBS and self.model is not None:
             try:
                 return cast(np.ndarray, self.model.predict_proba(X))
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
         # Elegant matrix multiplication fallback
@@ -88,7 +88,7 @@ class SignalQualityMLPipeline:
                     self.model.fit(X, y)
                     self.coef_ = self.model.coef_
                     self.intercept_ = self.model.intercept_
-                except Exception:
+                except Exception:  # noqa: S110
                     pass
 
 
@@ -395,7 +395,7 @@ def score_signal_quality(
             from src.infrastructure.observability.metrics import get_metrics
 
             get_metrics().counter("fp_reduction_total").inc()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     return SignalQualityResult(

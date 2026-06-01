@@ -117,7 +117,7 @@ def download_and_extract_tool(
 
     try:
         # Request with a standard User-Agent header
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310
             url,
             headers={
                 "User-Agent": (
@@ -135,7 +135,7 @@ def download_and_extract_tool(
                 print("  └─ Downloading from GitHub...")
 
             with (
-                urllib.request.urlopen(req, timeout=60) as response,
+                urllib.request.urlopen(req, timeout=60) as response,  # noqa: S310
                 open(tmp_archive_path, "wb") as out_file,
             ):
                 shutil.copyfileobj(response, out_file)
@@ -176,7 +176,7 @@ def download_and_extract_tool(
 
             # Set executable permissions on Unix systems
             if os_name != "windows":
-                os.chmod(dest_path, 0o755)
+                os.chmod(dest_path, 0o755)  # noqa: S103
 
             success_msg = f"Successfully installed {tool_name} to {dest_path}"
             logger.info(success_msg)
