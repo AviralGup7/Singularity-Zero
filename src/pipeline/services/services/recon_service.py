@@ -45,7 +45,7 @@ async def run_url_collection_service(
     stage_input: StageInput,
     *,
     collector: UrlCollectorProtocol,
-    progress_callback: Any | None = None,
+    progress_callback: Any = None,
 ) -> StageOutput:
     """Pure service implementation for URL collection with strict type guards."""
     started = time.monotonic()
