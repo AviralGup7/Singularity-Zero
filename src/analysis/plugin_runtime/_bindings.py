@@ -137,7 +137,7 @@ def _register_bindings() -> None:
             csrf_protection_checker,
         ),
         "ssti_surface_detector": _binding("urls_and_responses", ssti_surface_detector),
-        "file_upload_surface_detector": _binding("responses_only", file_upload_surface_detector),
+        "file_upload_surface_detector": _binding("urls_and_responses", file_upload_surface_detector),
         "vulnerable_component_detector": _binding(
             "urls_and_responses", vulnerable_component_detector
         ),
