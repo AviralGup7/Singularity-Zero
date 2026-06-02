@@ -134,9 +134,9 @@ class CyberVault:
         records = encrypted_records or {}
         rotated: dict[str, str] = {}
 
-        # Generate a new KEK from the passphrase
-        self._master_salt = os.urandom(self._kdf_params.salt_len)
-        new_kek = Argon2idAESGCM.derive_key(self._master_key, self._master_salt, self._kdf_params)
+        # Performance #5: Pre-derive KEK outside of record loop
+        new_master_salt = os.urandom(self._kdf_params.salt_len)
+        new_kek = Argon2idAESGCM.derive_key(self._master_key, new_master_salt, self._kdf_params)
 
         # Generate a new DEK
         new_dek = os.urandom(32)
@@ -147,23 +147,29 @@ class CyberVault:
         new_wrapped_dek = aesgcm_new_kek.encrypt(new_dek_nonce, new_dek, b"dek-envelope")
 
         # Decrypt records using the old DEK and re-encrypt with the new DEK
+        next_version = self._key_version + 1
         for secret_id, encrypted in records.items():
-            with self.decrypt_lease(encrypted, purpose=secret_id) as lease:
-                # Encrypt with new DEK
-                nonce = os.urandom(12)
-                ciphertext = AESGCM(new_dek).encrypt(
-                    nonce, lease.bytes, self._aad(secret_id, self._key_version + 1)
-                )
-                envelope = {
-                    "v": self._key_version + 1,
-                    "alg": "AES-256-GCM-DEK",
-                    "kek_salt": base64.b64encode(self._master_salt).decode("utf-8"),
-                    "dek_nonce": base64.b64encode(new_dek_nonce).decode("utf-8"),
-                    "wrapped_dek": base64.b64encode(new_wrapped_dek).decode("utf-8"),
-                    "nonce": base64.b64encode(nonce).decode("utf-8"),
-                    "ciphertext": base64.b64encode(ciphertext).decode("utf-8"),
-                }
-                rotated[secret_id] = "csp-a256gcm-argon2id-v1:" + json.dumps(envelope)
+            try:
+                with self.decrypt_lease(encrypted, purpose=secret_id) as lease:
+                    # Encrypt with new DEK
+                    nonce = os.urandom(12)
+                    ciphertext = AESGCM(new_dek).encrypt(
+                        nonce, lease.bytes, self._aad(secret_id, next_version)
+                    )
+                    envelope = {
+                        "v": next_version,
+                        "alg": "AES-256-GCM-DEK",
+                        "kek_salt": base64.b64encode(new_master_salt).decode("utf-8"),
+                        "dek_nonce": base64.b64encode(new_dek_nonce).decode("utf-8"),
+                        "wrapped_dek": base64.b64encode(new_wrapped_dek).decode("utf-8"),
+                        "nonce": base64.b64encode(nonce).decode("utf-8"),
+                        "ciphertext": base64.b64encode(ciphertext).decode("utf-8"),
+                    }
+                    rotated[secret_id] = "csp-a256gcm-argon2id-v1:" + json.dumps(envelope)
+            except Exception as e:
+                logger.error("Vault: Failed to rotate secret %s: %s", secret_id, e)
+                # Keep old record if rotation fails
+                rotated[secret_id] = encrypted
 
         # Wipe old keys
         if hasattr(self, "_kek"):
@@ -172,12 +178,13 @@ class CyberVault:
             secure_wipe(bytearray(self._dek))
 
         # Swap keys
+        self._master_salt = new_master_salt
         self._kek = new_kek
         self._dek = new_dek
         self._dek_nonce = new_dek_nonce
         self._wrapped_dek = new_wrapped_dek
 
-        self._key_version += 1
+        self._key_version = next_version
         self._rotated_at = time.time()
         self._audit("rotate", secret_count=len(records))
         return rotated
@@ -365,10 +372,22 @@ class TargetSecretStore:
         return self._vault.decrypt(encrypted, purpose=secret_id)
 
     def rotate_due_keys(self) -> bool:
+        # Performance #5: Do not hold the lock for the entire rotation
+        # First, check if rotation is even due
         with self._lock:
-            rotated = self._vault.rotate_if_due(self._secrets)
-            if rotated is None:
+            if not self._vault._rotation_policy.is_due(self._vault._rotated_at):
                 return False
+            records_copy = dict(self._secrets)
+
+        # CPU-intensive rotation happens HERE, outside the lock
+        try:
+            rotated = self._vault.rotate_key(records_copy)
+        except Exception as e:
+            logger.error("Vault background rotation failed: %s", e)
+            return False
+
+        # Apply results back under lock
+        with self._lock:
             self._secrets = rotated
             return True
 
