@@ -48,7 +48,7 @@ class Config:
     def to_dict(self) -> dict[str, Any]:
         """Convert Config dataclass to a dictionary representation."""
         from dataclasses import asdict
+
         res = asdict(self)
         res["output_dir"] = str(self.output_dir)
         return res
-
