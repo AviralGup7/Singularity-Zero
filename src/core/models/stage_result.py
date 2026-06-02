@@ -213,6 +213,8 @@ class StageResult:
         }
         kwargs: dict[str, Any] = {}
         for f in cls.__dataclass_fields__.values():
+            if not f.init:
+                continue
             if f.name == "_neural_state":
                 kwargs[f.name] = cls._restore_neural_state(data.get(f.name), data)
                 continue
