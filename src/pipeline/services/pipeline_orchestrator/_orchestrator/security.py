@@ -58,7 +58,7 @@ async def run_secured(
     ctx = None
     checkpoint_mgr = None
     run_id = None
-    remaining_stages = None
+    remaining_stages: list[str] = []
     recovered_completed_stages = set()
 
     if can_recover and recovered_state:

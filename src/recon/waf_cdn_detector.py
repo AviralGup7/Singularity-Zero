@@ -123,10 +123,10 @@ async def detect_waf_cdn(
 
     _own_client = client is None
     if client is None:
-        client = httpx.AsyncClient(
+        client = httpx.AsyncClient(  # noqa: S501
             timeout=timeout,
             follow_redirects=True,
-            verify=False,  # nosec B501 noqa: S501 – deliberate for recon fingerprinting
+            verify=False,  # noqa: S501 – deliberate for recon fingerprinting
             headers={
                 "User-Agent": (
                     "Mozilla/5.0 (compatible; cyber-pipeline/2.0; "
