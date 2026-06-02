@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { errorTracker } from '@/utils/errorTracker';
 
 interface Props {
   children: ReactNode;
@@ -28,6 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Security: suppress stack traces in production, log only in dev
     if (import.meta.env.DEV) {
+      errorTracker.track(error, { component: this.props.name, metadata: { componentStack: errorInfo.componentStack } });
       console.error('ErrorBoundary caught:', error, '\nComponent stack:', errorInfo.componentStack);
     }
     this.setState({ errorInfo });

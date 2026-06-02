@@ -43,8 +43,8 @@ ARGON2ID_AESGCM_PREFIX = "csp-a256gcm-argon2id-v1:"
 class Argon2idParameters:
     """KDF parameters for passphrase-derived AES-256-GCM keys."""
 
-    time_cost: int = 3
-    memory_cost: int = 65536
+    time_cost: int = 4
+    memory_cost: int = 131072
     parallelism: int = 4
     salt_len: int = 16
 
@@ -59,10 +59,10 @@ class Argon2idParameters:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Argon2idParameters:
         return cls(
-            time_cost=int(data.get("time_cost", 3)),
-            memory_cost=int(data.get("memory_cost", 65536)),
-            parallelism=int(data.get("parallelism", 4)),
-            salt_len=int(data.get("salt_len", 16)),
+            time_cost=max(2, int(data.get("time_cost", 4))),
+            memory_cost=max(65536, int(data.get("memory_cost", 131072))),
+            parallelism=max(1, int(data.get("parallelism", 4))),
+            salt_len=max(8, int(data.get("salt_len", 16))),
         )
 
 

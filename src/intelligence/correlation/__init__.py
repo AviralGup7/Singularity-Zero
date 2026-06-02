@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.analysis.intelligence.findings.intelligence_findings import (
+from src.analysis.intelligence.findings import (
     annotate_finding_history,
     merge_findings,
 )

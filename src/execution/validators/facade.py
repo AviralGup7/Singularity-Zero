@@ -7,7 +7,7 @@ or batch validations against targets using named validators.
 from typing import Any
 
 from src.core.models import ValidationResult
-from src.execution.validators.validators import VALIDATOR_REGISTRY
+from src.execution.validators.validators.registry_builder import VALIDATOR_REGISTRY
 
 
 def validate_target(

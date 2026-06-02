@@ -74,7 +74,26 @@ async def import_semgrep(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to read uploaded file: {exc}")
 
-    parsed = validate_json_payload(content)
+    MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Upload too large; maximum is {MAX_UPLOAD_BYTES // 1024 // 1024} MB",
+        )
+
+    if file.content_type and file.content_type not in (
+        "application/json",
+        "application/octet-stream",
+        "",
+    ):
+        raise HTTPException(
+            status_code=415, detail=f"Unsupported content type: {file.content_type}"
+        )
+
+    try:
+        parsed = validate_json_payload(content)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {exc}")
     if parsed is None:
         raise HTTPException(status_code=400, detail="Invalid or oversized JSON payload")
 

@@ -12,7 +12,7 @@ from src.dashboard.configuration import (
 )
 from src.dashboard.job_state import snapshot_job
 from src.dashboard.pipeline_jobs import create_job_record, run_pipeline_job
-from src.dashboard.utils import (
+from src.dashboard.scope_utils import (
     build_scope_entries,
     build_scope_entries_from_text,
     normalize_base_url,

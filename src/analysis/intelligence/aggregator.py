@@ -3,7 +3,7 @@ from src.analysis.intelligence.decision_engine import (
     annotate_finding_decisions,
     filter_reportable_findings,
 )
-from src.analysis.intelligence.findings.intelligence_findings import (
+from src.analysis.intelligence.findings import (
     annotate_finding_history,
     merge_findings,
 )

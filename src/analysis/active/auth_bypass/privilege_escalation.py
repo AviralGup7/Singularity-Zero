@@ -14,7 +14,7 @@ from src.analysis.helpers import (
 )
 from src.analysis.passive.runtime import ResponseCache
 
-from ._helpers import (
+from .auth_bypass_utils import (
     AUTH_BYPASS_PARAMS,
 )
 

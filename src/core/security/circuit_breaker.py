@@ -62,7 +62,7 @@ class CircuitBreaker:
             if self.fallback_fn:
                 return cast(T, self.fallback_fn(*args, **kwargs))
             raise
-        except BaseException:
+        except Exception:
             self._release_aborted_probe(admission_state, state_version)
             raise
 
@@ -96,7 +96,7 @@ class CircuitBreaker:
             if self.fallback_fn:
                 return await self._call_fallback_async(*args, **kwargs)
             raise
-        except BaseException:
+        except Exception:
             self._release_aborted_probe(admission_state, state_version)
             raise
 
@@ -213,7 +213,7 @@ class CircuitBreaker:
             if self.fallback_fn:
                 return await self._call_fallback_async(*args, **kwargs)
             raise
-        except BaseException:
+        except Exception:
             self._release_aborted_probe(admission_state, state_version)
             raise
 

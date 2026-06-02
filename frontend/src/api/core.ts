@@ -3,6 +3,7 @@ import type { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { z } from 'zod';
 import { apiCache } from './cache';
 import { dispatchToast } from '../lib/toastDispatcher';
+import { captureException } from '../utils/errorTracker';
 import { withRetry } from './retry';
 
 declare module 'axios' {
@@ -61,13 +62,19 @@ apiClient.interceptors.request.use(
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      component: 'apiClient',
+      action: 'request',
+    });
+    return Promise.reject(error);
+  }
 );
 
 apiClient.interceptors.response.use(
   (response) => {
     const responseTime = Date.now() - (response.config.metadata?.startTime ?? Date.now());
-    
+     
     // Fix S0-3: Mark mutation end
     if (response.config.method && response.config.url) {
       apiCache.markMutationEnd(response.config.url);
@@ -93,7 +100,7 @@ apiClient.interceptors.response.use(
    
       console.debug(`[API] ${response.config.method?.toUpperCase()} ${response.config.url} - ${responseTime}ms`);
     }
-    
+     
     if (response.config.method === 'get') {
       const key = apiCache.generateKey(response.config.url ?? '', response.config.params);
    
@@ -104,7 +111,7 @@ apiClient.interceptors.response.use(
         apiCache.set(key, response.data, ttl);
       }
     }
-    
+     
     return response;
   },
   (error) => {
@@ -113,11 +120,17 @@ apiClient.interceptors.response.use(
       apiCache.markMutationEnd(error.config.url);
     }
 
-    if (axios.isCancel(error)) return Promise.reject(error);
+    if (axios.isCancel(error)) {
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        component: 'apiClient',
+        action: 'cancel',
+      });
+      return Promise.reject(error);
+    }
     const responseTime = error.config?.metadata?.startTime
       ? Date.now() - error.config.metadata.startTime
       : null;
-      
+       
     if (import.meta.env.DEV && responseTime !== null) {
    
       console.debug(`[API] ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${responseTime}ms (error)`);
@@ -142,7 +155,13 @@ apiClient.interceptors.response.use(
       dispatchToast('Rate limit reached.', 'warning');
     }
 
-    return Promise.reject(new ApiError(message, status, error));
+    const wrapped = new ApiError(message, status, error);
+    captureException(wrapped, {
+      component: 'apiClient',
+      action: 'response',
+      metadata: { status, url: error.config?.url },
+    });
+    return Promise.reject(wrapped);
   }
 );
 

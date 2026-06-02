@@ -8,7 +8,12 @@ from typing import Any
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 
 from ._constants import ONE_HOUR_SECONDS, THIRTY_DAYS_SECONDS, TWENTY_FOUR_HOURS_SECONDS
-from ._helpers import compute_confidence, decode_jwt_segment, determine_severity, severity_score
+from .token_lifetime_helpers import (
+    compute_confidence,
+    decode_jwt_segment,
+    determine_severity,
+    severity_score,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +136,9 @@ def parse_set_cookie(cookie_string: str) -> dict[str, Any]:
                 result["max_age"] = int(part_stripped.split("=", 1)[1].strip())
             except (ValueError, IndexError) as exc:
                 logger.debug("Ignored: %s", exc)
+            if result.get("max_age") is not None and result["max_age"] < 0:
+                logger.debug("Ignored negative max_age")
+                result["max_age"] = None
         elif lowered.startswith("expires="):
             result["expires"] = part_stripped.split("=", 1)[1].strip()
 

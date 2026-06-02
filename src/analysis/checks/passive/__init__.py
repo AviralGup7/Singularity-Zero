@@ -1,4 +1,4 @@
-from src.analysis.checks.passive._impl import (
+from src.analysis.checks.passive._detectors import (
     cache_control_checker,
     cookie_security_checker,
     cors_misconfig_checker,

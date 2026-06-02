@@ -28,7 +28,7 @@ _LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
 
 
 def api_security_enabled() -> bool:
-    return os.getenv("ENABLE_API_SECURITY", "false").strip().lower() == "true"
+    return os.getenv("ENABLE_API_SECURITY", "true").strip().lower() == "true"
 
 
 _fallback_secret: str | None = None
@@ -105,7 +105,10 @@ class SecurityStore:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
         except Exception:
-            conn.close()
+            try:
+                conn.close()
+            except sqlite3.ProgrammingError:
+                pass
             raise
         return conn
 
@@ -449,7 +452,12 @@ def create_jwt(principal: Principal) -> dict[str, Any]:
 
 def authenticate_jwt_token(token: str) -> Principal | None:
     try:
-        payload = jwt.decode(token, app_secret_key(), algorithms=["HS256"])
+        payload = jwt.decode(
+            token,
+            app_secret_key(),
+            algorithms=["HS256"],
+            options={"require": ["exp", "iat"], "verify_exp": True},
+        )
     except jwt.PyJWTError:
         return None
     role = str(payload.get("role") or (payload.get("roles") or ["read_only"])[0])

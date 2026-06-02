@@ -71,7 +71,7 @@ dependencies = [
 [project.scripts]
 cyber = "src.cli:main"
 cyber-pipeline = "src.pipeline.runtime:main"
-cyber-dashboard = "src.dashboard.dashboard_cli:main"
+# cyber-dashboard removed; use src.dashboard.fastapi.app:create_app for ASGI launch
 cyber-worker = "src.infrastructure.queue.worker:main"
 
 [project.optional-dependencies]
@@ -208,7 +208,6 @@ ignore = [
     "E402",   # module-import-not-at-top-of-file
     "N806",   # non-lowercase-variable-in-function
     "N803",   # non-lowercase-argument-name
-    "S105",   # hardcoded-password-string
     "S104",   # hardcoded-bind-all-interfaces
     "S310",   # audit-url-open
     "S311",   # pseudo-random-generator

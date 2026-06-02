@@ -20,7 +20,11 @@ from .http_utils import (
     _safe_request,
 )
 from .probes import run_tenant_isolation_probes
-from .tests import test_cross_tenant_data_access, test_tenant_isolation, test_vertical_escalation
+from .runtime_probes import (
+    test_cross_tenant_data_access,
+    test_tenant_isolation,
+    test_vertical_escalation,
+)
 
 __all__ = [
     "detect_tenant_parameters",

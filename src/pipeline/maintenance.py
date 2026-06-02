@@ -52,9 +52,16 @@ def prune_output_history(
             summary["removed_target_run_dirs"].extend(str(path) for path in stale_runs)
 
         remaining_runs = list_run_dirs(entry)
-        if remaining_runs or (entry / "index.html").exists():
+        if remaining_runs:
             build_dashboard_index(entry)
             summary["updated_target_indexes"].append(str(entry / "index.html"))
+        else:
+            index_file = entry / "index.html"
+            if index_file.exists():
+                try:
+                    index_file.unlink()
+                except OSError:
+                    pass
 
     return summary
 

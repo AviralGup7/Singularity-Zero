@@ -7,13 +7,16 @@ parses common JSON shapes and falls back to line-oriented heuristics.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import re
+import socket
 import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -26,8 +29,55 @@ logger = logging.getLogger(__name__)
 
 URLSCAN_SEARCH = "https://urlscan.io/api/v1/search/"
 
-
 _URL_RE = re.compile(r"https?://[^\s\"\'<>\\)]+", re.IGNORECASE)
+
+# SSRF-protection: schemes and private/loopback/link-local network ranges.
+_ALLOWED_SCHEMES = {"http", "https"}
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fe80::/10"),
+]
+
+
+def _is_safe_url(url: str) -> None:
+    """Raise ValueError if *url* resolves to a disallowed target.
+
+    Checks scheme, then resolves DNS and verifies the returned addresses
+    are not in private/loopback/link-local ranges.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(f"Disallowed URL scheme: {parsed.scheme!r} (only http/https allowed)")
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError(f"Cannot parse hostname from URL: {url}")
+    try:
+        # Try IPv4/IPv6 literal first, otherwise resolve via DNS.
+        try:
+            addr = ipaddress.ip_address(hostname)
+            hosts = [addr]
+        except ValueError:
+            hosts = []
+            for family_info in socket.getaddrinfo(
+                hostname, parsed.port or 443, proto=socket.IPPROTO_TCP
+            ):
+                addr_str = family_info[4][0]
+                try:
+                    hosts.append(ipaddress.ip_address(addr_str))
+                except ValueError:
+                    continue
+    except socket.gaierror as exc:
+        raise ValueError(f"DNS resolution failed for {hostname}: {exc}") from exc
+
+    for addr in hosts:
+        for network in _BLOCKED_NETWORKS:
+            if addr in network:
+                raise ValueError(f"URL resolves to blocked address {addr} in {network}: {url}")
 
 
 def _parse_urlscan_json(text: str) -> list[str]:
@@ -83,6 +133,7 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
         collector_metrics.increment_requests("urlscan")
         try:
             _acquire_token()
+            _is_safe_url(URLSCAN_SEARCH)
             resp = requests.get(URLSCAN_SEARCH, params=params, timeout=max(2, timeout_seconds))  # nosec B113
             break
         except requests.RequestException as exc:
@@ -138,13 +189,14 @@ def collect_for_hosts(
             delta = len(discovered) - before
             if delta > 0:
                 collector_metrics.increment_urls("urlscan", delta)
-            emit_collection_progress(
-                progress_callback,
-                f"URLScan host {idx}/{len(hosts_list)}: +{delta} urls, total {len(discovered)}",
-                10 + int((idx / len(hosts_list)) * 40),
-                processed=idx,
-                total=len(hosts_list),
-            )
+            if hosts_list:
+                emit_collection_progress(
+                    progress_callback,
+                    f"URLScan host {idx}/{len(hosts_list)}: +{delta} urls, total {len(discovered)}",
+                    10 + int((idx / len(hosts_list)) * 40),
+                    processed=idx,
+                    total=len(hosts_list),
+                )
 
     duration = round(time.monotonic() - start, 1)
     collector_metrics.observe_duration("urlscan", duration)

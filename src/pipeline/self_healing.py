@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Any
@@ -52,7 +53,7 @@ class CorrectiveActionRegistry:
         else:
             try:
                 result = handler(finding)
-                event = await result if hasattr(result, "__await__") else result
+                event = await result if inspect.isawaitable(result) else result
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.exception("Self-healing action %s failed", finding.action.value)
                 event = CorrectionEvent(
@@ -153,7 +154,7 @@ class SelfHealingController:
         for name, probe in list(self._probes.items()):
             try:
                 result = probe()
-                probe_metrics = await result if hasattr(result, "__await__") else result
+                probe_metrics = await result if inspect.isawaitable(result) else result
                 metrics.extend(probe_metrics)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 metrics.append(

@@ -20,7 +20,7 @@ from ._constants import (
     PROTOCOL_PAYLOADS,
     SSRF_OOB_VALIDATOR_SPEC,
 )
-from ._helpers import (
+from .ssrf_oob_helpers import (
     build_finding,
     check_cloud_metadata,
     check_internal_errors,

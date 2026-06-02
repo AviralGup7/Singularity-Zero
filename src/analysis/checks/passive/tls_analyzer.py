@@ -8,7 +8,7 @@ import logging
 import socket
 import ssl
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class TLSAnalyzer:
                     days_left = 999
                     if not_after and isinstance(not_after, str):
                         expiry = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
-                        days_left = (expiry - datetime.now()).days
+                        days_left = (expiry - datetime.now(UTC)).days
 
                         if days_left < 0:
                             findings.append(

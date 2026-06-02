@@ -153,6 +153,10 @@ def build_summary(
     previous_run: Path | None,
     pipeline_flow: list[dict[str, object]],
 ) -> dict[str, Any]:
+    import copy
+
+    merged_findings = copy.deepcopy(merged_findings)
+
     counts = {
         "scope_entries": len(scope_entries),
         "subdomains": len(subdomains),
@@ -402,7 +406,9 @@ def persist_run_outputs(
     write_json(run_dir / "findings.json", merged_findings)
     write_json(run_dir / "verified_exploits.json", summary.get("verified_exploits", []))
     write_json(run_dir / "validation_results.json", summary.get("validation_results", {}))
-    write_json(run_dir / "custom_validation_results.json", summary.get("validation_results", {}))
+    write_json(
+        run_dir / "custom_validation_results.json", summary.get("custom_validation_results", {})
+    )
     write_json(run_dir / "run_summary.json", summary)
 
 

@@ -19,7 +19,7 @@ from typing import Any
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, ensure_endpoint_key
 
 from ._constants import BRUTE_FORCE_PROBE_SPEC
-from ._helpers import (
+from .brute_force_probes import (
     check_account_lockout,
     check_captcha,
     check_credential_stuffing,

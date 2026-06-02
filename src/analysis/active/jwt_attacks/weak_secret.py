@@ -5,7 +5,7 @@ import hmac
 import logging
 from typing import Any
 
-from ._helpers import (
+from .jwt_attack_helpers import (
     JWT_AUTH_HEADERS,
     WEAK_SECRETS,
     _b64url_encode,

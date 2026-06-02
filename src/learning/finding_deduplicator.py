@@ -78,17 +78,9 @@ class FindingDeduplicator:
 
     def _generate_fingerprint(self, finding: dict[str, Any]) -> str:
         """Generate a fingerprint for a finding based on key attributes."""
-        # Use type, title, and endpoint as primary dedup keys
-        key_parts = [
-            finding.get("type", "").lower(),
-            finding.get("title", "").lower(),
-            finding.get("endpoint", "").lower(),
-            finding.get("parameter", "").lower(),
-            finding.get("method", "").upper(),
-        ]
-
-        # Normalize URL to domain+path (without query params)
-        url = finding.get("url", finding.get("target", ""))
+        # Normalize URL/endpoint to domain+path (without query params)
+        url = finding.get("endpoint") or finding.get("url") or finding.get("target", "")
+        normalized_endpoint = ""
         if url:
             try:
                 if not isinstance(url, str):
@@ -96,11 +88,19 @@ class FindingDeduplicator:
                 parsed = urlparse(url)
                 if not parsed.netloc and not parsed.path:
                     raise ValueError("Parsed URL has empty netloc and path")
-                normalized_url = f"{parsed.netloc}{parsed.path}"
-                key_parts.append(normalized_url.lower())
+                normalized_endpoint = f"{parsed.netloc}{parsed.path}".lower()
             except ValueError as e:
                 logger.warning("Failed to parse URL '%s' for fingerprinting: %s", url, e)
-                key_parts.append(str(url).lower())
+                normalized_endpoint = str(url).lower()
+
+        # Use type, title, and normalized endpoint/url as primary dedup keys
+        key_parts = [
+            finding.get("type", "").lower(),
+            finding.get("title", "").lower(),
+            normalized_endpoint,
+            finding.get("parameter", "").lower(),
+            finding.get("method", "").upper(),
+        ]
 
         key_string = "|".join(key_parts)
         # Use SHA-256 for deterministic, collision-resistant fingerprints.

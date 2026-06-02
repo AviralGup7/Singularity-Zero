@@ -7,14 +7,14 @@ selections, and ensuring analysis defaults are populated.
 import json
 from typing import Any
 
-from src.analysis.passive.catalog import PASSIVE_CHECK_NAMES
-from src.dashboard.registry import MODE_PRESETS, MODULE_OPTIONS
-from src.dashboard.runtime_controls import (
+from src.analysis.plugins import PASSIVE_CHECK_NAMES
+from src.dashboard.form_specs import (
     apply_runtime_overrides as _apply_runtime_overrides,
 )
-from src.dashboard.runtime_controls import (
+from src.dashboard.form_specs import (
     build_form_defaults as _build_form_defaults,
 )
+from src.dashboard.registry import MODE_PRESETS, MODULE_OPTIONS
 
 
 def load_template(config_template: Any, output_root: Any) -> dict[str, Any]:

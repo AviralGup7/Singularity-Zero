@@ -22,7 +22,7 @@ from src.analysis.active.injection.websocket_hijacking import websocket_hijackin
 from src.analysis.active.injection.xpath import xpath_injection_active_probe
 from src.analysis.active.injection.xxe import xxe_active_probe
 from src.analysis.behavior.flow_prober import run_cognitive_flow_analysis
-from src.analysis.checks.active._impl import (
+from src.analysis.checks.active._detectors import (
     dom_xss_signal_detector,
     reflected_xss_probe,
     server_side_injection_surface_analyzer,
@@ -36,7 +36,7 @@ from src.analysis.checks.active.idor_probe import idor_active_probe
 from src.analysis.checks.active.jwt import jwt_security_analyzer
 from src.analysis.checks.active.ssrf_oob_validator import ssrf_oob_validator
 from src.analysis.checks.active.xml_bomb_detector import xml_bomb_detector
-from src.analysis.checks.passive._impl import (
+from src.analysis.checks.passive._detectors import (
     cache_control_checker,
     cookie_security_checker,
     cors_misconfig_checker,
@@ -137,7 +137,9 @@ def _register_bindings() -> None:
             csrf_protection_checker,
         ),
         "ssti_surface_detector": _binding("urls_and_responses", ssti_surface_detector),
-        "file_upload_surface_detector": _binding("urls_and_responses", file_upload_surface_detector),
+        "file_upload_surface_detector": _binding(
+            "urls_and_responses", file_upload_surface_detector
+        ),
         "vulnerable_component_detector": _binding(
             "urls_and_responses", vulnerable_component_detector
         ),

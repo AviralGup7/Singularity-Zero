@@ -3,7 +3,7 @@ from typing import Any
 from unittest.mock import patch
 
 from src.dashboard.job_state import apply_progress, snapshot_job
-from src.dashboard.utils import estimate_remaining
+from src.dashboard.scope_utils import estimate_remaining
 
 
 class DashboardProgressTests(unittest.TestCase):

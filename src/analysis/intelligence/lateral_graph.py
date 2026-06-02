@@ -41,6 +41,11 @@ class LateralGraph:
     Enables automatic identification of multi-stage attack paths.
     """
 
+    # @future-developer: Kuzu parameterized bindings ($param) are not confirmed for
+    # the installed kuzu version. User-controlled values (asset, fid, severity) are
+    # enforced through _cypher_string() before any Cypher interpolation happens.
+    # Never remove that guard or introduce new f-string queries without verified bindings.
+
     def __init__(self, db_path: str = "output/graph.db") -> None:
         if not KUZU_AVAILABLE:
             logger.warning("Kuzu graph database not installed. Lateral movement analysis disabled.")
@@ -90,7 +95,7 @@ class LateralGraph:
         fid = _cypher_string(finding.get("id", "unknown"))
         asset = _cypher_string(asset_id)
         severity = _cypher_string(finding.get("severity", "info"))
-        finding_type = str(finding.get("type", "")).lower()
+        finding_type = _cypher_string(str(finding.get("type", "")).lower())
         # Create Nodes (values are sanitized by _cypher_string above)
         self._conn.execute(f"MERGE (a:Asset {{id: '{asset}', type: 'endpoint'}})")
         self._conn.execute(f"MERGE (f:Finding {{id: '{fid}', severity: '{severity}'}})")
@@ -127,7 +132,9 @@ class LateralGraph:
             return collected
 
         try:
-            for asset_id, asset_type in _rows(f"MATCH (a:Asset) RETURN a.id, a.type LIMIT {limit}"):
+            for asset_id, asset_type in _rows(
+                f"MATCH (a:Asset) RETURN a.id, a.type LIMIT {int(limit)}"
+            ):
                 node_id = f"asset:{asset_id}"
                 if node_id in seen:
                     continue
@@ -143,7 +150,7 @@ class LateralGraph:
                 )
                 seen.add(node_id)
 
-            remaining = max(1, limit - len(nodes))
+            remaining = max(1, int(limit) - len(nodes))
             for finding_id, severity in _rows(
                 f"MATCH (f:Finding) RETURN f.id, f.severity LIMIT {remaining}"
             ):
@@ -182,7 +189,7 @@ class LateralGraph:
                 ),
             )
             for label, query, source_prefix, target_prefix in relation_queries:
-                for source, target in _rows(f"{query} LIMIT {limit * 2}"):
+                for source, target in _rows(f"{query} LIMIT {int(limit) * 2}"):
                     source_id = f"{source_prefix}{source}"
                     target_id = f"{target_prefix}{target}"
                     if source_id in seen and target_id in seen:

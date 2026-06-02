@@ -105,12 +105,15 @@ def _compute_ssim(img_a: Image.Image, img_b: Image.Image, window_size: int = 11)
             var_b += diff_b * diff_b
             cov_ab += diff_a * diff_b
 
-    var_a /= total_pixels
-    var_b /= total_pixels
-    cov_ab /= total_pixels
+    var_a /= total_pixels * channels
+    var_b /= total_pixels * channels
+    cov_ab /= total_pixels * channels
 
-    numerator = (2 * means_a[0] * means_b[0] + c1) * (2 * cov_ab + c2)
-    denominator = (means_a[0] ** 2 + means_b[0] ** 2 + c1) * (var_a + var_b + c2)
+    mean_a = sum(means_a) / channels
+    mean_b = sum(means_b) / channels
+
+    numerator = (2 * mean_a * mean_b + c1) * (2 * cov_ab + c2)
+    denominator = (mean_a**2 + mean_b**2 + c1) * (var_a + var_b + c2)
     if denominator == 0:
         return 0.0
     return float(numerator / denominator)

@@ -1,6 +1,6 @@
 import unittest
 
-from src.analysis.intelligence.findings.intelligence_findings._merge_orchestrator import (
+from src.analysis.intelligence.findings._merge_orchestrator import (
     _dedup_cross_module,
     _dedup_evidence_similarity,
 )

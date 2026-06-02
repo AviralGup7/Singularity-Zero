@@ -99,18 +99,17 @@ def mutate_identifier(url: str) -> str:
 
     # Strategy 4: Numeric ID mutation in path segments
     path = parsed.path or ""
-    for index in range(len(path) - 1, -1, -1):
-        if not path[index].isdigit():
-            continue
-        start = index
-        while start > 0 and path[start - 1].isdigit():
-            start -= 1
-        segment = path[start : index + 1]
-        if len(segment) >= 2:
-            bumped = f"{path[:start]}{int(segment) + 1}{path[index + 1 :]}"
-            return urlunparse(parsed._replace(path=bumped))
-        # Keep scanning earlier segments if we hit a short trailing digit (e.g., /v1/).
-        continue
+    segments = path.split("/")
+    for i in range(len(segments) - 1, -1, -1):
+        segment = segments[i]
+        if segment.isdigit():
+            # Avoid mutating version indicators (e.g., /v1/, /version/2/)
+            if i > 0 and segments[i - 1].lower() in ("v", "version"):
+                continue
+            bumped_value = str(int(segment) + 1).zfill(len(segment))
+            new_segments = list(segments)
+            new_segments[i] = bumped_value
+            return urlunparse(parsed._replace(path="/".join(new_segments)))
 
     # Strategy 5: UUID in path segments
     path_segments = path.strip("/").split("/")
@@ -124,6 +123,29 @@ def mutate_identifier(url: str) -> str:
             return urlunparse(parsed._replace(path="/" + "/".join(new_segments)))
 
     return ""
+
+
+def _has_blocking_or_waf_signatures(body: str) -> bool:
+    body_lower = body.lower()
+    waf_signatures = (
+        "cloudflare",
+        "sucuri",
+        "incapsula",
+        "akamai",
+        "imperva",
+        "modsecurity",
+        "rate limit",
+        "too many requests",
+        "captcha",
+        "under attack",
+        "waf",
+        "blocked",
+        "blocked by",
+        "ip address blocked",
+        "suspicious activity",
+        "ddos",
+    )
+    return any(sig in body_lower for sig in waf_signatures)
 
 
 def compare_response_shapes(original: dict[str, Any], variant: dict[str, Any]) -> str:
@@ -145,6 +167,9 @@ def compare_response_shapes(original: dict[str, Any], variant: dict[str, Any]) -
     if orig_status == 200 and var_status in {401, 403, 404}:
         return "observed_behavior_change"
     if orig_status in {401, 403} and var_status == 200:
+        orig_body = str(original.get("body", "") or "")
+        if _has_blocking_or_waf_signatures(orig_body):
+            return "observed_behavior_change"
         return "potential_idor"
     if same_status and not close_length:
         return "potential_idor"

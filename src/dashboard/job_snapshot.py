@@ -13,7 +13,7 @@ from src.dashboard.job_state_helpers import (
     _stage_progress_label,
 )
 from src.dashboard.registry import STAGE_LABELS
-from src.dashboard.utils import format_duration, format_epoch_ist
+from src.dashboard.scope_utils import format_duration, format_epoch_ist
 
 
 def _snapshot_progress_telemetry(

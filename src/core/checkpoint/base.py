@@ -1,0 +1,99 @@
+"""Core checkpoint state and serialization primitives."""
+
+from __future__ import annotations
+
+import hashlib
+import time
+from dataclasses import asdict, dataclass, field
+from typing import Any, cast
+
+
+class CheckpointIntegrityError(ValueError):
+    """Raised when checkpoint checksum validation fails."""
+
+
+@dataclass
+class CheckpointState:
+    """Serializable snapshot of pipeline execution state."""
+
+    pipeline_run_id: str
+    """Unique identifier for this pipeline run."""
+
+    checkpoint_version: int = 1
+    """Incremented on each checkpoint."""
+
+    completed_stages: list[str] = field(default_factory=list)
+    """Stage names that completed successfully."""
+
+    current_stage: str | None = None
+    """Stage currently executing (None if not started or finished)."""
+
+    stage_results: dict[str, dict[str, Any]] = field(default_factory=dict)
+    """Per-stage serialized results."""
+
+    module_metrics: dict[str, Any] = field(default_factory=dict)
+    """Timing and status metrics."""
+
+    started_at: float = field(default_factory=time.time)
+    """Unix timestamp when the pipeline run started."""
+
+    last_checkpoint_at: float = field(default_factory=time.time)
+    """Unix timestamp of the last checkpoint save."""
+
+    crash_recovery: bool = False
+    """Whether this is a recovery run."""
+
+    recovery_from: str | None = None
+    """Run ID we're recovering from."""
+
+    iterative_state: dict[str, Any] = field(default_factory=dict)
+    """State for iterative analysis (finding keys, feedback URLs, etc.)."""
+
+    nuclei_state: dict[str, Any] = field(default_factory=dict)
+    """Nuclei scanning state (targets, findings, etc.)."""
+
+    stage_deltas: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    """Incremental per-stage progress deltas for mid-stage resume."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert state to a JSON-serializable dictionary."""
+        raw = asdict(self)
+        return cast(dict[str, Any], _serialize_sets(raw))
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> CheckpointState:
+        """Reconstruct a CheckpointState from a deserialized dictionary."""
+        data.pop("checksum", None)
+        restored = _deserialize_sets(data)
+        return cls(**restored)
+
+
+def _serialize_sets(obj: Any) -> Any:
+    """Recursively convert sets to sorted lists for JSON serialization."""
+    if isinstance(obj, set):
+        return sorted(str(item) for item in obj)
+    if isinstance(obj, dict):
+        return {key: _serialize_sets(value) for key, value in obj.items()}
+    if isinstance(obj, list):
+        return [_serialize_sets(item) for item in obj]
+    return obj
+
+
+def _deserialize_sets(obj: Any) -> Any:
+    """Recursively restore sets from lists for known set-field keys."""
+    if isinstance(obj, dict):
+        result = {}
+        for key, value in obj.items():
+            if key == "completed_stages" and isinstance(value, list):
+                result[key] = set(value)
+            else:
+                result[key] = _deserialize_sets(value)
+        return result
+    if isinstance(obj, list):
+        return [_deserialize_sets(item) for item in obj]
+    return obj
+
+
+def _compute_checksum(data: str) -> str:
+    """Compute a SHA-256 checksum for the given string data."""
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()

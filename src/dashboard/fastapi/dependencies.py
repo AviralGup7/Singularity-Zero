@@ -1,6 +1,7 @@
 """FastAPI dependency injection for the dashboard."""
 
 import hmac
+import logging
 import os
 from collections.abc import AsyncGenerator
 from typing import Any, cast
@@ -20,6 +21,7 @@ from src.dashboard.fastapi.security import (
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 _config_instance: DashboardConfig | None = None
+logger = logging.getLogger(__name__)
 
 
 def get_config() -> DashboardConfig:
@@ -116,9 +118,13 @@ async def require_auth(
         # authentication is required unless the operator explicitly opts out.
         disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "false").strip().lower()
         if disabled in ("true", "1", "yes"):
+            logger.warning(
+                "SECURITY WARNING: Authentication is DISABLED via DASHBOARD_AUTH_DISABLED. "
+                "This must NEVER be enabled in production environments!"
+            )
             tenant_id = request.headers.get("X-Tenant-ID") or "default"
             TenantContext.set_current_tenant(tenant_id)
-            return {"user": "anonymous", "role": "admin", "tenant_id": tenant_id}
+            return {"user": "anonymous", "role": "read_only", "tenant_id": tenant_id}
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required: DASHBOARD_API_KEY is not set. Set DASHBOARD_AUTH_DISABLED=true to disable auth in development.",
@@ -159,28 +165,14 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
     if auth_header.startswith("Bearer "):
         return cast(Principal | None, authenticate_jwt_token(auth_header[7:]))
 
+    # Security Fix: Tokens in query params can leak into server logs and
+    # browser history. Reject them unconditionally — only header-based Bearer auth is allowed.
     query_token = request.query_params.get("token")
     if query_token:
-        # Security Note: Tokens in query params can leak into server logs and
-        # browser history. Completely block unless ALLOW_QUERY_PARAMS_AUTH=true is explicitly set.
-        if os.getenv("ALLOW_QUERY_PARAMS_AUTH", "false").strip().lower() == "true":
-            import logging as _logging
-
-            _logging.getLogger(__name__).warning(
-                "Security: JWT token supplied via query parameter for %s. "
-                "Use Authorization: Bearer header instead to avoid token leakage.",
-                request.url.path,
-            )
-            principal = authenticate_jwt_token(query_token)
-            if principal:
-                return cast(Principal | None, principal)
-        else:
-            import logging as _logging
-
-            _logging.getLogger(__name__).warning(
-                "Security: JWT token supplied via query parameter was BLOCKED by default policy for %s.",
-                request.url.path,
-            )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token authentication via query parameters is not allowed. Use the Authorization: Bearer header instead.",
+        )
 
     header_key = api_key or request.headers.get("X-API-Key")
     if header_key:

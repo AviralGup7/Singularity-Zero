@@ -141,13 +141,14 @@ def collect_for_hosts(
                 errors += 1
             before = len(discovered)
             discovered.update(host_urls)
-            emit_collection_progress(
-                progress_callback,
-                f"Crawler host {idx}/{len(hosts_list)}: +{len(discovered) - before} urls, total {len(discovered)}",
-                10 + int((idx / len(hosts_list)) * 40),
-                processed=idx,
-                total=len(hosts_list),
-            )
+            if hosts_list:
+                emit_collection_progress(
+                    progress_callback,
+                    f"Crawler host {idx}/{len(hosts_list)}: +{len(discovered) - before} urls, total {len(discovered)}",
+                    10 + int((idx / len(hosts_list)) * 40),
+                    processed=idx,
+                    total=len(hosts_list),
+                )
 
     duration = round(time.monotonic() - start, 1)
     meta = {

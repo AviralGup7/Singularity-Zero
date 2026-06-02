@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from ._helpers import (
+from .jwt_attack_helpers import (
     JWT_AUTH_HEADERS,
     _get_original_status,
     _send_with_token,

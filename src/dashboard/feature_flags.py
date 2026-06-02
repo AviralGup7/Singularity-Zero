@@ -60,7 +60,7 @@ class FeatureFlags:
 
     @classmethod
     def enable_api_security(cls) -> bool:
-        return os.getenv("ENABLE_API_SECURITY", "false").lower() == "true"
+        return os.getenv("ENABLE_API_SECURITY", "true").lower() == "true"
 
     @classmethod
     def ENABLE_API_SECURITY(cls) -> bool:  # noqa: N802

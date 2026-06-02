@@ -1,7 +1,7 @@
 import unittest
 
-from src.analysis.plugins._passive_constants import _PLUGIN_DATA
 from src.analysis.plugins.passive import PASSIVE_PLUGIN_SPECS
+from src.analysis.plugins.passive_registry_data import _PLUGIN_DATA
 
 
 class TestPassivePluginsMapping(unittest.TestCase):

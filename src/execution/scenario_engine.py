@@ -36,6 +36,91 @@ _TEMPLATE_PATTERN = re.compile(r"\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}")
 Transport = Callable[[Request, CookieJar], Response]
 
 
+class StepResultsDict:
+    def __init__(self, steps: list[ScenarioStep]) -> None:
+        self._results: dict[ScenarioStep, ScenarioStepResult] = {}
+        self._steps = steps
+        self._steps_by_name: dict[str, list[ScenarioStep]] = {}
+        for step in steps:
+            self._steps_by_name.setdefault(step.name, []).append(step)
+
+    def __setitem__(self, key: ScenarioStep | str, value: ScenarioStepResult) -> None:
+        if isinstance(key, ScenarioStep):
+            self._results[key] = value
+        elif isinstance(key, str):
+            matching_steps = self._steps_by_name.get(key, [])
+            target_step = None
+            for step in matching_steps:
+                if step not in self._results:
+                    target_step = step
+                    break
+            if target_step is None and matching_steps:
+                target_step = matching_steps[-1]
+            if target_step:
+                self._results[target_step] = value
+
+    def __contains__(self, key: Any) -> bool:
+        if isinstance(key, str):
+            return any(step.name == key for step in self._results)
+        return key in self._results
+
+    def get_result(self, name: str, context_step: ScenarioStep | None) -> ScenarioStepResult | None:
+        matching_steps = self._steps_by_name.get(name, [])
+        if not matching_steps:
+            return None
+        if context_step is None:
+            for step in reversed(matching_steps):
+                if step in self._results:
+                    return self._results[step]
+            return None
+
+        try:
+            context_idx = self._steps.index(context_step)
+        except ValueError:
+            context_idx = len(self._steps)
+
+        best_step = None
+        for step in matching_steps:
+            try:
+                idx = self._steps.index(step)
+            except ValueError:
+                continue
+            if idx < context_idx:
+                best_step = step
+            else:
+                break
+
+        if best_step is not None:
+            return self._results.get(best_step)
+
+        for step in matching_steps:
+            if step in self._results:
+                return self._results[step]
+        return None
+
+    def has_passed(self, name: str, context_step: ScenarioStep | None) -> bool:
+        res = self.get_result(name, context_step)
+        return bool(res and res.passed and not res.skipped)
+
+    def get_timing_snapshot(self, context_step: ScenarioStep | None) -> dict[str, dict[str, float]]:
+        snapshot: dict[str, dict[str, float]] = {}
+        unique_names = {step.name for step in self._steps}
+        for name in unique_names:
+            res = self.get_result(name, context_step)
+            if res:
+                snapshot[name] = {
+                    "started_at": res.started_at,
+                    "completed_at": res.completed_at,
+                }
+        return snapshot
+
+    def items(self):
+        return [(step.name, res) for step, res in self._results.items()]
+
+    def values(self):
+        return self._results.values()
+
+
 class ScenarioExecutionEngine:
     def __init__(
         self,
@@ -74,7 +159,7 @@ class ScenarioExecutionEngine:
     ) -> ScenarioRunResult:
         variables: dict[str, str] = {**(initial_variables or {})}
         step_results: list[ScenarioStepResult] = []
-        step_results_by_name: dict[str, ScenarioStepResult] = {}
+        step_results_by_name = StepResultsDict(steps)
         persisted_headers: dict[str, str] = {**self.default_headers, **(session_headers or {})}
         session_registry = SessionRegistry(sessions=dict(sessions or {}), active=active_session)
         cookie_jars: dict[str, CookieJar] = {key: CookieJar() for key in session_registry.sessions}
@@ -91,7 +176,7 @@ class ScenarioExecutionEngine:
             ready: list[ScenarioStep] = []
             for step in pending:
                 step_deps_met = all(
-                    name in step_results_by_name and step_results_by_name[name].passed
+                    step_results_by_name.has_passed(name, context_step=step)
                     for name in step.wait_for_steps
                 )
                 if not step_deps_met:
@@ -101,33 +186,32 @@ class ScenarioExecutionEngine:
                 ready.append(step)
 
             if not ready:
-                # Break deadlocks by marking the first pending step as failed due to unmet dependencies.
-                step = pending.pop(0)
-                failed_response = Response(
-                    requested_url=step.request.url,
-                    final_url=step.request.url,
-                    status_code=None,
-                    headers={},
-                    body="",
-                    error="dependency_unmet",
-                )
-                failed_result = ScenarioStepResult(
-                    name=step.name,
-                    request=step.request,
-                    response=failed_response,
-                    extracted_values={},
-                    assertion_errors=("dependency_unmet",),
-                    actor=step.actor,
-                    session_key=step.session_key,
-                    started_at=time.monotonic(),
-                    completed_at=time.monotonic(),
-                    skipped=False,
-                )
-                step_results.append(failed_result)
-                step_results_by_name[step.name] = failed_result
-                if stop_on_failure:
-                    break
-                continue
+                # Break deadlocks by marking all remaining pending steps as failed due to unmet dependencies.
+                while pending:
+                    step = pending.pop(0)
+                    failed_response = Response(
+                        requested_url=step.request.url,
+                        final_url=step.request.url,
+                        status_code=None,
+                        headers={},
+                        body="",
+                        error="dependency_unmet",
+                    )
+                    failed_result = ScenarioStepResult(
+                        name=step.name,
+                        request=step.request,
+                        response=failed_response,
+                        extracted_values={},
+                        assertion_errors=("dependency_unmet",),
+                        actor=step.actor,
+                        session_key=step.session_key,
+                        started_at=time.monotonic(),
+                        completed_at=time.monotonic(),
+                        skipped=False,
+                    )
+                    step_results.append(failed_result)
+                    step_results_by_name[step] = failed_result
+                break
 
             # Remove only the specific ready step objects; name-based filtering can accidentally
             # drop distinct steps that share a name.
@@ -162,7 +246,7 @@ class ScenarioExecutionEngine:
                     skipped=True,
                 )
                 step_results.append(skipped_result)
-                step_results_by_name[step.name] = skipped_result
+                step_results_by_name[step] = skipped_result
 
             if not executable:
                 continue
@@ -191,7 +275,7 @@ class ScenarioExecutionEngine:
                 )
                 current_session_key = result.session_key or current_session_key
                 wave_results.append(result)
-                step_results_by_name[result.name] = result
+                step_results_by_name[step] = result
                 if result.extracted_values:
                     variables.update(result.extracted_values)
                 if step.publish_barrier:
@@ -220,7 +304,7 @@ class ScenarioExecutionEngine:
                     )
                     current_session_key = result.session_key or current_session_key
                     wave_results.append(result)
-                    step_results_by_name[result.name] = result
+                    step_results_by_name[group_steps[0]] = result
                     if result.extracted_values:
                         variables.update(result.extracted_values)
                     source_step = group_steps[0]
@@ -232,7 +316,7 @@ class ScenarioExecutionEngine:
                         pool.submit(
                             self._execute_step,
                             step,
-                            variables=dict(variables),
+                            variables=variables,
                             persisted_headers=dict(persisted_headers),
                             session_registry=session_registry,
                             cookie_jars=cookie_jars,
@@ -255,7 +339,21 @@ class ScenarioExecutionEngine:
             )
             step_results.extend(wave_results)
             for result in wave_results:
-                step_results_by_name[result.name] = result
+                # Find matching step object
+                matching_steps = [s for s in steps if s.name == result.name]
+                target_step = None
+                for s in matching_steps:
+                    if s not in step_results_by_name:
+                        target_step = s
+                        break
+                if target_step is None and matching_steps:
+                    target_step = matching_steps[-1]
+
+                if target_step:
+                    step_results_by_name[target_step] = result
+                else:
+                    step_results_by_name[result.name] = result
+
                 if result.extracted_values:
                     variables.update(result.extracted_values)
                 if result.session_key:
@@ -277,6 +375,19 @@ class ScenarioExecutionEngine:
 
     def _persist_sessions(self, registry: SessionRegistry) -> None:
         """Batch-persist all sessions to avoid N+1 individual updates if backed by external storage."""
+        sessions_changed = False
+        if len(registry.sessions) != len(self.last_persisted_sessions):
+            sessions_changed = True
+        else:
+            for k, v in registry.sessions.items():
+                if k not in self.last_persisted_sessions or self.last_persisted_sessions[k] != v:
+                    sessions_changed = True
+                    break
+
+        if not sessions_changed:
+            logger.debug("Skipping session persistence: no changes detected.")
+            return
+
         logger.debug(
             "Batch-persisting %d sessions to prevent N+1 storage queries.",
             len(registry.sessions),
@@ -288,16 +399,14 @@ class ScenarioExecutionEngine:
             except Exception as exc:
                 logger.error("Failed to execute session persistence handler: %s", exc)
 
-    def _should_run_step(
-        self, step: ScenarioStep, variables: dict[str, str], results: dict[str, ScenarioStepResult]
-    ) -> bool:
+    def _should_run_step(self, step: ScenarioStep, variables: dict[str, str], results: Any) -> bool:
         clause = str(step.when or "").strip()
         if not clause:
             return True
         normalized = clause.lower()
         if normalized.startswith("step:") and normalized.endswith(".passed"):
             name = clause[5:-7].strip()
-            return self._step_passed(results.get(name))
+            return self._step_passed(results.get_result(name, context_step=step))
         if normalized.startswith("!"):
             key = clause[1:].strip()
             return not bool(str(variables.get(key, "")).strip())
@@ -312,30 +421,36 @@ class ScenarioExecutionEngine:
         wave_results: list[ScenarioStepResult],
         *,
         steps_by_name: dict[str, ScenarioStep],
-        timeline: dict[str, ScenarioStepResult],
+        timeline: Any,
     ) -> list[ScenarioStepResult]:
         if not wave_results:
             return wave_results
 
-        timing_snapshot = {
-            key: {
-                "started_at": value.started_at,
-                "completed_at": value.completed_at,
-            }
-            for key, value in timeline.items()
-        }
-        for result in wave_results:
-            timing_snapshot[result.name] = {
-                "started_at": result.started_at,
-                "completed_at": result.completed_at,
-            }
-
         reconciled: list[ScenarioStepResult] = []
         for result in wave_results:
-            step = steps_by_name.get(result.name)
+            step = None
+            if hasattr(timeline, "_steps"):
+                matching_steps = [s for s in timeline._steps if s.name == result.name]
+                for s in matching_steps:
+                    if timeline._results.get(s) == result:
+                        step = s
+                        break
+                if not step and matching_steps:
+                    step = matching_steps[-1]
+            if not step:
+                step = steps_by_name.get(result.name)
+
             if step is None or not step.assertions:
                 reconciled.append(result)
                 continue
+
+            timing_snapshot = timeline.get_timing_snapshot(context_step=step)
+            for res in wave_results:
+                timing_snapshot[res.name] = {
+                    "started_at": res.started_at,
+                    "completed_at": res.completed_at,
+                }
+
             merged_errors = list(result.assertion_errors)
             for assertion in step.assertions:
                 for error in assertion.validate(
@@ -361,7 +476,7 @@ class ScenarioExecutionEngine:
         session_locks: dict[str, Lock],
         state_lock: Lock,
         active_session_key: str,
-        timeline: dict[str, ScenarioStepResult],
+        timeline: Any,
     ) -> ScenarioStepResult:
         current_session_key = active_session_key
         actor_key = str(step.actor).strip()
@@ -412,13 +527,8 @@ class ScenarioExecutionEngine:
 
         completed_at = time.monotonic()
         with state_lock:
-            timing_snapshot = {
-                key: {
-                    "started_at": value.started_at,
-                    "completed_at": value.completed_at,
-                }
-                for key, value in timeline.items()
-            }
+            variables.update(extracted_values)
+            timing_snapshot = timeline.get_timing_snapshot(context_step=step)
         timing_snapshot[step.name] = {"started_at": started_at, "completed_at": completed_at}
 
         assertion_errors: list[str] = []

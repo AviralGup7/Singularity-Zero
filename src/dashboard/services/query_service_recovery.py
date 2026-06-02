@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import (
     classify_stderr_lines,
     extract_degraded_providers,
@@ -17,6 +18,8 @@ from src.dashboard.services.query_service_log_parsing import (
     read_all_lines,
     tail_lines,
 )
+
+logger = get_pipeline_logger(__name__)
 
 
 def stage_entry_status(entry: dict[str, Any] | None) -> str:
@@ -120,7 +123,7 @@ def mark_running_stage_entries_completed(
         completed_entry["updated_at"] = now
 
 
-from src.dashboard.utils import truncate_lines as _truncate_lines
+from src.dashboard.scope_utils import truncate_lines as _truncate_lines
 
 
 def recover_job_from_launcher(
@@ -455,7 +458,7 @@ def reconcile_stale_terminal_job(
                     process_returncode = int(polled)
                     job["returncode"] = process_returncode
         except Exception:  # noqa: S110
-            pass
+            logger.warning("query_service_recovery: failed to poll process status", exc_info=True)
 
     if not is_terminal_reporting_state_fn(job):
         if live_process_running:
@@ -569,7 +572,10 @@ def reconcile_stale_terminal_job(
                 if callable(terminate):
                     terminate()
             except Exception:  # noqa: S110
-                pass
+                logger.warning(
+                    "query_service_recovery: failed to terminate existing process during recovery",
+                    exc_info=True,
+                )
         job["process"] = None
         job["updated_at"] = now
         if job.get("finished_at") is None:
@@ -586,7 +592,9 @@ def reconcile_stale_terminal_job(
                 if callable(terminate):
                     terminate()
         except Exception:  # noqa: S110
-            pass
+            logger.warning(
+                "query_service_recovery: failed to terminate process on completion", exc_info=True
+            )
 
     job["process"] = None
     job["status"] = "completed"

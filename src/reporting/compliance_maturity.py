@@ -15,7 +15,7 @@ except ImportError:
     class ControlMaturity(StrEnum):  # type: ignore[no-redef]
         """Maturity levels for a security control."""
 
-        PASS = "PASS"
+        PASS = "PASS"  # noqa: S105
         PARTIAL = "PARTIAL"
         AT_RISK = "AT_RISK"
         FAIL = "FAIL"

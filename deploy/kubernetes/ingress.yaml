@@ -49,14 +49,8 @@ spec:
                 name: cyber-dashboard
                 port:
                   number: 8000
-          # Prometheus metrics (restricted)
-          - path: /metrics
-            pathType: Prefix
-            backend:
-              service:
-                name: cyber-dashboard
-                port:
-                  number: 8000
+          # Prometheus metrics (internal-only; scraped via ServiceMonitor, not exposed via Ingress)
+          # REMOVED from public Ingress to prevent architecture detail leaks.
           # Health check
           - path: /health
             pathType: Prefix

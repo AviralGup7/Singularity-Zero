@@ -1,8 +1,8 @@
 from src.core.models.stage_result import PipelineContext, StageStatus
-from src.pipeline.services.pipeline_orchestrator._orchestrator import (
+from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
     collect_failed_stages as _collect_failed_stages,
 )
-from src.pipeline.services.pipeline_orchestrator._orchestrator import (
+from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
     validate_recon_outputs as _validate_recon_outputs,
 )
 
