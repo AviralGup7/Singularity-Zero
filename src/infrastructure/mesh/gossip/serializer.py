@@ -61,4 +61,5 @@ def parse_envelope(data: bytes):
         body = envelope["body"]
         return body, True
     except Exception:
+        logger.debug("gossip/serializer: dropped malformed envelope", exc_info=True)
         return None, False

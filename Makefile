@@ -23,10 +23,10 @@ format: install
 	. $(VENV)/bin/activate && ruff check --fix .
 
 run-dashboard: install
-	. $(VENV)/bin/activate && cyber-dashboard --port 8000
+	. $(VENV)/bin/activate && cyber start dashboard --port 8000
 
 run-pipeline: install
-	. $(VENV)/bin/activate && cyber-pipeline --config configs/config.example.json --scope configs/scope.example.txt
+	. $(VENV)/bin/activate && cyber start pipeline --config configs/config.json
 
 security-check: install
 	. $(VENV)/bin/activate && pip-audit

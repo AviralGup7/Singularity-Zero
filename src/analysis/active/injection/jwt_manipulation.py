@@ -116,6 +116,7 @@ def _decode_jwt_part(part: str) -> dict | Any | None:
         decoded = _b64url_decode(part)
         return json.loads(decoded)
     except Exception:
+        logger.debug("jwt_manipulation: failed to decode JWT part %r", part[:16])
         return None
 
 

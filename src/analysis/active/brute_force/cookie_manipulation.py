@@ -12,8 +12,6 @@ from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_
 from src.analysis.helpers._probe_utils import probe_confidence, probe_severity
 from src.analysis.passive.runtime import ResponseCache
 
-logger = logging.getLogger(__name__)
-
 COOKIE_OVERFLOW_VALUE = "A" * 10000
 
 COOKIE_INJECTION_NAMES = [

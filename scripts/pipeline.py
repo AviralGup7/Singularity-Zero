@@ -4,11 +4,6 @@ import os
 import sys
 import traceback
 
-# Add the repository root to sys.path so src.* imports work
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 try:
     from src.pipeline.runtime import main
 except Exception as exc:

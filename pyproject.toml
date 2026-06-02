@@ -223,7 +223,7 @@ known-first-party = ["src", "src.analysis", "src.core", "src.pipeline", "src.das
 "tests/**/*.py" = ["S101", "S105", "S106", "S108", "S311", "N806", "N818"]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
