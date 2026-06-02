@@ -332,7 +332,7 @@ async def _check_http_indicators(
         async with httpx.AsyncClient(
             timeout=timeout,
             follow_redirects=True,
-            verify=False,  # nosec B501 noqa: S501 – deliberate for recon
+            verify=True,
         ) as client:
             for scheme in ("https", "http"):
                 url = f"{scheme}://{subdomain}"

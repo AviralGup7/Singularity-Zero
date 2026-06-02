@@ -109,7 +109,9 @@ def _patch_runtime_environment(
         emitted_progress.append(event)
 
     monkeypatch.setattr(orch_mod, "emit_progress", _capture_progress)
-    import src.pipeline.services.pipeline_orchestrator._orchestrator.security as security_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as security_mod,
+    )
 
     monkeypatch.setattr(security_mod, "emit_progress", _capture_progress)
     monkeypatch.setattr(orch_mod, "emit_error", lambda *_args, **_kwargs: None)

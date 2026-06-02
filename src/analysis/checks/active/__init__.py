@@ -1,4 +1,4 @@
-from src.analysis.checks.active._impl import (
+from src.analysis.checks.active._detectors import (
     ai_endpoint_exposure_analyzer,
     dom_xss_signal_detector,
     race_condition_signal_analyzer,

@@ -1,7 +1,7 @@
 """Common recon utilities for parallel command execution and input normalization.
 
-Provides run_commands_parallel for executing external recon tools concurrently
-with retry support, and re-exports normalization helpers from src.core.utils.
+Provides run_recon_commands_parallel for executing external recon tools concurrently
+with retry support, and normalization helpers from src.core.utils.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -12,19 +12,16 @@ from src.pipeline.tools import RetryPolicy, ToolExecutionOutcome, execute_comman
 
 __all__ = [
     "run_commands_parallel",
+    "run_recon_commands_parallel",
     "run_commands_parallel_outcomes",
     "normalize_scope_entry",
     "normalize_url",
     "parse_plain_lines",
-    "RetryPolicy",
-    "ToolExecutionOutcome",
-    "execute_command",
-    "try_command",
     "run_async_in_sync_context",
 ]
 
 
-def run_commands_parallel(
+def run_recon_commands_parallel(
     jobs: list[
         tuple[list[str], str | None]
         | tuple[list[str], str | None, int | None]
@@ -61,6 +58,9 @@ def run_commands_parallel(
             for command, stdin_text, timeout, retry_policy in normalized_jobs
         ]
         return [future.result() for future in futures]
+
+
+run_commands_parallel = run_recon_commands_parallel
 
 
 def run_commands_parallel_outcomes(

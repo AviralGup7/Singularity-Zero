@@ -65,7 +65,7 @@ def _host_from_url(value: str) -> str:
 
 
 def _cache_lookup(
-    hosts: list[str], ttl_seconds: int, force_recheck: bool
+    hosts: list[str], ttl_seconds: int, force_recheck: bool, target_name: str = ""
 ) -> tuple[list[str], list[dict[str, Any]], set[str], int]:
     if force_recheck or os.environ.get("RECON_FLUSH_CACHE"):
         return hosts, [], set(), 0
@@ -75,7 +75,8 @@ def _cache_lookup(
     cached_live_hosts: set[str] = set()
     skipped_count = 0
     for host in hosts:
-        cached = _probe_cache.get(host)
+        key = f"{target_name}:{host}" if target_name else host
+        cached = _probe_cache.get(key)
         if not cached:
             to_probe.append(host)
             continue
@@ -111,10 +112,12 @@ def _cache_update(
     url: str = "",
     status_code: int | None = None,
     ttl_seconds: int | None = None,
+    target_name: str = "",
 ) -> None:
     ttl = ttl_seconds if ttl_seconds is not None else PROBE_CACHE_DEFAULT_TTL_SECONDS
+    key = f"{target_name}:{host}" if target_name else host
     _probe_cache.set(
-        host,
+        key,
         {
             "checked_at": time.time(),
             "alive": bool(alive),
@@ -141,6 +144,7 @@ def _cache_update_from_batch(
     batch_records: list[dict[str, Any]],
     batch_live_hosts: set[str],
     ttl_seconds: int | None = None,
+    target_name: str = "",
 ) -> None:
     live_by_host: dict[str, tuple[str, int | None]] = {}
     for record in batch_records:
@@ -157,10 +161,15 @@ def _cache_update_from_batch(
         if host in live_by_host:
             url, status_code = live_by_host[host]
             _cache_update(
-                host, alive=True, url=url, status_code=status_code, ttl_seconds=ttl_seconds
+                host,
+                alive=True,
+                url=url,
+                status_code=status_code,
+                ttl_seconds=ttl_seconds,
+                target_name=target_name,
             )
         else:
-            _cache_update(host, alive=False, ttl_seconds=ttl_seconds)
+            _cache_update(host, alive=False, ttl_seconds=ttl_seconds, target_name=target_name)
 
 
 def _httpx_batch_plan(hosts: list[str], config: Config) -> tuple[int, int]:
@@ -228,7 +237,7 @@ def _run_httpx_batch(
             continue
         try:
             record = json.loads(line)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             continue
         if record.get("url"):
             record["url"] = normalize_url(record["url"])
@@ -284,8 +293,9 @@ def probe_live_hosts(
                 total=len(hosts),
                 stage_percent=0,
             )
+        target_name = getattr(config, "target_name", "")
         to_probe, records, live_hosts, skipped_count = _cache_lookup(
-            hosts, ttl_seconds, force_recheck
+            hosts, ttl_seconds, force_recheck, target_name=target_name
         )
         if skipped_count:
             _emit_live_host_progress(
@@ -298,7 +308,9 @@ def probe_live_hosts(
             )
 
         if not to_probe:
-            if hosts and not live_hosts and not force_recheck:
+            if force_recheck:
+                return records, live_hosts
+            if hosts and not live_hosts:
                 _emit_live_host_progress(
                     progress_callback,
                     "live-host cache contains no alive entries; forcing one fresh probe pass",
@@ -388,7 +400,11 @@ def probe_live_hosts(
                 records.extend(batch_records)
                 live_hosts.update(batch_live_hosts)
                 _cache_update_from_batch(
-                    batch_hosts, batch_records, batch_live_hosts, ttl_seconds=ttl_seconds
+                    batch_hosts,
+                    batch_records,
+                    batch_live_hosts,
+                    ttl_seconds=ttl_seconds,
+                    target_name=target_name,
                 )
                 percent = min(47, 36 + int((completed_batches / total_batches) * 11))
                 batch_status = str(batch_meta.get("status", "ok")).strip().lower()
@@ -452,8 +468,11 @@ def probe_live_hosts_fallback(
         stage_percent=0,
     )
 
+    target_name = getattr(config, "target_name", "") if config else ""
     ttl_seconds = _probe_cache_ttl_seconds(config) if config else PROBE_CACHE_DEFAULT_TTL_SECONDS
-    to_probe, records, live_hosts, skipped_count = _cache_lookup(hosts, ttl_seconds, force_recheck)
+    to_probe, records, live_hosts, skipped_count = _cache_lookup(
+        hosts, ttl_seconds, force_recheck, target_name=target_name
+    )
     if skipped_count:
         _emit_live_host_progress(
             progress_callback,
@@ -465,7 +484,9 @@ def probe_live_hosts_fallback(
         )
 
     if not to_probe:
-        if hosts and not live_hosts and not force_recheck:
+        if force_recheck:
+            return records, live_hosts
+        if hosts and not live_hosts:
             _emit_live_host_progress(
                 progress_callback,
                 "live-host cache contains no alive entries; forcing one fresh probe pass",
@@ -530,7 +551,11 @@ def probe_live_hosts_fallback(
                 batch_records.append(result)
             if len(batch_hosts) >= batch_size or processed == len(to_probe):
                 _cache_update_from_batch(
-                    batch_hosts, batch_records, batch_live, ttl_seconds=ttl_seconds
+                    batch_hosts,
+                    batch_records,
+                    batch_live,
+                    ttl_seconds=ttl_seconds,
+                    target_name=target_name,
                 )
                 current_batch += 1
                 percent = min(47, 36 + int((current_batch / total_batches) * 11))
@@ -559,7 +584,8 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
     if "://" not in host:
         try:
             # Only attempt if it looks like a hostname
-            if not any(c.isdigit() for c in host.split(".")[-1:]):
+            last_label = host.split(".")[-1] if "." in host else host
+            if not any(c.isdigit() for c in last_label):
                 addr_info = socket.getaddrinfo(host, None, socket.AF_INET6)
                 for info in addr_info:
                     ip6 = info[4][0]

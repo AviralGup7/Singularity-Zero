@@ -58,6 +58,7 @@ class EventBus:
         self._running = False
         self._async_handlers: list[Callable[..., Any]] = []
         self._pending_tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
+        self._tasks: set[asyncio.Task[Any]] = set()
         self.failed_handlers_count = 0
 
     def subscribe(self, event_type: EventType, handler: Callable[..., Any]) -> str:
@@ -143,7 +144,22 @@ class EventBus:
                     try:
                         loop = asyncio.get_running_loop()
                     except RuntimeError:
-                        results.append(asyncio.run(handler(event)))
+                        res_fut = None
+                        exc_fut = None
+
+                        def _run_in_thread():
+                            nonlocal res_fut, exc_fut
+                            try:
+                                res_fut = asyncio.run(handler(event))
+                            except Exception as e:
+                                exc_fut = e
+
+                        t = threading.Thread(target=_run_in_thread)
+                        t.start()
+                        t.join()
+                        if exc_fut is not None:
+                            raise exc_fut
+                        results.append(res_fut)
                     else:
                         task = loop.create_task(handler(event))
                         self._track_task(task)

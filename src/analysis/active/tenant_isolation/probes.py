@@ -9,7 +9,11 @@ from src.analysis.helpers import classify_endpoint, endpoint_signature
 from .constants import TENANT_PATH_PATTERN
 from .detection import detect_tenant_parameters
 from .findings import _build_finding
-from .tests import test_cross_tenant_data_access, test_tenant_isolation, test_vertical_escalation
+from .runtime_probes import (
+    test_cross_tenant_data_access,
+    test_tenant_isolation,
+    test_vertical_escalation,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -1,11 +1,13 @@
+import { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
-import { lazy, useEffect } from 'react';
 
 import { CoreProviders } from '@/context/CoreProviders';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { RouteGuard } from '@/components/RouteGuard';
 import { getLiveness } from '@/api/health';
 import { syncServerTime } from '@/lib/timeSync';
+import { errorTracker } from '@/utils/errorTracker';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 // --- Page Imports ---
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -58,8 +60,8 @@ export default function App() {
       .then(res => {
         if (res.timestamp) syncServerTime(res.timestamp);
       })
-      .catch(() => {
-   
+      .catch(err => {
+        errorTracker.track(err, { component: 'App', action: 'telemetry-sync' });
         console.warn('[SYSTEM] Initial telemetry sync failed. Backend may be offline.');
       });
   }, []);
@@ -68,7 +70,8 @@ export default function App() {
     <CoreProviders>
       <RouteWatcher />
       <AppLayout>
-        <Routes>
+        <Suspense fallback={<LoadingSpinner label="Loading page…" />}>
+          <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<RouteGuard><DashboardPage /></RouteGuard>} />
           <Route path="/targets" element={<RouteGuard><TargetsPage /></RouteGuard>} />
@@ -98,6 +101,7 @@ export default function App() {
           <Route path="/evasion" element={<RouteGuard><EvasionMetricsPage /></RouteGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </AppLayout>
     </CoreProviders>
   );

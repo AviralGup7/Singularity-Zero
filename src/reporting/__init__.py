@@ -9,4 +9,6 @@ def __getattr__(name: str) -> Any:
         return _gen
     import src.reporting.pipeline as _mod
 
-    return getattr(_mod, name, None)
+    if hasattr(_mod, name):
+        return getattr(_mod, name)
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

@@ -21,7 +21,7 @@ from ._constants import (
     POWERED_BY_PATTERNS,
     SERVER_VERSION_PATTERNS,
 )
-from ._helpers import (
+from .vulnerable_components_helpers import (
     build_finding,
     calculate_risk_score,
     check_cve_patterns,

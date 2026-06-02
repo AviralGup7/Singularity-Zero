@@ -110,7 +110,9 @@ def _patch_runtime_environment(
     def _capture_progress(stage: str, message: str, percent: int, **_meta: object) -> None:
         emitted_progress.append((stage, message, int(percent)))
 
-    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
     from src.pipeline.services.plugin_catalog import resolve_stage_runner
 
     try:
@@ -173,7 +175,9 @@ async def test_stage_status_only_failure_forces_non_zero_exit(
     emitted_progress: list[tuple[str, str, int]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
-    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
 
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains"])
 
@@ -213,7 +217,9 @@ async def test_recon_fail_fast_blocks_downstream_stage_and_avoids_completion_pro
     emitted_progress: list[tuple[str, str, int]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
-    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
 
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
 
@@ -261,7 +267,9 @@ async def test_recon_fail_fast_ignores_explicit_non_fatal_timeout_metrics(
     emitted_progress: list[tuple[str, str, int]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
-    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
 
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 
@@ -328,7 +336,9 @@ async def test_incompatible_checkpoint_recovery_keeps_loaded_scope_entries(
     emitted_progress: list[tuple[str, str, int]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
-    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
 
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains"])
     monkeypatch.setattr(
@@ -372,7 +382,9 @@ async def test_live_hosts_success_transitions_to_urls_stage(
     emitted_progress: list[tuple[str, str, int]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
-    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
 
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 
@@ -453,7 +465,9 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
     emitted_progress: list[tuple[str, str, int]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
-    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
 
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 

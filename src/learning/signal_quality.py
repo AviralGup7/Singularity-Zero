@@ -147,7 +147,7 @@ class GoldenSetEvaluation:
         }
 
 
-from src.learning.utils import clamp as _clamp
+from src.core.utils.math_utils import clamp as _clamp
 
 
 def _numeric(value: Any, default: float = 0.0) -> float:

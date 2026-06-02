@@ -194,11 +194,24 @@ async function bootstrap() {
 
     const rootEl = document.getElementById('root');
     if (rootEl) {
+      if (typeof performance !== 'undefined' && typeof performance.mark === 'function') {
+        performance.mark('app-mount');
+      }
       createRoot(rootEl).render(
         <StrictMode>
           <App />
         </StrictMode>,
       );
+      if (typeof performance !== 'undefined' && typeof performance.measure === 'function') {
+        performance.measure('app-mount-to-ready', 'app-mount');
+        const measure = performance.getEntriesByName('app-mount-to-ready')[0];
+        if (measure) {
+          console.info('[Performance] App mount-to-ready duration:', measure.duration.toFixed(2), 'ms');
+        }
+        performance.clearMarks('app-mount');
+        performance.clearMeasures('app-mount-to-ready');
+        performance.mark('app-ready');
+      }
       clearTimeout(bootTimeout);
     } else {
       clearTimeout(bootTimeout);

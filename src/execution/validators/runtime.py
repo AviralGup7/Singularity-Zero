@@ -16,7 +16,9 @@ from src.execution.validators.engine import (
     build_token_replay_summary,
     run_blackbox_validation_engine,
 )
-from src.execution.validators.validators.idor import promote_evidence_backed_results
+from src.execution.validators.validators.idor import (
+    promote_evidence_backed_results,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,25 +109,29 @@ def execute_validation_runtime(
         msg = f"Validator plugin 'api_key_candidates' could not be resolved from registry: {e}"
         logger.warning(msg)
         errors.append(msg)
-    duration = round(time.monotonic() - stage_started, 3)
-    metric_payload = {
-        "status": "ok" if not errors else "partial",
-        "duration_seconds": duration,
-        "error_count": len(errors),
-    }
 
     # Promote results
     verified_exploits = []
     try:
         promote_idor = resolve_plugin(VALIDATOR, "promote_idor_evidence")  # Not yet registered
         verified_exploits.extend(promote_idor(results.get("idor_validation", [])))
-    except KeyError:
+    except KeyError as e:
+        msg = f"Validator plugin 'promote_idor_evidence' could not be resolved from registry: {e}"
+        logger.warning(msg)
+        errors.append(msg)
         # Fallback to module-level imported promote_evidence_backed_results
         verified_exploits.extend(
             promote_evidence_backed_results(results.get("idor_validation", []))
         )
 
     verified_exploits.extend(promote_behavior_confirmations(analysis_results))
+
+    duration = round(time.monotonic() - stage_started, 3)
+    metric_payload = {
+        "status": "ok" if not errors else "partial",
+        "duration_seconds": duration,
+        "error_count": len(errors),
+    }
 
     return {
         "schema_version": engine_output.get(

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tarfile
@@ -19,20 +20,44 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Allowlisted characters for tar member names: alphanumeric, dot, hyphen, underscore, forward slash
+_SAFE_MEMBER_NAME_RE = re.compile(r"^[a-zA-Z0-9_\-./]+$")
+
 
 def _safe_extract(tar: tarfile.TarFile, extract_dir: Path) -> None:
     """Safely extract tarfile, preventing path traversal attacks.
 
     Validates and extracts each member individually to eliminate the
     TOCTOU gap between the validation loop and the bulk extractall call.
+    Uses tarfile.data_filter on Python >= 3.12 when available.
     """
-    extract_dir_abs = os.path.abspath(extract_dir)
+    extract_dir_abs = Path(extract_dir).resolve()
+
+    # Python 3.12+ provides a built-in data_filter that mitigates path traversal.
+    use_data_filter = sys.version_info >= (3, 12)
+
     for member in tar.getmembers():
-        member_path = os.path.abspath(os.path.join(extract_dir_abs, member.name))
-        if not member_path.startswith(extract_dir_abs + os.sep):
+        # Reject absolute paths
+        if os.path.isabs(member.name):
+            raise ValueError(f"Path traversal attempt detected (absolute path): {member.name}")
+
+        # Reject path traversal via ".." components
+        if ".." in member.name:
+            raise ValueError(f"Path traversal attempt detected (.. in path): {member.name}")
+
+        # Reject member names containing characters outside the explicit allowlist
+        if not _SAFE_MEMBER_NAME_RE.match(member.name):
+            raise ValueError(f"Path traversal attempt detected (unsafe characters): {member.name}")
+
+        member_path = (extract_dir_abs / member.name).resolve()
+        if str(member_path) != str(extract_dir_abs) and extract_dir_abs not in member_path.parents:
             raise ValueError(f"Path traversal attempt detected: {member.name}")
-        # Extract one member at a time so validation and extraction are atomic.
-        tar.extract(member, path=extract_dir, set_attrs=False)  # nosec B012
+
+        # Use data_filter on Python 3.12+; otherwise extract with validated path
+        if use_data_filter:
+            tar.extract(member, path=extract_dir, filter="data", set_attrs=False)
+        else:
+            tar.extract(member, path=extract_dir, set_attrs=False)  # nosec B012
 
 
 @dataclass

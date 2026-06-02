@@ -51,7 +51,7 @@ class ThresholdUpdate:
     reason: str | None = None
 
 
-from src.learning.utils import clamp as _clamp
+from src.core.utils.math_utils import clamp as _clamp
 
 
 class ThresholdTuner:

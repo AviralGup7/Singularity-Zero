@@ -10,8 +10,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from src.analysis.catalog import PASSIVE_CHECK_NAMES
 from src.analysis.passive.runtime import RequestScheduler, ResponseCache
+from src.analysis.plugins import PASSIVE_CHECK_NAMES
 from src.core.models import Config
 from src.detection.runtime import prime_detection_context, run_detection_plugins
 from src.pipeline.retry import RetryPolicy

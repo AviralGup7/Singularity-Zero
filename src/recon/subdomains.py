@@ -84,7 +84,7 @@ def fetch_crtsh_subdomains(
 
     try:
         records = json.loads(payload)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, TypeError) as exc:
         emit_warning(f"crt.sh returned invalid JSON for {domain}: {exc}")
         return set()
 
@@ -187,6 +187,10 @@ def enumerate_subdomains(
                 for root in roots:
                     cmd = [arg.replace("{root}", root) for arg in args_template]
                     command_jobs.append((cmd, None, tool_timeout, tool_retry_policy))
+            else:
+                emit_warning(
+                    f"Configured subdomain enumeration tool '{reg.key}' is enabled in configuration but not installed or available on PATH"
+                )
             continue
 
         # Function-based enumerators

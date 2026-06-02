@@ -182,6 +182,9 @@ export function TargetsPage() {
     setSelectedTargets(new Set());
   }, []);
 
+  // FIX-1: Replace N+1 sequential `await` loop with parallel `Promise.allSettled`
+  // so bulk rescans fire concurrently. For >20 targets consider adding a
+  // concurrency pool (e.g. `p-limit`) to avoid overwhelming the backend.
   const handleBulkRescan = useCallback(async () => {
     if (selectedTargets.size === 0) return;
     setIsScanning(true);
@@ -192,25 +195,41 @@ export function TargetsPage() {
     setScanProgress(progress);
 
     const targetList = Array.from(selectedTargets);
-    for (const name of targetList) {
-      progress.set(name, { targetName: name, jobId: '', status: 'running', progress: 10 });
-      setScanProgress(new Map(progress));
-      try {
-        const job = await startJob({
-          base_url: `https://${name}`,
-          mode: 'quick',
-   
-          modules: ['subdomain_enum', 'url_discovery', 'port_scan', 'httpx', 'nuclei'],
-        });
-        progress.set(name, { targetName: name, jobId: job.id, status: 'running', progress: 50 });
-        setScanProgress(new Map(progress));
-        toast.info(`Scan started for ${name}: ${job.id}`);
-      } catch (err) {
-        progress.set(name, { targetName: name, jobId: '', status: 'failed', progress: 0 });
-        setScanProgress(new Map(progress));
-        toast.error(`Failed to scan ${name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    targetList.forEach(name => {
+      const p = progress.get(name);
+      if (p) {
+        progress.set(name, { ...p, status: 'running', progress: 10 });
       }
-    }
+    });
+    setScanProgress(new Map(progress));
+
+    await Promise.allSettled(
+      targetList.map(name =>
+        (async () => {
+          try {
+            const job = await startJob({
+              base_url: `https://${name}`,
+              mode: 'quick',
+       
+              modules: ['subdomain_enum', 'url_discovery', 'port_scan', 'httpx', 'nuclei'],
+            });
+            const p = progress.get(name);
+            if (p) {
+              progress.set(name, { ...p, jobId: job.id, status: 'running', progress: 50 });
+            }
+            setScanProgress(new Map(progress));
+            toast.info(`Scan started for ${name}: ${job.id}`);
+          } catch (err) {
+            const p = progress.get(name);
+            if (p) {
+              progress.set(name, { ...p, status: 'failed', progress: 0 });
+            }
+            setScanProgress(new Map(progress));
+            toast.error(`Failed to scan ${name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+        })()
+      )
+    );
 
     targetList.forEach(name => {
       const p = progress.get(name);
@@ -653,9 +672,9 @@ export function TargetsPage() {
                     <td>
                       <div className="severity-inline">
                         {Object.entries(target.severity_counts || {})
-   
+             
                           .filter(([, count]) => count > 0)
-   
+     
                           .map(([sev, count]) => (
                             <span key={sev} className={`severity-dot severity-${sev}`} aria-label={`${sev}: ${count}`}>
                               {sev[0].toUpperCase()}: {count}

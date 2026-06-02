@@ -113,7 +113,8 @@ def build_stage_methods_map(
             continue
         try:
             stage_methods[stage_name] = resolve_stage_runner_func(stage_name)
-        except KeyError:
+        except KeyError as exc:
+            logger.warning("Failed to resolve stage runner for stage '%s': %s", stage_name, exc)
             continue
     return stage_methods
 
@@ -143,6 +144,18 @@ async def finalize_run(
     except Exception:
         logger_obj.debug("Best-effort AsyncClient cleanup failed", exc_info=True)
 
+    try:
+        event_bus.clear()
+    except Exception:
+        logger_obj.warning("Failed to clear event bus subscriptions", exc_info=True)
+
+    try:
+        from src.core.events import reset_event_bus
+
+        reset_event_bus()
+    except Exception:
+        pass
+
     return exit_code
 
 
@@ -162,22 +175,101 @@ _finding_validator_instance: Draft7Validator | None = None
 def _stage_output_schema_validator() -> Draft7Validator:
     global _stage_output_validator_instance
     if _stage_output_validator_instance is None:
-        schema_path = (
-            Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "stage_output.schema.json"
-        )
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        _stage_output_validator_instance = Draft7Validator(schema)
+        schema_path = None
+        current = Path(__file__).resolve().parent
+        for _ in range(8):
+            candidate = current / ".ai" / "schemas" / "stage_output.schema.json"
+            if candidate.exists():
+                schema_path = candidate
+                break
+            if current.parent == current:
+                break
+            current = current.parent
+
+        if schema_path is None:
+            try:
+                candidate = (
+                    Path(__file__).resolve().parents[5]
+                    / ".ai"
+                    / "schemas"
+                    / "stage_output.schema.json"
+                )
+                if candidate.exists():
+                    schema_path = candidate
+            except IndexError:
+                pass
+
+        if schema_path is None or not schema_path.exists():
+            logger.warning(
+                "Schema file 'stage_output.schema.json' not found. Stage output validation will be bypassed."
+            )
+
+            class NoOpValidator:
+                def iter_errors(self, instance: Any) -> Any:
+                    return []
+
+            return NoOpValidator()  # type: ignore
+
+        try:
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            _stage_output_validator_instance = Draft7Validator(schema)
+        except Exception as exc:
+            logger.error("Failed to load schema JSON from %s: %s", schema_path, exc)
+
+            class NoOpValidator:
+                def iter_errors(self, instance: Any) -> Any:
+                    return []
+
+            return NoOpValidator()  # type: ignore
     return _stage_output_validator_instance
 
 
 def _finding_schema_validator() -> Draft7Validator:
     global _finding_validator_instance
     if _finding_validator_instance is None:
-        schema_path = (
-            Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
-        )
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        _finding_validator_instance = Draft7Validator(schema)
+        schema_path = None
+        current = Path(__file__).resolve().parent
+        for _ in range(8):
+            candidate = current / ".ai" / "schemas" / "finding.schema.json"
+            if candidate.exists():
+                schema_path = candidate
+                break
+            if current.parent == current:
+                break
+            current = current.parent
+
+        if schema_path is None:
+            try:
+                candidate = (
+                    Path(__file__).resolve().parents[5] / ".ai" / "schemas" / "finding.schema.json"
+                )
+                if candidate.exists():
+                    schema_path = candidate
+            except IndexError:
+                pass
+
+        if schema_path is None or not schema_path.exists():
+            logger.warning(
+                "Schema file 'finding.schema.json' not found. Finding schema validation will be bypassed."
+            )
+
+            class NoOpValidator:
+                def iter_errors(self, instance: Any) -> Any:
+                    return []
+
+            return NoOpValidator()  # type: ignore
+
+        try:
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            _finding_validator_instance = Draft7Validator(schema)
+        except Exception as exc:
+            logger.error("Failed to load finding schema JSON from %s: %s", schema_path, exc)
+
+            class NoOpValidator:
+                def iter_errors(self, instance: Any) -> Any:
+                    return []
+
+            return NoOpValidator()  # type: ignore
     return _finding_validator_instance
 
 

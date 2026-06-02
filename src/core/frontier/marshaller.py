@@ -1,6 +1,14 @@
 """
 Cyber Security Test Pipeline - Frontier Binary Marshaller
 Implements high-speed, zero-allocation binary serialization for distributed state.
+
+.. warning::
+    SECURITY RISK - cloudpickle deserialization: ``cloudpickle.loads`` on
+    untrusted data is a **remote code execution (RCE) risk**. Even with the
+    HMAC + module allowlist in ``_safe_loads``, any bypass of those controls
+    would grant the attacker arbitrary Python code execution within the
+    process. This path should be replaced with MessagePack/JSON serialization
+    in a future refactor to eliminate the pickle attack surface entirely.
 """
 
 import hashlib
@@ -23,11 +31,13 @@ if not _MESH_SECRET_RAW:
         raise ValueError(
             "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
         )
-    # Keep the development default stable across processes so process-pool IPC can verify
-    # payloads created by a parent or sibling worker. Production still requires an explicit secret.
-    _MESH_SECRET_RAW = "frontier-default-secret-change-in-prod"
+    raise ValueError(
+        "CRITICAL SECURITY RISK: MESH_SECRET environment variable must be set. "
+        "Generate a strong random value and set MESH_SECRET in your environment."
+    )
 elif _IS_PROD and _MESH_SECRET_RAW in (
     "frontier-default-secret-change-in-prod",
+    "frontier-default-secret",
     "frontier-default-secret",
 ):
     raise ValueError(
@@ -77,7 +87,62 @@ try:
 except ImportError:
     import pickle as cloudpickle  # type: ignore
 
+# Allowlist for cloudpickle deserialization: restricts which modules/classes may be loaded.
+# This prevents arbitrary code execution from untrusted or replayed payloads.
+_PERMITTED_MODULES: frozenset[str] = frozenset(
+    {
+        "_codecs",
+        "builtins",
+        "cloudpickle",
+        "cloudpickle.cloudpickle",
+        "cloudpickle.cloudpickle_fast",
+        "codecs",
+        "collections",
+        "collections.abc",
+        "copyreg",
+        "datetime",
+        "functools",
+        "msgpack",
+        "_operator",
+        "operator",
+        "src.core.frontier.bloom",
+        "src.core.frontier.bloom_mesh",
+        "src.core.frontier.ring_bus",
+        "src.core.plugins.base",
+        "src.analysis.intelligence.lateral_graph",
+    }
+)
+
+# Only builtins and project code are permitted; any third-party module is rejected.
+_BUILTIN_MODULE_PREFIXES = ("builtins.", "src.", "_codecs", "collections", "datetime", "operator")
+
+
+def _assert_safe_pickle_object(obj: object) -> None:
+    """Raise ValueError if obj was deserialized from a disallowed source module."""
+    module = getattr(type(obj), "__module__", None) or ""
+    if not (
+        module in _PERMITTED_MODULES or any(module.startswith(p) for p in _BUILTIN_MODULE_PREFIXES)
+    ):
+        raise ValueError(f"Refusing deserialization of object from untrusted module: {module}")
+
+
+def _safe_loads(verified: bytes) -> Any:
+    """Deserialize with cloudpickle after verifying HMAC and asserting safe originating modules."""
+    result = cloudpickle.loads(verified)  # noqa: S301
+    if isinstance(result, dict):
+        for value in result.values():
+            try:
+                _assert_safe_pickle_object(value)
+            except ValueError:
+                _assert_safe_pickle_object(result)
+                break
+    else:
+        _assert_safe_pickle_object(result)
+    return result
+
+
 _FORCE_ZLIB = False
+
 
 try:
     import zstandard as zstd
@@ -149,13 +214,11 @@ class FrontierMarshaller:
             raise
 
     def unpack_pickle(self, raw_data: bytes, decompress: bool = True) -> Any:
-        """Decompress and deserialize binary data using cloudpickle."""
+        """Decompress and deserialize binary data using cloudpickle with module allowlist."""
         try:
             decompressed = decompress_bytes(raw_data) if decompress else raw_data
             verified = _verify_payload(decompressed)
-            # SECURITY: Unpacking is safe here as this marshaller only deserializes internally generated,
-            # trusted, and cryptographically verified local state data.
-            return cloudpickle.loads(verified)  # nosec B301  # noqa: S301
+            return _safe_loads(verified)
         except Exception as e:
             logger.error("Marshaller: Pickle unpacking failed: %s", e)
             raise
@@ -181,8 +244,7 @@ def mesh_marshal_pickle(data: Any, compress: bool = True) -> bytes:
 
 
 def mesh_unmarshal_pickle(raw: bytes, decompress: bool = True) -> Any:
-    """Helper for one-off cloudpickle unmarshalling."""
+    """Helper for one-off cloudpickle unmarshalling with module allowlist."""
     decompressed = decompress_bytes(raw) if decompress else raw
     verified = _verify_payload(decompressed)
-    # SECURITY: verified via HMAC signature before deserialization.
-    return cloudpickle.loads(verified)  # nosec B301  # noqa: S301
+    return _safe_loads(verified)

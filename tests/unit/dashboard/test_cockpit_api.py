@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from src.dashboard.fastapi.routers.cockpit import (
     get_cockpit_events,
@@ -17,7 +18,9 @@ class CockpitApiTests(unittest.TestCase):
     def _services(output_root: Path) -> SimpleNamespace:
         return SimpleNamespace(query=SimpleNamespace(output_root=output_root))
 
-    def test_get_cockpit_graph_success(self) -> None:
+    @patch("src.intelligence.ml.gnn_predict.GNNPredictor.predict_links")
+    def test_get_cockpit_graph_success(self, mock_predict_links) -> None:
+        mock_predict_links.return_value = []
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = Path(temp_dir)
             target = "test-target"
@@ -60,6 +63,7 @@ class CockpitApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = Path(temp_dir)
             target = "test-target"
+            (output_root / target).mkdir(parents=True, exist_ok=True)
 
             # Mock get_timeline_data
             query_service = SimpleNamespace(

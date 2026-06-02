@@ -10,6 +10,10 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
+from src.core.logging.trace_logging import get_pipeline_logger
+
+logger = get_pipeline_logger(__name__)
+
 
 class DriftDetector:
     """Manages recon outcome snapshots and calculates differences between runs."""
@@ -33,6 +37,11 @@ class DriftDetector:
             with open(path, encoding="utf-8") as f:
                 return cast(dict[str, Any], json.load(f))
         except Exception:
+            logger.warning(
+                "drift_detection: failed to load snapshot for %s; operation skipped",
+                target,
+                exc_info=True,
+            )
             return None
 
     def save_snapshot(self, target: str, data: dict[str, Any]) -> None:
@@ -41,8 +50,12 @@ class DriftDetector:
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning(
+                "drift_detection: failed to save snapshot for %s; operation skipped",
+                target,
+                exc_info=True,
+            )
 
     def compute_drift(self, target: str, current_data: dict[str, Any]) -> dict[str, Any]:
         """Compare current run outputs with the historical snapshot.
@@ -131,8 +144,12 @@ class DriftDetector:
         try:
             with open(report_path, "w", encoding="utf-8") as f:
                 json.dump(drift_report, f, indent=2, ensure_ascii=False)
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning(
+                "drift_detection: failed to write drift report for %s; operation skipped",
+                target,
+                exc_info=True,
+            )
 
         return drift_report
 

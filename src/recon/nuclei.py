@@ -16,7 +16,7 @@ Improvements (v2):
 from __future__ import annotations
 
 import os
-import random
+import secrets
 import time
 from collections.abc import Iterable
 from typing import Any
@@ -275,7 +275,8 @@ def run_nuclei_adaptive(
             waf_threads,
         )
         # Jitter: 0.5–2.0 s before starting WAF scan
-        time.sleep(random.uniform(0.5, 2.0))  # noqa: S311
+        _JITTER = secrets.SystemRandom()
+        time.sleep(_JITTER.uniform(0.5, 2.0))
         _verify_templates(config)
         command = _build_nuclei_command(config, tags, waf_threads, None)
         output = try_command(

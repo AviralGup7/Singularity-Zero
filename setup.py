@@ -5,12 +5,11 @@ from setuptools import Extension, setup
 
 
 def has_compiler() -> bool:
-    # Defensive check for C compiler availability to avoid aborting builds on systems without compiler tools
     if sys.platform == "win32":
         if shutil.which("cl.exe"):
             return True
         try:
-            from distutils.ccompiler import new_compiler
+            from setuptools._distutils.ccompiler import new_compiler
 
             cc = new_compiler()
             cc.initialize()

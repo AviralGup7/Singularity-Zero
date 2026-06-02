@@ -13,7 +13,7 @@ from typing import Any
 from src.analysis.helpers import endpoint_signature
 
 from ._constants import RACE_PROBE_SPEC
-from ._helpers import (
+from .race_condition_helpers import (
     build_finding,
     calculate_confidence,
     calculate_severity,

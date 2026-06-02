@@ -20,7 +20,7 @@ from ._constants import (
     OAUTH_WELL_KNOWN_PATHS,
     OVERLY_PERMISSIVE_SCOPE_COMBOS,
 )
-from ._helpers import (
+from .auth_bypass_utils import (
     check_response_oauth_issues,
     check_url_oauth_issues,
     is_oauth_url,

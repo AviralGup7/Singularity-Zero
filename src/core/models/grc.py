@@ -19,7 +19,7 @@ class ComplianceFramework(StrEnum):
 
 
 class ControlMaturity(StrEnum):
-    PASS = "PASS"
+    PASS = "PASS"  # noqa: S105
     PARTIAL = "PARTIAL"
     AT_RISK = "AT_RISK"
     FAIL = "FAIL"

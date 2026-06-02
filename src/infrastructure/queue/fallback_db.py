@@ -37,7 +37,6 @@ class FallbackDB:
         self._thread_local = threading.local()
         self._lock = threading.RLock()
         self._available = False
-        self._read_only = False
         self.last_error: str | None = None
         self._init_sqlite()
 
@@ -65,7 +64,7 @@ class FallbackDB:
                 self.close()
                 if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
                     if write:
-                        self._read_only = True
+                        self._thread_local.read_only = True
                     raise
                 time.sleep(_LOCK_RETRY_BASE_DELAY_SECONDS * (2**attempt))
         if last_exc is not None:
@@ -92,13 +91,11 @@ class FallbackDB:
                 )
                 conn.commit()
                 self._available = True
-                self._read_only = False
                 self.last_error = None
             finally:
                 conn.close()
         except Exception as exc:
             self._available = False
-            self._read_only = True
             self.last_error = str(exc)
             logger.error("Failed to initialize SQLite fallback database: %s", exc)
 
@@ -108,14 +105,15 @@ class FallbackDB:
         if not self._available:
             raise RuntimeError(f"SQLite fallback database unavailable: {self.last_error}")
         if not hasattr(self._thread_local, "conn") or self._thread_local.conn is None:
-            uri = f"file:{self.db_path}?mode=ro" if self._read_only else self.db_path
+            read_only = getattr(self._thread_local, "read_only", False)
+            uri = f"file:{self.db_path}?mode=ro" if read_only else self.db_path
             conn = sqlite3.connect(
                 uri,
                 timeout=_CONNECT_TIMEOUT_SECONDS,
-                uri=self._read_only,
+                uri=read_only,
             )
             self._thread_local.conn = conn
-            self._configure_conn(conn, read_only=self._read_only)
+            self._configure_conn(conn, read_only=read_only)
         return self._thread_local.conn
 
     def close(self) -> None:
@@ -152,13 +150,12 @@ class FallbackDB:
                 return val_type, set(data)
             return val_type, data
         except Exception as exc:
-            self.last_error = str(exc)
             logger.error("SQLite fallback get error for key '%s': %s", key, exc)
             return None, None
 
     def db_set(self, key: str, val_type: str, data: Any) -> None:
         """Save key type and raw Python data to SQLite."""
-        if self._read_only:
+        if getattr(self._thread_local, "read_only", False):
             logger.warning("SQLite fallback is read-only; dropping write for key '%s'", key)
             return
         try:
@@ -192,7 +189,7 @@ class FallbackDB:
 
     def db_del(self, key: str) -> int:
         """Delete key from SQLite."""
-        if self._read_only:
+        if getattr(self._thread_local, "read_only", False):
             logger.warning("SQLite fallback is read-only; delete skipped for key '%s'", key)
             return 0
         try:

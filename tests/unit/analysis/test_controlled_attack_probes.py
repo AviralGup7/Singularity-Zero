@@ -3,7 +3,7 @@ from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 from src.analysis.intelligence.endpoint.endpoint_intelligence import build_endpoint_intelligence
-from src.analysis.intelligence.findings.intelligence_findings import (
+from src.analysis.intelligence.findings import (
     merge_findings,
 )
 from src.analysis.response.mutations import (

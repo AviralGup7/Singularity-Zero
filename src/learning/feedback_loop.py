@@ -296,12 +296,14 @@ class FeedbackLoopEngine:
                 continue
 
             fp_rate = stats["fp"] / stats["total"]
+            adjustment = 0.0
             if fp_rate > 0.4:
                 # High FP rate — raise thresholds
-                adaptations.threshold_adjustments[cat] = round(fp_rate * 0.1, 4)
+                adjustment = round(fp_rate * 0.1, 4)
             elif fp_rate < 0.1 and stats["total"] > 5:
                 # Low FP rate — can afford to lower thresholds
-                adaptations.threshold_adjustments[cat] = round(-0.02, 4)
+                adjustment = round(-0.02, 4)
+            adaptations.threshold_adjustments[cat] = max(-0.15, min(0.15, adjustment))
 
     def _compute_nuclei_adaptations(
         self, adaptations: ScanAdaptation, events: list[dict[str, Any]]

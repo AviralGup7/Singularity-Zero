@@ -63,8 +63,7 @@ def setup_tools(dest_dir: str | None = None) -> None:
         arch_name = "amd64"
 
     if dest_dir is None:
-        home = os.path.expanduser("~")
-        dest_dir = os.path.join(home, "bin")
+        dest_dir = str(Path.home() / ".local" / "bin")
 
     dest_path = Path(dest_dir)
     dest_path.mkdir(parents=True, exist_ok=True)
@@ -122,6 +121,8 @@ def setup_tools(dest_dir: str | None = None) -> None:
             # Set execution permissions
             if os_name != "windows":
                 os.chmod(tool_dest, 0o755)  # nosec B103 noqa: S103
+                if not os.access(tool_dest, os.X_OK):
+                    logger.warning("Tool %s installed but is not executable", tool_name)
 
             logger.info("[✓] Successfully installed %s to %s", tool_name, tool_dest)
 
@@ -450,15 +451,26 @@ class LiteWorker:
                         # Success! Read job details
                         job_data = await self._redis.hgetall(job_key_str)
                         if job_data:
-                            # Normalize byte keys to string keys
+
+                            def _decode_redis_value(v: bytes | str) -> str:
+                                return (
+                                    v.decode("utf-8", errors="replace")
+                                    if isinstance(v, bytes)
+                                    else str(v)
+                                )
+
                             str_data = {}
                             for k, v in job_data.items():
-                                key_str = k.decode("utf-8") if isinstance(k, bytes) else str(k)
-                                val_str = v.decode("utf-8") if isinstance(v, bytes) else str(v)
+                                key_str = _decode_redis_value(k)
+                                val_str = _decode_redis_value(v)
                                 str_data[key_str] = val_str
 
                             job_type = str_data.get("type", "unknown")
-                            payload = json.loads(str_data.get("payload", "{}"))
+                            try:
+                                payload = json.loads(str_data.get("payload", "{}"))
+                            except (json.JSONDecodeError, TypeError):
+                                logger.warning("Corrupted JSON data, using empty default")
+                                payload = {}
 
                             # Spawn processing task
                             task = asyncio.create_task(

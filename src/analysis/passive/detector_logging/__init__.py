@@ -23,7 +23,7 @@ from ._constants import (
     SQL_ERROR_PATTERNS,
     STACK_TRACE_PATTERNS,
 )
-from ._helpers import (
+from .auth_bypass_utils import (
     build_finding,
     calculate_risk_score,
     check_api_secrets,

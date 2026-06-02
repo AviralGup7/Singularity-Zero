@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from src.dashboard.registry import STAGE_LABELS
-from src.dashboard.utils import estimate_remaining
+from src.dashboard.scope_utils import estimate_remaining
 from src.pipeline.constants.progress import STAGE_BASELINE_PERCENT
 
 logger = logging.getLogger(__name__)

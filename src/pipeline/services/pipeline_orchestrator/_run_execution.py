@@ -129,6 +129,13 @@ async def execute_remaining_stages(
                 error_emitter(stage_name, f"Neural-Mesh Tier Exception: {res}")
                 if stage_name in {"subdomains", "live_hosts", "urls"}:
                     return 1  # Fatal recon failure stops the mesh
+            elif res == "WAL_FAILURE":
+                logger.error(
+                    "WAL durability layer failed for stage '%s'. Aborting pipeline execution.",
+                    stage_name,
+                )
+                error_emitter(stage_name, "WAL durability layer failed.")
+                return 1
             elif res == 1 and stage_name in {"subdomains", "live_hosts", "urls"}:
                 return 1
 
@@ -258,8 +265,10 @@ async def _execute_single_stage(
 
             return None
 
-        except Exception:
+        except Exception as exc:
             logger.exception("Fatal failure in Neural-Mesh stage '%s'", stage_name)
+            if "WAL durability layer failed" in str(exc):
+                return "WAL_FAILURE"
             return 1
 
 

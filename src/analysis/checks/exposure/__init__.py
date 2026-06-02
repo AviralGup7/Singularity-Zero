@@ -1,4 +1,4 @@
-from src.analysis.checks.exposure._impl import (
+from src.analysis.checks.exposure._detectors import (
     api_version_disclosure_checker,
     backup_file_exposure_checker,
     cache_poisoning_indicator_checker,

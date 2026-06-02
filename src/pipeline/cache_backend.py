@@ -13,6 +13,7 @@ from typing import Any
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.cache.models import CacheMetrics
 from src.infrastructure.cache.telemetry import build_cache_efficiency_snapshot
+from src.infrastructure.db.sqlite_utils import safe_close
 
 logger = get_pipeline_logger(__name__)
 
@@ -80,7 +81,10 @@ class PersistentCache:
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute("PRAGMA foreign_keys=ON")
         except Exception:
-            conn.close()
+            try:
+                conn.close()
+            except sqlite3.ProgrammingError:
+                pass
             raise
         self._thread_local.conn = conn
         with self._lock:
@@ -145,7 +149,7 @@ class PersistentCache:
             if hasattr(self, "_all_conns"):
                 for conn in list(self._all_conns):
                     try:
-                        conn.close()
+                        safe_close(conn)
                     except Exception as e:
                         logger.debug("Failed to close SQLite connection: %s", e)
                 self._all_conns.clear()

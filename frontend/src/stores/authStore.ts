@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { createToken } from '@/api/security';
 import { safeSession, safeStorage } from '@/utils/storage';
-import type { UserRole, Permission, AuthContextType } from '@/context/auth-context';
+import type { AuthContextType } from '@/context/auth-context';
+import type { UserRole } from '@/types/auth';
+import type { Permission } from '@/types/auth';
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
   admin: {
@@ -51,7 +53,7 @@ function getInitialUser() {
     }
   }
   // Playwright E2E Test bypass: automatically authorize as admin when running in Playwright harness
-  if (typeof window !== 'undefined' && window.navigator.userAgent.includes('Playwright')) {
+  if (import.meta.env.DEV && typeof window !== 'undefined' && window.navigator.userAgent.includes('Playwright')) {
     return {
       id: 'e2e-user',
       name: 'E2E Analyst',
