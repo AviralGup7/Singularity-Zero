@@ -160,6 +160,16 @@ class FrontierProcessPool:
     Maintains pre-warmed instances of security tools to eliminate process startup latency.
     """
 
+    def _prune_stale_receipts(self) -> None:
+        cutoff = time.monotonic() - 3600
+        if self._last_receipt_prune > cutoff:
+            return
+        self._last_receipt_prune = time.monotonic()
+        stale = [k for k, v in self._task_receipts.items() if v.timestamp < cutoff]
+        for k in stale:
+            self._task_receipts.pop(k, None)
+            self._binary_task_cache.pop(k, None)
+
     def __init__(self, pool_size: int | None = None, max_memory_mb: float = 512.0) -> None:
         # Fix Audit #198: Adapt pool size to CPU cores
         if pool_size is None:

@@ -238,7 +238,10 @@ class CyberVault:
             payload = encrypted_payload
             if payload.startswith("csp-a256gcm-argon2id-v1:"):
                 payload = payload[len("csp-a256gcm-argon2id-v1:") :]
-            envelope = json.loads(payload)
+            try:
+                envelope = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Invalid encryption envelope: malformed JSON") from exc
             if envelope.get("alg") == "AES-256-GCM-DEK":
                 kek_salt = base64.b64decode(envelope["kek_salt"])
                 dek_nonce = base64.b64decode(envelope["dek_nonce"])
