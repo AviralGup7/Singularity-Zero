@@ -26,8 +26,8 @@ dependencies = [
     # HTML parsing
     "beautifulsoup4==4.14.0",
     # --- FastAPI dashboard ---
-    "fastapi>=0.115.8",
-    "starlette>=0.40.0",
+    "fastapi==0.115.8",
+    "starlette==0.40.0",
     "uvicorn[standard]==0.30.0",
     "python-multipart==0.0.27",
     "email-validator==2.0.0",
@@ -43,9 +43,9 @@ dependencies = [
     "opentelemetry-sdk==1.40.0",
     "opentelemetry-exporter-otlp-proto-http==1.40.0",
     # --- Performance ---
-    "orjson>=3.11.0",
+    "orjson==3.11.0",
     # --- System monitoring ---
-    "psutil>=5.9.1",
+    "psutil==5.9.1",
     # --- Database & migrations ---
     "sqlalchemy==2.0.30",
     "alembic==1.14.0",
@@ -65,7 +65,7 @@ dependencies = [
     "pykka==4.0.0",
     "wasmtime==44.0.0",
     # --- File watching ---
-    "watchfiles>=1.0.0",
+    "watchfiles==1.0.0",
 ]
 
 [project.scripts]
