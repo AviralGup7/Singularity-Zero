@@ -31,24 +31,29 @@ def _read_cached_payload(path: Path) -> Any | None:
     Returns:
         Decoded JSON payload, or None if missing or corrupt.
     """
-    if not path.exists():
-        if path.suffix != ".gz":
-            gz_path = path.with_suffix(path.suffix + ".gz")
-            if gz_path.exists():
-                path = gz_path
-            else:
-                return None
-        else:
-            return None
+    if path.name.endswith(".gz"):
+        gz_path = path
+        normal_path = path.parent / path.name[:-3]
+    else:
+        normal_path = path
+        gz_path = path.parent / (path.name + ".gz")
+
+    resolved_path = None
+    if normal_path.exists():
+        resolved_path = normal_path
+    elif gz_path.exists():
+        resolved_path = gz_path
+    else:
+        return None
 
     try:
-        if path.suffix == ".gz":
-            data = gzip.decompress(path.read_bytes())
+        if resolved_path.name.endswith(".gz"):
+            data = gzip.decompress(resolved_path.read_bytes())
             return json.loads(data.decode("utf-8"))
         else:
-            return json.loads(path.read_text(encoding="utf-8"))
+            return json.loads(resolved_path.read_text(encoding="utf-8"))
     except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to read cache file (%s): %s", exc.__class__.__name__, path)
+        logger.warning("Failed to read cache file (%s): %s", exc.__class__.__name__, resolved_path)
         return None
 
 
@@ -77,15 +82,20 @@ def save_cached_set(path: Path, items: set[str], *, compress: bool = True) -> No
     """
     ensure_dir(path.parent)
     data = json.dumps(sorted(items)).encode("utf-8")
-    if compress:
-        original_path = path
-        path = path.with_suffix(path.suffix + ".gz")
-        data = gzip.compress(data, compresslevel=6)
-    _atomic_write(path, data)
-    if compress:
-        _remove_stale_alternate(original_path)
+    if path.name.endswith(".gz"):
+        base_path = path.parent / path.name[:-3]
+        gz_path = path
     else:
-        _remove_stale_alternate(path.with_suffix(path.suffix + ".gz"))
+        base_path = path
+        gz_path = path.parent / (path.name + ".gz")
+
+    if compress:
+        data = gzip.compress(data, compresslevel=6)
+        _atomic_write(gz_path, data)
+        _remove_stale_alternate(base_path)
+    else:
+        _atomic_write(base_path, data)
+        _remove_stale_alternate(gz_path)
 
 
 def load_cached_json(path: Path) -> dict[str, Any]:
@@ -111,15 +121,20 @@ def save_cached_json(path: Path, payload: dict[str, Any], *, compress: bool = Tr
     """
     ensure_dir(path.parent)
     data = json.dumps(payload).encode("utf-8")
-    if compress:
-        original_path = path
-        path = path.with_suffix(path.suffix + ".gz")
-        data = gzip.compress(data, compresslevel=6)
-    _atomic_write(path, data)
-    if compress:
-        _remove_stale_alternate(original_path)
+    if path.name.endswith(".gz"):
+        base_path = path.parent / path.name[:-3]
+        gz_path = path
     else:
-        _remove_stale_alternate(path.with_suffix(path.suffix + ".gz"))
+        base_path = path
+        gz_path = path.parent / (path.name + ".gz")
+
+    if compress:
+        data = gzip.compress(data, compresslevel=6)
+        _atomic_write(gz_path, data)
+        _remove_stale_alternate(base_path)
+    else:
+        _atomic_write(base_path, data)
+        _remove_stale_alternate(gz_path)
 
 
 def _atomic_write(path: Path, data: bytes) -> None:

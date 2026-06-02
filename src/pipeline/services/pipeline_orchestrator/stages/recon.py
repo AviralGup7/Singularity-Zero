@@ -61,13 +61,24 @@ def _record_recon_failure(
 
 
 def _tool_diagnostics(config: Any, tools: tuple[str, ...]) -> None:
-    """Check if required tools are available.
+    """Check if required tools are available."""
+    import shutil
 
-    TODO: Implement complete environment path verification for external
-    security analysis tools (httpx, gau, katana, etc.).
-    """
-    # Simple diagnostic placeholder
-    _ = (config, tools)
+    tools_config = getattr(config, "tools", {}) if config is not None else {}
+    if not isinstance(tools_config, dict):
+        tools_config = {}
+
+    missing_tools = []
+    for tool in tools:
+        if tools_config.get(tool, True):
+            if shutil.which(tool) is None:
+                missing_tools.append(tool)
+
+    if missing_tools:
+        raise RuntimeError(
+            f"Required external tools are missing from PATH: {', '.join(missing_tools)}. "
+            "Please install them or disable them in the configuration."
+        )
 
 
 async def run_subdomain_enumeration(

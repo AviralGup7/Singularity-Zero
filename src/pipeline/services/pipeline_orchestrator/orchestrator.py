@@ -295,7 +295,18 @@ class PipelineOrchestrator:
 
     def run_sync(self, args: argparse.Namespace) -> int:
         """Run the full security testing pipeline."""
-        return asyncio.run(self.run(args))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(asyncio.run, self.run(args))
+                return future.result()
+        else:
+            return asyncio.run(self.run(args))
 
     async def _finalize_run(
         self,

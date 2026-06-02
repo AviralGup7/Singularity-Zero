@@ -47,88 +47,7 @@ async def run_secured(
     scope_entries: list[str],
     tool_status: dict[str, Any],
 ) -> int:
-    """Securely execute the testing pipeline after acquiring target locks.
-
-    Handles WAL logging, mesh coordinators, recovery checks, and error metrics.
-    """
-    emit_progress("startup", f"Loaded config for {config.target_name}", 8)
-
-    if args.dry_run:
-        print(json.dumps({"scope_entries": scope_entries, "tool_status": tool_status}, indent=2))
-        return cast(int, await orchestrator._finalize_run(0))
-
     started_at = time.time()
-    output_store = PipelineOutputStore.create(
-        config.output_dir, config.target_name, config.output, storage_config=config.storage
-    )
-    previous_run = find_previous_run(output_store.target_root)
-    use_cache = cache_enabled(config.cache)
-    module_metrics: dict[str, Any] = {}
-    module_metrics["pipeline_flow"] = {
-        "status": "ok",
-        "stage_count": len(flow_manifest),
-    }
-    output_store.write_scope(scope_entries)
-    discovery_enabled = any(
-        config.tools.get(name) for name in ("subfinder", "assetfinder", "amass")
-    )
-
-    run_id = generate_run_id()
-    ctx = PipelineContext(
-        result=StageResult(
-            scope_entries=list(scope_entries),
-            use_cache=use_cache,
-            module_metrics=module_metrics,
-            previous_run=previous_run,
-            tool_status=tool_status,
-            flow_manifest=flow_manifest,  # type: ignore[arg-type]
-            started_at=started_at,
-            discovery_enabled=discovery_enabled,
-        ),
-        output_store=output_store,
-        run_id=run_id,
-    )
-
-    # Load adaptive config (Phase 5.2)
-    adaptive_config = load_adaptive_config(Path(config.output_dir), config.target_name)
-    if adaptive_config:
-        ctx_dict = ctx.to_dict()
-        orchestrator._learning_integration.apply_adaptations(
-            ctx_dict, adaptive_config, config=config
-        )
-        logger.info("Pre-applied adaptive configuration for target: %s", config.target_name)
-
-    checkpoint_mgr = create_checkpoint_manager(
-        Path(config.output_dir),
-        config.target_name,
-        run_id=run_id,
-        storage_config=config.storage,
-    )
-    orchestrator._checkpoint_mgr = checkpoint_mgr
-
-    # Distributed Write-Ahead Log (WAL)
-    from src.core.frontier.wal import FrontierWAL
-
-    orchestrator._wal = FrontierWAL(getattr(config, "redis_url", None), run_id)
-    logger.info("Frontier WAL initialized: stream=cyber:wal:%s", run_id)
-
-    # Ghost-Actor Migration Handler
-    from src.core.frontier.ghost_actor import GhostMeshCoordinator
-    from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
-
-    mesh_registry = GhostMeshRegistry(cache_mgr._redis, run_id)
-    coordinator = GhostMeshCoordinator(mesh_registry, getattr(cache_mgr, "_gossip", None))
-
-    # Note: ProactiveMigrationHandler is imported dynamically from a clean relative module.
-    # We will locate/create this helper or just keep importing from .migration_handler.
-    from ..migration_handler import ProactiveMigrationHandler
-
-    orchestrator._migration_handler = ProactiveMigrationHandler(
-        coordinator=coordinator,
-        check_interval_seconds=float(getattr(config, "migration_check_interval", 30.0)),
-    )
-    await orchestrator._migration_handler.start()
-
     force_fresh = getattr(args, "force_fresh_run", False)
     can_recover, recovered_state = attempt_recovery(
         Path(config.output_dir),
@@ -136,11 +55,19 @@ async def run_secured(
         force_fresh=force_fresh,
         storage_config=config.storage,
     )
+
+    ctx = None
+    checkpoint_mgr = None
+    run_id = None
+    remaining_stages = None
+    recovered_completed_stages = set()
+
     if can_recover and recovered_state:
+        rec_run_id = recovered_state.pipeline_run_id
         recovered_checkpoint_mgr = create_checkpoint_manager(
             Path(config.output_dir),
             config.target_name,
-            run_id=recovered_state.pipeline_run_id,
+            run_id=rec_run_id,
             storage_config=config.storage,
         )
         recovered_completed_stages = {
@@ -160,34 +87,80 @@ async def run_secured(
         }.issubset(recovered_payload):
             logger.info(
                 "Recovering from full context checkpoint: run=%s completed_stages=%s",
-                recovered_state.pipeline_run_id,
+                rec_run_id,
                 recovered_state.completed_stages,
             )
             ctx = PipelineContext.restore(recovered_payload)
-            ctx.output_store = output_store
             checkpoint_mgr = recovered_checkpoint_mgr
             orchestrator._checkpoint_mgr = checkpoint_mgr
-            run_id = recovered_state.pipeline_run_id
+            run_id = rec_run_id
             remaining_stages = [
                 stage for stage in STAGE_ORDER if stage not in recovered_completed_stages
             ]
-            emit_progress(
-                "startup",
-                f"Recovered checkpoint run {run_id}; resuming {len(remaining_stages)} stage(s)",
-                9,
-                status="running",
-                stage_status="running",
-                details={
-                    "checkpoint_run_id": run_id,
-                    "completed_stage_count": len(recovered_completed_stages),
-                },
-            )
         else:
             logger.warning(
                 "Skipping checkpoint recovery for run=%s: incompatible checkpoint payload "
                 "missing pipeline context fields",
-                recovered_state.pipeline_run_id,
+                rec_run_id,
             )
+
+    if run_id is None:
+        run_id = generate_run_id()
+        remaining_stages = list(STAGE_ORDER)
+
+    output_store = PipelineOutputStore.create(
+        config.output_dir, config.target_name, config.output, storage_config=config.storage, run_id=run_id
+    )
+
+    use_cache = cache_enabled(config.cache)
+    if ctx is not None:
+        ctx.output_store = output_store
+        emit_progress(
+            "startup",
+            f"Recovered checkpoint run {run_id}; resuming {len(remaining_stages)} stage(s)",
+            9,
+            status="running",
+            stage_status="running",
+            details={
+                "checkpoint_run_id": run_id,
+                "completed_stage_count": len(recovered_completed_stages),
+            },
+        )
+    else:
+        previous_run = find_previous_run(output_store.target_root)
+        module_metrics: dict[str, Any] = {}
+        module_metrics["pipeline_flow"] = {
+            "status": "ok",
+            "stage_count": len(flow_manifest),
+        }
+        output_store.write_scope(scope_entries)
+        discovery_enabled = any(
+            config.tools.get(name) for name in ("subfinder", "assetfinder", "amass")
+        )
+        ctx = PipelineContext(
+            result=StageResult(
+                scope_entries=list(scope_entries),
+                use_cache=use_cache,
+                module_metrics=module_metrics,
+                previous_run=previous_run,
+                tool_status=tool_status,
+                flow_manifest=flow_manifest,  # type: ignore[arg-type]
+                started_at=started_at,
+                discovery_enabled=discovery_enabled,
+            ),
+            output_store=output_store,
+            run_id=run_id,
+        )
+        checkpoint_mgr = create_checkpoint_manager(
+            Path(config.output_dir),
+            config.target_name,
+            run_id=run_id,
+            storage_config=config.storage,
+        )
+        orchestrator._checkpoint_mgr = checkpoint_mgr
+
+        if can_recover and recovered_state:
+            # We had attempt_recovery positive but incompatible payload
             emit_progress(
                 "startup",
                 "Skipping stale checkpoint recovery; starting a fresh run",
@@ -198,9 +171,30 @@ async def run_secured(
                     "reason": "incompatible_checkpoint_payload",
                 },
             )
-            remaining_stages = list(STAGE_ORDER)
+
+    # Distributed Write-Ahead Log (WAL)
+    from src.core.frontier.wal import FrontierWAL
+
+    orchestrator._wal = FrontierWAL(getattr(config, "redis_url", None), run_id)
+    logger.info("Frontier WAL initialized: stream=cyber:wal:%s", run_id)
+
+    # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
+    if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
+        from src.core.frontier.ghost_actor import GhostMeshCoordinator
+        from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
+        from ..migration_handler import ProactiveMigrationHandler
+
+        mesh_registry = GhostMeshRegistry(cache_mgr._redis, run_id)
+        coordinator = GhostMeshCoordinator(mesh_registry, getattr(cache_mgr, "_gossip", None))
+
+        orchestrator._migration_handler = ProactiveMigrationHandler(
+            coordinator=coordinator,
+            check_interval_seconds=float(getattr(config, "migration_check_interval", 30.0)),
+        )
+        await orchestrator._migration_handler.start()
     else:
-        remaining_stages = list(STAGE_ORDER)
+        orchestrator._migration_handler = None
+        logger.info("Ghost-Actor Mesh deactivated: running in single-node/no-Redis mode")
 
     scope_entries = list(ctx.scope_entries)
     orchestrator._pipeline_correlation_id = run_id
@@ -210,7 +204,7 @@ async def run_secured(
         run_id=run_id,
         metadata={
             "use_cache": bool(getattr(ctx.result, "use_cache", use_cache)),
-            "discovery_enabled": bool(getattr(ctx.result, "discovery_enabled", discovery_enabled)),
+            "discovery_enabled": bool(getattr(ctx.result, "discovery_enabled", ctx.result.discovery_enabled)),
             "flow_stage_count": len(flow_manifest),
         },
     )
@@ -233,25 +227,45 @@ async def run_secured(
     scope_validator = ScopeValidator(scope_hosts)
     scope_interceptor = OutboundRequestInterceptor(scope_validator)
 
-    # Apply learning adaptations
+    # Apply learning adaptations exactly ONCE
+    adaptations = {}
     try:
         from src.learning.integration import LearningIntegration
 
         ctx_dict = ctx.to_dict()
         learning = LearningIntegration.get_or_create(ctx_dict)
         adaptations = learning.compute_adaptations(ctx_dict)
-        if adaptations:
-            learning.apply_adaptations(ctx_dict, adaptations, config=config)
-            ctx.result.module_metrics.setdefault("learning", {})["feedback_applied"] = True
-            logger.info("Applied %d learning adaptations from previous runs", len(adaptations))
     except Exception as exc:
-        logger.warning("Learning adaptation failed: %s", exc)
+        logger.warning("Learning compute_adaptations failed: %s", exc)
+
+    if not adaptations:
+        adaptive_config = load_adaptive_config(Path(config.output_dir), config.target_name)
+        if adaptive_config:
+            adaptations = adaptive_config
+
+    if adaptations:
+        ctx_dict = ctx.to_dict()
+        import inspect
+        sig = inspect.signature(orchestrator._learning_integration.apply_adaptations)
+        if "config" in sig.parameters:
+            orchestrator._learning_integration.apply_adaptations(
+                ctx_dict, adaptations, config=config
+            )
+        else:
+            orchestrator._learning_integration.apply_adaptations(
+                ctx_dict, adaptations
+            )
+        ctx.result.module_metrics.setdefault("learning", {})["feedback_applied"] = True
+        logger.info("Applied learning adaptations for target: %s", config.target_name)
 
     stage_methods = orchestrator._build_stage_methods()
     remaining_stages = [s for s in remaining_stages if s in stage_methods]
 
     nuclei_status: Any = tool_status.get("nuclei", {})
-    nuclei_available = isinstance(nuclei_status, dict) and nuclei_status.get("available", False)
+    if isinstance(nuclei_status, dict):
+        nuclei_available = nuclei_status.get("available", False)
+    else:
+        nuclei_available = bool(nuclei_status)
 
     handled_by_parallel: set[str] = set()
     stage_execution_exit = await orchestrator._execute_remaining_stages(

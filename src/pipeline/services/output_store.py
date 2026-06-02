@@ -64,9 +64,11 @@ class PipelineOutputStore:
         target_name: str,
         output_settings: dict[str, Any] | None = None,
         storage_config: dict[str, Any] | None = None,
+        run_id: str | None = None,
     ) -> PipelineOutputStore:
         settings = output_settings or {}
-        run_id = run_dir_stamp()
+        if run_id is None:
+            run_id = run_dir_stamp()
         target_root = (output_root / target_name).resolve()
         local_run_dir = (target_root / run_id).resolve()
 

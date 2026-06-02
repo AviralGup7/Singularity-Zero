@@ -68,36 +68,21 @@ class PipelineDAG:
 
 
 def build_neural_mesh_dag(stage_methods: dict[str, Any]) -> PipelineDAG:
-    """Constructs the frontier 'Neural-Mesh' dependency graph."""
+    """Constructs the frontier 'Neural-Mesh' dependency graph dynamically from STAGE_DEPS."""
+    from ._constants import STAGE_DEPS, STAGE_ORDER
+
     dag = PipelineDAG()
 
-    # Tier 0: Startup & Discovery (Independent)
+    # Always register 'startup' if it exists in the methods map
     dag.add_stage("startup", stage_methods.get("startup"))
-    dag.add_stage("subdomains", stage_methods.get("subdomains"), ["startup"])
 
-    # Tier 1: Asset Mining
-    dag.add_stage("live_hosts", stage_methods.get("live_hosts"), ["subdomains"])
-
-    # Tier 2: Heavy Collection (Depends on live assets)
-    dag.add_stage("urls", stage_methods.get("urls"), ["live_hosts"])
-
-    # Tier 3: Passive Analysis (Starts immediately on URL discovery)
-    dag.add_stage("parameters", stage_methods.get("parameters"), ["urls"])
-    dag.add_stage("ranking", stage_methods.get("ranking"), ["urls"])
-
-    # Tier 4: Parallel Deep Scan Group
-    dag.add_stage("passive_scan", stage_methods.get("passive_scan"), ["parameters", "ranking"])
-    dag.add_stage("nuclei", stage_methods.get("nuclei"), ["live_hosts"])
-    dag.add_stage("semgrep", stage_methods.get("semgrep"), ["urls"])
-
-    # Tier 5: Intelligent Decision & Validation
-    dag.add_stage("active_scan", stage_methods.get("active_scan"), ["passive_scan"])
-    dag.add_stage(
-        "intelligence", stage_methods.get("intelligence"), ["passive_scan", "nuclei", "semgrep"]
-    )
-
-    # Tier 6: Final Reporting
-    dag.add_stage("reporting", stage_methods.get("reporting"), ["intelligence", "active_scan"])
+    for stage_name in STAGE_ORDER:
+        method = stage_methods.get(stage_name)
+        # Dynamic dependency lookup from the single source of truth in _constants.py
+        deps = list(STAGE_DEPS.get(stage_name, set()))
+        if stage_name == "subdomains" and "startup" in stage_methods:
+            deps.append("startup")
+        dag.add_stage(stage_name, method, deps)
 
     return dag
 

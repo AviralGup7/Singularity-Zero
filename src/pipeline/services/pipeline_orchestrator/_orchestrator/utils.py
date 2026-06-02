@@ -390,7 +390,7 @@ def merge_stage_output(
         return value
 
     _validate_stage_output_contract(stage_name, stage_output)
-    state_delta = dict(stage_output.state_delta)
+    state_delta = _to_mutable(dict(stage_output.state_delta))
     validation_errors = GLOBAL_STATE_SCHEMA_REGISTRY.validate_delta(state_delta)
     if validation_errors:
         raise StageOutputValidationError(
@@ -399,7 +399,11 @@ def merge_stage_output(
 
     if wal:
         wal_id = wal.log_delta(stage_name, state_delta)
-        if wal_id and hasattr(ctx.result, "_neural_state"):
+        if not wal_id:
+            raise RuntimeError(
+                f"WAL durability layer failed for stage '{stage_name}': no durable backend accepted record."
+            )
+        if hasattr(ctx.result, "_neural_state"):
             state_delta = dict(state_delta)
             state_delta["_wal_id"] = wal_id
             ctx.result._neural_state.last_wal_id = wal_id

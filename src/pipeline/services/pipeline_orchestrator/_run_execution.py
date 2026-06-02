@@ -78,7 +78,7 @@ async def execute_remaining_stages(
                 logger.warning(
                     "Pipeline paused cleanly via suspend trigger. Exiting stage execution loop."
                 )
-                return 0  # Exits cleanly with status 0, ready to recover from checkpoints
+                return 7  # Exits with status 7 (suspended cleanly), ready to recover from checkpoints
         except Exception as exc:
             logger.warning("Failed to check suspend trigger: %s", exc)
 
@@ -87,6 +87,16 @@ async def execute_remaining_stages(
         for stage_name in active_tier:
             method = dag.get_method(stage_name)
             if not method:
+                logger.error("Stage method resolution failed for stage '%s'. Marking failed.", stage_name)
+                error_emitter(stage_name, f"Stage method resolution failed: stage method not found.")
+                ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
+                ctx.result.module_metrics[stage_name] = {
+                    "status": "failed",
+                    "error": "Stage method not found.",
+                    "fatal": stage_name in {"subdomains", "live_hosts", "urls"}
+                }
+                if stage_name in {"subdomains", "live_hosts", "urls"}:
+                    return 1
                 continue
 
             tier_tasks.append(
@@ -121,19 +131,22 @@ async def execute_remaining_stages(
         completed_stages.update(active_tier)
 
         if "urls" in active_tier:
-            logger.error("DEBUG: ctx.result.urls = %s", ctx.result.urls)
-            logger.error("DEBUG: ctx.result.stage_status = %s", ctx.result.stage_status)
+            logger.debug("ctx.result.urls = %s", ctx.result.urls)
+            logger.debug("ctx.result.stage_status = %s", ctx.result.stage_status)
             validate_recon_outputs(ctx)
-            logger.error(
-                "DEBUG: recon_validation status = %s",
+            logger.debug(
+                "recon_validation status = %s",
                 ctx.result.stage_status.get("recon_validation"),
             )
             if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
-                logger.error("Recon validation failed: no discoverable URLs found.")
-                error_emitter(
-                    "recon_validation", "Recon validation failed: no discoverable URLs found."
-                )
-                return 1
+                if getattr(args, "dry_run", False):
+                    ctx.result.stage_status["recon_validation"] = StageStatus.COMPLETED.value
+                else:
+                    logger.error("Recon validation failed: no discoverable URLs found.")
+                    error_emitter(
+                        "recon_validation", "Recon validation failed: no discoverable URLs found."
+                    )
+                    return 1
 
     return None
 

@@ -92,17 +92,21 @@ async def run_stage_with_retry(
                 accepts_stage_input = True
             if stage_name == "nuclei":
                 if accepts_stage_input:
-                    coro = method(
+                    res_or_coro = method(
                         args, config, isolated_ctx, scope_interceptor, stage_input=stage_input
                     )
                 else:
-                    coro = method(args, config, isolated_ctx, scope_interceptor)
+                    res_or_coro = method(args, config, isolated_ctx, scope_interceptor)
             else:
                 if accepts_stage_input:
-                    coro = method(args, config, isolated_ctx, stage_input=stage_input)
+                    res_or_coro = method(args, config, isolated_ctx, stage_input=stage_input)
                 else:
-                    coro = method(args, config, isolated_ctx)
-            result = await asyncio.wait_for(coro, timeout=timeout)
+                    res_or_coro = method(args, config, isolated_ctx)
+
+            if inspect.iscoroutine(res_or_coro) or asyncio.iscoroutine(res_or_coro):
+                result = await asyncio.wait_for(res_or_coro, timeout=timeout)
+            else:
+                result = res_or_coro
         elapsed = time.monotonic() - started
         if isinstance(result, StageOutput):
             tracer.record_stage_result(span, result)
