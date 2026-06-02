@@ -165,6 +165,8 @@ class GhostMeshRegistry:
             logger.warning("Ghost-Registry degraded: clear migration applied locally: %s", exc)
 
     async def _call(self, method: str, *args: Any) -> Any:
+        if self._redis is None:
+            raise ConnectionError("No Redis client configured for Ghost registry")
         now = time.monotonic()
         if now < self._degraded_until:
             raise TimeoutError("Ghost registry Redis circuit is open")

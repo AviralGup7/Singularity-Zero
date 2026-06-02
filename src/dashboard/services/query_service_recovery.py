@@ -132,8 +132,12 @@ def recover_job_from_launcher(
     path_to_output_href: Callable[[str], str],
 ) -> dict[str, Any] | None:
     launcher_dir = output_root / "_launcher" / job_id
+    prefix = "_launcher"
     if not launcher_dir.exists() or not launcher_dir.is_dir():
-        return None
+        launcher_dir = output_root / "launcher" / job_id
+        prefix = "launcher"
+        if not launcher_dir.exists() or not launcher_dir.is_dir():
+            return None
 
     config_path = launcher_dir / "config.json"
     scope_path = launcher_dir / "scope.txt"
@@ -370,10 +374,10 @@ def recover_job_from_launcher(
         "fatal_signal_count": int(stderr_classification.fatal_signal_count),
         "execution_options": {},
         "latest_logs": latest_logs[-40:],
-        "config_href": f"/_launcher/{job_id}/config.json",
-        "scope_href": f"/_launcher/{job_id}/scope.txt",
-        "stdout_href": f"/_launcher/{job_id}/stdout.txt",
-        "stderr_href": f"/_launcher/{job_id}/stderr.txt",
+        "config_href": f"/{prefix}/{job_id}/config.json",
+        "scope_href": f"/{prefix}/{job_id}/scope.txt",
+        "stdout_href": f"/{prefix}/{job_id}/stdout.txt",
+        "stderr_href": f"/{prefix}/{job_id}/stderr.txt",
         "target_href": dashboard_href
         or (f"/{target_name}/index.html" if target_name else report_href),
         "stage_progress": {},

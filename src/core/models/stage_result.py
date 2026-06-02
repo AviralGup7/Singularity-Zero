@@ -150,8 +150,11 @@ class StageResult:
                     setattr(self, key, value)
 
     def compact_state(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
-        """Trigger CRDT tombstone compaction to save memory."""
-        return self._neural_state.compact(max_tombstone_age_seconds)
+        """Trigger CRDT tombstone compaction to save memory, respecting budget."""
+        from src.core.frontier.state import CRDTCompactionBudget, compact_state as run_compaction
+        if not hasattr(self, "_compaction_budget") or self._compaction_budget is None:
+            self._compaction_budget = CRDTCompactionBudget()
+        return run_compaction(self._neural_state, self._compaction_budget, max_tombstone_age_seconds)
 
     #: Screenshot results (each entry contains URL, path, dimensions, etc.)
     screenshots: list[dict[str, Any]] = field(default_factory=list)

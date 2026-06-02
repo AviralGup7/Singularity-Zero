@@ -74,6 +74,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Path to a .tar.gz artifact pack to replay. Unpacks config/scope, "
         "runs with --force-fresh-run, and verifies parity.",
     )
+    parser.add_argument(
+        "--validate-config",
+        action="store_true",
+        dest="validate_config",
+        help="Validate config and exit without running pipeline",
+    )
     return parser.parse_args(argv)
 
 

@@ -60,7 +60,27 @@ def _preflight_checks(args: argparse.Namespace) -> bool:
         emit_error(f"Scope file not found: {scope_path}")
         ok = False
 
-    return ok
+    if not ok:
+        return False
+
+    try:
+        from src.core.config import load_config
+        from src.pipeline.validation import format_validation_report, validate_config
+
+        config = load_config(config_path)
+        with open(scope_path) as f:
+            scope_entries = [line.strip() for line in f if line.strip()]
+
+        all_ok, report = validate_config(config.to_dict(), scope_entries, str(config.output_dir))
+        if not all_ok:
+            emit_error("Pre-flight configuration validation failed:")
+            print(format_validation_report(report))
+            return False
+    except Exception as exc:
+        emit_error(f"Pre-flight configuration parsing/validation failed: {exc}")
+        return False
+
+    return True
 
 
 def execute_pipeline(args: argparse.Namespace) -> int:
@@ -169,6 +189,16 @@ def main(argv: list[str] | None = None) -> int:
     """
     try:
         args = parse_args(argv)
+        if getattr(args, "validate_config", False):
+            from src.core.config import load_config
+            from src.pipeline.validation import format_validation_report, validate_config
+            config = load_config(Path(args.config).resolve())
+            with open(args.scope) as f:
+                scope_entries = [line.strip() for line in f if line.strip()]
+            all_ok, report = validate_config(config.to_dict(), scope_entries, str(config.output_dir))
+            print(format_validation_report(report))
+            return 0 if all_ok else 1
+
         if not _preflight_checks(args):
             return 1
 

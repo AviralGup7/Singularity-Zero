@@ -78,6 +78,7 @@ def test_read_only_key_cannot_start_job(tmp_path, monkeypatch):
 
 def test_unknown_json_fields_include_path_in_422(tmp_path, monkeypatch):
     monkeypatch.setenv("ENABLE_API_SECURITY", "false")
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.config import DashboardConfig
 
