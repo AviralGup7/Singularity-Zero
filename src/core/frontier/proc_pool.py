@@ -25,6 +25,13 @@ except ImportError:
     psutil = None
 
 
+MAX_PAYLOAD_BYTES = 10_000_000
+
+
+def _decode(value: bytes | str, encoding: str = "utf-8", errors: str = "replace") -> str:
+    return value.decode(encoding, errors) if isinstance(value, bytes) else value
+
+
 @dataclass
 class ToolProcess:
     """A managed sub-process for a specific CLI tool."""
@@ -45,6 +52,7 @@ class ProcessTaskReceipt:
     status: str
     output: str = ""
     error: str = ""
+    timestamp: float = 0.0
 
 
 class ResourceWatchdog:
@@ -142,6 +150,10 @@ class ResourceWatchdog:
                 logger.error("ResourceWatchdog monitor error: %s", e)
 
 
+_STALE_TTL = 300
+_BINARY_CACHE_MAX = 1000
+
+
 class FrontierProcessPool:
     """
     Managed Execution Pool.
@@ -159,6 +171,7 @@ class FrontierProcessPool:
         self._processes: list[ToolProcess] = []
         self._lock = asyncio.Lock()
         self._task_receipts: dict[str, ProcessTaskReceipt] = {}
+        self._last_receipt_prune: float = 0.0
         self._base_args_map: dict[str, list[str]] = {}
         self._binary_task_cache: dict[str, Any] = {}
         self._watchdog = ResourceWatchdog(self, max_memory_mb=max_memory_mb)
@@ -173,6 +186,36 @@ class FrontierProcessPool:
             return
         self._watchdog.start()
         self._watchdog_started = True
+
+    def _make_receipt(
+        self,
+        task_id: str,
+        tool_name: str,
+        status: str,
+        output: str = "",
+        error: str = "",
+    ) -> ProcessTaskReceipt:
+        return ProcessTaskReceipt(
+            task_id=task_id,
+            tool_name=tool_name,
+            status=status,
+            output=output,
+            error=error,
+            timestamp=asyncio.get_event_loop().time(),
+        )
+
+    def _prune_stale_receipts(self) -> None:
+        now = asyncio.get_event_loop().time()
+        if now - self._last_receipt_prune < _STALE_TTL:
+            return
+        self._last_receipt_prune = now
+        alive_ids = set(
+            tid for tid, r in self._task_receipts.items() if (now - r.timestamp) < _STALE_TTL
+        )
+        self._task_receipts = {tid: self._task_receipts[tid] for tid in alive_ids}
+        self._binary_task_cache = {
+            k: v for k, v in self._binary_task_cache.items() if k in alive_ids
+        }
 
     async def warm_pool(self, tool_name: str, base_args: list[str]) -> None:
         """Spawn initial process set."""
@@ -230,15 +273,17 @@ class FrontierProcessPool:
         Uses Pipes for zero-disk IPC.
         """
         stable_task_id = task_id or stable_digest({"tool": tool_name, "task": task_data})
+        self._prune_stale_receipts()
         receipt = self._task_receipts.get(stable_task_id)
         if receipt and receipt.status == "completed":
             return receipt.output
 
-        self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-            task_id=stable_task_id,
-            tool_name=tool_name,
-            status="running",
-        )
+        async with self._lock:
+            self._task_receipts[stable_task_id] = self._make_receipt(
+                task_id=stable_task_id,
+                tool_name=tool_name,
+                status="running",
+            )
 
         p = await self.acquire_process(stable_task_id)
         if not p:
@@ -254,12 +299,13 @@ class FrontierProcessPool:
             except TimeoutError:
                 proc.kill()
                 await proc.wait()
-                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                    stable_task_id,
-                    tool_name,
-                    "interrupted",
-                    error=f"process exceeded {timeout_seconds}s budget",
-                )
+                async with self._lock:
+                    self._task_receipts[stable_task_id] = self._make_receipt(
+                        stable_task_id,
+                        tool_name,
+                        "interrupted",
+                        error=f"process exceeded {timeout_seconds}s budget",
+                    )
                 raise RuntimeError(
                     f"ToolExecutionError: One-off process {tool_name} exceeded time budget"
                 ) from None
@@ -268,32 +314,47 @@ class FrontierProcessPool:
                     "One-off process '%s' failed (exit %d): %s",
                     tool_name,
                     proc.returncode,
-                    stderr.decode(),
+                    _decode(stderr),
                 )
-                # Fix #211: Raise exception instead of returning partial output
+                async with self._lock:
+                    self._task_receipts[stable_task_id] = self._make_receipt(
+                        stable_task_id,
+                        tool_name,
+                        "failed",
+                        error=f"exit code {proc.returncode}",
+                    )
                 raise RuntimeError(
                     f"ToolExecutionError: One-off process {tool_name} failed (exit {proc.returncode})"
                 )
-            output = stdout.decode()
-            self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                stable_task_id, tool_name, "completed", output=output
-            )
+            output = _decode(stdout)
+            async with self._lock:
+                self._task_receipts[stable_task_id] = self._make_receipt(
+                    stable_task_id, tool_name, "completed", output=output
+                )
             return output
 
         try:
             # Fix #209: Check if process is dead using returncode instead of stdin.is_closing()
             if p.process.returncode is not None:
                 logger.warning("Process %d is dead, cannot execute task", p.id)
-                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                    stable_task_id, tool_name, "interrupted", error="pooled process already exited"
-                )
+                async with self._lock:
+                    self._task_receipts[stable_task_id] = self._make_receipt(
+                        stable_task_id,
+                        tool_name,
+                        "interrupted",
+                        error="pooled process already exited",
+                    )
                 raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} already exited")
 
             if p.process.stdin is None or p.process.stdout is None:
                 logger.error("Process %d missing stdin/stdout", p.id)
-                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                    stable_task_id, tool_name, "interrupted", error="pooled process missing pipes"
-                )
+                async with self._lock:
+                    self._task_receipts[stable_task_id] = self._make_receipt(
+                        stable_task_id,
+                        tool_name,
+                        "interrupted",
+                        error="pooled process missing pipes",
+                    )
                 raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
 
             # Send task to pre-warmed process stdin
@@ -307,12 +368,13 @@ class FrontierProcessPool:
                 )
             except TimeoutError:
                 if p.current_task_id:
-                    self._task_receipts[p.current_task_id] = ProcessTaskReceipt(
-                        p.current_task_id,
-                        tool_name,
-                        "interrupted",
-                        error=f"process exceeded {timeout_seconds}s budget",
-                    )
+                    async with self._lock:
+                        self._task_receipts[p.current_task_id] = self._make_receipt(
+                            p.current_task_id,
+                            tool_name,
+                            "interrupted",
+                            error=f"process exceeded {timeout_seconds}s budget",
+                        )
                 if sys.platform != "win32" and p.process.pid:
                     os.killpg(os.getpgid(p.process.pid), signal.SIGTERM)
                 else:
@@ -321,16 +383,18 @@ class FrontierProcessPool:
                 raise RuntimeError(
                     f"ToolExecutionError: pooled process {tool_name} exceeded time budget"
                 ) from None
-            output = line.decode()
-            self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                stable_task_id, tool_name, "completed", output=output
-            )
+            output = _decode(line)
+            async with self._lock:
+                self._task_receipts[stable_task_id] = self._make_receipt(
+                    stable_task_id, tool_name, "completed", output=output
+                )
             return output
         except (BrokenPipeError, ConnectionResetError) as e:
             logger.error("Process %d IPC failure: %s", p.id, e)
-            self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                stable_task_id, tool_name, "interrupted", error=str(e)
-            )
+            async with self._lock:
+                self._task_receipts[stable_task_id] = self._make_receipt(
+                    stable_task_id, tool_name, "interrupted", error=str(e)
+                )
             return ""
         finally:
             await self.release_process(p.id)
@@ -348,15 +412,17 @@ class FrontierProcessPool:
         Uses length-prefixed, zstd-compressed, cloudpickle-serialized objects over Pipes.
         """
         stable_task_id = task_id or stable_digest({"tool": tool_name, "task": repr(task_obj)})
+        self._prune_stale_receipts()
         receipt = self._task_receipts.get(stable_task_id)
         if receipt and receipt.status == "completed":
             return self._binary_task_cache.get(stable_task_id)
 
-        self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-            task_id=stable_task_id,
-            tool_name=tool_name,
-            status="running",
-        )
+        async with self._lock:
+            self._task_receipts[stable_task_id] = self._make_receipt(
+                task_id=stable_task_id,
+                tool_name=tool_name,
+                status="running",
+            )
 
         p = await self.acquire_process(stable_task_id)
         if not p:
@@ -376,12 +442,13 @@ class FrontierProcessPool:
             except TimeoutError:
                 proc.kill()
                 await proc.wait()
-                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                    stable_task_id,
-                    tool_name,
-                    "interrupted",
-                    error=f"process exceeded {timeout_seconds}s budget",
-                )
+                async with self._lock:
+                    self._task_receipts[stable_task_id] = self._make_receipt(
+                        stable_task_id,
+                        tool_name,
+                        "interrupted",
+                        error=f"process exceeded {timeout_seconds}s budget",
+                    )
                 raise RuntimeError(
                     f"ToolExecutionError: One-off process {tool_name} exceeded time budget"
                 ) from None
@@ -390,8 +457,15 @@ class FrontierProcessPool:
                     "One-off process '%s' failed (exit %d): %s",
                     tool_name,
                     proc.returncode,
-                    stderr.decode(),
+                    _decode(stderr),
                 )
+                async with self._lock:
+                    self._task_receipts[stable_task_id] = self._make_receipt(
+                        stable_task_id,
+                        tool_name,
+                        "failed",
+                        error=f"exit code {proc.returncode}",
+                    )
                 raise RuntimeError(
                     f"ToolExecutionError: One-off process {tool_name} failed (exit {proc.returncode})"
                 )
@@ -400,28 +474,42 @@ class FrontierProcessPool:
                     "ToolExecutionError: One-off process output too short (missing length prefix)"
                 )
             length = struct.unpack("!I", stdout[:4])[0]
+            if length > MAX_PAYLOAD_BYTES:
+                raise ValueError(f"Payload length {length} exceeds maximum {MAX_PAYLOAD_BYTES}")
             if len(stdout) < 4 + length:
                 raise RuntimeError("ToolExecutionError: One-off process output incomplete")
             output = mesh_unmarshal_pickle(stdout[4 : 4 + length])
+            if len(self._binary_task_cache) >= _BINARY_CACHE_MAX:
+                oldest_key = next(iter(self._binary_task_cache))
+                del self._binary_task_cache[oldest_key]
             self._binary_task_cache[stable_task_id] = output
-            self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                stable_task_id, tool_name, "completed", output=repr(output)
-            )
+            async with self._lock:
+                self._task_receipts[stable_task_id] = self._make_receipt(
+                    stable_task_id, tool_name, "completed", output=repr(output)
+                )
             return output
 
         try:
             if p.process.returncode is not None:
                 logger.warning("Process %d is dead, cannot execute task", p.id)
-                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                    stable_task_id, tool_name, "interrupted", error="pooled process already exited"
-                )
+                async with self._lock:
+                    self._task_receipts[stable_task_id] = self._make_receipt(
+                        stable_task_id,
+                        tool_name,
+                        "interrupted",
+                        error="pooled process already exited",
+                    )
                 raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} already exited")
 
             if p.process.stdin is None or p.process.stdout is None:
                 logger.error("Process %d missing stdin/stdout", p.id)
-                self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                    stable_task_id, tool_name, "interrupted", error="pooled process missing pipes"
-                )
+                async with self._lock:
+                    self._task_receipts[stable_task_id] = self._make_receipt(
+                        stable_task_id,
+                        tool_name,
+                        "interrupted",
+                        error="pooled process missing pipes",
+                    )
                 raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
 
             packed_data = mesh_marshal_pickle(task_obj)
@@ -433,18 +521,21 @@ class FrontierProcessPool:
                     p.process.stdout.readexactly(4), timeout=max(0.05, timeout_seconds)
                 )
                 length = struct.unpack("!I", length_bytes)[0]
+                if length > MAX_PAYLOAD_BYTES:
+                    raise ValueError(f"Payload length {length} exceeds maximum {MAX_PAYLOAD_BYTES}")
                 payload_bytes = await asyncio.wait_for(
                     p.process.stdout.readexactly(length), timeout=max(0.05, timeout_seconds)
                 )
                 output = mesh_unmarshal_pickle(payload_bytes)
             except TimeoutError:
                 if p.current_task_id:
-                    self._task_receipts[p.current_task_id] = ProcessTaskReceipt(
-                        p.current_task_id,
-                        tool_name,
-                        "interrupted",
-                        error=f"process exceeded {timeout_seconds}s budget",
-                    )
+                    async with self._lock:
+                        self._task_receipts[p.current_task_id] = self._make_receipt(
+                            p.current_task_id,
+                            tool_name,
+                            "interrupted",
+                            error=f"process exceeded {timeout_seconds}s budget",
+                        )
                 if sys.platform != "win32" and p.process.pid:
                     os.killpg(os.getpgid(p.process.pid), signal.SIGTERM)
                 else:
@@ -453,16 +544,21 @@ class FrontierProcessPool:
                 raise RuntimeError(
                     f"ToolExecutionError: pooled process {tool_name} exceeded time budget"
                 ) from None
+            if len(self._binary_task_cache) >= _BINARY_CACHE_MAX:
+                oldest_key = next(iter(self._binary_task_cache))
+                del self._binary_task_cache[oldest_key]
             self._binary_task_cache[stable_task_id] = output
-            self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                stable_task_id, tool_name, "completed", output=repr(output)
-            )
+            async with self._lock:
+                self._task_receipts[stable_task_id] = self._make_receipt(
+                    stable_task_id, tool_name, "completed", output=repr(output)
+                )
             return output
         except (BrokenPipeError, ConnectionResetError) as e:
             logger.error("Process %d IPC failure: %s", p.id, e)
-            self._task_receipts[stable_task_id] = ProcessTaskReceipt(
-                stable_task_id, tool_name, "interrupted", error=str(e)
-            )
+            async with self._lock:
+                self._task_receipts[stable_task_id] = self._make_receipt(
+                    stable_task_id, tool_name, "interrupted", error=str(e)
+                )
             return None
         finally:
             await self.release_process(p.id)
@@ -488,12 +584,13 @@ class FrontierProcessPool:
         for p in self._processes:
             try:
                 if p.current_task_id:
-                    self._task_receipts[p.current_task_id] = ProcessTaskReceipt(
-                        p.current_task_id,
-                        p.name,
-                        "interrupted",
-                        error="process pool cleanup before task completion",
-                    )
+                    async with self._lock:
+                        self._task_receipts[p.current_task_id] = self._make_receipt(
+                            p.current_task_id,
+                            p.name,
+                            "interrupted",
+                            error="process pool cleanup before task completion",
+                        )
                 # Fix Audit #15: SIGTERM compatibility for Windows
                 if sys.platform != "win32":
                     os.killpg(os.getpgid(p.process.pid), signal.SIGTERM)

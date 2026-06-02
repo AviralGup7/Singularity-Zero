@@ -82,12 +82,24 @@ def consume_stream(
                     if source == "stderr" and line.lower().startswith("warning"):
                         warning_text = line.strip()
                         job["warnings"].append(warning_text)
-                    job["warnings"] = job["warnings"][-6:]
+                        job["warnings"] = job["warnings"][-10:]
                 prefix = "stderr: " if source == "stderr" else ""
                 append_log(job, f"{prefix}{line}")
             except Exception as exc:
                 with lock:
                     append_log(job, f"Stream error ({source}): {exc}")
+                    # Mark status as failed and set error details to prevent hanging
+                    job["status"] = "failed"
+                    job["error"] = f"Stream consumer crashed: {exc}"
+                    job["failed_stage"] = job.get("stage") or "running"
+                    job["failure_reason_code"] = "stream_consumer_crash"
+                    job["failure_reason"] = f"Stream consumer crashed ({source}): {exc}"
+                    process = job.get("process")
+                    if process:
+                        try:
+                            process.kill()
+                        except Exception:
+                            pass
                     _persist_if_needed(force=True)
                 break
     finally:

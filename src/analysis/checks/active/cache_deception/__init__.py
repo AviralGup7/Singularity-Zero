@@ -16,7 +16,7 @@ from src.analysis.helpers import endpoint_base_key, normalize_headers
 from src.analysis.helpers.scoring import normalized_confidence
 
 from ._constants import CHECK_SPEC
-from ._helpers import (
+from .cache_deception_helpers import (
     build_finding,
     build_path_traversal_urls,
     build_static_extension_urls,

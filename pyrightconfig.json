@@ -30,7 +30,7 @@
     "**/*.egg-info",
     "**/*.egg"
   ],
-  "pythonVersion": "3.14",
+  "pythonVersion": "3.12",
   "typeCheckingMode": "strict",
   "reportUnknownMemberType": "warning",
   "reportUnknownVariableType": "warning",

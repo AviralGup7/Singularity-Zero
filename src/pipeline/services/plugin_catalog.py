@@ -12,7 +12,19 @@ VALIDATOR = "validator"
 EXPORTER = "exporter"
 ENRICHMENT_PROVIDER = "enrichment_provider"
 
+import time
+
 _DEFAULTS_REGISTERED = False
+_LAST_REFRESH_TIME = 0.0
+REFRESH_THROTTLE_SECONDS = 5.0
+
+
+def _throttled_refresh() -> None:
+    global _LAST_REFRESH_TIME
+    now = time.time()
+    if now - _LAST_REFRESH_TIME >= REFRESH_THROTTLE_SECONDS:
+        refresh_dynamic_plugins()
+        _LAST_REFRESH_TIME = now
 
 
 def _register_defaults() -> None:
@@ -67,13 +79,13 @@ def _register_defaults() -> None:
     import src.recon.urls  # noqa: F401
     import src.reporting.pipeline  # noqa: F401
 
-    refresh_dynamic_plugins()
+    _throttled_refresh()
     _DEFAULTS_REGISTERED = True
 
 
 def resolve_stage_runner(stage_name: str) -> Callable[..., Any]:
     _register_defaults()
-    refresh_dynamic_plugins()
+    _throttled_refresh()
     normalized = stage_name.strip().lower()
     for kind in (RECON_PROVIDER, SCANNER, VALIDATOR, ENRICHMENT_PROVIDER, EXPORTER):
         try:
@@ -85,7 +97,7 @@ def resolve_stage_runner(stage_name: str) -> Callable[..., Any]:
 
 def list_registered_stage_runners() -> dict[str, tuple[str, ...]]:
     _register_defaults()
-    refresh_dynamic_plugins()
+    _throttled_refresh()
     return {
         RECON_PROVIDER: tuple(reg.key for reg in list_plugins(RECON_PROVIDER)),
         SCANNER: tuple(reg.key for reg in list_plugins(SCANNER)),

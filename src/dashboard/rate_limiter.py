@@ -394,7 +394,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _api_security_enabled() -> bool:
-        return os.getenv("ENABLE_API_SECURITY", "false").strip().lower() == "true"
+        return os.getenv("ENABLE_API_SECURITY", "true").strip().lower() == "true"
 
     @staticmethod
     def _security_global_limit() -> int:

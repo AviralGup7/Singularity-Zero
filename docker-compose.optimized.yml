@@ -22,8 +22,9 @@ x-common-env: &common-env
   NUCLEI_TEMPLATE_PATH: /app/nuclei-templates
   NUCLEI_RATE_LIMIT: 50
   NUCLEI_CONCURRENCY: 10
-  ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
-  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  ALLOWED_HOSTS: localhost,127.0.0.1
+  # CORS_ORIGINS is required in production; do not provide a fallback.
+  CORS_ORIGINS: ${CORS_ORIGINS}
 
 x-common-volumes: &common-volumes
   - pipeline-output:/app/output
@@ -88,6 +89,7 @@ services:
     image: redis:7.6-alpine
     container_name: cyber-pipeline-redis
     command: >
+      test -n "$REDIS_PASSWORD" || { echo "REDIS_PASSWORD required"; exit 1; }
       redis-server
       --appendonly yes
       --appendfilename "appendonly.aof"
@@ -349,8 +351,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: "10m"
+        max-file: "3"
 
 # ──────────────────────────────────────────────────────────────────────
 # Volumes

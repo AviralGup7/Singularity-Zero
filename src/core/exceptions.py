@@ -1,5 +1,9 @@
 """Custom exception hierarchy for the pipeline."""
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 __all__ = [
     "PipelineError",
     "ConfigError",

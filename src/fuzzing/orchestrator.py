@@ -6,7 +6,6 @@ Provides mutation strategies and coverage-guided feedback loops for fuzzing API 
 from __future__ import annotations
 
 import logging
-import random
 import re
 import secrets
 from typing import Any
@@ -19,6 +18,23 @@ from src.core.mutation_engine import detect_parameter_type
 from src.core.utils.url_validation import is_safe_url_with_dns_check
 
 logger = logging.getLogger(__name__)
+
+
+class FIFODict(dict):
+    def __init__(self, max_size: int = 500, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.max_size = max_size
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        super().__setitem__(key, value)
+        if len(self) > self.max_size:
+            first_key = next(iter(self))
+            self.pop(first_key, None)
+
+    def setdefault(self, key: Any, default: Any = None) -> Any:
+        if key not in self:
+            self[key] = default
+        return self[key]
 
 
 class FuzzingRequestSender:
@@ -63,10 +79,8 @@ class FuzzingOrchestrator:
 
     def __init__(self, target_endpoints: list[str]) -> None:
         self.target_endpoints = target_endpoints
-        self._coverage_feedback: dict[
-            str, set[str]
-        ] = {}  # endpoint -> unique response signatures seen
-        self._mutation_history: dict[str, list[dict[str, Any]]] = {}
+        self._coverage_feedback = FIFODict(max_size=500)
+        self._mutation_history = FIFODict(max_size=500)
         self.request_sender = FuzzingRequestSender()
         self.feedback_tracker = FuzzingFeedbackTracker()
 
@@ -105,7 +119,7 @@ class FuzzingOrchestrator:
             "{}",
             "[]",
         ]
-        return random.sample(payloads, len(payloads))
+        return secrets.SystemRandom().sample(payloads, len(payloads))
 
     def grammar_mutate(self, base_grammar: dict[str, list[str]]) -> dict[str, list[str]]:
         """Apply grammar-based expansion mutations on structural parameter templates."""
@@ -284,7 +298,10 @@ class FuzzingOrchestrator:
             self.record_feedback(url, base_status, base_len)
 
             # 2. Iterate and mutate each parameter
+            stop_campaign = False
             for idx, (param_name, param_value) in enumerate(query_pairs):
+                if stop_campaign:
+                    break
                 param_type = detect_parameter_type(param_name, param_value)
                 payload_suggestions = self.generate_campaign_payloads(
                     endpoint=url,
@@ -352,6 +369,7 @@ class FuzzingOrchestrator:
                             }
                         )
                         logger.info("Fuzzer: Detected vulnerability on %s: Error Leak!", url)
+                        stop_campaign = True
                         break  # Stop fuzzing this parameter if critical leak found
 
                     # Case B: Significant status boundary drift (e.g. bypass validation)
@@ -379,6 +397,7 @@ class FuzzingOrchestrator:
                             }
                         )
                         logger.info("Fuzzer: Detected vulnerability on %s: Structural Bypass!", url)
+                        stop_campaign = True
                         break
 
                     # Case C: Status code 500 crash anomaly
@@ -404,6 +423,7 @@ class FuzzingOrchestrator:
                             }
                         )
                         logger.info("Fuzzer: Detected anomaly on %s: Server crash (500)!", url)
+                        stop_campaign = True
                         break
 
         finally:

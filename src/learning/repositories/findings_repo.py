@@ -43,8 +43,10 @@ class FindingsRepo(BaseRepo):
         if not run_ids:
             return []
         placeholders = ",".join("?" for _ in run_ids)
+        if len(placeholders) != len(run_ids):
+            raise ValueError("run_ids list changed during query construction")
         with self._cursor() as cur:
-            cur.execute(  # noqa: S608
+            cur.execute(
                 f"SELECT * FROM findings WHERE run_id IN ({placeholders}) ORDER BY confidence DESC",  # noqa: S608
                 list(run_ids),
             )

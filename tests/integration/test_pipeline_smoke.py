@@ -197,8 +197,8 @@ class TestPipelineRunWithMockConfig:
             "src.pipeline.screenshots.capture_screenshots": lambda *a, **k: [],
             "src.analysis.behavior.analysis.annotate_behavior_history": lambda *a, **k: [],
             "src.analysis.intelligence.decision_engine.annotate_finding_decisions": lambda x: x,
-            "src.analysis.intelligence.findings.intelligence_findings._history.annotate_finding_history": lambda *a, **k: [],
-            "src.analysis.intelligence.findings.intelligence_findings._merge_orchestrator.merge_findings": lambda *a, **k: [],
+            "src.analysis.intelligence.findings._history.annotate_finding_history": lambda *a, **k: [],
+            "src.analysis.intelligence.findings._merge_orchestrator.merge_findings": lambda *a, **k: [],
             "src.analysis.intelligence.decision_engine.filter_reportable_findings": lambda x: (
                 x if x else []
             ),

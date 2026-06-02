@@ -27,8 +27,15 @@ class BaseRepo:
                 check_same_thread=False,
             )
             conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA foreign_keys=ON")
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA foreign_keys=ON")
+            except Exception:
+                try:
+                    conn.close()
+                except sqlite3.ProgrammingError:
+                    pass
+                raise
             self._local.conn = conn
             with BaseRepo._lock:
                 # Clean up any closed connections to prevent accumulation

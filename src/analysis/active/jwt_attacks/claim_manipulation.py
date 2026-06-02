@@ -3,7 +3,7 @@
 import logging
 from typing import Any, cast
 
-from ._helpers import (
+from .jwt_attack_helpers import (
     JWT_AUTH_HEADERS,
     _create_jwt,
     _decode_jwt_part,

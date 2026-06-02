@@ -28,7 +28,7 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: 'python3 -m src.dashboard.dashboard_cli --port 8000',
+        command: 'python -m src.dashboard.fastapi.app --port 8000',
         url: 'http://localhost:8000/api/health',
         reuseExistingServer: !process.env.CI,
         timeout: 120000,

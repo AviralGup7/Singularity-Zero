@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from src.analysis.helpers import endpoint_signature, normalize_headers
 
 from ._constants import DESERIALIZATION_PROBE_SPEC
-from ._helpers import (
+from .deserialization_probe_helpers import (
     build_finding,
     detect_deserialization_errors,
     detect_serialization_markers,

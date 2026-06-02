@@ -26,13 +26,13 @@ from src.dashboard.error_classification import (
 from src.dashboard.job_record_builder import create_job_record as create_job_record
 from src.dashboard.job_state import append_log
 from src.dashboard.registry import PROGRESS_PREFIX, STAGE_LABELS
+from src.dashboard.scope_utils import truncate_lines as _truncate_lines
 from src.dashboard.stream_consumer import (
     _last_progress_payload_from_file,
 )
 from src.dashboard.stream_consumer import (
     consume_stream as consume_stream,
 )
-from src.dashboard.utils import truncate_lines as _truncate_lines
 
 __all__ = [
     "create_job_record",
@@ -188,7 +188,7 @@ def run_pipeline_job(
 
         returncode = process.wait()
         for consumer in consumers:
-            consumer.join(timeout=10)
+            consumer.join()
 
     # Small delay to ensure file handles are fully flushed
     time.sleep(0.5)
@@ -221,7 +221,7 @@ def run_pipeline_job(
 
     no_pipeline_output = not stdout_content and not stderr_content
     last_progress = _last_progress_payload_from_file(stdout_path, progress_prefix=PROGRESS_PREFIX)
-    str(last_progress.get("stage", "") or "").strip()
+    progress_stage = str(last_progress.get("stage", "") or "").strip()
     progress_failed_stage = str(last_progress.get("failed_stage", "")).strip()
     progress_message = str(last_progress.get("message", "")).strip()
     progress_reason_code = str(last_progress.get("failure_reason_code", "")).strip()
@@ -236,6 +236,8 @@ def run_pipeline_job(
         job["finished_at"] = finished_at
         job["updated_at"] = job["finished_at"]
         job["process"] = None
+        if progress_stage:
+            job["stage"] = progress_stage
         if isinstance(job.get("_active_stages"), set):
             job["_active_stages"].clear()
         stderr_warning_lines = _truncate_lines(stderr_classification.warnings, limit=10)

@@ -31,7 +31,7 @@ from ._constants import (
     XML_PARSER_DISCLOSURE_PATTERNS,
     XXE_SUCCESS_PATTERNS,
 )
-from ._helpers import (
+from .xml_bomb_helpers import (
     build_finding,
     compute_confidence,
     determine_severity,

@@ -14,14 +14,14 @@ from hypothesis import strategies as st
 
 from src.analysis.active.xss_constants import XSS_DANGEROUS_VALUE_RE
 from src.analysis.active.xss_utils import xss_signals
-from src.analysis.checks.active._impl import stored_xss_signal_detector
-from src.analysis.checks.active.ssrf_oob_validator._helpers import (
+from src.analysis.checks.active._detectors import stored_xss_signal_detector
+from src.analysis.checks.active.ssrf_oob_validator.ssrf_oob_helpers import (
     check_cloud_metadata,
     check_internal_errors,
     check_internal_leakage,
     find_ssrf_params,
 )
-from src.analysis.checks.passive._impl import (
+from src.analysis.checks.passive._detectors import (
     header_checker,
     sensitive_data_scanner,
 )
@@ -53,7 +53,7 @@ _SAFE_ALPHABET = st.characters(
 
 
 def _is_really_safe(text: str) -> bool:
-    from src.analysis.checks.active.ssrf_oob_validator._helpers import (
+    from src.analysis.checks.active.ssrf_oob_validator.ssrf_oob_helpers import (
         check_cloud_metadata,
         check_internal_errors,
         check_internal_leakage,

@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any
 
-from ._helpers import (
+from .jwt_attack_helpers import (
     JWT_AUTH_HEADERS,
     _b64url_encode,
     _decode_jwt_part,

@@ -132,9 +132,24 @@ def run_parallel_analyzers_sync(
     Returns:
         Dict mapping analyzer name to AnalyzerResult.
     """
-    return asyncio.run(
-        run_parallel_analyzers(analyzers, context, max_workers, timeout, dependency_graph)
-    )
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and loop.is_running():
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                asyncio.run,
+                run_parallel_analyzers(analyzers, context, max_workers, timeout, dependency_graph),
+            )
+            return future.result()
+    else:
+        return asyncio.run(
+            run_parallel_analyzers(analyzers, context, max_workers, timeout, dependency_graph)
+        )
 
 
 async def run_parallel_analyzers(

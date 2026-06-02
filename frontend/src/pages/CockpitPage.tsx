@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/Icon';
@@ -67,7 +67,7 @@ function ForensicExchangeDetail({ exchange, onBack }: { exchange: ForensicExchan
       <div className="flex-1 space-y-6 overflow-y-auto p-4">
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h5 className="text-[10px] font-bold uppercase text-muted">Request</h5>
+            <h5 className="text-[10px] font-black uppercase tracking-widest text-muted">Request</h5>
             <span className="text-[10px] text-muted">{exchange.method}</span>
           </div>
           <div className="mb-2 break-all rounded border border-line bg-black/40 p-3 font-mono text-[10px]">{exchange.url}</div>
@@ -82,7 +82,7 @@ function ForensicExchangeDetail({ exchange, onBack }: { exchange: ForensicExchan
         </section>
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h5 className="text-[10px] font-bold uppercase text-muted">Response</h5>
+            <h5 className="text-[10px] font-black uppercase tracking-widest text-muted">Response</h5>
             <span className={`text-[10px] font-bold ${exchange.response?.status < 400 ? 'text-green-400' : 'text-red-400'}`}>
               STATUS {exchange.response?.status}
             </span>
@@ -156,6 +156,10 @@ export function CockpitPage() {
   const [restartingScan, setRestartingScan] = useState(false);
   const [inputTarget, setInputTarget] = useState(target);
 
+  // FIX-6: Throttle graph requests to max once per 2s during SSE updates
+  const graphRequestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const graphRequestAbortControllerRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     if (target) {
       setInputTarget(target);
@@ -185,6 +189,24 @@ export function CockpitPage() {
       clearInterval(interval);
     };
   }, [activeJobId]);
+
+  const requestGraphUpdate = useCallback((nextTarget: string, nextRun: string | undefined, nextJobId: string | undefined) => {
+    // Cancel in-flight request
+    graphRequestAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    graphRequestAbortControllerRef.current = controller;
+
+    if (graphRequestTimerRef.current) clearTimeout(graphRequestTimerRef.current);
+    const existing = document.getElementById('graph-request-timer');
+    if (existing) existing.remove();
+
+    cockpitApi.getGraph(nextTarget, nextRun, nextJobId, { signal: controller.signal })
+      .then((res) => applyGraph(res.data))
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return;
+        console.error('Failed to update graph on telemetry:', err);
+      });
+  }, []);
 
   const handleStartScan = async () => {
     if (!inputTarget.trim()) {
@@ -275,45 +297,51 @@ export function CockpitPage() {
         setMigrations((prev) => [...prev, migration]);
         toast.info(`Ghost-Actor Migration: ${migration.actor_id} moved to ${migration.target_node}`);
 
-        // Hook real-time Kuzu / telemetry update on migration events
-        cockpitApi.getGraph(target, run, activeJobId || jobId)
-          .then((res) => {
-            applyGraph(res.data);
-          })
-          .catch((err) => console.error('Failed to update graph on migration:', err));
+        // Hook real-time Kuzu / telemetry update on migration events, throttled to 2s
+        if (!graphRequestTimerRef.current) {
+          graphRequestTimerRef.current = setTimeout(() => {
+            graphRequestTimerRef.current = null;
+          }, 2000);
+        }
+        requestGraphUpdate(target, run, activeJobId || jobId);
       } else if (
         event.event_type === 'finding_batch' ||
         event.event_type === 'stage_change' ||
         event.event_type === 'progress_update' ||
         event.event_type === 'completed'
       ) {
-        // Hook real-time Kuzu / telemetry updates on active job progression
-        cockpitApi.getGraph(target, run, activeJobId || jobId)
-          .then((res) => {
-            applyGraph(res.data);
-          })
-          .catch((err) => console.error('Failed to update graph on job telemetry:', err));
+        // Hook real-time Kuzu / telemetry updates on active job progression, throttled to 2s
+        if (!graphRequestTimerRef.current) {
+          graphRequestTimerRef.current = setTimeout(() => {
+            graphRequestTimerRef.current = null;
+          }, 2000);
+        }
+        requestGraphUpdate(target, run, activeJobId || jobId);
       }
     },
   });
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchGraph = async () => {
       try {
         setLoading(true);
         const [graphRes, chainsRes] = await Promise.all([
-          cockpitApi.getGraph(target, run, jobId),
-          apiClient.get<AttackChain[]>('/api/cockpit/attack-chains', { params: { target } }).catch(() => ({ data: [] })),
+          cockpitApi.getGraph(target, run, jobId, { signal: controller.signal }),
+          apiClient.get<AttackChain[]>('/api/cockpit/attack-chains', { params: { target }, signal: controller.signal }).catch(() => ({ data: [] })),
         ]);
         applyGraph(graphRes.data);
         setChains(chainsRes.data || []);
       } catch (error) {
-        console.error('Failed to fetch cockpit intelligence', error);
+        if ((error as Error).name !== 'CanceledError') {
+          console.error('Failed to fetch cockpit intelligence', error);
+        }
       } finally {
         setLoading(false);
       }
     };
     if (target) fetchGraph();
+    return () => controller.abort();
   }, [target, run, jobId, applyGraph]);
 
   useEffect(() => {
@@ -634,7 +662,6 @@ export function CockpitPage() {
               )}
             </div>
           )}
-        </div>
 
         <AnimatePresence>
           {hoveredNode && !sidebarOpen && (

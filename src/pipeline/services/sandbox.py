@@ -15,7 +15,7 @@ class DockerSandboxConfig:
     """Configuration for running a JSON-callable plugin in Docker."""
 
     image: str = "python:3.14-slim"
-    workdir: Path = field(default_factory=lambda: Path.cwd())
+    working_dir: Path = field(default_factory=lambda: Path.cwd())
     timeout_seconds: int = 300
     network: str = "none"
     allowed_networks: tuple[str, ...] = ("none",)
@@ -89,7 +89,7 @@ class DockerSandboxRunner:
             "--cpus",
             self.config.cpus,
             "-v",
-            f"{self.config.workdir}:/workspace:ro",
+            f"{self.config.working_dir}:/workspace:ro",
             "-w",
             "/workspace",
             self.config.image,

@@ -6,9 +6,13 @@ from src.core.plugins import register_plugin
 from src.execution.validators.engine_helpers import compare_response_shapes, mutate_identifier
 from src.execution.validators.shared_utils import apply_probe_result, mark_out_of_scope
 from src.execution.validators.validators.csrf import validate_csrf_candidates
-from src.execution.validators.validators.file_upload import validate_file_upload_candidates
+from src.execution.validators.validators.file_upload import (
+    validate_file_upload_candidates,
+)
 from src.execution.validators.validators.idor import validate_idor_candidates
-from src.execution.validators.validators.redirect import validate_redirect_candidates
+from src.execution.validators.validators.redirect import (
+    validate_redirect_candidates,
+)
 from src.execution.validators.validators.ssrf import validate_ssrf_candidates
 from src.execution.validators.validators.ssti import validate_ssti_candidates
 from src.execution.validators.validators.xss import validate_xss_candidates

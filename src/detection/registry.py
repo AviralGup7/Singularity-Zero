@@ -38,17 +38,18 @@ def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
     bindings = {reg.key: reg.provider for reg in list_plugins(ANALYZER_BINDING)}
 
     plugins: list[DetectionPlugin] = []
-    for key, spec in specs.items():
-        binding = bindings.get(key)
-        if binding is None:
-            continue
+    for key, binding in bindings.items():
+        spec = specs.get(key)
+        label = spec.label if spec else key.replace("_", " ").title()
+        group = spec.group if spec else "custom"
+        enabled_by_default = spec.enabled_by_default if spec else True
         plugins.append(
             DetectionPlugin(
                 key=key,
-                label=spec.label,
-                group=spec.group,
+                label=label,
+                group=group,
                 input_kind=binding.input_kind,
-                enabled_by_default=spec.enabled_by_default,
+                enabled_by_default=enabled_by_default,
                 phase=binding.phase,
                 consumes=binding.consumes,
                 produces=binding.produces,
@@ -61,21 +62,27 @@ def list_detection_plugins() -> tuple[DetectionPlugin, ...]:
     return _build_detection_plugins()
 
 
-DETECTION_PLUGINS = _build_detection_plugins()
-DETECTION_PLUGINS_BY_KEY = {p.key: p for p in DETECTION_PLUGINS}
+DETECTION_PLUGINS: tuple[DetectionPlugin, ...]
+DETECTION_PLUGINS_BY_KEY: dict[str, DetectionPlugin]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "DETECTION_PLUGINS":
+        return list_detection_plugins()
+    if name == "DETECTION_PLUGINS_BY_KEY":
+        return {p.key: p for p in list_detection_plugins()}
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
 
 _DETECTION_PLUGIN_OPTIONS: list[dict[str, Any]] | None = None
 
 
 def get_detection_plugin(plugin_key: str) -> DetectionPlugin:
     normalized = plugin_key.strip()
-    plugin = DETECTION_PLUGINS_BY_KEY.get(normalized)
+    plugins = {p.key: p for p in list_detection_plugins()}
+    plugin = plugins.get(normalized)
     if plugin is None:
-        plugin = {candidate.key: candidate for candidate in list_detection_plugins()}.get(
-            normalized
-        )
-    if plugin is None:
-        available = ", ".join(sorted(candidate.key for candidate in list_detection_plugins()))
+        available = ", ".join(sorted(plugins.keys()))
         logger.warning(
             "Failed to resolve detection plugin key: '%s' (normalized: '%s'). Available keys: %s",
             plugin_key,
@@ -94,7 +101,13 @@ def run_detection_plugin(
     plugin_key: str, context: AnalysisExecutionContext
 ) -> list[dict[str, Any]]:
     plugin = get_detection_plugin(plugin_key)
-    binding = ANALYZER_BINDINGS[plugin.key]
+    binding = ANALYZER_BINDINGS.get(plugin.key)
+    if binding is None:
+        # Fallback to dynamic lookup in list_plugins
+        bindings = {reg.key: reg.provider for reg in list_plugins(ANALYZER_BINDING)}
+        binding = bindings.get(plugin.key)
+    if binding is None:
+        raise KeyError(f"No analyzer binding found for plugin key '{plugin.key}'")
     logger.info("Running detection plugin: %s", plugin.key)
     results = run_registered_analyzer(binding, context)
     logger.info("Detection plugin %s returned %d results", plugin.key, len(results))
@@ -110,7 +123,7 @@ def detection_plugin_options() -> list[dict[str, object]]:
             {
                 "name": plugin.key,
                 "label": plugin.label,
-                "description": specs[plugin.key].description,
+                "description": specs[plugin.key].description if plugin.key in specs else "",
                 "group": plugin.group,
                 "input_kind": plugin.input_kind,
                 "enabled_by_default": plugin.enabled_by_default,

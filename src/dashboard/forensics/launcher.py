@@ -105,16 +105,15 @@ def _normalize_path_string(path_value: str) -> str:
     text = str(path_value or "").strip()
     if not text:
         return ""
-    # Heuristic for Windows absolute paths (e.g. C:\... or D:\...)
     if len(text) > 3 and text[1:3] == ":\\" and text[0].isalpha():
-        # If we find 'output' in the path, try to make it relative to output
         text_lower = text.lower()
         if "src\\dashboard\\output\\" in text_lower:
-            return text_lower.split("src\\dashboard\\output\\", 1)[1].replace("\\", "/")
-        if "output\\" in text_lower:
-            return text_lower.split("output\\", 1)[1].replace("\\", "/")
-        # Otherwise just convert backslashes
-        return text.replace("\\", "/")
+            relative = text_lower.split("src\\dashboard\\output\\", 1)[1].replace("\\", "/")
+        elif "output\\" in text_lower:
+            relative = text_lower.split("output\\", 1)[1].replace("\\", "/")
+        else:
+            relative = text.replace("\\", "/")
+        return relative
     return text
 
 

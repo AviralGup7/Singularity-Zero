@@ -16,7 +16,7 @@ export function logAuditAction(
   action: string,
   details: Record<string, unknown>,
   user = 'anonymous',
-  page = window.location.pathname
+  page = typeof window !== 'undefined' ? window.location.pathname : '/ssr'
 ): void {
   const entry: AuditEntry = {
     id: `audit-${crypto.randomUUID()}`,

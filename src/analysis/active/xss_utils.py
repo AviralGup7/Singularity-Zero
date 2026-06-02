@@ -37,7 +37,7 @@ from .xss_constants import (
 )
 
 _SCRIPT_TAG_RE = re.compile(r"<script[^>]*>", re.IGNORECASE)
-_SCRIPT_CONTENT_RE = re.compile(r"(?s)<script.*?>(.*?)</script>")
+_SCRIPT_CONTENT_RE = re.compile(r"(?s)<script[^>]*>(.*?)</script>")
 _OPEN_TAG_RE = re.compile(r"<(\w+)")
 _HTML_COMMENT_START_RE = re.compile(r"<!--")
 _HTML_COMMENT_END_RE = re.compile(r"-->")

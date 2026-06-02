@@ -9,6 +9,7 @@ Also provides the canonical `run_external_tool()` function and the
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import os
 import re
@@ -32,6 +33,9 @@ logger = get_pipeline_logger(__name__)
 SHELL_META = re.compile(r"[;|&$`\n\r]")
 
 _CIRCUIT_BREAKERS: dict[str, CircuitBreaker] = {}
+# TTL eviction: prune stale circuit-breaker entries on each access (_CIRCUIT_BREAKERS_TTL_SECONDS)
+_CIRCUIT_BREAKER_LAST_PRUNED: float = 0.0
+_CIRCUIT_BREAKERS_TTL_SECONDS: int = 3600
 
 # --------------------------------------------------------------------------- #
 # ToolInvocation & CompletedToolRun — canonical subprocess contract           #
@@ -82,10 +86,33 @@ class CompletedToolRun:
         return not self.timed_out and self.exit_code == 0
 
 
+def _get_context_key() -> str:
+    import threading
+
+    thread_id = threading.get_ident()
+    try:
+        task = asyncio.current_task()
+        task_id = id(task) if task else 0
+    except RuntimeError:
+        task_id = 0
+    return f"{thread_id}:{task_id}"
+
+
 def get_circuit_breaker(tool_name: str) -> CircuitBreaker:
-    if tool_name not in _CIRCUIT_BREAKERS:
-        _CIRCUIT_BREAKERS[tool_name] = CircuitBreaker()
-    return _CIRCUIT_BREAKERS[tool_name]
+    global _CIRCUIT_BREAKER_LAST_PRUNED
+    now = time.monotonic()
+    context_key = _get_context_key()
+    key = f"{context_key}:{tool_name}"
+    if key not in _CIRCUIT_BREAKERS:
+        _CIRCUIT_BREAKERS[key] = CircuitBreaker()
+    _CIRCUIT_BREAKERS[key].last_accessed = now
+    if now - _CIRCUIT_BREAKER_LAST_PRUNED > _CIRCUIT_BREAKERS_TTL_SECONDS:
+        _CIRCUIT_BREAKER_LAST_PRUNED = now
+        for name in list(_CIRCUIT_BREAKERS):
+            cb = _CIRCUIT_BREAKERS[name]
+            if now - getattr(cb, "last_accessed", now) > _CIRCUIT_BREAKERS_TTL_SECONDS:
+                _CIRCUIT_BREAKERS.pop(name, None)
+    return _CIRCUIT_BREAKERS[key]
 
 
 class ToolExecutionError(RuntimeError):
@@ -237,9 +264,10 @@ class ToolExecutionService:
         self._circuit_breakers: dict[str, CircuitBreaker] = {}
 
     def _get_circuit_breaker(self, tool_name: str) -> CircuitBreaker:
-        if tool_name not in self._circuit_breakers:
-            self._circuit_breakers[tool_name] = CircuitBreaker()
-        return self._circuit_breakers[tool_name]
+        key = f"{_get_context_key()}:{tool_name}"
+        if key not in self._circuit_breakers:
+            self._circuit_breakers[key] = CircuitBreaker()
+        return self._circuit_breakers[key]
 
     def search_dirs(self) -> list[Path]:
         """Return directories to search for external tool binaries.

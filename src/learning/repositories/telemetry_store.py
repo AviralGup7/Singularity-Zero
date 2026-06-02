@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 import threading
 from pathlib import Path
 from typing import Any, cast
@@ -130,6 +131,8 @@ class TelemetryStore:
         if hasattr(self._local, "conn") and self._local.conn:
             try:
                 self._local.conn.close()
+            except sqlite3.ProgrammingError:
+                pass
             except Exception:  # noqa: S110
                 pass
             self._local.conn = None
@@ -140,6 +143,8 @@ class TelemetryStore:
             for conn in list(BaseRepo._connections):
                 try:
                     conn.close()
+                except sqlite3.ProgrammingError:
+                    pass
                 except Exception:  # noqa: S110
                     pass
             BaseRepo._connections.clear()

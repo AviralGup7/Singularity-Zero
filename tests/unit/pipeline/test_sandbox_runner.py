@@ -7,7 +7,7 @@ def test_docker_sandbox_command_is_restricted() -> None:
     runner = DockerSandboxRunner(
         DockerSandboxConfig(
             image="python:test",
-            workdir=Path("D:/workspace"),
+            working_dir=Path("D:/workspace"),
             network="none",
             memory="256m",
             cpus="0.5",

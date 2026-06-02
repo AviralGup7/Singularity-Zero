@@ -4,7 +4,7 @@ import sys
 modules = [
     "src.pipeline.services.pipeline_orchestrator.__init__",
     "src.pipeline.services.pipeline_orchestrator.orchestrator",
-    "src.analysis.intelligence.findings.intelligence_findings.specs.semgrep",
+    "src.analysis.intelligence.findings.specs.semgrep",
     "src.pipeline.services.pipeline_orchestrator.stages.__init__",
     "src.pipeline.services.pipeline_orchestrator.stages.semgrep",
     "src.dashboard.fastapi.routers.__init__",

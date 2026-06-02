@@ -29,7 +29,7 @@ from ._constants import (
     TOKEN_IN_URL_RE,
     TOKEN_LIFETIME_ANALYZER_SPEC,
 )
-from ._helpers import compute_confidence, determine_severity, severity_score
+from .token_lifetime_helpers import compute_confidence, determine_severity, severity_score
 
 __all__ = ["token_lifetime_analyzer", "TOKEN_LIFETIME_ANALYZER_SPEC"]
 

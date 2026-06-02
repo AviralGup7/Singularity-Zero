@@ -79,7 +79,7 @@ def _load_active_probe_functions() -> dict[str, Any]:
     from src.analysis.active.injection.xss_reflect_probe import xss_reflect_probe
     from src.analysis.active.injection.xxe import xxe_active_probe
     from src.analysis.active.jwt_attacks import run_jwt_attack_suite
-    from src.analysis.active.jwt_attacks._helpers import JWT_RE
+    from src.analysis.active.jwt_attacks.jwt_attack_helpers import JWT_RE
     from src.analysis.active.param_mining import param_mining_probe
     from src.analysis.active.race_condition import race_condition_probe
     from src.analysis.intelligence.mutation_runtime import run_mutation_tests
