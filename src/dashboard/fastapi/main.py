@@ -28,11 +28,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=1, help="Number of worker processes")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     parser.add_argument(
-        "--directory",
-        default="",
-        help="Output directory (deprecated, use --output-root instead)",
-    )
-    parser.add_argument(
         "--output-root",
         default="",
         help="Root directory for scan output",

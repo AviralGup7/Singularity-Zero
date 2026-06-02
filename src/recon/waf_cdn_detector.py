@@ -48,14 +48,9 @@ def _load_active_probe_indicators(config_path: str | None = None) -> dict[str, l
     if config_path:
         path = Path(config_path)
     else:
-        possible_paths = [
-            Path("configs/waf_active_indicators.json"),
-            Path("src/recon/configs/waf_active_indicators.json"),
-        ]
-        for p in possible_paths:
-            if p.exists():
-                path = p
-                break
+        resolved_default = Path(__file__).resolve().parent / "configs" / "waf_active_indicators.json"
+        if resolved_default.exists():
+            path = resolved_default
 
     if path and path.exists():
         try:

@@ -81,7 +81,8 @@ def _parse_otx_json(text: str) -> list[str]:
     urls: list[str] = []
     try:
         data = json.loads(text)
-    except Exception:
+    except json.JSONDecodeError:
+        logger.warning("otx: JSON parse error, response text (truncated): %s", (text or "")[:500])
         return [line.strip() for line in (text or "").splitlines() if line.strip()]
 
     # OTX may return an object with 'url_list' or 'results'
@@ -132,7 +133,11 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
             else:
                 return set()
 
-    if resp is None or resp.status_code >= 400:
+    if resp is None:
+        return set()
+    try:
+        resp.raise_for_status()
+    except requests.RequestException:
         return set()
 
     candidates = _parse_otx_json(resp.text or "")

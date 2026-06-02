@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/Icon';
@@ -529,7 +529,7 @@ export function CockpitPage() {
                       onClick={() => setShowAdvanced(!showAdvanced)}
                       className="flex w-full items-center justify-between font-mono text-[9px] uppercase tracking-wider text-muted hover:text-accent transition-colors"
                     >
-                      <span>{showAdvanced ? '─ Hide Advanced Options' : '┼ Show Advanced Options'}</span>
+                      <span>{showAdvanced ? 'ΓöÇ Hide Advanced Options' : 'Γö╝ Show Advanced Options'}</span>
                     </button>
 
                     {showAdvanced && (

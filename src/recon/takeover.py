@@ -49,14 +49,9 @@ def load_takeover_patterns(config_path: str | None = None) -> list[dict[str, Any
     if config_path:
         path = Path(config_path)
     else:
-        possible_paths = [
-            Path("configs/takeover_patterns.json"),
-            Path("src/recon/configs/takeover_patterns.json"),
-        ]
-        for p in possible_paths:
-            if p.exists():
-                path = p
-                break
+        resolved_default = Path(__file__).resolve().parent / "configs" / "takeover_patterns.json"
+        if resolved_default.exists():
+            path = resolved_default
 
     if path and path.exists():
         try:

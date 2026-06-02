@@ -84,9 +84,9 @@ def _parse_urlscan_json(text: str) -> list[str]:
     urls: list[str] = []
     try:
         data = json.loads(text)
-    except Exception:
-        # fallback: extract http(s) URLs from text/HTML
-        return _URL_RE.findall(text or "")
+    except json.JSONDecodeError:
+        logger.warning("urlscan: JSON parse error, response text (truncated): %s", (text or "")[:500])
+        return []
 
     # urlscan search returns an object with 'results' array
     if isinstance(data, dict) and "results" in data and isinstance(data["results"], list):
@@ -146,7 +146,11 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
             else:
                 return set()
 
-    if resp is None or resp.status_code >= 400:
+    if resp is None:
+        return set()
+    try:
+        resp.raise_for_status()
+    except requests.RequestException:
         return set()
 
     candidates = _parse_urlscan_json(resp.text or "")

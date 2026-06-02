@@ -89,6 +89,7 @@ def _parse_cdx_json(text: str) -> list[str]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
+        logger.warning("wayback: JSON parse error, response text (truncated): %s", (text or "")[:500])
         # fallback: lines where each line is a URL
         return [line.strip() for line in text.splitlines() if line.strip()]
 
@@ -146,6 +147,10 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
                 return set()
 
     if resp is None:
+        return set()
+    try:
+        resp.raise_for_status()
+    except requests.RequestException:
         return set()
 
     originals = _parse_cdx_json(resp.text or "")

@@ -86,7 +86,10 @@ def _parse_cc_ndjson(text: str) -> list[str]:
             continue
         try:
             obj = json.loads(line)
-        except Exception:
+        except json.JSONDecodeError:
+            logger.warning(
+                "commoncrawl: JSON parse error, line (truncated): %s", line[:500]
+            )
             # not JSON, treat the line as a URL
             urls.append(line)
             continue
@@ -121,9 +124,11 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
         collector_metrics.increment_errors("commoncrawl")
         return set()
 
-    if resp.status_code >= 400:
-        logger.debug("CommonCrawl returned status %s for %s", resp.status_code, host)
+    try:
+        resp.raise_for_status()
+    except requests.RequestException:
         collector_metrics.increment_errors("commoncrawl")
+        logger.debug("CommonCrawl returned error for %s (status %s)", host, resp.status_code)
         return set()
 
     candidates = _parse_cc_ndjson(resp.text or "")
@@ -138,6 +143,12 @@ def collect_for_hosts(
     max_workers: int = 6,
     progress_callback: Any | None = None,
 ) -> tuple[set[str], dict[str, Any]]:
+    """Collect original URLs for a set of hosts from CommonCrawl.
+
+    Returns a tuple of (urls_set, meta) where meta contains status, duration,
+    and counts. The function is conservative and returns an empty set on
+    network failures.
+    """
     start = time.monotonic()
     hosts_list = [h for h in hosts if h]
     if not hosts_list:

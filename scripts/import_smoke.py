@@ -1,10 +1,5 @@
 import importlib
 import sys
-from pathlib import Path
-
-# Ensure project root is on sys.path so top-level package `src` is importable
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
 
 modules = [
     "src.infrastructure.execution_engine.concurrent_executor",

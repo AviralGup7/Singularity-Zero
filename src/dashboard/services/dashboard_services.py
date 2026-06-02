@@ -42,7 +42,7 @@ class DashboardServices:
         from src.dashboard.job_store import JobStore
 
         if db_path is None:
-            db_path = Path("output") / "jobs.db"
+            db_path = Path(__file__).resolve().parents[1] / "output" / "jobs.db"
 
         self._job_store = JobStore(db_path)
 

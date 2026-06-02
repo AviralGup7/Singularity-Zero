@@ -22,7 +22,7 @@ from urllib import error, request
 
 # DEFAULT_OTLP_ENDPOINT should use HTTPS in production.
 DEFAULT_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
-DEFAULT_TRACE_DB = Path("output") / "traces.db"
+DEFAULT_TRACE_DB = Path(__file__).resolve().parents[2] / "output" / "traces.db"
 
 
 class NoOpSpan:

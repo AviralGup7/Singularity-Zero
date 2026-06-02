@@ -54,8 +54,9 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     const ids = Array.from(selectedIds);
     setLocalOverrides(prev => {
       const next = { ...prev };
+      // Lock the loop-variable so each handler closes over a stable string.
       for (const id of ids) {
-        const prevItem = prev[id] || {};
+        const prevItem = Object.hasOwn(prev, id) ? prev[id] : {};
         next[id] = { ...prevItem, ...updates };
         addAuditLog(id, 'bulk_status_change', `Changed to ${status}`);
       }
@@ -73,7 +74,7 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-        const prevItem = prev[id] || {};
+        const prevItem = Object.hasOwn(prev, id) ? prev[id] : {};
         next[id] = { ...prevItem, ...updates };
         addAuditLog(id, 'bulk_false_positive', 'Marked as false positive');
       }
@@ -92,7 +93,7 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-        const prevItem = prev[id] || {};
+        const prevItem = Object.hasOwn(prev, id) ? prev[id] : {};
         next[id] = { ...prevItem, assignedTo: assignee };
         addAuditLog(id, 'bulk_assign', `Assigned to ${assignee}`);
       }
@@ -110,7 +111,7 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     setLocalOverrides(prev => {
       const next = { ...prev };
       for (const id of ids) {
-        const prevItem = prev[id] || {};
+        const prevItem = Object.hasOwn(prev, id) ? prev[id] : {};
         next[id] = { ...prevItem, _deleted: true };
         addAuditLog(id, 'bulk_delete', 'Deleted via bulk action');
       }

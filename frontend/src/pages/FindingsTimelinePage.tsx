@@ -63,8 +63,11 @@ export function FindingsTimelinePage() {
 
   // Reset pagination state when filters change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOffset(0);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEvents([]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedEvent(null);
   }, [filterKey]);
 
@@ -72,6 +75,7 @@ export function FindingsTimelinePage() {
   useEffect(() => {
     if (timeline.data) {
       const incoming = timeline.events;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEvents((current) => {
         const merged = offset === 0 ? incoming : [...current, ...incoming];
         const seen = new Set<string>();

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import functools
 import os
 import re
 import shutil
@@ -163,17 +164,22 @@ async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
         merged_env = base_env
 
     try:
-        process = subprocess.run(  # noqa: S603
-            command,
-            input=invocation.stdin,
-            text=True,
-            encoding="utf-8",
-            errors="ignore",
-            capture_output=True,
-            timeout=timeout,
-            check=False,
-            env=merged_env,
-            cwd=cwd,
+        loop = asyncio.get_running_loop()
+        process = await loop.run_in_executor(
+            None,
+            functools.partial(
+                subprocess.run,
+                command,
+                input=invocation.stdin,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+                env=merged_env,
+                cwd=cwd,
+            ),
         )
     except subprocess.TimeoutExpired as exc:
         stderr_text = _coerce_output_text(exc.stderr)
@@ -614,8 +620,10 @@ class ToolExecutionService:
                 env=self.command_env(),
             )
         except OSError:
+            logger.debug("tool_detection: OSError probing %s", cls.tool_name)
             return False
         except Exception:
+            logger.debug("tool_detection: unexpected error probing %s", cls.tool_name, exc_info=True)
             return False
 
         combined = f"{output.stdout}\n{output.stderr}".lower()
