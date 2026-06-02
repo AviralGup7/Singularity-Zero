@@ -258,6 +258,20 @@ def collect_urls(
             archive_urls, aggregate_meta = run_archive_jobs(
                 hostnames, archive_batch_size, archive_jobs, archive_filters, progress_callback
             )
+            
+            # Performance #4: Apply early filtering and incremental cap to archive urls
+            # Archive sources (gau/wayback) are the most common source of memory bloat.
+            if len(archive_urls) > 20000:
+                emit_collection_progress(
+                    progress_callback, 
+                    f"Applying early filter to {len(archive_urls)} archive URLs...", 
+                    61
+                )
+                archive_urls = apply_url_filters(archive_urls, filters)
+                if len(archive_urls) > 50000:
+                    # Hard limit for a single phase to prevent OOM
+                    archive_urls = filter_similar(archive_urls, max_results=50000)
+
             urls.update(archive_urls)
             for label, meta in aggregate_meta.items():
                 stage_meta[label] = {

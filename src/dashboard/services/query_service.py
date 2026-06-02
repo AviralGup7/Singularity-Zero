@@ -41,6 +41,25 @@ class DashboardQueryService:
         self.lock = lock
         self.jobs = jobs
         self.persist_callback = persist_callback
+        
+        # Performance #4: Summary cache to prevent Disk I/O storms
+        self._summary_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._summary_cache_ttl = 10.0  # 10 seconds
+
+    def _read_summary_cached(self, summary_path: Path) -> dict[str, Any]:
+        cache_key = str(summary_path)
+        now = time.time()
+        
+        cached = self._summary_cache.get(cache_key)
+        if cached and (now - cached[0]) < self._summary_cache_ttl:
+            return cached[1]
+            
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self._summary_cache[cache_key] = (now, summary)
+            return summary
+        except (json.JSONDecodeError, OSError):
+            return {}
 
     def _is_terminal_reporting_state(self, job: dict[str, Any]) -> bool:
         return is_terminal_reporting_state(job, stage_labels=STAGE_LABELS)
@@ -289,7 +308,9 @@ class DashboardQueryService:
             latest_run_dir = run_dirs[0]
             summary_path = latest_run_dir / "run_summary.json"
             try:
-                summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                summary = self._read_summary_cached(summary_path)
+                if not summary:
+                    continue
                 coverage = summary.get("detection_coverage") or {}
 
                 run_active = coverage.get("active_modules") or []
@@ -368,7 +389,9 @@ class DashboardQueryService:
                 latest_report_href = f"/reports/{entry.name}/{last_run}/report.html"
                 summary_path = last_run_dir / "run_summary.json"
                 try:
-                    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                    summary = self._read_summary_cached(summary_path)
+                    if not summary:
+                        continue
                     total_findings = summary.get("total_findings", 0)
                     last_updated = format_iso_to_ist(
                         summary.get("generated_at_utc", last_run_dir.name)
@@ -406,7 +429,9 @@ class DashboardQueryService:
         for run_dir in run_dirs:
             summary_path = run_dir / "run_summary.json"
             try:
-                summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                summary = self._read_summary_cached(summary_path)
+                if not summary:
+                    continue
                 run_timestamp = summary.get("generated_at_utc", run_dir.name)
 
                 # Gap Analysis Fix: Metrics now resolve from both 'analysis' and 'passive_scan' keys
@@ -454,7 +479,9 @@ class DashboardQueryService:
         for run_dir in run_dirs:
             summary_path = run_dir / "run_summary.json"
             try:
-                summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                summary = self._read_summary_cached(summary_path)
+                if not summary:
+                    continue
                 history.append(
                     {
                         "run_id": run_dir.name,
