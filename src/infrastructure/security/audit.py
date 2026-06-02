@@ -302,11 +302,12 @@ class AuditLogger:
         else:
             self._last_hash = self._read_last_hash()
 
-        # Fix #300: Add SQLite backing store for queries
+        # Fix #300: Add SQLite backing store for queries (now persistent)
         if getattr(self, "_db", None) is None:
             import sqlite3
 
-            self._db = sqlite3.connect(":memory:", check_same_thread=False)
+            db_path = f"{log_path}.sqlite"
+            self._db = sqlite3.connect(db_path, check_same_thread=False)
             self._db.execute("""
                 CREATE TABLE IF NOT EXISTS audit_log (
                     id INTEGER PRIMARY KEY,
@@ -317,31 +318,37 @@ class AuditLogger:
                 )
             """)
 
-        # Fix #300: Clear stale entries before re-populating (e.g. after rotation)
-        self._db.execute("DELETE FROM audit_log")
+            # Create indexes for fast querying
+            self._db.execute("CREATE INDEX IF NOT EXISTS idx_event ON audit_log(event)")
+            self._db.execute("CREATE INDEX IF NOT EXISTS idx_user_id ON audit_log(user_id)")
 
-        # Populate DB
-        try:
-            with open(log_path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        try:
-                            data = json.loads(line)
-                            self._db.execute(
-                                "INSERT OR IGNORE INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)",
-                                (
-                                    data.get("id"),
-                                    data.get("event"),
-                                    data.get("user_id"),
-                                    data.get("severity"),
-                                    line,
-                                ),
-                            )
-                        except Exception:  # noqa: S110, S112
-                            pass
-        except Exception:  # noqa: S110, S112
-            pass
+            cursor = self._db.execute("SELECT COUNT(*) FROM audit_log")
+            count = cursor.fetchone()[0]
+
+            if count == 0 and self._current_size > 0:
+                # Populate DB only if it's empty but log exists
+                try:
+                    with open(log_path, encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line:
+                                try:
+                                    data = json.loads(line)
+                                    self._db.execute(
+                                        "INSERT OR IGNORE INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)",
+                                        (
+                                            data.get("id"),
+                                            data.get("event"),
+                                            data.get("user_id"),
+                                            data.get("severity"),
+                                            line,
+                                        ),
+                                    )
+                                except Exception:  # noqa: S110, S112
+                                    pass
+                    self._db.commit()
+                except Exception:  # noqa: S110, S112
+                    pass
 
     def _read_last_hash(self) -> str:
         """Read the hash of the last entry from the log file.

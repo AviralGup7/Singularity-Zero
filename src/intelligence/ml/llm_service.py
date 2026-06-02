@@ -77,6 +77,16 @@ class LLMService:
         """Safely release underlying HTTP resources."""
         await self.client.aclose()
 
+    def _truncate_context(self, text: str, max_chars: int = 4000) -> str:
+        """Truncate context to fit within LLM token limits safely."""
+        if not text:
+            return ""
+        if len(text) <= max_chars:
+            return text
+        # Keep start and end for better context
+        half = max_chars // 2
+        return text[:half] + "\n[... TRUNCATED ...]\n" + text[-half:]
+
     async def _query_provider(self, system_prompt: str, user_prompt: str) -> str:
         """Perform non-blocking HTTP request to configured LLM api providers."""
         if not self.config.enabled or self.config.provider == "mock":
@@ -176,7 +186,7 @@ class LLMService:
             f"Severity: {severity}\n"
             f"URL: {url}\n"
             f"Description: {desc}\n"
-            f"Captured Evidence: {evidence}"
+            f"Captured Evidence: {self._truncate_context(str(evidence), 2000)}"
         )
 
         try:
@@ -218,9 +228,9 @@ class LLMService:
             f"Finding Category: {category}\n"
             f"Vulnerability Title: {title}\n"
             f"URL: {url}\n"
-            f"Injected Payload/Evidence: {evidence}\n"
-            f"Original Request Payload: {request_payload or 'N/A'}\n"
-            f"Target Response Body snippet: {str(response_body or '')[:2000]}"
+            f"Injected Payload/Evidence: {self._truncate_context(str(evidence), 1000)}\n"
+            f"Original Request Payload: {self._truncate_context(str(request_payload or 'N/A'), 1000)}\n"
+            f"Target Response Body snippet: {self._truncate_context(str(response_body or ''), 2000)}"
         )
 
         try:
@@ -265,9 +275,9 @@ class LLMService:
         user_prompt = (
             f"Finding: {title} ({category})\n"
             f"Target URL: {url}\n"
-            f"Scan Evidence: {evidence}\n"
-            f"Request Payload: {request_payload or 'N/A'}\n"
-            f"Target Response Body: {str(response_body or '')[:4000]}"
+            f"Scan Evidence: {self._truncate_context(str(evidence), 1000)}\n"
+            f"Request Payload: {self._truncate_context(str(request_payload or 'N/A'), 1000)}\n"
+            f"Target Response Body: {self._truncate_context(str(response_body or ''), 4000)}"
         )
 
         try:
@@ -321,8 +331,15 @@ class LLMService:
 
     @staticmethod
     def _clean_json(text: str) -> str:
-        """Clean markdown wrapping syntax around JSON strings."""
+        """Clean markdown wrapping and conversational filler from JSON strings."""
         text = text.strip()
+        # Find the first { and last } to extract the JSON block
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1:
+            text = text[start : end + 1]
+
+        # Fallback to previous logic if no braces found
         if text.startswith("```json"):
             text = text[7:]
         if text.startswith("```"):

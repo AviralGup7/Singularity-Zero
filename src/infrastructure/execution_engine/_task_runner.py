@@ -11,6 +11,7 @@ import inspect
 import logging
 import random
 import time
+from collections.abc import Callable
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any
 
@@ -27,6 +28,15 @@ from src.infrastructure.execution_engine.resource_pool import (
 )
 
 logger = logging.getLogger(__name__)
+
+_RETRY_RNG = random.SystemRandom()
+
+
+def _cpu_bound_wrapper(
+    fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    """Top-level wrapper for CPU-bound tasks to ensure picklability."""
+    return fn(*args, **kwargs)
 
 
 class _TaskRunner:
@@ -68,7 +78,7 @@ class _TaskRunner:
             if attempt < max_attempts:
                 delay = base_delay * (2 ** (attempt - 1))
                 jitter = delay * 0.1
-                delay_with_jitter = delay + random.uniform(-jitter, jitter)  # noqa: S311
+                delay_with_jitter = delay + _RETRY_RNG.uniform(-jitter, jitter)
                 logger.info(
                     "Task '%s' (attempt %d/%d) failed: %s. Retrying in %.1fs...",
                     self._task.name,
@@ -195,7 +205,7 @@ class _TaskRunner:
 
         loop = asyncio.get_running_loop()
         try:
-            future = loop.run_in_executor(self._cpu_executor, lambda: fn(*args, **kwargs))
+            future = loop.run_in_executor(self._cpu_executor, _cpu_bound_wrapper, fn, args, kwargs)
             result = await asyncio.wait_for(future, timeout=timeout)
         except (BrokenProcessPool, TypeError) as exc:
             return TaskResult(

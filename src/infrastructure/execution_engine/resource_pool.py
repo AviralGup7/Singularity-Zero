@@ -96,8 +96,7 @@ class ResourcePool:
     async def resize(self, new_max: int) -> None:
         """Dynamically change the pool size.
 
-        Increasing adds permits; decreasing removes permits (waits for
-        in-use permits to be released before enforcing the new limit).
+        Increasing adds permits; decreasing removes permits by acquiring them.
 
         Args:
             new_max: New maximum concurrent count (must be >= 1).
@@ -110,6 +109,20 @@ class ResourcePool:
                 added = new_max - self._max_concurrent
                 for _ in range(added):
                     self._semaphore.release()
+            elif new_max < self._max_concurrent:
+                removed = self._max_concurrent - new_max
+                # We can't easily "reduce" a semaphore's internal counter,
+                # so we must acquire the difference to block those permits.
+                # This might take time if the permits are currently in use.
+                for _ in range(removed):
+                    # Use a short timeout to avoid blocking resize forever,
+                    # but we must eventually acquire them.
+                    try:
+                        await asyncio.wait_for(self._semaphore.acquire(), timeout=0.1)
+                    except TimeoutError:
+                        # If we can't acquire it now, start a background task to eventually drain it
+                        asyncio.create_task(self._semaphore.acquire())
+
             self._max_concurrent = new_max
             self._health.max_concurrent = new_max
             logger.info("Resource pool '%s' resized to %d", self.name, new_max)

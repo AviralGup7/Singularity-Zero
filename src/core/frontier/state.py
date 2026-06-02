@@ -315,7 +315,21 @@ class LWWset[T]:
             return item
         except TypeError:
             if isinstance(item, dict):
-                return item.get("id") or json.dumps(item, sort_keys=True, default=str)
+                fid = item.get("id")
+                if not fid:
+                    stable_parts = [
+                        str(item.get("type", "")),
+                        str(item.get("title", "")),
+                        str(item.get("url", item.get("endpoint", ""))),
+                        str(item.get("parameter", "")),
+                        str(item.get("method", "")),
+                    ]
+                    fid = hashlib.sha256("|".join(stable_parts).encode("utf-8")).hexdigest()
+                    try:
+                        item["id"] = fid
+                    except Exception:
+                        pass
+                return fid
             return repr(item)
 
 
@@ -332,13 +346,32 @@ class NeuralState:
         self.created_at: float = time.time()
         self.hlc = HybridLogicalClock(node_id="local")
 
+    def _trim_applied_wal_ids(self) -> None:
+        if len(self.applied_wal_ids) > 1000:
+            try:
+                sorted_ids = sorted(
+                    self.applied_wal_ids,
+                    key=lambda x: [int(p) for p in x.split("-") if p.isdigit()] or [0],
+                )
+            except Exception:
+                sorted_ids = sorted(self.applied_wal_ids)
+
+            to_keep = sorted_ids[-500:]
+            try:
+                self.min_wal_timestamp = int(to_keep[0].split("-")[0])
+            except Exception:
+                pass
+            self.applied_wal_ids = set(to_keep)
+
     def compact(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
+        self._trim_applied_wal_ids()
         purged = {
             "subdomains": self.subdomains.compact(max_tombstone_age_seconds),
             "urls": self.urls.compact(max_tombstone_age_seconds),
             "findings": self.findings.compact(max_tombstone_age_seconds),
         }
         total = sum(purged.values())
+
         if total > 0:
             from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -350,8 +383,17 @@ class NeuralState:
     def apply_delta(self, delta: dict[str, Any]) -> None:
         """Merge state_delta using HLC causal tie-breaking logic."""
         wal_id = delta.get("_wal_id") or delta.get("wal_id")
-        if isinstance(wal_id, str) and wal_id in self.applied_wal_ids:
-            return
+        if isinstance(wal_id, str):
+            try:
+                wal_timestamp = int(wal_id.split("-")[0])
+                if hasattr(self, "min_wal_timestamp") and wal_timestamp < getattr(
+                    self, "min_wal_timestamp", 0
+                ):
+                    return
+            except Exception:
+                pass
+            if wal_id in self.applied_wal_ids:
+                return
 
         ts = delta.get("_ts", time.time())
         node_id = str(delta.get("_node_id") or delta.get("node_id") or "local")
@@ -419,6 +461,7 @@ class NeuralState:
         if isinstance(wal_id, str):
             self.applied_wal_ids.add(wal_id)
             self.last_wal_id = wal_id
+            self._trim_applied_wal_ids()
 
     def get_snapshot(self) -> dict[str, Any]:
         return {

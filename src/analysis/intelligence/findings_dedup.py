@@ -221,25 +221,39 @@ def dedup_evidence_similarity(
     if len(findings) < 2:
         return findings
 
+    # Optimization: Findings with different categories can never reach 0.85 similarity
+    # because cat_match contributes 0.25, leaving only 0.75 max for the rest.
+    from collections import defaultdict
+
+    by_category: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for f in findings:
+        cat = str(f.get("category", "")).strip().lower()
+        by_category[cat].append(f)
+
     kept: list[dict[str, Any]] = []
-    for item in findings:
-        is_duplicate = False
-        for idx, existing in enumerate(kept):
-            if evidence_similarity(item, existing) >= similarity_threshold:
-                prefer_item = item.get("score", 0) > existing.get("score", 0)
-                preferred = copy.deepcopy(item if prefer_item else existing)
-                other = existing if prefer_item else item
-                _merge_finding_context(preferred, other)
-                preferred["score"] = max(preferred.get("score", 0), other.get("score", 0))
-                preferred["confidence"] = round(
-                    max(float(preferred.get("confidence", 0)), float(other.get("confidence", 0))),
-                    2,
-                )
-                kept[idx] = preferred
-                is_duplicate = True
-                break
-        if not is_duplicate:
-            kept.append(item)
+    for cat_findings in by_category.values():
+        cat_kept: list[dict[str, Any]] = []
+        for item in cat_findings:
+            is_duplicate = False
+            for idx, existing in enumerate(cat_kept):
+                if evidence_similarity(item, existing) >= similarity_threshold:
+                    prefer_item = item.get("score", 0) > existing.get("score", 0)
+                    preferred = copy.deepcopy(item if prefer_item else existing)
+                    other = existing if prefer_item else item
+                    _merge_finding_context(preferred, other)
+                    preferred["score"] = max(preferred.get("score", 0), other.get("score", 0))
+                    preferred["confidence"] = round(
+                        max(
+                            float(preferred.get("confidence", 0)), float(other.get("confidence", 0))
+                        ),
+                        2,
+                    )
+                    cat_kept[idx] = preferred
+                    is_duplicate = True
+                    break
+            if not is_duplicate:
+                cat_kept.append(item)
+        kept.extend(cat_kept)
     return kept
 
 

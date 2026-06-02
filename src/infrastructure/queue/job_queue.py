@@ -467,13 +467,8 @@ class JobQueue:
         """Cancel a pending or running job.
 
         Transitions the job to CANCELLED state and removes it from
-        the active queue.
-
-        Args:
-            job_id: ID of the job to cancel.
-
-        Returns:
-            True if the job was successfully cancelled.
+        the active queue. If the job is running, the worker will
+        be notified via the cancellation registry.
         """
         job = await self.get_job(job_id)
         if job is None:
@@ -484,7 +479,13 @@ class JobQueue:
 
         job.mark_cancelled()
 
+        # Add to global cancellation registry so running workers can see it
+        # EXPIRE after 1 hour to prevent registry bloat
+        cancel_key = self._key(f"cancelled:{job_id}")
+        self.redis.execute_command("SETEX", cancel_key, 3600, "1")
+
         job_data = job.to_redis_hash()
+        # ... remainder of previous logic
         pipe = self.redis.client
         is_fallback = getattr(
             self.redis, "is_fallback", getattr(self.redis, "_use_fallback", False)
@@ -501,6 +502,11 @@ class JobQueue:
 
         self.redis.execute_command("HSET", self._job_key(job_id), mapping=job_data)
         return True
+
+    async def is_job_cancelled(self, job_id: str) -> bool:
+        """Check if a job has been cancelled."""
+        cancel_key = self._key(f"cancelled:{job_id}")
+        return bool(self.redis.execute_command("EXISTS", cancel_key))
 
     async def get_metrics(self) -> dict[str, Any]:
         """Retrieve queue metrics.

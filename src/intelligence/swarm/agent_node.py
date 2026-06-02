@@ -111,12 +111,28 @@ class AgentNode:
                 return
 
             # Convert verified state dictionary back to CRDT deltas
-            for url in payload["state"]["urls"]:
-                self.state.apply_delta({"node_id": sender_id, "urls": [url], "_ts": time.time()})
-            for finding in payload["state"]["findings"]:
-                self.state.apply_delta(
-                    {"node_id": sender_id, "findings": [finding], "_ts": time.time()}
-                )
+            # Check what's new to avoid HLC inflation
+            my_urls = self.get_known_urls()
+            my_findings = {
+                str(f.get("id", f.get("title", ""))): f
+                for f in self.get_known_findings()
+                if isinstance(f, dict)
+            }
+
+            new_urls = [u for u in payload["state"]["urls"] if u not in my_urls]
+            new_findings = []
+            for f in payload["state"]["findings"]:
+                fid = str(f.get("id", f.get("title", "")))
+                if fid not in my_findings:
+                    new_findings.append(f)
+
+            if new_urls or new_findings:
+                delta = {"node_id": sender_id, "_ts": time.time()}
+                if new_urls:
+                    delta["urls"] = new_urls
+                if new_findings:
+                    delta["findings"] = new_findings
+                self.state.apply_delta(delta)
 
         except Exception as e:
             logger.error("Failed to process P2P gossip message: %s", e)

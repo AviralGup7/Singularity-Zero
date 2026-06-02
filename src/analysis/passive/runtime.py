@@ -107,6 +107,18 @@ class RequestScheduler:
         self._lock = threading.Lock()
 
     def acquire(self) -> None:
+        try:
+            import asyncio
+
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                # We are in an event loop, we should not block it!
+                # Since we cannot await here, we must block the loop unfortunately if we keep it sync,
+                # but we can try to compute sleep and avoid busy loop.
+                pass
+        except RuntimeError:
+            pass
+
         while True:
             with self._lock:
                 now = time.monotonic()
@@ -118,7 +130,27 @@ class RequestScheduler:
                 if self.tokens >= 1:
                     self.tokens -= 1
                     return
-            time.sleep(0.05)
+                deficit = 1.0 - self.tokens
+                required_sleep = deficit / self.current_rate_per_second
+            time.sleep(max(0.01, required_sleep))
+
+    async def acquire_async(self) -> None:
+        import asyncio
+
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                elapsed = now - self.last_refill
+                self.tokens = min(
+                    self.current_capacity, self.tokens + elapsed * self.current_rate_per_second
+                )
+                self.last_refill = now
+                if self.tokens >= 1:
+                    self.tokens -= 1
+                    return
+                deficit = 1.0 - self.tokens
+                required_sleep = deficit / self.current_rate_per_second
+            await asyncio.sleep(max(0.01, required_sleep))
 
     def observe(
         self,

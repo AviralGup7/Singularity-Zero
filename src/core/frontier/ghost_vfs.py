@@ -6,6 +6,7 @@ RAM-only Volatile Virtual File System for anti-forensic scan artifacts.
 from __future__ import annotations
 
 import os
+import pathlib
 import posixpath
 import tempfile
 import threading
@@ -94,6 +95,9 @@ class eBPFHookManager:  # noqa: N801 - keep compatibility with existing public n
     @staticmethod
     def unpin_memory(address_space: Any) -> None:
         pass
+
+
+# NOTE: FIX-6 sed-style replacements applied via regex below due to multi-occurrence
 
 
 class _DecryptingChunkIterator:
@@ -196,6 +200,14 @@ class GhostVFS:
         self._file_metadata: dict[str, dict[str, Any]] = {}
         self._memory_pinned = False
         self._destroyed = False
+
+        self._max_memory_bytes = 128 * 1024 * 1024  # 128MB RAM limit
+        self._current_memory_usage = 0
+        import tempfile
+
+        self._spill_dir_obj = tempfile.TemporaryDirectory(prefix="ghost_vfs_")
+        self._spill_dir = self._spill_dir_obj.name
+        self._spilled_files: set[str] = set()
 
         # Hardware Enclave & eBPF integration
         self._hw_enclave_active = enable_sgx and HardwareEnclaveProvider.is_available()
@@ -497,9 +509,8 @@ class GhostVFS:
         for path in self.list_files():
             try:
                 path = self._validate_path(path)
-                # 1. Prevent Path Traversal by checking commonpath
-                full_path = os.path.abspath(os.path.join(base_abs, path))
-                if os.path.commonpath([base_abs, full_path]) != base_abs:
+                full_path = pathlib.Path(base_abs).joinpath(path).resolve()
+                if os.path.commonpath([base_abs, str(full_path)]) != base_abs:
                     logger.error("Ghost-VFS: Path traversal blocked for path: %s", path)
                     continue
 
@@ -531,8 +542,10 @@ class GhostVFS:
                         )
                         try:
                             os.close(fd)
-                        except OSError:
-                            pass
+                        except OSError as exc:
+                            logger.warning(
+                                "Ghost-VFS: failed to close fd after VFS flush error: %s", exc
+                            )
                         if os.path.exists(temp_file_path):
                             try:
                                 os.remove(temp_file_path)
@@ -651,8 +664,10 @@ class GhostVFS:
                 logger.error("Ghost-VFS: Sealed bundle write fallback failed: %s", e)
                 try:
                     os.close(fd)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning(
+                        "Ghost-VFS: failed to close fd after sealed bundle write error: %s", exc
+                    )
                 if os.path.exists(temp_file_path):
                     try:
                         os.remove(temp_file_path)

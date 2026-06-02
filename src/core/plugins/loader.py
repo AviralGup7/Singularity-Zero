@@ -45,20 +45,25 @@ class DynamicPluginCatalog:
         with self._lock:
             seen: set[Path] = set()
             changed = False
-            for plugin_file in self._iter_plugin_files():
+
+            # Phase 1: Identify removed or changed files
+            current_files = set(self._iter_plugin_files())
+            removed_files = set(self._file_signatures.keys()) - current_files
+
+            for path in removed_files:
+                changed = True
+                self._file_signatures.pop(path, None)
+                self._remove_path(path)
+
+            for plugin_file in current_files:
                 seen.add(plugin_file)
                 signature = self._signature(plugin_file)
                 if self._file_signatures.get(plugin_file) == signature:
                     continue
+
                 changed = True
                 self._file_signatures[plugin_file] = signature
                 self._load_one(plugin_file)
-
-            removed = set(self._file_signatures) - seen
-            for path in removed:
-                changed = True
-                self._file_signatures.pop(path, None)
-                self._remove_path(path)
 
             if changed:
                 _invalidate_analysis_cache()
@@ -117,6 +122,7 @@ class DynamicPluginCatalog:
         return tuple(sorted(set(files)))
 
     def _load_one(self, path: Path) -> None:
+        # Note: Caller MUST hold self._lock
         self._remove_path(path)
         try:
             manifest = load_manifest_from_source(path)
@@ -129,6 +135,7 @@ class DynamicPluginCatalog:
             self._records[manifest.id] = record
             self._register(record)
         except (OSError, SyntaxError, PluginValidationError, ValueError) as exc:
+            logger.error("Failed to load dynamic plugin from %s: %s", path, exc)
             key = str(path)
             self._invalid[key] = PluginManifest(
                 id=f"invalid.{path.stem.replace('_', '-')}",
@@ -142,10 +149,11 @@ class DynamicPluginCatalog:
             )
 
     def _remove_path(self, path: Path) -> None:
+        # Note: Caller MUST hold self._lock
         self._invalid.pop(str(path), None)
-        for plugin_id, record in tuple(self._records.items()):
-            if record.path != path:
-                continue
+        plugin_ids_to_remove = [pid for pid, rec in self._records.items() if rec.path == path]
+        for plugin_id in plugin_ids_to_remove:
+            record = self._records[plugin_id]
             registrations = self._registered.pop(plugin_id, ())
             for registration in registrations:
                 unregister_plugin(*registration)
