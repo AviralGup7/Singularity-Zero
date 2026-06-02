@@ -12,7 +12,7 @@ import { Target as TargetIcon, ChevronDown, RefreshCw, AlertTriangle, X, Upload 
 import { PageHeader, GlassCard, AnimatedCounter, GlowProgress } from '../components/ui';
 
 const PAGE_SIZE = 10;
-   
+
 const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
@@ -73,21 +73,21 @@ function targetIsActive(t: Target): boolean {
 
 export function TargetsPage() {
   const { data, loading, error, refetch } = useApi<TargetsResponse>('/api/targets');
-   
+
   const [filter, setFilter] = useState('');
-   
+
   const [debouncedFilter, setDebouncedFilter] = useState('');
-   
+
   const [currentPage, setCurrentPage] = useState(1);
-   
+
   const [filters, setFilters] = useState<TargetFilters>(emptyFilters());
-   
+
   const [showFilters, setShowFilters] = useState(false);
-   
+
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
-   
+
   const [scanProgress, setScanProgress] = useState<Map<string, ScanProgress>>(new Map());
-   
+
   const [isScanning, setIsScanning] = useState(false);
   const toast = useToast();
 
@@ -100,7 +100,7 @@ export function TargetsPage() {
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedFilter(filter), 300);
     return () => clearTimeout(timer);
-   
+
   }, [filter]);
 
   const filtered = useMemo(() => {
@@ -131,13 +131,13 @@ export function TargetsPage() {
 
       return true;
     });
-   
+
   }, [data?.targets, debouncedFilter, filters]);
 
   const paginatedTargets = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
-   
+
   }, [filtered, currentPage]);
 
   const toggleSeverity = useCallback((sev: string) => {
@@ -175,16 +175,13 @@ export function TargetsPage() {
       }
       return next;
     });
-   
+
   }, [paginatedTargets]);
 
   const clearSelection = useCallback(() => {
     setSelectedTargets(new Set());
   }, []);
 
-  // FIX-1: Replace N+1 sequential `await` loop with parallel `Promise.allSettled`
-  // so bulk rescans fire concurrently. For >20 targets consider adding a
-  // concurrency pool (e.g. `p-limit`) to avoid overwhelming the backend.
   const handleBulkRescan = useCallback(async () => {
     if (selectedTargets.size === 0) return;
     setIsScanning(true);
@@ -203,14 +200,14 @@ export function TargetsPage() {
     });
     setScanProgress(new Map(progress));
 
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       targetList.map(name =>
         (async () => {
           try {
             const job = await startJob({
               base_url: `https://${name}`,
               mode: 'quick',
-       
+
               modules: ['subdomain_enum', 'url_discovery', 'port_scan', 'httpx', 'nuclei'],
             });
             const p = progress.get(name);
@@ -231,6 +228,16 @@ export function TargetsPage() {
       )
     );
 
+    results.forEach((res, index) => {
+      const name = targetList[index];
+      if (res.status === 'rejected') {
+        const p = progress.get(name);
+        if (p) {
+          progress.set(name, { ...p, status: 'failed', progress: 0 });
+        }
+      }
+    });
+
     targetList.forEach(name => {
       const p = progress.get(name);
       if (p && p.status === 'running') {
@@ -241,7 +248,7 @@ export function TargetsPage() {
     setIsScanning(false);
     setSelectedTargets(new Set());
     refetch();
-   
+
   }, [selectedTargets, toast, refetch]);
 
   const allOnPageSelected = paginatedTargets.length > 0 && paginatedTargets.every(t => selectedTargets.has(t.name || ''));
@@ -672,9 +679,9 @@ export function TargetsPage() {
                     <td>
                       <div className="severity-inline">
                         {Object.entries(target.severity_counts || {})
-             
+              
                           .filter(([, count]) => count > 0)
-     
+      
                           .map(([sev, count]) => (
                             <span key={sev} className={`severity-dot severity-${sev}`} aria-label={`${sev}: ${count}`}>
                               {sev[0].toUpperCase()}: {count}

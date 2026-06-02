@@ -116,10 +116,27 @@ async def readiness_check(
     summary="Liveness check",
 )
 async def liveness_check() -> HealthResponse:
-    """Liveness check. Returns OK if the process is alive."""
+    """Liveness check. Returns OK if the process is alive and event loop is responsive."""
     from datetime import datetime
 
+    uptime = time.monotonic() - _START_TIME
+    checks: dict[str, Any] = {
+        "uptime_seconds": round(uptime, 2),
+        "process_alive": True,
+    }
+    try:
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        checks["event_loop_running"] = loop.is_running()
+    except RuntimeError:
+        checks["event_loop_running"] = False
+
+    status = "ok" if checks["event_loop_running"] and uptime > 0 else "error"
+
     return HealthResponse(
-        status="ok",
+        status=status,
         timestamp=datetime.now(UTC).isoformat(),
+        uptime_seconds=round(uptime, 2),
+        checks=checks,
     )

@@ -46,7 +46,6 @@ def _ensure_repo_root() -> None:
     root = Path(__file__).resolve().parents[1]
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    os.chdir(root)
 
 
 def _print_banner() -> None:
@@ -217,7 +216,7 @@ def handle_launch(args: argparse.Namespace) -> None:
     console.print("[accent]└────────────────────────────────────────────────────────┘[/accent]")
 
     # 1. Verification of compiled static assets
-    static_dir = Path("frontend/dist")
+    static_dir = Path(__file__).resolve().parent / "frontend" / "dist"
     if not (static_dir / "index.html").exists():
         console.print(
             "[warning]WARNING: Compiled static frontend assets not detected at frontend/dist.[/warning]"
@@ -352,7 +351,7 @@ def handle_status() -> None:
 
 def handle_doctor() -> int:
     """Run environment and configuration health checks."""
-    root = Path.cwd()
+    root = Path(__file__).resolve().parent
     checks: list[tuple[str, str, str]] = []  # (label, status_markup, detail)
     exit_code: int = 0
 
@@ -527,7 +526,7 @@ def handle_plugin_new(args: argparse.Namespace) -> int:
     )
 
     # Generate templates
-    src_dir = Path("src")
+    src_dir = Path(__file__).resolve().parent / "src"
     if category == "recon":
         target_path = src_dir / "recon" / "sources" / f"{name}.py"
         target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -605,7 +604,7 @@ class {name.capitalize()}Reporter:
     target_path.write_text(code, encoding="utf-8")
 
     # Write name to configs/plugins/registry.json if exists
-    registry_path = Path("configs") / "plugins" / "registry.json"
+    registry_path = root / "configs" / "plugins" / "registry.json"
     registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_data = []
     if registry_path.exists():

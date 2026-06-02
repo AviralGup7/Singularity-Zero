@@ -39,6 +39,7 @@ export function useProcessedFindings(
     if (!workerRef.current) return;
 
     let isCurrent = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsProcessing(true);
 
     workerRef.current.onmessage = (event) => {

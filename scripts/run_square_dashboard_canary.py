@@ -16,10 +16,6 @@ from src.dashboard.forensics.launcher import (
 )
 from src.dashboard.services import DashboardServices
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
 
 def _default_output_root(workspace_root: Path) -> Path:
     return workspace_root / "src" / "dashboard" / "output"
@@ -29,14 +25,14 @@ def _default_config_template(output_root: Path) -> Path:
     reference_config = output_root / "_launcher" / SQUARE_REFERENCE_JOB_ID / "config.json"
     if reference_config.exists():
         return reference_config
-    return Path("configs") / "config.example.json"
+    return Path(__file__).resolve().parents[1] / "configs" / "config.example.json"
 
 
 def _default_scope_file(output_root: Path) -> Path:
     reference_scope = output_root / "_launcher" / SQUARE_REFERENCE_JOB_ID / "scope.txt"
     if reference_scope.exists():
         return reference_scope
-    return Path("src") / "dashboard" / "config" / "squareup-scope.txt"
+    return Path(__file__).resolve().parents[1] / "src" / "dashboard" / "config" / "squareup-scope.txt"
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

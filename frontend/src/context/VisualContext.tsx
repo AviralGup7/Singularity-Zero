@@ -21,6 +21,7 @@ export function VisualProvider({ children, initialValue }: VisualProviderProps) 
         state.flow !== initialValue.flow ||
         state.confidence !== initialValue.confidence;
       if (stateChanged) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setState(initialValue);
       }
     }

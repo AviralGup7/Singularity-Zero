@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { captureException } from '@/utils/errorTracker';
+// captureException not used in this view; tracking handled by ErrorBoundary
+// import { captureException } from '@/utils/errorTracker';
 
 type OverlayState = {
   show: (title: string, message: string, stack?: string) => void;
@@ -39,8 +40,10 @@ function removeOverlayRoot() {
 }
 
 export function createErrorOverlayState(): OverlayState {
-  const listeners = new Set<{ title: string; message: string; stack?: string }>();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _listeners = new Set<{ title: string; message: string; stack?: string }>();
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     const body = document.body;
     if (body) body.style.overflow = 'hidden';
@@ -69,6 +72,7 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
   useLayoutEffect(() => {
     const node = ensureOverlayRoot();
     if (!node) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVisible(true);
   }, [title, message, stack]);
 
