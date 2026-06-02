@@ -131,18 +131,29 @@ class StageResult:
     def apply_state_delta(self, delta: dict[str, Any]) -> None:
         """Atomically merge an incremental delta using Neural-Mesh logic."""
         # 1. Update CRDT sets
-        self._neural_state.apply_delta(delta)
+        # Overhaul #6: If the delta contains a full neural state snapshot, merge it first
+        # to ensure tombstones and causal metadata (HLC/WAL) are preserved.
+        if "_neural_state" in delta:
+            remote_state = NeuralState.from_crdt_snapshot(delta["_neural_state"])
+            self._neural_state.merge(remote_state)
 
-        # Sync reportable_findings from CRDT findings to guarantee no loss of state across stages
-        self.reportable_findings = list(self._neural_state.findings.values())
+        self._neural_state.apply_delta(delta)
 
         # 2. Update auxiliary fields (Legacy/Non-resilient)
         for key, value in delta.items():
             if key == "findings":
                 key = "reportable_findings"
 
-            # Skip findings-related updates since they are already fully synced via CRDT above
-            if key in ("reportable_findings", "active_scan_findings"):
+            # Skip fields managed by CRDT directly to prevent duplicate writes
+            if key in (
+                "subdomains",
+                "urls",
+                "discovered_urls",
+                "findings",
+                "active_scan_findings",
+                "reportable_findings",
+                "vulnerabilities",
+            ):
                 continue
 
             if hasattr(self, key):
@@ -157,6 +168,11 @@ class StageResult:
                     setattr(self, key, list(value))
                 else:
                     setattr(self, key, value)
+
+        # Sync plain fields from CRDT sets to guarantee consistency and single source of truth
+        self.subdomains = self._neural_state.subdomains.to_set()
+        self.urls = self._neural_state.urls.to_set()
+        self.reportable_findings = list(self._neural_state.findings.values())
 
     def compact_state(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
         """Trigger CRDT tombstone compaction to save memory, respecting budget."""
@@ -256,7 +272,10 @@ class StageResult:
     def _restore_neural_state(value: Any, data: dict[str, Any]) -> NeuralState:
         state = NeuralState()
         snapshot = value if isinstance(value, dict) else data
-        if isinstance(snapshot, dict) and snapshot.get("format") == "neural-state-crdt-v2":
+        if isinstance(snapshot, dict) and snapshot.get("format") in (
+            "neural-state-crdt-v2",
+            "neural-state-crdt-v3",
+        ):
             return NeuralState.from_crdt_snapshot(snapshot)
         state.apply_delta(
             {

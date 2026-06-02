@@ -199,10 +199,36 @@ class NeuralBloomMesh:
         """Serialize and publish the local filter snapshot."""
         async with self._sync_lock:
             now = time.time()
+
+            # Optimization: Only publish if element count has changed significantly
+            # or if it's a forced/self-healing reason.
+            stats = self.filter.get_stats()
+            current_count = int(stats["element_count"])
+            last_count = getattr(self, "_last_published_count", 0)
+
+            if reason == "gossip" and current_count > 0:
+                # If less than 5% change and not too old, skip
+                if (current_count - last_count) < (self.filter.capacity * 0.05) and (
+                    now - self._last_sync_time
+                ) < (self.sync_interval_seconds * 4):
+                    return False
+
             self.clock = self.clock.increment(self.node_id)
             self.snapshot_index.add(self.node_id, timestamp=now, vclock=self.clock)
             self._last_sync_time = now
+            self._last_published_count = current_count
             self._record_saturation()
+
+            # Prune stale nodes from remote_health to prevent memory leak
+            stale_threshold = now - (self.sync_interval_seconds * 10)
+            to_prune = [
+                nid
+                for nid, health in self.remote_health.items()
+                if health.last_sync_time < stale_threshold
+            ]
+            for nid in to_prune:
+                self.remote_health.pop(nid, None)
+                self.remote_clocks.pop(nid, None)
 
             if self._redis is None:
                 return False
@@ -266,11 +292,21 @@ class NeuralBloomMesh:
                 remote_count = int(data.get("element_count", 0))
                 previous_remote = self.remote_health.get(node_id)
                 previous_count = previous_remote.element_count if previous_remote else 0
-                self.filter.merge_bits(
-                    remote_bits,
-                    element_count=remote_count,
-                    added_count=max(0, remote_count - previous_count),
-                )
+
+                # Fix: Offload bitwise OR merge to thread if bits are large (>100KB)
+                if len(remote_bits) > 100000:
+                    await asyncio.to_thread(
+                        self.filter.merge_bits,
+                        remote_bits,
+                        element_count=remote_count,
+                        added_count=max(0, remote_count - previous_count),
+                    )
+                else:
+                    self.filter.merge_bits(
+                        remote_bits,
+                        element_count=remote_count,
+                        added_count=max(0, remote_count - previous_count),
+                    )
                 self.remote_clocks[node_id] = remote_clock
                 self.clock = self.clock.merge(remote_clock)
                 self.snapshot_index.add(
@@ -418,10 +454,7 @@ class NeuralBloomMesh:
             finally:
                 if pubsub is not None:
                     try:
-                        await asyncio.wait_for(
-                            pubsub.unsubscribe(self.channel),
-                            timeout=REDIS_TIMEOUT_SECONDS,
-                        )
+                        # Fix: Always aclose pubsub to prevent connection leaks
                         await pubsub.aclose()
                     except Exception as exc:
                         logger.debug("Bloom mesh pubsub close failed: %s", exc)

@@ -224,6 +224,22 @@ class Worker:
         Args:
             job: Job instance to process.
         """
+
+        # Periodic check for cancellation
+        async def check_cancelled() -> None:
+            while self._running:
+                if await self.queue.is_job_cancelled(job.id):
+                    logger.warning("Job %s was cancelled by user, terminating task", job.id)
+                    # We can't easily kill a thread if handler is sync,
+                    # but we can at least stop tracking it as successful.
+                    nonlocal task_cancelled
+                    task_cancelled = True
+                    return
+                await asyncio.sleep(2.0)
+
+        task_cancelled = False
+        cancel_checker = asyncio.create_task(check_cancelled())
+
         job.mark_running()
         self._info.status = "busy"
         self._info.active_jobs.append(job.id)
@@ -287,9 +303,21 @@ class Worker:
                 },
             ) as span:
                 if asyncio.iscoroutinefunction(handler):
-                    result = await handler(handler_input)
+                    result_task = asyncio.create_task(handler(handler_input))
                 else:
-                    result = await asyncio.to_thread(handler, handler_input)
+                    result_task = asyncio.to_thread(handler, handler_input)
+
+                # Race between handler completion and user cancellation
+                while not result_task.done() and not task_cancelled:
+                    await asyncio.sleep(0.5)
+
+                if task_cancelled:
+                    if not result_task.done():
+                        result_task.cancel()
+                    logger.info("Worker aborted job %s due to cancellation", job.id)
+                    return
+
+                result = await result_task
                 span.set_attribute("status", "OK")
 
             await self.queue.complete_job(job.id, self.worker_id, result)
@@ -297,6 +325,8 @@ class Worker:
             logger.info("Job %s completed successfully (type=%s)", job.id, job.type)
 
         except Exception as exc:
+            if task_cancelled:
+                return
             error_msg = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
             logger.error("Job %s failed (type=%s): %s", job.id, job.type, exc)
 
@@ -311,6 +341,7 @@ class Worker:
             self._info.total_failed += 1
 
         finally:
+            cancel_checker.cancel()
             if job.id in self._info.active_jobs:
                 self._info.active_jobs.remove(job.id)
 

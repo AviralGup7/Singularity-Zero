@@ -431,13 +431,6 @@ class CacheManager:
                         logger.debug("L1 HIT: %s", full_key)
                     return value
 
-            if self.is_redundant_query(key, namespace):
-                elapsed = (time.monotonic() - start) * 1000
-                self._metrics.record_miss(elapsed)
-                if self._config.log_cache_ops:
-                    logger.debug("BLOOM BYPASS MISS: %s", full_key)
-                return default
-
             if self._l2 is not None:
                 value = self._l2.get(full_key)
                 if value is not None:
@@ -612,11 +605,6 @@ class CacheManager:
         """
         full_key = self._make_key(key, namespace)
         try:
-            if self.is_redundant_query(key, namespace):
-                if self._config.log_cache_ops:
-                    logger.debug("BLOOM BYPASS EXISTS FALSE: %s", full_key)
-                return False
-
             if self._l1 is not None and self._l1.exists(full_key):
                 return True
             if self._l2 is not None and self._l2.exists(full_key):

@@ -64,26 +64,24 @@ def _materialize_child_value(value: Any) -> Any:
     return value
 
 
-def replace_unpicklable_response_caches(value: Any) -> Any:
+def replace_unpicklable_response_caches(value: Any, memo: set[int] | None = None) -> Any:
     """Swap live response-cache instances for child-local factories."""
-    try:
-        pickle.dumps(value)
+    if memo is None:
+        memo = set()
+    val_id = id(value)
+    if val_id in memo:
         return value
-    except Exception as exc:
-        logger.debug(
-            "replace_unpicklable_response_caches: detected unpicklable object (type=%s, error=%s). Replacing.",
-            type(value).__name__,
-            exc,
-        )
-        if hasattr(value, "get") and hasattr(value, "prefetch"):
-            return IsolatedResponseCacheFactory()
-        if isinstance(value, tuple):
-            return tuple(replace_unpicklable_response_caches(item) for item in value)
-        if isinstance(value, list):
-            return [replace_unpicklable_response_caches(item) for item in value]
-        if isinstance(value, dict):
-            return {key: replace_unpicklable_response_caches(item) for key, item in value.items()}
-        return value
+    memo.add(val_id)
+
+    if hasattr(value, "get") and hasattr(value, "prefetch"):
+        return IsolatedResponseCacheFactory()
+    if isinstance(value, tuple):
+        return tuple(replace_unpicklable_response_caches(item, memo) for item in value)
+    if isinstance(value, list):
+        return [replace_unpicklable_response_caches(item, memo) for item in value]
+    if isinstance(value, dict):
+        return {key: replace_unpicklable_response_caches(item, memo) for key, item in value.items()}
+    return value
 
 
 # Note: The following test stub functions are required for spawn-based
@@ -137,6 +135,7 @@ def _child_entry(
 
 def _terminate_process(process: Any) -> bool:
     if not process.is_alive():
+        process.join(timeout=1.0)
         return False
     try:
         if sys.platform != "win32" and process.pid:
@@ -179,7 +178,12 @@ def run_callable_isolated(
             manifest=manifest.as_dict(),
         )
 
-    ctx = mp.get_context("spawn")
+    import sys
+
+    try:
+        ctx = mp.get_context("fork") if sys.platform != "win32" else mp.get_context("spawn")
+    except ValueError:
+        ctx = mp.get_context("spawn")
     output: mp.Queue = ctx.Queue(maxsize=1)
     process = ctx.Process(
         target=_child_entry,
@@ -187,23 +191,33 @@ def run_callable_isolated(
         daemon=True,
     )
     process.start()
-    process.join(timeout=budget.timeout_seconds)
-
-    killed = _terminate_process(process)
-    duration = round(time.monotonic() - started, 4)
-    if killed:
-        return IsolatedExecutionResult(
-            ok=False,
-            reason="timeout",
-            error=f"active check exceeded {budget.timeout_seconds}s budget",
-            duration_seconds=duration,
-            killed=True,
-            manifest=manifest.as_dict(),
-        )
 
     try:
-        payload = output.get_nowait()
+        payload = output.get(timeout=budget.timeout_seconds)
     except queue.Empty:
+        payload = None
+
+    duration = round(time.monotonic() - started, 4)
+    if payload is None:
+        killed = _terminate_process(process)
+        if killed:
+            return IsolatedExecutionResult(
+                ok=False,
+                reason="timeout",
+                error=f"active check exceeded {budget.timeout_seconds}s budget",
+                duration_seconds=duration,
+                killed=True,
+                manifest=manifest.as_dict(),
+            )
+        else:
+            try:
+                payload = output.get(timeout=1.0)
+            except queue.Empty:
+                payload = None
+    else:
+        _terminate_process(process)
+
+    if payload is None:
         exitcode = process.exitcode
         return IsolatedExecutionResult(
             ok=False,
