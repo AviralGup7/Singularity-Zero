@@ -134,7 +134,15 @@ def _cache_update(
                 size,
                 _PROBE_CACHE_MAX_SIZE,
             )
-            _probe_cache.cleanup_expired()
+            deleted = _probe_cache.cleanup_expired()
+            
+            # Performance #4: If cleanup_expired didn't help enough, do a hard prune
+            new_size = size - deleted
+            if new_size > _PROBE_CACHE_MAX_SIZE:
+                # Remove 10% of the cache to create breathing room
+                prune_count = int(_PROBE_CACHE_MAX_SIZE * 0.1)
+                _probe_cache.prune_oldest(prune_count)
+                logger.info("Hard-pruned %d oldest entries from probe cache", prune_count)
     except Exception as e:
         logger.debug("Failed to perform final probe cache cleanup: %s", e)
 

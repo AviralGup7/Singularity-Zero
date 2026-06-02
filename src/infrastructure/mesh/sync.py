@@ -158,6 +158,8 @@ class MeshSync:
 
         try:
             await self._pubsub.unsubscribe(self.channel_scoped)
+            # Performance #4: Explicitly aclose pubsub to prevent connection leaks
+            await self._pubsub.aclose()
             await self._client.close()
             logger.info("MeshSync: Disconnected from channel '%s'", self.channel_scoped)
         except Exception as e:

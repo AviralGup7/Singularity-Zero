@@ -457,6 +457,7 @@ class AuditLogger:
         self._current_size += len(line) + 1
 
         # Fix #300: Index in SQLite for high-performance queries
+        # Performance #4: Lock already held by caller (log method)
         if hasattr(self, "_db"):
             try:
                 self._db.execute(

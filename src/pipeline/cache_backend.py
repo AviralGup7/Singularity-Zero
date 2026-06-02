@@ -296,6 +296,22 @@ class PersistentCache:
 
             return int(self._with_retry(_op))
 
+    def prune_oldest(self, count: int) -> int:
+        """Remove the N oldest entries from the cache regardless of expiration."""
+        if count <= 0:
+            return 0
+        with self._lock:
+
+            def _op(conn: sqlite3.Connection) -> int:
+                cursor = conn.execute(
+                    "DELETE FROM cache_entries WHERE key IN (SELECT key FROM cache_entries ORDER BY created_at ASC LIMIT ?)",
+                    (count,),
+                )
+                conn.commit()
+                return int(cursor.rowcount)
+
+            return int(self._with_retry(_op))
+
     def size(self) -> int:
         with self._lock:
 
