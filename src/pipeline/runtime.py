@@ -192,10 +192,13 @@ def main(argv: list[str] | None = None) -> int:
         if getattr(args, "validate_config", False):
             from src.core.config import load_config
             from src.pipeline.validation import format_validation_report, validate_config
+
             config = load_config(Path(args.config).resolve())
             with open(args.scope) as f:
                 scope_entries = [line.strip() for line in f if line.strip()]
-            all_ok, report = validate_config(config.to_dict(), scope_entries, str(config.output_dir))
+            all_ok, report = validate_config(
+                config.to_dict(), scope_entries, str(config.output_dir)
+            )
             print(format_validation_report(report))
             return 0 if all_ok else 1
 

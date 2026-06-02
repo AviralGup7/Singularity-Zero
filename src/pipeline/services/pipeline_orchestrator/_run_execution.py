@@ -78,7 +78,9 @@ async def execute_remaining_stages(
                 logger.warning(
                     "Pipeline paused cleanly via suspend trigger. Exiting stage execution loop."
                 )
-                return 7  # Exits with status 7 (suspended cleanly), ready to recover from checkpoints
+                return (
+                    7  # Exits with status 7 (suspended cleanly), ready to recover from checkpoints
+                )
         except Exception as exc:
             logger.warning("Failed to check suspend trigger: %s", exc)
 
@@ -87,13 +89,15 @@ async def execute_remaining_stages(
         for stage_name in active_tier:
             method = dag.get_method(stage_name)
             if not method:
-                logger.error("Stage method resolution failed for stage '%s'. Marking failed.", stage_name)
-                error_emitter(stage_name, f"Stage method resolution failed: stage method not found.")
+                logger.error(
+                    "Stage method resolution failed for stage '%s'. Marking failed.", stage_name
+                )
+                error_emitter(stage_name, "Stage method resolution failed: stage method not found.")
                 ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
                 ctx.result.module_metrics[stage_name] = {
                     "status": "failed",
                     "error": "Stage method not found.",
-                    "fatal": stage_name in {"subdomains", "live_hosts", "urls"}
+                    "fatal": stage_name in {"subdomains", "live_hosts", "urls"},
                 }
                 if stage_name in {"subdomains", "live_hosts", "urls"}:
                     return 1

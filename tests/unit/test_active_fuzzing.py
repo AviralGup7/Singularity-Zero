@@ -92,7 +92,9 @@ async def test_active_fuzzing_campaign(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Patch AsyncClient
     monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
-    monkeypatch.setattr("src.fuzzing.orchestrator.is_safe_url_with_dns_check", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        "src.fuzzing.orchestrator.is_safe_url_with_dns_check", lambda *args, **kwargs: True
+    )
 
     findings = await orchestrator.run_fuzzing_campaign(url)
 
