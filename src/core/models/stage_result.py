@@ -76,7 +76,9 @@ class StageResult:
 
     #: Internal CRDT state container for synchronization across stage deltas.
     _neural_state: NeuralState = field(default_factory=NeuralState, repr=False)
-    _compaction_budget: CRDTCompactionBudget | None = field(default=None, init=False, compare=False, repr=False)
+    _compaction_budget: CRDTCompactionBudget | None = field(
+        default=None, init=False, compare=False, repr=False
+    )
 
     # ------------------------------------------------------------------
     # Configuration / bootstrap
