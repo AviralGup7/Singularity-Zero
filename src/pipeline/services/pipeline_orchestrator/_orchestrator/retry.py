@@ -108,17 +108,27 @@ async def run_stage_with_retry(
             else:
                 result = res_or_coro
         elapsed = time.monotonic() - started
-        if isinstance(result, StageOutput):
-            tracer.record_stage_result(span, result)
-            return result
-
         post_snapshot = isolated_ctx.result.to_dict()
         state_delta = {
             key: value
             for key, value in post_snapshot.items()
             if pre_snapshot.get(key) != value
             and key not in {"output_store", "module_metrics", "stage_status", "_neural_state"}
+            and not key.startswith("_")
         }
+
+        # Overhaul #6: Explicitly include CRDT snapshot for causal convergence
+        if "_neural_state" in post_snapshot:
+            state_delta["_neural_state"] = post_snapshot["_neural_state"]
+
+        if isinstance(result, StageOutput):
+            import dataclasses
+
+            merged_delta = {**state_delta, **(result.state_delta or {})}
+            result = dataclasses.replace(result, state_delta=merged_delta)
+            tracer.record_stage_result(span, result)
+            return result
+
         stage_metrics = isolated_ctx.result.module_metrics.get(stage_name, {})
         stage_state = str(
             isolated_ctx.result.stage_status.get(stage_name, StageStatus.COMPLETED.value)
@@ -179,7 +189,7 @@ async def run_stage_with_retry(
                     event_trigger="stage_recovered",
                 )
             return stage_output
-        except TimeoutError as exc:
+        except (TimeoutError, asyncio.TimeoutError) as exc:  # noqa: UP041
             last_exc = exc
             is_timeout = True
             classification = "transient"
@@ -256,7 +266,7 @@ async def run_stage_with_retry(
             return None
 
         # Apply backoff with jitter from RetryPolicy
-        backoff = policy.delay_for_attempt(attempt, jitter=policy.jitter_factor)
+        backoff = policy.delay_for_attempt(attempt + 1, jitter=policy.jitter_factor)
         metrics.record_retry(backoff)
         stage_error = _format_stage_error(last_exc, timed_out=is_timeout)
         logger.warning(

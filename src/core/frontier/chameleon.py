@@ -223,15 +223,14 @@ class RequestChameleon:
 
             learning = LearningIntegration.get_or_create()
             if learning and learning.config.enabled:
-                import asyncio
-
+                # Fix: Avoid run_until_complete inside event loop.
+                # Use the cache directly or a thread-safe snapshot.
                 try:
-                    loop = asyncio.get_running_loop()
-                    active_patterns = loop.run_until_complete(learning.get_active_fp_patterns())
-                except RuntimeError:
                     active_patterns = [
                         p.to_db_row() for p in learning._fp_tracker._cache.values() if p.is_active
                     ]
+                except Exception:
+                    active_patterns = []
 
                 has_waf_block = any(p.get("category") == "waf_block" for p in active_patterns)
                 has_rate_limit = any(p.get("category") == "rate_limit" for p in active_patterns)

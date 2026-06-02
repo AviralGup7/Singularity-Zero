@@ -138,6 +138,18 @@ def _add_node(nodes: list[dict[str, Any]], seen_nodes: set[str], node: dict[str,
     if node["id"] not in seen_nodes:
         nodes.append(node)
         seen_nodes.add(node["id"])
+    else:
+        for existing in nodes:
+            if existing["id"] == node["id"]:
+                if "metadata" in node and isinstance(node["metadata"], dict):
+                    existing.setdefault("metadata", {}).update(node["metadata"])
+                if (
+                    node.get("severity")
+                    and node.get("severity") != "info"
+                    and existing.get("severity") == "info"
+                ):
+                    existing["severity"] = node["severity"]
+                break
 
 
 def _build_run_artifact_graph(run_dir: Path, max_nodes: int) -> dict[str, Any]:

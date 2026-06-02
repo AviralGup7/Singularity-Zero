@@ -303,9 +303,10 @@ class PipelineOrchestrator:
         if loop and loop.is_running():
             import concurrent.futures
 
+            coro = self.run(args)
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(asyncio.run, self.run(args))
-                return future.result()
+                future = executor.submit(asyncio.run_coroutine_threadsafe, coro, loop)
+                return future.result().result()
         else:
             return asyncio.run(self.run(args))
 
@@ -420,7 +421,11 @@ class PipelineOrchestrator:
 
         # Attempt to acquire a global lock for this target to prevent multi-worker collisions
         logger.info("Acquiring distributed lock for target: %s", target_name)
-        lock_token = cache_mgr.acquire_recon_lock(target_name, ttl=3600, wait_timeout=5.0)
+        import asyncio
+
+        lock_token = await asyncio.to_thread(
+            cache_mgr.acquire_recon_lock, target_name, ttl=3600, wait_timeout=5.0
+        )
 
         if not lock_token and getattr(config, "redis_url", None):
             logger.error(

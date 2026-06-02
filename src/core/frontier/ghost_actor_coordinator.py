@@ -86,9 +86,12 @@ class GhostMeshCoordinator:
 
                 try:
                     # 1. Freeze the actor and capture a stable snapshot while it is still alive.
-                    packed_state = actor_ref.ask(
+                    import asyncio
+
+                    packed_state = await asyncio.to_thread(
+                        actor_ref.ask,
                         {"command": "dehydrate", "migration_id": migration_id},
-                        block=True,
+                        timeout=5.0,
                     )
                     unpacked = ActorState.rehydrate(packed_state)
                     if not isinstance(packed_state, bytes):
@@ -283,7 +286,11 @@ class GhostMeshCoordinator:
         if packed_state:
             try:
                 # 3. Unpack and restore state using rehydrate command
-                actor_ref.ask({"command": "rehydrate", "payload": packed_state}, block=True)
+                import asyncio
+
+                await asyncio.to_thread(
+                    actor_ref.ask, {"command": "rehydrate", "payload": packed_state}, timeout=5.0
+                )
                 logger.info(
                     "Ghost-Coordinator: Successfully re-hydrated actor [%s] with state checkpoints",
                     actor_id,

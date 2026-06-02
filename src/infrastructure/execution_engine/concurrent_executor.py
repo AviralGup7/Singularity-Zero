@@ -247,6 +247,10 @@ class ConcurrentExecutor:
             scheduler = _DAGScheduler(list(self._tasks.values()))
             warnings = scheduler.validate()
             for warning in warnings:
+                if "cycle" in warning.lower():
+                    logger.error("FATAL: %s", warning)
+                    self._cancelled = True
+                    return self._build_summary(started_at, time.monotonic())
                 logger.warning(warning)
 
             layers = scheduler.get_layers()
@@ -316,57 +320,70 @@ class ConcurrentExecutor:
         )
 
         async def _run_with_semaphore(task: Task) -> TaskResult:
-            async with cast(Any, self._semaphore):
-                if self._cancelled:
-                    return TaskResult(
-                        task_id=task.id,
-                        task_name=task.name,
-                        status=TaskStatus.CANCELLED,
-                        error="Execution cancelled",
-                    )
+            try:
+                async with cast(Any, self._semaphore):
+                    if self._cancelled:
+                        return TaskResult(
+                            task_id=task.id,
+                            task_name=task.name,
+                            status=TaskStatus.CANCELLED,
+                            error="Execution cancelled",
+                        )
 
-                if (
-                    self._config.cancel_on_first_error
-                    and cast(Any, self._first_error_event).is_set()
-                ):
-                    return TaskResult(
-                        task_id=task.id,
-                        task_name=task.name,
-                        status=TaskStatus.SKIPPED,
-                        error="Skipped due to previous error",
-                    )
+                    if (
+                        self._config.cancel_on_first_error
+                        and cast(Any, self._first_error_event).is_set()
+                    ):
+                        return TaskResult(
+                            task_id=task.id,
+                            task_name=task.name,
+                            status=TaskStatus.SKIPPED,
+                            error="Skipped due to previous error",
+                        )
 
-                runner = TaskRunner(
-                    task,
-                    config=self._config,
-                    pool_manager=self._pool_manager,
-                    load_balancer=self._load_balancer,
-                    cpu_executor=self._cpu_executor,
-                    io_executor=self._io_executor,
+                    runner = TaskRunner(
+                        task,
+                        config=self._config,
+                        pool_manager=self._pool_manager,
+                        load_balancer=self._load_balancer,
+                        cpu_executor=self._cpu_executor,
+                        io_executor=self._io_executor,
+                    )
+                    result = await runner.run()
+
+                    self._results[task.id] = result
+                    if result.status == TaskStatus.FAILED:
+                        if self._config.cancel_on_first_error:
+                            cast(Any, self._first_error_event).set()
+
+                    if self._config.enable_progress_callbacks and self._progress_callback:
+                        current = completed_before + 1
+                        pct = int((current / total_tasks) * 100)
+                        self._progress_callback(
+                            f"Task '{task.name}' {'succeeded' if result.success else 'failed'}",
+                            pct,
+                            {
+                                "task_id": task.id,
+                                "task_name": task.name,
+                                "status": result.status.value,
+                                "duration": round(result.duration_seconds, 3),
+                                "layer": layer_idx + 1,
+                            },
+                        )
+
+                    return cast(TaskResult, result)
+            except Exception as e:
+                logger.exception("Internal error in TaskRunner for task '%s': %s", task.name, e)
+                res = TaskResult(
+                    task_id=task.id,
+                    task_name=task.name,
+                    status=TaskStatus.FAILED,
+                    error=f"Internal executor error: {e}",
                 )
-                result = await runner.run()
-
-                self._results[task.id] = result
-                if result.status == TaskStatus.FAILED:
-                    if self._config.cancel_on_first_error:
-                        cast(Any, self._first_error_event).set()
-
-                if self._config.enable_progress_callbacks and self._progress_callback:
-                    current = completed_before + 1
-                    pct = int((current / total_tasks) * 100)
-                    self._progress_callback(
-                        f"Task '{task.name}' {'succeeded' if result.success else 'failed'}",
-                        pct,
-                        {
-                            "task_id": task.id,
-                            "task_name": task.name,
-                            "status": result.status.value,
-                            "duration": round(result.duration_seconds, 3),
-                            "layer": layer_idx + 1,
-                        },
-                    )
-
-                return cast(TaskResult, result)
+                self._results[task.id] = res
+                if self._config.cancel_on_first_error:
+                    cast(Any, self._first_error_event).set()
+                return res
 
         tasks = [_run_with_semaphore(task) for task in layer_tasks]
         await asyncio.gather(*tasks, return_exceptions=True)
