@@ -12,6 +12,7 @@ permissions:
 env:
   PIP_CACHE_DIR: ${{ github.workspace }}/.cache/pip
   NPM_CACHE_DIR: ${{ github.workspace }}/.cache/npm
+  PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
 
 jobs:
   lint:
