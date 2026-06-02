@@ -89,7 +89,9 @@ def _parse_cdx_json(text: str) -> list[str]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        logger.warning("wayback: JSON parse error, response text (truncated): %s", (text or "")[:500])
+        logger.warning(
+            "wayback: JSON parse error, response text (truncated): %s", (text or "")[:500]
+        )
         # fallback: lines where each line is a URL
         return [line.strip() for line in text.splitlines() if line.strip()]
 
@@ -114,7 +116,10 @@ def _parse_cdx_json(text: str) -> list[str]:
     return originals
 
 
+_cdx_safe_checked = False
+
 def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> set[str]:
+    global _cdx_safe_checked
     params = {
         "url": f"{host}/*",
         "output": "json",
@@ -127,10 +132,19 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
     attempts = 1 + DEFAULT_MAX_RETRIES
     backoff = DEFAULT_BACKOFF_SECONDS
     resp = None
+    
+    # Performance #5: Only check safety once per session to avoid thousands of redundant DNS queries
+    if not _cdx_safe_checked:
+        try:
+            _is_safe_url(CDX_ENDPOINT)
+            _cdx_safe_checked = True
+        except ValueError as e:
+            logger.error("Wayback: CDX endpoint safety check failed: %s", e)
+            return set()
+
     for attempt in range(1, attempts + 1):
         collector_metrics.increment_requests("wayback")
         try:
-            _is_safe_url(CDX_ENDPOINT)
             resp = requests.get(CDX_ENDPOINT, params=params, timeout=max(2, timeout_seconds))  # nosec B113
             break
         except requests.RequestException as exc:  # pragma: no cover - network

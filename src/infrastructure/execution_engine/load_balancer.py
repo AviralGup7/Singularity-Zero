@@ -185,7 +185,9 @@ class LoadBalancer:
 
             for worker_id, stats in self._workers.items():
                 bp = stats.compute_backpressure()
-                score = stats.active_tasks / max(bp, 0.01)
+                # Performance #5: Use (active_tasks + 1) to ensure bp affects score even when idle.
+                # This prevents routing all new tasks to a worker that is idle but has a low bp factor (e.g. just failed).
+                score = (stats.active_tasks + 1) / max(bp, 0.01)
                 if score < best_score:
                     best_score = score
                     best_worker_id = worker_id

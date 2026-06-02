@@ -1,4 +1,4 @@
-"""
+﻿"""
 Cyber Security Test Pipeline - Frontier Process Pool
 Implements high-speed, pre-warmed worker processes for heavy CLI tools.
 """
@@ -10,6 +10,7 @@ import os
 import signal
 import struct
 import sys
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -111,7 +112,7 @@ class ResourceWatchdog:
                                 mem_mb,
                                 self.max_memory_mb,
                             )
-                            # Terminate the process
+                            # Performance #5: Do not hold the pool lock while waiting or spawning
                             try:
                                 if sys.platform != "win32":
                                     os.killpg(os.getpgid(pid), signal.SIGTERM)
@@ -119,6 +120,9 @@ class ResourceWatchdog:
                                     p.process.terminate()
                             except Exception:
                                 p.process.kill()
+                            
+                            # Wait for termination outside the lock-heavy loop if possible, 
+                            # but here p is just a dataclass from our copy.
                             await p.process.wait()
 
                             # Respawn a new one in its place
@@ -139,11 +143,15 @@ class ResourceWatchdog:
                                 p.name, *base_args, **spawn_kwargs
                             )
 
-                            # Safely replace process in the pool
+                            # Safely replace process in the REAL pool
                             async with self.pool._lock:
-                                p.process = new_proc
-                                p.busy = False
-                                p.current_task_id = None
+                                # Find the actual object in self.pool._processes
+                                for real_p in self.pool._processes:
+                                    if real_p.id == p.id:
+                                        real_p.process = new_proc
+                                        real_p.busy = False
+                                        real_p.current_task_id = None
+                                        break
                     except psutil.NoSuchProcess:
                         pass
             except Exception as e:
@@ -159,16 +167,6 @@ class FrontierProcessPool:
     Managed Execution Pool.
     Maintains pre-warmed instances of security tools to eliminate process startup latency.
     """
-
-    def _prune_stale_receipts(self) -> None:
-        cutoff = time.monotonic() - 3600
-        if self._last_receipt_prune > cutoff:
-            return
-        self._last_receipt_prune = time.monotonic()
-        stale = [k for k, v in self._task_receipts.items() if v.timestamp < cutoff]
-        for k in stale:
-            self._task_receipts.pop(k, None)
-            self._binary_task_cache.pop(k, None)
 
     def __init__(self, pool_size: int | None = None, max_memory_mb: float = 512.0) -> None:
         # Fix Audit #198: Adapt pool size to CPU cores
