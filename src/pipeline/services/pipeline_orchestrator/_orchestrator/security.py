@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import time
 from pathlib import Path
 from typing import Any, cast
@@ -109,7 +108,11 @@ async def run_secured(
         remaining_stages = list(STAGE_ORDER)
 
     output_store = PipelineOutputStore.create(
-        config.output_dir, config.target_name, config.output, storage_config=config.storage, run_id=run_id
+        config.output_dir,
+        config.target_name,
+        config.output,
+        storage_config=config.storage,
+        run_id=run_id,
     )
 
     use_cache = cache_enabled(config.cache)
@@ -182,6 +185,7 @@ async def run_secured(
     if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
         from src.core.frontier.ghost_actor import GhostMeshCoordinator
         from src.core.frontier.ghost_actor_registry import GhostMeshRegistry
+
         from ..migration_handler import ProactiveMigrationHandler
 
         mesh_registry = GhostMeshRegistry(cache_mgr._redis, run_id)
@@ -204,7 +208,9 @@ async def run_secured(
         run_id=run_id,
         metadata={
             "use_cache": bool(getattr(ctx.result, "use_cache", use_cache)),
-            "discovery_enabled": bool(getattr(ctx.result, "discovery_enabled", ctx.result.discovery_enabled)),
+            "discovery_enabled": bool(
+                getattr(ctx.result, "discovery_enabled", ctx.result.discovery_enabled)
+            ),
             "flow_stage_count": len(flow_manifest),
         },
     )
@@ -246,15 +252,14 @@ async def run_secured(
     if adaptations:
         ctx_dict = ctx.to_dict()
         import inspect
+
         sig = inspect.signature(orchestrator._learning_integration.apply_adaptations)
         if "config" in sig.parameters:
             orchestrator._learning_integration.apply_adaptations(
                 ctx_dict, adaptations, config=config
             )
         else:
-            orchestrator._learning_integration.apply_adaptations(
-                ctx_dict, adaptations
-            )
+            orchestrator._learning_integration.apply_adaptations(ctx_dict, adaptations)
         ctx.result.module_metrics.setdefault("learning", {})["feedback_applied"] = True
         logger.info("Applied learning adaptations for target: %s", config.target_name)
 

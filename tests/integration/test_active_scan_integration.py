@@ -234,7 +234,6 @@ async def test_active_scan_adaptive_degraded_probes_populated_on_timeout(
     assert "degraded_probes" in metrics
     degraded_probes = metrics["degraded_probes"]
 
-
     # Verify our timed out sqli probe is listed in degraded_probes
     sqli_timeouts = [
         dict(item)
