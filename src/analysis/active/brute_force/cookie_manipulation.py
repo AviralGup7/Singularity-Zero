@@ -6,6 +6,8 @@ import logging
 from typing import Any
 
 from src.analysis._core.http_request import _safe_request
+
+logger = logging.getLogger(__name__)
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.helpers._probe_utils import probe_confidence, probe_severity
 from src.analysis.passive.runtime import ResponseCache
@@ -59,6 +61,7 @@ def _try_base64_decode(value: str) -> bytes | None:
         padded = value + "=" * (4 - len(value) % 4) if len(value) % 4 else value
         return base64.b64decode(padded)
     except Exception:
+        logger.debug("cookie_manipulation: base64 decode failed for value %r", value[:16])
         return None
 
 
@@ -66,6 +69,7 @@ def _try_json_decode(value: str) -> Any | None:
     try:
         return json.loads(value)
     except Exception:
+        logger.debug("cookie_manipulation: json decode failed for value %r", value[:32])
         return None
 
 

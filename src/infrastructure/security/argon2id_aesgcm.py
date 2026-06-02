@@ -195,7 +195,10 @@ class Argon2idAESGCM:
         if not text.startswith(ARGON2ID_AESGCM_PREFIX):
             raise ValueError("unsupported encryption envelope")
         payload = base64.urlsafe_b64decode(text[len(ARGON2ID_AESGCM_PREFIX) :].encode("ascii"))
-        envelope = json.loads(payload.decode("utf-8"))
+        try:
+            envelope = json.loads(payload.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("Malformed encryption envelope: JSON decode failed") from exc
         params = Argon2idParameters.from_dict(cast(dict[str, Any], envelope["params"]))
         salt = _b64d(cast(str, envelope["salt"]))
         nonce = _b64d(cast(str, envelope["nonce"]))
