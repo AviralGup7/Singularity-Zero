@@ -82,4 +82,12 @@ class CircuitBreaker:
                 )
 
     def can_execute(self) -> bool:
-        return self.state != CircuitState.OPEN
+        with self._lock:
+            now = time.time()
+            if self._state == CircuitState.OPEN:
+                if now - self._last_failure_time >= self.recovery_timeout:
+                    self._state = CircuitState.HALF_OPEN
+                    self._cached_state = CircuitState.HALF_OPEN
+                    self._cached_state_time = now
+                    logger.info("Circuit breaker HALF_OPEN: attempting recovery")
+            return self._state != CircuitState.OPEN

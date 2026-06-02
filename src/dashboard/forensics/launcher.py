@@ -323,8 +323,10 @@ def build_launcher_replay_manifest(
 ) -> dict[str, Any]:
     output_root = output_root.resolve()
     launcher_dir = output_root / "launcher" / job_id
-    if not launcher_dir.exists():
-        raise FileNotFoundError(f"Launcher artifacts not found for job {job_id}")
+    if not launcher_dir.exists() or not launcher_dir.is_dir():
+        launcher_dir = output_root / "_launcher" / job_id
+        if not launcher_dir.exists() or not launcher_dir.is_dir():
+            raise FileNotFoundError(f"Launcher artifacts not found for job {job_id}")
 
     config_path = launcher_dir / "config.json"
     scope_path = launcher_dir / "scope.txt"
@@ -543,8 +545,11 @@ def capture_launcher_replay_manifest(
         job_id,
         persisted_job=persisted_job,
     )
+    prefix = "launcher"
+    if (Path(output_root).resolve() / "_launcher" / job_id).exists():
+        prefix = "_launcher"
     manifest_path = destination or (
-        Path(output_root).resolve() / "launcher" / job_id / "forensic_manifest.json"
+        Path(output_root).resolve() / prefix / job_id / "forensic_manifest.json"
     )
     return write_launcher_manifest(manifest_path, manifest)
 

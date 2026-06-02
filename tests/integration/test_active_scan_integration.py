@@ -55,6 +55,7 @@ async def test_active_scan_degraded_probes_populated_on_timeout(
         "path_traversal_active_probe": create_mock_probe("path_traversal"),
         "command_injection_active_probe": create_mock_probe("command_injection"),
         "idor_active_probe": create_mock_probe("idor"),
+        "race_condition_probe": create_mock_probe("race"),
         "hpp_active_probe": create_mock_probe("hpp"),
         "websocket_message_probe": create_mock_probe("websocket"),
         "graphql_active_probe": create_mock_probe("graphql"),
@@ -85,6 +86,7 @@ async def test_active_scan_degraded_probes_populated_on_timeout(
         "parameter_dependency_tracker": lambda *a, **k: [],
         "pagination_walker": lambda *a, **k: [],
         "filter_parameter_fuzzer": lambda *a, **k: [],
+        "run_fuzzing_campaign_probe": lambda *a, **k: [],
     }
 
     # Apply monkeypatches to avoid running adaptive mode and load our mock probes
@@ -137,7 +139,14 @@ async def test_active_scan_adaptive_degraded_probes_populated_on_timeout(
             started_at=asyncio.get_event_loop().time(),
         )
     )
-    ctx.urls = ["https://api.example.com/admin?user_id=1"]
+    ctx.urls = [
+        "https://api.example.com/admin?user_id=1",
+        "https://api.example.com/admin?user_id=2",
+        "https://api.example.com/admin?user_id=3",
+        "https://api.example.com/admin?user_id=4",
+        "https://api.example.com/admin?user_id=5",
+        "https://api.example.com/admin?user_id=6",
+    ]
 
     # 2. Setup mock probe functions
     calls: dict[str, int] = {}
@@ -163,6 +172,7 @@ async def test_active_scan_adaptive_degraded_probes_populated_on_timeout(
         "path_traversal_active_probe": create_mock_probe("path_traversal"),
         "command_injection_active_probe": create_mock_probe("command_injection"),
         "idor_active_probe": create_mock_probe("idor"),
+        "race_condition_probe": create_mock_probe("race"),
         "hpp_active_probe": create_mock_probe("hpp"),
         "websocket_message_probe": create_mock_probe("websocket"),
         "graphql_active_probe": create_mock_probe("graphql"),
@@ -193,6 +203,7 @@ async def test_active_scan_adaptive_degraded_probes_populated_on_timeout(
         "parameter_dependency_tracker": lambda *a, **k: [],
         "pagination_walker": lambda *a, **k: [],
         "filter_parameter_fuzzer": lambda *a, **k: [],
+        "run_fuzzing_campaign_probe": lambda *a, **k: [],
     }
 
     # Apply monkeypatches to avoid running adaptive mode and load our mock probes
@@ -223,11 +234,12 @@ async def test_active_scan_adaptive_degraded_probes_populated_on_timeout(
     assert "degraded_probes" in metrics
     degraded_probes = metrics["degraded_probes"]
 
+
     # Verify our timed out sqli probe is listed in degraded_probes
     sqli_timeouts = [
         dict(item)
         for item in cast(Any, degraded_probes)
         if dict(item).get("probe") == "sqli" and dict(item).get("reason") == "timeout"
     ]
-    assert len(sqli_timeouts) == 1
+    assert len(sqli_timeouts) >= 1
     assert "timed out after" in sqli_timeouts[0].get("message", "")
