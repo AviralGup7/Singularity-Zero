@@ -60,7 +60,13 @@ export function useTriageCollaboration(runId: string, findingId: string) {
     socket.onclose = () => setConnected(false);
     socket.onerror = () => setConnected(false);
     socket.onmessage = (event) => {
-      const message = JSON.parse(event.data) as TriageMessage;
+      let message: TriageMessage | null = null;
+      try {
+        message = JSON.parse(event.data) as TriageMessage;
+      } catch (err) {
+        console.warn('[TriageCollaboration] failed to parse WebSocket message', err);
+      }
+      if (!message) return;
       if (message.type === 'presence' && message.analysts) {
         setPresence(message.analysts);
       }
