@@ -302,6 +302,7 @@ class PipelineOrchestrator:
 
         if loop and loop.is_running():
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(asyncio.run, self.run(args))
                 return future.result()

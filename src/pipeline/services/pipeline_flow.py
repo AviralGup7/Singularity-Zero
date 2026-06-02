@@ -3,8 +3,6 @@ from pathlib import Path
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.pipeline.services.stage_registry import PIPELINE_STAGES
-
 
 
 def run_pipeline(

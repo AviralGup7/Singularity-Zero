@@ -110,6 +110,7 @@ def _patch_runtime_environment(
 
     monkeypatch.setattr(orch_mod, "emit_progress", _capture_progress)
     import src.pipeline.services.pipeline_orchestrator._orchestrator.security as security_mod
+
     monkeypatch.setattr(security_mod, "emit_progress", _capture_progress)
     monkeypatch.setattr(orch_mod, "emit_error", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(orch_mod, "pipeline_flow_manifest", lambda: [])
@@ -219,6 +220,7 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
     )
 
     import src.pipeline.services.pipeline_orchestrator._orchestrator.security as security_mod
+
     monkeypatch.setattr(security_mod, "create_checkpoint_manager", _create_checkpoint_manager)
     monkeypatch.setattr(
         security_mod,
