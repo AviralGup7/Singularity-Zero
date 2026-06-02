@@ -11,7 +11,13 @@ from typing import TYPE_CHECKING, Any, TypedDict
 if TYPE_CHECKING:
     from src.core.contracts.pipeline_runtime import StageInput, StageOutput
 
-from src.core.frontier.state import NeuralState
+from src.core.frontier.state import (
+    CRDTCompactionBudget,
+    NeuralState,
+)
+from src.core.frontier.state import (
+    compact_state as run_compaction,
+)
 
 
 class StageName(StrEnum):
@@ -70,6 +76,7 @@ class StageResult:
 
     #: Internal CRDT state container for synchronization across stage deltas.
     _neural_state: NeuralState = field(default_factory=NeuralState, repr=False)
+    _compaction_budget: CRDTCompactionBudget | None = field(default=None, init=False, compare=False, repr=False)
 
     # ------------------------------------------------------------------
     # Configuration / bootstrap
@@ -151,9 +158,6 @@ class StageResult:
 
     def compact_state(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
         """Trigger CRDT tombstone compaction to save memory, respecting budget."""
-        from src.core.frontier.state import CRDTCompactionBudget
-        from src.core.frontier.state import compact_state as run_compaction
-
         if not hasattr(self, "_compaction_budget") or self._compaction_budget is None:
             self._compaction_budget = CRDTCompactionBudget()
         return run_compaction(
