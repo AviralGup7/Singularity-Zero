@@ -10,7 +10,6 @@ import os
 import signal
 import struct
 import sys
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -120,8 +119,8 @@ class ResourceWatchdog:
                                     p.process.terminate()
                             except Exception:
                                 p.process.kill()
-                            
-                            # Wait for termination outside the lock-heavy loop if possible, 
+
+                            # Wait for termination outside the lock-heavy loop if possible,
                             # but here p is just a dataclass from our copy.
                             await p.process.wait()
 

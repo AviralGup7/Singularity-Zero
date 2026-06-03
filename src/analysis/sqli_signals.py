@@ -39,5 +39,7 @@ SQL_ERROR_RE = re.compile(
     r"unclosed\s+quotation|unterminated\s+string|syntax\s+error\s+at\s+or\s+near|"
     r"you\s+have\s+an\s+error\s+in\s+your\s+sql\s+syntax|"
     r"warning:\s*(?:mysql|pg_|oci)|invalid\s+column|invalid\s+object|"
-    r"invalid\s+table|duplicate\s+key|integrity\s+constraint|foreign\s+key)"
+    r"invalid\s+table|duplicate\s+key|integrity\s+constraint|foreign\s+key|"
+    r"traceback|stack\s*trace|exception|syntax\s*error|unexpected\s+token|"
+    r"unterminated|string\s+literal|division\s+by\s+zero|out\s+of\s+range)"
 )

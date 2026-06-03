@@ -37,34 +37,41 @@ class CircuitBreaker:
         self.failures = 0
         self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
         self.last_state_change = 0.0
+        self._lock = threading.Lock()
 
     def record_success(self) -> None:
-        self.failures = 0
-        self.state = "CLOSED"
+        with self._lock:
+            self.failures = 0
+            if self.state != "CLOSED":
+                logger.info("Redis Pub/Sub circuit breaker is now CLOSED")
+            self.state = "CLOSED"
 
     def record_failure(self) -> None:
-        self.failures += 1
-        if self.failures >= self.failure_threshold:
-            self.state = "OPEN"
-            self.last_state_change = time.time()
-            logger.error(
-                "Redis Pub/Sub circuit breaker is now OPEN due to %d consecutive failures",
-                self.failures,
-            )
+        with self._lock:
+            self.failures += 1
+            if self.failures >= self.failure_threshold:
+                if self.state != "OPEN":
+                    logger.error(
+                        "Redis Pub/Sub circuit breaker is now OPEN due to %d consecutive failures",
+                        self.failures,
+                    )
+                self.state = "OPEN"
+                self.last_state_change = time.time()
 
     def allow_request(self) -> bool:
-        if self.state == "CLOSED":
-            return True
-        if self.state == "OPEN":
-            if time.time() - self.last_state_change > self.recovery_timeout:
-                self.state = "HALF_OPEN"
-                self.last_state_change = time.time()
-                logger.info(
-                    "Redis Pub/Sub circuit breaker entered HALF_OPEN state; attempting retry"
-                )
+        with self._lock:
+            if self.state == "CLOSED":
                 return True
-            return False
-        return True  # HALF_OPEN
+            if self.state == "OPEN":
+                if time.time() - self.last_state_change > self.recovery_timeout:
+                    self.state = "HALF_OPEN"
+                    self.last_state_change = time.time()
+                    logger.info(
+                        "Redis Pub/Sub circuit breaker entered HALF_OPEN state; attempting retry"
+                    )
+                    return True
+                return False
+            return True  # HALF_OPEN
 
 
 class Broadcaster:
@@ -148,48 +155,54 @@ class Broadcaster:
     async def start(self) -> None:
         """Start Redis Pub/Sub fan-out when configured."""
         current_task = asyncio.current_task()
-        reconnecting_from_subscriber = (
-            self._subscriber_task is not None and current_task is self._subscriber_task
-        )
-        if not self._redis_enabled or (
-            self._subscriber_task is not None and not reconnecting_from_subscriber
-        ):
-            return
-
-        if self._redis_url is None:
-            self._redis_url = os.environ.get("WS_REDIS_URL") or os.environ.get("REDIS_URL")
-
-        if not self._redis_url:
-            return
-
-        try:
-            import redis.asyncio as redis
-
-            self._redis_client = redis.from_url(
-                self._redis_url,
-                decode_responses=True,
-                socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
-                socket_timeout=REDIS_TIMEOUT_SECONDS,
-                retry_on_timeout=True,
-                health_check_interval=30,
-                max_connections=20,
+        async with self._lock:
+            reconnecting_from_subscriber = (
+                self._subscriber_task is not None and current_task is self._subscriber_task
             )
-            await asyncio.wait_for(self._redis_client.ping(), timeout=REDIS_TIMEOUT_SECONDS)
-            self._redis_pubsub = self._redis_client.pubsub()
-            await asyncio.wait_for(
-                self._redis_pubsub.subscribe(self._redis_channel),
-                timeout=REDIS_TIMEOUT_SECONDS,
-            )
-            if not reconnecting_from_subscriber:
-                self._subscriber_task = asyncio.create_task(
-                    self._redis_subscribe_loop(),
-                    name="ws-redis-broadcaster",
-                )
-            logger.info("Redis WebSocket broadcaster subscribed to %s", self._redis_channel)
-        except Exception as exc:
-            logger.warning("Redis WebSocket broadcaster degraded: %s", exc)
-            self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
-            await self.stop()
+            if not self._redis_enabled or (
+                self._subscriber_task is not None and not reconnecting_from_subscriber
+            ):
+                return
+
+            if self._redis_url is None:
+                self._redis_url = os.environ.get("WS_REDIS_URL") or os.environ.get("REDIS_URL")
+
+            if not self._redis_url:
+                return
+
+            try:
+                import redis.asyncio as redis
+
+                if self._redis_client is None:
+                    self._redis_client = redis.from_url(
+                        self._redis_url,
+                        decode_responses=True,
+                        socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+                        socket_timeout=REDIS_TIMEOUT_SECONDS,
+                        retry_on_timeout=True,
+                        health_check_interval=30,
+                        max_connections=20,
+                    )
+                    await asyncio.wait_for(self._redis_client.ping(), timeout=REDIS_TIMEOUT_SECONDS)
+                
+                if self._redis_pubsub is None:
+                    self._redis_pubsub = self._redis_client.pubsub()
+                    await asyncio.wait_for(
+                        self._redis_pubsub.subscribe(self._redis_channel),
+                        timeout=REDIS_TIMEOUT_SECONDS,
+                    )
+                
+                if not reconnecting_from_subscriber and self._subscriber_task is None:
+                    self._subscriber_task = asyncio.create_task(
+                        self._redis_subscribe_loop(),
+                        name="ws-redis-broadcaster",
+                    )
+                logger.info("Redis WebSocket broadcaster subscribed to %s", self._redis_channel)
+            except Exception as exc:
+                logger.warning("Redis WebSocket broadcaster degraded: %s", exc)
+                self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
+                # Important: don't call self.stop() here as it would try to acquire the same lock
+                await self._close_redis_handles_unlocked()
 
     async def stop(self) -> None:
         """Stop Redis Pub/Sub resources."""
@@ -282,6 +295,22 @@ class Broadcaster:
             logger.warning("Redis WebSocket publish failed; falling back locally: %s", exc)
             return False
 
+    async def _close_redis_handles_unlocked(self) -> None:
+        if self._redis_pubsub is not None:
+            try:
+                close = getattr(self._redis_pubsub, "aclose", self._redis_pubsub.close)
+                await close()
+            except Exception as exc:
+                logger.debug("Redis Pub/Sub close failed: %s", exc)
+            self._redis_pubsub = None
+        if self._redis_client is not None:
+            try:
+                close = getattr(self._redis_client, "aclose", self._redis_client.close)
+                await close()
+            except Exception as exc:
+                logger.debug("Redis client close failed: %s", exc)
+            self._redis_client = None
+
     async def _redis_subscribe_loop(self) -> None:
         """Receive Redis Pub/Sub envelopes with exponential backoff reconnection."""
         backoff = 1.0
@@ -324,8 +353,7 @@ class Broadcaster:
             except Exception as exc:
                 self._redis_breaker.record_failure()
                 logger.error("Redis WS loop failure (retrying in %.1fs): %s", backoff, exc)
-                await self._close_redis_handles()
-                self._redis_pubsub = None
+                await self._close_redis_handles_unlocked()
                 self._redis_degraded_until = time.monotonic() + min(
                     backoff, REDIS_RECONNECT_SECONDS
                 )

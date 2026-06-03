@@ -843,5 +843,6 @@ export function CockpitPage() {
         )}
       </AnimatePresence>
     </div>
+    </div>
   );
 }

@@ -78,8 +78,8 @@ export interface ForensicExchange {
 }
 
 export const cockpitApi = {
-  getGraph: (target: string, run?: string, jobId?: string) =>
-    apiClient.get<CockpitGraphResponse>('/api/cockpit/graph', { params: { target, run, job_id: jobId } }),
+  getGraph: (target: string, run?: string, jobId?: string, config?: { signal?: AbortSignal }) =>
+    apiClient.get<CockpitGraphResponse>('/api/cockpit/graph', { ...config, params: { target, run, job_id: jobId } }),
 
   graphStreamUrl: (target: string, run?: string, jobId?: string) => {
     const params = new URLSearchParams({ target });
