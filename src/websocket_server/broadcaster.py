@@ -184,14 +184,14 @@ class Broadcaster:
                         max_connections=20,
                     )
                     await asyncio.wait_for(self._redis_client.ping(), timeout=REDIS_TIMEOUT_SECONDS)
-                
+
                 if self._redis_pubsub is None:
                     self._redis_pubsub = self._redis_client.pubsub()
                     await asyncio.wait_for(
                         self._redis_pubsub.subscribe(self._redis_channel),
                         timeout=REDIS_TIMEOUT_SECONDS,
                     )
-                
+
                 if not reconnecting_from_subscriber and self._subscriber_task is None:
                     self._subscriber_task = asyncio.create_task(
                         self._redis_subscribe_loop(),
