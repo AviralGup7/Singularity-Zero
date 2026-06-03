@@ -1,4 +1,4 @@
-﻿"""Trace-aware loggers for pipeline code."""
+"""Trace-aware loggers for pipeline code."""
 
 from __future__ import annotations
 

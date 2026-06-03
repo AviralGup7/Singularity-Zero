@@ -1,4 +1,4 @@
-﻿"""
+"""
 Cyber Security Test Pipeline - Frontier Binary Marshaller
 Implements high-speed, zero-allocation binary serialization for distributed state.
 

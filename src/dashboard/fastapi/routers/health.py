@@ -1,4 +1,4 @@
-﻿"""Health check endpoints for the FastAPI dashboard."""
+"""Health check endpoints for the FastAPI dashboard."""
 
 import logging
 import time
