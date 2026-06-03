@@ -1,4 +1,4 @@
-﻿"""Tool execution service for running external security testing tools.
+"""Tool execution service for running external security testing tools.
 
 Provides ToolExecutionService for resolving tool paths, executing commands
 with retry support, and managing environment variables for external tools.
@@ -623,9 +623,7 @@ class ToolExecutionService:
             logger.debug("tool_detection: OSError probing %s", "httpx")
             return False
         except Exception:
-            logger.debug(
-                "tool_detection: unexpected error probing %s", "httpx", exc_info=True
-            )
+            logger.debug("tool_detection: unexpected error probing %s", "httpx", exc_info=True)
             return False
 
         combined = f"{output.stdout}\n{output.stderr}".lower()

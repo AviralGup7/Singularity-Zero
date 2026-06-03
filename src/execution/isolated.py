@@ -1,4 +1,4 @@
-﻿"""Process isolation for active checks."""
+"""Process isolation for active checks."""
 
 from __future__ import annotations
 

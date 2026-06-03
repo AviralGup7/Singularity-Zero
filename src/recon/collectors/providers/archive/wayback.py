@@ -118,6 +118,7 @@ def _parse_cdx_json(text: str) -> list[str]:
 
 _cdx_safe_checked = False
 
+
 def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> set[str]:
     global _cdx_safe_checked
     params = {

@@ -29,7 +29,9 @@ class GossipProtocol:
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport
 
-    def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:  # addr: tuple[str, int]
+    def datagram_received(
+        self, data: bytes, addr: tuple[str, int]
+    ) -> None:  # addr: tuple[str, int]
         try:
             envelope = json.loads(data.decode("utf-8"))
             body = envelope["body"]

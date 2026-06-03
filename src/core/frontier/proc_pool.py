@@ -1,4 +1,4 @@
-﻿"""
+"""
 Cyber Security Test Pipeline - Frontier Process Pool
 Implements high-speed, pre-warmed worker processes for heavy CLI tools.
 """
