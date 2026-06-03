@@ -32,9 +32,30 @@ async def get_job_logs(
     if not is_target_owned_by_tenant(job_target, tenant_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
+    from pathlib import Path
+    from src.dashboard.fastapi.dependencies import get_config
+
+    config = get_config()
+    output_root = Path(config.output_root)
+    launcher_dir = output_root / "launcher" / job_id
+    if not launcher_dir.exists() or not launcher_dir.is_dir():
+        launcher_dir = output_root / "_launcher" / job_id
+    stdout_path = launcher_dir / "stdout.txt"
+
+    total_logs = 0
+    if stdout_path.exists() and stdout_path.is_file():
+        try:
+            with open(stdout_path, "r", encoding="utf-8", errors="replace") as f:
+                for _ in f:
+                    total_logs += 1
+        except Exception:
+            total_logs = len(job.get("latest_logs", []))
+    else:
+        total_logs = len(job.get("latest_logs", []))
+
     return JobLogsResponse(
         job_id=job_id,
         logs=job.get("latest_logs", []),
-        total_logs=len(job.get("latest_logs", [])),
+        total_logs=total_logs,
         status=job.get("status"),
     )

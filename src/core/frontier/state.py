@@ -324,11 +324,12 @@ class LWWset[T]:
                         str(item.get("parameter", "")),
                         str(item.get("method", "")),
                     ]
-                    fid = hashlib.sha256("|".join(stable_parts).encode("utf-8")).hexdigest()
+                    generated_fid = hashlib.sha256("|".join(stable_parts).encode("utf-8")).hexdigest()
                     try:
-                        item["id"] = fid
+                        item["id"] = generated_fid
                     except Exception:
                         pass
+                    return generated_fid
                 return fid
             return repr(item)
 

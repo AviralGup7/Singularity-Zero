@@ -108,7 +108,15 @@ def run_passive_scanners(
         )
 
     responses = response_cache.prefetch(content_targets)
-    response_map = {response["url"]: response for response in responses}
+    response_map = {}
+    from urllib.parse import urlparse
+    for response in responses:
+        url = response.get("url")
+        if url:
+            response_map[url] = response
+            parsed = urlparse(url)
+            if parsed.netloc and (parsed.path == "" or parsed.path == "/"):
+                response_map[parsed.netloc] = response
 
     context = prime_detection_context(
         live_hosts=live_hosts,
@@ -119,6 +127,7 @@ def run_passive_scanners(
             "enable_idor_comparison": compare_enabled,
             "idor_compare_limit": compare_limit,
             "idor_compare_similarity_threshold": compare_similarity_threshold,
+            "progress_callback": progress_callback,
         },
         header_targets=header_targets,
         response_cache=response_cache,
@@ -163,13 +172,21 @@ def _build_content_targets(
     max_live_hosts: int,
     max_priority_urls: int,
 ) -> list[str]:
+    host_urls = []
+    for host in sorted(live_hosts)[:max_live_hosts]:
+        h = host.strip()
+        if h:
+            url = h if "://" in h else f"https://{h}"
+            host_urls.append(url)
+
+    p_urls = sorted(priority_urls)[:max_priority_urls]
+    from src.recon.common import normalize_url
+
     targets: list[str] = []
     seen: set[str] = set()
-    for candidate in [
-        *sorted(live_hosts)[:max_live_hosts],
-        *sorted(priority_urls)[:max_priority_urls],
-    ]:
-        if candidate not in seen:
-            seen.add(candidate)
-            targets.append(candidate)
+    for candidate in host_urls + p_urls:
+        normalized = normalize_url(candidate)
+        if normalized not in seen:
+            seen.add(normalized)
+            targets.append(normalized)
     return targets

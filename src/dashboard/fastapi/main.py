@@ -33,6 +33,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Root directory for scan output",
     )
     parser.add_argument(
+        "--directory",
+        default="",
+        help="Directory fallback (deprecated/alias for output-root)",
+    )
+    parser.add_argument(
         "--config-template",
         default="",
         help="Path to config template JSON file",

@@ -78,10 +78,27 @@ class GossipEngine:
 
         self._running = True
         loop = asyncio.get_running_loop()
-        self._transport, _ = await loop.create_datagram_endpoint(  # type: ignore[type-var]
-            lambda: GossipProtocol(self, secret=self._secret),  # type: ignore[return-value]
-            local_addr=(self.local_node.host, self._udp_port),
-        )
+        
+        bound = False
+        port_to_try = self._udp_port
+        for i in range(100):
+            try:
+                self._transport, _ = await loop.create_datagram_endpoint(  # type: ignore[type-var]
+                    lambda: GossipProtocol(self, secret=self._secret),  # type: ignore[return-value]
+                    local_addr=(self.local_node.host, port_to_try),
+                )
+                self._udp_port = port_to_try
+                self.local_node.gossip_port = port_to_try
+                bound = True
+                break
+            except OSError as exc:
+                logger.debug("Mesh UDP port %d bind failed: %s. Retrying next...", port_to_try, exc)
+                port_to_try += 1
+        
+        if not bound:
+            self._running = False
+            raise OSError(f"Could not bind to any UDP port starting from {self._udp_port}")
+
         logger.info("Neural-Mesh Gossip active on UDP %d [Authenticated]", self._udp_port)
 
         self._tasks = [
@@ -156,7 +173,8 @@ class GossipEngine:
                     stats.sent += 1
                     stats.outbound_throughput += 1
                     self._total_sent += 1
-                    self._transport.sendto(data, (peer.host, peer.port + 1000))
+                    peer_port = peer.gossip_port if getattr(peer, "gossip_port", 0) else (peer.port + 1000)
+                    self._transport.sendto(data, (peer.host, peer_port))
                     timeout = self._retry_interval_seconds(attempt)
                     ack_payload = await asyncio.wait_for(asyncio.shield(future), timeout=timeout)
                     stats.retry_count = 0
@@ -188,9 +206,10 @@ class GossipEngine:
             self._stats_for(peer.id).sent += 1
             self._stats_for(peer.id).outbound_throughput += 1
             self._total_sent += 1
+            peer_port = peer.gossip_port if getattr(peer, "gossip_port", 0) else (peer.port + 1000)
             self._transport.sendto(
                 self._make_envelope(message_type, payload),
-                (peer.host, peer.port + 1000),
+                (peer.host, peer_port),
             )
         except Exception as exc:
             logger.debug("Best-effort mesh send to %s failed: %s", peer.id, exc)

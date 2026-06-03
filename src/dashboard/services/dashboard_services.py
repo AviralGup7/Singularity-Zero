@@ -30,10 +30,10 @@ class DashboardServices:
             persist_callback=self._persist_job,
         )
 
-    def init_persistence(self, db_path: Path | None = None) -> None:
+    def init_persistence(self, db_path: Path | None = None, is_primary: bool = True) -> None:
         """Initialize SQLite-backed job persistence.
 
-        Loads existing jobs from disk and marks stale running jobs as failed.
+        Loads existing jobs from disk and conditionally marks stale running jobs as failed.
         """
         from src.dashboard.forensics.launcher import (
             merge_persisted_job_with_recovered_truth,
@@ -46,12 +46,13 @@ class DashboardServices:
 
         self._job_store = JobStore(db_path)
 
-        # Mark any stale running jobs as failed before loading them into memory.
-        stale_count = self._job_store.mark_stale_running()
-        if stale_count:
-            logging.getLogger(__name__).warning(
-                "Marked %d stale running job(s) as failed after restart", stale_count
-            )
+        if is_primary:
+            # Mark any stale running jobs as failed before loading them into memory.
+            stale_count = self._job_store.mark_stale_running()
+            if stale_count:
+                logging.getLogger(__name__).warning(
+                    "Marked %d stale running job(s) as failed after restart", stale_count
+                )
 
         # Load existing jobs from disk
         persisted = self._job_store.load_all()
@@ -123,6 +124,15 @@ class DashboardServices:
                 logging.getLogger(__name__).warning(
                     "Failed to persist job %s: %s", job.get("id"), exc
                 )
+            
+            # Invalidate L2 dashboard_stats cache key
+            cache_manager = getattr(self, "cache_manager", None)
+            if cache_manager is not None:
+                try:
+                    cache_manager.delete("dashboard_stats", namespace="analytics")
+                except Exception as c_exc:
+                    import logging
+                    logging.getLogger(__name__).debug("Failed to invalidate dashboard stats: %s", c_exc)
 
     def load_template(self) -> dict[str, Any]:
         return self.query.load_template()

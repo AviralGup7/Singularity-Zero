@@ -184,13 +184,19 @@ def collect_urls(
             progress_callback, "Using in-house collectors for archive sources", 58
         )
         start = time.monotonic()
+        stage_meta["inhouse_collectors"] = {
+            "status": "pending",
+            "duration_seconds": 0.0,
+            "new_urls": 0,
+        }
         try:
             reg = collectors["inhouse"]
             inhouse_urls = reg.provider(
                 live_hosts, scope_entries, config, progress_callback, stage_meta
             )
             status = "ok" if inhouse_urls else "empty"
-        except Exception:
+        except Exception as exc:
+            logger.exception("In-house collectors failed: %s", exc)
             inhouse_urls = set()
             status = "error"
         duration = round(time.monotonic() - start, 1)
@@ -296,6 +302,7 @@ def collect_urls(
         and not _mark_collection_budget_exceeded("crawler", 64)
     ):
         crawler_urls = set()
+        crawl_meta = {"status": "pending", "duration_seconds": 0.0, "new_urls": 0}
         if prefer_inhouse and "crawler" in collectors:
             emit_collection_progress(
                 progress_callback, "Running in-house crawler across live hosts", 64
@@ -313,7 +320,8 @@ def collect_urls(
                     progress_callback=progress_callback,
                 )
                 crawler_urls = apply_url_filters(discovered_crawl, filters)
-            except Exception:
+            except Exception as exc:
+                logger.exception("In-house crawler failed: %s", exc)
                 crawler_urls, crawl_meta = (
                     set(),
                     {"status": "error", "duration_seconds": 0.0, "new_urls": 0},
@@ -327,6 +335,8 @@ def collect_urls(
             _save_phase_checkpoint("crawler", crawler_urls)
             _mark_collection_budget_exceeded("in-house crawler", 66)
         elif config.tools.get("katana") and tool_available("katana") and "katana" in collectors:
+            katana_urls = set()
+            katana_meta = {"status": "pending", "duration_seconds": 0.0, "new_urls": 0}
             try:
                 reg = collectors["katana"]
                 katana_urls, katana_meta = reg.provider(
@@ -340,7 +350,8 @@ def collect_urls(
                 _save_phase_checkpoint("crawler", katana_urls)
                 if bool(katana_meta.get("budget_exceeded", False)):
                     _mark_collection_budget_exceeded("katana crawl", 66)
-            except Exception:
+            except Exception as exc:
+                logger.exception("Katana crawler failed: %s", exc)
                 stage_meta["katana"] = {"status": "error", "duration_seconds": 0.0, "new_urls": 0}
         elif live_hosts:
             stage_meta["katana"] = {"status": "skipped", "duration_seconds": 0.0, "new_urls": 0}

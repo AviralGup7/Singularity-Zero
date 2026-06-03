@@ -107,15 +107,10 @@ class RequestScheduler:
         self._lock = threading.Lock()
 
     def acquire(self) -> None:
+        loop = None
         try:
             import asyncio
-
             loop = asyncio.get_running_loop()
-            if loop.is_running():
-                # We are in an event loop, we should not block it!
-                # Since we cannot await here, we must block the loop unfortunately if we keep it sync,
-                # but we can try to compute sleep and avoid busy loop.
-                pass
         except RuntimeError:
             pass
 
@@ -132,7 +127,19 @@ class RequestScheduler:
                     return
                 deficit = 1.0 - self.tokens
                 required_sleep = deficit / self.current_rate_per_second
-            time.sleep(max(0.01, required_sleep))
+
+            sleep_time = max(0.01, required_sleep)
+            if loop is not None and loop.is_running():
+                import threading
+                loop_thread = getattr(loop, "_thread", None)
+                if loop_thread is not None and threading.current_thread() != loop_thread:
+                    try:
+                        future = asyncio.run_coroutine_threadsafe(asyncio.sleep(sleep_time), loop)
+                        future.result()
+                        continue
+                    except Exception:
+                        pass
+            time.sleep(sleep_time)
 
     async def acquire_async(self) -> None:
         import asyncio
@@ -329,7 +336,36 @@ class ResponseCache:
 
     def persist(self) -> None:
         if self.persistent_cache_path:
-            save_cached_json(self.persistent_cache_path, self._persistent_records)
+            lock_path = self.persistent_cache_path.with_suffix(".lock")
+            import sys
+            with self._lock:
+                fd = None
+                try:
+                    fd = open(lock_path, "w")
+                    if sys.platform == "win32":
+                        import msvcrt
+                        msvcrt.locking(fd.fileno(), msvcrt.LK_LOCK, 1)
+                    else:
+                        import fcntl
+                        fcntl.flock(fd, fcntl.LOCK_EX)
+                    current_on_disk = load_cached_json(self.persistent_cache_path) if self.persistent_cache_path.exists() else {}
+                    current_on_disk.update(self._persistent_records)
+                    save_cached_json(self.persistent_cache_path, current_on_disk)
+                except Exception as exc:
+                    logger.warning("Failed to persist cache atomically: %s", exc)
+                finally:
+                    if fd:
+                        try:
+                            if sys.platform == "win32":
+                                import msvcrt
+                                fd.seek(0)
+                                msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
+                            else:
+                                import fcntl
+                                fcntl.flock(fd, fcntl.LOCK_UN)
+                        except Exception:
+                            pass
+                        fd.close()
 
     def _request_with_policy(
         self,
@@ -433,6 +469,7 @@ def _fetch_response_stream(
     if request_body and "Content-Type" not in headers:
         headers["Content-Type"] = "application/json"
 
+    resp = None
     try:
         resp = _HTTP_POOL.request(
             method.upper(),
@@ -467,7 +504,6 @@ def _fetch_response_stream(
                 body_parts.append(chunk)
                 bytes_read += len(chunk)
 
-        resp.release_conn()
         body_text = ""
         raw = b"".join(body_parts)
         if is_textual_content_type(content_type) and raw:
@@ -494,6 +530,12 @@ def _fetch_response_stream(
     except Exception as exc:
         logger.debug("Streaming error fetching %s: %s", url, exc)
         return None
+    finally:
+        if resp is not None:
+            try:
+                resp.release_conn()
+            except Exception:
+                pass
 
 
 def fetch_response(
@@ -604,7 +646,10 @@ def build_response_record(
     body_text = ""
     raw = b""
     if max_bytes > 0:
-        raw = response.read(max_bytes + 1)
+        if getattr(response, "data", None):
+            raw = response.data
+        else:
+            raw = response.read(max_bytes + 1)
     if is_textual_content_type(content_type) and raw:
         charset = extract_charset(content_type)
         try:

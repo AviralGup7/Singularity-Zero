@@ -394,6 +394,10 @@ def run_analysis_plugins(
             logger.warning("Analyzer binding '%s' skipped: %s", key, issue)
         results[key] = []
 
+    progress_callback = context.analysis_config.get("progress_callback")
+    total_plugins = len([k for k in ANALYZER_BINDINGS if k not in contract_issues])
+    completed_plugins = 0
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_key = {
             executor.submit(
@@ -413,6 +417,21 @@ def run_analysis_plugins(
             except Exception as exc:
                 logger.warning("Plugin %s failed: %s", key, exc)
                 results[key] = []
+            
+            completed_plugins += 1
+            if progress_callback and callable(progress_callback):
+                pct = int(50 + (completed_plugins / max(1, total_plugins)) * 45)
+                try:
+                    progress_callback({
+                        "group": "passive_analysis",
+                        "status": f"running_scanners ({key})",
+                        "processed": completed_plugins,
+                        "total": total_plugins,
+                        "stage_percent": pct,
+                        "plugin": key,
+                    })
+                except Exception as p_exc:
+                    logger.debug("Progress callback failed: %s", p_exc)
 
     for key in ANALYZER_BINDINGS:
         results.setdefault(key, [])

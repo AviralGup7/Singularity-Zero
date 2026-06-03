@@ -149,8 +149,6 @@ GRAPHQL_COMMON_FIELDS = [
 
 
 def _check_graphql_errors(body: str) -> list[str]:
-    # ... (existing code unchanged for a moment, let's insert field suggestion right after Test 1) ...
-
     """Check response body for GraphQL error patterns.
 
     Args:
