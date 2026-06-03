@@ -7,55 +7,11 @@ Each probe includes confidence scoring and severity classification.
 
 from typing import Any
 
-from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
-from src.analysis.active.injection.csrf import csrf_active_probe
-from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
-from src.analysis.active.injection.parameter_pollution import hpp_active_probe
-from src.analysis.active.injection.sqli import sqli_safe_probe
-from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
-from src.analysis.active.injection.xpath import xpath_injection_active_probe
-from src.analysis.active.injection.xss_reflect_probe import xss_reflect_probe
-from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
-from src.analysis.checks.active.idor_probe import idor_active_probe
-from src.analysis.helpers import (
-    classify_endpoint,
-    endpoint_base_key,
-    endpoint_signature,
-)
-from src.analysis.helpers import (
-    probe_confidence_from_map as _probe_confidence_from_map,
-)
-from src.analysis.helpers import (
-    probe_severity_from_map as _probe_severity_from_map,
-)
-from src.analysis.passive.runtime import ResponseCache
-
-__all__ = [
-    "cookie_manipulation_probe",
-    "cors_preflight_probe",
-    "csrf_active_probe",
-    "file_upload_active_probe",
-    "head_method_probe",
-    "hpp_active_probe",
-    "http2_probe",
-    "http_smuggling_probe",
-    "idor_active_probe",
-    "jwt_manipulation_probe",
-    "oauth_flow_analyzer",
-    "options_method_probe",
-    "origin_reflection_probe",
-    "sqli_safe_probe",
-    "trace_method_probe",
-    "websocket_hijacking_probe",
-    "websocket_message_probe",
-    "xpath_injection_active_probe",
-    "xss_reflect_probe",
-    "brute_force_resistance_probe",
-    "race_condition_probe",
-]
-
-# HTTP method probes re-exported for backward compatibility
+from src.analysis.active.auth_bypass.analyzer import run_auth_bypass_probes
 from src.analysis.active.brute_force import brute_force_resistance_probe
+from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
+from src.analysis.active.cloud_metadata import cloud_metadata_active_probe
+from src.analysis.active.graphql import graphql_active_probe
 from src.analysis.active.http_methods import (
     cors_preflight_probe,
     head_method_probe,
@@ -67,8 +23,77 @@ from src.analysis.active.http_smuggling import (
     http2_probe,
     http_smuggling_probe,
 )
+from src.analysis.active.injection.command_injection import command_injection_active_probe
+from src.analysis.active.injection.crlf.crlf_probe import crlf_injection_probe
+from src.analysis.active.injection.csrf import csrf_active_probe
+from src.analysis.active.injection.deserialization import deserialization_probe
+from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
+from src.analysis.active.injection.ldap import ldap_injection_active_probe
+from src.analysis.active.injection.nosql import nosql_injection_probe
+from src.analysis.active.injection.open_redirect import open_redirect_active_probe
+from src.analysis.active.injection.parameter_pollution import hpp_active_probe
+from src.analysis.active.injection.path_traversal import path_traversal_active_probe
+from src.analysis.active.injection.proxy_ssrf import proxy_ssrf_probe
+from src.analysis.active.injection.sqli import sqli_safe_probe
+from src.analysis.active.injection.ssrf import ssrf_active_probe
+from src.analysis.active.injection.ssti import ssti_active_probe
+from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
+from src.analysis.active.injection.xpath import xpath_injection_active_probe
+from src.analysis.active.injection.xss_reflect_probe import xss_reflect_probe
+from src.analysis.active.injection.xxe import xxe_active_probe
+from src.analysis.active.jwt_attacks import run_jwt_attack_suite
+from src.analysis.active.param_mining import param_mining_probe
 from src.analysis.active.race_condition import race_condition_probe
+from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
+from src.analysis.checks.active.idor_probe import idor_active_probe
+from src.analysis.helpers import (
+    classify_endpoint,
+    endpoint_base_key,
+    endpoint_signature,
+    probe_confidence_from_map,
+    probe_severity_from_map,
+)
+from src.analysis.passive.runtime import ResponseCache
 
+__all__ = [
+    "brute_force_resistance_probe",
+    "cloud_metadata_active_probe",
+    "command_injection_active_probe",
+    "cookie_manipulation_probe",
+    "cors_preflight_probe",
+    "crlf_injection_probe",
+    "csrf_active_probe",
+    "deserialization_probe",
+    "file_upload_active_probe",
+    "graphql_active_probe",
+    "head_method_probe",
+    "hpp_active_probe",
+    "http2_probe",
+    "http_smuggling_probe",
+    "idor_active_probe",
+    "jwt_manipulation_probe",
+    "ldap_injection_active_probe",
+    "nosql_injection_probe",
+    "oauth_flow_analyzer",
+    "open_redirect_active_probe",
+    "options_method_probe",
+    "origin_reflection_probe",
+    "param_mining_probe",
+    "path_traversal_active_probe",
+    "proxy_ssrf_probe",
+    "race_condition_probe",
+    "run_auth_bypass_probes",
+    "run_jwt_attack_suite",
+    "sqli_safe_probe",
+    "ssrf_active_probe",
+    "ssti_active_probe",
+    "trace_method_probe",
+    "websocket_hijacking_probe",
+    "websocket_message_probe",
+    "xpath_injection_active_probe",
+    "xss_reflect_probe",
+    "xxe_active_probe",
+]
 
 def websocket_message_probe(
     priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
@@ -178,8 +203,8 @@ def websocket_message_probe(
                     "endpoint_type": classify_endpoint(url),
                     "issues": issues,
                     "ws_details": ws_details,
-                    "confidence": _probe_confidence_from_map(issues, WS_CONFIDENCE),
-                    "severity": _probe_severity_from_map(issues, WS_SEVERITY),
+                    "confidence": probe_confidence_from_map(issues, WS_CONFIDENCE),
+                    "severity": probe_severity_from_map(issues, WS_SEVERITY),
                 }
             )
 
@@ -306,8 +331,8 @@ def oauth_flow_analyzer(
                     "endpoint_type": classify_endpoint(url),
                     "issues": issues,
                     "oauth_details": oauth_details,
-                    "confidence": _probe_confidence_from_map(issues, OAUTH_CONFIDENCE),
-                    "severity": _probe_severity_from_map(issues, OAUTH_SEVERITY),
+                    "confidence": probe_confidence_from_map(issues, OAUTH_CONFIDENCE),
+                    "severity": probe_severity_from_map(issues, OAUTH_SEVERITY),
                 }
             )
 
@@ -317,12 +342,16 @@ def oauth_flow_analyzer(
 
 WS_CONFIDENCE = {
     "ws_arbitrary_message_acceptance": 0.70,
+    "ws_auth_token_in_url": 0.75,
+    "ws_no_auth_required": 0.82,
     "ws_missing_rate_limit": 0.60,
     "ws_graphql_subscriptions": 0.65,
     "ws_admin_no_auth": 0.90,
     "ws_permissive_cors": 0.75,
     "ws_missing_clickjacking_protection": 0.55,
     "ws_no_subprotocol_validation": 0.60,
+    "ws_error_leaks_internal_info": 0.65,
+    "ws_origin_not_validated": 0.72,
 }
 
 WS_SEVERITY = {
@@ -330,9 +359,9 @@ WS_SEVERITY = {
     "ws_auth_token_in_url": "high",
     "ws_origin_not_validated": "medium",
     "ws_accepts_arbitrary_messages": "medium",
+    "ws_arbitrary_message_acceptance": "medium",
     "ws_reflects_message_content": "high",
     "ws_error_leaks_internal_info": "medium",
-    "ws_arbitrary_message_acceptance": "medium",
     "ws_missing_rate_limit": "low",
     "ws_graphql_subscriptions": "medium",
     "ws_admin_no_auth": "critical",

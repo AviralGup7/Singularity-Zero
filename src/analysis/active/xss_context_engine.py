@@ -147,10 +147,13 @@ def build_js_context_breaker(script_before_injection: str) -> str:
 
 
 def _pop_matching(stack: list[str], target: str) -> None:
+    idx_to_remove = -1
     for i in range(len(stack) - 1, -1, -1):
         if stack[i] == target:
-            stack.pop(i)
-            return
+            idx_to_remove = i
+            break
+    if idx_to_remove != -1:
+        stack.pop(idx_to_remove)
 
 
 # ---- HTML Context Detector ----
@@ -601,6 +604,9 @@ def _char_overlap_score(s1: str, s2: str) -> int:
 
     if len_shorter == 0:
         return 0
+
+    if len_shorter > len(longer):
+        return 100
 
     best = 0
     for i in range(len(longer) - len_shorter + 1):

@@ -84,7 +84,18 @@ def same_host_family(left: str, right: str) -> bool:
     right_labels = [part for part in right.lower().split(".") if part]
     if not left_labels or not right_labels:
         return False
-    return left_labels[-2:] == right_labels[-2:]
+    
+    common_slds = {"co", "com", "org", "gov", "edu", "net", "mil", "asn", "id", "ltd", "me", "plc", "sch"}
+    
+    def get_family_slice(labels: list[str]) -> list[str]:
+        if len(labels) >= 3:
+            tld = labels[-1]
+            sld = labels[-2]
+            if len(tld) == 2 and sld in common_slds:
+                return labels[-3:]
+        return labels[-2:]
+
+    return get_family_slice(left_labels) == get_family_slice(right_labels)
 
 
 def scope_match(url: str, scope_hosts: set[str]) -> tuple[bool, str]:
@@ -101,7 +112,7 @@ def scope_match(url: str, scope_hosts: set[str]) -> tuple[bool, str]:
 
 
 def dedup_key(*parts: object) -> str:
-    normalized = [str(part).strip() for part in parts]
+    normalized = [str(part).replace("\\", "\\\\").replace("|", "\\|").strip() for part in parts]
     return "|".join(normalized)
 
 

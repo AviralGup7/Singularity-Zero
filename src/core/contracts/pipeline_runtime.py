@@ -57,6 +57,25 @@ def _thaw_value(value: Any) -> Any:
     return value
 
 
+class ThawingMapping(Mapping):
+    """A read-only Mapping wrapper that lazily thaws returned values."""
+
+    def __init__(self, underlying: Mapping):
+        self._underlying = underlying
+
+    def __getitem__(self, key):
+        return _thaw_value(self._underlying[key])
+
+    def __iter__(self):
+        return iter(self._underlying)
+
+    def __len__(self):
+        return len(self._underlying)
+
+    def __repr__(self):
+        return f"ThawingMapping({self._underlying!r})"
+
+
 class StageOutcome(StrEnum):
     """Stable stage outcomes for contract/event payloads."""
 
@@ -105,10 +124,10 @@ class StageInput:
     contract_version: str = RUNTIME_CONTRACT_VERSION
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "state_snapshot", _freeze_value(dict(self.state_snapshot or {})))
-        object.__setattr__(self, "runtime", _freeze_value(dict(self.runtime or {})))
+        object.__setattr__(self, "state_snapshot", ThawingMapping(_freeze_value(dict(self.state_snapshot or {}))))
+        object.__setattr__(self, "runtime", ThawingMapping(_freeze_value(dict(self.runtime or {}))))
         object.__setattr__(
-            self, "previous_deltas", tuple(_freeze_value(d) for d in (self.previous_deltas or ()))
+            self, "previous_deltas", tuple(ThawingMapping(_freeze_value(d)) for d in (self.previous_deltas or ()))
         )
 
     def to_dict(self) -> dict[str, Any]:

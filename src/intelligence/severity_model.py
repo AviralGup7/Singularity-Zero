@@ -282,8 +282,18 @@ class CalibratedSeverityModel:
         return prediction
 
     def enrich_finding(self, finding: dict[str, Any]) -> dict[str, Any]:
-        if "severity_score" in finding:
+        active_ver = "severity-logreg-v1"
+        if hasattr(self, "registry") and self.registry:
+            active_model = self.registry._active.get("severity_model")
+            if active_model:
+                active_ver = active_model.version
+
+        current_metadata = finding.get("severity_model") or {}
+        current_version = current_metadata.get("model_version") if isinstance(current_metadata, dict) else None
+
+        if "severity_score" in finding and current_version == active_ver:
             return finding
+
         prediction = self.predict(finding)
         metadata = prediction.as_metadata()
         return {
@@ -310,15 +320,26 @@ class CalibratedSeverityModel:
         return round(sum(scores) / len(scores), 2)
 
     def _train(self) -> None:
+        self.weights = {
+            "bias": 0.0,
+            "confidence": 1.35,
+            "legacy_impact": 1.0,
+            "reproducible": 1.1,
+        }
+        try:
+            import asyncio
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                loop.run_in_executor(None, self._do_train)
+                return
+        except RuntimeError:
+            pass
+        self._do_train()
+
+    def _do_train(self) -> None:
         examples = self._load_training_examples()
         self.training_samples = len(examples)
         if not examples:
-            self.weights = {
-                "bias": 0.0,
-                "confidence": 1.35,
-                "legacy_impact": 1.0,
-                "reproducible": 1.1,
-            }
             return
         positives = sum(example.label * example.weight for example in examples)
         total_weight = sum(example.weight for example in examples) or 1.0
@@ -499,15 +520,20 @@ class CalibratedSeverityModel:
 
 
 @lru_cache(maxsize=4)
+def _get_cached_severity_model(canonical_path: str) -> CalibratedSeverityModel:
+    return CalibratedSeverityModel(canonical_path)
+
+
 def get_default_severity_model(db_path: str | Path | None = None) -> CalibratedSeverityModel:
     """Return a cached model trained from the telemetry database."""
-    key_path = str(
+    resolved = (
         db_path
         or os.getenv("VULN_SEVERITY_DB_PATH")
         or os.getenv("PIPELINE_TELEMETRY_DB")
         or DEFAULT_DB_PATH
     )
-    return CalibratedSeverityModel(key_path)
+    canonical = str(Path(resolved).resolve().absolute())
+    return _get_cached_severity_model(canonical)
 
 
 def enrich_finding_with_model_severity(finding: dict[str, Any]) -> dict[str, Any]:

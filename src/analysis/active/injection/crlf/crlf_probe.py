@@ -122,7 +122,7 @@ def crlf_injection_probe(
                             ],
                             "probe_token": heuristic_token,
                             "variant_matrix_size": 0,
-                            "confidence": 30,
+                            "confidence": 0.30,
                             "severity": "info",
                         }
                     )

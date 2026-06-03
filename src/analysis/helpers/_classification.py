@@ -9,10 +9,11 @@ from src.core.utils.param_types import decode_candidate_value
 from ._constants import (
     API_PATH_HINTS,
     AUTH_PATH_HINTS,
+    BACKUP_PATH_HINTS,
+    DEBUG_PATH_HINTS,
+    EXPOSED_PATH_HINTS,
     LOW_VALUE_ENDPOINT_TYPES,
-    LOW_VALUE_PATH_HINTS,
     REDIRECT_PATH_HINTS,
-    SELF_ENDPOINT_HINTS,
     STATIC_PATH_HINTS,
     THIRD_PARTY_AUTH_HOSTS,
     TRACKING_PARAM_NAMES,
@@ -25,39 +26,37 @@ def is_auth_flow_endpoint(url: str) -> bool:
     """Check if a URL is part of an authentication flow."""
     path = urlparse(url).path.lower()
     auth_flow_hints = {
-        "login",
-        "logout",
-        "signin",
-        "signout",
-        "signup",
-        "register",
-        "auth",
-        "oauth",
-        "token",
-        "refresh",
-        "reset",
-        "forgot",
-        "password",
-        "verify",
-        "confirm",
-        "activate",
-        "deactivate",
-        "session",
-        "sso",
-        "saml",
-        "openid",
-        "callback",
-        "authorize",
-        "consent",
-        "challenge",
+        "login", "logout", "signin", "signout", "signup", "register",
+        "auth", "oauth", "token", "refresh", "reset", "forgot",
+        "password", "verify", "confirm", "activate", "deactivate",
+        "session", "sso", "saml", "openid", "callback", "authorize",
+        "consent", "challenge", "mfa", "totp", "webauthn", "passkey",
+        "magic-link", "invite", "accept-invite", "recover", "unlock",
     }
     return any(hint in path for hint in auth_flow_hints)
 
 
 @lru_cache(maxsize=4096)
 def classify_endpoint(url: str) -> str:
-    """Classify a URL by its endpoint type (STATIC, AUTH, REDIRECT, API, GENERAL)."""
-    lowered = urlparse(url).path.lower()
+    """Classify a URL by its endpoint type.
+
+    Returns one of: STATIC, AUTH, REDIRECT, API, DEBUG, BACKUP, EXPOSED, GENERAL.
+    """
+    parsed = urlparse(url)
+    lowered = parsed.path.lower()
+
+    # Check for DEBUG endpoints first (more specific than API)
+    if any(token in lowered for token in DEBUG_PATH_HINTS):
+        return "DEBUG"
+
+    # Check for BACKUP file endpoints
+    if any(lowered.endswith(token) or token in lowered for token in BACKUP_PATH_HINTS):
+        return "BACKUP"
+
+    # Check for exposed docs/swagger endpoints
+    if any(token in lowered for token in EXPOSED_PATH_HINTS):
+        return "EXPOSED"
+
     if any(token in lowered for token in STATIC_PATH_HINTS):
         return "STATIC"
     if any(token in lowered for token in AUTH_PATH_HINTS):
@@ -71,18 +70,43 @@ def classify_endpoint(url: str) -> str:
 
 @lru_cache(maxsize=4096)
 def is_low_value_endpoint(url: str) -> bool:
-    """Check if a URL is a low-value endpoint."""
-    lowered = urlparse(url).path.lower()
-    return classify_endpoint(url) in LOW_VALUE_ENDPOINT_TYPES or any(
-        token in lowered for token in LOW_VALUE_PATH_HINTS
-    )
+    """Check if a URL is a low-value endpoint (static, backup, help, etc.)."""
+    endpoint_type = classify_endpoint(url)
+    return endpoint_type in LOW_VALUE_ENDPOINT_TYPES
 
 
 @lru_cache(maxsize=4096)
 def is_self_endpoint(url: str) -> bool:
     """Check if a URL targets the current user's own resource (/me, /users/me)."""
     path = urlparse(url).path.lower()
-    return any(path.endswith(token) or token in path for token in SELF_ENDPOINT_HINTS)
+    return any(
+        path == token or path.endswith(token) or token in path
+        for token in ("/me", "/users/me", "/users/me.json", "/account", "/profile", "/my", "/self", "/current")
+    )
+
+
+@lru_cache(maxsize=4096)
+def is_debug_endpoint(url: str) -> bool:
+    """Check if a URL is a debug/info endpoint (actuator, env, metrics, etc.)."""
+    lowered = urlparse(url).path.lower()
+    return any(token in lowered for token in DEBUG_PATH_HINTS)
+
+
+@lru_cache(maxsize=4096)
+def is_backup_endpoint(url: str) -> bool:
+    """Check if a URL points to a backup/config file."""
+    lowered = urlparse(url).path.lower()
+    return any(
+        lowered.endswith(token) or token in lowered
+        for token in BACKUP_PATH_HINTS
+    )
+
+
+@lru_cache(maxsize=4096)
+def is_exposed_spec_endpoint(url: str) -> bool:
+    """Check if a URL exposes API specifications (OpenAPI/Swagger/GraphQL introspection)."""
+    lowered = urlparse(url).path.lower()
+    return any(token in lowered for token in EXPOSED_PATH_HINTS)
 
 
 @lru_cache(maxsize=1024)
@@ -140,29 +164,43 @@ def is_noise_url(url: str) -> bool:
         return True
     if any(token in path for token in STATIC_PATH_HINTS):
         return True
+    if any(token in path or path.endswith(token) for token in BACKUP_PATH_HINTS):
+        return True
     if host.startswith(("static.", "cdn.", "img.", "images.")):
         return True
-    if "facebook.com" in host:
+    if "facebook.com" in host or "fbcdn.net" in host:
         return True
     return False
 
 
 def same_host_family(left: str, right: str) -> bool:
-    """Check if two hosts belong to the same family (share last two domain labels)."""
+    """Check if two hosts belong to the same family (support multi-part TLDs)."""
     left_labels = [part for part in left.lower().split(".") if part]
     right_labels = [part for part in right.lower().split(".") if part]
     if not left_labels or not right_labels:
         return False
-    return left_labels[-2:] == right_labels[-2:]
+
+    common_slds = {"co", "com", "org", "gov", "edu", "net", "mil", "asn", "id", "ltd", "me", "plc", "sch"}
+
+    def get_family_slice(labels: list[str]) -> list[str]:
+        if len(labels) >= 3:
+            tld = labels[-1]
+            sld = labels[-2]
+            if len(tld) == 2 and sld in common_slds:
+                return labels[-3:]
+        return labels[-2:]
+
+    return get_family_slice(left_labels) == get_family_slice(right_labels)
 
 
 def is_third_party_auth_host(host: str, target_host: str = "") -> bool:
     """Check if a host is a third-party authentication provider."""
-    lowered = host.lower()
-    if target_host and same_host_family(lowered, target_host):
+    lowered = str(host or "").lower()
+    if target_host and same_host_family(lowered, target_host.lower()):
         return False
     return any(
-        lowered == domain or lowered.endswith(f".{domain}") for domain in THIRD_PARTY_AUTH_HOSTS
+        lowered == domain or lowered.endswith(f".{domain}")
+        for domain in THIRD_PARTY_AUTH_HOSTS
     )
 
 

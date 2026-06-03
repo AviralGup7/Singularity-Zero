@@ -153,8 +153,8 @@ async def finalize_run(
         from src.core.events import reset_event_bus
 
         reset_event_bus()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger_obj.warning("Failed to reset event bus: %s", exc, exc_info=True)
 
     return exit_code
 
