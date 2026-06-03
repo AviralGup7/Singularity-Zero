@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/findings", tags=["Findings"])
 
 
-def _locate_finding_on_disk(output_root: Any, finding_id: str, tenant_id: str) -> tuple[str, str, int, dict[str, Any], list[dict[str, Any]], Any] | None:
+def _locate_finding_on_disk(
+    output_root: Any, finding_id: str, tenant_id: str
+) -> tuple[str, str, int, dict[str, Any], list[dict[str, Any]], Any] | None:
     for target_entry in output_root.iterdir():
         if not target_entry.is_dir():
             continue

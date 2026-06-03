@@ -1,4 +1,4 @@
-﻿"""
+"""
 Message serialization utilities for the gossip protocol.
 
 Handles canonical JSON encoding, HMAC signing/verification, and

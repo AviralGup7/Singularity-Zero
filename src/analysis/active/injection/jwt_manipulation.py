@@ -1,4 +1,4 @@
-﻿"""JWT manipulation active probe."""
+"""JWT manipulation active probe."""
 
 import base64
 import hashlib
