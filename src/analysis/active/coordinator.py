@@ -13,6 +13,12 @@ from src.analysis.active.injection.csrf import csrf_active_probe
 from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
 from src.analysis.active.injection.sqli import sqli_safe_probe
 from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
+from src.analysis.helpers._classification import classify_endpoint, endpoint_base_key, endpoint_signature
+from src.analysis.helpers._probe_utils import (
+    probe_confidence_from_map as _probe_confidence_from_map,
+    probe_severity_from_map as _probe_severity_from_map,
+)
+from src.analysis.passive.runtime import ResponseCache
 
 
 def websocket_message_probe(
