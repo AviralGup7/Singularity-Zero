@@ -31,6 +31,9 @@ SQL_PARAM_NAMES = {
     "table",
     "raw",
     "native_query",
+    "lookup",
+    "match",
+    "$filter",
 }
 
 SQL_ERROR_RE = re.compile(

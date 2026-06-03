@@ -132,7 +132,7 @@ def _collect_for_host(host: str, timeout_seconds: int, per_host_limit: int) -> s
     attempts = 1 + DEFAULT_MAX_RETRIES
     backoff = DEFAULT_BACKOFF_SECONDS
     resp = None
-    
+
     # Performance #5: Only check safety once per session to avoid thousands of redundant DNS queries
     if not _cdx_safe_checked:
         try:

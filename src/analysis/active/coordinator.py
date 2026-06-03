@@ -5,20 +5,65 @@ misconfigurations like unsafe methods, CORS issues, and TRACE exposure.
 Each probe includes confidence scoring and severity classification.
 """
 
-import re
 from typing import Any
 
 from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
 from src.analysis.active.injection.csrf import csrf_active_probe
 from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
+from src.analysis.active.injection.parameter_pollution import hpp_active_probe
 from src.analysis.active.injection.sqli import sqli_safe_probe
 from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
-from src.analysis.helpers._classification import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.analysis.helpers._probe_utils import (
+from src.analysis.active.injection.xpath import xpath_injection_active_probe
+from src.analysis.active.injection.xss_reflect_probe import xss_reflect_probe
+from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
+from src.analysis.checks.active.idor_probe import idor_active_probe
+from src.analysis.helpers import (
+    classify_endpoint,
+    endpoint_base_key,
+    endpoint_signature,
     probe_confidence_from_map as _probe_confidence_from_map,
     probe_severity_from_map as _probe_severity_from_map,
 )
 from src.analysis.passive.runtime import ResponseCache
+
+__all__ = [
+    "cookie_manipulation_probe",
+    "cors_preflight_probe",
+    "csrf_active_probe",
+    "file_upload_active_probe",
+    "head_method_probe",
+    "hpp_active_probe",
+    "http2_probe",
+    "http_smuggling_probe",
+    "idor_active_probe",
+    "jwt_manipulation_probe",
+    "oauth_flow_analyzer",
+    "options_method_probe",
+    "origin_reflection_probe",
+    "sqli_safe_probe",
+    "trace_method_probe",
+    "websocket_hijacking_probe",
+    "websocket_message_probe",
+    "xpath_injection_active_probe",
+    "xss_reflect_probe",
+    "brute_force_resistance_probe",
+    "race_condition_probe",
+]
+
+# HTTP method probes re-exported for backward compatibility
+from src.analysis.active.brute_force import brute_force_resistance_probe
+from src.analysis.active.http_methods import (
+    cors_preflight_probe,
+    head_method_probe,
+    options_method_probe,
+    origin_reflection_probe,
+    trace_method_probe,
+)
+from src.analysis.active.http_smuggling import (
+    http2_probe,
+    http_smuggling_probe,
+)
+from src.analysis.active.race_condition import race_condition_probe
 
 
 def websocket_message_probe(
@@ -116,8 +161,6 @@ def websocket_message_probe(
                     issues.append("ws_permissive_cors")
                     ws_details.append({"type": "cors_issue", "allow_origin": acao})
 
-            # Fix Audit #40: Removed incorrect clickjacking check for WebSocket endpoints.
-
             if "sec-websocket-accept" in headers and "sec-websocket-protocol" not in headers:
                 issues.append("ws_no_subprotocol_validation")
                 ws_details.append({"type": "missing_subprotocol_validation"})
@@ -202,13 +245,9 @@ def oauth_flow_analyzer(
         issues: list[str] = []
         oauth_details: list[dict[str, Any]] = []
 
-        # Fix Audit #22: Also check request body if available (via response record)
-        # Note: In current architecture, we primarily have access to the observed response's request parameters.
         query_params = dict(parse_qsl(parsed.query))
 
         response = response_cache.get(url)
-        # Combine query and body params if we can find them in the record
-        # (This assumes the collector stored the observed request body)
         combined_params = dict(query_params)
         if response and "request_body" in response:
             try:
