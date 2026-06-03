@@ -21,7 +21,7 @@ const MAX_ERRORS = 500;
 let errorTrackerInstance: ErrorTracker | null = null;
 
 export class ErrorTracker {
-   
+    
   private errors: TrackedError[] = [];
   private sentryDsn: string | null = null;
 
@@ -37,8 +37,16 @@ export class ErrorTracker {
     return errorTrackerInstance;
   }
 
+  static trap() {
+    ErrorTracker.getInstance();
+  }
+
   static resetInstance(): void {
     errorTrackerInstance = null;
+  }
+
+  track(error: Error | string, context?: Partial<ErrorContext>): TrackedError {
+    return this.captureError(error, context);
   }
 
   captureError(error: Error | string, context: Partial<ErrorContext> = {}): TrackedError {
@@ -192,6 +200,8 @@ export class ErrorTracker {
     }
   }
 }
+
+export const errorTracker = ErrorTracker.getInstance();
 
 export function captureError(error: Error | string, context?: Partial<ErrorContext>): TrackedError {
   return ErrorTracker.getInstance().captureError(error, context);

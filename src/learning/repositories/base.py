@@ -12,7 +12,6 @@ from typing import Any, cast
 class BaseRepo:
     """Base class providing thread-local connection management."""
 
-    _connections: set[sqlite3.Connection] = set()
     _lock = threading.Lock()
 
     def __init__(self, db_path: Path, local: threading.local):
@@ -37,17 +36,6 @@ class BaseRepo:
                     pass
                 raise
             self._local.conn = conn
-            with BaseRepo._lock:
-                # Clean up any closed connections to prevent accumulation
-                to_remove = set()
-                for c in BaseRepo._connections:
-                    try:
-                        # Try to execute a simple PRAGMA to see if it is closed
-                        c.execute("SELECT 1")
-                    except sqlite3.ProgrammingError:
-                        to_remove.add(c)
-                BaseRepo._connections.difference_update(to_remove)
-                BaseRepo._connections.add(conn)
         return cast(sqlite3.Connection, self._local.conn)
 
     @contextmanager

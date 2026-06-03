@@ -93,7 +93,7 @@ class FeedbackRepo(BaseRepo):
 
         Returns the number of events updated.
         """
-        datetime.now(UTC).isoformat()
+        now = datetime.now(UTC)
 
         with self._cursor() as cur:
             cur.execute(
@@ -103,13 +103,13 @@ class FeedbackRepo(BaseRepo):
                 (run_id,),
             )
             rows = cur.fetchall()
-            updated = 0
-
+            
+            updates = []
             for row in rows:
                 ts = row["timestamp"]
                 try:
                     event_time = datetime.fromisoformat(ts)
-                    delta_days = max(0, (datetime.now(UTC) - event_time).total_seconds() / 86400)
+                    delta_days = max(0, (now - event_time).total_seconds() / 86400)
                 except (ValueError, TypeError):
                     delta_days = 0
 
@@ -137,14 +137,16 @@ class FeedbackRepo(BaseRepo):
                 sev_mult = severity_map.get((row["finding_severity"] or "").lower(), 1.0)
 
                 weight = round(recency * val_mult * sev_mult, 4)
+                updates.append((weight, row["event_id"]))
 
-                cur.execute(
+            if updates:
+                # Performance #6: Use executemany for batch update
+                cur.executemany(
                     "UPDATE feedback_events SET feedback_weight = ? WHERE event_id = ?",
-                    (weight, row["event_id"]),
+                    updates,
                 )
-                updated += 1
-
-            return updated
+            
+            return len(updates)
 
     def get_fp_rate_for_pattern(self, category: str, plugin: str) -> float:
         """Get the historical FP rate for a category/plugin pattern."""
