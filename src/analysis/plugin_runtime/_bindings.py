@@ -21,6 +21,7 @@ from src.analysis.active.injection.ssti import ssti_active_probe
 from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
 from src.analysis.active.injection.xpath import xpath_injection_active_probe
 from src.analysis.active.injection.xxe import xxe_active_probe
+from src.analysis.active.param_mining import param_mining_probe
 from src.analysis.behavior.flow_prober import run_cognitive_flow_analysis
 from src.analysis.checks.active._detectors import (
     dom_xss_signal_detector,
@@ -129,7 +130,7 @@ def _register_bindings() -> None:
         "stored_xss_signal_detector": _binding("responses_only", stored_xss_signal_detector),
         "dom_xss_signal_detector": _binding("responses_only", dom_xss_signal_detector),
         "token_leak_detector": _binding("responses_only"),
-        "graphql_introspection_detector": _binding(
+        "graphql_introspection_exposure_checker": _binding(
             "urls_and_responses", graphql_introspection_detector
         ),
         "csrf_protection_checker": _binding(
@@ -222,7 +223,6 @@ def _register_bindings() -> None:
         ),
         "redirect_chain_analyzer": _binding("responses_only"),
         "auth_boundary_redirect_detection": _binding("priority_urls_and_cache"),
-        "graphql_introspection_exposure_checker": _binding("responses_only"),
         "graphql_error_leakage_checker": _binding("responses_only"),
         "openapi_swagger_spec_checker": _binding("urls_and_responses"),
         "ai_endpoint_exposure_analyzer": _binding("urls_and_responses"),
@@ -488,6 +488,12 @@ def _register_bindings() -> None:
             limit_key="access_control_limit",
             default_limit=20,
             runner=access_control_analyzer,
+        ),
+        "hidden_parameter_miner": _binding(
+            "priority_urls_and_cache",
+            limit_key="param_mining_limit",
+            default_limit=10,
+            runner=param_mining_probe,
         ),
     }
 

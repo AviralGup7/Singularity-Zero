@@ -92,13 +92,28 @@ class SelfHealingController:
         bloom_fill_threshold: float = 0.92,
         dashboard_connection_timeout: float = 75.0,
         action_registry: CorrectiveActionRegistry | None = None,
+        config: Any | None = None,
     ) -> None:
+        self._config = config
         self.interval_seconds = interval_seconds
-        self.stale_stage_seconds = stale_stage_seconds
-        self.queue_depth_threshold = queue_depth_threshold
-        self.worker_heartbeat_timeout = worker_heartbeat_timeout
-        self.bloom_fill_threshold = bloom_fill_threshold
-        self.dashboard_connection_timeout = dashboard_connection_timeout
+        if config is not None:
+            self.stale_stage_seconds = float(getattr(config, "stale_stage_seconds", stale_stage_seconds))
+            self.queue_depth_threshold = int(getattr(config, "queue_depth_threshold", queue_depth_threshold))
+            self.worker_heartbeat_timeout = float(
+                getattr(config, "worker_heartbeat_timeout", worker_heartbeat_timeout)
+            )
+            self.bloom_fill_threshold = float(
+                getattr(config, "bloom_fill_threshold", bloom_fill_threshold)
+            )
+            self.dashboard_connection_timeout = float(
+                getattr(config, "dashboard_connection_timeout", dashboard_connection_timeout)
+            )
+        else:
+            self.stale_stage_seconds = stale_stage_seconds
+            self.queue_depth_threshold = queue_depth_threshold
+            self.worker_heartbeat_timeout = worker_heartbeat_timeout
+            self.bloom_fill_threshold = bloom_fill_threshold
+            self.dashboard_connection_timeout = dashboard_connection_timeout
         self.actions = action_registry or CorrectiveActionRegistry()
         self._probes: dict[str, Probe] = {}
         self._task: asyncio.Task[None] | None = None

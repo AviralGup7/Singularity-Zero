@@ -2082,6 +2082,323 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/findings/{finding_id}:
+    put:
+      tags:
+      - Findings
+      - Findings
+      summary: Update a finding
+      description: Update finding metadata (status, severity, etc.) on disk.
+      operationId: update_finding_api_findings__finding_id__put
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Update Data
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Update Finding Api Findings  Finding Id  Put
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-ai-action: update_finding
+      x-ai-idempotency: false
+    delete:
+      tags:
+      - Findings
+      - Findings
+      summary: Delete a finding
+      description: Remove a finding from disk.
+      operationId: delete_finding_api_findings__finding_id__delete
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: boolean
+                title: Response Delete Finding Api Findings  Finding Id  Delete
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-ai-action: delete_finding
+      x-ai-idempotency: false
+      x-ai-impact: high
+    get:
+      tags:
+      - Findings
+      - Findings
+      summary: Get individual finding details
+      description: Retrieve full details for a specific finding by ID.
+      operationId: get_finding_detail_api_findings__finding_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Finding Detail Api Findings  Finding Id  Get
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/findings/bulk:
+    put:
+      tags:
+      - Findings
+      - Findings
+      summary: Bulk update findings
+      description: Apply updates to multiple findings.
+      operationId: bulk_update_findings_api_findings_bulk_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: true
+              type: object
+              title: Payload
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  additionalProperties: true
+                  type: object
+                type: array
+                title: Response Bulk Update Findings Api Findings Bulk Put
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+  /api/findings/{finding_id}/remediation:
+    get:
+      tags:
+      - Findings
+      - Findings
+      summary: Get fix-command suggestions for a finding
+      operationId: get_finding_remediation_api_findings__finding_id__remediation_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Finding Remediation Api Findings  Finding Id  Remediation
+                  Get
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/findings/{finding_id}/explain:
+    get:
+      tags:
+      - Findings
+      - Findings
+      summary: Get ML explainability analysis (SHAP) for a finding
+      operationId: explain_finding_severity_api_findings__finding_id__explain_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Explain Finding Severity Api Findings  Finding Id  Explain
+                  Get
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/findings/{finding_id}/ai-explain:
+    get:
+      tags:
+      - Findings
+      - Findings
+      summary: Get AI persona-tailored (Developer/Auditor) explanations for a finding
+      operationId: explain_finding_ai_api_findings__finding_id__ai_explain_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: finding_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Finding Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Explain Finding Ai Api Findings  Finding Id  Ai Explain
+                  Get
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/findings:
     get:
       tags:
@@ -2219,323 +2536,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/findings/{finding_id}:
-    get:
-      tags:
-      - Findings
-      - Findings
-      summary: Get individual finding details
-      description: Retrieve full details for a specific finding by ID.
-      operationId: get_finding_detail_api_findings__finding_id__get
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: finding_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Finding Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-                title: Response Get Finding Detail Api Findings  Finding Id  Get
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-    put:
-      tags:
-      - Findings
-      - Findings
-      summary: Update a finding
-      description: Update finding metadata (status, severity, etc.) on disk.
-      operationId: update_finding_api_findings__finding_id__put
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: finding_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Finding Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-              title: Update Data
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-                title: Response Update Finding Api Findings  Finding Id  Put
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      x-ai-action: update_finding
-      x-ai-idempotency: false
-    delete:
-      tags:
-      - Findings
-      - Findings
-      summary: Delete a finding
-      description: Remove a finding from disk.
-      operationId: delete_finding_api_findings__finding_id__delete
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: finding_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Finding Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties:
-                  type: boolean
-                title: Response Delete Finding Api Findings  Finding Id  Delete
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      x-ai-action: delete_finding
-      x-ai-idempotency: false
-      x-ai-impact: high
-  /api/findings/{finding_id}/remediation:
-    get:
-      tags:
-      - Findings
-      - Findings
-      summary: Get fix-command suggestions for a finding
-      operationId: get_finding_remediation_api_findings__finding_id__remediation_get
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: finding_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Finding Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-                title: Response Get Finding Remediation Api Findings  Finding Id  Remediation
-                  Get
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/findings/{finding_id}/explain:
-    get:
-      tags:
-      - Findings
-      - Findings
-      summary: Get ML explainability analysis (SHAP) for a finding
-      operationId: explain_finding_severity_api_findings__finding_id__explain_get
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: finding_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Finding Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-                title: Response Explain Finding Severity Api Findings  Finding Id  Explain
-                  Get
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/findings/{finding_id}/ai-explain:
-    get:
-      tags:
-      - Findings
-      - Findings
-      summary: Get AI persona-tailored (Developer/Auditor) explanations for a finding
-      operationId: explain_finding_ai_api_findings__finding_id__ai_explain_get
-      security:
-      - APIKeyHeader: []
-      parameters:
-      - name: finding_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Finding Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-                title: Response Explain Finding Ai Api Findings  Finding Id  Ai Explain
-                  Get
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Not Found
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: Unauthorized
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/findings/bulk:
-    put:
-      tags:
-      - Findings
-      - Findings
-      summary: Bulk update findings
-      description: Apply updates to multiple findings.
-      operationId: bulk_update_findings_api_findings_bulk_put
-      requestBody:
-        content:
-          application/json:
-            schema:
-              additionalProperties: true
-              type: object
-              title: Payload
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  additionalProperties: true
-                  type: object
-                type: array
-                title: Response Bulk Update Findings Api Findings Bulk Put
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      security:
-      - APIKeyHeader: []
   /api/cache/stats:
     get:
       tags:
@@ -3907,7 +3907,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: Unprocessable Content
+          description: Unprocessable Entity
           content:
             application/json:
               schema:

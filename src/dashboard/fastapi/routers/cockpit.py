@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from src.analysis.intelligence.lateral_graph import LateralGraph
 from src.dashboard.fastapi.dependencies import (
@@ -713,8 +714,6 @@ async def trigger_cockpit_probe(
 # ---------------------------------------------------------
 # Interactive 3D Exploit Sandbox & Time-Travel Replay
 # ---------------------------------------------------------
-
-from pydantic import BaseModel
 
 
 class SandboxLaunchRequest(BaseModel):

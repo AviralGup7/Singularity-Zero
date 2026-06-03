@@ -49,9 +49,11 @@ export const FindingSchema = z.object({
   remediation: z.string().optional(),
   proof: z.string().optional(),
   timestamp: z.string(),
+  url: z.string().optional(),
+  score: z.number().optional(),
    
   status: z.enum(['active', 'resolved', 'false_positive', 'ignored']).default('active'),
-});
+}).passthrough();
 
 export const FindingsListSchema = z.array(FindingSchema);
 

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 CHECKPOINT_KEY_PREFIX = "checkpoint:run:"
 LEASE_KEY_PREFIX = "checkpoint:lease:"
 WORKER_CHECKPOINTS_KEY = "checkpoint:workers"
+ALL_CHECKPOINTS_KEY = "checkpoint:all"
 
 
 class DistributedCheckpointStore:
@@ -65,6 +66,10 @@ class DistributedCheckpointStore:
             worker_key = f"{WORKER_CHECKPOINTS_KEY}:{worker_id}"
             self.redis.execute_command("SADD", worker_key, state.pipeline_run_id)
             self.redis.execute_command("EXPIRE", worker_key, 86400)
+
+            # Track in global checkpoint index for dead-worker detection
+            self.redis.execute_command("SADD", ALL_CHECKPOINTS_KEY, state.pipeline_run_id)
+            self.redis.execute_command("EXPIRE", ALL_CHECKPOINTS_KEY, 86400)
 
             logger.info(
                 "Saved checkpoint for run %s (owner=%s, node=%s)",
@@ -248,22 +253,30 @@ class DistributedCheckpointStore:
         dead_checkpoints = []
 
         try:
-            # Get all worker checkpoint keys
-            # This is a pattern scan - in production consider using a set of all workers
             alive_set = set(alive_workers)
-
-            # For each potential dead worker, check their checkpoints
-            # This is simplified - real implementation would track all workers
-            for worker_id in alive_set:
-                checkpoints = await self.list_worker_checkpoints(worker_id)
-                for run_id in checkpoints:
-                    owner = await self.get_checkpoint_owner(run_id)
-                    if owner and owner not in alive_set:
-                        dead_checkpoints.append((run_id, owner))
+            all_checkpoint_keys = await self._all_checkpoint_keys()
+            for key in all_checkpoint_keys:
+                owner = await self.get_checkpoint_owner(key)
+                if owner and owner not in alive_set:
+                    dead_checkpoints.append((key, owner))
 
             return dead_checkpoints
         except Exception as exc:
             logger.error("Failed to list dead worker checkpoints: %s", exc)
+            return []
+
+    async def _all_checkpoint_keys(self) -> list[str]:
+        """Return all known checkpoint run IDs from the global index."""
+        try:
+            members = self.redis.execute_command("SMEMBERS", ALL_CHECKPOINTS_KEY)
+            if not members:
+                return []
+            return [
+                m.decode("utf-8") if isinstance(m, bytes) else m
+                for m in members
+            ]
+        except Exception as exc:
+            logger.error("Failed to list all checkpoint keys: %s", exc)
             return []
 
     async def delete_checkpoint(self, run_id: str) -> bool:

@@ -42,9 +42,8 @@ class FindingsRepo(BaseRepo):
         """Get all findings for multiple runs in a single query."""
         if not run_ids:
             return []
-        placeholders = ",".join("?" for _ in run_ids)
-        if len(placeholders) != len(run_ids):
-            raise ValueError("run_ids list changed during query construction")
+        placeholders_count = len(run_ids)
+        placeholders = ",".join("?" for _ in range(placeholders_count))
         with self._cursor() as cur:
             cur.execute(
                 f"SELECT * FROM findings WHERE run_id IN ({placeholders}) ORDER BY confidence DESC",  # noqa: S608

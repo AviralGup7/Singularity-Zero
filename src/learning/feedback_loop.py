@@ -208,6 +208,15 @@ class FeedbackLoopEngine:
                 suppression = min(-5.0, -stats["total_weight"] * fp_rate)
                 adaptations.target_suppressions[ep] = round(suppression, 2)
 
+        # Sort and limit target boosts/suppressions to prevent unbounded memory growth
+        if len(adaptations.target_boosts) > 100:
+            sorted_boosts = sorted(adaptations.target_boosts.items(), key=lambda x: -x[1])[:100]
+            adaptations.target_boosts = dict(sorted_boosts)
+
+        if len(adaptations.target_suppressions) > 100:
+            sorted_suppressions = sorted(adaptations.target_suppressions.items(), key=lambda x: x[1])[:100]
+            adaptations.target_suppressions = dict(sorted_suppressions)
+
     def _compute_plugin_adaptations(
         self, adaptations: ScanAdaptation, plugin_stats_list: list[dict[str, Any]]
     ) -> None:

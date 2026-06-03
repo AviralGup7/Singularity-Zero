@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
+from src.core.utils.math_utils import clamp as _clamp
+
 # Try importing scikit-learn gracefully
 try:
     import numpy as np
@@ -146,8 +148,6 @@ class GoldenSetEvaluation:
             "passed": self.passed,
         }
 
-
-from src.core.utils.math_utils import clamp as _clamp
 
 
 def _numeric(value: Any, default: float = 0.0) -> float:

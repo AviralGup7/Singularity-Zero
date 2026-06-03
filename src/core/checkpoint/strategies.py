@@ -50,6 +50,9 @@ class CheckpointManager:
         self._state: CheckpointState | None = None
         self._lock = threading.RLock()
 
+    def _checkpoint_path(self, version: int) -> Path:
+        return self._run_dir / f"checkpoint_v{version}.json"
+
     def _ensure_run_dir(self) -> None:
         self._run_dir.mkdir(parents=True, exist_ok=True)
 

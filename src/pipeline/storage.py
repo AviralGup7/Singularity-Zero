@@ -89,7 +89,11 @@ def write_ranked_lines(path: Path, items: Iterable[str]) -> None:
 
 
 def write_json(path: Path, payload: dict[str, Any] | list[Any]) -> None:
-    path.write_text(format_json(payload), encoding="utf-8")
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path.write_text(format_json(payload), encoding="utf-8")
+    import os
+    os.replace(str(tmp_path), str(path))
 
 
 def write_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:

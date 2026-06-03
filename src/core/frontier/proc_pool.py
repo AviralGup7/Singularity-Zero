@@ -71,6 +71,7 @@ class ResourceWatchdog:
         self.max_memory_mb = max_memory_mb
         self.check_interval_seconds = check_interval_seconds
         self._task: asyncio.Task | None = None
+        self._failed_kills: dict[int, int] = {}
 
     def start(self) -> None:
         self._task = asyncio.create_task(self._monitor_loop())
@@ -99,6 +100,11 @@ class ResourceWatchdog:
                     pid = p.process.pid
                     if not pid:
                         continue
+
+                    if self._failed_kills.get(pid, 0) > 3:
+                        logger.warning("ResourceWatchdog: Process %d (PID %d) is a zombie/D-state worker. Skipping recycling attempt.", p.id, pid)
+                        continue
+
                     try:
                         proc = psutil.Process(pid)
                         mem_info = proc.memory_info()
@@ -118,11 +124,22 @@ class ResourceWatchdog:
                                 else:
                                     p.process.terminate()
                             except Exception:
-                                p.process.kill()
+                                try:
+                                    p.process.kill()
+                                except Exception:
+                                    pass
 
-                            # Wait for termination outside the lock-heavy loop if possible,
-                            # but here p is just a dataclass from our copy.
-                            await p.process.wait()
+                            # Wait for termination outside the lock-heavy loop with a timeout
+                            try:
+                                await asyncio.wait_for(p.process.wait(), timeout=2.0)
+                                self._failed_kills.pop(pid, None)
+                            except TimeoutError:
+                                self._failed_kills[pid] = self._failed_kills.get(pid, 0) + 1
+                                logger.error(
+                                    "ResourceWatchdog: Failed to kill process %d (PID %d) within timeout. Spawn replacement anyway.",
+                                    p.id,
+                                    pid,
+                                )
 
                             # Respawn a new one in its place
                             spawn_kwargs: dict[str, Any] = {

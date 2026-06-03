@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -10,6 +11,15 @@ from datetime import UTC, datetime
 from typing import Any
 
 TELEMETRY_SCHEMA_VERSION = "telemetry.v2"
+_telemetry_sequence: int = 0
+_telemetry_sequence_lock = threading.Lock()
+
+
+def _next_sequence() -> int:
+    global _telemetry_sequence
+    with _telemetry_sequence_lock:
+        _telemetry_sequence += 1
+        return _telemetry_sequence
 
 
 @dataclass(frozen=True)
@@ -93,6 +103,7 @@ def build_telemetry_event(
 ) -> dict[str, Any]:
     ts_epoch = time.time() if epoch is None else epoch
     resolved_trace = trace_id or run_id or str(uuid.uuid4())
+    resolved_sequence = sequence if sequence else _next_sequence()
     resolved_id = event_id or stable_event_id(
         TELEMETRY_SCHEMA_VERSION,
         resolved_trace,
@@ -102,7 +113,7 @@ def build_telemetry_event(
         artifact_type,
         artifact_id,
         finding_id,
-        sequence,
+        resolved_sequence,
         message,
     )
     return TelemetryEvent(

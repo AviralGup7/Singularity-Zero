@@ -24,6 +24,12 @@ class CircuitBreakerOpenException(Exception):
     pass
 
 
+class _ProbeAborted(BaseException):
+    """Internal marker for HALF_OPEN probe cancellation (inherits BaseException)."""
+
+    pass
+
+
 class CircuitBreaker:
     """
     State machine for service circuit breakers.
@@ -57,13 +63,13 @@ class CircuitBreaker:
         # 2. Execute protected call
         try:
             result = fn(*args, **kwargs)
-        except Exception as exc:
-            self._record_failure(admission_state, state_version, exc)
-            if self.fallback_fn:
-                return cast(T, self.fallback_fn(*args, **kwargs))
-            raise
-        except Exception:
-            self._release_aborted_probe(admission_state, state_version)
+        except BaseException as exc:
+            if isinstance(exc, Exception):
+                self._record_failure(admission_state, state_version, exc)
+                if self.fallback_fn:
+                    return cast(T, self.fallback_fn(*args, **kwargs))
+            else:
+                self._release_aborted_probe(admission_state, state_version)
             raise
 
         if inspect.isawaitable(result):
@@ -91,13 +97,13 @@ class CircuitBreaker:
             result = fn(*args, **kwargs)
             if inspect.isawaitable(result):
                 result = await result
-        except Exception as exc:
-            self._record_failure(admission_state, state_version, exc)
-            if self.fallback_fn:
-                return await self._call_fallback_async(*args, **kwargs)
-            raise
-        except Exception:
-            self._release_aborted_probe(admission_state, state_version)
+        except BaseException as exc:
+            if isinstance(exc, Exception):
+                self._record_failure(admission_state, state_version, exc)
+                if self.fallback_fn:
+                    return await self._call_fallback_async(*args, **kwargs)
+            else:
+                self._release_aborted_probe(admission_state, state_version)
             raise
 
         self._record_success(admission_state, state_version)
@@ -208,13 +214,13 @@ class CircuitBreaker:
     ) -> Any:
         try:
             value = await result
-        except Exception as exc:
-            self._record_failure(admission_state, state_version, exc)
-            if self.fallback_fn:
-                return await self._call_fallback_async(*args, **kwargs)
-            raise
-        except Exception:
-            self._release_aborted_probe(admission_state, state_version)
+        except BaseException as exc:
+            if isinstance(exc, Exception):
+                self._record_failure(admission_state, state_version, exc)
+                if self.fallback_fn:
+                    return await self._call_fallback_async(*args, **kwargs)
+            else:
+                self._release_aborted_probe(admission_state, state_version)
             raise
 
         self._record_success(admission_state, state_version)

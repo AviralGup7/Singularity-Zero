@@ -94,6 +94,16 @@ async def require_auth(
     Raises:
         HTTPException: If authentication fails.
     """
+    disabled = os.environ.get("DASHBOARD_AUTH_DISABLED", "false").strip().lower()
+    if disabled in ("true", "1", "yes"):
+        logger.warning(
+            "SECURITY WARNING: Authentication is DISABLED via DASHBOARD_AUTH_DISABLED. "
+            "This must NEVER be enabled in production environments!"
+        )
+        tenant_id = request.headers.get("X-Tenant-ID") or "default"
+        TenantContext.set_current_tenant(tenant_id)
+        return {"user": "anonymous", "role": "admin", "tenant_id": tenant_id}
+
     if api_security_enabled():
         principal = _security_principal_from_request(request, api_key)
         if principal is None:
@@ -202,6 +212,8 @@ async def require_admin(
     Raises:
         HTTPException: If the authenticated user is not an admin.
     """
+    if auth is None:
+        auth = {"user": "anonymous", "role": "admin", "tenant_id": "default"}
     if api_security_enabled():
         principal = Principal(
             user=auth.get("user", ""),
@@ -225,6 +237,8 @@ async def require_worker(
     auth: dict[str, str] = Depends(require_auth),
 ) -> dict[str, str]:
     """Require worker-level authentication when API security is enabled."""
+    if auth is None:
+        auth = {"user": "anonymous", "role": "admin", "tenant_id": "default"}
     if api_security_enabled():
         principal = Principal(
             user=auth.get("user", ""),

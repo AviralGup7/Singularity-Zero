@@ -39,12 +39,43 @@ class CircuitBreaker:
         self.last_state_change = 0.0
         self._lock = threading.Lock()
 
+        import tempfile
+        from pathlib import Path
+        self._state_file = Path(tempfile.gettempdir()) / "redis_breaker_state.json"
+        self._load_state()
+
+    def _load_state(self) -> None:
+        try:
+            if self._state_file.exists():
+                data = json.loads(self._state_file.read_text(encoding="utf-8"))
+                self.state = data.get("state", "CLOSED")
+                self.failures = data.get("failures", 0)
+                self.last_state_change = data.get("last_state_change", 0.0)
+        except Exception as e:
+            logger.debug("Failed to load circuit breaker state: %s", e)
+
+    def _save_state(self) -> None:
+        try:
+            data = {
+                "state": self.state,
+                "failures": self.failures,
+                "last_state_change": self.last_state_change,
+            }
+            tmp_file = self._state_file.with_suffix(".tmp")
+            tmp_file.write_text(json.dumps(data), encoding="utf-8")
+            import os
+            os.replace(str(tmp_file), str(self._state_file))
+        except Exception as e:
+            logger.debug("Failed to save circuit breaker state: %s", e)
+
     def record_success(self) -> None:
         with self._lock:
             self.failures = 0
-            if self.state != "CLOSED":
-                logger.info("Redis Pub/Sub circuit breaker is now CLOSED")
+            old_state = self.state
             self.state = "CLOSED"
+            if old_state != "CLOSED":
+                logger.info("Redis Pub/Sub circuit breaker is now CLOSED")
+                self._save_state()
 
     def record_failure(self) -> None:
         with self._lock:
@@ -55,8 +86,9 @@ class CircuitBreaker:
                         "Redis Pub/Sub circuit breaker is now OPEN due to %d consecutive failures",
                         self.failures,
                     )
-                self.state = "OPEN"
-                self.last_state_change = time.time()
+                    self.state = "OPEN"
+                    self.last_state_change = time.time()
+                    self._save_state()
 
     def allow_request(self) -> bool:
         with self._lock:
@@ -69,6 +101,7 @@ class CircuitBreaker:
                     logger.info(
                         "Redis Pub/Sub circuit breaker entered HALF_OPEN state; attempting retry"
                     )
+                    self._save_state()
                     return True
                 return False
             return True  # HALF_OPEN
@@ -270,8 +303,10 @@ class Broadcaster:
         if not self._redis_breaker.allow_request():
             logger.debug("Redis circuit breaker is OPEN; skipping publish to Redis")
             return False
-        if time.monotonic() < self._redis_degraded_until:
-            return False
+        with self._redis_breaker._lock:
+            if time.monotonic() < self._redis_degraded_until:
+                logger.debug("Redis publisher in degraded backoff; skipping publish")
+                return False
 
         await self.start()
         if self._redis_client is None:
@@ -291,7 +326,8 @@ class Broadcaster:
             return True
         except Exception as exc:
             self._redis_breaker.record_failure()
-            self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
+            with self._redis_breaker._lock:
+                self._redis_degraded_until = time.monotonic() + REDIS_RECONNECT_SECONDS
             logger.warning("Redis WebSocket publish failed; falling back locally: %s", exc)
             return False
 
@@ -357,7 +393,10 @@ class Broadcaster:
                 self._redis_degraded_until = time.monotonic() + min(
                     backoff, REDIS_RECONNECT_SECONDS
                 )
-                await asyncio.sleep(backoff)
+                import random
+                jitter = random.uniform(0.8, 1.2)
+                sleep_dur = backoff * jitter
+                await asyncio.sleep(sleep_dur)
                 backoff = min(backoff * 2.0, max_backoff)
 
     async def _deliver_envelope(self, envelope: dict[str, Any]) -> int:
@@ -460,7 +499,9 @@ class Broadcaster:
             return 0
 
         sent = 0
-        for info in connections:
+        for idx, info in enumerate(connections):
+            if idx > 0 and idx % 100 == 0:
+                await asyncio.sleep(0)  # yield control to event loop to prevent UI lag
             if info.connection_id in exclude or info.closed:
                 continue
             if await self._enqueue(info, message):

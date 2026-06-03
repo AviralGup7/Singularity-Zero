@@ -122,7 +122,8 @@ class _SimpleDiGraph:
         self._nodes.difference_update(remove)
         for node in remove:
             self._edges.pop(node, None)
-        for targets in self._edges.values():
+        edges_to_update = list(self._edges.items())
+        for _node_key, targets in edges_to_update:
             targets.difference_update(remove)
 
     def has_cycle(self) -> bool:

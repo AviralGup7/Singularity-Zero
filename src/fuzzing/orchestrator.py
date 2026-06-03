@@ -5,6 +5,7 @@ Provides mutation strategies and coverage-guided feedback loops for fuzzing API 
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import secrets
@@ -183,10 +184,11 @@ class FuzzingOrchestrator:
         # 1. Grammar-Guided AST Mutations (for JSON)
         if param_type == "json":
             try:
-                from src.fuzzing.ast_mutator import JSONASTMutator
+                if not hasattr(self, "_ast_mutator"):
+                    from src.fuzzing.ast_mutator import JSONASTMutator
+                    self._ast_mutator = JSONASTMutator()
 
-                ast_mutator = JSONASTMutator()
-                for v in ast_mutator.mutate(base_value):
+                for v in self._ast_mutator.mutate(base_value):
                     payloads.append(
                         {
                             "parameter": param_name,
@@ -299,9 +301,8 @@ class FuzzingOrchestrator:
 
             # 2. Iterate and mutate each parameter
             stop_campaign = False
+            tasks_to_run = []
             for idx, (param_name, param_value) in enumerate(query_pairs):
-                if stop_campaign:
-                    break
                 param_type = detect_parameter_type(param_name, param_value)
                 payload_suggestions = self.generate_campaign_payloads(
                     endpoint=url,
@@ -310,23 +311,34 @@ class FuzzingOrchestrator:
                     param_type=param_type,
                     max_payloads=max_payloads,
                 )
-
                 for payload_dict in payload_suggestions:
-                    variant_val = payload_dict["variant"]
-                    strategy = payload_dict["strategy"]
+                    tasks_to_run.append((idx, param_name, payload_dict))
 
-                    # Construct mutated query string
-                    mutated_pairs = list(query_pairs)
-                    mutated_pairs[idx] = (param_name, variant_val)
-                    mutated_query = urlencode(mutated_pairs, doseq=True)
-                    mutated_url = urlunparse(parsed._replace(query=mutated_query))
+            sem = asyncio.Semaphore(10)
 
-                    if not is_safe_url_with_dns_check(mutated_url):
-                        logger.warning(
-                            "Fuzzer: Mutated URL failed SSRF check, skipping: %s", mutated_url
-                        )
-                        continue
+            async def evaluate_variant(idx: int, param_name: str, payload_dict: dict[str, Any]) -> None:
+                nonlocal stop_campaign
+                if stop_campaign:
+                    return
 
+                variant_val = payload_dict["variant"]
+                strategy = payload_dict["strategy"]
+
+                # Construct mutated query string
+                mutated_pairs = list(query_pairs)
+                mutated_pairs[idx] = (param_name, variant_val)
+                mutated_query = urlencode(mutated_pairs, doseq=True)
+                mutated_url = urlunparse(parsed._replace(query=mutated_query))
+
+                if not is_safe_url_with_dns_check(mutated_url):
+                    logger.warning(
+                        "Fuzzer: Mutated URL failed SSRF check, skipping: %s", mutated_url
+                    )
+                    return
+
+                async with sem:
+                    if stop_campaign:
+                        return
                     try:
                         self.feedback_tracker.record_payload()
                         resp = await self.request_sender.get_url(
@@ -338,93 +350,95 @@ class FuzzingOrchestrator:
                         resp_len = len(body)
                     except Exception as e:
                         logger.debug("Fuzzer request failed for %s: %s", mutated_url, e)
-                        continue
+                        return
 
-                    # Record status code + size band feedback
-                    self.record_feedback(url, status, resp_len)
+                # Record status code + size band feedback
+                self.record_feedback(url, status, resp_len)
 
-                    # Look for security issues/anomalies:
-                    # Case A: SQL/Execution Error leak in body (scanning up to 50000 chars)
-                    error_match = error_re.search(body[:50000])
-                    if error_match:
-                        self.feedback_tracker.record_anomaly()
-                        findings.append(
-                            {
-                                "url": url,
-                                "endpoint_key": endpoint_key,
-                                "endpoint_base_key": endpoint_base_key(url),
-                                "endpoint_type": classify_endpoint(url),
-                                "issues": ["fuzzing_error_leak_detected"],
-                                "probe_type": "fuzzing_campaign",
-                                "severity": "high",
-                                "confidence": 0.90,
-                                "evidence": {
-                                    "parameter": param_name,
-                                    "payload": variant_val,
-                                    "strategy": strategy,
-                                    "status_code": status,
-                                    "error_pattern": error_match.group(0),
-                                    "reason": f"Database or stack trace leak: '{error_match.group(0)}'",
-                                },
-                            }
-                        )
-                        logger.info("Fuzzer: Detected vulnerability on %s: Error Leak!", url)
-                        stop_campaign = True
-                        break  # Stop fuzzing this parameter if critical leak found
+                # Look for security issues/anomalies:
+                # Case A: SQL/Execution Error leak in body (scanning up to 50000 chars)
+                error_match = error_re.search(body[:50000])
+                if error_match:
+                    self.feedback_tracker.record_anomaly()
+                    findings.append(
+                        {
+                            "url": url,
+                            "endpoint_key": endpoint_key,
+                            "endpoint_base_key": endpoint_base_key(url),
+                            "endpoint_type": classify_endpoint(url),
+                            "issues": ["fuzzing_error_leak_detected"],
+                            "probe_type": "fuzzing_campaign",
+                            "severity": "high",
+                            "confidence": 0.90,
+                            "evidence": {
+                                "parameter": param_name,
+                                "payload": variant_val,
+                                "strategy": strategy,
+                                "status_code": status,
+                                "error_pattern": error_match.group(0),
+                                "reason": f"Database or stack trace leak: '{error_match.group(0)}'",
+                            },
+                        }
+                    )
+                    logger.info("Fuzzer: Detected vulnerability on %s: Error Leak!", url)
+                    stop_campaign = True
+                    return
 
-                    # Case B: Significant status boundary drift (e.g. bypass validation)
-                    # For example, base was 403/401/400 but mutation returned 200/201 (auth bypass or boundary acceptance)
-                    elif base_status in {400, 401, 403} and status in {200, 201}:
-                        self.feedback_tracker.record_anomaly()
-                        findings.append(
-                            {
-                                "url": url,
-                                "endpoint_key": endpoint_key,
-                                "endpoint_base_key": endpoint_base_key(url),
-                                "endpoint_type": classify_endpoint(url),
-                                "issues": ["fuzzing_structural_bypass_detected"],
-                                "probe_type": "fuzzing_campaign",
-                                "severity": "high",
-                                "confidence": 0.85,
-                                "evidence": {
-                                    "parameter": param_name,
-                                    "payload": variant_val,
-                                    "strategy": strategy,
-                                    "status_code": status,
-                                    "base_status_code": base_status,
-                                    "reason": f"Status code transitioned from {base_status} to {status} during mutation",
-                                },
-                            }
-                        )
-                        logger.info("Fuzzer: Detected vulnerability on %s: Structural Bypass!", url)
-                        stop_campaign = True
-                        break
+                # Case B: Significant status boundary drift (e.g. bypass validation)
+                elif base_status in {400, 401, 403} and status in {200, 201}:
+                    self.feedback_tracker.record_anomaly()
+                    findings.append(
+                        {
+                            "url": url,
+                            "endpoint_key": endpoint_key,
+                            "endpoint_base_key": endpoint_base_key(url),
+                            "endpoint_type": classify_endpoint(url),
+                            "issues": ["fuzzing_structural_bypass_detected"],
+                            "probe_type": "fuzzing_campaign",
+                            "severity": "high",
+                            "confidence": 0.85,
+                            "evidence": {
+                                "parameter": param_name,
+                                "payload": variant_val,
+                                "strategy": strategy,
+                                "status_code": status,
+                                "base_status_code": base_status,
+                                "reason": f"Status code transitioned from {base_status} to {status} during mutation",
+                            },
+                        }
+                    )
+                    logger.info("Fuzzer: Detected vulnerability on %s: Structural Bypass!", url)
+                    stop_campaign = True
+                    return
 
-                    # Case C: Status code 500 crash anomaly
-                    elif status >= 500 and base_status < 500:
-                        self.feedback_tracker.record_anomaly()
-                        findings.append(
-                            {
-                                "url": url,
-                                "endpoint_key": endpoint_key,
-                                "endpoint_base_key": endpoint_base_key(url),
-                                "endpoint_type": classify_endpoint(url),
-                                "issues": ["fuzzing_unhandled_server_crash"],
-                                "probe_type": "fuzzing_campaign",
-                                "severity": "medium",
-                                "confidence": 0.80,
-                                "evidence": {
-                                    "parameter": param_name,
-                                    "payload": variant_val,
-                                    "strategy": strategy,
-                                    "status_code": status,
-                                    "reason": "Mutation triggered unhandled Internal Server Error (HTTP 500)",
-                                },
-                            }
-                        )
-                        logger.info("Fuzzer: Detected anomaly on %s: Server crash (500)!", url)
-                        stop_campaign = True
-                        break
+                # Case C: Status code 500 crash anomaly
+                elif status >= 500 and base_status < 500:
+                    self.feedback_tracker.record_anomaly()
+                    findings.append(
+                        {
+                            "url": url,
+                            "endpoint_key": endpoint_key,
+                            "endpoint_base_key": endpoint_base_key(url),
+                            "endpoint_type": classify_endpoint(url),
+                            "issues": ["fuzzing_unhandled_server_crash"],
+                            "probe_type": "fuzzing_campaign",
+                            "severity": "medium",
+                            "confidence": 0.80,
+                            "evidence": {
+                                "parameter": param_name,
+                                "payload": variant_val,
+                                "strategy": strategy,
+                                "status_code": status,
+                                "reason": "Mutation triggered unhandled Internal Server Error (HTTP 500)",
+                            },
+                        }
+                    )
+                    logger.info("Fuzzer: Detected anomaly on %s: Server crash (500)!", url)
+                    stop_campaign = True
+                    return
+
+            if tasks_to_run:
+                await asyncio.gather(*(evaluate_variant(idx, p, pl) for idx, p, pl in tasks_to_run))
 
         finally:
             if close_client:

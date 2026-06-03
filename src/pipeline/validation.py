@@ -138,7 +138,9 @@ def validate_config(
     unavailable_tools: list[str] = []
     available_tools: list[str] = []
     for tool_name in COMMON_TOOLS:
-        if tools_config.get(tool_name, False):
+        in_config = tool_name in tools_config
+        is_enabled = bool(tools_config.get(tool_name, False))
+        if not in_config or is_enabled:
             if _check_tool_available(tool_name):
                 available_tools.append(tool_name)
             else:

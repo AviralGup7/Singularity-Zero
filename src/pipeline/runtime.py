@@ -6,7 +6,9 @@ and handles top-level errors gracefully.
 
 import argparse
 import asyncio
+import shutil
 import signal
+import tempfile
 import traceback
 from pathlib import Path
 
@@ -130,7 +132,8 @@ async def _run_replay(args: argparse.Namespace) -> int:
         f"git={snapshot.git_commit_hash}"
     )
 
-    with tempfile.TemporaryDirectory() as tmp_output:
+    tmp_output = tempfile.mkdtemp()
+    try:
         with open(config_file) as f:
             config = json.load(f)
         with open(scope_file) as f:
@@ -179,6 +182,8 @@ async def _run_replay(args: argparse.Namespace) -> int:
 
         emit_info("Replay parity: PASS")
         return 0
+    finally:
+        shutil.rmtree(tmp_output, ignore_errors=True)
 
 
 def main(argv: list[str] | None = None) -> int:

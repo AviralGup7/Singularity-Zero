@@ -1,8 +1,11 @@
 """Router aggregation for the FastAPI dashboard."""
 
+import logging
 from typing import Any, cast
 
 from fastapi import APIRouter
+
+logger = logging.getLogger(__name__)
 
 from .audit import router as audit_router
 from .bloom import router as bloom_router
@@ -37,9 +40,8 @@ try:
     from .imports import router as _imports_router
 
     imports_router = _imports_router
-except RuntimeError as exc:
-    if "python-multipart" not in str(exc):
-        raise
+except Exception as exc:
+    logger.warning("Imports router disabled: %s", exc)
 
 api_router = APIRouter()
 
