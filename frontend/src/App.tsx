@@ -7,7 +7,14 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { getLiveness } from '@/api/health';
 import { syncServerTime } from '@/lib/timeSync';
 import { errorTracker } from '@/utils/errorTracker';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+
+function LoadingFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background text-text">
+      <div className="text-sm font-mono uppercase tracking-widest">Loading page…</div>
+    </div>
+  );
+}
 
 // --- Page Imports ---
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -70,7 +77,7 @@ export default function App() {
     <CoreProviders>
       <RouteWatcher />
       <AppLayout>
-        <Suspense fallback={<LoadingSpinner label="Loading page…" />}>
+        <Suspense fallback={<LoadingFallback />}>
           <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<RouteGuard><DashboardPage /></RouteGuard>} />

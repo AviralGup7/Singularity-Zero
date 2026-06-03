@@ -1,16 +1,15 @@
-﻿from typing import Any
-"""
-Telemetry heartbeat for the gossip mesh.
+﻿from __future__ import annotations
+
+"""Telemetry heartbeat for the gossip mesh.
 
 Collects local hardware telemetry (CPU, RAM) via psutil and refreshes
 local node metadata on a polling interval.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

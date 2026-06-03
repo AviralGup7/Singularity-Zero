@@ -13,3 +13,5 @@ export interface AuthContextType {
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export type { UserRole, Permission };

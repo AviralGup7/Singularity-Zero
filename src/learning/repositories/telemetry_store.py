@@ -123,7 +123,7 @@ class TelemetryStore:
         logger.info("Telemetry store initialized at %s", self.db_path)
 
     def close(self) -> None:
-        """Close all thread-local database connections.
+        """Close the thread-local database connection.
 
         Callers must call this explicitly if not using the 'with' statement context manager
         to prevent resource and connection leaks.
@@ -136,18 +136,6 @@ class TelemetryStore:
             except Exception:  # noqa: S110
                 pass
             self._local.conn = None
-
-        from .base import BaseRepo
-
-        with BaseRepo._lock:
-            for conn in list(BaseRepo._connections):
-                try:
-                    conn.close()
-                except sqlite3.ProgrammingError:
-                    pass
-                except Exception:  # noqa: S110
-                    pass
-            BaseRepo._connections.clear()
 
     def __enter__(self) -> TelemetryStore:
         self.initialize()
