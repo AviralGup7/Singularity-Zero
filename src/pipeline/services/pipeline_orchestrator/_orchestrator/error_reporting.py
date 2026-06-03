@@ -29,7 +29,7 @@ def collect_failed_stages(ctx: PipelineContext) -> list[tuple[str, str]]:
             continue
         metrics = ctx.result.module_metrics.get(stage_name, {})
         # Only report if it's considered fatal
-        if not metrics.get("fatal", True):
+        if not metrics.get("fatal", False):
             continue
         reason: str = (
             metrics.get("failure_reason")

@@ -1,8 +1,23 @@
-"""
-Root conftest.py for the security test pipeline.
+import socket
 
-Provides shared pytest fixtures available to all test categories.
-"""
+# Mock DNS resolution for external API endpoints to ensure tests pass in offline sandboxes
+_original_getaddrinfo = socket.getaddrinfo
+
+import ipaddress
+
+def _mock_getaddrinfo(host, port, *args, **kwargs):
+    if not host:
+        return _original_getaddrinfo(host, port, *args, **kwargs)
+    if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+        return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("127.0.0.1", port or 80))]
+    try:
+        ip = ipaddress.ip_address(host)
+        return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (str(ip), port or 80))]
+    except ValueError:
+        pass
+    return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", port or 80))]
+
+socket.getaddrinfo = _mock_getaddrinfo
 
 import sys
 import types

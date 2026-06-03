@@ -89,8 +89,9 @@ services:
     image: redis:7.6-alpine
     container_name: cyber-pipeline-redis
     command: >
-      test -n "$REDIS_PASSWORD" || { echo "REDIS_PASSWORD required"; exit 1; }
-      redis-server
+      /bin/sh -c '
+      test -n "$$REDIS_PASSWORD" || { echo "REDIS_PASSWORD required"; exit 1; }
+      exec redis-server
       --appendonly yes
       --appendfilename "appendonly.aof"
       --maxmemory 512mb
@@ -98,8 +99,8 @@ services:
       --save 900 1
       --save 300 10
       --save 60 10000
-      --requirepass ${REDIS_PASSWORD}
-      --bind 0.0.0.0
+      --requirepass "$$REDIS_PASSWORD"
+      --bind 0.0.0.0'
     ports:
       - "127.0.0.1:${REDIS_EXTERNAL_PORT:-6379}:6379"
     volumes:

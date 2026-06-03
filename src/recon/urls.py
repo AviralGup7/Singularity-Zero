@@ -93,7 +93,7 @@ def collect_urls(
 ) -> set[str]:
     """Collect URLs for a target using configured providers with mid-stage resume support."""
     urls: set[str] = set()
-    effective_budget = runtime_budget_seconds or timeout_seconds
+    effective_budget = timeout_seconds if runtime_budget_seconds is None else runtime_budget_seconds
     hostnames = _normalize_collection_hostnames(live_hosts, scope_entries)
     if stage_meta is None:
         stage_meta = {}

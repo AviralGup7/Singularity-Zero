@@ -88,8 +88,11 @@ class SignalQualityMLPipeline:
             if len(np.unique(y)) > 1:
                 try:
                     self.model.fit(X, y)
-                    self.coef_ = self.model.coef_
-                    self.intercept_ = self.model.intercept_
+                    self.coef_ = np.array(self.model.coef_, copy=True)
+                    self.intercept_ = np.array(self.model.intercept_, copy=True)
+                    self.classes_ = (
+                        np.array(self.model.classes_) if hasattr(self.model, "classes_") else None
+                    )
                 except Exception:  # noqa: S110
                     pass
 

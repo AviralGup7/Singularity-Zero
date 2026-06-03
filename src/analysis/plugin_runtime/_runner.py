@@ -29,7 +29,7 @@ _INPUT_KIND_KWARGS: dict[str, tuple[str, ...]] = {
     "ranked_items_and_cache": ("ranked_items", "response_cache"),
     "behavior_analysis": ("behavior_results",),
     "responses_and_bulk_items": ("responses", "bulk_items"),
-    "header_targets_and_cache": ("header_targets", "response_cache"),
+    "header_targets_and_cache": ("targets", "response_cache", "response_map"),
     "urls_and_cache": ("urls", "response_cache"),
     "dynamic_analysis_context": ("payload",),
 }
@@ -314,8 +314,9 @@ def _resolve_input_kwargs(
         return {"responses": context.responses, "bulk_items": context.bulk_items}
     if kind == "header_targets_and_cache":
         return {
-            "header_targets": context.header_targets,
+            "targets": context.header_targets,
             "response_cache": context.response_cache,
+            "response_map": context.response_map,
         }
     if kind == "urls_and_cache":
         return {

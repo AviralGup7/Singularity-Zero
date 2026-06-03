@@ -67,7 +67,8 @@ class TestCliLaunch(unittest.TestCase):
         handle_launch(args)
 
         # Assert Path check called
-        mock_path.assert_any_call("frontend/dist")
+        import src.cli
+        mock_path.assert_any_call(src.cli.__file__)
 
         # Assert Thread started for worker
         mock_thread.assert_called_once()

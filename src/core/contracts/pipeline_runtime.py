@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import reprlib
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -60,19 +60,19 @@ def _thaw_value(value: Any) -> Any:
 class ThawingMapping(Mapping):
     """A read-only Mapping wrapper that lazily thaws returned values."""
 
-    def __init__(self, underlying: Mapping):
+    def __init__(self, underlying: Mapping[Any, Any]):
         self._underlying = underlying
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return _thaw_value(self._underlying[key])
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         return iter(self._underlying)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._underlying)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"ThawingMapping({self._underlying!r})"
 
 

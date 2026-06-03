@@ -106,10 +106,14 @@ async def enumerate_dns_records(
     if "NS" in record_types:
         tasks.extend(_bounded_axfr(domain) for domain in sorted(domains))
 
-    completed = await asyncio.gather(*tasks)
+    completed = await asyncio.gather(*tasks, return_exceptions=True)
 
     results: list[dict[str, Any]] = []
-    for domain, rtype, found in completed:
+    for item in completed:
+        if isinstance(item, Exception):
+            logger.debug("DNS query failed: %s", item)
+            continue
+        domain, rtype, found = item
         for value in found:
             results.append(
                 {

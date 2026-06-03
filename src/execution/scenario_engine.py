@@ -162,6 +162,8 @@ class ScenarioExecutionEngine:
         step_results_by_name = StepResultsDict(steps)
         persisted_headers: dict[str, str] = {**self.default_headers, **(session_headers or {})}
         session_registry = SessionRegistry(sessions=dict(sessions or {}), active=active_session)
+        session_registry.ensure(active_session)
+        self._persist_sessions(session_registry)
         cookie_jars: dict[str, CookieJar] = {key: CookieJar() for key in session_registry.sessions}
         session_locks: dict[str, Lock] = {key: Lock() for key in session_registry.sessions}
         state_lock = Lock()
@@ -176,7 +178,7 @@ class ScenarioExecutionEngine:
             ready: list[ScenarioStep] = []
             for step in pending:
                 step_deps_met = all(
-                    step_results_by_name.has_passed(name, context_step=step)
+                    name in step_results_by_name
                     for name in step.wait_for_steps
                 )
                 if not step_deps_met:
@@ -366,23 +368,24 @@ class ScenarioExecutionEngine:
             if stop_on_failure and any(not item.passed for item in wave_results):
                 break
 
-        self._persist_sessions(session_registry)
+        self._persist_sessions(session_registry, force=True)
         return ScenarioRunResult(
             steps=tuple(step_results),
             variables=variables,
             active_session=current_session_key,
         )
 
-    def _persist_sessions(self, registry: SessionRegistry) -> None:
+    def _persist_sessions(self, registry: SessionRegistry, force: bool = False) -> None:
         """Batch-persist all sessions to avoid N+1 individual updates if backed by external storage."""
-        sessions_changed = False
-        if len(registry.sessions) != len(self.last_persisted_sessions):
-            sessions_changed = True
-        else:
-            for k, v in registry.sessions.items():
-                if k not in self.last_persisted_sessions or self.last_persisted_sessions[k] != v:
-                    sessions_changed = True
-                    break
+        sessions_changed = force
+        if not sessions_changed:
+            if len(registry.sessions) != len(self.last_persisted_sessions):
+                sessions_changed = True
+            else:
+                for k, v in registry.sessions.items():
+                    if k not in self.last_persisted_sessions or self.last_persisted_sessions[k] != v:
+                        sessions_changed = True
+                        break
 
         if not sessions_changed:
             logger.debug("Skipping session persistence: no changes detected.")

@@ -11,6 +11,9 @@ class _MockResp:
         self.status_code = status_code
         self.headers = {"content-type": "application/json"}
 
+    def raise_for_status(self):
+        pass
+
 
 def test_retry_on_transient_error(monkeypatch):
     # First call raises, second returns valid payload

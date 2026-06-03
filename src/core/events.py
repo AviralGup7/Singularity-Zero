@@ -247,6 +247,8 @@ class EventBus:
 
     def _track_task(self, task: asyncio.Task[Any]) -> None:
         self._pending_tasks.add(task)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
         task.add_done_callback(self._pending_tasks.discard)
 
     def clear(self) -> None:

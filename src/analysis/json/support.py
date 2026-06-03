@@ -269,14 +269,18 @@ __all__ = [
 
 
 def access_boundary_state(url: str, response: dict[str, Any]) -> str:
-    query_keys = {key for key, _ in meaningful_query_pairs(url)}
-    if (
-        any(
-            key in {"admin", "role", "roles", "scope", "permission", "permissions"}
-            for key in query_keys
-        )
-        or "/admin" in url.lower()
-    ):
+    query_pairs = meaningful_query_pairs(url)
+    is_admin = False
+    if "/admin" in url.lower():
+        is_admin = True
+    else:
+        for key, val in query_pairs:
+            if key in {"admin", "scope", "permission", "permissions"}:
+                is_admin = True
+            elif key in {"role", "roles"}:
+                if "admin" in str(val).lower():
+                    is_admin = True
+    if is_admin:
         return "admin"
     status_code = int(response.get("status_code") or 0)
     body = (response.get("body_text") or "").lower()

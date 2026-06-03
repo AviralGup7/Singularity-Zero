@@ -376,6 +376,7 @@ class AuditLogger:
                 last_line = f.readline().strip()
                 if last_line:
                     entry = json.loads(last_line.decode("utf-8"))
+                    self._counter = int(entry.get("id", 0))
                     return cast(str, entry.get("entry_hash", "genesis"))
         except Exception:  # noqa: S110, S112
             pass
@@ -478,25 +479,42 @@ class AuditLogger:
             self._rotate_log()
 
     def _rotate_log(self) -> None:
-        """Rotate the audit log file."""
+        """Rotate the audit log file and its SQLite index database."""
         if self._file_handle:
             self._file_handle.close()
+            self._file_handle = None
 
         log_path = Path(self.config.audit.log_path)
+        db_path = Path(f"{log_path}.sqlite")
+
+        if getattr(self, "_db", None) is not None:
+            try:
+                self._db.close()
+            except Exception:
+                pass
+            self._db = None
+
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         archive_name = f"{log_path.stem}_{timestamp}{log_path.suffix}"
         archive_path = log_path.parent / archive_name
+
+        archive_db_name = f"{log_path.stem}_{timestamp}{log_path.suffix}.sqlite"
+        archive_db_path = log_path.parent / archive_db_name
 
         try:
             import shutil
 
             # Fix #298: shutil.move is safer on Windows than log_path.rename
-            shutil.move(str(log_path), str(archive_path))
+            if log_path.exists():
+                shutil.move(str(log_path), str(archive_path))
+            if db_path.exists():
+                shutil.move(str(db_path), str(archive_db_path))
             logger.info("Audit log rotated to %s", archive_path)
         except Exception as exc:
             logger.error("Failed to rotate audit log: %s", exc)
 
         # Fix #299: Re-initialize logger state and SQLite index after rotation
+        self._counter = 0
         self._ensure_log_file()
 
     def verify_integrity(self) -> tuple[bool, list[int]]:
@@ -704,7 +722,7 @@ class AuditLogger:
         return removed
 
     def close(self) -> None:
-        """Close the audit log file handle."""
+        """Close the audit log file handle and SQLite database connection."""
         with self._lock:
             if self._file_handle:
                 try:
@@ -714,6 +732,14 @@ class AuditLogger:
                     logger.warning("Failed to close audit log: %s", exc)
                 finally:
                     self._file_handle = None
+
+            if getattr(self, "_db", None) is not None:
+                try:
+                    self._db.close()
+                except Exception as exc:
+                    logger.warning("Failed to close SQLite db: %s", exc)
+                finally:
+                    self._db = None
 
     def __enter__(self) -> AuditLogger:
         """Enter the context manager."""

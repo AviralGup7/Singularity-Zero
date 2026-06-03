@@ -14,10 +14,13 @@ This package modularizes the XML bomb detector into separate files
 for better maintainability and AI-agent editability.
 """
 
+import logging
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_signature
+
+logger = logging.getLogger(__name__)
 
 from ._constants import (
     BASE64_PHP_RE,
@@ -79,7 +82,12 @@ def xml_bomb_detector(
                     url,
                     headers={"Cache-Control": "no-cache", "Accept": "application/xml"},
                 )
-            except Exception:
+            except Exception as cache_exc:
+                logger.debug(
+                    "Cache lookup failed for %s (will retry with direct request): %s",
+                    url,
+                    cache_exc,
+                )
                 baseline_resp = None
         if baseline_resp is None:
             baseline_resp = safe_request(url, headers={"Accept": "application/xml"})

@@ -291,7 +291,9 @@ class ThresholdTuner:
         if not labeled_findings:
             return self.weights
 
-        lr = getattr(self.config, "learning_rate", 0.05) or 0.05
+        lr = getattr(self.config, "learning_rate", 0.05)
+        if not isinstance(lr, (int, float)) or lr is None:
+            lr = 0.05
 
         for finding in labeled_findings:
             # Extract features
