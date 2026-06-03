@@ -47,7 +47,7 @@ class FailureDetector:
     def unmark_confirming(self, peer_id: str) -> None:
         self._confirming.discard(peer_id)
 
-    def should_confirm(self, peer_id: str, peers: dict[str, MeshNode], stats_by_peer) -> bool:
+    def should_confirm(self, peer_id: str, peers: dict[str, MeshNode], stats_by_peer: Any) -> bool:
         """Return True if we should run quorum-based failure confirmation for peer_id."""
         if peer_id in self._confirming:
             return False

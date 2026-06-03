@@ -1,4 +1,4 @@
-"""Tool execution service for running external security testing tools.
+﻿"""Tool execution service for running external security testing tools.
 
 Provides ToolExecutionService for resolving tool paths, executing commands
 with retry support, and managing environment variables for external tools.
@@ -106,12 +106,12 @@ def get_circuit_breaker(tool_name: str) -> CircuitBreaker:
     key = f"{context_key}:{tool_name}"
     if key not in _CIRCUIT_BREAKERS:
         _CIRCUIT_BREAKERS[key] = CircuitBreaker()
-    _CIRCUIT_BREAKERS[key].last_accessed = now
+    _CIRCUIT_BREAKERS[key]._last_accessed = now
     if now - _CIRCUIT_BREAKER_LAST_PRUNED > _CIRCUIT_BREAKERS_TTL_SECONDS:
         _CIRCUIT_BREAKER_LAST_PRUNED = now
         for name in list(_CIRCUIT_BREAKERS):
             cb = _CIRCUIT_BREAKERS[name]
-            if now - getattr(cb, "last_accessed", now) > _CIRCUIT_BREAKERS_TTL_SECONDS:
+            if now - getattr(cb, "_last_accessed", now) > _CIRCUIT_BREAKERS_TTL_SECONDS:
                 _CIRCUIT_BREAKERS.pop(name, None)
     return _CIRCUIT_BREAKERS[key]
 
@@ -620,10 +620,12 @@ class ToolExecutionService:
                 env=self.command_env(),
             )
         except OSError:
-            logger.debug("tool_detection: OSError probing %s", cls.tool_name)
+            logger.debug("tool_detection: OSError probing %s", "httpx")
             return False
         except Exception:
-            logger.debug("tool_detection: unexpected error probing %s", cls.tool_name, exc_info=True)
+            logger.debug(
+                "tool_detection: unexpected error probing %s", "httpx", exc_info=True
+            )
             return False
 
         combined = f"{output.stdout}\n{output.stderr}".lower()

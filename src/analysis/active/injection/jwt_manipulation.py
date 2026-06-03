@@ -1,9 +1,10 @@
-"""JWT manipulation active probe."""
+﻿"""JWT manipulation active probe."""
 
 import base64
 import hashlib
 import hmac
 import json
+import logging
 import re
 from typing import Any, cast
 from urllib.parse import parse_qsl, urlparse
@@ -15,6 +16,8 @@ from src.analysis.passive.runtime import ResponseCache
 from src.core.utils.url_validation import is_safe_url
 
 from ._confidence import probe_confidence, probe_severity
+
+logger = logging.getLogger(__name__)
 
 JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
 

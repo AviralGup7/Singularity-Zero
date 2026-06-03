@@ -1,3 +1,4 @@
+﻿from typing import Any
 """
 Telemetry heartbeat for the gossip mesh.
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TelemetryCollector:
     """Periodically refreshes local hardware telemetry."""
 
-    def __init__(self, local_node_ref, interval_sec: float = 5.0):
+    def __init__(self, local_node_ref: Any, interval_sec: float = 5.0):
         self._local_node = local_node_ref
         self._interval = interval_sec
         self._psutil = None

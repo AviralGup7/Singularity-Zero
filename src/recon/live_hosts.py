@@ -135,7 +135,7 @@ def _cache_update(
                 _PROBE_CACHE_MAX_SIZE,
             )
             deleted = _probe_cache.cleanup_expired()
-            
+
             # Performance #4: If cleanup_expired didn't help enough, do a hard prune
             new_size = size - deleted
             if new_size > _PROBE_CACHE_MAX_SIZE:

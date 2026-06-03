@@ -170,20 +170,20 @@ def enumerate_subdomains(
     tools_config = config.get("tools", {})
     tool_timeout = int(tools_config.get("timeout_seconds", 120))
     tool_retry_policy = build_retry_policy(tools_config)
-    
+
     # Performance #4: Deduplicate overlapping roots to prevent redundant queries
     raw_roots = sorted(
-        {normalize_scope_entry(entry).strip().lower() for entry in scope_entries},
-        key=len
+        {normalize_scope_entry(entry).strip().lower() for entry in scope_entries}, key=len
     )
     roots: list[str] = []
     for r in raw_roots:
-        if not r: continue
+        if not r:
+            continue
         # If this root is a subdomain of an existing shorter root, skip it
         if any(r.endswith(f".{existing}") for existing in roots):
             continue
         roots.append(r)
-        
+
     if not roots:
         return set()
 

@@ -172,6 +172,11 @@ _stage_output_validator_instance: Draft7Validator | None = None
 _finding_validator_instance: Draft7Validator | None = None
 
 
+class _NoOpValidator:
+    def iter_errors(self, instance: Any) -> Any:
+        return []
+
+
 def _stage_output_schema_validator() -> Draft7Validator:
     global _stage_output_validator_instance
     if _stage_output_validator_instance is None:
@@ -203,24 +208,14 @@ def _stage_output_schema_validator() -> Draft7Validator:
             logger.warning(
                 "Schema file 'stage_output.schema.json' not found. Stage output validation will be bypassed."
             )
-
-            class NoOpValidator:
-                def iter_errors(self, instance: Any) -> Any:
-                    return []
-
-            return NoOpValidator()  # type: ignore
+            return _NoOpValidator()  # type: ignore[return-value]
 
         try:
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
             _stage_output_validator_instance = Draft7Validator(schema)
         except Exception as exc:
             logger.error("Failed to load schema JSON from %s: %s", schema_path, exc)
-
-            class NoOpValidator:
-                def iter_errors(self, instance: Any) -> Any:
-                    return []
-
-            return NoOpValidator()  # type: ignore
+            return _NoOpValidator()  # type: ignore[return-value]
     return _stage_output_validator_instance
 
 
@@ -252,24 +247,14 @@ def _finding_schema_validator() -> Draft7Validator:
             logger.warning(
                 "Schema file 'finding.schema.json' not found. Finding schema validation will be bypassed."
             )
-
-            class NoOpValidator:
-                def iter_errors(self, instance: Any) -> Any:
-                    return []
-
-            return NoOpValidator()  # type: ignore
+            return _NoOpValidator()  # type: ignore[return-value]
 
         try:
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
             _finding_validator_instance = Draft7Validator(schema)
         except Exception as exc:
             logger.error("Failed to load finding schema JSON from %s: %s", schema_path, exc)
-
-            class NoOpValidator:
-                def iter_errors(self, instance: Any) -> Any:
-                    return []
-
-            return NoOpValidator()  # type: ignore
+            return _NoOpValidator()  # type: ignore[return-value]
     return _finding_validator_instance
 
 

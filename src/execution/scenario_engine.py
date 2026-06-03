@@ -114,10 +114,10 @@ class StepResultsDict:
                 }
         return snapshot
 
-    def items(self):
+    def items(self) -> list[tuple[Any, Any]]:
         return [(step.name, res) for step, res in self._results.items()]
 
-    def values(self):
+    def values(self) -> Any:
         return self._results.values()
 
 

@@ -1,4 +1,4 @@
-"""Process isolation for active checks."""
+﻿"""Process isolation for active checks."""
 
 from __future__ import annotations
 
@@ -185,7 +185,7 @@ def run_callable_isolated(
     except ValueError:
         ctx = mp.get_context("spawn")
     output: mp.Queue = ctx.Queue(maxsize=1)
-    process = ctx.Process(
+    process = ctx.Process(  # type: ignore[attr-defined]
         target=_child_entry,
         args=(output, func, args, kwargs, budget.max_output_bytes),
         daemon=True,

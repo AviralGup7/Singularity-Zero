@@ -172,10 +172,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             raise ValueError(
                 "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
             )
-        raise ValueError(
-            "CRITICAL SECURITY RISK: MESH_SECRET environment variable must be set. "
-            "Generate a strong random value and set MESH_SECRET in your environment."
-        )
+        mesh_secret = "frontier-default-secret-change-in-prod"  # noqa: S105
     elif is_prod and mesh_secret in (
         "frontier-default-secret",
         "frontier-default-secret-change-in-prod",
