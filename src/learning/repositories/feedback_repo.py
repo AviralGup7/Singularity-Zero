@@ -103,7 +103,7 @@ class FeedbackRepo(BaseRepo):
                 (run_id,),
             )
             rows = cur.fetchall()
-            
+
             updates = []
             for row in rows:
                 ts = row["timestamp"]
@@ -145,7 +145,7 @@ class FeedbackRepo(BaseRepo):
                     "UPDATE feedback_events SET feedback_weight = ? WHERE event_id = ?",
                     updates,
                 )
-            
+
             return len(updates)
 
     def get_fp_rate_for_pattern(self, category: str, plugin: str) -> float:

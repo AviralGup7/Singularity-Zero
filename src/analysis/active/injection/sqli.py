@@ -14,6 +14,7 @@ SQLI_PAYLOADS: tuple[tuple[str, str], ...] = (
     ("1 OR 1=1", "numeric_boolean"),
     ("1' OR '1'='1", "string_boolean"),
     ("1; SELECT 1--", "stacked_query"),
+    ("SLEEP(1)", "time_based_blind"),
 )
 
 
