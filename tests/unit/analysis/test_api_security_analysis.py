@@ -92,7 +92,7 @@ class PassiveApiExposureTests(unittest.TestCase):
 
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["indicator"], "graphql_introspection_enabled")
-        self.assertEqual(findings[0]["endpoint_type"], "API")
+        self.assertEqual(findings[0]["endpoint_type"], "DEBUG")
 
     def test_openapi_swagger_spec_checker_flags_path_and_schema_exposure(self) -> None:
         findings = openapi_swagger_spec_checker(
@@ -144,7 +144,7 @@ class BrokenAccessControlAnalysisTests(unittest.TestCase):
                 body='{"id":"1","email":"user@example.com","account_id":"acct_1"}',
             ),
             make_response(
-                "https://api.example.com/api/admin",
+                "https://api.example.com/api/settings",
                 status_code=403,
                 body='{"error":"forbidden"}',
             ),

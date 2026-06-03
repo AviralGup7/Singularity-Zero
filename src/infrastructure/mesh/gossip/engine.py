@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import random
+import threading
 import time
 import uuid
 from dataclasses import asdict
@@ -55,6 +56,7 @@ class GossipEngine:
         self._peer_stats: dict[str, PeerHealthStats] = {}
         self._total_sent = 0
         self._total_failed = 0
+        self._mesh_lock = threading.RLock()
 
         self.retry_base_ms = _env_int("MESH_RETRY_BASE_MS", 100)
         self.retry_max_ms = _env_int("MESH_RETRY_MAX_MS", 2000)
@@ -78,7 +80,7 @@ class GossipEngine:
 
         self._running = True
         loop = asyncio.get_running_loop()
-        
+
         bound = False
         port_to_try = self._udp_port
         for i in range(100):
@@ -94,7 +96,7 @@ class GossipEngine:
             except OSError as exc:
                 logger.debug("Mesh UDP port %d bind failed: %s. Retrying next...", port_to_try, exc)
                 port_to_try += 1
-        
+
         if not bound:
             self._running = False
             raise OSError(f"Could not bind to any UDP port starting from {self._udp_port}")
@@ -127,7 +129,8 @@ class GossipEngine:
             self._transport = None
 
     def _stats_for(self, peer_id: str) -> PeerHealthStats:
-        return self._peer_stats.setdefault(peer_id, PeerHealthStats())
+        with self._mesh_lock:
+            return self._peer_stats.setdefault(peer_id, PeerHealthStats())
 
     def _retry_interval_seconds(self, attempt: int) -> float:
         base = min(self.retry_max_ms, self.retry_base_ms * (2**attempt))
@@ -163,39 +166,48 @@ class GossipEngine:
         data = self._make_envelope(message_type, payload, msg_id=msg_id)
         loop = asyncio.get_running_loop()
         future: asyncio.Future[dict[str, Any]] = loop.create_future()
-        self._pending_acks[msg_id] = future
-        stats = self._stats_for(peer.id)
+        with self._mesh_lock:
+            self._pending_acks[msg_id] = future
+            stats = self._peer_stats.setdefault(peer.id, PeerHealthStats())
         started = time.monotonic()
 
         try:
             for attempt in range(self.retry_max_attempts):
                 try:
-                    stats.sent += 1
-                    stats.outbound_throughput += 1
-                    self._total_sent += 1
+                    with self._mesh_lock:
+                        stats.sent += 1
+                        stats.outbound_throughput += 1
+                        self._total_sent += 1
                     peer_port = peer.gossip_port if getattr(peer, "gossip_port", 0) else (peer.port + 1000)
                     self._transport.sendto(data, (peer.host, peer_port))
                     timeout = self._retry_interval_seconds(attempt)
                     ack_payload = await asyncio.wait_for(asyncio.shield(future), timeout=timeout)
-                    stats.retry_count = 0
-                    stats.last_latency_ms = (time.monotonic() - started) * 1000.0
+                    with self._mesh_lock:
+                        stats.retry_count = 0
+                        stats.last_latency_ms = (time.monotonic() - started) * 1000.0
                     return True, ack_payload
                 except TimeoutError:
-                    stats.retry_count = attempt + 1
+                    with self._mesh_lock:
+                        stats.retry_count = attempt + 1
                     continue
                 except Exception as exc:
                     logger.debug("Mesh send to %s failed: %s", peer.id, exc)
-                    stats.retry_count = attempt + 1
+                    with self._mesh_lock:
+                        stats.retry_count = attempt + 1
                     await asyncio.sleep(self._retry_interval_seconds(attempt))
 
-            stats.failed += 1
-            self._total_failed += 1
-            if mark_suspect_on_failure and peer.id in self.peers:
-                self.peers[peer.id].status = "suspect"
+            with self._mesh_lock:
+                stats.failed += 1
+                self._total_failed += 1
+            if mark_suspect_on_failure:
+                with self._mesh_lock:
+                    if peer.id in self.peers:
+                        self.peers[peer.id].status = "suspect"
                 logger.warning("Peer '%s' marked suspect after retry exhaustion", peer.id)
             return False, {}
         finally:
-            self._pending_acks.pop(msg_id, None)
+            with self._mesh_lock:
+                self._pending_acks.pop(msg_id, None)
 
     async def _send_best_effort(
         self, peer: MeshNode, message_type: str, payload: dict[str, Any]
@@ -203,9 +215,11 @@ class GossipEngine:
         if self._transport is None:
             return
         try:
-            self._stats_for(peer.id).sent += 1
-            self._stats_for(peer.id).outbound_throughput += 1
-            self._total_sent += 1
+            with self._mesh_lock:
+                stats = self._peer_stats.setdefault(peer.id, PeerHealthStats())
+                stats.sent += 1
+                stats.outbound_throughput += 1
+                self._total_sent += 1
             peer_port = peer.gossip_port if getattr(peer, "gossip_port", 0) else (peer.port + 1000)
             self._transport.sendto(
                 self._make_envelope(message_type, payload),
@@ -266,37 +280,47 @@ class GossipEngine:
             {"leader_id": self.leader_id},
             mark_suspect_on_failure=False,
         )
-        stats = self._stats_for(peer.id)
+        with self._mesh_lock:
+            stats = self._peer_stats.setdefault(peer.id, PeerHealthStats())
         if ok:
             stats.heartbeat_misses = 0
             stats.last_heartbeat = time.time()
-            if peer.id in self.peers:
-                self.peers[peer.id].status = "alive"
-                self.peers[peer.id].last_seen = time.time()
+            with self._mesh_lock:
+                if peer.id in self.peers:
+                    self.peers[peer.id].status = "alive"
+                    self.peers[peer.id].last_seen = time.time()
             return
 
-        stats.heartbeat_misses += 1
-        if peer.id in self.peers:
-            self.peers[peer.id].status = "suspect"
+        with self._mesh_lock:
+            stats.heartbeat_misses += 1
+            if peer.id in self.peers:
+                self.peers[peer.id].status = "suspect"
         if stats.heartbeat_misses >= self.heartbeat_fail_threshold:
             await self._confirm_failure(peer.id)
 
     async def _confirm_failure(self, peer_id: str) -> None:
-        if peer_id in self._confirming or peer_id not in self.peers:
+        with self._mesh_lock:
+            already_confirming = peer_id in self._confirming
+            not_in_peers = peer_id not in self.peers
+        if already_confirming or not_in_peers:
             return
 
-        self._confirming.add(peer_id)
-        try:
-            candidate = self.peers[peer_id]
-            observers = [
-                peer
+        with self._mesh_lock:
+            candidate = self.peers.get(peer_id)
+            observer_peer_ids = [
+                peer.id
                 for peer in self.peers.values()
                 if peer.id != peer_id and peer.status in {"alive", "suspect"}
             ]
-            if not observers:
-                self._remove_peer(peer_id, reason="heartbeat timeout without observers")
+            self._confirming.add(peer_id)
+        try:
+            if not observer_peer_ids or candidate is None:
+                with self._mesh_lock:
+                    self._confirming.discard(peer_id)
+                self._remove_peer(peer_id, reason="heartbeat timeout without observers/candidate")
                 return
 
+            observers = [self.peers[pid] for pid in observer_peer_ids if pid in self.peers]
             results = await asyncio.gather(
                 *[
                     self._send_reliable(
@@ -327,7 +351,8 @@ class GossipEngine:
             else:
                 logger.info("Peer '%s' kept suspect after confirmation round", peer_id)
         finally:
-            self._confirming.discard(peer_id)
+            with self._mesh_lock:
+                self._confirming.discard(peer_id)
 
     def _remove_peer(self, peer_id: str, *, reason: str) -> None:
         node = self.peers.pop(peer_id, None)
@@ -376,17 +401,20 @@ class GossipEngine:
 
     def _handle_ack(self, payload: dict[str, Any]) -> None:
         ack_for = str(payload.get("ack_for", ""))
-        future = self._pending_acks.get(ack_for)
+        with self._mesh_lock:
+            future = self._pending_acks.get(ack_for)
         if future and not future.done():
             future.set_result(payload)
 
     def _handle_dead_probe(self, target_id: str) -> dict[str, Any]:
         if target_id == self.local_node.id:
             return {"confirmed_dead": False, "observer": self.local_node.id}
-        if target_id in self._dead_nodes:
+        with self._mesh_lock:
+            in_dead = target_id in self._dead_nodes
+            stats = self._peer_stats.get(target_id)
+            node = self.peers.get(target_id)
+        if in_dead:
             return {"confirmed_dead": True, "observer": self.local_node.id}
-        stats = self._peer_stats.get(target_id)
-        node = self.peers.get(target_id)
         confirmed_dead = node is None or (
             node.status == "suspect"
             and stats is not None
@@ -401,34 +429,45 @@ class GossipEngine:
             return
 
         node_data = dict(node_data)
+        should_elect = False
         if node_data.get("status") == "dead":
-            existing = self.peers.pop(node_id, None)
-            self._dead_nodes[node_id] = MeshNode(**{**node_data, "last_seen": time.time()})
+            with self._mesh_lock:
+                existing = self.peers.pop(node_id, None)
+                self._dead_nodes[node_id] = MeshNode(**{**node_data, "last_seen": time.time()})
             if existing and self.leader_id == node_id:
+                should_elect = True
+            if should_elect:
                 self.elect_leader()
+            logger.info("Peer '%s' tombstoned as dead", node_id)
             return
 
         node_data["status"] = (
             "alive" if node_data.get("status") == "dead" else node_data.get("status", "alive")
         )
-        existing = self.peers.get(node_id)
-        if existing is None or float(node_data.get("last_seen", 0.0)) >= existing.last_seen:
-            node = MeshNode(**node_data)
-            node.last_seen = time.time()
-            self.peers[node_id] = node
-            self._dead_nodes.pop(node_id, None)
-            stats = self._stats_for(node_id)
-            stats.heartbeat_misses = 0
-            stats.last_heartbeat = time.time()
+        should_update = False
+        with self._mesh_lock:
+            existing = self.peers.get(node_id)
+            if existing is None or float(node_data.get("last_seen", 0.0)) >= existing.last_seen:
+                node = MeshNode(**node_data)
+                node.last_seen = time.time()
+                self.peers[node_id] = node
+                self._dead_nodes.pop(node_id, None)
+                stats = self._peer_stats.setdefault(node_id, PeerHealthStats())
+                stats.heartbeat_misses = 0
+                stats.last_heartbeat = time.time()
+                should_update = True
+        if should_update:
             self.elect_leader()
+            logger.info("Peer '%s' resurrected and re-added to mesh", node_id)
 
     def elect_leader(self) -> str:
         """Elect a deterministic leader from live local membership."""
-        candidates = [
-            self.local_node.id,
-            *[p.id for p in self.peers.values() if p.status == "alive"],
-        ]
-        self.leader_id = sorted(candidates)[0] if candidates else self.local_node.id
+        with self._mesh_lock:
+            candidates = [
+                self.local_node.id,
+                *[p.id for p in self.peers.values() if p.status == "alive"],
+            ]
+            self.leader_id = sorted(candidates)[0] if candidates else self.local_node.id
         return self.leader_id
 
     def mesh_nodes(self, *, include_dead: bool = True) -> list[MeshNode]:

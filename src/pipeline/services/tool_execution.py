@@ -93,9 +93,12 @@ def _get_context_key() -> str:
     thread_id = threading.get_ident()
     try:
         task = asyncio.current_task()
-        task_id = id(task) if task else 0
+        if task is not None:
+            task_id = str(id(task))
+        else:
+            task_id = "none"
     except RuntimeError:
-        task_id = 0
+        task_id = "none"
     return f"{thread_id}:{task_id}"
 
 

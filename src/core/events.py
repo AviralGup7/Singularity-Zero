@@ -5,7 +5,6 @@ import inspect
 import logging
 import threading
 import uuid
-import weakref
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -57,7 +56,7 @@ class EventBus:
         self._lock = threading.Lock()
         self._running = False
         self._async_handlers: list[Callable[..., Any]] = []
-        self._pending_tasks: weakref.WeakSet[asyncio.Task[Any]] = weakref.WeakSet()
+        self._pending_tasks: set[asyncio.Task[Any]] = set()
         self._tasks: set[asyncio.Task[Any]] = set()
         self.failed_handlers_count = 0
 
@@ -244,11 +243,7 @@ class EventBus:
             task = loop.create_task(handler(event))
             self._track_task(task)
         except RuntimeError:
-            threading.Thread(
-                target=asyncio.run,
-                args=(handler(event),),
-                daemon=True,
-            ).start()
+            result = asyncio.run(handler(event))
 
     def _track_task(self, task: asyncio.Task[Any]) -> None:
         self._pending_tasks.add(task)

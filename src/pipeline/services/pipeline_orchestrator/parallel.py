@@ -24,19 +24,16 @@ logger = get_pipeline_logger(__name__)
 def build_parallel_graph() -> dict[str, list[str]]:
     """Build a parallel execution graph from STAGE_DEPS.
 
-    For each stage, identify other stages that share the same dependencies
-    and can therefore run in parallel after the dependency is satisfied.
-    Returns a map: trigger_stage -> [parallel_candidates].
+    .. deprecated::
+        Use the Neural-Mesh DAG engine (``execute_remaining_stages``) instead.
+        This function is retained as a legacy stub for backwards-compatibility
+        with any external callers; it delegates to the active STAGE_DEPS
+        constant and PARALLEL_STAGE_GROUPS concatenated together.
     """
     graph: dict[str, list[str]] = {}
 
-    # After `urls` completes: `parameters` depends on {urls},
-    # `ranking` depends on {urls, parameters} -> partial parallelism:
-    # parameters can start immediately after urls; ranking waits for parameters
-    graph["urls"] = ["parameters"]
-
-    # After `passive_scan`: nuclei + access_control (already in PARALLEL_STAGE_GROUPS)
-    graph["passive_scan"] = []  # handled by PARALLEL_STAGE_GROUPS
+    for trigger, paral_stages in PARALLEL_STAGE_GROUPS:
+        graph[trigger] = paral_stages
 
     return graph
 

@@ -105,3 +105,28 @@ PARALLEL_STAGE_GROUPS = [
     ("live_hosts", ["waf", "urls"]),
     ("passive_scan", ["nuclei", "access_control", "semgrep"]),
 ]
+
+
+def _check_parallel_consistency() -> None:
+    """Validate that PARALLEL_STAGE_GROUPS does not contradict STAGE_DEPS."""
+    import logging
+
+    _const_logger = logging.getLogger(__name__)
+    for trigger, paral_stages in PARALLEL_STAGE_GROUPS:
+        declared_deps = STAGE_DEPS.get(trigger, set())
+        for stage in paral_stages:
+            stage_deps = STAGE_DEPS.get(stage, set())
+            if trigger not in stage_deps:
+                _const_logger.warning(
+                    "PARALLEL_STAGE_GROUPS: stage '%s' listed as parallel after '%s', "
+                    "but STAGE_DEPS['%s']=%s does not include '%s' as a dependency. "
+                    "This contradiction may cause incorrect execution ordering.",
+                    stage,
+                    trigger,
+                    stage,
+                    stage_deps,
+                    trigger,
+                )
+
+
+_check_parallel_consistency()

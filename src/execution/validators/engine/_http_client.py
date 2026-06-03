@@ -1,5 +1,6 @@
 """HTTP client and configuration for validation probes."""
 
+import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -16,26 +17,29 @@ class ValidationHttpConfig:
 
 
 class ValidationHttpClient:
-    """HTTP client for validation probes that reuses the pipeline fetch client."""
+    """Thread-safe HTTP client for validation probes that reuses the pipeline fetch client."""
 
     _MAX_CACHE_ITEMS = 256
 
     def __init__(self, config: ValidationHttpConfig) -> None:
         self.config = config
         self._response_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._cache_lock = threading.Lock()
 
     def _cache_get(self, key: str) -> dict[str, Any] | None:
-        value = self._response_cache.get(key)
-        if value is None:
-            return None
-        self._response_cache.move_to_end(key)
-        return value
+        with self._cache_lock:
+            value = self._response_cache.get(key)
+            if value is None:
+                return None
+            self._response_cache.move_to_end(key)
+            return value
 
     def _cache_set(self, key: str, value: dict[str, Any]) -> None:
-        self._response_cache[key] = value
-        self._response_cache.move_to_end(key)
-        while len(self._response_cache) > self._MAX_CACHE_ITEMS:
-            self._response_cache.popitem(last=False)
+        with self._cache_lock:
+            self._response_cache[key] = value
+            self._response_cache.move_to_end(key)
+            while len(self._response_cache) > self._MAX_CACHE_ITEMS:
+                self._response_cache.popitem(last=False)
 
     def request(
         self, url: str, *, method: str = "GET", headers: dict[str, str] | None = None

@@ -140,11 +140,28 @@ class FeedbackRepo(BaseRepo):
                 updates.append((weight, row["event_id"]))
 
             if updates:
-                # Performance #6: Use executemany for batch update
-                cur.executemany(
-                    "UPDATE feedback_events SET feedback_weight = ? WHERE event_id = ?",
-                    updates,
-                )
+                # Group updates into chunks of 200 to execute single SQLite CASE update queries
+                chunk_size = 200
+                for i in range(0, len(updates), chunk_size):
+                    chunk = updates[i : i + chunk_size]
+                    case_clauses = []
+                    params = []
+                    for weight, event_id in chunk:
+                        case_clauses.append("WHEN ? THEN ?")
+                        params.extend([event_id, weight])
+
+                    event_ids = [event_id for _, event_id in chunk]
+                    params.extend(event_ids)
+
+                    placeholders = ",".join("?" for _ in event_ids)
+                    query = f"""
+                        UPDATE feedback_events
+                        SET feedback_weight = CASE event_id
+                            {" ".join(case_clauses)}
+                        END
+                        WHERE event_id IN ({placeholders})
+                    """  # noqa: S608
+                    cur.execute(query, params)
 
             return len(updates)
 

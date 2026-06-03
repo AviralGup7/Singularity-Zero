@@ -60,8 +60,21 @@ async def execute_remaining_stages(
         completed_stages.update(checkpoint_mgr.completed_stages)
 
     for tier_index, tier in enumerate(execution_plan):
+        # Cooperative shutdown check between tiers
+        try:
+            from src.pipeline.runtime import shutdown_flag as _shutdown_flag
+            if _shutdown_flag:
+                logger.warning("Shutdown flag detected between DAG tiers, stopping execution.")
+                return 130
+        except ImportError:
+            pass
+
         # Filter tier to only includes stages that still need to run
-        active_tier = [s for s in tier if s in remaining_stages and s not in completed_stages]
+        active_tier = [
+            s
+            for s in tier
+            if s in remaining_stages and s not in completed_stages and s not in handled_by_parallel
+        ]
         if not active_tier:
             continue
 

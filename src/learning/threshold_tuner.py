@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from src.core.utils.math_utils import clamp as _clamp
 from src.learning.telemetry_store import TelemetryStore
 
 logger = logging.getLogger(__name__)
@@ -49,9 +50,6 @@ class ThresholdUpdate:
     error: float | None = None
     adjustment: float | None = None
     reason: str | None = None
-
-
-from src.core.utils.math_utils import clamp as _clamp
 
 
 class ThresholdTuner:

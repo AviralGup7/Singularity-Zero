@@ -176,6 +176,7 @@ class TestPipelineRunWithMockConfig:
     def _patch_external_tools(self):
         """Return a dict of patches for all external tool calls."""
         patches = {
+            "src.core.plugins.resolve_plugin": lambda *a, **k: MagicMock(),
             "src.recon.subdomains.enumerate_subdomains": lambda *a, **k: set(),
             "src.recon.live_hosts.probe_live_hosts": lambda *a, **k: ([], set()),
             "src.recon.urls.collect_urls": lambda *a, **k: set(),
@@ -229,7 +230,7 @@ class TestPipelineRunWithMockConfig:
             "src.analysis.behavior.technology.build_technology_summary": lambda *a, **k: {},
             "src.recon.ranking_support.load_history_feedback": lambda *a, **k: {},
             "src.recon.ranking_support.select_deep_analysis_targets": lambda *a, **k: ([], {}),
-            "src.pipeline.services.pipeline_flow.pipeline_flow_manifest": lambda: [],
+            "src.pipeline.services.stage_registry.pipeline_flow_manifest": lambda: [],
             "src.pipeline.services.pipeline_helpers.compute_detection_coverage": lambda *a, **k: {},
             "src.pipeline.services.pipeline_helpers.extract_feedback_urls": lambda *a, **k: set(),
             "src.pipeline.services.pipeline_helpers.finding_identity": lambda x: str(

@@ -278,6 +278,31 @@ def _infer_body_fields_from_url(url: str) -> list[tuple[str, str]]:
     if "/upload" in path or "/file" in path:
         fields.extend([("file_name", "string"), ("file_type", "string"), ("file_size", "integer")])
 
+    # Try parsing query parameters from the URL itself
+    if not fields and parsed.query:
+        from urllib.parse import parse_qsl
+
+        from src.core.mutation_engine import detect_parameter_type
+        for q_name, q_val in parse_qsl(parsed.query, keep_blank_values=True):
+            ptype = detect_parameter_type(q_name, q_val)
+            mapped_type = "string"
+            if ptype == "numeric":
+                mapped_type = "integer"
+            elif ptype == "id":
+                mapped_type = "integer" if q_val.isdigit() else "string"
+            fields.append((q_name, mapped_type))
+
+    # If still empty, fall back to a set of generic REST/GraphQL parameters
+    if not fields:
+        fields.extend([
+            ("id", "integer"),
+            ("data", "string"),
+            ("query", "string"),
+            ("payload", "string"),
+            ("input", "string"),
+            ("status", "string"),
+        ])
+
     # Deduplicate while preserving order
     seen: set[str] = set()
     unique_fields = []

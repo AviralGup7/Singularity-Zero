@@ -33,6 +33,7 @@ async def get_job_logs(
         raise HTTPException(status_code=404, detail="Job not found")
 
     from pathlib import Path
+
     from src.dashboard.fastapi.dependencies import get_config
 
     config = get_config()
@@ -45,7 +46,7 @@ async def get_job_logs(
     total_logs = 0
     if stdout_path.exists() and stdout_path.is_file():
         try:
-            with open(stdout_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(stdout_path, encoding="utf-8", errors="replace") as f:
                 for _ in f:
                     total_logs += 1
         except Exception:

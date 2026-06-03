@@ -663,7 +663,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         unique_target_names = {t.get("name") for t in targets if t.get("name")}
         active_jobs = [j for j in jobs if j.get("status") == "running"]
         active_targets = {j.get("target") for j in active_jobs if j.get("target")}
-        
+
         all_targets = unique_target_names.union(active_targets)
         total_targets = len(all_targets)
         completed_targets = max(0, total_targets - len(active_targets))

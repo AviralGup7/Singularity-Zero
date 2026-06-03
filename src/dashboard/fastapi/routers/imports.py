@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_admin
+from src.dashboard.fastapi.routers.utils import get_safe_target_path
 from src.dashboard.fastapi.schemas import ErrorResponse
 from src.dashboard.fastapi.validation import (
     validate_json_payload,
@@ -14,9 +15,6 @@ from src.dashboard.fastapi.validation import (
 )
 
 router = APIRouter(prefix="/api/imports", tags=["Imports"])
-
-
-from src.dashboard.fastapi.routers.utils import get_safe_target_path
 
 
 # ...
