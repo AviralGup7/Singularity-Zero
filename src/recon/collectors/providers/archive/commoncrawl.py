@@ -87,9 +87,7 @@ def _parse_cc_ndjson(text: str) -> list[str]:
         try:
             obj = json.loads(line)
         except json.JSONDecodeError:
-            logger.warning(
-                "commoncrawl: JSON parse error, line (truncated): %s", line[:500]
-            )
+            logger.warning("commoncrawl: JSON parse error, line (truncated): %s", line[:500])
             # not JSON, treat the line as a URL
             urls.append(line)
             continue

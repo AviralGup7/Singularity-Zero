@@ -8,6 +8,7 @@ dispatches typed messages to the appropriate engine callback.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -20,15 +21,15 @@ logger = logging.getLogger(__name__)
 class GossipProtocol:
     """Low-level UDP packet handler with HMAC verification."""
 
-    def __init__(self, engine, *, secret: bytes):
+    def __init__(self, engine: Any, *, secret: bytes):
         self.engine = engine
         self._secret = secret
-        self.transport = None
+        self.transport: asyncio.BaseTransport | None = None
 
-    def connection_made(self, transport) -> None:
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport
 
-    def datagram_received(self, data: bytes, addr) -> None:  # addr: tuple[str, int]
+    def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:  # addr: tuple[str, int]
         try:
             envelope = json.loads(data.decode("utf-8"))
             body = envelope["body"]
@@ -56,7 +57,7 @@ class GossipProtocol:
                 exc_info=True,
             )
 
-    def _handle_authenticated(self, body: dict[str, Any], addr) -> None:
+    def _handle_authenticated(self, body: dict[str, Any], addr: tuple[str, int]) -> None:
         message_type = body.get("type")
         payload = body.get("payload", {})
         source = body.get("source")

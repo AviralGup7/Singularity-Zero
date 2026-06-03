@@ -1,6 +1,5 @@
 """Pipeline entry point - runs analysis pipeline."""
 
-import os
 import sys
 import traceback
 

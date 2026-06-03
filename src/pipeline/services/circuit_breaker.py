@@ -32,6 +32,7 @@ class CircuitBreaker:
         self.recovery_timeout = recovery_timeout
         self._failure_count: int = 0
         self._last_failure_time: float = 0.0
+        self._last_accessed: float = 0.0
         self._state: str = CircuitState.CLOSED
         self._lock = threading.Lock()
 

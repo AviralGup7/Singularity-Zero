@@ -37,6 +37,8 @@ def _resolve_db_path(config_path: str | None = None) -> Path:
 class LearningIntegration:
     """Bridges the learning subsystem with the pipeline orchestrator."""
 
+    _current_target: str | None = None
+
     def __init__(
         self,
         store: TelemetryStore,

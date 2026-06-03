@@ -174,7 +174,7 @@ async def _execute_single_stage(
     stage_checkpoint_guard: Any,
     progress_emitter: Any,
     error_emitter: Any,
-) -> int | None:
+) -> int | str | None:
     """Internal helper to execute a single stage within a DAG tier."""
     stage_started = time.time()
 

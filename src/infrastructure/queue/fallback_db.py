@@ -100,7 +100,7 @@ class FallbackDB:
             logger.error("Failed to initialize SQLite fallback database: %s", exc)
 
     def _get_sqlite_conn(self) -> Any:
-        if not self._available and not os.path.exists(self.db_path):
+        if not self._available or getattr(self._thread_local, "read_only", False):
             self._init_sqlite()
         if not self._available:
             raise RuntimeError(f"SQLite fallback database unavailable: {self.last_error}")

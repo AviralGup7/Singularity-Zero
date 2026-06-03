@@ -1,4 +1,4 @@
-"""Health check endpoints for the FastAPI dashboard."""
+﻿"""Health check endpoints for the FastAPI dashboard."""
 
 import logging
 import time
@@ -134,7 +134,7 @@ async def liveness_check() -> HealthResponse:
 
     status = "ok" if checks["event_loop_running"] and uptime > 0 else "error"
 
-    return HealthResponse(
+    return HealthResponse(  # type: ignore[call-arg]
         status=status,
         timestamp=datetime.now(UTC).isoformat(),
         uptime_seconds=round(uptime, 2),
