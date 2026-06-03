@@ -147,7 +147,7 @@ class EventBus:
                         res_fut = None
                         exc_fut = None
 
-                        def _run_in_thread():
+                        def _run_in_thread() -> None:
                             nonlocal res_fut, exc_fut
                             try:
                                 res_fut = asyncio.run(handler(event))

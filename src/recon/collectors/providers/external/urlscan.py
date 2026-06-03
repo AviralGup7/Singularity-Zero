@@ -85,7 +85,9 @@ def _parse_urlscan_json(text: str) -> list[str]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        logger.warning("urlscan: JSON parse error, response text (truncated): %s", (text or "")[:500])
+        logger.warning(
+            "urlscan: JSON parse error, response text (truncated): %s", (text or "")[:500]
+        )
         return []
 
     # urlscan search returns an object with 'results' array

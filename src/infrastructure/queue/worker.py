@@ -226,18 +226,17 @@ class Worker:
         """
 
         # Periodic check for cancellation
+        task_cancelled = False
+
         async def check_cancelled() -> None:
+            nonlocal task_cancelled
             while self._running:
                 if await self.queue.is_job_cancelled(job.id):
                     logger.warning("Job %s was cancelled by user, terminating task", job.id)
-                    # We can't easily kill a thread if handler is sync,
-                    # but we can at least stop tracking it as successful.
-                    nonlocal task_cancelled
                     task_cancelled = True
                     return
                 await asyncio.sleep(2.0)
 
-        task_cancelled = False
         cancel_checker = asyncio.create_task(check_cancelled())
 
         job.mark_running()
@@ -305,7 +304,7 @@ class Worker:
                 if asyncio.iscoroutinefunction(handler):
                     result_task = asyncio.create_task(handler(handler_input))
                 else:
-                    result_task = asyncio.to_thread(handler, handler_input)
+                    result_task = asyncio.create_task(asyncio.to_thread(handler, handler_input))
 
                 # Race between handler completion and user cancellation
                 while not result_task.done() and not task_cancelled:

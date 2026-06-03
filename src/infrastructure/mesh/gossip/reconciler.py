@@ -9,7 +9,7 @@ leader updates are propagated when authoritative.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Callable
 
 from src.infrastructure.mesh.gossip.models import MeshNode
 
@@ -20,7 +20,7 @@ def reconcile_payload(
     local_node_id: str,
     mesh_data: list[dict[str, Any]],
     leader_id: str,
-    elect_leader_callback=None,
+    elect_leader_callback: Callable[[], Any] | None = None,
 ) -> str | None:
     """Apply mesh_data to local peer registry; return updated leader if changed."""
     updated_leader = leader_id
@@ -39,7 +39,7 @@ def _merge_node(
     dead_nodes: dict[str, MeshNode],
     node_data: dict[str, Any],
     current_leader: str,
-    elect_leader_callback=None,
+    elect_leader_callback: Callable[[], Any] | None = None,
 ) -> None:
 
     node_id = str(node_data["id"])

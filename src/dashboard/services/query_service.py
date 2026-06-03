@@ -1,4 +1,4 @@
-import json
+﻿import json
 import logging
 import threading
 import time
@@ -41,7 +41,7 @@ class DashboardQueryService:
         self.lock = lock
         self.jobs = jobs
         self.persist_callback = persist_callback
-        
+
         # Performance #4: Summary cache to prevent Disk I/O storms
         self._summary_cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._summary_cache_ttl = 10.0  # 10 seconds
@@ -49,15 +49,15 @@ class DashboardQueryService:
     def _read_summary_cached(self, summary_path: Path) -> dict[str, Any]:
         cache_key = str(summary_path)
         now = time.time()
-        
+
         cached = self._summary_cache.get(cache_key)
         if cached and (now - cached[0]) < self._summary_cache_ttl:
             return cached[1]
-            
+
         try:
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
             self._summary_cache[cache_key] = (now, summary)
-            return summary
+            return summary  # type: ignore[no-any-return]
         except (json.JSONDecodeError, OSError):
             return {}
 

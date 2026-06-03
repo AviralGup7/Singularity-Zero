@@ -1,4 +1,4 @@
-"""Trace-aware loggers for pipeline code."""
+﻿"""Trace-aware loggers for pipeline code."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ class TraceContextFilter(logging.Filter):
         trace_id = ""
         span_id = ""
         try:
-            from opentelemetry import trace
+            from opentelemetry import trace  # type: ignore[attr-defined]
 
             span = trace.get_current_span()
             ctx = span.get_span_context()

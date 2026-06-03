@@ -27,7 +27,7 @@ ALLOWED_UPDATE_FIELDS = {
 }
 
 
-def _locate_finding_on_disk(output_root: Any, finding_id: str, tenant_id: str):
+def _locate_finding_on_disk(output_root: Any, finding_id: str, tenant_id: str) -> tuple[str, str, int, dict[str, Any], list[dict[str, Any]], Any] | None:
     for target_entry in output_root.iterdir():
         if not target_entry.is_dir():
             continue

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -32,7 +31,9 @@ def _default_scope_file(output_root: Path) -> Path:
     reference_scope = output_root / "_launcher" / SQUARE_REFERENCE_JOB_ID / "scope.txt"
     if reference_scope.exists():
         return reference_scope
-    return Path(__file__).resolve().parents[1] / "src" / "dashboard" / "config" / "squareup-scope.txt"
+    return (
+        Path(__file__).resolve().parents[1] / "src" / "dashboard" / "config" / "squareup-scope.txt"
+    )
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

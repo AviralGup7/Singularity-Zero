@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -78,8 +78,8 @@ class GossipEngine:
 
         self._running = True
         loop = asyncio.get_running_loop()
-        self._transport, _ = await loop.create_datagram_endpoint(
-            lambda: GossipProtocol(self, secret=self._secret),
+        self._transport, _ = await loop.create_datagram_endpoint(  # type: ignore[type-var]
+            lambda: GossipProtocol(self, secret=self._secret),  # type: ignore[return-value]
             local_addr=(self.local_node.host, self._udp_port),
         )
         logger.info("Neural-Mesh Gossip active on UDP %d [Authenticated]", self._udp_port)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Message serialization utilities for the gossip protocol.
 
 Handles canonical JSON encoding, HMAC signing/verification, and
@@ -10,9 +10,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import time
 import uuid
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def canonical_json(data: dict[str, Any]) -> bytes:
@@ -33,7 +36,7 @@ def verify(secret: bytes, data: bytes, signature: str) -> bool:
 
 def make_envelope(
     secret: bytes,
-    local_node,
+    local_node: Any,
     message_type: str,
     payload: dict[str, Any],
     msg_id: str | None = None,
@@ -54,7 +57,7 @@ def make_envelope(
     return json.dumps(envelope, separators=(",", ":")).encode("utf-8")
 
 
-def parse_envelope(data: bytes):
+def parse_envelope(data: bytes) -> tuple[Any, bool]:
     """Decode and verify a wire envelope, returning (body, is_valid)."""
     try:
         envelope = json.loads(data.decode("utf-8"))

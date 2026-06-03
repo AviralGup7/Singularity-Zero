@@ -109,7 +109,7 @@ class CheckpointManager:
             dist = self._distributed
             if dist is not None:
 
-                def _log_replication_failure(exc: Exception | BaseException) -> None:
+                def _log_replication_failure(exc: BaseException | None) -> None:
                     logger.warning(
                         "Distributed replication failed for checkpoint %s: %s. Local checkpoint remains intact.",
                         checkpoint_path,
@@ -124,7 +124,7 @@ class CheckpointManager:
                         def _on_done(t: asyncio.Task[Any]) -> None:
                             if t.cancelled():
                                 _log_replication_failure(asyncio.CancelledError("Task cancelled"))
-                            elif t.exception():
+                            elif t.exception() is not None:
                                 _log_replication_failure(t.exception())
 
                         task.add_done_callback(_on_done)

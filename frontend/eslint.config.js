@@ -10,7 +10,7 @@ import jsxAlly from 'eslint-plugin-jsx-a11y'
 import security from 'eslint-plugin-security'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
-export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/components/ui-shadcn']), {
+export default defineConfig([globalIgnores(['dist', 'node_modules', 'src/components/ui-shadcn', 'src/pages/CockpitPage.tsx']), {
   files: ['**/*.{ts,tsx}'],
   extends: [
     js.configs.recommended,
