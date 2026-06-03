@@ -7,6 +7,7 @@ from types import SimpleNamespace
 class DummyUpload:
     def __init__(self, content: bytes):
         self._content = content
+        self.content_type = "application/json"
 
     async def read(self) -> bytes:
         return self._content

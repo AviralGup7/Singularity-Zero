@@ -56,6 +56,7 @@ class GossipEngine:
         self._peer_stats: dict[str, PeerHealthStats] = {}
         self._total_sent = 0
         self._total_failed = 0
+        self._gossip_sync_failures_total = 0
         self._mesh_lock = threading.RLock()
 
         self.retry_base_ms = _env_int("MESH_RETRY_BASE_MS", 100)
@@ -199,6 +200,10 @@ class GossipEngine:
             with self._mesh_lock:
                 stats.failed += 1
                 self._total_failed += 1
+                if message_type == "gossip":
+                    self._gossip_sync_failures_total += 1
+                    from src.infrastructure.observability.metrics import get_metrics
+                    get_metrics().counter("mesh_gossip_sync_failures_total").inc()
             if mark_suspect_on_failure:
                 with self._mesh_lock:
                     if peer.id in self.peers:
@@ -346,10 +351,10 @@ class GossipEngine:
                     confirmations += 1
 
             quorum = max(1, (responses // 2) + 1)
-            if responses == 0 or confirmations >= quorum:
+            if responses > 0 and confirmations >= quorum:
                 self._remove_peer(peer_id, reason="confirmed heartbeat failure")
             else:
-                logger.info("Peer '%s' kept suspect after confirmation round", peer_id)
+                logger.info("Peer '%s' kept suspect after confirmation round (responses=%d, confirmations=%d, quorum=%d)", peer_id, responses, confirmations, quorum)
         finally:
             with self._mesh_lock:
                 self._confirming.discard(peer_id)
@@ -500,6 +505,20 @@ class GossipEngine:
                 }
             )
 
+        node_count = len(nodes)
+        healthy_node_count = sum(1 for node in nodes if node.status == "alive")
+        unhealthy_node_count = sum(1 for node in nodes if node.status != "alive")
+        suspect_node_count = sum(1 for node in nodes if node.status == "suspect")
+        dead_node_count = sum(1 for node in nodes if node.status == "dead")
+        heartbeat_misses_total = sum(stats.heartbeat_misses for stats in self._peer_stats.values())
+        partition_signal = (unhealthy_node_count > 0)
+        split_brain_signal = (unhealthy_node_count > healthy_node_count)
+
+        from src.infrastructure.observability.metrics import get_metrics
+        metrics = get_metrics()
+        metrics.gauge("mesh_node_count").set(float(node_count))
+        metrics.gauge("mesh_partition_signal").set(1.0 if partition_signal else 0.0)
+
         return {
             "peer_count": len(active_nodes),
             "leader_id": self.leader_id,
@@ -531,4 +550,13 @@ class GossipEngine:
                 }
                 for peer_id, stats in self._peer_stats.items()
             },
+            "node_count": node_count,
+            "healthy_node_count": healthy_node_count,
+            "unhealthy_node_count": unhealthy_node_count,
+            "suspect_node_count": suspect_node_count,
+            "dead_node_count": dead_node_count,
+            "gossip_sync_failures_total": getattr(self, "_gossip_sync_failures_total", 0),
+            "heartbeat_misses_total": heartbeat_misses_total,
+            "partition_signal": partition_signal,
+            "split_brain_signal": split_brain_signal,
         }

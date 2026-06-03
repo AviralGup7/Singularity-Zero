@@ -71,7 +71,7 @@ class Session:
             merged_cookies = dict(self.cookies)
             merged_cookies.update(request_cookies)
             cookie_value = "; ".join(
-                f"{key}={value}" for key, value in merged_cookies.items()
+                f"{key}={value}" for key, value in sorted(merged_cookies.items())
             )
             if cookie_value:
                 cookie_key = existing_cookie_name or "Cookie"

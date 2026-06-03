@@ -284,10 +284,13 @@ class CloudBucketScanner:
         async with aiohttp.ClientSession(connector=connector) as session:
             tasks = [self.scan_bucket(session, bucket) for bucket in candidates]
             # Run tasks concurrently
-            completed = await asyncio.gather(*tasks)
+            completed = await asyncio.gather(*tasks, return_exceptions=True)
             # Flatten results list
             findings = []
             for sublist in completed:
+                if isinstance(sublist, Exception):
+                    logger.debug("Cloud bucket scan failed: %s", sublist)
+                    continue
                 findings.extend(sublist)
             return findings
 

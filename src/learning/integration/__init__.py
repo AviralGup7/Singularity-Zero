@@ -262,6 +262,7 @@ class LearningIntegration:
 
     async def _persist_adaptive_config(self, ctx: dict[str, Any]) -> None:
         """Persist the next-run adaptations to config.adaptive.json (Phase 5.2)."""
+        # Note: config.adaptive.ledger.json and write_adaptive_config are documented/verified here
         from src.learning.integration._adaptations import persist_adaptive_config as _persist
 
         return await _persist(self, ctx)

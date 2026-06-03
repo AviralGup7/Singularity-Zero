@@ -7,7 +7,7 @@ and exposes a send retry budget for _send_reliable.
 
 from __future__ import annotations
 
-import random
+import secrets
 
 
 class RateLimiter:
@@ -21,5 +21,5 @@ class RateLimiter:
     def interval_seconds(self, attempt: int) -> float:
         """Return the back-off interval in seconds for the given zero-based attempt."""
         base = min(self.max_ms, self.base_ms * (2**attempt))
-        jittered = base * random.uniform(0.75, 1.25)
+        jittered = base * secrets.SystemRandom().uniform(0.75, 1.25)
         return max(0.001, float(jittered / 1000.0))

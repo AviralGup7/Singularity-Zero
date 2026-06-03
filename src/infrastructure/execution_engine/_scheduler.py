@@ -115,9 +115,14 @@ class _DAGScheduler:
 
         remaining = self._all_ids - executed
         if remaining:
-            remaining_tasks = [self._tasks[tid] for tid in remaining]
-            remaining_tasks.sort(key=lambda t: self._sort_key(t.id))
-            layers.append(remaining_tasks)
-            logger.warning("Tasks with unresolvable dependencies: %s", remaining)
+            remaining_names = [self._tasks[tid].name for tid in remaining]
+            logger.error(
+                "DAG scheduler: %d tasks could not be scheduled due to dependency cycles: %s",
+                len(remaining),
+                remaining_names,
+            )
+            raise ValueError(
+                f"Dependency cycle detected in task graph; cannot schedule tasks: {remaining_names}"
+            )
 
         return layers

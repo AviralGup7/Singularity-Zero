@@ -81,6 +81,8 @@ def setup_tools(dest_dir: str | None = None) -> None:
     for tool_name, version in tools.items():
         ext = "zip"
         url = f"https://github.com/projectdiscovery/{tool_name}/releases/download/v{version}/{tool_name}_{version}_{os_name}_{arch_name}.{ext}"
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise ValueError(f"Invalid URL scheme: {url}")
         bin_name = f"{tool_name}.exe" if os_name == "windows" else tool_name
         tool_dest = dest_path / bin_name
 
@@ -120,7 +122,7 @@ def setup_tools(dest_dir: str | None = None) -> None:
 
             # Set execution permissions
             if os_name != "windows":
-                os.chmod(tool_dest, 0o755)  # nosec B103 noqa: S103
+                os.chmod(tool_dest, 0o700)  # nosec B103 noqa: S103
                 if not os.access(tool_dest, os.X_OK):
                     logger.warning("Tool %s installed but is not executable", tool_name)
 

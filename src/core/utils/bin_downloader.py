@@ -105,6 +105,8 @@ def download_and_extract_tool(
         arch_name = arch_name or detected_arch
 
     url = get_download_url(tool_name, version, os_name, arch_name)
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise ValueError(f"Invalid URL scheme: {url}")
     bin_name = f"{tool_name}.exe" if os_name == "windows" else tool_name
     dest_path = dest_dir / bin_name
 
@@ -176,7 +178,7 @@ def download_and_extract_tool(
 
             # Set executable permissions on Unix systems
             if os_name != "windows":
-                os.chmod(dest_path, 0o755)  # nosec B103 noqa: S103
+                os.chmod(dest_path, 0o700)  # nosec B103 noqa: S103
 
             success_msg = f"Successfully installed {tool_name} to {dest_path}"
             logger.info(success_msg)
