@@ -36,7 +36,20 @@ class _SequenceTracker:
 
     def __init__(self) -> None:
         self._counters: dict[str, int] = {}
+        self._active_connections: dict[str, int] = {}
         self._lock = threading.Lock()
+
+    def register_client(self, job_id: str) -> None:
+        with self._lock:
+            self._active_connections[job_id] = self._active_connections.get(job_id, 0) + 1
+
+    def deregister_client(self, job_id: str) -> None:
+        with self._lock:
+            if job_id in self._active_connections:
+                self._active_connections[job_id] -= 1
+                if self._active_connections[job_id] <= 0:
+                    self._active_connections.pop(job_id)
+                    self._counters.pop(job_id, None)
 
     def next(self, job_id: str) -> int:
         with self._lock:
@@ -57,11 +70,15 @@ class SSEEventEmitter:
 
     def __init__(self, job_id: str) -> None:
         self.job_id = job_id
+        self.last_count = 0
+        self.last_stage = ""
+        self.last_iteration = 0
 
     def _event_id(self) -> str:
         ts_ms = int(time.time() * 1000)
         seq = _global_tracker.next(self.job_id)
-        return f"{self.job_id}-{ts_ms}-{seq:04d}"
+        stage_safe = self.last_stage.replace(":", "_")
+        return f"{self.job_id}:{ts_ms}:{seq:04d}:{self.last_count}:{stage_safe}:{self.last_iteration}"
 
     def emit(
         self,

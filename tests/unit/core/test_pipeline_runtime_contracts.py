@@ -43,6 +43,30 @@ def test_stage_input_uses_immutable_snapshot() -> None:
 
 
 @pytest.mark.unit
+def test_stage_input_thawing_mapping() -> None:
+    pipeline_input = PipelineInput(
+        target_name="example.com",
+        scope_entries=("example.com",),
+        run_id="run-123",
+        metadata={"mode": "test"},
+    )
+    external_snapshot = {
+        "items": ["https://example.com"],
+    }
+    stage_input = StageInput(
+        stage_name="subdomains",
+        stage_index=1,
+        stage_total=4,
+        pipeline=pipeline_input,
+        state_snapshot=external_snapshot,
+    )
+    items = stage_input.state_snapshot["items"]
+    assert isinstance(items, list)
+    items.append("https://another.com")
+    assert items == ["https://example.com", "https://another.com"]
+
+
+@pytest.mark.unit
 def test_stage_output_maps_state_to_stage_outcome() -> None:
     completed = StageOutput.from_stage_state(
         stage_name="urls",

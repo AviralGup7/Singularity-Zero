@@ -17,6 +17,7 @@ class MeshNode:
     ram_available_mb: float = 0.0
     active_jobs: int = 0
     last_seen: float = field(default_factory=time.time)
+    gossip_port: int = 0
 
 
 @dataclass

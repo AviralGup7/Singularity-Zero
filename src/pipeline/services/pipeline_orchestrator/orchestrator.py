@@ -301,12 +301,9 @@ class PipelineOrchestrator:
             loop = None
 
         if loop and loop.is_running():
-            import concurrent.futures
-
             coro = self.run(args)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(asyncio.run_coroutine_threadsafe, coro, loop)
-                return future.result().result()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result()
         else:
             return asyncio.run(self.run(args))
 

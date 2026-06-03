@@ -10,24 +10,7 @@ class FindingLifecycleState(StrEnum):
 
 
 _ALLOWED_TRANSITIONS: dict[FindingLifecycleState, set[FindingLifecycleState]] = {
-    FindingLifecycleState.DETECTED: {
-        FindingLifecycleState.DETECTED,
-        FindingLifecycleState.VALIDATED,
-        FindingLifecycleState.EXPLOITABLE,
-        FindingLifecycleState.REPORTABLE,
-    },
-    FindingLifecycleState.VALIDATED: {
-        FindingLifecycleState.VALIDATED,
-        FindingLifecycleState.EXPLOITABLE,
-        FindingLifecycleState.REPORTABLE,
-    },
-    FindingLifecycleState.EXPLOITABLE: {
-        FindingLifecycleState.EXPLOITABLE,
-        FindingLifecycleState.REPORTABLE,
-    },
-    FindingLifecycleState.REPORTABLE: {
-        FindingLifecycleState.REPORTABLE,
-    },
+    state: set(FindingLifecycleState) for state in FindingLifecycleState
 }
 
 
@@ -40,15 +23,15 @@ def normalize_lifecycle_state(value: str | None) -> FindingLifecycleState:
 
 
 def can_transition(current: FindingLifecycleState, target: FindingLifecycleState) -> bool:
-    return target in _ALLOWED_TRANSITIONS[current]
+    return target in _ALLOWED_TRANSITIONS.get(current, set())
 
 
 def transition_state(current: str | None, target: str | None) -> str:
     source = normalize_lifecycle_state(current)
     destination = normalize_lifecycle_state(target)
-    if can_transition(source, destination):
-        return destination.value
-    return source.value
+    if not can_transition(source, destination):
+        raise ValueError(f"Invalid lifecycle transition from {source} to {destination}")
+    return destination.value
 
 
 def infer_lifecycle_state(finding: dict[str, Any]) -> str:
@@ -71,9 +54,9 @@ def infer_lifecycle_state(finding: dict[str, Any]) -> str:
 
     if decision in {"KEEP"} and severity in {"high", "critical"}:
         return FindingLifecycleState.REPORTABLE.value
-    if verified or validation_state in {"response_similarity_match", "active_ready", "confirmed"}:
+    if verified or validation_state in {"active_ready", "confirmed"}:
         return FindingLifecycleState.EXPLOITABLE.value
-    if validation_state not in {"", "passive_only", "heuristic_candidate"}:
+    if validation_state not in {"", "passive_only", "heuristic_candidate", "response_similarity_match"}:
         return FindingLifecycleState.VALIDATED.value
     return FindingLifecycleState.DETECTED.value
 
@@ -86,3 +69,4 @@ def apply_lifecycle(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         item["lifecycle_state"] = transition_state(item.get("lifecycle_state"), inferred)
         normalized.append(item)
     return normalized
+

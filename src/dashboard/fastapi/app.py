@@ -109,10 +109,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         output_root=config.output_root,
         config_template=config.config_template,
     )
+    app.state.services.cache_manager = app.state.cache_manager
 
     # Initialize persistent job store (SQLite)
+    from src.dashboard.fastapi.process_lock import ProcessLifespanLock
+    lock_path = config.output_root / "startup.lock"
+    app.state.lifespan_lock = ProcessLifespanLock(str(lock_path))
+    is_primary = app.state.lifespan_lock.acquire()
+
     db_path = config.output_root / "jobs.db"
-    app.state.services.init_persistence(db_path)
+    app.state.services.init_persistence(db_path, is_primary=is_primary)
     app.state.triage_collaboration = TriageCollaborationService(config.output_root)
 
     # Set up WebSocket server for real-time communication
@@ -377,7 +383,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 logger.debug("Mesh telemetry pulse failed: %s", e)
                 await asyncio.sleep(10.0)
 
-    asyncio.create_task(_mesh_telemetry_pulse(local_node, app))
+    app.state.mesh_telemetry_task = asyncio.create_task(_mesh_telemetry_pulse(local_node, app))
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
         from src.dashboard.eta_engine import get_eta_engine  # pylint: disable=C0415
@@ -391,6 +397,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     yield
 
     logger.info("Dashboard lifecyle transition: SHUTDOWN")
+
+    if hasattr(app.state, "mesh_telemetry_task"):
+        app.state.mesh_telemetry_task.cancel()
+        try:
+            await app.state.mesh_telemetry_task
+        except asyncio.CancelledError:
+            pass
 
     # Graceful termination of active pipeline processes
     if hasattr(app.state, "services") and hasattr(app.state.services, "jobs"):
@@ -430,6 +443,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     if hasattr(app.state.services, "close_persistence"):
         app.state.services.close_persistence()
+
+    if hasattr(app.state, "lifespan_lock"):
+        app.state.lifespan_lock.release()
 
 
 def create_app(config: DashboardConfig | None = None) -> FastAPI:
@@ -614,10 +630,16 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     async def get_dashboard_stats() -> dict[str, Any]:
         """Compute and return global pipeline health and risk metrics."""
         now = time.time()
-        cached = getattr(app.state, "cached_dashboard_stats", None)
-        cache_time = getattr(app.state, "dashboard_stats_cache_time", 0.0)
-        if cached is not None and now - cache_time < 5.0:
-            return cast(dict[str, Any], cached)
+        cache_manager = getattr(app.state, "cache_manager", None)
+        if cache_manager is not None:
+            cached = cache_manager.get("dashboard_stats", namespace="analytics")
+            if cached is not None:
+                return cast(dict[str, Any], cached)
+        else:
+            cached = getattr(app.state, "cached_dashboard_stats", None)
+            cache_time = getattr(app.state, "dashboard_stats_cache_time", 0.0)
+            if cached is not None and now - cache_time < 5.0:
+                return cast(dict[str, Any], cached)
 
         services = app.state.services
         targets = services.list_targets()
@@ -637,9 +659,16 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
                     total_findings += count
                     weighted_score += count * weights.get(s_key, 0)
 
-        health_score = max(0.0, 100.0 - min(100.0, weighted_score / max(1, len(targets)) * 2))
+        # Unique targets calculation
+        unique_target_names = {t.get("name") for t in targets if t.get("name")}
         active_jobs = [j for j in jobs if j.get("status") == "running"]
+        active_targets = {j.get("target") for j in active_jobs if j.get("target")}
+        
+        all_targets = unique_target_names.union(active_targets)
+        total_targets = len(all_targets)
+        completed_targets = max(0, total_targets - len(active_targets))
 
+        health_score = max(0.0, 100.0 - min(100.0, weighted_score / max(1, len(unique_target_names)) * 2))
         completed_jobs = sum(1 for j in jobs if j.get("status") == "completed")
         failed_jobs = sum(1 for j in jobs if j.get("status") == "failed")
         health_label = (
@@ -647,8 +676,8 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         )
 
         stats = {
-            "total_targets": len(targets),
-            "completed_targets": len(targets),
+            "total_targets": total_targets,
+            "completed_targets": completed_targets,
             "total_findings": total_findings,
             "severity_counts": severity_counts,
             "pipeline_health_score": int(round(health_score)),
@@ -685,8 +714,11 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             },
         }
 
-        app.state.cached_dashboard_stats = stats
-        app.state.dashboard_stats_cache_time = now
+        if cache_manager is not None:
+            cache_manager.set("dashboard_stats", stats, ttl=5, namespace="analytics")
+        else:
+            app.state.cached_dashboard_stats = stats
+            app.state.dashboard_stats_cache_time = now
         return stats
 
     # SPA Fallback and static assets setup

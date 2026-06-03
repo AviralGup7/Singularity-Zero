@@ -41,6 +41,7 @@ class CorrectiveActionRegistry:
 
     async def execute(self, finding: HealthFinding) -> CorrectionEvent:
         handler = self._handlers.get(finding.action)
+        event: CorrectionEvent | None = None
         if handler is None:
             event = CorrectionEvent(
                 finding_id=finding.finding_id,
@@ -64,6 +65,15 @@ class CorrectiveActionRegistry:
                     component=finding.component,
                     details={"reason": finding.reason, "labels": finding.labels},
                 )
+        if event is None:
+            event = CorrectionEvent(
+                finding_id=finding.finding_id,
+                action=finding.action,
+                success=False,
+                message="Handler failed to return correction event",
+                component=finding.component,
+                details={"reason": finding.reason, "labels": finding.labels},
+            )
         self._history.append(event)
         del self._history[:-100]
         return event

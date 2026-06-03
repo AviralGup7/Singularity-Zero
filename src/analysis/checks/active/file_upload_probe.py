@@ -243,8 +243,11 @@ def _build_finding(
     evidence: dict[str, Any],
     explanation: str,
     status_code: int | None = None,
+    confidence: float | None = None,
 ) -> dict[str, Any]:
     score_map = {"critical": 100, "high": 80, "medium": 50, "low": 20, "info": 5}
+    if confidence is None:
+        confidence = 0.80 if severity in ("critical", "high") else 0.65 if severity == "medium" else 0.50
     return {
         "url": url,
         "endpoint_key": endpoint_signature(url),
@@ -254,11 +257,7 @@ def _build_finding(
         "category": "file_upload",
         "title": title,
         "severity": severity,
-        "confidence": 0.80
-        if severity in ("critical", "high")
-        else 0.65
-        if severity == "medium"
-        else 0.50,
+        "confidence": confidence,
         "signals": signals,
         "evidence": evidence,
         "explanation": explanation,
@@ -618,7 +617,7 @@ def file_upload_active_probe(
             if has_bypass:
                 title = "File upload: validation bypass detected"
 
-            normalized_confidence(
+            finding_confidence = normalized_confidence(
                 base=0.75 if severity == "high" else 0.60 if severity == "medium" else 0.90,
                 score=9 if severity == "critical" else 7 if severity == "high" else 4,
                 signals=url_signals,
@@ -639,6 +638,7 @@ def file_upload_active_probe(
                     evidence={"tests": url_evidence[:15], "total_tests": len(url_evidence)},
                     explanation=explanation,
                     status_code=original_status if original_status else None,
+                    confidence=finding_confidence,
                 )
             )
 

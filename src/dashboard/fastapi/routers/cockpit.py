@@ -564,6 +564,7 @@ async def list_forensic_exchanges(
     target_dir = get_safe_target_dir(output_root, target)
 
     exchanges = []
+    skipped_count = 0
 
     # Check root forensics dir
     root_forensics = target_dir / "forensics"
@@ -580,7 +581,9 @@ async def list_forensic_exchanges(
                         "response_status": data.get("response", {}).get("status"),
                     }
                 )
-            except Exception:  # noqa: S112
+            except Exception as exc:  # noqa: S112
+                logger.warning("Failed to load forensic exchange file %s: %s", f, exc)
+                skipped_count += 1
                 continue
 
     # Also check in run directories
@@ -600,13 +603,15 @@ async def list_forensic_exchanges(
                                 "response_status": data.get("response", {}).get("status"),
                             }
                         )
-                    except Exception:  # noqa: S112
+                    except Exception as exc:  # noqa: S112
+                        logger.warning("Failed to load forensic exchange file %s: %s", f, exc)
+                        skipped_count += 1
                         continue
 
     # Sort by timestamp descending
     exchanges.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
-    return {"exchanges": exchanges[:100]}
+    return {"exchanges": exchanges[:100], "skipped_count": skipped_count}
 
 
 @router.get(

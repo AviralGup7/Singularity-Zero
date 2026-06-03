@@ -312,7 +312,8 @@ async def run_passive_scanning(
                             },
                         )
                     )
-            except Exception:
+            except Exception as exc:
+                logger.exception("Failed to build telemetry events during passive scan iteration: %s", exc)
                 finding_events = []
             emit_progress(
                 "passive_scan",
