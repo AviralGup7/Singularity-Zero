@@ -220,7 +220,7 @@ def handle_launch(args: argparse.Namespace) -> None:
     )
 
     # 1. Verification of compiled static assets
-    static_dir = Path(__file__).resolve().parent / "frontend" / "dist"
+    static_dir = Path(__file__).resolve().parents[1] / "frontend" / "dist"
     if not (static_dir / "index.html").exists():
         console.print(
             "[warning]WARNING: Compiled static frontend assets not detected at frontend/dist.[/warning]"

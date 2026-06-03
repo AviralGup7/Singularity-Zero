@@ -329,7 +329,7 @@ async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch)
 
         from src.infrastructure.mesh.gossip import GossipProtocol
 
-        protocol = GossipProtocol(gossip_receiver)
+        protocol = GossipProtocol(gossip_receiver, secret=gossip_receiver._secret)
 
         from src.core.frontier.ghost_actor import _LOGIC_REGISTRY
 
@@ -345,7 +345,7 @@ async def test_live_actor_migration_handoff_udp(monkeypatch: pytest.MonkeyPatch)
             "sig": "valid-sig",
         }
 
-        monkeypatch.setattr(gossip_receiver, "_verify", lambda d, s: True)
+        monkeypatch.setattr("src.infrastructure.mesh.gossip.protocol.verify", lambda k, d, s: True)
 
         import json
 

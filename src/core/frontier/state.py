@@ -9,11 +9,14 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from threading import RLock
 from types import MappingProxyType
 from typing import Any, TypeVar
+
+logger = logging.getLogger(__name__)
 
 try:
     from src.core.frontier import _state_cython  # type: ignore
@@ -327,8 +330,13 @@ class LWWset[T]:
                     generated_fid = hashlib.sha256("|".join(stable_parts).encode("utf-8")).hexdigest()
                     try:
                         item["id"] = generated_fid
-                    except Exception:
-                        pass
+                    except TypeError as exc:
+                        logger.debug(
+                            "_stable_finding_id: item of type %s does not support item assignment; "
+                            "returning generated ID without persisting it. %s",
+                            type(item).__name__,
+                            exc,
+                        )
                     return generated_fid
                 return fid
             return repr(item)

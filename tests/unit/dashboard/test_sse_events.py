@@ -48,7 +48,7 @@ class TestEmitStageChange:
         )
 
         assert result.startswith("event: stage_change\n")
-        assert "id: test-job-001-" in result
+        assert "id: test-job-001:" in result
         assert result.endswith("\n\n")
 
         data_line = [line for line in result.split("\n") if line.startswith("data: ")][0]
@@ -408,21 +408,21 @@ class TestEmitUnknownEventType:
 
 class TestEventIdFormat:
     def test_event_id_format(self, emitter: SSEEventEmitter) -> None:
-        """Verify <job_id>-<timestamp_ms>-<seq> pattern."""
+        """Verify <job_id>:<timestamp_ms>:<seq>:<last_count>:<stage>:<iteration> pattern."""
         result = emitter.emit("log", {"line": "test"})
         id_line = [line for line in result.split("\n") if line.startswith("id: ")][0]
         event_id = id_line[len("id: ") :]
 
-        pattern = r"^test-job-001-\d{13}-\d{4}$"
+        pattern = r"^test-job-001:\d{13}:\d{4}:\d+:[^:]*:\d+$"
         assert re.match(pattern, event_id), f"Event ID '{event_id}' does not match pattern"
 
     def test_event_id_contains_job_id(self, emitter: SSEEventEmitter) -> None:
-        """Event ID starts with the job_id."""
+        """Event ID starts with the job_id followed by a colon."""
         result = emitter.emit("log", {"line": "test"})
         id_line = [line for line in result.split("\n") if line.startswith("id: ")][0]
         event_id = id_line[len("id: ") :]
 
-        assert event_id.startswith("test-job-001-")
+        assert event_id.startswith("test-job-001:")
 
     def test_event_id_sequence_is_zero_padded(self, emitter: SSEEventEmitter) -> None:
         """Sequence number is zero-padded to 4 digits."""
@@ -430,7 +430,7 @@ class TestEventIdFormat:
         id_line = [line for line in result.split("\n") if line.startswith("id: ")][0]
         event_id = id_line[len("id: ") :]
 
-        seq_part = event_id.split("-")[-1]
+        seq_part = event_id.split(":")[2]
         assert len(seq_part) == 4
         assert seq_part == "0001"
 
@@ -449,7 +449,7 @@ class TestSequenceIncrements:
         for result in results:
             id_line = [line for line in result.split("\n") if line.startswith("id: ")][0]
             event_id = id_line[len("id: ") :]
-            seq = int(event_id.split("-")[-1])
+            seq = int(event_id.split(":")[2])
             sequences.append(seq)
 
         assert sequences == [1, 2, 3, 4, 5]
@@ -474,7 +474,7 @@ class TestSequencePerJobIsolation:
         def get_seq(result: str) -> int:
             id_line = [line for line in result.split("\n") if line.startswith("id: ")][0]
             event_id = id_line[len("id: ") :]
-            return int(event_id.split("-")[-1])
+            return int(event_id.split(":")[2])
 
         assert get_seq(result_a1) == 1
         assert get_seq(result_b1) == 1

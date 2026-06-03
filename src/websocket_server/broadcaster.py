@@ -393,8 +393,8 @@ class Broadcaster:
                 self._redis_degraded_until = time.monotonic() + min(
                     backoff, REDIS_RECONNECT_SECONDS
                 )
-                import random
-                jitter = random.uniform(0.8, 1.2)
+                import secrets
+                jitter = secrets.SystemRandom().uniform(0.8, 1.2)
                 sleep_dur = backoff * jitter
                 await asyncio.sleep(sleep_dur)
                 backoff = min(backoff * 2.0, max_backoff)

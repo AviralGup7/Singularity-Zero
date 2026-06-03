@@ -60,7 +60,6 @@ class AuthenticationError(Exception):
 async def authenticate_websocket(
     websocket: WebSocket,
     jwt_secret: str | None = None,
-    jwt_algorithms: list[str] | None = None,
     api_keys: dict[str, str] | None = None,
     required_roles: set[str] | None = None,
     allowed_origins: set[str] | None = None,
@@ -75,7 +74,6 @@ async def authenticate_websocket(
     Args:
         websocket: The incoming WebSocket connection.
         jwt_secret: Secret key for JWT validation. If None, JWT auth is skipped.
-        jwt_algorithms: Allowed JWT algorithms (default: ``["HS256"]``).
         api_keys: Dict mapping API key strings to user IDs. If None, API key auth is skipped.
         required_roles: If set, the authenticated user must have at least one of these roles.
         allowed_origins: Set of allowed origin URIs to mitigate CSWSH.
@@ -87,8 +85,6 @@ async def authenticate_websocket(
         AuthenticationError: If authentication fails.
     """
     import os
-
-    algorithms = jwt_algorithms or ["HS256"]
 
     # SEC-9: Origin validation against CSWSH
     origin = websocket.headers.get("origin")
@@ -128,7 +124,7 @@ async def authenticate_websocket(
         protocol = protocol.strip()
         if protocol.startswith("bearer.") and jwt_secret:
             jwt_token = protocol[len("bearer.") :]
-            return _authenticate_jwt(jwt_token, jwt_secret, algorithms, required_roles)
+            return _authenticate_jwt(jwt_token, jwt_secret, required_roles)
 
     api_key_header = websocket.headers.get("x-api-key")
     if api_key_header and api_keys:
@@ -172,7 +168,6 @@ async def authenticate_websocket(
 def _authenticate_jwt(
     token: str,
     secret: str,
-    algorithms: list[str],
     required_roles: set[str] | None,
 ) -> AuthCredentials:
     """Validate a JWT token and extract user credentials.
@@ -180,7 +175,6 @@ def _authenticate_jwt(
     Args:
         token: JWT token string.
         secret: Secret key for signature verification.
-        algorithms: Allowed algorithms.
         required_roles: Required role set for access.
 
     Returns:

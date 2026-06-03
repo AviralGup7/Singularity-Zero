@@ -87,5 +87,5 @@ class FailureDetector:
                 confirmations += 1
 
         quorum = max(1, (responses // 2) + 1)
-        confirmed = responses == 0 or confirmations >= quorum
+        confirmed = responses > 0 and confirmations >= quorum
         return confirmed, confirmations, responses

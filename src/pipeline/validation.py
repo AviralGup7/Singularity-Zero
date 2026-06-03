@@ -34,7 +34,7 @@ def _is_valid_hostname(hostname: str) -> bool:
     if len(hostname) > 253:
         return False
     if hostname.endswith("."):
-        hostname = hostname[:-1]
+        hostname = hostname.rstrip(".")
     parts = hostname.split(".")
     if not parts:
         return False

@@ -329,7 +329,10 @@ def resolve_stage_timeout(
         return int(direct_override)
 
     if stage_name == "live_hosts":
-        subdomain_count = len(getattr(ctx.result, "subdomains", set()) or set())
+        subdomains_attr = getattr(ctx.result, "subdomains", None)
+        subdomain_count = len(subdomains_attr) if subdomains_attr is not None else 0
+        if subdomains_attr is None:
+            logger.debug("compute_stage_timeout: ctx.result.subdomains is None (stage=%s)", stage_name)
         scope_entry_count = len(getattr(ctx.result, "scope_entries", []) or [])
         candidate_count = max(subdomain_count, scope_entry_count)
 
@@ -370,7 +373,17 @@ def resolve_stage_timeout(
 
     if stage_name == "access_control":
         selected_priority_items = list(getattr(ctx.result, "selected_priority_items", []) or [])
-        urls: set[str] = getattr(ctx.result, "urls", set()) or set()
+        urls_attr = getattr(ctx.result, "urls", None)
+        if urls_attr is None or not isinstance(urls_attr, (set, list, tuple)):
+            logger.debug(
+                "compute_stage_timeout: ctx.result.urls is %s=%r (stage=%s); defaulting to empty set",
+                type(urls_attr).__name__,
+                urls_attr,
+                stage_name,
+            )
+            urls = set()
+        else:
+            urls = set(urls_attr)
         candidate_count = max(len(selected_priority_items), len(urls))
         if candidate_count >= ACCESS_CONTROL_CANDIDATE_THRESHOLD:
             return max(base_timeout, 1500)
@@ -381,7 +394,10 @@ def resolve_stage_timeout(
     if stage_name != "urls":
         return base_timeout
 
-    live_host_count = len(getattr(ctx.result, "live_hosts", set()) or set())
+    live_hosts_attr = getattr(ctx.result, "live_hosts", None)
+    live_host_count = len(live_hosts_attr) if live_hosts_attr is not None else 0
+    if live_hosts_attr is None:
+        logger.debug("compute_stage_timeout: ctx.result.live_hosts is None (stage=%s)", stage_name)
     scope_entry_count = len(getattr(ctx.result, "scope_entries", []) or [])
 
     if live_host_count >= LIVE_HOST_COUNT_WARNING:
@@ -410,12 +426,17 @@ def log_live_hosts_timeout_diagnostics(
         import threading
         import traceback
 
+        subdomains_attr = getattr(ctx.result, "subdomains", None)
+        subdomain_count = len(subdomains_attr) if subdomains_attr is not None else 0
+        live_hosts_attr = getattr(ctx.result, "live_hosts", None)
+        live_host_count = len(live_hosts_attr) if live_hosts_attr is not None else 0
+
         logger.error(
             "Live-host timeout diagnostics: timeout=%ss subdomains=%d live_records=%d live_hosts=%d",
             timeout,
-            len(getattr(ctx.result, "subdomains", set()) or set()),
+            subdomain_count,
             len(getattr(ctx.result, "live_records", []) or []),
-            len(getattr(ctx.result, "live_hosts", set()) or set()),
+            live_host_count,
         )
 
         frames = sys._current_frames()

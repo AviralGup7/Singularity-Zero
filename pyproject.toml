@@ -2,7 +2,7 @@
 name = "cyber-security-test-pipeline"
 version = "2.0.0"
 description = "Automated API security testing pipeline with intelligent analysis"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 license = {text = "MIT"}
 dependencies = [
     # HTTP clients
@@ -147,7 +147,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 5
+fail_under = 10
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

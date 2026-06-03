@@ -9,6 +9,9 @@ class _MockResp:
         self.status_code = status_code
         self.headers = {"content-type": "application/json"}
 
+    def raise_for_status(self):
+        pass
+
 
 def test_parse_cdx_json_array_shape(monkeypatch):
     # Simulate CDX JSON array-of-arrays with header

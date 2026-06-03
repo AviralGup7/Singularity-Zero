@@ -170,6 +170,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     )
 
     # 2. Start Authenticated Gossip Engine
+    import secrets
     mesh_secret = os.getenv("MESH_SECRET")
     is_prod = os.getenv("APP_ENV") == "production"
 
@@ -178,7 +179,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             raise ValueError(
                 "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
             )
-        mesh_secret = "frontier-default-secret-change-in-prod"  # noqa: S105
+        mesh_secret = secrets.token_hex(32)
     elif is_prod and mesh_secret in (
         "frontier-default-secret",
         "frontier-default-secret-change-in-prod",
