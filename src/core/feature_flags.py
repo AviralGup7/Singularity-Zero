@@ -96,7 +96,7 @@ class FeatureFlagManager:
         if flag.conditions and not self._evaluate_conditions(flag.conditions, context):
             return False
 
-        return self._check_rollout(name, flag.rollout_percentage)
+        return self._check_rollout(name, flag.rollout_percentage, context)
 
     def get_flag(self, name: str) -> FeatureFlag | None:
         with self._lock:

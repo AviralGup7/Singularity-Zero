@@ -417,7 +417,7 @@ def run_analysis_plugins(
             except Exception as exc:
                 logger.warning("Plugin %s failed: %s", key, exc)
                 results[key] = []
-            
+
             completed_plugins += 1
             if progress_callback and callable(progress_callback):
                 pct = int(50 + (completed_plugins / max(1, total_plugins)) * 45)

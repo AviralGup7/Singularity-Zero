@@ -15,7 +15,6 @@ from src.dashboard.fastapi.routers.sse_events import SSEEventEmitter
 from src.dashboard.fastapi.routers.utils import (
     current_stage_entry,
     current_stage_percent,
-    get_enriched_job,
     heartbeat_interval_seconds,
     snapshot_job_api,
 )
@@ -91,8 +90,8 @@ async def stream_job_logs(
                 pass
 
     if FeatureFlags.ENABLE_SSE_PROGRESS():
-        from src.dashboard.registry import STAGE_LABELS
         from src.dashboard.fastapi.routers.sse_events import _global_tracker
+        from src.dashboard.registry import STAGE_LABELS
 
         emitter = SSEEventEmitter(job_id)
         emitter.last_count = last_count
@@ -158,7 +157,7 @@ async def stream_job_logs(
                     processed = current_job.get("stage_processed")
                     total = current_job.get("stage_total")
                     state_version = int(current_job.get("state_version", 0) or 0)
-                    
+
                     current_data = {
                         "stage": stage,
                         "stage_label": stage_label,
@@ -180,7 +179,7 @@ async def stream_job_logs(
                         "progress_telemetry": job_snapshot.get("progress_telemetry") if isinstance(job_snapshot.get("progress_telemetry"), dict) else None,
                         "telemetry_events": telemetry_events[-25:] if isinstance(telemetry_events, list) else None,
                     }
-                    
+
                     if current_data != last_progress_data:
                         yield emitter.progress_update(
                             stage=stage,
@@ -352,8 +351,8 @@ async def stream_job_progress(
     if not is_target_owned_by_tenant(job_target, tenant_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
-    from src.dashboard.registry import STAGE_LABELS
     from src.dashboard.fastapi.routers.sse_events import _global_tracker
+    from src.dashboard.registry import STAGE_LABELS
 
     emitter = SSEEventEmitter(job_id)
     last_stage = job.get("stage", "")
@@ -442,7 +441,7 @@ async def stream_job_progress(
                 processed = current_job.get("stage_processed")
                 total = current_job.get("stage_total")
                 stage_entry = current_stage_entry(job_snapshot)
-                
+
                 current_data = {
                     "stage": stage,
                     "stage_label": stage_label,
@@ -464,7 +463,7 @@ async def stream_job_progress(
                     "progress_telemetry": job_snapshot.get("progress_telemetry") if isinstance(job_snapshot.get("progress_telemetry"), dict) else None,
                     "telemetry_events": telemetry_events[-25:] if isinstance(telemetry_events, list) else None,
                 }
-                
+
                 if current_data != last_progress_data:
                     yield emitter.progress_update(
                         stage=stage,

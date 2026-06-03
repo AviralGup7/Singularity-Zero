@@ -153,6 +153,8 @@ class StageResult:
                 "active_scan_findings",
                 "reportable_findings",
                 "vulnerabilities",
+                "_neural_state",
+                "_wal_id",
             ):
                 continue
 

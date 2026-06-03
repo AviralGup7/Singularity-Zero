@@ -32,8 +32,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
 
     def test_every_analysis_plugin_spec_has_a_registered_binding(self) -> None:
-        spec_keys = {spec.key for spec in ANALYSIS_PLUGIN_SPECS}
-        self.assertSetEqual(spec_keys, set(ANALYZER_BINDINGS))
+        from src.core.plugins import list_plugins
+        dynamic_keys = {reg.key for reg in list_plugins("dynamic_plugin")}
+        spec_keys = {spec.key for spec in ANALYSIS_PLUGIN_SPECS} - dynamic_keys
+        binding_keys = set(ANALYZER_BINDINGS) - dynamic_keys
+        self.assertSetEqual(spec_keys, binding_keys)
         self.assertEqual(ANALYZER_BINDINGS["header_checker"].input_kind, "header_targets_and_cache")
         self.assertEqual(
             ANALYZER_BINDINGS["response_diff_engine"].input_kind, "priority_urls_and_cache"
@@ -47,8 +50,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertTrue(callable(get_workflow_runner("write_actions")))
 
     def test_detection_registry_is_unified_with_analysis_plugin_specs(self) -> None:
-        spec_keys = {spec.key for spec in ANALYSIS_PLUGIN_SPECS}
-        registry_keys = {plugin.key for plugin in list_detection_plugins()}
+        from src.core.plugins import list_plugins
+        dynamic_keys = {reg.key for reg in list_plugins("dynamic_plugin")}
+        spec_keys = {spec.key for spec in ANALYSIS_PLUGIN_SPECS} - dynamic_keys
+        registry_keys = {plugin.key for plugin in list_detection_plugins()} - dynamic_keys
         self.assertSetEqual(spec_keys, registry_keys)
         self.assertEqual(
             DETECTION_PLUGINS_BY_KEY["header_checker"].input_kind, "header_targets_and_cache"

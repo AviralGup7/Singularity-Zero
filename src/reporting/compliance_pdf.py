@@ -152,12 +152,7 @@ def generate_compliance_pdf(
                 Paragraph("URL", body_style),
             ]
         ]
-        if len(merged_findings) > 20:
-            _get_logger().warning(
-                "Critical/High findings count (%d) exceeds the display limit (20) in PDF report; truncating to 20.",
-                len(merged_findings),
-            )
-        for f in sorted(merged_findings, key=lambda x: x.get("severity", ""))[:20]:
+        for f in sorted(merged_findings, key=lambda x: x.get("severity", "")):
             sev = (f.get("severity", "") or "").upper()
             row = [
                 Paragraph(
@@ -237,7 +232,7 @@ def generate_compliance_pdf(
             ]
             for cid, data in sorted(controls.items()):
                 maturity = str(data.get("maturity", "UNKNOWN"))
-                rec = str(data.get("recommendation", ""))[:100]
+                rec = str(data.get("recommendation", ""))
                 mat_rows.append(
                     [
                         Paragraph(cid, body_style),

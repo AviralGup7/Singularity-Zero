@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import concurrent.futures
 import os
 from typing import Any, TypedDict, cast
 
@@ -303,7 +304,11 @@ class PipelineOrchestrator:
         if loop and loop.is_running():
             coro = self.run(args)
             future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result()
+            try:
+                return future.result(timeout=3600)
+            except concurrent.futures.TimeoutError:
+                logger.error("Pipeline run timed out waiting for event loop")
+                return 1
         else:
             return asyncio.run(self.run(args))
 
@@ -424,19 +429,26 @@ class PipelineOrchestrator:
             cache_mgr.acquire_recon_lock, target_name, ttl=3600, wait_timeout=5.0
         )
 
-        if not lock_token and getattr(config, "redis_url", None):
-            logger.error(
-                "Failed to acquire distributed lock: Target '%s' is already being scanned by another worker.",
-                target_name,
-            )
-            emit_progress(
-                "startup",
-                f"Collision: {target_name} is already under active scan",
-                0,
-                status="failed",
-            )
-            self._emit_pipeline_error("distributed_lock_collision", {"target": target_name})
-            return 1
+        if not lock_token:
+            if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
+                logger.error(
+                    "Failed to acquire distributed lock: Target '%s' is already being scanned by another worker.",
+                    target_name,
+                )
+                emit_progress(
+                    "startup",
+                    f"Collision: {target_name} is already under active scan",
+                    0,
+                    status="failed",
+                )
+                self._emit_pipeline_error("distributed_lock_collision", {"target": target_name})
+                return 1
+            else:
+                logger.warning(
+                    "No distributed lock acquired for target '%s'. Running in single-node mode without Redis. "
+                    "Concurrent workers may collide.",
+                    target_name,
+                )
 
         try:
             return await self._run_secured(

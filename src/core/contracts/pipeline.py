@@ -84,9 +84,9 @@ def same_host_family(left: str, right: str) -> bool:
     right_labels = [part for part in right.lower().split(".") if part]
     if not left_labels or not right_labels:
         return False
-    
+
     common_slds = {"co", "com", "org", "gov", "edu", "net", "mil", "asn", "id", "ltd", "me", "plc", "sch"}
-    
+
     def get_family_slice(labels: list[str]) -> list[str]:
         if len(labels) >= 3:
             tld = labels[-1]

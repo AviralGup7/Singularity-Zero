@@ -52,6 +52,9 @@ def sqli_safe_probe(
 
         url_findings: list[dict[str, Any]] = []
 
+        baseline = response_cache.request(url)
+        baseline_status = int(baseline.get("status_code") or 200) if baseline else 200
+
         for idx, param_name, _param_value in sql_params:
             for test_value, payload_type in SQLI_PAYLOADS:
                 updated = list(query_pairs)
@@ -70,16 +73,19 @@ def sqli_safe_probe(
                 body = str(response.get("body_text", "") or "")[:8000]
                 status = int(response.get("status_code") or 0)
                 match = SQL_ERROR_RE.search(body)
+                status_drift = (status == 500 and 200 <= baseline_status < 400)
 
-                if match:
+                if match or status_drift:
+                    reason = match.group(0) if match else "HTTP 500 status drift from baseline"
+                    context = body[max(0, match.start() - 60) : match.end() + 60] if match else "Generic 500 error response without stack trace"
                     url_findings.append(
                         {
                             "parameter": param_name,
                             "payload": test_value,
                             "payload_type": payload_type,
                             "status_code": status,
-                            "error_pattern": match.group(0),
-                            "error_context": body[max(0, match.start() - 60) : match.end() + 60],
+                            "error_pattern": reason,
+                            "error_context": context,
                         }
                     )
                     break  # Stop after first SQL error for this param

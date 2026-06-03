@@ -9,14 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.dashboard.fastapi.routers.utils import get_safe_target_dir
 from src.dashboard.fastapi.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/export", tags=["Export"])
-
-
-from src.dashboard.fastapi.routers.utils import get_safe_target_dir
 
 
 def _find_latest_run_dir(target_dir: Path) -> Path | None:

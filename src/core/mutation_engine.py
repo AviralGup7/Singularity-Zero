@@ -236,19 +236,23 @@ def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
     decoded = decode_candidate_value(value)
     variants = []
 
-    # AST-Guided Mutations
+    json_ast_mutator = None
     try:
         from src.fuzzing.ast_mutator import JSONASTMutator
-
-        mutator = JSONASTMutator()
-        ast_variants = mutator.mutate(decoded)
-        for v in ast_variants:
-            variants.append({"val": v, "reason": "json_ast_mutation"})
+        json_ast_mutator = JSONASTMutator()
     except ImportError as exc:
         logger.warning(
             "JSONASTMutator import failed: %s. AST-guided mutations will be skipped.",
             exc,
         )
+
+    if json_ast_mutator is not None:
+        try:
+            ast_variants = json_ast_mutator.mutate(decoded)
+            for v in ast_variants:
+                variants.append({"val": v, "reason": "json_ast_mutation"})
+        except Exception as exc:
+            logger.warning("JSON AST mutation failed: %s", exc)
 
     if _looks_json(decoded):
         try:

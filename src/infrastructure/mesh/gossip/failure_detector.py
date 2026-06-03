@@ -7,6 +7,7 @@ failure confirmation before evicting peers.
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any
 
@@ -19,9 +20,11 @@ class FailureDetector:
     def __init__(self, heartbeat_fail_threshold: int = 3):
         self.heartbeat_fail_threshold = heartbeat_fail_threshold
         self._confirming: set[str] = set()
+        self._confirming_lock = threading.Lock()
 
     def is_confirming(self, peer_id: str) -> bool:
-        return peer_id in self._confirming
+        with self._confirming_lock:
+            return peer_id in self._confirming
 
     def record_heartbeat(self, peer: MeshNode, stats: PeerHealthStats) -> bool:
         """Record a successful heartbeat, resetting miss counter. Returns True if peer should be marked alive."""
@@ -42,19 +45,29 @@ class FailureDetector:
         return None
 
     def mark_confirming(self, peer_id: str) -> None:
-        self._confirming.add(peer_id)
+        with self._confirming_lock:
+            self._confirming.add(peer_id)
 
     def unmark_confirming(self, peer_id: str) -> None:
-        self._confirming.discard(peer_id)
+        with self._confirming_lock:
+            self._confirming.discard(peer_id)
 
     def should_confirm(self, peer_id: str, peers: dict[str, MeshNode], stats_by_peer: Any) -> bool:
-        """Return True if we should run quorum-based failure confirmation for peer_id."""
-        if peer_id in self._confirming:
-            return False
-        observers = [
-            p for p in peers.values() if p.id != peer_id and p.status in {"alive", "suspect"}
-        ]
-        return len(observers) > 0
+        """Return True if we should run quorum-based failure confirmation for peer_id.
+
+        Marks the peer as confirming before returning True to prevent duplicate
+        confirmation rounds racing across callers.
+        """
+        with self._confirming_lock:
+            if peer_id in self._confirming:
+                return False
+            observers = [
+                p for p in peers.values() if p.id != peer_id and p.status in {"alive", "suspect"}
+            ]
+            if not observers:
+                return False
+            self._confirming.add(peer_id)
+            return True
 
     def evaluate_quorum(self, results: list[tuple[bool, dict[str, Any]]]) -> tuple[bool, int, int]:
         """

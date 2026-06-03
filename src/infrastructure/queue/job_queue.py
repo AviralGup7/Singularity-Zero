@@ -445,7 +445,7 @@ class JobQueue:
             }
         )
 
-        new_bid = new_job.compute_bid()
+        new_job.compute_bid()
         job_hash = new_job.to_redis_hash()
         hash_args: list[str] = []
         for k, v in job_hash.items():
@@ -488,21 +488,19 @@ class JobQueue:
 
         job.mark_cancelled()
 
-        # Add to global cancellation registry so running workers can see it
-        # EXPIRE after 1 hour to prevent registry bloat
-        # Add to global cancellation registry so running workers can see it
-        # EXPIRE after 1 hour to prevent registry bloat
+        # Add to global cancellation registry so running workers can see it.
+        # EXPIRE after 1 hour to prevent registry bloat.
         cancel_key = self._key(f"cancelled:{job_id}")
         await asyncio.to_thread(self.redis.execute_command, "SETEX", cancel_key, 3600, "1")
 
         job_data = job.to_redis_hash()
-        
+
         # Flatten dictionary to list of key, value pairs for Redis command
         flattened_hash = []
         for k, v in job_data.items():
             flattened_hash.append(k)
             flattened_hash.append(v)
-            
+
         commands = [
             ("ZREM", [self._key("queue"), self._job_key(job_id)]),
             ("HSET", [self._job_key(job_id)] + flattened_hash),

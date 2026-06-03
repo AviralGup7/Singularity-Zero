@@ -182,12 +182,17 @@ class LoadBalancer:
 
             best_worker_id: str | None = None
             best_score = float("inf")
+            now = time.monotonic()
 
             for worker_id, stats in self._workers.items():
                 bp = stats.compute_backpressure()
-                # Performance #5: Use (active_tasks + 1) to ensure bp affects score even when idle.
-                # This prevents routing all new tasks to a worker that is idle but has a low bp factor (e.g. just failed).
-                score = (stats.active_tasks + 1) / max(bp, 0.01)
+
+                # Sticky/decaying selection penalty: if selected very recently, artificially inflate score
+                time_since_select = now - getattr(stats, "last_selected_at", 0.0)
+                # Decaying penalty up to 0.2 seconds
+                penalty = max(0.0, (0.2 - time_since_select) * 5.0)
+
+                score = ((stats.active_tasks + 1) / max(bp, 0.01)) + penalty
                 if score < best_score:
                     best_score = score
                     best_worker_id = worker_id
@@ -195,12 +200,14 @@ class LoadBalancer:
             if best_worker_id is None:
                 best_worker_id = list(self._workers.keys())[0]
 
-            self._workers[best_worker_id].record_start()
+            selected_stats = self._workers[best_worker_id]
+            selected_stats.record_start()
+            selected_stats.last_selected_at = now
             logger.debug(
                 "Load balancer selected worker '%s' (score=%.2f, active=%d)",
                 best_worker_id,
                 best_score,
-                self._workers[best_worker_id].active_tasks,
+                selected_stats.active_tasks,
             )
             return best_worker_id
 

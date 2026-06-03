@@ -136,7 +136,11 @@ class PipelineOutputStore:
     def write_text(self, filename: str, content: str) -> str:
         """Atomic write to either Disk or Ghost-VFS."""
         if self._ghost_vfs:
-            # RAM-only encrypted path
+            logger.warning(
+                "Ghost-VFS: artifact '%s' written to RAM only (anti-forensic mode). "
+                "Artifact will be lost when process exits unless flushed to disk.",
+                filename,
+            )
             path = f"{self.run_prefix}/{filename}"
             self._ghost_vfs.write_file(path, content)
             return f"ghost://{path}"

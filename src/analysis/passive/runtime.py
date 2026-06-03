@@ -303,6 +303,18 @@ class ResponseCache:
                 else:
                     self._active_records.pop(active_key, None)
 
+            if len(self._active_records) >= 1000:
+                now = time.time()
+                expired = [
+                    k
+                    for k, (_, exp) in list(self._active_records.items())
+                    if now > exp
+                ]
+                for k in expired:
+                    self._active_records.pop(k, None)
+                if len(self._active_records) >= 1000:
+                    self._active_records.clear()
+
         record = self._request_with_policy(
             normalized,
             method=method,
@@ -315,12 +327,17 @@ class ResponseCache:
 
         with self._lock:
             now = time.time()
-            # Prune expired entries to prevent accumulation
             expired = [k for k, (_, exp) in list(self._active_records.items()) if now > exp]
             for k in expired:
                 self._active_records.pop(k, None)
             if len(self._active_records) >= 1000:
-                self._active_records.clear()
+                to_remove = len(self._active_records) - 999
+                oldest = sorted(
+                    ((k, exp) for k, (_, exp) in self._active_records.items()),
+                    key=lambda x: x[1],
+                )
+                for k, _ in oldest[:to_remove]:
+                    self._active_records.pop(k, None)
             self._active_records[active_key] = (record, now + (self.cache_ttl_hours * 3600))
 
         return record
@@ -481,6 +498,14 @@ def _fetch_response_stream(
             timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
         )
 
+        redirect_history = getattr(resp, "redirect_history", None) or []
+        redirect_count = len(redirect_history)
+        redirect_chain = [normalize_url(url)]
+        if redirect_history:
+            for entry in redirect_history:
+                redirect_chain.append(normalize_url(entry.redirect_url))
+        final_url = normalize_url(getattr(resp, "geturl", lambda: url)() or url)
+
         resp_headers = dict(resp.headers.items())
         content_type = resp_headers.get("Content-Type", "")
         body_parts: list[bytes] = []
@@ -516,16 +541,16 @@ def _fetch_response_stream(
         return {
             "requested_url": normalize_url(url),
             "request_method": method.upper(),
-            "url": normalize_url(url),
-            "final_url": normalize_url(url),
+            "url": final_url,
+            "final_url": final_url,
             "status_code": resp.status,
             "headers": resp_headers,
             "content_type": content_type,
             "body_text": body_text,
             "body_length": len(body_text),
             "truncated": truncated,
-            "redirect_chain": [normalize_url(url)],
-            "redirect_count": 0,
+            "redirect_chain": redirect_chain,
+            "redirect_count": redirect_count,
         }
     except Exception as exc:
         logger.debug("Streaming error fetching %s: %s", url, exc)

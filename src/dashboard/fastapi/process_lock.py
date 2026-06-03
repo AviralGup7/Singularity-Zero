@@ -1,29 +1,55 @@
 import os
 import sys
+import time
+
 
 class ProcessLifespanLock:
     def __init__(self, lock_path: str):
         self.lock_path = lock_path
         self.fd = None
+        self._pid: int | None = None
+
+    @staticmethod
+    def _pid_alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+            return True
+        except (ProcessLookupError, PermissionError):
+            return False
+        except OSError:
+            return False
 
     def acquire(self) -> bool:
+        import errno
+
         try:
+            self._pid = os.getpid()
             self.fd = open(self.lock_path, "w")
+            self.fd.write(str(self._pid))
+            self.fd.flush()
             if sys.platform == "win32":
                 import msvcrt
-                # Lock 1 byte from start of file. LK_NBLCK is non-blocking lock.
                 msvcrt.locking(self.fd.fileno(), msvcrt.LK_NBLCK, 1)
             else:
                 import fcntl
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return True
-        except (ImportError, OSError, IOError):
+        except (ImportError, OSError) as exc:
             if self.fd:
                 try:
                     self.fd.close()
                 except Exception:
                     pass
                 self.fd = None
+            try:
+                existing_pid = _read_pid_from_lock(self.lock_path)
+                if existing_pid is not None and not self._pid_alive(existing_pid):
+                    try:
+                        os.unlink(self.lock_path)
+                    except OSError:
+                        pass
+            except OSError:
+                pass
             return False
 
     def release(self) -> None:
@@ -43,3 +69,18 @@ class ProcessLifespanLock:
             except Exception:
                 pass
             self.fd = None
+        try:
+            if os.path.exists(self.lock_path):
+                os.unlink(self.lock_path)
+        except OSError:
+            pass
+        self._pid = None
+
+
+def _read_pid_from_lock(lock_path: str) -> int | None:
+    try:
+        with open(lock_path, "r") as f:
+            raw = f.read().strip()
+        return int(raw) if raw else None
+    except (OSError, ValueError):
+        return None
