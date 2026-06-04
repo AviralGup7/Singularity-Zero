@@ -153,6 +153,9 @@ class FPTracker:
         patterns_created = 0
         patterns_updated = 0
         patterns_to_upsert = []
+        # Track pattern_ids we've already queued for upsert this run so that
+        # a single pattern matched by N findings is enqueued exactly once.
+        updated_pattern_ids: set[str] = set()
 
         for finding in findings:
             response_status = finding.get("response_status")
@@ -175,10 +178,20 @@ class FPTracker:
             matched = self._match_pattern(response_status or 0, body, headers, category)
 
             if matched:
+                # `update()` correctly accumulates counts inside the FPPattern
+                # instance, but the same in-memory pattern object can be matched
+                # by multiple findings in this run. We must not enqueue the same
+                # pattern object into ``patterns_to_upsert`` more than once -
+                # the batch upsert converts the object to a DB row per element
+                # of the list, so duplicates would trigger redundant writes and
+                # (worse) risk overwriting the in-flight row state with stale
+                # data if a concurrent writer was updating the same pattern.
                 matched.update(is_fp=is_fp, is_tp=is_tp)
                 self._cache[matched.pattern_id] = matched
-                patterns_to_upsert.append(matched)
-                patterns_updated += 1
+                if matched.pattern_id not in updated_pattern_ids:
+                    patterns_to_upsert.append(matched)
+                    updated_pattern_ids.add(matched.pattern_id)
+                    patterns_updated += 1
                 updated_count += 1
                 if self._mesh_sync:
                     await self._mesh_sync.publish(matched.to_db_row())

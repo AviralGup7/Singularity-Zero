@@ -235,7 +235,3 @@ class TestDistributedCheckpoint:
         assert loaded is not None
         assert loaded.pipeline_run_id == "test-run-1"
         assert "recon" in loaded.completed_stages
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

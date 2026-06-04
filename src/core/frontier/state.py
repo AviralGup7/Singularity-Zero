@@ -33,20 +33,30 @@ T = TypeVar("T")
 class HybridLogicalClock:
     """Hybrid Logical Clock (HLC) for bounded distributed causality tracking."""
 
-    physical_time: float = field(default_factory=time.time)
+    # Use a monotonic clock for the local "physical" component. Wall
+    # clocks (``time.time``) can jump backwards under NTP corrections,
+    # DST changes, or manual operator adjustments, which would let
+    # events that actually happened later receive an earlier HLC
+    # timestamp and break causal ordering. ``time.monotonic`` is
+    # guaranteed non-decreasing on every supported platform. Callers
+    # that need to merge in wall-clock information from a remote
+    # peer should pass the wall clock value via ``tick(now=...)`` or
+    # ``update(remote, now=...)``; the local default still uses the
+    # monotonic source.
+    physical_time: float = field(default_factory=time.monotonic)
     logical_counter: int = 0
     node_id: str = "local"
 
     def tick(self, now: float | None = None) -> HybridLogicalClock:
         """Generate a new HLC tick representing a local event."""
-        physical_now = now if now is not None else time.time()
+        physical_now = now if now is not None else time.monotonic()
         l_new = max(self.physical_time, physical_now)
         c_new = (self.logical_counter + 1) if l_new == self.physical_time else 0
         return HybridLogicalClock(l_new, c_new, self.node_id)
 
     def update(self, remote: HybridLogicalClock, now: float | None = None) -> HybridLogicalClock:
         """Merge causality with a remote HLC tick upon message/state receipt."""
-        physical_now = now if now is not None else time.time()
+        physical_now = now if now is not None else time.monotonic()
         l_new = max(self.physical_time, remote.physical_time, physical_now)
         if l_new == self.physical_time == remote.physical_time:
             c_new = max(self.logical_counter, remote.logical_counter) + 1
@@ -360,17 +370,43 @@ class NeuralState:
             try:
                 sorted_ids = sorted(
                     self.applied_wal_ids,
-                    key=lambda x: [int(p) for p in x.split("-") if p.isdigit()] or [0],
+                    key=self._wal_id_sort_key,
                 )
             except Exception:
                 sorted_ids = sorted(self.applied_wal_ids)
 
             to_keep = sorted_ids[-500:]
             try:
-                self.min_wal_timestamp = int(to_keep[0].split("-")[0])
+                first_kept = to_keep[0]
+                if first_kept.startswith("aof-"):
+                    # aof-<float_ts>-<txid> -> use float timestamp directly
+                    self.min_wal_timestamp = int(float(first_kept.split("-")[1]))
+                else:
+                    self.min_wal_timestamp = int(first_kept.split("-")[0])
             except Exception:
                 pass
             self.applied_wal_ids = set(to_keep)
+
+    @staticmethod
+    def _wal_id_sort_key(wal_id: str) -> tuple[float, str]:
+        """Return a sortable key for both Redis-stream IDs and aof-fallback IDs.
+
+        Redis-stream IDs look like ``"<ms_timestamp>-<seq>"`` while AOF fallback
+        IDs look like ``"aof-<float_seconds>-<txid>"``. Previously the AOF
+        format collapsed to a constant key, causing all AOF entries to sort
+        identically and risk being dropped en masse by ``[-500:]``.
+        """
+        try:
+            if wal_id.startswith("aof-"):
+                parts = wal_id.split("-", 2)
+                if len(parts) >= 2:
+                    return (float(parts[1]) * 1000.0, wal_id)
+            parts = wal_id.split("-", 1)
+            if parts and parts[0].isdigit():
+                return (float(parts[0]), wal_id)
+        except (ValueError, IndexError):
+            pass
+        return (0.0, wal_id)
 
     def compact(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:
         self._trim_applied_wal_ids()

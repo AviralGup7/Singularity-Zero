@@ -21,8 +21,15 @@ export default defineConfig({
   },
   server: {
     port: 5000,
-    host: '0.0.0.0',
-    allowedHosts: true,
+    // SECURITY: bind to localhost by default. ``0.0.0.0`` and
+    // ``allowedHosts: true`` together let any host on the network reach
+    // the dev server. The VITE_BIND_HOST env var is still honored for
+    // sandboxed environments (Replit, Codespaces) where the platform
+    // needs to forward a port.
+    host: process.env.VITE_BIND_HOST || '127.0.0.1',
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS
+      ? process.env.VITE_ALLOWED_HOSTS.split(',')
+      : ['localhost', '127.0.0.1'],
     watch: {
       ignored: [],
     },

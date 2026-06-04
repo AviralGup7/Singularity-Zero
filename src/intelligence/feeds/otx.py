@@ -443,12 +443,17 @@ class OTXClient(BaseFeedConnector):
             indicator_type: The indicator type.
 
         Returns:
-            Parsed OTXIndicatorDetail instance.
+            Parsed OTXIndicatorDetail instance with pulses populated from
+            ``pulse_info`` (previously the list was always empty, so the
+            OTX branch in threat_intel never contributed to the score).
         """
+        pulse_info = data.get("pulse_info", {}) if isinstance(data, dict) else {}
+        raw_pulses = pulse_info.get("pulses", []) if isinstance(pulse_info, dict) else []
+        pulses = [self._parse_pulse(p) for p in raw_pulses if isinstance(p, dict)]
         return OTXIndicatorDetail(
             indicator=indicator,
             indicator_type=indicator_type,
-            pulses=[],
+            pulses=pulses,
             sections=data,
             raw_data=data,
         )

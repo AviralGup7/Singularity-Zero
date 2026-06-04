@@ -1,42 +1,73 @@
-# Cyber Security Test Pipeline : Singularity-Zero
+# Cyber Security Test Pipeline
 
-An industrial-grade, fully autonomous security testing platform engineered at the frontier of human software capability. Designed for infinite horizontal scaling, anti-forensic execution, and polymorphic evasion.
-
----
-
-## 🌌 Core Innovations: 'Singularity-Zero'
-
-- **Ghost-Actor Mesh**: Location-transparent actors seamlessly migrate across worker nodes mid-execution to balance cluster load dynamically.
-- **Causal State Engine**: Perfect synchronization across the distributed cluster using Vector-Clocked CRDTs and Redis-backed Bloom Filter reconciliation.
-- **Anti-Forensic Ghost-VFS**: Volatile, AES-256-GCM encrypted RAM storage. Artifacts never touch physical disk, ensuring zero persistent footprint.
-- **Closed-Loop Feedback**: An active learning feedback engine running XGBoost and scikit-learn classifiers over Pydantic v2 feature vector schemas. It extracts security analyst triage outcomes and SQLite findings histories to automatically trigger dynamic retraining cycles in the background, updating calibrated severity scores and false positive patterns dynamically between runs.
-- **Polymorphic Chameleon**: State-driven evasion using a Hidden Markov Model (HMM) to dynamically transition evasion levels, mutate HTTP/2 header parameters, generate human-like timing delays using exponential distributions, and spoof/mutate JA3 TLS fingerprints across Chrome, Firefox, Safari, and Edge profiles.
-- **3D Attack-Chain Cockpit & Control Deck**: A cinema-grade 3D threat cockpit engineered using type-safe React Three Fiber (R3F) and Three.js instanced rendering. Supports real-time node discovery and predictive threat lateral mapping from Kuzu graph databases at 60 FPS via frustum culling and dynamic Level-of-Detail (LOD). Integrates a floating glassmorphic Pipeline Control Deck for target scoping, Quick/Deep presets, module checklist config, active stage polling, and restart-safe controls.
-- **Risk-Score Engine**: Autonomous 0-10 scoring based on vulnerability density, attack chain depth, and data sensitivity.
-- **Hardware Acceleration**: Analyzes millions of strings in milliseconds using SIMD-optimized `NumPy` routines and Neural-Bloom Filters.
+An automated API and web-application security testing pipeline with
+distributed orchestration, an active-learning severity model, and a
+real-time React dashboard.  Designed for authorized security testing.
 
 ---
 
-## ⚡ Quick Start
+## Highlights
+
+- **Distributed pipeline orchestrator** that runs reconnaissance, active
+  probing, exploitation, enrichment, and reporting as a DAG of stages
+  with retry, circuit-breaker, and resume support.
+- **Actor mesh** for elastic scan orchestration: tasks are encapsulated
+  in stateful actors (built on `pykka`) that can be checkpointed to a
+  Redis-backed write-ahead log and rehydrated on another node.
+- **Causal state engine**: cluster-wide state is stored in Hybrid
+  Logical Clock (HLC) LWW-Set CRDTs that give causal ordering in
+  **O(1) space per node**, with Redis pub/sub Bloom snapshots for
+  cross-node membership reconciliation.
+- **Closed-loop learning**: an XGBoost + scikit-learn classifier with a
+  pure-NumPy fallback is retrained on analyst triage signals, with
+  calibrated severity scores and false-positive suppression.
+- **In-process evasion controls** (HMM-driven header/JA3 mutation and
+  timing jitter) used in authorized red-team engagements.
+- **3D attack-chain cockpit**: React Three Fiber + Three.js instanced
+  rendering of the Kuzu attack-graph at 60 FPS, with a control deck
+  for target scoping, module toggles, and live stage polling.
+- **Sandboxed exploit validation**: PoCs run in a `wasmtime` WebAssembly
+  sandbox; dynamically loaded Python plugins are AST-validated and
+  executed in a separate process.
+
+For a non-marketing map of these subsystems to the modules that
+implement them, see `docs/architecture-overview.md`.
+
+---
+
+## Quick Start
 
 ```bash
-# 1. Setup Environment
-python3.14 -m venv .venv
-source .venv/bin/activate
-pip install .
+# 1. Setup environment (Python 3.12 or newer required; CI tests on 3.14)
+python3.12 -m venv .venv
+source .venv/bin/activate           # Windows: .venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
 
-# 2. Build Frontend (React 19 + R3F + Tailwind 4)
-cd frontend && npm install && npm run build
-cd ..
+# 2. Build the React frontend (React 19 + R3F + Tailwind 4)
+cd frontend && npm install && npm run build && cd ..
 
-# 3. Start the Neural-Mesh Infrastructure (Redis required)
-python3 src/dashboard/fastapi/main.py --host 0.0.0.0 --port 8000
+# 3. Start the dashboard (Redis recommended; falls back to in-memory)
+python -m src.dashboard.fastapi.app --host 0.0.0.0 --port 8000
 ```
 
-## 🗺️ System Control
-- **Ops Command Center**: Access the React 19 dashboard at `http://localhost:8000/`.
-- **Security Cockpit**: Monitor 3D Instanced-Rendered threat graphs and autonomous risk scores.
-- **Mesh Health**: View live Bloom reconciliation telemetry and Vector-Clocked state across all nodes.
+Then open `http://localhost:8000/` for the operator console.
 
-## ⚖️ License
-Authorized security testing only. See `LICENSE`.
+## Documentation
+
+* `docs/getting-started.md` — walkthrough and first scan
+* `docs/architecture-overview.md` — non-marketing module map
+* `docs/architecture.md` — branded, capability-focused walkthrough
+* `docs/failure_modes.md` — interpreting "zero findings" reports
+* `docs/environment-variables.md` — every env var the system reads
+* `docs/environment-variables.md`, `docs/api-reference.md` — full reference
+* `CONTRIBUTING.md` — development workflow and code style
+
+## System control
+
+- **Ops Command Center** — React 19 dashboard at `http://localhost:8000/`.
+- **Security Cockpit** — 3D instanced-rendered threat graphs.
+- **Mesh Health** — Bloom reconciliation and HLC state.
+
+## License
+
+Authorized security testing only.  See `LICENSE`.

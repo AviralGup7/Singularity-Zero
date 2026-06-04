@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.bloom_mesh import NeuralBloomMesh, ReconcileBloom
+from src.core.security.secret_validator import validate_or_raise
 from src.dashboard.fastapi.collaboration import TriageCollaborationService
 from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.middleware import (
@@ -77,6 +78,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("Dashboard server starting on %s:%d", config.host, config.port)
     logger.info("Project Root: %s", config.workspace_root)
     logger.info("Frontend Dist: %s", config.frontend_dist)
+
+    # Security: refuse to start if any secret env var is still set to a
+    # placeholder value. The validator logs a warning in development and
+    # raises in any other environment.
+    validate_or_raise()
 
     from src.core.plugins.loader import refresh_dynamic_plugins, start_dynamic_plugin_watcher
 
@@ -179,7 +185,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             raise ValueError(
                 "CRITICAL SECURITY RISK: MESH_SECRET environment variable is required in production."
             )
+        # NOTE: A per-process random secret here means each dashboard instance
+        # will reject authenticated gossip from its peers (peers will have
+        # different secrets). Log loudly so operators do not silently lose
+        # mesh connectivity in non-prod environments either.
         mesh_secret = secrets.token_hex(32)
+        logger.warning(
+            "MESH_SECRET is not set; generated a per-process random secret. "
+            "Mesh peers will NOT be able to authenticate each other. "
+            "Set MESH_SECRET to a long, random, shared value in any environment "
+            "with more than one dashboard instance."
+        )
     elif is_prod and mesh_secret in (
         "frontier-default-secret",
         "frontier-default-secret-change-in-prod",
@@ -605,8 +621,25 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         }
 
     @app.get("/metrics", tags=["System"])
-    async def get_metrics() -> Any:
-        """Prometheus metrics endpoint."""
+    async def get_metrics(request: Request) -> Any:
+        """Prometheus metrics endpoint.
+
+        Metrics are only served to authenticated callers. When API security
+        is disabled, an ``admin``-scoped local principal is assumed; in
+        production, configure ``X-API-Key`` or ``Authorization: Bearer``
+        on the Prometheus scraper.
+        """
+        if api_security_enabled():
+            from fastapi import HTTPException as _HTTPException, status as _status
+            from src.dashboard.fastapi.dependencies import _security_principal_from_request
+
+            api_key = request.headers.get("X-API-Key")
+            principal = _security_principal_from_request(request, api_key)
+            if principal is None or principal.role != "admin":
+                raise _HTTPException(
+                    status_code=_status.HTTP_401_UNAUTHORIZED,
+                    detail="Metrics endpoint requires an admin-scoped API key.",
+                )
         try:
             from fastapi import Response
             from prometheus_client import CONTENT_TYPE_LATEST, generate_latest

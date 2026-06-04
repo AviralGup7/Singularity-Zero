@@ -1,5 +1,24 @@
+# Gitleaks configuration
+#
+# The previous version blanket-suppressed all of ``tests/`` and the
+# Kubernetes secrets manifest. That defeats the purpose of secret
+# scanning in CI. Tests regularly contain example / fixture credentials
+# and those still need to be reviewed for accidental real-secret leaks.
+# The Kubernetes secrets file should also be scanned - if the operator
+# has substituted real base64-encoded secrets, gitleaks will detect
+# the underlying plaintext and fail the pipeline. Real secret material
+# belongs in a sealed-secrets / external-secrets operator, not in git.
+#
+# If a specific fixture really must contain a credential, use
+# ``# gitleaks:allow`` at the end of the line so the scanner can be
+# targeted to the offending line instead of the whole path.
+
 [allowlist]
-paths = [
-  "tests/.*",
-  "deploy/kubernetes/secrets.yaml",
+# Allow generic, well-known test strings that are not real secrets.
+regexes = [
+  '''example\.com''',
+  '''placeholder''',
+  '''dummy''',
+  '''fake''',
+  '''sample''',
 ]

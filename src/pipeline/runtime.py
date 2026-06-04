@@ -6,17 +6,51 @@ and handles top-level errors gracefully.
 
 import argparse
 import asyncio
+import json
+import os
 import shutil
 import signal
+import stat
 import tempfile
 import traceback
 from pathlib import Path
 
 from src.core.logging.pipeline_logging import emit_error, emit_warning
+from src.core.security.secret_validator import validate_or_raise
 from src.pipeline.runner_support import parse_args
 from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
 
-shutdown_flag = False
+# ``asyncio.Event`` works in both sync and async contexts. The previous
+# implementation used a plain boolean which is racy when the SIGINT
+# handler runs concurrently with the async pipeline (the handler set the
+# flag, but the running coroutine never saw it).
+_shutdown_event: asyncio.Event | None = None
+
+
+def _shutdown_event_singleton() -> asyncio.Event:
+    global _shutdown_event
+    if _shutdown_event is None:
+        _shutdown_event = asyncio.Event()
+    return _shutdown_event
+
+
+def _is_shutdown_requested() -> bool:
+    if _shutdown_event is None:
+        return False
+    return _shutdown_event.is_set()
+
+
+def request_shutdown() -> None:
+    """Public hook for in-process callers to trigger a graceful shutdown."""
+    if _shutdown_event is not None:
+        _shutdown_event.set()
+
+
+# Backwards-compatible alias used by tests / external callers that
+# reference ``runtime.shutdown_flag``. ``shutdown_flag`` was a plain
+# ``bool``; the new value is an ``asyncio.Event`` which is falsy when
+# not set, so ``if not runtime.shutdown_flag:`` still reads naturally.
+shutdown_flag = _shutdown_event_singleton()
 
 
 def handle_signal(sig: int, frame: object = None) -> None:
@@ -30,14 +64,31 @@ def handle_signal(sig: int, frame: object = None) -> None:
         sig: Signal number (e.g., SIGINT=2, SIGTERM=15).
         frame: Current stack frame (unused, provided for signal handler signature).
     """
-    global shutdown_flag
-    shutdown_flag = True
+    request_shutdown()
     sig_name = f"Signal({sig})"
     try:
         sig_name = signal.Signals(sig).name
     except (ValueError, OSError):
         pass
     emit_warning(f"Received {sig_name}, shutting down gracefully...")
+
+
+def _make_secure_tempdir(prefix: str = "cyber-replay-") -> str:
+    """Create a temporary directory with owner-only permissions.
+
+    The previous implementation called ``tempfile.mkdtemp()`` with the
+    default mode 0o707, which is world-readable/executable on POSIX.
+    Replay artifacts may include extracted configuration and PII, so we
+    tighten the permissions immediately after creation.
+    """
+    path = tempfile.mkdtemp(prefix=prefix)
+    try:
+        os.chmod(path, stat.S_IRWXU)
+    except OSError:
+        # Windows may not support chmod on temp dirs; ACLs already
+        # restrict to the current user.
+        pass
+    return path
 
 
 def _preflight_checks(args: argparse.Namespace) -> bool:
@@ -99,9 +150,6 @@ def execute_pipeline(args: argparse.Namespace) -> int:
 
 async def _run_replay(args: argparse.Namespace) -> int:
     """Handle --replay: unpack artifact pack and run pipeline with verification."""
-    import json
-    import tempfile
-
     from src.core.logging.pipeline_logging import emit_info, emit_warning
     from src.pipeline.services.job_artifact_packager import JobArtifactPackager
     from src.pipeline.services.pipeline_flow import run_pipeline
@@ -132,7 +180,7 @@ async def _run_replay(args: argparse.Namespace) -> int:
         f"git={snapshot.git_commit_hash}"
     )
 
-    tmp_output = tempfile.mkdtemp()
+    tmp_output = _make_secure_tempdir()
     try:
         with open(config_file) as f:
             config = json.load(f)
@@ -193,6 +241,10 @@ def main(argv: list[str] | None = None) -> int:
         Exit code (0 for success, 130 for interrupt, 1 for error).
     """
     try:
+        # Security: refuse to start the pipeline with placeholder secrets
+        # in any non-development environment. The validator logs warnings
+        # in dev and raises in production / CI.
+        validate_or_raise()
         args = parse_args(argv)
         if getattr(args, "validate_config", False):
             from src.core.config import load_config
@@ -222,7 +274,9 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     return await PipelineOrchestrator().run(args)
                 finally:
-                    if shutdown_flag:
+                    # ``shutdown_flag`` is an ``asyncio.Event``; check
+                    # ``is_set()`` to avoid the always-truthy trap.
+                    if bool(getattr(shutdown_flag, "is_set", lambda: False)()):
                         emit_warning("Shutdown flag detected, persisting partial results...")
 
             if getattr(args, "replay_archive", None):

@@ -6,6 +6,7 @@ structured auth error responses.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -84,18 +85,12 @@ async def authenticate_websocket(
     Raises:
         AuthenticationError: If authentication fails.
     """
-    import os
-
     # SEC-9: Origin validation against CSWSH
     origin = websocket.headers.get("origin")
     allowed = allowed_origins
     if allowed is None:
-        import os
-
         allowed = set(os.environ.get("WS_ALLOWED_ORIGINS", "").split(","))
     allowed = {o.strip() for o in allowed if o.strip()}
-
-    import os
 
     is_production = (
         os.environ.get("ENV") == "production" or os.environ.get("NODE_ENV") == "production"

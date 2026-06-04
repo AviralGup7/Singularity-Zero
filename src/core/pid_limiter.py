@@ -16,6 +16,7 @@ class PIDRateLimiter:
         kd: float = 0.05,
         min_delay_seconds: float = 0.0,
         max_delay_seconds: float = 5.0,
+        integral_limit: float | None = None,
     ):
         self.target_latency = target_latency_seconds
         self.kp = kp
@@ -23,6 +24,9 @@ class PIDRateLimiter:
         self.kd = kd
         self.min_delay = min_delay_seconds
         self.max_delay = max_delay_seconds
+        if integral_limit is None:
+            integral_limit = max_delay_seconds / max(ki, 1e-9)
+        self.integral_limit = abs(integral_limit)
 
         self.current_delay = min_delay_seconds
         self.integral = 0.0
@@ -58,13 +62,21 @@ class PIDRateLimiter:
         # P, I, D Terms
         p_term = self.kp * error
         self.integral += error * dt
+        # Anti-windup: clamp integral to prevent unbounded accumulation when output saturates
+        self.integral = max(-self.integral_limit, min(self.integral_limit, self.integral))
         i_term = self.ki * self.integral
         derivative = (error - self.last_error) / dt
         d_term = self.kd * derivative
 
         # Control output adjusts the pacing delay
         output = p_term + i_term + d_term
-        self.current_delay = max(self.min_delay, min(self.max_delay, self.current_delay + output))
+        unclamped_delay = self.current_delay + output
+        self.current_delay = max(self.min_delay, min(self.max_delay, unclamped_delay))
+        # Back-calculation: if we saturated, subtract the excess from integral
+        if self.ki > 0 and unclamped_delay != self.current_delay:
+            saturation_excess = (unclamped_delay - self.current_delay) / self.ki
+            self.integral -= saturation_excess
+            self.integral = max(-self.integral_limit, min(self.integral_limit, self.integral))
 
         # Save states
         self.last_error = error

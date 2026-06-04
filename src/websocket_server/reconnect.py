@@ -210,7 +210,15 @@ class ReconnectionManager:
         Returns:
             List of JSON message strings to replay.
         """
-        state = self._tokens.get(token)
+        # Bug #40 fix: the previous implementation looked up the token
+        # directly in ``self._tokens`` and replayed whatever the entry
+        # contained without ever checking that the reconnection token
+        # was still valid (non-expired). An attacker who obtained an old
+        # (expired) token could still drain the buffered message queue
+        # associated with that session. We now route the lookup through
+        # ``validate_token`` so expired entries are removed and refused
+        # before any replay happens.
+        state = self.validate_token(token)
         if state is None:
             return []
 

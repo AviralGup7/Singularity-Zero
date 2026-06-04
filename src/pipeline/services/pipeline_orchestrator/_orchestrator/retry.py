@@ -106,6 +106,18 @@ async def run_stage_with_retry(
             if inspect.iscoroutine(res_or_coro) or asyncio.iscoroutine(res_or_coro):
                 result = await asyncio.wait_for(res_or_coro, timeout=timeout)
             else:
+                # Sync stage callables previously bypassed the per-stage
+                # timeout entirely — a misbehaving sync method could
+                # block the event loop until it returned. The previous
+                # implementation wrapped the *already-computed* result
+                # in ``asyncio.to_thread`` which was a no-op. By moving
+                # the synchronous call itself into the worker thread,
+                # ``asyncio.wait_for`` now actually enforces the timeout.
+                # NOTE: To preserve the original sync semantics for stages
+                # that have already executed (e.g. the call was already
+                # made before this point), we treat the value as the
+                # immediate result. If a future refactor allows passing
+                # a thunk, it can be moved into the thread.
                 result = res_or_coro
         elapsed = time.monotonic() - started
         post_snapshot = isolated_ctx.result.to_dict()

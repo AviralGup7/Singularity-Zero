@@ -59,9 +59,17 @@ externalPort = 3001
 localPort = 5173
 externalPort = 5173
 
-[[ports]]
-localPort = 8080
-externalPort = 8080
+# SECURITY: the backend (port 8080) is no longer exposed publicly. The
+# previous mapping forwarded the FastAPI dashboard (which has the
+# /api/csrf-token, /api/security/*, /api/mesh/elect-leader and other
+# admin surfaces) to the public internet without TLS. In production the
+# dashboard should be served through a TLS-terminating reverse proxy
+# (nginx + cert-manager) and never through Replit's port forwarding.
+# Uncomment the block below ONLY for local development; leave it
+# commented for any deployment that touches real data.
+# [[ports]]
+# localPort = 8080
+# externalPort = 8080
 
 [deployment]
 deploymentTarget = "static"

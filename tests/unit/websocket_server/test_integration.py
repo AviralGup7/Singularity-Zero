@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from src.websocket_server.integration import setup_websocket_routes
 
@@ -50,23 +51,23 @@ def test_websocket_origin_validation() -> None:
     setup_websocket_routes(app, allowed_origins={"https://trusted.com"})
 
     with TestClient(app) as client:
-        # Test missing Origin header: should be rejected
-        try:
-            with client.websocket_connect("/ws/scan-progress") as websocket:
-                _ = websocket.receive_json()
-                assert False, "Should have been closed/rejected due to missing Origin"
-        except Exception:  # noqa: S110
-            pass
+        # Test missing Origin header: server should send auth error and close
+        with client.websocket_connect("/ws/scan-progress") as websocket:
+            rejected_msg = websocket.receive_json()
+            assert rejected_msg["type"] == "error"
+            assert rejected_msg["code"] == "auth_invalid_origin"
+            with pytest.raises(WebSocketDisconnect):
+                websocket.receive_json()
 
-        # Test unauthorized Origin header: should be rejected
-        try:
-            with client.websocket_connect(
-                "/ws/scan-progress", headers={"Origin": "https://evil.com"}
-            ) as websocket:
-                _ = websocket.receive_json()
-                assert False, "Should have been closed/rejected due to unauthorized Origin"
-        except Exception:  # noqa: S110
-            pass
+        # Test unauthorized Origin header: server should send auth error and close
+        with client.websocket_connect(
+            "/ws/scan-progress", headers={"Origin": "https://evil.com"}
+        ) as websocket:
+            rejected_msg = websocket.receive_json()
+            assert rejected_msg["type"] == "error"
+            assert rejected_msg["code"] == "auth_invalid_origin"
+            with pytest.raises(WebSocketDisconnect):
+                websocket.receive_json()
 
         # Test authorized Origin header: should succeed
         with client.websocket_connect(
@@ -91,7 +92,7 @@ def test_websocket_frame_size_limit() -> None:
                 websocket.send_text(large_payload)
                 _ = websocket.receive_json()
                 assert False, "Should have disconnected due to large payload size limit"
-            except Exception:  # noqa: S110
+            except (WebSocketDisconnect, RuntimeError):
                 pass
 
 
@@ -118,7 +119,6 @@ def test_websocket_rate_limiting() -> None:
         with client.websocket_connect("/ws/scan-progress") as websocket:
             _ = websocket.receive_json()  # ack connection
 
-            # Send messages rapidly to trigger the rate-limiting token-bucket allowance (max 100 burst)
             import json
 
             subscribe_payload = json.dumps(
@@ -129,7 +129,7 @@ def test_websocket_rate_limiting() -> None:
             for _ in range(120):
                 try:
                     websocket.send_text(subscribe_payload)
-                except Exception:
+                except (WebSocketDisconnect, RuntimeError):
                     break
 
             for _ in range(130):
@@ -138,7 +138,7 @@ def test_websocket_rate_limiting() -> None:
                     if msg.get("type") == "error" and msg.get("code") == "rate_limit_exceeded":
                         exceeded = True
                         break
-                except Exception:
+                except (WebSocketDisconnect, RuntimeError):
                     break
 
             assert exceeded is True

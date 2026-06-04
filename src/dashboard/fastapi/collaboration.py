@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import threading
 import time
 import uuid
 from collections import defaultdict
@@ -83,6 +84,12 @@ class TriageCollaborationService:
         self.audit_path = self.audit_dir / "triage_audit.jsonl"
         self._rooms: dict[str, dict[str, TriageConnection]] = defaultdict(dict)
         self._lock = asyncio.Lock()
+        # Synchronous re-entrant lock for the audit chain write critical
+        # section. We use a regular ``threading.RLock`` (not the async one)
+        # because ``record_action`` is a sync method and we want to keep
+        # callers (including sync tests) able to acquire it without an
+        # event loop.
+        self._write_lock = threading.RLock()
 
     async def connect(self, connection: TriageConnection) -> None:
         async with self._lock:
@@ -180,23 +187,29 @@ class TriageCollaborationService:
         if action not in TRIAGE_ACTIONS:
             raise ValueError(f"Unsupported triage action: {action}")
 
-        previous_hash = self.latest_hash()
-        event = {
-            "event_id": uuid.uuid4().hex,
-            "run_id": run_id,
-            "finding_id": finding_id,
-            "action": action,
-            "analyst_id": analyst_id,
-            "analyst_name": analyst_name,
-            "payload": payload or {},
-            "timestamp": _utc_now(),
-            "previous_hash": previous_hash,
-        }
-        event["hash"] = hashlib.sha256(
-            f"{previous_hash}{_canonical_json(event)}".encode()
-        ).hexdigest()
-        with self.audit_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+        # The audit chain is built as a hash-linked list. Two concurrent
+        # callers can read the same ``previous_hash``, both build valid
+        # ``hash`` values, and then race to append — leaving the chain
+        # forked and un-verifiable. We now serialise the read-then-write
+        # window with a re-entrant lock scoped to this service.
+        with self._write_lock:
+            previous_hash = self.latest_hash()
+            event = {
+                "event_id": uuid.uuid4().hex,
+                "run_id": run_id,
+                "finding_id": finding_id,
+                "action": action,
+                "analyst_id": analyst_id,
+                "analyst_name": analyst_name,
+                "payload": payload or {},
+                "timestamp": _utc_now(),
+                "previous_hash": previous_hash,
+            }
+            event["hash"] = hashlib.sha256(
+                f"{previous_hash}{_canonical_json(event)}".encode()
+            ).hexdigest()
+            with self.audit_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(event, ensure_ascii=False) + "\n")
         return event
 
     def latest_hash(self) -> str:

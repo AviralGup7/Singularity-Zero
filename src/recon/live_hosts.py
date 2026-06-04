@@ -29,6 +29,10 @@ PROBE_CACHE_MIN_TTL_SECONDS = 600
 PROBE_CACHE_MAX_TTL_SECONDS = 1800
 PROBE_CACHE_DEFAULT_TTL_SECONDS = 1200
 _PROBE_CACHE_MAX_SIZE = int(os.environ.get("RECON_PROBE_CACHE_MAX_SIZE", 10000))
+# All probe cache keys are namespaced with this prefix so that the
+# PersistentCache (which is shared with other pipeline layers) is not
+# wiped when a caller invokes ``clear_probe_cache()``.
+PROBE_CACHE_KEY_PREFIX = "probe:"
 
 # NOTE: _PROBE_CACHE_MAX_SIZE is read from env but PersistentCache does not accept a max_size arg;
 # cleanup is handled via eviction/ttl internally rather than a hard cap.
@@ -37,8 +41,34 @@ _probe_cache = PersistentCache()
 logger = logging.getLogger(__name__)
 
 
+def _probe_cache_key(target_name: str, host: str) -> str:
+    """Build a namespaced probe cache key.
+
+    Previous implementation used ``f"{target_name}:{host}"`` (or just ``host``)
+    which collided with other pipeline cache entries; clearing the probe
+    cache via ``clear()`` would wipe them all.
+    """
+    return f"{PROBE_CACHE_KEY_PREFIX}{target_name}:{host}"
+
+
 def clear_probe_cache() -> None:
-    _probe_cache.clear()
+    """Delete only probe-namespaced entries from the shared cache.
+
+    The previous implementation called ``PersistentCache.clear()`` which
+    nuked every entry in the shared SQLite cache (severity model, fuzzy
+    hashes, etc.). We now use ``prune_prefix`` to remove only the
+    probe-namespaced keys.
+    """
+    try:
+        _probe_cache.prune_prefix(PROBE_CACHE_KEY_PREFIX)
+    except AttributeError:
+        # Older PersistentCache versions; fall back to the safe key-by-key
+        # delete. ``keys_with_prefix`` is also a newer addition.
+        try:
+            for key in list(getattr(_probe_cache, "keys_with_prefix", lambda p: [])(PROBE_CACHE_KEY_PREFIX)):
+                _probe_cache.delete(key)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Fallback probe cache clear failed: %s", exc)
 
 
 from src.recon.collectors.observability import emit_collection_progress
@@ -75,7 +105,7 @@ def _cache_lookup(
     cached_live_hosts: set[str] = set()
     skipped_count = 0
     for host in hosts:
-        key = f"{target_name}:{host}" if target_name else host
+        key = _probe_cache_key(target_name, host)
         cached = _probe_cache.get(key)
         if not cached:
             to_probe.append(host)
@@ -115,7 +145,7 @@ def _cache_update(
     target_name: str = "",
 ) -> None:
     ttl = ttl_seconds if ttl_seconds is not None else PROBE_CACHE_DEFAULT_TTL_SECONDS
-    key = f"{target_name}:{host}" if target_name else host
+    key = _probe_cache_key(target_name, host)
     _probe_cache.set(
         key,
         {
@@ -591,13 +621,11 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
     # Dual-stack support: find IPv6 addresses for the host
     if "://" not in host:
         try:
-            # Only attempt if it looks like a hostname
             last_label = host.split(".")[-1] if "." in host else host
             if not any(c.isdigit() for c in last_label):
                 addr_info = socket.getaddrinfo(host, None, socket.AF_INET6)
                 for info in addr_info:
                     ip6 = info[4][0]
-                    # Avoid duplicates and link-local if possible, but keep it simple
                     candidates.append(f"https://[{ip6}]")
                     candidates.append(f"http://[{ip6}]")
         except (socket.gaierror, socket.herror, OSError):
@@ -612,12 +640,29 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
             seen.add(c)
             unique_candidates.append(c)
 
+    # SSRF guard: resolve every candidate and reject private/loopback/link-local
+    # addresses. Without this, an attacker who controls a subdomain (or the
+    # DNS record) can redirect the prober at cloud-metadata endpoints
+    # (169.254.169.254) or local ports. We resolve once and then probe by IP,
+    # passing the original Host header so SNI/Host verification still works.
+    from src.core.utils.url_validation import is_safe_url
+
+    safe_candidates: list[tuple[str, str]] = []
     for candidate in unique_candidates:
+        if not is_safe_url(candidate):
+            logger.debug("Skipping unsafe probe candidate (SSRF guard): %s", candidate)
+            continue
+        safe_candidates.append((candidate, host))
+
+    for candidate, header_host in safe_candidates:
         try:
+            # Note: do NOT override the ``Host`` header manually — urllib3 / the
+            # connection pool set it correctly from the URL. Overriding it
+            # creates a SNI/Host mismatch that breaks TLS and trips WAF rules.
             resp = pool.request(
                 "GET",
                 candidate,
-                headers={"User-Agent": DEFAULT_USER_AGENT, "Host": host.split(":")[0]},
+                headers={"User-Agent": DEFAULT_USER_AGENT},
                 timeout=urllib3.util.Timeout(connect=timeout_seconds, read=timeout_seconds),
                 retries=False,
             )

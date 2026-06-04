@@ -16,8 +16,11 @@ Improvements (v2):
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import re
+import socket
+import threading
 from typing import Any
 
 try:
@@ -255,7 +258,11 @@ STATIC_TAKEOVER_PATTERNS: list[dict[str, Any]] = [
 
 TAKEOVER_PATTERNS = load_takeover_patterns()
 
-# Pre-compile all indicator patterns for performance
+# Pre-compile all indicator patterns for performance. Mutations to this
+# dict (e.g. by ``detect_takeover`` when community patterns are added) are
+# serialised by ``_COMPILED_PATTERNS_LOCK`` because Python dict mutation
+# during iteration from another thread can raise ``RuntimeError``.
+_COMPILED_PATTERNS_LOCK = threading.RLock()
 _COMPILED_PATTERNS: dict[str, list[re.Pattern[str]]] = {
     p["service"]: [re.compile(ind, re.IGNORECASE) for ind in p["http_indicators"]]
     for p in TAKEOVER_PATTERNS
@@ -351,6 +358,43 @@ async def _check_http_indicators(
     return matched
 
 
+def _is_public_target(target: str) -> bool:
+    """Return True if ``target`` resolves to a public IP.
+
+    Used as an SSRF guard after CNAME resolution. If the operator is
+    running this module against an attacker-controlled DNS zone, the
+    attacker can redirect the CNAME to a private address (e.g. the cloud
+    metadata endpoint 169.254.169.254) to trick the next step into
+    scanning internal infrastructure. Reject such targets up front.
+    """
+    target = (target or "").strip().rstrip(".")
+    if not target:
+        return False
+    try:
+        infos = socket.getaddrinfo(target, None)
+    except (socket.gaierror, UnicodeError, OSError):
+        return False
+    for info in infos:
+        sockaddr = info[4]
+        if not sockaddr:
+            continue
+        ip_str = sockaddr[0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            return False
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            return False
+    return True
+
+
 async def _check_single_subdomain(
     subdomain: str, patterns: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -361,13 +405,24 @@ async def _check_single_subdomain(
     if not cname:
         return findings
 
+    # SSRF guard: refuse to probe subdomains whose CNAME target resolves
+    # to a private/loopback/link-local address. This blocks the common
+    # case where an attacker controls a DNS zone and points a record at
+    # 169.254.169.254 (cloud metadata) or 127.0.0.1.
+    if not _is_public_target(cname):
+        logger.warning(
+            "Refusing takeover check for %s: CNAME target %s is not a public address",
+            subdomain,
+            cname,
+        )
+        return findings
+
     for pattern in patterns:
         if not _match_cname_pattern(cname, pattern["cname_pattern"]):
             continue
 
         matched_indicators = await _check_http_indicators(subdomain, pattern["service"])
         base_confidence: float = float(pattern.get("confidence", 0.7))
-        # Downgrade if we couldn't confirm via HTTP
         effective_confidence = base_confidence if matched_indicators else base_confidence * 0.5
 
         findings.append(
@@ -394,8 +449,55 @@ async def _check_single_subdomain(
 # ---------------------------------------------------------------------------
 
 
+_MAX_COMMUNITY_PATTERN_LEN = 512
+# Patterns with a quantifier immediately followed by a different quantifier
+# (e.g. "(a+)+", "(a*)*") or with ambiguous nesting are classic ReDoS
+# constructs. Reject any pattern whose AST exposes such a structure.
+_NESTED_QUANTIFIER_RE = re.compile(
+    r"\([^()]*[*+][^()]*\)\s*[*+]"
+    r"|\([^()]*[*+][^()]*\)\s*\?"
+    r"|\([^()]*\?\s*[^()]*\)\s*\?"
+)
+
+
+def _is_unsafe_regex(pattern: str) -> bool:
+    """Return True when a regex pattern is likely vulnerable to ReDoS."""
+    if not pattern or len(pattern) > _MAX_COMMUNITY_PATTERN_LEN:
+        return True
+    stripped = pattern.strip()
+    if not stripped or len(stripped) > _MAX_COMMUNITY_PATTERN_LEN:
+        return True
+    if _NESTED_QUANTIFIER_RE.search(stripped):
+        return True
+    try:
+        re.compile(stripped)
+    except re.error:
+        return True
+    return False
+
+
+def _safe_indicator_or_default(value: Any) -> str | None:
+    """Validate an indicator string; return None if it fails safety checks."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or len(text) > _MAX_COMMUNITY_PATTERN_LEN:
+        return None
+    if _is_unsafe_regex(text):
+        return None
+    return text
+
+
 async def _fetch_community_patterns(timeout: float = 10.0) -> list[dict[str, Any]]:
-    """Fetch the latest takeover fingerprints from community repo (can-i-take-over-xyz)."""
+    """Fetch the latest takeover fingerprints from community repo (can-i-take-over-xyz).
+
+    SECURITY: Patterns from the upstream community JSON are treated as
+    untrusted input. Each indicator is validated against ReDoS-prone
+    constructs (nested quantifiers, excessive length) before being
+    accepted. Unsafe patterns are silently dropped to avoid an attacker
+    who controls DNS rebinding or who compromises the upstream repo
+    from causing CPU exhaustion during indicator matching.
+    """
     if httpx is None:
         return []
 
@@ -407,24 +509,43 @@ async def _fetch_community_patterns(timeout: float = 10.0) -> list[dict[str, Any
             response = await client.get(url)
             if response.status_code == 200:
                 data = response.json()
-                new_patterns = []
+                if not isinstance(data, list):
+                    return []
+                new_patterns: list[dict[str, Any]] = []
                 for item in data:
-                    if item.get("status") == "Vulnerable":
-                        cname = item.get("cname")
-                        fingerprint = item.get("fingerprint")
-                        if cname and fingerprint:
-                            # Many fingerprints might be lists
-                            if isinstance(cname, list):
-                                cname = cname[0]
-                            # Use empty string for pattern if none provided, though usually it exists
-                            new_patterns.append(
-                                {
-                                    "service": item.get("service", "Unknown Community Service"),
-                                    "cname_pattern": str(cname).strip(),
-                                    "http_indicators": [str(fingerprint)],
-                                    "confidence": 0.8,
-                                }
-                            )
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("status") != "Vulnerable":
+                        continue
+                    cname = item.get("cname")
+                    fingerprint = item.get("fingerprint")
+                    if cname and fingerprint:
+                        # Many fingerprints might be lists
+                        if isinstance(cname, list):
+                            cname = cname[0]
+                        cname_str = str(cname).strip()
+                        if not cname_str or len(cname_str) > _MAX_COMMUNITY_PATTERN_LEN:
+                            continue
+                        indicators: list[str] = []
+                        if isinstance(fingerprint, str):
+                            safe = _safe_indicator_or_default(fingerprint)
+                            if safe is not None:
+                                indicators.append(safe)
+                        elif isinstance(fingerprint, list):
+                            for raw in fingerprint:
+                                safe = _safe_indicator_or_default(raw)
+                                if safe is not None:
+                                    indicators.append(safe)
+                        if not indicators:
+                            continue
+                        new_patterns.append(
+                            {
+                                "service": str(item.get("service", "Unknown Community Service")),
+                                "cname_pattern": cname_str,
+                                "http_indicators": indicators,
+                                "confidence": 0.8,
+                            }
+                        )
                 return new_patterns
     except Exception as e:
         logger.debug("Failed to fetch community takeover patterns: %s", e)
@@ -459,10 +580,14 @@ async def detect_takeover(
         community_patterns = await _fetch_community_patterns()
         if community_patterns:
             patterns.extend(community_patterns)
-            for p in patterns:
-                _COMPILED_PATTERNS[p["service"]] = [
-                    re.compile(ind, re.IGNORECASE) for ind in p["http_indicators"]
-                ]
+            # Lock to avoid concurrent ``RuntimeError: dictionary changed
+            # size during iteration`` when two ``detect_takeover`` coroutines
+            # run in parallel and both add community patterns.
+            with _COMPILED_PATTERNS_LOCK:
+                for p in community_patterns:
+                    _COMPILED_PATTERNS[p["service"]] = [
+                        re.compile(ind, re.IGNORECASE) for ind in p["http_indicators"]
+                    ]
 
     all_findings: list[dict[str, Any]] = []
     failed_count = 0

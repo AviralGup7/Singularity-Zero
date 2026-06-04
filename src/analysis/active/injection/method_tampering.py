@@ -31,7 +31,7 @@ async def test_method_tampering(
     urls: list[str],
     timeout: float = 10.0,
     max_urls: int = 200,
-    verify_tls: bool = False,
+    verify_tls: bool = True,
 ) -> list[dict[str, Any]]:
     """Test endpoints for HTTP method tampering vulnerabilities.
 
@@ -39,7 +39,8 @@ async def test_method_tampering(
         urls: List of URLs to test.
         timeout: Per-request timeout in seconds.
         max_urls: Maximum number of URLs to test (performance cap).
-        verify_tls: Whether to verify TLS certificates.
+        verify_tls: Whether to verify TLS certificates. Defaults to ``True``
+            for safety; opt-out only for known self-signed test targets.
 
     Returns:
         List of findings dicts with keys: url, type, method/header,

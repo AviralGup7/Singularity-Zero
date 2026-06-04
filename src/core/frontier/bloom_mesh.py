@@ -15,14 +15,16 @@ import msgspec
 from src.core.contracts.health import HealthComponent, HealthMetric, HealthStatus
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.state import LWWset, VectorClock
+from src.infrastructure.queue.redis_config import (
+    REDIS_RECONNECT_SECONDS,
+    REDIS_TIMEOUT_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
 
 BLOOM_REDIS_CHANNEL = "cyber-pipeline:bloom:sync"
 DEFAULT_SYNC_INTERVAL_SECONDS = 15.0
-REDIS_TIMEOUT_SECONDS = 3.0
 REDIS_MAX_FAILURES = 3
-REDIS_RECONNECT_SECONDS = 30.0
 INTERVAL_PARSE_ERRORS = (TypeError, ValueError)
 SNAPSHOT_VALIDATION_ERRORS = (KeyError, TypeError, ValueError)
 

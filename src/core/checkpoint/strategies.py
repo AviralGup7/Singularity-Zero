@@ -292,6 +292,7 @@ class CheckpointManager:
         cursor: Any | None = None,
         delta_id: str | None = None,
         complete: bool = False,
+        metadata: dict[str, Any] | None = None,
     ) -> Path:
         with self._lock:
             self._ensure_run_dir()
@@ -299,7 +300,7 @@ class CheckpointManager:
             deltas = current.stage_deltas.setdefault(stage_name, [])
             sequence = len(deltas) + 1
             target = self._stage_delta_path(stage_name, sequence)
-            payload = {
+            payload: dict[str, Any] = {
                 "pipeline_run_id": self.run_id,
                 "stage_name": stage_name,
                 "sequence": sequence,
@@ -309,6 +310,8 @@ class CheckpointManager:
                 "saved_at": time.time(),
                 "delta": _serialize_sets(delta),
             }
+            if metadata is not None:
+                payload["metadata"] = dict(metadata)
             temp = target.with_suffix(".tmp")
             temp.write_text(json.dumps(payload, default=str), encoding="utf-8")
             temp.replace(target)

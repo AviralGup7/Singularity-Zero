@@ -269,10 +269,15 @@ restore_redis() {
 
     log_info "Starting Redis restore..."
 
-    # Check if Redis is running
+    # Check if Redis is running. Password is passed via ``REDISCLI_AUTH``
+    # so it never appears in the process command line.
     if command -v redis-cli &>/dev/null; then
-        local redis_cmd="redis-cli -h $REDIS_HOST -p $REDIS_PORT"
-        [[ -n "$REDIS_PASSWORD" ]] && redis_cmd="$redis_cmd -a $REDIS_PASSWORD"
+        local redis_cmd="redis-cli -h $REDIS_HOST -p $REDIS_PORT --no-auth-warning"
+        if [[ -n "$REDIS_PASSWORD" ]]; then
+            export REDISCLI_AUTH="$REDIS_PASSWORD"
+        else
+            unset REDISCLI_AUTH
+        fi
 
         if $redis_cmd ping &>/dev/null 2>&1; then
             log_warn "Redis is running. Flushing all databases before restore..."
@@ -297,8 +302,12 @@ restore_redis() {
 
         # Try to find Redis data directory
         if command -v redis-cli &>/dev/null; then
-            local redis_cmd="redis-cli -h $REDIS_HOST -p $REDIS_PORT"
-            [[ -n "$REDIS_PASSWORD" ]] && redis_cmd="$redis_cmd -a $REDIS_PASSWORD"
+            local redis_cmd="redis-cli -h $REDIS_HOST -p $REDIS_PORT --no-auth-warning"
+            if [[ -n "$REDIS_PASSWORD" ]]; then
+                export REDISCLI_AUTH="$REDIS_PASSWORD"
+            else
+                unset REDISCLI_AUTH
+            fi
 
             local redis_data_dir
             redis_data_dir=$($redis_cmd CONFIG GET dir 2>/dev/null | tail -1 || echo "")

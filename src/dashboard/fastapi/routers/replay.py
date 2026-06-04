@@ -3,8 +3,9 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from src.core.security import reject_if_query_contains_credentials
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.dashboard.fastapi.schemas import ErrorResponse, ReplayResponse
 from src.dashboard.fastapi.validation import (
@@ -21,6 +22,25 @@ router = APIRouter(prefix="/api/replay", tags=["Replay"])
 logger = logging.getLogger(__name__)
 
 
+def _reject_sensitive_query_params(request: Request) -> None:
+    """Reject requests that pass credentials via query string.
+
+    Tokens in query params get logged in access logs and stored in browser
+    history / proxy caches, so they must never be the primary auth path.
+    The authoritative list of sensitive names lives in
+    :mod:`src.core.security.sensitive_names`.
+    """
+    leaked = reject_if_query_contains_credentials(request.query_params)
+    if leaked:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Sensitive credentials must not be supplied as query parameters. "
+                f"Remove parameter(s): {', '.join(leaked)}."
+            ),
+        )
+
+
 @router.get(
     "",
     response_model=ReplayResponse,
@@ -32,12 +52,11 @@ logger = logging.getLogger(__name__)
     summary="Replay a captured request",
 )
 async def replay_request(
+    request: Request,
     target: str = Query(..., description="Target name"),
     run: str = Query(..., description="Run name"),
     replay_id: str = Query(..., description="Replay ID"),
     auth_mode: str = Query("inherit", description="Authentication mode"),
-    authorization: str = Query("", description="Authorization header value"),
-    cookie: str = Query("", description="Cookie value"),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> ReplayResponse:
@@ -46,6 +65,10 @@ async def replay_request(
     from src.analysis.behavior.artifacts import load_plugin_artifact, plugin_artifact_path
     from src.analysis.passive.runtime import fetch_response
     from src.execution.exploiters.exploit_automation import replay_headers_for_mode
+
+    # Refuse to even process the request if the caller put credentials in
+    # the URL; this stops the leak before any handler logic runs.
+    _reject_sensitive_query_params(request)
 
     if not validate_target_name(target):
         raise HTTPException(status_code=400, detail="Invalid target name.")
@@ -82,9 +105,15 @@ async def replay_request(
     if not mutated_url:
         raise HTTPException(status_code=400, detail="Stored request context is incomplete.")
 
+    # Pull auth headers from the caller's actual request headers (not the URL)
+    # so credentials never appear in query strings or access logs.
+    extra_authorization = request.headers.get("Authorization", "")
+    extra_cookie = request.headers.get("Cookie", "")
     try:
         extra_headers = replay_headers_for_mode(
-            auth_mode, authorization=authorization, cookie=cookie
+            auth_mode,
+            authorization=extra_authorization,
+            cookie=extra_cookie,
         )
     except ValueError as exc:
         logger.exception("Replay header generation failed: %s", exc)

@@ -35,6 +35,29 @@ from src.infrastructure.queue.lua_scripts import (
 )
 
 
+def _redact_redis_url(url: str) -> str:
+    """Return ``url`` with any embedded password replaced by ``***``.
+
+    ``redis://:secret@host:port/0`` becomes ``redis://:***@host:port/0`` so
+    that operators can still see the host/port/db while the credential
+    is hidden from logs and crash dumps.
+    """
+    if not url:
+        return ""
+    try:
+        from urllib.parse import urlparse, urlunparse
+
+        parsed = urlparse(url)
+        if parsed.password:
+            netloc = f"{parsed.username or ''}:***@{parsed.hostname or ''}"
+            if parsed.port:
+                netloc += f":{parsed.port}"
+            return urlunparse(parsed._replace(netloc=netloc))
+        return url
+    except Exception:
+        return "<redis-url-redacted>"
+
+
 def setup_tools(dest_dir: str | None = None) -> None:
     """Download and extract precompiled Go binaries for the detected OS and architecture."""
     import platform
@@ -535,7 +558,13 @@ class LiteWorker:
         # Initialize Redis
         import redis.asyncio as aioredis
 
-        logger.info("Connecting to Redis Backplane at %s", self.redis_url)
+        # SECURITY: log the *redacted* URL. ``self.redis_url`` can contain
+        # an embedded password (``redis://:secret@host:port/0``) which
+        # would otherwise leak into operator logs.
+        logger.info(
+            "Connecting to Redis Backplane at %s",
+            self._redact_redis_url(self.redis_url),
+        )
         self._redis = aioredis.from_url(self.redis_url)
         await self._redis.ping()
 

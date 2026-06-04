@@ -10,9 +10,14 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
-# Parameters containing highly sensitive or critical data vectors
+# Parameters containing highly sensitive or critical data vectors.
+# Use a leading boundary only (start-of-string, ``_``, or non-word) and allow
+# the keyword to be followed by additional word characters. The previous
+# pattern required BOTH leading AND trailing boundaries, so a parameter
+# named ``password`` matched only ``pass`` (no boundary after ``s``) and
+# was missed entirely.
 _SENSITIVE_PARAM_RE = re.compile(
-    r"(?:\b|_)(?:ssn|card|credit|pass|pwd|secret|token|auth|key|admin|priv|salary|billing|invoice|api_key|uuid)(?:\b|_)",
+    r"(?:^|[^A-Za-z0-9])(?:ssn|card|credit|pass(?:word|wd)?|pwd|secret|token|auth|api[_-]?key|key|admin|priv|salary|billing|invoice|uuid)\w*",
     re.IGNORECASE,
 )
 

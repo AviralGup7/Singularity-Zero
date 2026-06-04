@@ -36,17 +36,62 @@ class ActiveLearningController:
                         "SELECT * FROM feedback_events ORDER BY timestamp DESC LIMIT 3000"
                     ).fetchall()
 
-                    # Poisoning defense: Group FPs to verify confirmation threshold (N>=3)
-                    fp_counts: dict[tuple[Any, Any], int] = {}
+                    # Poisoning defense: Group FPs to verify confirmation threshold (N>=3).
+                    # The first pass must *exclude* rows from runs that were later flagged as
+                    # anomalous, otherwise the per-key counter is inflated by the very
+                    # poisoning bursts we are trying to detect, and legitimate FP confirmations
+                    # would be over-counted.
+                    anomalous_runs = set()
                     for row in raw_rows:
                         item = dict(row)
                         if bool(item.get("was_false_positive")):
-                            key = (item.get("finding_category"), item.get("plugin_name"))
-                            fp_counts[key] = fp_counts.get(key, 0) + 1
+                            rid = item.get("run_id") or "unknown"
+                            if rid in anomalous_runs:
+                                continue
+                            ts_str = item.get("timestamp") or ""
+                            try:
+                                if isinstance(ts_str, (int, float)):
+                                    ts = float(ts_str)
+                                else:
+                                    import datetime
 
-                    # Poisoning defense: Detect anomalous bursts of FP feedback to quarantine poisoning attempts
+                                    ts = datetime.datetime.fromisoformat(str(ts_str)).timestamp()
+                            except Exception:
+                                ts = time.time()
+                            anomalous_runs.setdefault(rid, []).append(ts)  # type: ignore[arg-type]
+                    # Compute anomalous_runs *first* by checking burst windows, then
+                    # rebuild the FP counter excluding those quarantined runs.
+                    confirmed_anomalous: set[str] = set()
+                    for rid, ts_list in anomalous_runs.items():  # type: ignore[union-attr]
+                        if not isinstance(ts_list, list):
+                            continue
+                        if len(ts_list) < 5:
+                            continue
+                        ts_list = sorted(ts_list)
+                        for i in range(len(ts_list) - 4):
+                            if ts_list[i + 4] - ts_list[i] <= 60:
+                                confirmed_anomalous.add(rid)
+                                logger.warning(
+                                    "Poisoning protection: Detected FP submission burst in run %s (quarantined).",
+                                    rid,
+                                )
+                                break
+                    anomalous_runs = confirmed_anomalous
+
+                    fp_counts: dict[tuple[Any, Any], int] = {}
+                    for row in raw_rows:
+                        item = dict(row)
+                        if not bool(item.get("was_false_positive")):
+                            continue
+                        rid = item.get("run_id") or "unknown"
+                        if rid in anomalous_runs:
+                            # Exclude FP confirmations that came from a quarantined burst run -
+                            # they are exactly the kind of poisoned input we don't trust.
+                            continue
+                        key = (item.get("finding_category"), item.get("plugin_name"))
+                        fp_counts[key] = fp_counts.get(key, 0) + 1
+
                     fp_timeframes: dict[str, list[float]] = {}  # run_id -> list of timestamps
-                    anomalous_runs = set()
                     for row in raw_rows:
                         item = dict(row)
                         if bool(item.get("was_false_positive")):
@@ -70,9 +115,8 @@ class ActiveLearningController:
                             # Check if 5 or more FPs were submitted within 60 seconds
                             for i in range(len(ts_list) - 4):
                                 if ts_list[i + 4] - ts_list[i] <= 60:
-                                    anomalous_runs.add(rid)
-                                    logger.warning(
-                                        "Poisoning protection: Detected FP submission burst in run %s (quarantined).",
+                                    logger.debug(
+                                        "Anomalous burst already recorded for run %s",
                                         rid,
                                     )
                                     break
@@ -172,20 +216,39 @@ class ActiveLearningController:
             )
             return {"status": "insufficient_data", "samples": len(findings)}
 
+        # Hold out a stratified validation partition so the reported accuracy is
+        # measured on samples the model has never seen. Without this split the
+        # metric would be training-set accuracy, which always approaches 1.0
+        # for tree-based models and gives a false sense of model quality.
+        import random
+
+        indices = list(range(len(findings)))
+        random.seed(42)
+        random.shuffle(indices)
+        # Use a fixed 80/20 split for reproducibility. Falling back to a small
+        # validation set when samples are scarce is acceptable here because the
+        # primary signal of "fit succeeded" is still the holdout accuracy.
+        val_count = max(1, len(findings) // 5)
+        val_indices = set(indices[:val_count])
+        train_findings = [findings[i] for i in indices if i not in val_indices]
+        train_labels = [labels[i] for i in indices if i not in val_indices]
+        val_findings = [findings[i] for i in indices if i in val_indices]
+        val_labels = [labels[i] for i in indices if i in val_indices]
+
         # Fit model pipeline
         new_pipeline = XGBoostSeverityPipeline()
-        success = new_pipeline.fit(findings, labels)
+        success = new_pipeline.fit(train_findings, train_labels)
         if not success:
             return {"status": "failed", "reason": "fit_error"}
 
-        # Validate accuracy on training partition
-        predictions = [new_pipeline.predict_probability(f) for f in findings]
+        # Validate accuracy on the held-out partition (not on training data).
+        predictions = [new_pipeline.predict_probability(f) for f in val_findings]
         correct = sum(
             1
-            for p, y in zip(predictions, labels)
+            for p, y in zip(predictions, val_labels)
             if (p >= 0.5 and y >= 0.5) or (p < 0.5 and y < 0.5)
         )
-        accuracy = correct / len(findings)
+        accuracy = correct / max(len(val_findings), 1)
 
         # Register new version
         new_version = f"severity-xgboost-v{int(time.time())}"

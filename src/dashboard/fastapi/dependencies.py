@@ -9,6 +9,7 @@ from typing import Any, cast
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
+from src.core.security import is_sensitive_name
 from src.core.tenant_context import TenantContext
 from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.security import (
@@ -102,7 +103,11 @@ async def require_auth(
         )
         tenant_id = request.headers.get("X-Tenant-ID") or "default"
         TenantContext.set_current_tenant(tenant_id)
-        return {"user": "anonymous", "role": "admin", "tenant_id": tenant_id}
+        # The disabled bypass now returns the lowest privileged role to avoid
+        # giving an unauthenticated client admin-level access. Callers that
+        # actually need admin functionality will be rejected by ``require_admin``
+        # and must enable real auth.
+        return {"user": "anonymous", "role": "read_only", "tenant_id": tenant_id}
 
     if api_security_enabled():
         principal = _security_principal_from_request(request, api_key)
@@ -177,11 +182,15 @@ def _security_principal_from_request(request: Request, api_key: str | None) -> P
 
     # Security Fix: Tokens in query params can leak into server logs and
     # browser history. Reject them unconditionally — only header-based Bearer auth is allowed.
-    query_token = request.query_params.get("token")
-    if query_token:
+    leaked = [name for name in request.query_params.keys() if is_sensitive_name(name)]
+    if leaked:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token authentication via query parameters is not allowed. Use the Authorization: Bearer header instead.",
+            detail=(
+                "Token authentication via query parameters is not allowed. "
+                f"Remove parameter(s): {', '.join(sorted(set(leaked)))}. "
+                "Use the Authorization: Bearer header instead."
+            ),
         )
 
     header_key = api_key or request.headers.get("X-API-Key")

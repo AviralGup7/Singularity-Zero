@@ -1016,12 +1016,12 @@ class TestCacheManager(CacheTestBase):
             log_cache_ops=False,
         )
         manager = CacheManager(config)
-        manager.set("short", "value", namespace="ttl", ttl=1)
+        manager.set("short", "value", namespace="ttl", ttl=0.1)
         manager.close()
 
         manager = CacheManager(config)
         assert manager.get("short", namespace="ttl") == "value"
-        time.sleep(1.1)
+        time.sleep(0.15)
         assert manager.get("short", namespace="ttl") is None
         manager.close()
 

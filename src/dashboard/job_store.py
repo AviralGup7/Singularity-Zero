@@ -13,13 +13,23 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
-from src.infrastructure.db.sqlite_utils import safe_close
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_BUSY_TIMEOUT_MS as _BUSY_TIMEOUT_MS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_CONNECT_TIMEOUT_SECONDS as _CONNECT_TIMEOUT_SECONDS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_LOCK_RETRY_ATTEMPTS as _LOCK_RETRY_ATTEMPTS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    safe_close,
+)
 
 logger = logging.getLogger(__name__)
-_CONNECT_TIMEOUT_SECONDS = 5.0
-_BUSY_TIMEOUT_MS = 5000
-_LOCK_RETRY_ATTEMPTS = 4
-_LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (

@@ -3,6 +3,7 @@
 import ipaddress
 import re
 import socket
+import threading
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -22,9 +23,81 @@ PRIVATE_NETWORKS = [
     ipaddress.ip_network("ff00::/8"),  # IPv6 Multicast
 ]
 
+_DNS_CACHE: dict[str, tuple[float, tuple[str, ...] | None]] = {}
+_DNS_CACHE_TTL_SECONDS = 30.0
+_DNS_CACHE_LOCK = threading.Lock()
+_DNS_CACHE_MAX_ENTRIES = 4096
+_DNS_NEGATIVE_TTL_SECONDS = 5.0
+
+
+def _is_ip_private(ip_str: str) -> bool:
+    try:
+        ip_addr = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return False
+    if any(ip_addr in network for network in PRIVATE_NETWORKS):
+        return True
+    if ip_addr.is_loopback or ip_addr.is_link_local or ip_addr.is_multicast:
+        return True
+    if getattr(ip_addr, "is_reserved", False):
+        return True
+    if getattr(ip_addr, "is_unspecified", False):
+        return True
+    return False
+
+
+def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[str, ...] | None:
+    """Resolve hostname with cache; returns None on resolution failure.
+
+    Returns the tuple of resolved IP strings or None if unresolvable.
+    """
+    now = time.monotonic()
+    with _DNS_CACHE_LOCK:
+        cached = _DNS_CACHE.get(hostname)
+        if cached is not None:
+            expires, ips = cached
+            if now < expires:
+                return ips
+
+    try:
+        addr_infos = socket.getaddrinfo(hostname, None)
+    except (TimeoutError, socket.gaierror, OSError):
+        with _DNS_CACHE_LOCK:
+            _DNS_CACHE[hostname] = (now + _DNS_NEGATIVE_TTL_SECONDS, None)
+            if len(_DNS_CACHE) > _DNS_CACHE_MAX_ENTRIES:
+                _DNS_CACHE.clear()
+        return None
+
+    ips: tuple[str, ...] = tuple({str(sockaddr[0]) for _, _, _, _, sockaddr in addr_infos})
+    with _DNS_CACHE_LOCK:
+        _DNS_CACHE[hostname] = (now + _DNS_CACHE_TTL_SECONDS, ips)
+        if len(_DNS_CACHE) > _DNS_CACHE_MAX_ENTRIES:
+            _DNS_CACHE.clear()
+    return ips
+
+
+def _host_resolves_to_private(hostname: str, *, timeout: float = 2.0) -> bool:
+    """Return True if hostname resolves to a private/loopback/link-local IP.
+
+    Returns True on resolution failure to fail closed: if we cannot determine
+    the address is safe, treat the URL as unsafe.
+    """
+    ips = _resolve_hostname_safely(hostname, timeout=timeout)
+    if ips is None:
+        return True
+    if not ips:
+        return True
+    return any(_is_ip_private(ip_str) for ip_str in ips)
+
 
 def is_safe_url(url: str) -> bool:
-    """Check if URL uses allowed scheme and doesn't resolve to a private IP."""
+    """Check if URL uses allowed scheme and doesn't resolve to a private IP.
+
+    SECURITY: This function now performs a DNS resolution check to prevent
+    SSRF via domain names that resolve to private/loopback addresses
+    (e.g. "attacker.com" pointing to 127.0.0.1). The result is cached
+    for a short TTL. If resolution fails, the URL is rejected (fail-closed).
+    """
     parsed = urlparse(url)
     if parsed.scheme not in ALLOWED_SCHEMES:
         return False
@@ -35,9 +108,7 @@ def is_safe_url(url: str) -> bool:
     # octal, and compressed IPv6 forms that bypass naive string checks).
     try:
         ip_addr = ipaddress.ip_address(hostname)
-        if any(ip_addr in network for network in PRIVATE_NETWORKS):
-            return False
-        if ip_addr.is_loopback or ip_addr.is_link_local or ip_addr.is_multicast:
+        if _is_ip_private(hostname):
             return False
         return True
     except ValueError:
@@ -48,27 +119,33 @@ def is_safe_url(url: str) -> bool:
     # Block cloud metadata IPs
     if hostname == "169.254.169.254":
         return False
-    return True
+    # SECURITY: Resolve DNS to prevent SSRF via domain rebinding/loopback.
+    # Fail-closed if resolution fails or any resolved IP is private.
+    return not _host_resolves_to_private(hostname)
 
 
 def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
-    """Check URL safety including DNS resolution to catch DNS rebinding."""
-    if not is_safe_url(url):
+    """Check URL safety including DNS resolution to catch DNS rebinding.
+
+    This is now equivalent to :func:`is_safe_url` because that function
+    always performs DNS resolution. Retained for backwards compatibility.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ALLOWED_SCHEMES:
         return False
-    hostname = urlparse(url).hostname
+    hostname = parsed.hostname
+    if not hostname:
+        return False
     try:
-        addr_infos = socket.getaddrinfo(hostname, None)
-        for family, _, _, _, sockaddr in addr_infos:
-            ip_str = sockaddr[0]
-            try:
-                ip_addr = ipaddress.ip_address(ip_str)
-                if any(ip_addr in network for network in PRIVATE_NETWORKS):
-                    return False
-            except ValueError:
-                continue
-    except (TimeoutError, socket.gaierror, OSError):
+        ip_addr = ipaddress.ip_address(hostname)
+        return not _is_ip_private(hostname)
+    except ValueError:
+        pass
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
         return False
-    return True
+    if hostname == "169.254.169.254":
+        return False
+    return not _host_resolves_to_private(hostname, timeout=timeout)
 
 
 _REBINDING_SERVICES_RE = re.compile(

@@ -47,6 +47,11 @@ def decode_jwt(token: str, config: SecurityConfig) -> TokenPayload | None:
     algorithms to prevent algorithm confusion attacks. Validates standard
     claims (exp, iat) and optional claims (iss, aud) if configured.
 
+    The token's ``type`` claim is also validated. ``create_access_token`` and
+    ``create_refresh_token`` both sign with the same key but expect different
+    type strings; without this check a refresh token would be accepted as an
+    access token (and vice versa), enabling privilege confusion attacks.
+
     Args:
         token: JWT token string.
         config: Security configuration for signature verification.
@@ -55,8 +60,8 @@ def decode_jwt(token: str, config: SecurityConfig) -> TokenPayload | None:
         TokenPayload if valid, None otherwise.
     """
     try:
-        # Build decode options - always require exp
-        options = {"require": ["exp"], "verify_exp": True}
+        # Build decode options - require exp and the type claim
+        options = {"require": ["exp", "type"], "verify_exp": True}
 
         # Build kwargs for validation
         decode_kwargs = {
@@ -73,6 +78,14 @@ def decode_jwt(token: str, config: SecurityConfig) -> TokenPayload | None:
             decode_kwargs["audience"] = config.jwt.audience
 
         payload_data = jwt.decode(token, config.jwt.secret, **cast(Any, decode_kwargs))
+
+        # Defensive type check: PyJWT's ``require`` only verifies the claim is
+        # *present*, not that it is one of the values we expect. We accept
+        # access and refresh types only.
+        token_type = payload_data.get("type")
+        if token_type not in ("access", "refresh"):
+            return None
+
         return TokenPayload(**payload_data)
     except jwt.InvalidTokenError:
         return None

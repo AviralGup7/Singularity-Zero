@@ -42,24 +42,40 @@ class RemediationScanner:
 
         # Check and enforce adaptive 72h cooldown in Redis
         cooldown_key = f"remediation:cooldown:{tenant_id or 'default'}:{finding_id}"
+        cooldown_seconds = 259200  # 72h
         if redis_client:
             try:
-                # Read cooldown from Redis
+                # Read cooldown from Redis. EXISTS returns 1/0; treat 1 as present.
                 cooldown_active = redis_client.execute_command("EXISTS", cooldown_key)
-                if cooldown_active:
+                if isinstance(cooldown_active, bytes):
+                    cooldown_active = int(cooldown_active.decode("utf-8"))
+                if cooldown_active == 1:
                     ttl = redis_client.execute_command("TTL", cooldown_key)
                     # Convert bytes to int if needed
                     if isinstance(ttl, bytes):
                         ttl = int(ttl.decode("utf-8"))
-                    elif ttl is not None:
-                        ttl = int(ttl)
+                    elif ttl is None:
+                        ttl = cooldown_seconds
                     else:
-                        ttl = 259200
-                    return {
-                        "status": "cooldown",
-                        "message": f"Remediation verification is on cooldown. Try again in {ttl} seconds.",
-                        "cooldown_remaining_seconds": ttl,
-                    }
+                        ttl = int(ttl)
+                    # Redis TTL semantics:
+                    #   -2 = key does not exist (race condition vs EXISTS)
+                    #   -1 = key exists but has no TTL set
+                    if ttl == -2:
+                        # Key vanished between EXISTS and TTL; fall through and
+                        # treat as no cooldown.
+                        pass
+                    else:
+                        if ttl == -1:
+                            ttl = cooldown_seconds
+                        return {
+                            "status": "cooldown",
+                            "message": (
+                                "Remediation verification is on cooldown. "
+                                f"Try again in {ttl} seconds."
+                            ),
+                            "cooldown_remaining_seconds": ttl,
+                        }
             except Exception as exc:
                 logger.error("Failed to check remediation cooldown in Redis: %s", exc)
                 raise RuntimeError(f"Database error during cooldown verification: {exc}") from exc
@@ -83,11 +99,15 @@ class RemediationScanner:
             finding["status"] = "remediated"
             message = "Remediation verification succeeded. The vulnerability has been resolved."
 
-        # Save cooldown in Redis (default 72h = 259200 seconds)
+        # Save cooldown in Redis (default 72h = 259200 seconds).
+        # Use SET ... NX EX <ttl> so the key and its TTL are set atomically -
+        # the previous implementation issued SET + EXPIRE as two commands and
+        # could leak a permanent key if the process crashed between them.
         if redis_client:
             try:
-                redis_client.execute_command("SET", cooldown_key, "active")
-                redis_client.execute_command("EXPIRE", cooldown_key, 259200)
+                redis_client.execute_command(
+                    "SET", cooldown_key, "active", "EX", cooldown_seconds, "NX"
+                )
             except Exception as exc:
                 logger.error("Failed to set remediation cooldown in Redis: %s", exc)
                 raise RuntimeError(f"Database error during cooldown update: {exc}") from exc

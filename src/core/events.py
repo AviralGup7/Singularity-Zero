@@ -134,6 +134,12 @@ class EventBus:
         Async handlers are executed synchronously when no loop is running so
         their resolved values can be returned to callers that need a deterministic
         result list.
+
+        When called from inside a running event loop, async handlers are
+        scheduled as tasks (their results cannot be awaited from a sync
+        function); the corresponding entry in the returned list will be the
+        ``asyncio.Task`` so callers can choose to await it. Sync handler
+        results are still returned by value.
         """
         results: list[Any] = []
         handlers = self._get_handlers(event.event_type)
@@ -162,7 +168,11 @@ class EventBus:
                     else:
                         task = loop.create_task(handler(event))
                         self._track_task(task)
-                        results.append(None)
+                        # Return the Task itself so callers can await or
+                        # inspect it. Previously we returned ``None`` which
+                        # contradicted the "deterministic result list"
+                        # contract and obliterated handler results.
+                        results.append(task)
                 else:
                     result = handler(event)
                     results.append(result)

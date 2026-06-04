@@ -51,6 +51,26 @@ class ScanAnomalyDetector:
 
         mean, std_dev = self._stats(self._latencies)
         if std_dev == 0.0:
+            # Bug #34 fix: a zero standard deviation means *every* historical
+            # sample had the same latency. The previous implementation
+            # unconditionally returned "not anomalous" in that case, which
+            # masked a *shifted* baseline: if all 100 samples were 50ms and
+            # the current latency is 2000ms, that is exactly the kind of
+            # catastrophic change we want to flag. Compare against the mean
+            # using a relative threshold (10x the mean, with a small absolute
+            # floor) so we still react to spikes on a stable baseline.
+            if mean <= 0.0:
+                return {"anomaly": False, "z_score": 0.0, "status": "stable"}
+            deviation_ratio = abs(current_latency - mean) / mean
+            if deviation_ratio >= 10.0 or current_latency - mean >= 5.0:
+                return {
+                    "anomaly": True,
+                    "z_score": float("inf"),
+                    "mean": round(mean, 4),
+                    "std_dev": 0.0,
+                    "current": round(current_latency, 4),
+                    "status": "ANOMALOUS_SHIFT",
+                }
             return {"anomaly": False, "z_score": 0.0, "status": "stable"}
 
         z_score = (current_latency - mean) / std_dev

@@ -298,7 +298,3 @@ class TestNoDirectSubprocessCalls:
             "Tool adapters must not call subprocess directly. "
             "Use run_external_tool(ToolInvocation(...)) instead.\n" + "\n".join(violations)
         )
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-q"])
