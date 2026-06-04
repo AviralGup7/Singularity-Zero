@@ -90,7 +90,7 @@ def resolve_priority_limit(
             # API targets get the correct narrow limit.
             if total_urls > 0 and total_urls <= 80:
                 selected = configured.get("small_target")
-            elif bool(profile.get("api_heavy", False)):
+            if selected is None and bool(profile.get("api_heavy", False)):
                 selected = configured.get("api_heavy")
         if selected is None:
             selected = configured.get("default", 100)

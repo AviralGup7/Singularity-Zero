@@ -30,6 +30,17 @@ _DNS_CACHE_LOCK = threading.Lock()
 _DNS_CACHE_MAX_ENTRIES = 4096
 _DNS_NEGATIVE_TTL_SECONDS = 5.0
 
+# In-flight resolution tracking. When the cache for a hostname has just
+# expired, we want exactly one thread to perform the getaddrinfo() call
+# and have every concurrent caller wait on the same in-flight Event
+# rather than all stampeding the resolver simultaneously.
+#
+# The mapping holds ``hostname -> threading.Event`` for hostnames whose
+# resolution is currently underway. A second caller that arrives while
+# the resolution is in flight acquires the Event and waits.
+_DNS_INFLIGHT: dict[str, threading.Event] = {}
+_DNS_INFLIGHT_LOCK = threading.Lock()
+
 # Bug #10 fix: use an OrderedDict so we can evict the *least recently
 # inserted* entry on overflow instead of clearing the entire cache.
 # ``OrderedDict`` was previously imported elsewhere; ensure it's
@@ -60,6 +71,14 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
     """Resolve hostname with cache; returns None on resolution failure.
 
     Returns the tuple of resolved IP strings or None if unresolvable.
+
+    Concurrency: when a cache entry has expired, multiple threads may
+    reach this point at the same time. We use an in-flight ``Event``
+    to ensure only one thread actually calls ``getaddrinfo`` for a
+    given hostname; the others wait on the Event and then read the
+    freshly-cached result. This eliminates the DNS thundering-herd
+    that previously caused a stampede of re-resolutions on a busy
+    scanner hitting a popular host.
     """
     now = time.monotonic()
     with _DNS_CACHE_LOCK:
@@ -69,16 +88,48 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
             if now < expires:
                 return ips
 
+    # Either become the leader for this hostname, or wait for the
+    # in-flight leader to finish. Only one thread per hostname will
+    # perform the actual ``getaddrinfo`` call.
+    with _DNS_INFLIGHT_LOCK:
+        inflight = _DNS_INFLIGHT.get(hostname)
+        if inflight is None:
+            inflight = threading.Event()
+            _DNS_INFLIGHT[hostname] = inflight
+            is_leader = True
+        else:
+            is_leader = False
+
+    if not is_leader:
+        # Follower: wait for the leader to finish, then re-read the cache.
+        inflight.wait(timeout=timeout + 1.0)
+        with _DNS_CACHE_LOCK:
+            cached = _DNS_CACHE.get(hostname)
+            if cached is not None:
+                expires, ips = cached
+                if now < expires:
+                    return ips
+        # Leader timed out or otherwise failed to update the cache; fall
+        # through and perform our own resolution as a best-effort.
+
     try:
         addr_infos = socket.getaddrinfo(hostname, None)
     except (TimeoutError, socket.gaierror, OSError):
         with _DNS_CACHE_LOCK:
             _lru_dns_insert(hostname, now + _DNS_NEGATIVE_TTL_SECONDS, None)
+        if is_leader:
+            with _DNS_INFLIGHT_LOCK:
+                _DNS_INFLIGHT.pop(hostname, None)
+            inflight.set()
         return None
 
     ips: tuple[str, ...] = tuple({str(sockaddr[0]) for _, _, _, _, sockaddr in addr_infos})
     with _DNS_CACHE_LOCK:
         _lru_dns_insert(hostname, now + _DNS_CACHE_TTL_SECONDS, ips)
+    if is_leader:
+        with _DNS_INFLIGHT_LOCK:
+            _DNS_INFLIGHT.pop(hostname, None)
+        inflight.set()
     return ips
 
 
@@ -142,11 +193,23 @@ def is_safe_url(url: str) -> bool:
     try:
         ipaddress.ip_address(hostname)
     except ValueError:
-        # Not a literal IP — fall through to hostname / DNS check below.
+        # hostname is a domain name, not an IP literal — fall through to
+        # the well-known hostnames + DNS check below.
+        ip_addr = None
+    else:
+        ip_addr = "literal"
+    if ip_addr is None:
+        # Block well-known private/loopback hostnames
+        if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # nosec B104 # noqa: S104
+            return False
+        # Block cloud metadata IPs
+        if hostname == "169.254.169.254":
+            return False
+        # SECURITY: Resolve DNS to prevent SSRF via domain rebinding/loopback.
+        # Fail-closed if resolution fails or any resolved IP is private.
         return not _host_resolves_to_private(hostname)
-    if _is_ip_private(hostname):
-        return False
-    return True
+    # Bare IP literal: check that it is not in a private/loopback range.
+    return not _is_ip_private(hostname)
     # Block well-known private/loopback hostnames
     if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # nosec B104 # noqa: S104
         return False
