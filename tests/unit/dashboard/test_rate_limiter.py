@@ -220,7 +220,8 @@ class TestRateLimiterConcurrency(unittest.TestCase):
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10.0)
+            assert not t.is_alive(), "worker thread did not terminate"
 
         self.assertEqual(len(results), 10)
         self.assertTrue(all(results))

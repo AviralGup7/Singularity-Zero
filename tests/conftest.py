@@ -5,6 +5,7 @@ _original_getaddrinfo = socket.getaddrinfo
 
 import ipaddress
 
+
 def _mock_getaddrinfo(host, port, *args, **kwargs):
     if not host:
         return _original_getaddrinfo(host, port, *args, **kwargs)
@@ -17,7 +18,6 @@ def _mock_getaddrinfo(host, port, *args, **kwargs):
         pass
     return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", port or 80))]
 
-socket.getaddrinfo = _mock_getaddrinfo
 
 import sys
 import types
@@ -56,6 +56,14 @@ from tests.factories import (
     RequestBuilder,
     ResponseBuilder,
 )
+
+
+@pytest.fixture(autouse=True)
+def _offline_dns_mock(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
+    """Auto-applied fixture: route external DNS lookups to 8.8.8.8 so tests
+    run in offline sandboxes. Localhost / literal IPs are preserved."""
+    monkeypatch.setattr(socket, "getaddrinfo", _mock_getaddrinfo)
+    yield
 
 
 @pytest.fixture

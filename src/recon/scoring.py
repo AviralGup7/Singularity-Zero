@@ -527,14 +527,23 @@ def compute_aggregate_risk_score(
     for finding in modeled_findings:
         sev = str(finding.get("severity", "info")).strip().lower() or "info"
         severity_counts[sev] = severity_counts.get(sev, 0) + 1
-        weight = float(finding.get("severity_score", 0.0))
+        weight = float(finding.get("severity_score", 0.0) or 0.0)
         total_weighted += weight
 
         category = str(finding.get("category", "uncategorized")).strip().lower() or "uncategorized"
         category_scores[category] = category_scores.get(category, 0) + weight
 
-        if severity_order.index(sev) < severity_order.index(max_severity):
-            max_severity = sev
+        # Guard against unknown severity values (e.g. "moderate", "warning",
+        # scanner-specific tags) that are not in the canonical list.
+        # ``severity_order.index`` raises ``ValueError`` on a miss and would
+        # crash the entire scoring run.
+        if sev not in severity_order:
+            sev_for_compare = "info"
+        else:
+            sev_for_compare = sev
+        if sev_for_compare in severity_order and max_severity in severity_order:
+            if severity_order.index(sev_for_compare) < severity_order.index(max_severity):
+                max_severity = sev_for_compare
 
     finding_count = len(modeled_findings)
     avg_score = round(total_weighted / finding_count, 2) if finding_count > 0 else 0.0

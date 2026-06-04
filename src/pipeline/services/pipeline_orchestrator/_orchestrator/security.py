@@ -29,6 +29,12 @@ from .._constants import STAGE_ORDER
 
 logger = get_pipeline_logger(__name__)
 
+# Minimum checkpoint_version we know how to read. Bump this whenever
+# the persisted context shape changes incompatibly. Older checkpoints
+# are refused at recovery time (see ``run_secured``).
+CHECKPOINT_MIN_VERSION = 2
+CHECKPOINT_CURRENT_VERSION = 2
+
 
 def find_previous_run(target_root: Path) -> Path | None:
     """Find the previous run directory for trend analysis."""
@@ -84,18 +90,46 @@ async def run_secured(
             "scope_entries",
             "stage_status",
         }.issubset(recovered_payload):
-            logger.info(
-                "Recovering from full context checkpoint: run=%s completed_stages=%s",
-                rec_run_id,
-                recovered_state.completed_stages,
-            )
-            ctx = PipelineContext.restore(recovered_payload)
-            checkpoint_mgr = recovered_checkpoint_mgr
-            orchestrator._checkpoint_mgr = checkpoint_mgr
-            run_id = rec_run_id
-            remaining_stages = [
-                stage for stage in STAGE_ORDER if stage not in recovered_completed_stages
-            ]
+            # Validate the checkpoint is for the same target AND a
+            # compatible schema version. The previous implementation
+            # accepted any payload with these two top-level keys, so a
+            # stale checkpoint from a previous run with the same target
+            # name would be silently resumed — replaying thousands of
+            # stages against a stale world.
+            payload_target = str(recovered_payload.get("target_name", "")).strip()
+            payload_version = recovered_payload.get("checkpoint_version", 0)
+            try:
+                payload_version_int = int(payload_version)
+            except (TypeError, ValueError):
+                payload_version_int = 0
+            if payload_target and payload_target != config.target_name:
+                logger.warning(
+                    "Skipping checkpoint recovery for run=%s: target mismatch (%r != %r)",
+                    rec_run_id,
+                    payload_target,
+                    config.target_name,
+                )
+            elif payload_version_int < CHECKPOINT_MIN_VERSION:
+                logger.warning(
+                    "Skipping checkpoint recovery for run=%s: checkpoint_version %s is below "
+                    "supported minimum %s",
+                    rec_run_id,
+                    payload_version_int,
+                    CHECKPOINT_MIN_VERSION,
+                )
+            else:
+                logger.info(
+                    "Recovering from full context checkpoint: run=%s completed_stages=%s",
+                    rec_run_id,
+                    recovered_state.completed_stages,
+                )
+                ctx = PipelineContext.restore(recovered_payload)
+                checkpoint_mgr = recovered_checkpoint_mgr
+                orchestrator._checkpoint_mgr = checkpoint_mgr
+                run_id = rec_run_id
+                remaining_stages = [
+                    stage for stage in STAGE_ORDER if stage not in recovered_completed_stages
+                ]
         else:
             logger.warning(
                 "Skipping checkpoint recovery for run=%s: incompatible checkpoint payload "

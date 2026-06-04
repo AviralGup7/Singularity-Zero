@@ -41,6 +41,25 @@ SCORE_THRESHOLDS = (
     (0.0, "info"),
 )
 DEFAULT_DB_PATH = Path(".pipeline") / "telemetry.db"
+# Fallback version string used when no active model is registered yet.
+DEFAULT_ACTIVE_MODEL_VERSION = "severity-logreg-v1"
+
+
+def get_default_active_version(registry: Any | None) -> str:
+    """Return the registry's active ``severity_model`` version, or the
+    hard-coded default if no model is active yet. Public helper used by
+    both ``predict`` and ``enrich_finding`` so they never disagree.
+    """
+    if registry is None:
+        return DEFAULT_ACTIVE_MODEL_VERSION
+    try:
+        active = registry.get_active_model("severity_model")
+    except AttributeError:
+        # Older test doubles that don't implement the public accessor.
+        return DEFAULT_ACTIVE_MODEL_VERSION
+    if active is None:
+        return DEFAULT_ACTIVE_MODEL_VERSION
+    return active.version
 
 
 @dataclass(frozen=True)
@@ -205,10 +224,17 @@ class CalibratedSeverityModel:
         self.plugin_rates: dict[str, tuple[int, int]] = {}
         self.param_rates: dict[str, tuple[int, int]] = {}
 
-        # Initialize thread-safe registry and pipeline using lazy imports to prevent circular dependencies
-        from src.intelligence.ml import ModelVersionRegistry, XGBoostSeverityPipeline
+        # Use a process-wide singleton registry. Previously each
+        # ``CalibratedSeverityModel`` instance and ``ActiveLearningController``
+        # had its own registry, so retrains done by the active-learning loop
+        # were invisible to the serving predictor.
+        from src.intelligence.ml import (
+            ModelVersionRegistry,
+            XGBoostSeverityPipeline,
+            get_default_model_registry,
+        )
 
-        self.registry = ModelVersionRegistry()
+        self.registry = get_default_model_registry()
         self.pipeline = XGBoostSeverityPipeline()
 
         self._train()
@@ -220,16 +246,16 @@ class CalibratedSeverityModel:
     def predict(self, finding: dict[str, Any]) -> SeverityPrediction:
         start_time = time.time()
 
-        # Safely obtain active pipeline from registry
+        # Use the registry's public accessors so we don't reach into private
+        # state. Falls back to the locally-attached pipeline if the registry
+        # has nothing active yet.
         pipeline = getattr(self, "pipeline", None)
-        active_ver = "severity-logreg-v1"
-        if hasattr(self, "registry") and self.registry:
-            active_pipeline = self.registry._pipelines.get("severity_model")
-            if active_pipeline:
-                pipeline = active_pipeline
-            active_model = self.registry._active.get("severity_model")
-            if active_model:
-                active_ver = active_model.version
+        active_ver = get_default_active_version(self.registry)
+        active_pipeline = None
+        if self.registry is not None:
+            active_pipeline = self.registry.get_active_pipeline("severity_model")
+        if active_pipeline is not None:
+            pipeline = active_pipeline
 
         # Get raw probability from the pipeline (safeguarded)
         if pipeline is not None and hasattr(pipeline, "predict_probability"):
@@ -282,10 +308,10 @@ class CalibratedSeverityModel:
         return prediction
 
     def enrich_finding(self, finding: dict[str, Any]) -> dict[str, Any]:
-        active_ver = "severity-logreg-v1"
-        if hasattr(self, "registry") and self.registry:
-            active_model = self.registry._active.get("severity_model")
-            if active_model:
+        active_ver = get_default_active_version(self.registry)
+        if self.registry is not None:
+            active_model = self.registry.get_active_model("severity_model")
+            if active_model is not None:
                 active_ver = active_model.version
 
         current_metadata = finding.get("severity_model") or {}
@@ -326,14 +352,27 @@ class CalibratedSeverityModel:
             "legacy_impact": 1.0,
             "reproducible": 1.1,
         }
+        # Run training synchronously. Previously, if we were inside a running
+        # event loop the training future was fire-and-forget and ``predict``
+        # could run on uninitialised weights (deterministic zero scores).
+        # Training is a small SQLite read + a few iterations of in-memory
+        # arithmetic; blocking the event loop briefly is preferable to
+        # serving the wrong scores. The recommended construction pattern is
+        # to build ``CalibratedSeverityModel`` *before* the event loop
+        # starts (e.g. at app startup), in which case this branch is
+        # naturally non-blocking.
+        import asyncio
+
         try:
-            import asyncio
             loop = asyncio.get_running_loop()
-            if loop.is_running():
-                loop.run_in_executor(None, self._do_train)
-                return
         except RuntimeError:
-            pass
+            loop = None
+
+        if loop is not None and loop.is_running():
+            logger.warning(
+                "CalibratedSeverityModel._train() called from within a running event loop; "
+                "running synchronously. Construct the model before the loop starts to avoid this."
+            )
         self._do_train()
 
     def _do_train(self) -> None:

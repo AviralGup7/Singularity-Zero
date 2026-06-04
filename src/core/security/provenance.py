@@ -8,15 +8,52 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-# Default trusted high-entropy public key for local development
-# Generate a new pair in production and configure NUCLEI_SIGNATURE_PUBLIC_KEY
-DEFAULT_TRUSTED_PUBKEY = "8c6f1406e2cf6fb4ef1e97d191d8481dfb152d1136c1e550e6ee693b7df0898c"
+logger = logging.getLogger(__name__)
+
+# Environment that requires an explicit, non-default public key.
+_PROD_ENVIRONMENTS = frozenset({"production", "prod", "staging", "stage"})
+
+# Dev-only public key, intentionally retained for local development.
+# Production deployments MUST set NUCLEI_SIGNATURE_PUBLIC_KEY to a key
+# they generated themselves. A bare dev key in production would allow
+# an attacker who can sign templates with the corresponding private
+# key (which is checked into this public repository) to inject
+# arbitrary Nuclei templates.
+DEFAULT_DEV_TRUSTED_PUBKEY = "8c6f1406e2cf6fb4ef1e97d191d8481dfb152d1136c1e550e6ee693b7df0898c"
+
+
+def _resolve_environment() -> str:
+    """Best-effort detection of the current runtime environment."""
+    for var in ("APP_ENV", "ENVIRONMENT", "ENV", "PIPELINE_ENV"):
+        raw = os.getenv(var)
+        if raw:
+            return raw.strip().lower()
+    return ""
+
+
+def _resolve_trusted_pubkey() -> str:
+    """Return the public key to trust, refusing the dev default in prod."""
+    pubkey_hex = os.getenv("NUCLEI_SIGNATURE_PUBLIC_KEY")
+    if pubkey_hex:
+        return pubkey_hex.strip()
+    if _resolve_environment() in _PROD_ENVIRONMENTS:
+        raise ValueError(
+            "Provenance Error: NUCLEI_SIGNATURE_PUBLIC_KEY is required in "
+            "production-like environments; refusing to fall back to the "
+            "embedded development key."
+        )
+    logger.warning(
+        "Provenance: using embedded development public key. Set "
+        "NUCLEI_SIGNATURE_PUBLIC_KEY before any non-development use."
+    )
+    return DEFAULT_DEV_TRUSTED_PUBKEY
 
 
 def verify_provenance(template_path: str | Path, manifest_dir: str | Path) -> bool:
@@ -50,9 +87,9 @@ def verify_provenance(template_path: str | Path, manifest_dir: str | Path) -> bo
     except ValueError as exc:
         raise ValueError("Provenance Error: Invalid signature format (must be hex)") from exc
 
-    # Load trusted public key
-    pubkey_hex = os.getenv("NUCLEI_SIGNATURE_PUBLIC_KEY", DEFAULT_TRUSTED_PUBKEY)
+    # Load trusted public key (refuses dev default in production).
     try:
+        pubkey_hex = _resolve_trusted_pubkey()
         pubkey_bytes = bytes.fromhex(pubkey_hex)
         public_key = ed25519.Ed25519PublicKey.from_public_bytes(pubkey_bytes)
     except Exception as exc:

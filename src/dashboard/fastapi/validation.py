@@ -128,6 +128,31 @@ def _resolve_hostname(hostname: str) -> str | None:
         return None
 
 
+def _resolve_hostname_stable(hostname: str, samples: int = 3) -> str | None:
+    """Resolve ``hostname`` multiple times and require the answer to be stable.
+
+    A bare ``socket.gethostbyname`` check is racy: an attacker controlling
+    the authoritative DNS for the replay target can return a public IP for
+    the validation lookup and a private/metadata IP for the subsequent
+    fetch (TOCTOU). Resolving several times in a row and rejecting the
+    hostname when the answer flips makes this attack far harder, though
+    it does not eliminate the TOCTOU window. Callers that need a
+    *hard* guarantee must additionally pin the resolved IP at request time
+    (see ``src.dashboard.fastapi.ssrf_fetch`` for the helper used by the
+    fetch layer).
+    """
+    addresses: list[str] = []
+    for _ in range(max(1, samples)):
+        addr = _resolve_hostname(hostname)
+        if addr is None:
+            return None
+        if addr not in addresses:
+            # Answer flipped between samples - reject as a rebinding attempt.
+            return None
+        addresses.append(addr)
+    return addresses[0] if addresses else None
+
+
 def _get_replay_allowlist() -> set[str]:
     raw = os.environ.get("DASHBOARD_REPLAY_ALLOWLIST", "")
     return {item.strip().lower() for item in raw.split(",") if item.strip()}
@@ -142,6 +167,42 @@ def is_safe_replay_url(url: str) -> bool:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        if hostname in _get_replay_allowlist():
+            return True
+        if _is_ip_literal(hostname):
+            ip = ipaddress.ip_address(hostname)
+            if str(ip) == _CLOUD_METADATA_IP:
+                _log_ssrf_block(url, "Cloud metadata IP literal")
+                return False
+            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+                _log_ssrf_block(url, "IP literal is private/loopback/reserved/link-local")
+                return False
+        lower_host = hostname.lower()
+        if lower_host.endswith(_BLOCKED_SUFFIXES):
+            _log_ssrf_block(url, "Special-use domain suffix")
+            return False
+        # Resolve the hostname multiple times to detect DNS rebinding. A
+        # naive single resolve leaves a TOCTOU window: an attacker can
+        # return a public IP for the safety check and a private/metadata
+        # IP for the subsequent fetch. Rejecting the URL when the answer
+        # flips between samples closes most of that window.
+        ip_str = _resolve_hostname_stable(hostname)
+        if ip_str is None:
+            _log_ssrf_block(url, "DNS rebinding detected: resolution unstable or failed")
+            return False
+        if ip_str == _CLOUD_METADATA_IP:
+            _log_ssrf_block(url, "Resolves to cloud metadata IP")
+            return False
+        ip = ipaddress.ip_address(ip_str)
+        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+            _log_ssrf_block(url, "Resolved IP is private/loopback/reserved/link-local")
+            return False
+        return True
+    except (ValueError, OSError, socket.gaierror):
+        return False
         hostname = parsed.hostname
         if not hostname:
             return False
@@ -183,16 +244,23 @@ def security_headers() -> dict[str, str]:
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
+        # SECURITY: the CSP no longer permits ``unsafe-inline`` for styles.
+        # Frontend code is expected to ship a static stylesheet; if a
+        # dynamic style is required, use a nonce or a hash and append it
+        # to ``style-src``. ``frame-ancestors 'none'`` is the modern
+        # equivalent of ``X-Frame-Options: DENY``.
         "Content-Security-Policy": (
             "default-src 'self'; "
             "script-src 'self'; "
-            "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+            "style-src 'self' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data:; "
             "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
-            "form-action 'self'"
+            "form-action 'self'; "
+            "object-src 'none'; "
+            "upgrade-insecure-requests"
         ),
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "geolocation=(), camera=(), microphone=()",

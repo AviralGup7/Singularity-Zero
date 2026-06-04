@@ -209,10 +209,18 @@ def compute_baseline_from_run(
     scope_size = len(pipeline_result.get("scope_entries", []))
     findings_per_subdomain = total_findings / max(subdomains, 1)
 
-    duration = metrics.get("reporting", {}).get("duration_seconds", 0)
-    for stage_metrics in metrics.values():
-        if isinstance(stage_metrics, dict) and "duration_seconds" in stage_metrics:
-            duration += stage_metrics.get("duration_seconds", 0)
+    duration = 0.0
+    for stage_name, stage_metrics in metrics.items():
+        if not isinstance(stage_metrics, dict):
+            continue
+        if "duration_seconds" not in stage_metrics:
+            continue
+        # Bug #36 fix: previously the code captured the ``reporting`` stage's
+        # duration into ``duration`` first, then iterated ``metrics.values()``
+        # and added ``stage_metrics["duration_seconds"]`` again - so the
+        # reporting stage was counted twice. We now sum each stage's duration
+        # exactly once, regardless of order.
+        duration += float(stage_metrics.get("duration_seconds", 0) or 0)
 
     fp_count = sum(1 for f in findings if f.get("decision", "").upper() == "FALSE_POSITIVE")
     fp_rate = fp_count / max(total_findings, 1)

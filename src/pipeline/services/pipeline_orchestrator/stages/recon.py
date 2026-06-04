@@ -1,5 +1,7 @@
 """Reconnaissance stages for the pipeline."""
 
+import asyncio
+import os
 from functools import partial
 from typing import Any, cast
 
@@ -7,7 +9,6 @@ from src.analysis.behavior.service import run_service_enrichment
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext
-from src.core.utils import normalize_scope_entry
 from src.pipeline.runner_support import (
     emit_progress,
     emit_stage_summary,
@@ -142,17 +143,22 @@ async def run_subdomain_enumeration(
         )
 
         # Write to output store (side effect allowed in wrapper)
-        ctx.output_store.write_subdomains(subdomains)
+        if ctx.output_store is not None:
+            ctx.output_store.write_subdomains(subdomains)
+        else:
+            logger.warning(
+                "Stage 'subdomains': ctx.output_store is None, skipping write_subdomains()"
+            )
 
         return cast(StageOutput, stage_output)
 
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'subdomains' failed: %s", exc)
-        fallback_subdomains = {
-            normalize_scope_entry(entry).strip().lower()
-            for entry in ctx.scope_entries
-            if normalize_scope_entry(entry).strip()
-        }
+        # NOTE: We deliberately do not fall back to ``ctx.scope_entries``
+        # here. Silently substituting scope entries as "subdomains" hides
+        # the real failure from downstream stages and leads to nonsense
+        # results in the live_hosts/urls stages. Instead, return an empty
+        # set with a clear failure status.
         _record_recon_failure(
             stage_name="subdomains",
             ctx=ctx,
@@ -168,7 +174,7 @@ async def run_subdomain_enumeration(
             duration_seconds=0.0,
             error=str(exc),
             reason="subdomain_stage_wrapper_exception",
-            state_delta={"subdomains": fallback_subdomains},
+            state_delta={"subdomains": set()},
         )
 
 
@@ -393,13 +399,28 @@ async def run_url_collection(
 
             bucket_scanner = CloudBucketScanner()
             emit_progress("urls", "Scanning Cloud storage buckets", 70)
-            bucket_findings = bucket_scanner.run_scan_sync(target_name)
+            # ``run_scan_sync`` is a blocking call that issues dozens of
+            # HTTPS requests to AWS/GCP/Azure enumeration endpoints.
+            # Running it inline blocks the event loop and stalls every
+            # other concurrent stage (URL collection, parameter
+            # extraction, …). Push it to a worker thread.
+            bucket_findings = await asyncio.to_thread(
+                bucket_scanner.run_scan_sync, target_name
+            )
             logger.info(
                 "Cloud bucket scan found %d exposed/secure containers", len(bucket_findings)
             )
 
-            with open(target_root / "cloud_buckets.json", "w", encoding="utf-8") as f:
+            # Atomic write: write to a temp file, fsync, ``os.replace``
+            # # so a crash mid-write never leaves a half-written
+            # ``cloud_buckets.json`` for downstream stages to consume.
+            bucket_path = target_root / "cloud_buckets.json"
+            tmp_path = bucket_path.with_suffix(bucket_path.suffix + ".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(bucket_findings, f, indent=2, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, bucket_path)
 
             # 2. Automatic API Schema Reconstruction
             from src.recon.api_reconstructor import ApiSchemaReconstructor
@@ -521,6 +542,19 @@ async def run_parameter_extraction(
         return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'parameters' failed: %s", exc)
+        # Mirror the behaviour of the other recon failure paths: record the
+        # failure in the context so downstream stages and post-run reporting
+        # see the parameters stage as failed (previously this branch silently
+        # returned a FAILED ``StageOutput`` without touching ``ctx``).
+        _record_recon_failure(
+            stage_name="parameters",
+            ctx=ctx,
+            reason_code="parameter_stage_exception",
+            error=f"Parameter extraction failed: {exc}",
+            details={"exception_type": exc.__class__.__name__},
+            duration_seconds=0.0,
+            fatal=True,
+        )
         return StageOutput(
             stage_name="parameters",
             outcome=StageOutcome.FAILED,

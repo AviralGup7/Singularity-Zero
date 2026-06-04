@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
-from src.analysis.helpers import build_manual_hint
+from src.analysis.helpers import build_manual_hint  # noqa: F401
 
 # Type alias for spec tuples
 SpecTuple = tuple[
@@ -30,7 +30,7 @@ def get_all_specs() -> list[SpecTuple]:
 
 
 # Import all spec modules to populate the registry (must come AFTER register_spec definition)
-from . import (  # noqa: E402
+from . import (  # noqa: E402,F401
     access_boundary,
     admin_panel,
     ai_surface,

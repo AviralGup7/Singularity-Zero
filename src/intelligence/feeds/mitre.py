@@ -258,12 +258,34 @@ class MitreAttackMapper(BaseFeedConnector):
         """
         data = await self._load_enterprise_data()
         attack_patterns = data.get("attack-pattern", [])
-        techniques: list[MitreTechnique] = []
+        # MITRE STIX kill_chain_phases[*].phase_name holds the *shortname*
+        # (e.g. "initial-access"), NOT the TA-id. Previously this code
+        # compared against "0002"-style ids, so the workflow always returned
+        # an empty list. We now resolve TA-id -> shortname via the tactics
+        # table (built lazily) and accept either form from the caller.
+        tactics = data.get("x-mitre-tactic", [])
+        shortnames_by_id: dict[str, str] = {}
+        for tac in tactics:
+            if not isinstance(tac, dict):
+                continue
+            external_refs = tac.get("external_references", [])
+            mitre_id = None
+            for ref in external_refs:
+                if ref.get("source_name") == "mitre-attack" and ref.get("external_id"):
+                    mitre_id = ref.get("external_id")
+                    break
+            shortname = tac.get("x_mitre_shortname", "")
+            if mitre_id and shortname:
+                shortnames_by_id[mitre_id.lower()] = shortname.lower()
+        target = (tactic_id or "").strip().lower()
+        target_shortname = shortnames_by_id.get(target, target)
 
+        techniques: list[MitreTechnique] = []
         for obj in attack_patterns:
             kill_chains = obj.get("kill_chain_phases", [])
             for phase in kill_chains:
-                if phase.get("phase_name") == tactic_id.lower().replace("ta", ""):
+                phase_name = (phase.get("phase_name") or "").strip().lower()
+                if phase_name == target_shortname:
                     technique = self._parse_technique(obj, attack_patterns)
                     techniques.append(technique)
                     break

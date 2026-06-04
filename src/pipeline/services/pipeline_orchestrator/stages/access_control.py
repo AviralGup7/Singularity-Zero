@@ -264,10 +264,21 @@ async def run_access_control_testing(
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.error("Stage 'access_control' failed: %s", exc)
         ctx.mark_stage_failed("access_control", str(exc))
-        state_delta["module_metrics"]["access_control"] = {
-            "status": "error",
-            "error": str(exc),
-            "duration_seconds": round(time.monotonic() - stage_started, 2),
+        # The previous implementation returned the same ``state_delta``
+        # object that the in-flight (failed) code may have partially
+        # mutated, leaking stale ``reportable_findings`` and ``module_metrics``
+        # into downstream stages. Build a fresh delta so the FAILED
+        # outcome is self-contained and only carries error metadata.
+        error_metrics = {
+            "access_control": {
+                "status": "error",
+                "error": str(exc),
+                "duration_seconds": round(time.monotonic() - stage_started, 2),
+            }
+        }
+        fresh_state_delta: dict[str, Any] = {
+            "module_metrics": error_metrics,
+            "reportable_findings": [],
         }
         duration = round(time.monotonic() - stage_started, 2)
         return StageOutput(
@@ -276,8 +287,8 @@ async def run_access_control_testing(
             duration_seconds=duration,
             error=str(exc),
             reason="access_control_stage_exception",
-            metrics=state_delta["module_metrics"]["access_control"],
-            state_delta=state_delta,
+            metrics=error_metrics["access_control"],
+            state_delta=fresh_state_delta,
         )
 
 

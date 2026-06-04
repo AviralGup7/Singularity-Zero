@@ -19,6 +19,13 @@ import redis
 
 from src.core.frontier.state import NeuralState, stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.queue.redis_config import (
+    REDIS_BACKOFF_SECONDS,
+    REDIS_TIMEOUT_SECONDS,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_MAX_RETRIES as REDIS_RETRIES,
+)
 
 logger = get_pipeline_logger(__name__)
 
@@ -31,9 +38,6 @@ _AOF_LOCKS: dict[str, threading.Lock] = {}
 _AOF_LOCKS_GUARD = threading.Lock()
 _REDIS_STREAM_ID_RE = re.compile(r"^\d+-\d+$")
 _AOF_RETENTION_SECONDS = 7 * 24 * 60 * 60
-REDIS_TIMEOUT_SECONDS = 5
-REDIS_RETRIES = 2
-REDIS_BACKOFF_SECONDS = 0.1
 
 
 def _init_crc64_table() -> None:
@@ -170,7 +174,7 @@ class FrontierWAL:
             )
             self._redis_call(lambda: self._client.ping(), mark_inactive=False)
             self._active = True
-        except (redis.exceptions.RedisError, ValueError, ConnectionError, Exception) as exc:
+        except (redis.exceptions.RedisError, ValueError, ConnectionError) as exc:
             logger.warning("Frontier WAL inactive: Redis connection failed: %s", exc)
             self._active = False
 
@@ -219,7 +223,7 @@ class FrontierWAL:
                     except OSError as e:
                         logger.debug("WAL AOF fsync failed (might be virtual/mocked drive): %s", e)
             return True
-        except (OSError, TypeError, ValueError, Exception) as exc:
+        except (OSError, TypeError, ValueError) as exc:
             logger.error("WAL AOF append failed for stage '%s': %s", stage_name, exc)
             return False
 
@@ -260,7 +264,7 @@ class FrontierWAL:
                         )
                     )
                     stream_id = entry_id.decode() if isinstance(entry_id, bytes) else str(entry_id)
-                except (redis.exceptions.RedisError, ValueError, TypeError, Exception) as exc:
+                except (redis.exceptions.RedisError, ValueError, TypeError) as exc:
                     self._active = False
                     logger.warning(
                         "WAL Redis append failed for stage '%s'; attempting AOF fallback: %s",
@@ -290,12 +294,7 @@ class FrontierWAL:
                 stage_name,
             )
             return None
-        except (
-            ValueError,
-            TypeError,
-            AttributeError,
-            Exception,
-        ) as exc:
+        except (ValueError, TypeError, AttributeError) as exc:
             logger.error("WAL append failed for stage '%s': %s", stage_name, exc)
             return None
 

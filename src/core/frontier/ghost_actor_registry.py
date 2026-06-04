@@ -8,13 +8,18 @@ from typing import Any, cast
 
 from src.core.frontier.marshaller import mesh_marshal, mesh_unmarshal
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.queue.redis_config import (
+    REDIS_BACKOFF_SECONDS,
+    REDIS_TIMEOUT_SECONDS,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_MAX_RETRIES as REDIS_RETRIES,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_RECONNECT_SECONDS as DEGRADED_RETRY_SECONDS,
+)
 
 logger = get_pipeline_logger(__name__)
-
-REDIS_TIMEOUT_SECONDS = 3.0
-REDIS_RETRIES = 2
-REDIS_BACKOFF_SECONDS = 0.1
-DEGRADED_RETRY_SECONDS = 30.0
 
 
 class GhostMeshRegistry:

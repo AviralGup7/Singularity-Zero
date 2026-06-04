@@ -4,6 +4,7 @@ Provides run_recon_commands_parallel for executing external recon tools concurre
 with retry support, and normalization helpers from src.core.utils.
 """
 
+import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -52,7 +53,7 @@ def run_recon_commands_parallel(
             command, stdin_text, timeout, retry_policy = job
             normalized_jobs.append((command, stdin_text, timeout, retry_policy))
 
-    with ThreadPoolExecutor(max_workers=min(8, len(jobs))) as executor:
+    with ThreadPoolExecutor(max_workers=_resolve_max_workers(len(jobs))) as executor:
         futures = [
             executor.submit(try_command, list(command), timeout, stdin_text, retry_policy)
             for command, stdin_text, timeout, retry_policy in normalized_jobs
@@ -61,6 +62,21 @@ def run_recon_commands_parallel(
 
 
 run_commands_parallel = run_recon_commands_parallel
+
+
+def _resolve_max_workers(job_count: int) -> int:
+    """Resolve the ThreadPool worker count for parallel recon commands.
+
+    The previous implementation hard-coded ``min(8, len(jobs))`` which
+    could exhaust file descriptors and DNS resolvers on large-scope
+    scans. Operators can now drive this from the environment via
+    ``RECON_MAX_PARALLEL_COMMANDS`` (default 8).
+    """
+    try:
+        configured = int(os.environ.get("RECON_MAX_PARALLEL_COMMANDS", "8"))
+    except (TypeError, ValueError):
+        configured = 8
+    return max(1, min(configured, max(1, job_count)))
 
 
 def run_commands_parallel_outcomes(
@@ -85,7 +101,7 @@ def run_commands_parallel_outcomes(
             command, stdin_text, timeout, retry_policy = job
             normalized_jobs.append((command, stdin_text, timeout, retry_policy))
 
-    with ThreadPoolExecutor(max_workers=min(8, len(jobs))) as executor:
+    with ThreadPoolExecutor(max_workers=_resolve_max_workers(len(jobs))) as executor:
         futures = [
             executor.submit(execute_command, list(command), timeout, stdin_text, retry_policy)
             for command, stdin_text, timeout, retry_policy in normalized_jobs

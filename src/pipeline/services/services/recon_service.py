@@ -251,13 +251,19 @@ async def run_subdomain_enumeration_service(
             state_delta=state_delta,
         )
     except Exception as exc:
+        # Recon failure: return an empty subdomains set so callers can
+        # detect a real outage. The previous fallback silently
+        # substituted ``seed_roots`` as "subdomains", which the wrapper
+        # at ``stages/recon.py:run_subdomain_enumeration`` then took at
+        # face value and reported as discovered subdomains — masking
+        # genuine outages. The wrapper now refuses this fallback.
         return StageOutput(
             stage_name=stage_input.stage_name,
             outcome=StageOutcome.FAILED,
             duration_seconds=time.monotonic() - started,
             error=str(exc),
             reason="subdomain_enumeration_failed",
-            state_delta={"subdomains": set(seed_roots)},
+            state_delta={"subdomains": set()},
         )
 
 

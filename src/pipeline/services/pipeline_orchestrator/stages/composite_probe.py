@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -11,6 +12,24 @@ from .probe_runners import _run_fuzzing_suggestion_probe, _try_probe
 from .probe_suites import _run_auth_bypass_suite, _run_json_probe_suite
 
 logger = get_pipeline_logger(__name__)
+
+# Maximum number of concurrent probe tasks across all URLs in a single
+# composite-probe invocation. Without this bound, a 200-URL target runs
+# 12 probes per URL = 2 400 in-flight HTTP requests, exhausting connection
+# pools and triggering target-side rate-limits. Tunable via
+# ``COMPOSITE_PROBE_MAX_CONCURRENCY`` for ops rollback.
+_DEFAULT_MAX_CONCURRENCY = 16
+
+
+def _resolve_max_concurrency() -> int:
+    raw = os.environ.get("COMPOSITE_PROBE_MAX_CONCURRENCY")
+    if raw is None:
+        return _DEFAULT_MAX_CONCURRENCY
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_CONCURRENCY
+    return max(1, value)
 
 
 class CompositeActiveProbe:
@@ -27,6 +46,10 @@ class CompositeActiveProbe:
         self.response_cache = response_cache
         self.timeout_seconds = timeout_seconds
         self.error_accumulator = error_accumulator
+        # One semaphore per CompositeActiveProbe instance, so the
+        # AdaptiveScanCoordinator can still multiplex several URLs in
+        # parallel but no single URL fans out unbounded.
+        self._max_concurrency = _resolve_max_concurrency()
 
     async def __call__(self, url: str) -> list[dict[str, Any]]:
         """Run all relevant endpoint-level probes for a single URL."""
@@ -158,7 +181,22 @@ class CompositeActiveProbe:
             ),
         ]
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Bounded fan-out: at most ``max_concurrency`` probe tasks may be
+        # in flight at once. ``asyncio.Semaphore`` is the right primitive
+        # because the probe coroutines are CPU/IO mixed and the limit
+        # is independent of the connection pool size configured on
+        # ``response_cache``. ``AdaptiveScanCoordinator`` may invoke this
+        # callable for many URLs in parallel, but the per-instance
+        # semaphore prevents the inner ``tasks`` list from running
+        # unboundedly.
+        semaphore = asyncio.Semaphore(self._max_concurrency)
+
+        async def _bounded(coro: Any) -> Any:
+            async with semaphore:
+                return await coro
+
+        bounded_tasks = [_bounded(t) for t in tasks]
+        results = await asyncio.gather(*bounded_tasks, return_exceptions=True)
 
         all_findings = []
         for probe_name, r in zip(probe_names, results, strict=False):

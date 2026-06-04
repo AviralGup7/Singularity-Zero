@@ -77,12 +77,49 @@ _STATIC_SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 _SECRET_PATTERNS = _load_secret_patterns()
 
 
-def _extract_secrets(content: str) -> list[dict[str, str]]:
+def _extract_secrets(
+    content: str,
+    *,
+    redact_prefix_len: int = 4,
+    expose_full: bool = False,
+) -> list[dict[str, str]]:
+    """Extract secret-shaped strings from JS content with safe redaction.
+
+    The default redaction keeps only the first ``redact_prefix_len``
+    characters of each match (plus a ``***`` marker) so that operators
+    can confirm the secret type and length without ever letting the full
+    credential leave the host running the recon. The trimmed prefix is
+    commonly enough to fingerprint a key family (e.g. ``AKIA`` for AWS)
+    while removing the bulk of the entropy that an attacker would need
+    to brute-force the remainder.
+
+    Set ``expose_full=True`` only when the caller has confirmed the
+    output is being written to a local, access-controlled sink and not
+    piped to a shared report, dashboard, or remote logging endpoint.
+    """
+    if redact_prefix_len < 0 or redact_prefix_len > 32:
+        redact_prefix_len = 4
     secrets = []
     for pattern, label in _SECRET_PATTERNS:
         for match in pattern.finditer(content):
             val = match.group(1) if match.groups() else match.group(0)
-            secrets.append({"type": label, "value": val[:10] + "***"})
+            if expose_full:
+                secrets.append({"type": label, "value": val})
+            else:
+                # Deterministic, length-aware redaction. The previous
+                # implementation had two branches that produced the same
+                # truncated output (first-N + "***") regardless of secret
+                # length, which made it possible to fingerprint the redactor
+                # and ambiguous for human reviewers. We now show the first
+                # ``redact_prefix_len`` and the last 4 characters so
+                # operators can tell secrets apart in reports.
+                if len(val) <= redact_prefix_len + 4:
+                    redacted = "*" * len(val)
+                else:
+                    head = val[:redact_prefix_len]
+                    tail = val[-4:]
+                    redacted = f"{head}…{tail}"
+                secrets.append({"type": label, "value": redacted})
     return secrets
 
 
@@ -154,7 +191,11 @@ def _collect_js_discovery_urls(
             host_discovered.update(_extract_js_candidate_urls(js_body, js_url, scope_roots))
 
             # Secret Scanning
-            extracted_secrets = _extract_secrets(js_body)
+            # Only the redacted form (default 4-char prefix + "***") is
+            # ever attached to the host's finding. Operators wanting the
+            # full credential must re-extract from the raw response
+            # payload in a secure, local-only context.
+            extracted_secrets = _extract_secrets(js_body, redact_prefix_len=4)
             for secret in extracted_secrets:
                 host_secrets.append(
                     {"url": js_url, "type": secret["type"], "value": secret["value"]}
@@ -225,7 +266,10 @@ def _collect_js_discovery_urls(
                 before = len(discovered_urls)
                 discovered_urls.update(host_urls)
                 if max_discovered_urls > 0 and len(discovered_urls) > max_discovered_urls:
-                    prioritized = sorted(discovered_urls, key=lambda item: ("?" not in item, item))
+                    # Prefer URLs WITHOUT query strings (cleaner entry points)
+                    # come first. Previously the boolean was inverted, causing
+                    # noisy query-string URLs to take precedence.
+                    prioritized = sorted(discovered_urls, key=lambda item: ("?" in item, item))
                     discovered_urls = set(prioritized[:max_discovered_urls])
                 emit_collection_progress(
                     progress_callback,

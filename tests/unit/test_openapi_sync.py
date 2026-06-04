@@ -10,23 +10,34 @@ def test_openapi_validation_and_sync() -> None:
     test_env = os.environ.copy()
     test_env["PYTHONPATH"] = "."
 
-    # 1. Run the validator - it must return 0 because we just ran --write and it is in sync
-    res = subprocess.run(
-        [sys.executable, "scripts/validate_openapi.py"],
-        env=test_env,
-        capture_output=True,
-        text=True,
-    )
-    assert res.returncode == 0
-    assert "OpenAPI Validation Gate: [PASS]" in res.stdout
-    assert "Documentation Sync Gate: [PASS]" in res.stdout
-
-    # 2. Modify docs/api-reference.md slightly to simulate drift
     docs_path = Path("docs") / "api-reference.md"
     original_content = docs_path.read_text(encoding="utf-8")
 
     try:
-        # Intentionally break synchronization by replacing a minor detail
+        # 0. Establish the in-sync baseline by running --write first.
+        res_write_init = subprocess.run(
+            [sys.executable, "scripts/validate_openapi.py", "--write"],
+            env=test_env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert res_write_init.returncode == 0
+        assert "Successfully updated and synchronized" in res_write_init.stdout
+
+        # 1. Run the validator - it must return 0 because docs are now in sync
+        res = subprocess.run(
+            [sys.executable, "scripts/validate_openapi.py"],
+            env=test_env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert res.returncode == 0
+        assert "OpenAPI Validation Gate: [PASS]" in res.stdout
+        assert "Documentation Sync Gate: [PASS]" in res.stdout
+
+        # 2. Modify docs/api-reference.md slightly to simulate drift
         modified_content = original_content.replace("mesh_aware: true", "mesh_aware: false")
         docs_path.write_text(modified_content, encoding="utf-8")
 
@@ -36,6 +47,7 @@ def test_openapi_validation_and_sync() -> None:
             env=test_env,
             capture_output=True,
             text=True,
+            timeout=120,
         )
         assert res_fail.returncode == 1
         assert "CRITICAL DRIFT: docs/api-reference.md is OUT OF SYNC" in res_fail.stdout
@@ -46,6 +58,7 @@ def test_openapi_validation_and_sync() -> None:
             env=test_env,
             capture_output=True,
             text=True,
+            timeout=120,
         )
         assert res_write.returncode == 0
         assert "Successfully updated and synchronized" in res_write.stdout
@@ -56,6 +69,7 @@ def test_openapi_validation_and_sync() -> None:
             env=test_env,
             capture_output=True,
             text=True,
+            timeout=120,
         )
         assert res_final.returncode == 0
         assert "Documentation Sync Gate: [PASS]" in res_final.stdout

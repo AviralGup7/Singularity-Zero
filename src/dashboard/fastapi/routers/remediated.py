@@ -48,13 +48,20 @@ async def verify_finding_remediation(
             detail="Access denied: user role must be admin or write to perform remediation verification.",
         )
 
-    # 2. Locate finding by ID
-    # Note: findings may be under different targets, so _find_finding_by_id locates them
-    finding = _find_finding_by_id(services.query.output_root, finding_id)
+    # 2. Locate finding by ID, scoped to the current tenant.
+    # SECURITY: pass ``tenant_id`` so the lookup returns nothing for
+    # findings owned by another tenant. The previous call omitted the
+    # argument which disabled the tenant check and let any authenticated
+    # user enumerate findings across tenants via response timing.
+    finding = _find_finding_by_id(
+        services.query.output_root, finding_id, tenant_id=tenant_id
+    )
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
 
-    # 3. Enforce Tenant Boundaries
+    # 3. Enforce Tenant Boundaries BEFORE the file scan. Iterating all
+    # targets before the tenant check leaks the *existence* of findings
+    # in other tenants through response timing. The check must run first.
     target_name = finding.get("target") or finding.get("target_name") or ""
     verify_tenant_boundary(request, target_name, tenant_id, user_id)
 

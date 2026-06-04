@@ -112,7 +112,7 @@ class FeatureVector(BaseModel):
             / 10.0
         )
         diff_score = _clamp(
-            _numeric(finding.get("diff_score") or evidence.get("diff_score"), 0.0) / 8.0
+            _numeric(finding.get("diff_score") or evidence.get("diff_score"), 0.0) / 10.0
         )
 
         # Categorical token parsing

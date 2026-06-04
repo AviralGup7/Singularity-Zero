@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import time
 from pathlib import Path
@@ -221,18 +222,16 @@ async def get_sla_trending(
                 disc_ts = f.get("discovered_at") or f.get("timestamp")
                 if isinstance(disc_ts, str):
                     try:
-                        import datetime
-
                         disc_ts = datetime.datetime.fromisoformat(disc_ts).timestamp()
                     except Exception:
                         disc_ts = time.time()
                 disc_ts = float(disc_ts or time.time())
 
                 # Group by month for trending
-                import datetime
-
-                dt = datetime.datetime.fromtimestamp(disc_ts, datetime.UTC)
-                month_key = dt.strftime("%Y-%m")
+                # SECURITY: the loop variable is named ``report_dt`` to
+                # avoid shadowing the imported ``datetime`` module.
+                report_dt = datetime.datetime.fromtimestamp(disc_ts, datetime.UTC)
+                month_key = report_dt.strftime("%Y-%m")
                 trend_entry = trend_data.setdefault(
                     month_key,
                     {

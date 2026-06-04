@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from typing import Any
 
@@ -32,6 +33,25 @@ from .probe_suites import (
 )
 
 logger = get_pipeline_logger(__name__)
+
+# Cap the number of in-flight probe *coroutines* per stage. The previous
+# implementation ran every probe in a group concurrently
+# (``asyncio.gather``) with no upper bound, so a 30-probe group
+# generated 30 simultaneous HTTP floods and routinely tripped WAF
+# rate-limits. Tunable via ``ACTIVE_SCAN_MAX_CONCURRENT_PROBES`` for
+# rollback.
+_DEFAULT_MAX_CONCURRENT_PROBES = 8
+
+
+def _resolve_max_concurrent_probes() -> int:
+    raw = os.environ.get("ACTIVE_SCAN_MAX_CONCURRENT_PROBES")
+    if raw is None:
+        return _DEFAULT_MAX_CONCURRENT_PROBES
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_CONCURRENT_PROBES
+    return max(1, value)
 
 
 async def run_active_scanning(
@@ -185,22 +205,33 @@ async def run_active_scanning(
         if not total_tasks:
             return []
 
+        # Bound the per-group fan-out: at most ``max_concurrent`` probe
+        # coroutines may be in flight at once. The previous implementation
+        # ran every probe in a group via ``asyncio.gather`` with no upper
+        # bound, which combined with the fact that each probe iterates
+        # over hundreds of priority URLs internally led to 100+ in-flight
+        # HTTP requests, saturating connection pools and triggering
+        # target-side rate limits.
+        max_concurrent = _resolve_max_concurrent_probes()
+        semaphore = asyncio.Semaphore(max_concurrent)
+
         async def wrap_task(task: Any) -> Any:
-            nonlocal completed
-            try:
-                res = await task
-                return res
-            finally:
-                completed += 1
-                current_processed = initial_processed + completed
-                progress = base_progress + int((completed / total_tasks) * progress_span)
-                emit_progress(
-                    stage_name,
-                    progress_message,
-                    progress,
-                    processed=current_processed,
-                    total=total_planned,
-                )
+            async with semaphore:
+                nonlocal completed
+                try:
+                    res = await task
+                    return res
+                finally:
+                    completed += 1
+                    current_processed = initial_processed + completed
+                    progress = base_progress + int((completed / total_tasks) * progress_span)
+                    emit_progress(
+                        stage_name,
+                        progress_message,
+                        progress,
+                        processed=current_processed,
+                        total=total_planned,
+                    )
 
         wrapped_tasks = [wrap_task(task) for task in tasks]
         return await asyncio.gather(*wrapped_tasks, return_exceptions=True)

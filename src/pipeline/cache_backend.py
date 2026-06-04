@@ -13,7 +13,21 @@ from typing import Any
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.cache.models import CacheMetrics
 from src.infrastructure.cache.telemetry import build_cache_efficiency_snapshot
-from src.infrastructure.db.sqlite_utils import safe_close
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_BUSY_TIMEOUT_MS as _BUSY_TIMEOUT_MS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_CONNECT_TIMEOUT_SECONDS as _CONNECT_TIMEOUT_SECONDS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_LOCK_RETRY_ATTEMPTS as _LOCK_RETRY_ATTEMPTS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    safe_close,
+)
 
 logger = get_pipeline_logger(__name__)
 
@@ -21,10 +35,6 @@ _DEFAULT_DB_PATH = os.environ.get(
     "RECON_CACHE_DB_PATH",
     str(Path(__file__).resolve().parent.parent / "output" / "cache" / "probe_cache.db"),
 )
-_CONNECT_TIMEOUT_SECONDS = 5.0
-_BUSY_TIMEOUT_MS = 5000
-_LOCK_RETRY_ATTEMPTS = 4
-_LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
 
 
 class _ThreadLocalConnections(threading.local):
@@ -98,6 +108,22 @@ class PersistentCache:
         message = str(exc).lower()
         return "database is locked" in message or "database table is locked" in message
 
+    @staticmethod
+    def _is_transient_db_error(exc: BaseException) -> bool:
+        """Return True if ``exc`` is a transient SQLite error that should
+        not cause the database file to be deleted (e.g. disk full, locked).
+        """
+        message = str(exc).lower()
+        transient_markers = (
+            "disk full",
+            "no space left",
+            "database is locked",
+            "database table is locked",
+            "attempt to write a readonly database",
+            "i/o error",
+        )
+        return any(marker in message for marker in transient_markers)
+
     def _with_retry(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
         last_exc: sqlite3.OperationalError | None = None
         for attempt in range(_LOCK_RETRY_ATTEMPTS):
@@ -161,9 +187,31 @@ class PersistentCache:
         with self._lock:
             try:
                 conn = self._get_conn()
-            except sqlite3.DatabaseError:
+            except sqlite3.DatabaseError as exc:
+                # Distinguish transient (e.g. disk full, locked) from
+                # integrity-corrupting (e.g. malformed header). Previously
+                # *any* DatabaseError caused the entire cache file to be
+                # deleted, which on transient disk-full events meant a
+                # total cache wipe. Only delete when the file is genuinely
+                # unreadable AND backup recovery is in place.
                 db_path = Path(self._db_path)
+                if self._is_transient_db_error(exc):
+                    logger.warning(
+                        "Transient SQLite error opening %s: %s; leaving file intact",
+                        self._db_path,
+                        exc,
+                    )
+                    raise
                 if db_path.exists():
+                    try:
+                        # Back up before deletion so a forensic recovery is
+                        # at least possible.
+                        backup = db_path.with_suffix(db_path.suffix + ".corrupt.bak")
+                        if backup.exists():
+                            backup.unlink()
+                        shutil.copy2(str(db_path), str(backup))
+                    except OSError as e:
+                        logger.error("Failed to back up corrupted cache DB %s: %s", self._db_path, e)
                     try:
                         db_path.unlink()
                     except OSError as e:
@@ -311,6 +359,42 @@ class PersistentCache:
                 return int(cursor.rowcount)
 
             return int(self._with_retry(_op))
+
+    def prune_prefix(self, prefix: str) -> int:
+        """Remove every entry whose key starts with ``prefix``.
+
+        Returns the number of rows deleted. Used by namespaced cache users
+        (e.g. ``probe:``) to clear their slice without touching unrelated
+        pipeline cache entries.
+        """
+        if not prefix:
+            return 0
+        with self._lock:
+
+            def _op(conn: sqlite3.Connection) -> int:
+                cursor = conn.execute(
+                    "DELETE FROM cache_entries WHERE key LIKE ?",
+                    (f"{prefix}%",),
+                )
+                conn.commit()
+                return int(cursor.rowcount)
+
+            return int(self._with_retry(_op))
+
+    def keys_with_prefix(self, prefix: str) -> list[str]:
+        """Return all cache keys that start with ``prefix``."""
+        if not prefix:
+            return []
+        with self._lock:
+
+            def _op(conn: sqlite3.Connection) -> list[str]:
+                cursor = conn.execute(
+                    "SELECT key FROM cache_entries WHERE key LIKE ?",
+                    (f"{prefix}%",),
+                )
+                return [row[0] for row in cursor.fetchall()]
+
+            return list(self._with_retry(_op))
 
     def size(self) -> int:
         with self._lock:
@@ -460,7 +544,7 @@ class PersistentCache:
                 total = cursor.fetchone()[0]
 
                 cursor = conn.execute(
-                    "SELECT COUNT(*) FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?",
+                    "SELECT COUNT(*) FROM cache_entries WHERE expires_at IS NOT NULL AND expires_at <= ?",
                     (now,),
                 )
                 expired = cursor.fetchone()[0]

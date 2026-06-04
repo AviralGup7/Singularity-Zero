@@ -3,9 +3,11 @@
 import re
 from typing import Any
 
+from src.core.security import SENSITIVE_HEADER_NAMES, SENSITIVE_NAMES
+
 _SENSITIVE_HEADER_PATTERNS = [
     re.compile(
-        r"^(authorization|cookie|x-api-key|x-secret-key|x-access-token|x-auth-token)$",
+        r"^(?:" + "|".join(re.escape(n) for n in sorted(SENSITIVE_HEADER_NAMES)) + r")$",
         re.IGNORECASE,
     ),
 ]
@@ -33,6 +35,11 @@ _CREDENTIAL_PATTERNS = [
         r"(?:key|token|secret|password|api_key|auth)\s*[:=]\s*[a-zA-Z0-9]{32,}", re.IGNORECASE
     ),
 ]
+
+# Build the same case-insensitive alternation used for headers, but for all
+# sensitive names (headers + query params + body fields) so log scrubbers
+# catch credentials regardless of where they appear in a request.
+_SENSITIVE_NAME_ALT = "|".join(re.escape(n) for n in sorted(SENSITIVE_NAMES))
 
 
 def safe_error_message(exc: Exception) -> str:
@@ -103,7 +110,7 @@ def sanitize_log_message(message: str) -> str:
     result = basic_pattern.sub(r"\1[REDACTED]", result)
 
     header_value_pattern = re.compile(
-        r"((?:authorization|cookie|x-api-key|x-secret-key|x-access-token|x-auth-token)\s*[:=]\s*)(?:(?:Bearer|Basic|Token)\s+)?(.+?)(?:\s+(?:and|or|,)\s|$)",
+        r"((?:" + _SENSITIVE_NAME_ALT + r")\s*[:=]\s*)(?:(?:Bearer|Basic|Token)\s+)?(.+?)(?:\s+(?:and|or|,)\s|$)",
         re.IGNORECASE,
     )
     result = header_value_pattern.sub(r"\1[REDACTED]", result)

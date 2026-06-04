@@ -311,6 +311,12 @@ async def _try_probe(
                     if isinstance(result.value, list)
                     else ([result.value] if result.value else []),
                 )
+                # Mark success *before* emitting the completion telemetry.
+                # The previous ordering could leave ``success=False`` if
+                # ``emit_progress`` raised, causing the ``finally`` block
+                # to record a false failure after a successful probe.
+                success = True
+                findings_list = findings
                 emit_progress(
                     "active_scan",
                     f"Completed active check {name} with {len(findings)} findings",
@@ -321,8 +327,6 @@ async def _try_probe(
                     targets_done=len(findings),
                     stage_status="running",
                 )
-                findings_list = findings
-                success = True
                 return name, findings, True
 
         async def _execute_probe() -> object:
@@ -345,6 +349,11 @@ async def _try_probe(
                 if isinstance(probe_result, list)
                 else ([probe_result] if probe_result else []),
             )
+            # Mark ``success`` *before* the success-only telemetry emit so
+            # that even if ``emit_progress`` raises (extremely unlikely),
+            # the ``finally`` block below records an accurate status.
+            success = True
+            findings_list = findings
             emit_progress(
                 "active_scan",
                 f"Completed active check {name} with {len(findings)} findings",
@@ -355,8 +364,6 @@ async def _try_probe(
                 targets_done=len(findings),
                 stage_status="running",
             )
-            findings_list = findings
-            success = True
             return name, findings, True
         except TimeoutError:
             msg = f"Probe '{name}' timed out after {timeout_seconds}s"

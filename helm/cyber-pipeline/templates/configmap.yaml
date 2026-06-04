@@ -8,7 +8,10 @@ data:
   APP_ENV: {{ .Values.config.appEnv | quote }}
   APP_DEBUG: {{ .Values.config.appDebug | quote }}
   CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
-  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  # SECURITY: REDIS_URL is now built in the deployment template from the
+  # ``cyber-pipeline-secrets`` Secret (see deployment.yaml). The plain
+  # password never enters the ConfigMap.
+  REDIS_URL: {{ printf "redis://%s:6379/0" "redis-master" | quote }}
   DATABASE_URL: {{ .Values.config.databaseUrl | quote }}
   RATE_LIMIT_RPS: {{ .Values.config.rateLimitRps | quote }}
   SCOPE_FILE: {{ .Values.config.scopeFile | quote }}

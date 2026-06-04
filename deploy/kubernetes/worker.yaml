@@ -95,11 +95,15 @@ spec:
                 - "python"
                 - "-c"
                 - |
-                  import redis, os
+                  import os, sys
+                  pwd = os.environ.get('REDIS_PASSWORD', '')
+                  if not pwd:
+                      print("REDIS_PASSWORD is required", file=sys.stderr); sys.exit(1)
+                  import redis
                   r = redis.Redis(
                     host=os.environ.get('REDIS_HOST', 'redis-master.cyber-pipeline.svc.cluster.local'),
                     port=int(os.environ.get('REDIS_PORT', 6379)),
-                    password=os.environ.get('REDIS_PASSWORD', '')
+                    password=pwd,
                   )
                   r.ping()
             initialDelaySeconds: 30
@@ -112,11 +116,15 @@ spec:
                 - "python"
                 - "-c"
                 - |
-                  import redis, os
+                  import os, sys
+                  pwd = os.environ.get('REDIS_PASSWORD', '')
+                  if not pwd:
+                      print("REDIS_PASSWORD is required", file=sys.stderr); sys.exit(1)
+                  import redis
                   r = redis.Redis(
                     host=os.environ.get('REDIS_HOST', 'redis-master.cyber-pipeline.svc.cluster.local'),
                     port=int(os.environ.get('REDIS_PORT', 6379)),
-                    password=os.environ.get('REDIS_PASSWORD', '')
+                    password=pwd,
                   )
                   r.ping()
             initialDelaySeconds: 10

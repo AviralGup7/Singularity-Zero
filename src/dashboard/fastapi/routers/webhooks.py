@@ -6,7 +6,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from src.core.utils.url_validation import is_safe_url
 from src.dashboard.fastapi.dependencies import require_auth
+from src.dashboard.fastapi.validation import validate_url
 from src.infrastructure.notifications.base import NotificationEvent, NotificationPriority
 from src.infrastructure.notifications.manager import (
     ChannelEntry,
@@ -29,12 +31,29 @@ class SlackTestRequest(BaseModel):
     channel: str = Field("#security-alerts", description="The Slack channel to post to")
 
 
+def _validate_webhook_url(url: str) -> None:
+    """Reject URLs that point at private, loopback, link-local, or rebinding
+    services. This closes the SSRF surface exposed by the test endpoints.
+    """
+    if not validate_url(url):
+        raise HTTPException(status_code=400, detail="Invalid webhook URL format")
+    if not is_safe_url(url):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Webhook URL points to a private, loopback, link-local, or "
+                "rebinding-suspect address and was rejected."
+            ),
+        )
+
+
 @router.post("/test")
 async def test_webhook(
     payload: WebhookTestRequest,
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Test a custom HTTP webhook integration."""
+    _validate_webhook_url(payload.url)
     try:
         config = ManagerConfig(
             channels=[
@@ -77,6 +96,7 @@ async def test_slack(
     _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Test a Slack Incoming Webhook integration."""
+    _validate_webhook_url(payload.url)
     try:
         config = ManagerConfig(
             channels=[

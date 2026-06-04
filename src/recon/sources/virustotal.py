@@ -6,29 +6,13 @@ Gracefully degrades if no API key is provided.
 
 import logging
 import os
-import re
 from typing import Any
 
 import httpx
 
+from src.recon.domain_validation import normalize_domain as _normalize_domain
+
 logger = logging.getLogger(__name__)
-
-
-_DOMAIN_RE = re.compile(
-    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$",
-    re.IGNORECASE,
-)
-
-
-def _normalize_domain(domain: str) -> str:
-    cleaned = str(domain or "").strip().lower().strip(".")
-    if not cleaned or any(
-        ch in cleaned for ch in ("/", "\\", ":", "@", "?", "#", " ", "\t", "\n", "\r")
-    ):
-        return ""
-    if not _DOMAIN_RE.fullmatch(cleaned):
-        return ""
-    return cleaned
 
 
 async def query_virustotal_passive(

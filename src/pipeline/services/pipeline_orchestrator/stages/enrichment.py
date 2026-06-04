@@ -3,6 +3,7 @@
 import asyncio
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
@@ -464,8 +465,8 @@ async def run_post_analysis_enrichments(
             assert isinstance(mitre_feed, MitreAttackMapper)
             semaphore = asyncio.Semaphore(max_concurrency)
 
-            async def _enrich_single(finding: dict[str, Any]) -> tuple[dict[str, Any], int]:
-                """Enrich one finding with CVE + MITRE data. Returns (finding, enriched_count)."""
+            async def _enrich_single(finding: dict[str, Any]) -> int:
+                """Enrich one finding with CVE + MITRE data. Returns count of enrichment sources applied."""
                 count = 0
                 async with semaphore:
                     try:
@@ -513,8 +514,6 @@ async def run_post_analysis_enrichments(
                     try:
                         target_url = finding.get("url")
                         if target_url:
-                            from urllib.parse import urlparse
-
                             host = urlparse(str(target_url)).netloc
                             if host:
                                 ioc_match = await correlator.match_ioc_async(host)
@@ -529,7 +528,7 @@ async def run_post_analysis_enrichments(
                     except Exception as exc:
                         logger.debug("IoC matching failed for finding target: %s", exc)
 
-                    return finding, count
+                    return count
 
             enriched_count = 0
             error_count = 0
@@ -544,8 +543,7 @@ async def run_post_analysis_enrichments(
                         raise r
                     error_count += 1
                     continue
-                _, count = r
-                enriched_count += count
+                enriched_count += int(r)
 
         if enriched_count:
             logger.info("Enriched %d findings with threat intelligence", enriched_count)

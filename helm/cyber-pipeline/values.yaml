@@ -76,11 +76,11 @@ config:
   # SECURITY: Override with a strong random key before any deployment.
   # Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
   # Leaving this empty will cause the application to FAIL on startup in production.
-  appSecretKey: "REPLACE_BEFORE_DEPLOYING"
+  appSecretKey: ""
+  redisPassword: ""
   appEnv: "production"
   appDebug: "false"
   corsOrigins: ""
-  redisUrl: "redis://:${REDIS_PASSWORD}@redis-master:6379/0"
   databaseUrl: "sqlite:///data/pipeline.db"
   rateLimitRps: "10"
   scopeFile: "/app/configs/scope.txt"
@@ -99,8 +99,10 @@ observability:
     enabled: true
     adminUser: "admin"
     # SECURITY: Generate with: python -c "import secrets; print(secrets.token_urlsafe(16))"
-    # Leaving this empty may allow access with Grafana's default credentials.
-    adminPassword: "REPLACE_BEFORE_DEPLOYING"
+    # Leaving this empty causes the helm chart to fail at template render
+    # time, so deployments cannot accidentally ship with Grafana's default
+    # credentials. Set this value in your environment-specific values file.
+    adminPassword: ""
   jaeger:
     enabled: true
     otlpEndpoint: "http://jaeger:4317"
