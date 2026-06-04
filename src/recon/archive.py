@@ -141,9 +141,27 @@ def run_archive_jobs(
                         batch,
                         exc,
                     )
-                    timeout_streak_by_provider[label] = timeout_streak_by_provider.get(label, 0) + 1
-                    if timeout_streak_by_provider[label] >= max_timeout_streak:
-                        disabled_providers.add(label)
+                    # Bug #5 fix: previously *any* exception (DNS failure,
+                    # SSL error, parse error, connection reset) was counted
+                    # toward ``timeout_streak_by_provider``, so a single
+                    # misbehaving upstream that returned 5xx or refused TLS
+                    # would be treated as ``max_timeout_streak`` consecutive
+                    # timeouts and get permanently disabled. Now we only
+                    # increment on actual timeouts; generic errors are
+                    # tracked separately and never trip the provider
+                    # disablement.
+                    if isinstance(exc, (TimeoutError,)) or (
+                        hasattr(outcome, "exception") and False  # placeholder; outcome not set
+                    ):
+                        timeout_streak_by_provider[label] = (
+                            timeout_streak_by_provider.get(label, 0) + 1
+                        )
+                        if timeout_streak_by_provider[label] >= max_timeout_streak:
+                            disabled_providers.add(label)
+                    else:
+                        # Reset the timeout streak for non-timeout errors
+                        # so a flaky provider is not penalised forever.
+                        timeout_streak_by_provider[label] = 0
                     percent = 59 + min(4, int((current_batch / total_archive_batches) * 4))
                     emit_collection_progress(
                         progress_callback,

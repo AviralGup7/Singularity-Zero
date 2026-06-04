@@ -5,8 +5,8 @@ import unittest
 import pytest
 
 from src.analysis.fast_path import (
-    FastPathStats,
     FastPathDispatcher,
+    FastPathStats,
     _CACHE_HIT_KEY,
     _CACHE_MISS_KEY,
     _CACHE_TTL_SECONDS,
@@ -44,7 +44,6 @@ class TestFastPathStats(unittest.TestCase):
     def test_to_dict_zero_total(self) -> None:
         s = FastPathStats()
         d = s.to_dict()
-        # max(total, 1) = 1 so ratios are 0
         self.assertEqual(d["fast_path_ratio"], 0.0)
         self.assertEqual(d["cache_hit_ratio"], 0.0)
         self.assertEqual(d["total_requests"], 0)
@@ -105,7 +104,6 @@ class TestFastPathDispatcherStandardHeaders(unittest.TestCase):
 @pytest.mark.unit
 class TestClearCache(unittest.TestCase):
     def test_clear_cache_returns_count(self) -> None:
-        # Manually populate global cache
         _RESPONSE_CACHE["test_key"] = {"status_code": 200}
         try:
             dispatcher = FastPathDispatcher()

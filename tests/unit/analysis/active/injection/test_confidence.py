@@ -84,7 +84,6 @@ class TestProbeConfidenceFn(unittest.TestCase):
 
     def test_uses_map_when_provided(self) -> None:
         m = {"a": 0.9, "b": 0.7}
-        # max is 0.9 + bonus 0.04 capped at 0.98
         result = probe_confidence(["a", "b"], confidence_map=m)
         self.assertAlmostEqual(result, 0.94, places=2)
 
@@ -94,7 +93,6 @@ class TestProbeConfidenceFn(unittest.TestCase):
         self.assertLessEqual(result, 0.98)
 
     def test_unknown_issues_use_default(self) -> None:
-        # default (0.5) + bonus for 1 issue (min(0.06, 0.02) = 0.02) = 0.52
         result = probe_confidence(["unknown_issue"], confidence_map={"a": 0.9})
         self.assertAlmostEqual(result, 0.52, places=2)
 
@@ -126,13 +124,11 @@ class TestProbeConfidenceFromMap(unittest.TestCase):
     def test_max_confidence_picked(self) -> None:
         m = {"a": 0.5, "b": 0.9}
         result = probe_confidence_from_map(["a", "b"], m)
-        # 0.9 + 0.04 bonus = 0.94
         self.assertAlmostEqual(result, 0.94, places=2)
 
     def test_bonus_caps_at_six_percent(self) -> None:
         m = {"a": 0.5}
         result = probe_confidence_from_map(["a"] * 10, m)
-        # 0.5 + min(0.06, 0.2) capped at 0.98 -> 0.56
         self.assertAlmostEqual(result, 0.56, places=2)
 
 

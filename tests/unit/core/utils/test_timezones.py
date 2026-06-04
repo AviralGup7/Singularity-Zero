@@ -1,9 +1,8 @@
 """Unit tests for src.core.utils.timezones."""
 
-import re
 import time
 import unittest
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 
@@ -29,10 +28,9 @@ class TestNowIst(unittest.TestCase):
         ts = now_ist()
         offset = ts.utcoffset()
         self.assertIsNotNone(offset)
-        assert offset is not None  # for type checker
         self.assertEqual(offset.total_seconds(), 5 * 3600 + 30 * 60)
 
-    def test_returns_current_time(self) -> None:
+    def test_returns_current_time_within_window(self) -> None:
         ts1 = now_ist()
         ts2 = datetime.now(IST)
         diff = abs((ts2 - ts1).total_seconds())
@@ -44,12 +42,10 @@ class TestIstTimestamp(unittest.TestCase):
     def test_returns_iso_formatted_string(self) -> None:
         ts = ist_timestamp()
         self.assertIsInstance(ts, str)
-        # Should contain a date and time
         self.assertRegex(ts, r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
 
     def test_includes_ist_offset_marker(self) -> None:
         ts = ist_timestamp()
-        # ISO format with timezone produces +05:30 suffix
         self.assertIn("+05:30", ts)
 
 
@@ -59,11 +55,10 @@ class TestRunDirStamp(unittest.TestCase):
         stamp = run_dir_stamp()
         self.assertRegex(stamp, r"^\d{8}-\d{6}$")
 
-    def test_two_consecutive_stamps_are_close(self) -> None:
+    def test_format_consistent_across_invocations(self) -> None:
         s1 = run_dir_stamp()
         time.sleep(0.05)
         s2 = run_dir_stamp()
-        # Both should follow the same format
         self.assertRegex(s1, r"^\d{8}-\d{6}$")
         self.assertRegex(s2, r"^\d{8}-\d{6}$")
 
@@ -92,8 +87,11 @@ class TestFormatEpochIst(unittest.TestCase):
 
     def test_includes_year_in_output(self) -> None:
         result = format_epoch_ist(1700000000)
-        # 2023 epoch should include 2023 in IST
         self.assertRegex(result, r"\d{4}")
+
+    def test_negative_epoch_handled(self) -> None:
+        result = format_epoch_ist(0)
+        self.assertIsInstance(result, str)
 
 
 @pytest.mark.unit
@@ -112,7 +110,6 @@ class TestFormatIsoToIst(unittest.TestCase):
         utc_iso = "2024-01-15T12:00:00+00:00"
         result = format_iso_to_ist(utc_iso)
         self.assertIn("IST", result)
-        # 12:00 UTC -> 5:30 PM IST
         self.assertIn("05:30:00", result)
 
     def test_naive_datetime_assumed_utc(self) -> None:
@@ -124,6 +121,11 @@ class TestFormatIsoToIst(unittest.TestCase):
         result = format_iso_to_ist(ist_iso)
         self.assertIn("05:30:00", result)
 
+    def test_pst_input_converted_to_ist(self) -> None:
+        pst_iso = "2024-01-15T00:00:00-08:00"
+        result = format_iso_to_ist(pst_iso)
+        self.assertIn("IST", result)
+
 
 @pytest.mark.unit
 class TestConstants(unittest.TestCase):
@@ -133,8 +135,8 @@ class TestConstants(unittest.TestCase):
     def test_ist_zone_has_correct_offset(self) -> None:
         now = datetime.now(IST)
         offset = now.utcoffset()
-        assert offset is not None  # for type checker
-        self.assertEqual(offset.total_seconds(), 19800)  # 5h30m
+        self.assertIsNotNone(offset)
+        self.assertEqual(offset.total_seconds(), 19800)
 
 
 if __name__ == "__main__":

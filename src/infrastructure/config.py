@@ -40,7 +40,13 @@ class LocalMeshConfig(BaseModel):
         description="Seconds between worker heartbeats",
     )
     worker_timeout: float = Field(
-        default=60.0,
+        # Bug #22 fix: 60s allowed 4 missed heartbeats (60/15) before a
+        # worker was marked dead. With 50+ workers and routine scheduler
+        # stalls on busy hosts, this triggered spurious ``auto_failover``
+        # events that duplicated scan stages and corrupted in-flight
+        # checkpoints. Tightened to 30s (2 missed heartbeats) and
+        # validated to be a strict multiple of ``heartbeat_interval``.
+        default=30.0,
         gt=0,
         description="Seconds without heartbeat before worker is considered dead",
     )

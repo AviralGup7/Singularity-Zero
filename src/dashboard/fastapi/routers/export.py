@@ -209,6 +209,21 @@ async def export_compliance_attestation(
                     "Content-Disposition": f'attachment; filename="{target_dir.name}_compliance_attestation.pdf"'
                 },
             )
+        # Bug #31 fix: previously the code fell through to the HTML
+        # branch when ``attestation.pdf`` did not exist, returning
+        # HTML body with an HTML Content-Disposition. The caller asked
+        # for a PDF and silently got HTML. Surface the missing-PDF
+        # case as an explicit 501 (Not Implemented) so the client
+        # can distinguish "PDF not yet generated" from "compliance
+        # report not found".
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "PDF compliance attestation has not been generated for this run. "
+                "Trigger a report run to produce attestation.pdf, or request "
+                "format=html for the in-progress attestation."
+            ),
+        )
 
     # Load compliance report from latest run
     compliance_path = latest_run / "compliance_coverage.json"

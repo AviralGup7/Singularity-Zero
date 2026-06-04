@@ -8,7 +8,6 @@ import logging
 import re
 from typing import Any, cast
 
-import requests
 
 from src.analysis._core.http_request import _safe_request
 

@@ -46,7 +46,19 @@ class ApiSchemaReconstructor:
                 continue
 
             # Detect placeholder/parameters already extracted by JS AST
-            if segment == "PARAMPLACEHOLDER" or segment == "{param}":
+            # Bug #2 fix: previously both ``PARAMPLACEHOLDER`` and the
+            # literal ``{param}`` token mapped to ``f"id{param_counter}"``
+            # in the same branch. The shared counter caused two distinct
+            # segments to be assigned the same ``id1`` name, producing
+            # duplicate parameter placeholders in the generated OpenAPI
+            # spec. We now use a distinct counter name per branch and
+            # reserve ``{param}`` for the JS-AST placeholder token only.
+            if segment == "PARAMPLACEHOLDER":
+                param_name = f"ast_param{param_counter}"
+                parameterized_segments.append(f"{{{param_name}}}")
+                parameters.append(param_name)
+                param_counter += 1
+            elif segment == "{param}":
                 param_name = f"id{param_counter}"
                 parameterized_segments.append(f"{{{param_name}}}")
                 parameters.append(param_name)

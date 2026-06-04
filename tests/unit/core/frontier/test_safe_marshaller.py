@@ -1,7 +1,6 @@
 """Tests for the safe msgspec-based frontier marshaller (replaces cloudpickle)."""
 
 import importlib
-import os
 from typing import Any
 
 import pytest
@@ -104,7 +103,6 @@ def test_legacy_mesh_helpers_roundtrip():
 def test_no_pickle_in_marshaller_source():
     """Regression: the actual pickle.loads / cloudpickle import paths
     must not re-appear in the marshaller module."""
-    import re
     src = open(marshaller.__file__, encoding="utf-8").read()
     # Strip docstrings/comments so we only scan executable code
     code_lines = []
@@ -122,7 +120,7 @@ def test_no_pickle_in_marshaller_source():
 
 def test_envelope_includes_schema_fields():
     """The envelope must contain schema_version + payload_kind."""
-    from src.core.frontier.marshaller import _MarshalledEnvelope, safe_pack, _verify_payload
+    from src.core.frontier.marshaller import _verify_payload, safe_pack
     packed = safe_pack({"x": 1}, payload_kind="schema-fields")
     # Strip the HMAC signature to access the inner envelope
     inner = _verify_payload(packed)

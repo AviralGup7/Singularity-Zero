@@ -82,7 +82,18 @@ async def replay_request(
     behavior_path = plugin_artifact_path(run_dir, "behavior_analysis_layer").resolve()
     legacy_path = (run_dir / "behavior_analysis_layer.json").resolve()
 
-    if not is_within_directory(output_root, run_dir) or (
+    # Bug #35 fix: previously only ``run_dir`` was checked against
+    # ``output_root`` for path-traversal. A symlink under ``run_dir``
+    # pointing outside ``output_root`` would be followed by
+    # ``load_plugin_artifact`` / ``Path.open``, giving an authenticated
+    # user arbitrary file read on the server. We now also verify the
+    # resolved ``behavior_path`` and ``legacy_path`` are within
+    # ``output_root``.
+    if (
+        not is_within_directory(output_root, run_dir)
+        or not is_within_directory(output_root, behavior_path)
+        or not is_within_directory(output_root, legacy_path)
+    ) or (
         not behavior_path.exists() and not legacy_path.exists()
     ):
         raise HTTPException(status_code=404, detail="Replay context not found.")

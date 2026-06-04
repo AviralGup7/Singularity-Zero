@@ -60,7 +60,6 @@ class TestContextDetection(unittest.TestCase):
         body = "<html><!-- v3dm0s comment --></html>"
         detector = ContextDetector(body)
         contexts = detector.detect_all()
-        # Should be detected as comment
         comment_ctx = [c for c in contexts if c.context == "comment"]
         self.assertGreaterEqual(len(comment_ctx), 1)
 
@@ -68,7 +67,6 @@ class TestContextDetection(unittest.TestCase):
         body = "<html><title>v3dm0s</title></html>"
         detector = ContextDetector(body)
         contexts = detector.detect_all()
-        # The reflection inside <title> is dead
         dead_ctx = [c for c in contexts if c.context == "dead"]
         self.assertGreaterEqual(len(dead_ctx), 1)
         self.assertEqual(dead_ctx[0].tag, "title")
@@ -92,8 +90,6 @@ class TestContextDetection(unittest.TestCase):
 @pytest.mark.unit
 class TestCustomMarker(unittest.TestCase):
     def test_default_marker_finds_reflection(self) -> None:
-        # The default marker "v3dm0s" is the only one the internal regexes
-        # are designed to detect end-to-end.
         body = "<html>v3dm0s appears here</html>"
         detector = ContextDetector(body, marker="v3dm0s")
         contexts = detector.detect_all()
@@ -148,13 +144,12 @@ class TestReflectionContextDataclass(unittest.TestCase):
     def test_frozen(self) -> None:
         ctx = ReflectionContext(position=0, context="html")
         with self.assertRaises(Exception):
-            ctx.position = 5  # type: ignore[misc]
+            ctx.position = 5
 
 
 @pytest.mark.unit
 class TestContextPriority(unittest.TestCase):
     def test_script_takes_priority_over_attribute(self) -> None:
-        # Marker is inside script AND attribute (should classify as script)
         body = '<div title="x"><script>v3dm0s</script></div>'
         detector = ContextDetector(body)
         contexts = detector.detect_all()

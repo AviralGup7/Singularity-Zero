@@ -21,6 +21,30 @@ from src.core.models.config import Config
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.provider_selection import select_enabled_providers
+from src.recon.collectors.providers import (
+    commoncrawl as _commoncrawl,
+)
+from src.recon.collectors.providers import (
+    crawler as _crawler,
+)
+from src.recon.collectors.providers import (
+    otx as _otx,
+)
+from src.recon.collectors.providers import (
+    urlscan as _urlscan,
+)
+from src.recon.collectors.providers import (
+    wayback as _wayback,
+)
+
+# Re-export provider modules at module level so existing test patches
+# such as ``patch.object(aggregator_stream.wayback, "collect_for_hosts", ...)``
+# continue to work after the provider-selection refactor.
+wayback = _wayback
+commoncrawl = _commoncrawl
+crawler = _crawler
+otx = _otx
+urlscan = _urlscan
 
 
 def collect_urls_stream(

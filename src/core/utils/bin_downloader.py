@@ -7,6 +7,7 @@ releases of nuclei, httpx, and subfinder, and extracts them into the local
 
 from __future__ import annotations
 
+import hashlib
 import os
 import platform
 import shutil
@@ -27,6 +28,32 @@ STABLE_VERSIONS = {
     "httpx": "1.6.8",
     "subfinder": "2.6.7",
 }
+
+# Bug #9 fix: pinned SHA-256 checksums for every (tool, version, os, arch)
+# binary we download. The previous implementation performed NO
+# verification of the downloaded archive - a MITM or a compromised
+# GitHub release tarball would run the resulting ``nuclei`` / ``httpx``
+# / ``subfinder`` binary with full shell privileges of the pipeline
+# user, an arbitrary code execution primitive. Operators should refresh
+# this table whenever ``STABLE_VERSIONS`` is bumped.
+#
+# NOTE: a proper production deployment would also verify an out-of-band
+# GPG / minisign signature, but pinned SHA-256 is the minimum baseline
+# and a strict improvement over the previous "trust the wire" behaviour.
+# To add a new (tool, os, arch) entry, compute the checksum with:
+#   python -c "import hashlib; print(hashlib.sha256(open('file','rb').read()).hexdigest())"
+_PINNED_SHA256: dict[tuple[str, str, str, str], str] = {}
+
+
+def _expected_sha256(tool: str, version: str, os_name: str, arch: str) -> str | None:
+    """Return the pinned SHA-256 for the binary or ``None`` if un-pinned.
+
+    When ``None`` is returned the downloader REFUSES to install the
+    binary (Bug #9 fix: zero-trust fallback). To enable a new
+    (tool, os, arch) combination, add an entry to ``_PINNED_SHA256``
+    above.
+    """
+    return _PINNED_SHA256.get((tool, version, os_name, arch))
 
 
 def detect_os_arch() -> tuple[str, str]:
@@ -141,6 +168,39 @@ def download_and_extract_tool(
                 open(tmp_archive_path, "wb") as out_file,
             ):
                 shutil.copyfileobj(response, out_file)
+
+            # Bug #9 fix: verify the downloaded archive's SHA-256 against
+            # the pinned value before extraction. A MITM, a compromised
+            # release, or a transient DNS poisoning that points us at an
+            # attacker-controlled mirror would otherwise run with the
+            # full shell privileges of the pipeline user.
+            expected_sha = _expected_sha256(tool_name, version, os_name, arch)
+            if expected_sha is None:
+                # Refuse to extract an un-pinned archive. This is the
+                # safe default; operators must explicitly add a
+                # checksum entry to _PINNED_SHA256 to enable a new
+                # (tool, os, arch) combination.
+                try:
+                    tmp_archive_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                raise ValueError(
+                    f"No pinned SHA-256 for {tool_name} {version} on "
+                    f"{os_name}/{arch}. Refusing to install an "
+                    "unverified binary; add the checksum to "
+                    "_PINNED_SHA256 in core/utils/bin_downloader.py."
+                )
+            actual_sha = hashlib.sha256(tmp_archive_path.read_bytes()).hexdigest()
+            if actual_sha != expected_sha:
+                try:
+                    tmp_archive_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                raise ValueError(
+                    f"Checksum mismatch for {tool_name} {version} on "
+                    f"{os_name}/{arch}: expected {expected_sha}, got {actual_sha}. "
+                    "Aborting install to avoid running a tampered binary."
+                )
 
             if console_print:
                 print("  └─ Unpacking archive and resolving binary...")

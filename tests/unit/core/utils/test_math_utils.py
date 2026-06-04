@@ -45,6 +45,14 @@ class TestClamp(unittest.TestCase):
     def test_floating_point_precision(self) -> None:
         self.assertAlmostEqual(clamp(0.123456789), 0.123456789, places=6)
 
+    def test_string_input_raises_type_error(self) -> None:
+        with self.assertRaises(TypeError):
+            clamp("not a number")  # type: ignore[arg-type]
+
+    def test_returns_float_type(self) -> None:
+        result = clamp(1)
+        self.assertIsInstance(result, float)
+
 
 if __name__ == "__main__":
     unittest.main()

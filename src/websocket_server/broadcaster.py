@@ -44,6 +44,7 @@ class CircuitBreaker:
 
         import tempfile
         from pathlib import Path
+
         self._state_file = Path(tempfile.gettempdir()) / "redis_breaker_state.json"
         self._load_state()
 
@@ -67,6 +68,7 @@ class CircuitBreaker:
             tmp_file = self._state_file.with_suffix(".tmp")
             tmp_file.write_text(json.dumps(data), encoding="utf-8")
             import os
+
             os.replace(str(tmp_file), str(self._state_file))
         except Exception as e:
             logger.debug("Failed to save circuit breaker state: %s", e)
@@ -397,6 +399,7 @@ class Broadcaster:
                     backoff, REDIS_RECONNECT_SECONDS
                 )
                 import secrets
+
                 jitter = secrets.SystemRandom().uniform(0.8, 1.2)
                 sleep_dur = backoff * jitter
                 await asyncio.sleep(sleep_dur)

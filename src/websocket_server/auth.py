@@ -132,7 +132,13 @@ async def authenticate_websocket(
     # Keep WebSocket behavior consistent with HTTP endpoints in development:
     # when no auth backend is configured, allow anonymous access.
     if jwt_secret is None and not api_keys:
-        if os.environ.get("ALLOW_ANONYMOUS_WS", "1") != "1":
+        # Bug #39 fix: previously the default of ``ALLOW_ANONYMOUS_WS``
+        # was ``"1"`` (allow), so a deployment that forgot to set BOTH
+        # a JWT secret AND API keys silently accepted anonymous
+        # WebSocket connections. Flip the default to deny; explicit
+        # opt-in via ``ALLOW_ANONYMOUS_WS=1`` is required to expose
+        # unauthenticated WS in development.
+        if os.environ.get("ALLOW_ANONYMOUS_WS", "0") != "1":
             raise AuthenticationError(
                 code="auth_missing_credentials",
                 detail="Authentication is required",

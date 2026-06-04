@@ -43,6 +43,10 @@ class TestParameterNameSets(unittest.TestCase):
         self.assertIsInstance(SSRF_PARAM_NAMES, set)
         self.assertIsInstance(TOKEN_PARAM_NAMES, set)
 
+    def test_sets_have_no_overlap_with_specific_keys(self) -> None:
+        self.assertNotIn("url", TOKEN_PARAM_NAMES)
+        self.assertNotIn("user_id", REDIRECT_PARAM_NAMES)
+
 
 @pytest.mark.unit
 class TestUuidRegex(unittest.TestCase):
@@ -58,7 +62,6 @@ class TestUuidRegex(unittest.TestCase):
         self.assertIsNone(UUID_RE.search("abc123"))
 
     def test_does_not_match_invalid_version(self) -> None:
-        # Version digit must be 1-5
         invalid = "550e8400-e29b-71d4-a716-446655440000"
         self.assertIsNone(UUID_RE.search(invalid))
 
@@ -69,6 +72,14 @@ class TestUuidRegex(unittest.TestCase):
         assert match is not None
         self.assertEqual(match.group(0).lower(), "550e8400-e29b-41d4-a716-446655440000")
 
+    def test_does_not_match_word_boundary_violation(self) -> None:
+        text = "X550e8400-e29b-41d4-a716-446655440000X"
+        self.assertIsNone(UUID_RE.search(text))
+
+    def test_matches_v1_uuid(self) -> None:
+        text = "00000000-0000-1000-8000-000000000000"
+        self.assertIsNotNone(UUID_RE.search(text))
+
 
 @pytest.mark.unit
 class TestDecodeCandidateValue(unittest.TestCase):
@@ -76,13 +87,13 @@ class TestDecodeCandidateValue(unittest.TestCase):
         self.assertEqual(decode_candidate_value(""), "")
 
     def test_returns_empty_for_none(self) -> None:
-        self.assertEqual(decode_candidate_value(""), "")  # type: ignore[arg-type]
+        self.assertEqual(decode_candidate_value(None), "")  # type: ignore[arg-type]
 
     def test_decodes_single_url_encoding(self) -> None:
         self.assertEqual(decode_candidate_value("hello%20world"), "hello world")
 
     def test_decodes_double_encoding(self) -> None:
-        encoded = "hello%2520world"  # %25 decodes to %, then %20 decodes to space
+        encoded = "hello%2520world"
         self.assertEqual(decode_candidate_value(encoded), "hello world")
 
     def test_decodes_triple_encoding(self) -> None:
@@ -94,9 +105,13 @@ class TestDecodeCandidateValue(unittest.TestCase):
 
     def test_handles_max_rounds_parameter(self) -> None:
         encoded = "a%2520b"
-        # With max_rounds=1, only one round of decoding
         result = decode_candidate_value(encoded, max_rounds=1)
         self.assertEqual(result, "a%20b")
+
+    def test_max_rounds_zero_returns_input(self) -> None:
+        encoded = "hello%20world"
+        result = decode_candidate_value(encoded, max_rounds=0)
+        self.assertEqual(result, "hello%20world")
 
     def test_returns_unchanged_when_not_encoded(self) -> None:
         self.assertEqual(decode_candidate_value("plaintext"), "plaintext")
@@ -104,6 +119,13 @@ class TestDecodeCandidateValue(unittest.TestCase):
     def test_handles_invalid_percent_sequences(self) -> None:
         result = decode_candidate_value("test%ZZ")
         self.assertEqual(result, "test%ZZ")
+
+    def test_handles_unicode_value(self) -> None:
+        self.assertEqual(decode_candidate_value("héllo"), "héllo")
+
+    def test_handles_numeric_input_coerced_to_string(self) -> None:
+        result = decode_candidate_value(123)  # type: ignore[arg-type]
+        self.assertEqual(result, "123")
 
 
 if __name__ == "__main__":

@@ -705,8 +705,8 @@ class SQLiteBackend:
             if conn is not None:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except (OSError, sqlite3.Error) as close_exc:
+                    logger.debug("SQLite cache connection close failed: %s", close_exc)
 
         backup_path = db_path.with_suffix(".db.corrupted.bak")
         try:

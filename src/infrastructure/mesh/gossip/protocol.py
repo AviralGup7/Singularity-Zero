@@ -45,8 +45,8 @@ class GossipProtocol:
                     "dropped_gossip_packets_total",
                     "Total dropped gossip packets due to format errors",
                 )
-            except Exception:
-                pass
+            except (OSError, ValueError, TypeError, AttributeError) as metric_exc:
+                logger.debug("Gossip metric increment failed: %s", metric_exc)
             return
 
         try:
@@ -128,5 +128,5 @@ def _inc_metric(name: str, description: str) -> None:
         from src.infrastructure.observability.metrics import get_metrics
 
         get_metrics().counter(name, description).inc()
-    except Exception:
-        pass
+    except (ImportError, AttributeError, ValueError, OSError) as exc:
+        logger.debug("Metrics counter increment failed for %s: %s", name, exc)

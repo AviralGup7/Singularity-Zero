@@ -57,7 +57,9 @@ def _per_host_limit(config: Any, name: str, default: int) -> int:
     filters = getattr(config, "filters", None) or {}
     if name == "crawler":
         cfg = getattr(config, "katana", None) or {}
-        return int(filters.get("crawler_max_pages_per_host", cfg.get("max_pages_per_host", default)))
+        return int(
+            filters.get("crawler_max_pages_per_host", cfg.get("max_pages_per_host", default))
+        )
     if name == "crawler_workers":
         cfg = getattr(config, "katana", None) or {}
         return int(filters.get("crawler_workers", cfg.get("workers", default)))

@@ -58,7 +58,6 @@ class TestSqlErrorRegex(unittest.TestCase):
         self.assertIsNotNone(SQL_ERROR_RE.search("syntax error at or near"))
 
     def test_matches_duplicate_key(self) -> None:
-        # Regex matches "duplicate\s+key" as adjacent words
         self.assertIsNotNone(SQL_ERROR_RE.search("duplicate key violation: foo"))
 
     def test_matches_integrity_constraint(self) -> None:
@@ -83,7 +82,7 @@ class TestSqlErrorRegex(unittest.TestCase):
         self.assertIsNotNone(SQL_ERROR_RE.search("SQL SYNTAX error"))
         self.assertIsNotNone(SQL_ERROR_RE.search("syntax ERROR"))
 
-    def test_can_be_combined_with_other_regexes(self) -> None:
+    def test_can_be_combined_with_other_text(self) -> None:
         combined = SQL_ERROR_RE.search("SELECT * FROM users; ORA-01403: no data found")
         self.assertIsNotNone(combined)
 

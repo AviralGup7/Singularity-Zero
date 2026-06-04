@@ -164,7 +164,14 @@ async def require_auth(
     admin_keys = config.admin_keys or [
         k.strip() for k in os.environ.get("DASHBOARD_ADMIN_KEYS", "").split(",") if k.strip()
     ]
-    role = "admin" if api_key in admin_keys else "read"
+    # Bug #27 fix: previously the non-admin role was the literal string
+    # ``"read"``, which is not a member of ``ROLE_ORDER`` (the valid
+    # values are ``read_only``, ``worker``, ``admin``). When
+    # ``api_security_enabled()`` was True, ``raise_for_roles`` would
+    # treat the unknown role as rank 0 and refuse every request to
+    # endpoints that should accept ``read_only``. Use the canonical
+    # ``"read_only"`` string instead.
+    role = "admin" if api_key in admin_keys else "read_only"
     tenant_id = request.headers.get("X-Tenant-ID") or "default"
     TenantContext.set_current_tenant(tenant_id)
 
@@ -222,7 +229,14 @@ async def require_admin(
         HTTPException: If the authenticated user is not an admin.
     """
     if auth is None:
-        auth = {"user": "anonymous", "role": "admin", "tenant_id": "default"}
+        # Bug #28 fix: previously the fallback for ``auth is None`` was
+        # ``{"user": "anonymous", "role": "admin", ...}`` which silently
+        # granted admin role to anonymous requesters when
+        # ``api_security_enabled()`` was False. That allowed any
+        # unauthenticated caller to reach admin-only handlers. Default
+        # to the lowest privilege role and let ``raise_for_roles``
+        # below emit the correct 401/403.
+        auth = {"user": "anonymous", "role": "read_only", "tenant_id": "default"}
     if api_security_enabled():
         principal = Principal(
             user=auth.get("user", ""),
@@ -247,7 +261,10 @@ async def require_worker(
 ) -> dict[str, str]:
     """Require worker-level authentication when API security is enabled."""
     if auth is None:
-        auth = {"user": "anonymous", "role": "admin", "tenant_id": "default"}
+        # Bug #28 fix: same anonymous-default-to-admin privilege
+        # escalation as in ``require_admin``. Default to the lowest
+        # privilege role and let the role check raise.
+        auth = {"user": "anonymous", "role": "read_only", "tenant_id": "default"}
     if api_security_enabled():
         principal = Principal(
             user=auth.get("user", ""),

@@ -295,9 +295,17 @@ async def run_active_scanning(
     if passive_idor_candidates:
         # Merge passive candidates, prioritizing them
         seen_urls = {str(item.get("url")) for item in idor_active_targets}
+        # Bug #25 fix: previously the loop called
+        # ``idor_active_targets.insert(0, candidate)`` for every passive
+        # candidate. Because each ``insert(0, ...)`` shifts existing
+        # items down by one, the LAST candidate processed ends up FIRST
+        # in the list — the opposite of the documented "prioritising"
+        # intent. Append candidates in order instead so the original
+        # priority of ``ranked_priority_items`` is preserved and the
+        # newly-added passive candidates are simply added at the tail.
         for candidate in passive_idor_candidates:
             if candidate["url"] not in seen_urls:
-                idor_active_targets.insert(0, candidate)
+                idor_active_targets.append(candidate)
                 seen_urls.add(candidate["url"])
 
     # Group 2: IDOR, Race, HPP, WebSocket, GraphQL (ranked_items + URL focused)

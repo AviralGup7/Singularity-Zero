@@ -383,8 +383,9 @@ class NeuralState:
                     self.min_wal_timestamp = int(float(first_kept.split("-")[1]))
                 else:
                     self.min_wal_timestamp = int(first_kept.split("-")[0])
-            except Exception:
-                pass
+            except (ValueError, IndexError, AttributeError) as parse_exc:
+                logger.debug("Could not parse min_wal_timestamp from %r: %s", first_kept, parse_exc)
+                self.min_wal_timestamp = 0
             self.applied_wal_ids = set(to_keep)
 
     @staticmethod
@@ -435,8 +436,8 @@ class NeuralState:
                     self, "min_wal_timestamp", 0
                 ):
                     return
-            except Exception:
-                pass
+            except (ValueError, IndexError, AttributeError) as parse_exc:
+                logger.debug("Skipping unparseable wal_id %r: %s", wal_id, parse_exc)
             if wal_id in self.applied_wal_ids:
                 return
 

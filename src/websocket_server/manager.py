@@ -305,9 +305,16 @@ class ConnectionManager:
                 return False
 
             info.groups.discard(group)
-            self.group_connections[group].discard(connection_id)
-            if not self.group_connections[group]:
-                del self.group_connections[group]
+            # Bug #37 fix: previously the code unconditionally indexed
+            # ``self.group_connections[group]`` and raised ``KeyError``
+            # when a client tried to leave a group it never joined
+            # (or a concurrent leave already removed the group). Use
+            # ``setdefault`` so the operation is a no-op, then prune
+            # the empty set.
+            group_set = self.group_connections.setdefault(group, set())
+            group_set.discard(connection_id)
+            if not group_set:
+                self.group_connections.pop(group, None)
             return True
 
     async def get_connection(self, connection_id: str) -> ConnectionInfo | None:
@@ -344,7 +351,15 @@ class ConnectionManager:
         Returns:
             List of ConnectionInfo in the group.
         """
-        conn_ids = self.group_connections.get(group, set())
+        # Bug #38 fix: previously the read of ``self.group_connections``
+        # happened WITHOUT the lock, mirroring the race that was fixed
+        # for ``get_user_connections`` in fix #353. A concurrent
+        # ``disconnect()`` / ``remove_from_group()`` could mutate the
+        # dict mid-iteration, raising ``RuntimeError: dictionary
+        # changed size during iteration``. Snapshot the set under the
+        # lock first, then iterate outside.
+        async with self._lock:
+            conn_ids = set(self.group_connections.get(group, set()))
         return [self.connections[cid] for cid in conn_ids if cid in self.connections]
 
     async def get_active_count(self) -> int:

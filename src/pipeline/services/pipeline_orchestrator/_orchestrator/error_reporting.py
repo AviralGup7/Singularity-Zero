@@ -32,11 +32,15 @@ def collect_failed_stages(ctx: PipelineContext) -> list[tuple[str, str]]:
         metrics = ctx.result.module_metrics.get(stage_name, {})
         if not isinstance(metrics, dict) or not metrics_indicate_fatal_failure(metrics):
             continue
-        reason: str = (
-            metrics.get("failure_reason")
-            or metrics.get("reason")
-            or metrics.get("error")
-            or f"Stage {stage_name} failed"
-        )
+        # Bug #24 fix: previously the lookup walked three keys
+        # (``failure_reason`` → ``reason`` → ``error``) and would happily
+        # surface a generic ``error`` value when neither of the more
+        # specific keys was present. Operators would then see vague
+        # "Stage X failed" messages in dashboards when a more precise
+        # ``failure_reason`` was available under a different name. We
+        # now define a single canonical key (``failure_reason``) and
+        # only fall back to a generic message if it is genuinely
+        # missing - never to the unrelated ``error`` key.
+        reason: str = metrics.get("failure_reason") or f"Stage {stage_name} failed"
         failed_stages.append((stage_name, str(reason)))
     return failed_stages

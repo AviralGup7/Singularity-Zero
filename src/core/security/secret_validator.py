@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +59,7 @@ DEFAULT_SECRET_ENV_VARS: tuple[str, ...] = (
 )
 
 EXTRA_SECRET_ENV_VARS: tuple[str, ...] = tuple(
-    name.strip()
-    for name in os.environ.get("EXTRA_SECRET_ENV_VARS", "").split(",")
-    if name.strip()
+    name.strip() for name in os.environ.get("EXTRA_SECRET_ENV_VARS", "").split(",") if name.strip()
 )
 
 
@@ -86,9 +83,21 @@ def _is_dev_environment() -> bool:
         return True
     if env in {"ci", "github_actions"}:
         return True
-    # If the env var is unset, default to permissive so contributors can
-    # run the test suite without configuring real secrets.
-    return not env
+    # Bug #11 fix: previously this function returned ``not env`` for
+    # unset/empty ``APP_ENV``/``ENVIRONMENT``, which silently treated
+    # "env var forgotten" as a dev environment. An operator who
+    # neglected to set the env var on a real production deployment
+    # would get warnings instead of hard failures, allowing placeholder
+    # secrets to flow into production. The default is now strict
+    # (refuse to start); explicit opt-in to a permissive environment
+    # is required via ``APP_SECURITY_PERMISSIVE=1``.
+    if not env and os.environ.get("APP_SECURITY_PERMISSIVE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        return True
+    return False
 
 
 def collect_secret_env_vars() -> list[str]:
@@ -151,8 +160,8 @@ def validate_or_raise(
     rendered = "\n".join(f"  - {name}" for name in violations)
     raise RuntimeError(
         "Refusing to start: one or more secret env vars are set to a "
-        "placeholder default. Generate real values (e.g. `python -c \"import "
-        "secrets; print(secrets.token_urlsafe(48))\")` and update your "
+        'placeholder default. Generate real values (e.g. `python -c "import '
+        'secrets; print(secrets.token_urlsafe(48))")` and update your '
         "environment. The following env vars are unsafe:\n"
         f"{rendered}"
     )

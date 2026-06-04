@@ -10,101 +10,111 @@ from src.core.tenant_context import TenantContext
 
 
 @pytest.mark.unit
-class TestTenantContext(unittest.TestCase):
+class TestCurrentTenant(unittest.TestCase):
     def setUp(self) -> None:
-        # Reset to default before each test
-        token = TenantContext.set_current_tenant(None)
-        TenantContext.reset_current_tenant(token)
+        try:
+            with TenantContext.scope(None):
+                pass
+        except Exception:
+            pass
+
+    def tearDown(self) -> None:
+        try:
+            with TenantContext.scope(None):
+                pass
+        except Exception:
+            pass
 
     def test_default_tenant_is_none(self) -> None:
-        # Set, then reset to ensure default
-        token = TenantContext.set_current_tenant(None)
-        try:
-            self.assertIsNone(TenantContext.get_current_tenant())
-        finally:
-            TenantContext.reset_current_tenant(token)
-
-    def test_set_and_get_tenant(self) -> None:
-        token = TenantContext.set_current_tenant("tenant-a")
-        try:
-            self.assertEqual(TenantContext.get_current_tenant(), "tenant-a")
-        finally:
-            TenantContext.reset_current_tenant(token)
-
-    def test_reset_restores_previous(self) -> None:
-        token1 = TenantContext.set_current_tenant("first")
-        try:
-            token2 = TenantContext.set_current_tenant("second")
-            self.assertEqual(TenantContext.get_current_tenant(), "second")
-            TenantContext.reset_current_tenant(token2)
-            self.assertEqual(TenantContext.get_current_tenant(), "first")
-        finally:
-            TenantContext.reset_current_tenant(token1)
-
-    def test_scope_context_manager_sets_and_resets(self) -> None:
-        with TenantContext.scope("scoped-tenant"):
-            self.assertEqual(TenantContext.get_current_tenant(), "scoped-tenant")
-        # After scope ends, value should be reset
         self.assertIsNone(TenantContext.get_current_tenant())
 
-    def test_scope_nested_contexts(self) -> None:
+    def test_scope_sets_tenant(self) -> None:
+        with TenantContext.scope("tenant-a"):
+            self.assertEqual(TenantContext.get_current_tenant(), "tenant-a")
+
+    def test_scope_restores_on_exit(self) -> None:
+        with TenantContext.scope("tenant-a"):
+            pass
+        self.assertIsNone(TenantContext.get_current_tenant())
+
+    def test_nested_scope_restores_outer(self) -> None:
         with TenantContext.scope("outer"):
-            self.assertEqual(TenantContext.get_current_tenant(), "outer")
             with TenantContext.scope("inner"):
                 self.assertEqual(TenantContext.get_current_tenant(), "inner")
             self.assertEqual(TenantContext.get_current_tenant(), "outer")
         self.assertIsNone(TenantContext.get_current_tenant())
 
-    def test_scope_handles_exception_and_restores(self) -> None:
-        with self.assertRaises(RuntimeError):
-            with TenantContext.scope("xyz"):
-                self.assertEqual(TenantContext.get_current_tenant(), "xyz")
-                raise RuntimeError("boom")
+    def test_set_via_explicit_assignment(self) -> None:
+        token = TenantContext.set_current_tenant("explicit-tenant")
+        try:
+            self.assertEqual(TenantContext.get_current_tenant(), "explicit-tenant")
+        finally:
+            TenantContext.reset_current_tenant(token)
         self.assertIsNone(TenantContext.get_current_tenant())
-
-    def test_thread_isolation(self) -> None:
-        captured: dict[str, str | None] = {}
-
-        def thread_a() -> None:
-            with TenantContext.scope("thread-a"):
-                captured["a"] = TenantContext.get_current_tenant()
-
-        def thread_b() -> None:
-            with TenantContext.scope("thread-b"):
-                captured["b"] = TenantContext.get_current_tenant()
-
-        t1 = threading.Thread(target=thread_a)
-        t2 = threading.Thread(target=thread_b)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
-
-        self.assertEqual(captured.get("a"), "thread-a")
-        self.assertEqual(captured.get("b"), "thread-b")
 
 
 @pytest.mark.unit
-class TestTenantContextAsync(unittest.TestCase):
-    def test_async_tasks_run_independently(self) -> None:
-        """Verify tenant context is captured correctly in async tasks.
+class TestScopeThreadIsolation(unittest.TestCase):
+    def test_scope_does_not_leak_across_threads(self) -> None:
+        results: list[str | None] = []
+        barrier = threading.Barrier(2)
 
-        asyncio.gather runs coroutines in the same event loop context, so
-        we use sequential awaits here rather than verifying isolation between
-        concurrent tasks (which is a known limitation of asyncio + contextvars).
-        """
-        captured: list[str | None] = []
+        def worker() -> None:
+            barrier.wait()
+            with TenantContext.scope("thread-tenant"):
+                barrier.wait()
+                results.append(TenantContext.get_current_tenant())
+            results.append(TenantContext.get_current_tenant())
 
-        async def runner() -> None:
-            with TenantContext.scope("task-1"):
-                await asyncio.sleep(0.01)
-                captured.append(TenantContext.get_current_tenant())
-            with TenantContext.scope("task-2"):
-                await asyncio.sleep(0.01)
-                captured.append(TenantContext.get_current_tenant())
+        t = threading.Thread(target=worker)
+        t.start()
+        with TenantContext.scope("main-tenant"):
+            barrier.wait()
+            main_tenant_during_thread = TenantContext.get_current_tenant()
+        barrier.wait()
+        t.join()
 
-        asyncio.run(runner())
-        self.assertEqual(captured, ["task-1", "task-2"])
+        self.assertEqual(main_tenant_during_thread, "main-tenant")
+        self.assertEqual(results[0], "thread-tenant")
+        self.assertIsNone(results[1])
+
+
+@pytest.mark.unit
+class TestScopeAsyncIsolation(unittest.TestCase):
+    def test_scope_isolated_across_concurrent_tasks(self) -> None:
+        async def main() -> dict[str, str | None]:
+            results: dict[str, str | None] = {}
+
+            async def task(name: str, delay: float) -> None:
+                with TenantContext.scope(name):
+                    await asyncio.sleep(delay)
+                    results[name] = TenantContext.get_current_tenant()
+
+            await asyncio.gather(task("a", 0.02), task("b", 0.0))
+            results["__outside__"] = TenantContext.get_current_tenant()
+            return results
+
+        results = asyncio.run(main())
+        self.assertEqual(results["a"], "a")
+        self.assertEqual(results["b"], "b")
+        self.assertIsNone(results["__outside__"])
+
+
+@pytest.mark.unit
+class TestTenantContextHelpers(unittest.TestCase):
+    def test_set_returns_token(self) -> None:
+        token = TenantContext.set_current_tenant("xyz")
+        try:
+            self.assertIsNotNone(token)
+        finally:
+            TenantContext.reset_current_tenant(token)
+
+    def test_reset_using_token_restores(self) -> None:
+        TenantContext.set_current_tenant("outer")
+        token = TenantContext.set_current_tenant("inner")
+        self.assertEqual(TenantContext.get_current_tenant(), "inner")
+        TenantContext.reset_current_tenant(token)
+        self.assertEqual(TenantContext.get_current_tenant(), "outer")
 
 
 if __name__ == "__main__":

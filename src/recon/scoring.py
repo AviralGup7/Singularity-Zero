@@ -83,10 +83,15 @@ def resolve_priority_limit(
         selected: Any = configured.get(mode)
         if selected is None and profile:
             total_urls = int(profile.get("total_urls", 0) or 0)
-            if bool(profile.get("api_heavy", False)):
-                selected = configured.get("api_heavy")
-            elif total_urls > 0 and total_urls <= 80:
+            # Bug #3 fix: the previous branch order forced any API-heavy
+            # target to use the ``api_heavy`` bucket even when the operator
+            # defined a dedicated ``small_target`` limit and the URL count
+            # was small (<=80). Evaluate ``small_target`` first so small
+            # API targets get the correct narrow limit.
+            if total_urls > 0 and total_urls <= 80:
                 selected = configured.get("small_target")
+            elif bool(profile.get("api_heavy", False)):
+                selected = configured.get("api_heavy")
         if selected is None:
             selected = configured.get("default", 100)
         if selected is None:

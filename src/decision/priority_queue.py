@@ -190,10 +190,16 @@ class ScanTarget:
 
         self.current_priority = new_priority
         self.last_boosted_at = time.time()
-        if reason:
+        # Bug #21 fix: previously ``self.boost_factors.append(reason)`` ran
+        # unconditionally, so a no-op boost (priority already at the cap)
+        # would still consume one of the ``max_boosts`` slots. A target
+        # that has hit the cap with a real boost would then silently drop
+        # subsequent genuine boosts because all its slots were burned.
+        # Only record the boost if the priority actually changed.
+        if reason and self.current_priority != old_priority:
             self.boost_factors.append(reason)
-        if self.current_priority != old_priority:
-            self.refresh_bid()
+            if self.current_priority != old_priority:
+                self.refresh_bid()
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, ScanTarget):
@@ -542,7 +548,15 @@ class CorrelationPriorityQueue:
         if self._pop_count == 0:
             return False
 
-        if self.remaining < min_items:
+        # Bug #19 fix: previously this method returned ``True`` whenever
+        # ``self.remaining < min_items`` regardless of whether we had
+        # *scanned* anything. For a queue with fewer than ``min_items``
+        # targets (e.g. 3) the very first call would see ``remaining=3``
+        # and immediately terminate, producing zero scanned URLs.
+        # We now only honour the low-count branch after at least one
+        # full ``min_items`` of pops have occurred, so small queues
+        # still drain.
+        if self.remaining < min_items and self._pop_count >= min_items:
             return True
 
         with self._lock:

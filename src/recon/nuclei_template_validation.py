@@ -62,7 +62,12 @@ class NucleiTemplateValidator:
             return True
 
         mismatched_files = []
-        for file_path in target_dir.rglob("*.yaml"):
+        # Bug #1 fix: Nuclei ships both ``.yaml`` and ``.yml`` templates; the
+        # original code only globbed ``*.yaml`` and silently skipped every
+        # ``.yml`` file, so the manifest check could not detect tampered
+        # ``.yml`` templates. We now iterate the union of both extensions.
+        candidate_paths = list(target_dir.rglob("*.yaml")) + list(target_dir.rglob("*.yml"))
+        for file_path in candidate_paths:
             relative_path = str(file_path.relative_to(target_dir)).replace("\\", "/")
             expected_hash = manifest.get(relative_path)
 
