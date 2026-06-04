@@ -88,16 +88,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={cn(
           'inline-flex items-center justify-center gap-2 font-mono font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed',
-          toneClasses && Reflect.get(toneClasses, tone),
-          intensityClasses && Reflect.get(intensityClasses, intensity),
+          toneClasses?.[tone],
+          intensityClasses?.[intensity],
           !interactive && 'pointer-events-none',
           status === 'running' && 'animate-pulse',
-   
           status === 'failed' && 'ring-2 ring-[var(--bad)]/60',
-   
           status === 'completed' && 'ring-2 ring-[var(--ok)]/60',
-          variantClasses && Reflect.get(variantClasses, variant),
-          sizeClasses && Reflect.get(sizeClasses, size),
+          variantClasses?.[variant],
+          sizeClasses?.[size],
           className
         )}
         aria-busy={loading}

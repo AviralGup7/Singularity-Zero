@@ -138,16 +138,18 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
   }, [jobId, state.job?.status, loadData]);
 
   // --- Duration Forecast ---
+  // ``state.durationForecast`` is intentionally *not* in the dep array:
+  // re-running this effect every time the forecast itself changes would
+  // cause an infinite update loop (the effect dispatches an update to
+  // the very value that triggered it).
   useEffect(() => {
     if (!state.job?.stage) return;
-    dispatch({ type: 'SET_DURATION_FORECAST', payload: state.durationForecast, loading: true });
     getHistoricalDurations()
       .then((data) => {
         if (data && data.length > 0) {
           const perStage: Record<string, { mean: number; p50: number; p90: number; count: number }> = {};
           let totalMean = 0;
           for (const entry of data) {
-   
             perStage[entry.module] = {
               mean: entry.avg_duration_sec,
               p50: entry.p50_duration_sec,
@@ -162,8 +164,8 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         }
       })
       .catch(() => bufferDispatch({ type: 'SET_DURATION_FORECAST', payload: null, loading: false }));
-   
-  }, [state.job?.id, state.job?.stage, bufferDispatch, state.durationForecast]);
+
+  }, [state.job?.id, state.job?.stage, bufferDispatch]);
 
   // --- WebSocket (log streaming) ---
   const handleWsMessage = useCallback(

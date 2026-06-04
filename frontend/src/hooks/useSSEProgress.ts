@@ -59,10 +59,12 @@ export function useSSEProgress<T = SseEventData>({
 
   const resetHeartbeat = useCallback(() => {
     if (heartbeatRef.current) clearTimeout(heartbeatRef.current);
-    heartbeatRef.current = setTimeout(() => {
+    const timer = setTimeout(() => {
+      if (!mountedRef.current) return;
       console.warn('SSE Heartbeat Timeout - Reconnecting...');
       connectRef.current();
     }, HEARTBEAT_TIMEOUT);
+    heartbeatRef.current = timer;
   }, []);
 
   const connect = useCallback(() => {
