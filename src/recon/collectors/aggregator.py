@@ -21,6 +21,30 @@ from src.core.models.config import Config
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.provider_selection import select_enabled_providers
+from src.recon.collectors.providers import (
+    commoncrawl as _commoncrawl,
+)
+from src.recon.collectors.providers import (
+    crawler as _crawler,
+)
+from src.recon.collectors.providers import (
+    otx as _otx,
+)
+from src.recon.collectors.providers import (
+    urlscan as _urlscan,
+)
+from src.recon.collectors.providers import (
+    wayback as _wayback,
+)
+
+# Re-export provider modules at module level so existing test patches
+# such as ``patch.object(aggregator.wayback, "collect_for_hosts", ...)``
+# continue to work after the provider-selection refactor.
+wayback = _wayback
+commoncrawl = _commoncrawl
+crawler = _crawler
+otx = _otx
+urlscan = _urlscan
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +93,15 @@ def collect_urls(
 
     def run_provider(spec) -> tuple[str, set[str], dict[str, Any]]:
         if spec.name == "crawler" and not hostnames:
-            return spec.name, set(), {
-                "status": "skipped",
-                "duration_seconds": 0.0,
-                "new_urls": 0,
-            }
+            return (
+                spec.name,
+                set(),
+                {
+                    "status": "skipped",
+                    "duration_seconds": 0.0,
+                    "new_urls": 0,
+                },
+            )
         try:
             kwargs: dict[str, Any] = {
                 "timeout_seconds": spec.timeout_seconds,
@@ -86,11 +114,15 @@ def collect_urls(
             return spec.name, discovered, meta
         except Exception as exc:  # noqa: BLE001
             logger.warning("%s collection failed: %s", spec.name, exc, exc_info=True)
-            return spec.name, set(), {
-                "status": "error",
-                "duration_seconds": 0.0,
-                "new_urls": 0,
-            }
+            return (
+                spec.name,
+                set(),
+                {
+                    "status": "error",
+                    "duration_seconds": 0.0,
+                    "new_urls": 0,
+                },
+            )
 
     if providers:
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as executor:

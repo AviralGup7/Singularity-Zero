@@ -1,6 +1,7 @@
 """Stream consumer and log processing utilities for pipeline execution output."""
 
 import json
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -9,6 +10,8 @@ from typing import Any, TextIO
 
 from src.dashboard.job_state import append_log, apply_progress
 from src.dashboard.registry import PROGRESS_PREFIX
+
+logger = logging.getLogger(__name__)
 
 
 def _last_progress_payload_from_file(path: Path, *, progress_prefix: str) -> dict[str, Any]:
@@ -98,8 +101,8 @@ def consume_stream(
                     if process:
                         try:
                             process.kill()
-                        except Exception:
-                            pass
+                        except (OSError, ProcessLookupError) as kill_exc:
+                            logger.debug("Stream consumer process kill failed: %s", kill_exc)
                     _persist_if_needed(force=True)
                 break
     finally:

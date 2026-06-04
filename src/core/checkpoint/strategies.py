@@ -139,8 +139,8 @@ class CheckpointManager:
                             finally:
                                 try:
                                     loop.close()
-                                except Exception:
-                                    pass
+                                except (RuntimeError, OSError) as loop_close_exc:
+                                    _log_replication_failure(loop_close_exc)
                         except Exception as e:
                             _log_replication_failure(e)
                 except Exception as exc:

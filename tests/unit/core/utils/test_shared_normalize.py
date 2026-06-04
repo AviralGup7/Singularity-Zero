@@ -20,7 +20,6 @@ class TestNormalizeScopeEntry(unittest.TestCase):
         self.assertEqual(normalize_scope_entry("example.com"), "example.com")
 
     def test_only_strips_leading_wildcard(self) -> None:
-        # Multiple wildcards only the prefix is stripped
         self.assertEqual(normalize_scope_entry("*.sub.example.com"), "sub.example.com")
 
     def test_empty_string(self) -> None:
@@ -29,11 +28,17 @@ class TestNormalizeScopeEntry(unittest.TestCase):
     def test_does_not_strip_middle_wildcard(self) -> None:
         self.assertEqual(normalize_scope_entry("sub.*.example.com"), "sub.*.example.com")
 
+    def test_does_not_strip_lone_asterisk(self) -> None:
+        self.assertEqual(normalize_scope_entry("*x.com"), "*x.com")
+
 
 @pytest.mark.unit
 class TestNormalizeUrl(unittest.TestCase):
     def test_empty_string_returns_empty(self) -> None:
         self.assertEqual(normalize_url(""), "")
+
+    def test_whitespace_only_returns_empty(self) -> None:
+        self.assertEqual(normalize_url("   "), "")
 
     def test_lowercases_scheme(self) -> None:
         self.assertEqual(normalize_url("HTTPS://example.com"), "https://example.com")
@@ -74,6 +79,15 @@ class TestNormalizeUrl(unittest.TestCase):
         result = normalize_url("  https://example.com  ")
         self.assertEqual(result, "https://example.com")
 
+    def test_preserves_path(self) -> None:
+        result = normalize_url("https://example.com/api/v1/users")
+        self.assertIn("/api/v1/users", result)
+
+    def test_query_params_stable_under_dup_keys(self) -> None:
+        url1 = "https://example.com/api?a=1&b=2"
+        url2 = "https://example.com/api?b=2&a=1"
+        self.assertEqual(normalize_url(url1), normalize_url(url2))
+
 
 @pytest.mark.unit
 class TestParsePlainLines(unittest.TestCase):
@@ -94,7 +108,6 @@ class TestParsePlainLines(unittest.TestCase):
 
     def test_normalizes_paths_as_urls(self) -> None:
         result = parse_plain_lines("/api/v1")
-        # path-only with slash routed through URL normalization
         self.assertEqual(len(result), 1)
 
     def test_lowercases_non_url_entries(self) -> None:
@@ -106,9 +119,14 @@ class TestParsePlainLines(unittest.TestCase):
         self.assertEqual(result, {"a.com", "b.com", "c.com"})
 
     def test_skips_empty_lines(self) -> None:
-        # Empty lines normalize to empty strings which are filtered
         result = parse_plain_lines("\n\nexample.com\n\n")
         self.assertEqual(result, {"example.com"})
+
+    def test_mixes_urls_and_plain(self) -> None:
+        result = parse_plain_lines("example.com\nhttps://foo.com/path\nbar.com")
+        self.assertIn("example.com", result)
+        self.assertIn("bar.com", result)
+        self.assertEqual(len(result), 3)
 
 
 if __name__ == "__main__":

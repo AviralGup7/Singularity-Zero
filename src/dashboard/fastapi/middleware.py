@@ -19,6 +19,51 @@ _CSRF_EXEMPT_PATHS = (
     "/api/csrf-token",
 )
 
+# Bug #29 fix: which forwarded-client-header keys we accept. We use
+# ``X-Forwarded-For`` (the de-facto standard) and additionally recognise
+# the newer ``Forwarded`` RFC 7239 header. We deliberately do NOT trust
+# the right-most value (the one nearest the proxy) because that is the
+# address the operator's proxy adds; the left-most is the original
+# client. We also cap the number of hops we'll honour to avoid abuse
+# via arbitrarily long header chains.
+_FORWARDED_HEADER = "X-Forwarded-For"
+_FORWARDED_RFC7239 = "Forwarded"
+_MAX_FORWARDED_HOPS = 8
+
+
+def _extract_real_client_ip(request: Request) -> str:
+    """Return the original client IP for audit logging.
+
+    Bug #29 fix: ``request.client.host`` is the address of the
+    reverse proxy in any production deployment. We honour
+    ``X-Forwarded-For`` (left-most hop) when present, fall back to
+    the RFC 7239 ``Forwarded`` header, and only use the socket peer
+    as a last resort.
+    """
+    fwd_for = request.headers.get(_FORWARDED_HEADER, "")
+    if fwd_for:
+        # Take the left-most IP - that's the original client. Limit the
+        # split depth so a malicious client cannot OOM the audit log.
+        hops = [h.strip() for h in fwd_for.split(",") if h.strip()][: _MAX_FORWARDED_HOPS]
+        if hops:
+            return hops[0]
+    rfc7239 = request.headers.get(_FORWARDED_RFC7239, "")
+    if rfc7239:
+        # Parsing ``Forwarded: for=ip;by=...;...`` - find the first
+        # ``for=`` token. ``ip`` may be quoted or wrapped in ``[]``
+        # for IPv6.
+        for part in rfc7239.split(";"):
+            part = part.strip()
+            if part.lower().startswith("for="):
+                ip = part[4:].strip().strip('"')
+                if ip.startswith("[") and "]" in ip:
+                    ip = ip[1 : ip.index("]")]
+                if ip:
+                    return ip
+    if request.client is not None:
+        return request.client.host
+    return "unknown"
+
 
 def issue_csrf_token() -> str:
     """Generate a fresh CSRF token. Exposed so routers can mint a token for SPAs."""
@@ -133,7 +178,15 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
         audit_logger = getattr(request.app.state, "audit_logger", None)
         if audit_logger and request.url.path.startswith("/api"):
             try:
-                client_ip = request.client.host if request.client else "unknown"
+                # Bug #29 fix: previously the audit log always used
+                # ``request.client.host``, which is the address of the
+                # reverse proxy / load balancer when the dashboard
+                # runs behind one. Forensics and rate-limiting based on
+                # the audit log were useless in any non-trivial
+                # deployment. We now prefer the left-most IP from
+                # ``X-Forwarded-For`` (set by the trusted reverse proxy)
+                # and fall back to the connection's peer.
+                client_ip = _extract_real_client_ip(request)
                 user_id = getattr(request.state, "user_id", None) or "anonymous"
                 correlation_id = getattr(request.state, "request_id", None)
                 audit_logger.log(
@@ -148,6 +201,6 @@ class AuditLoggingMiddleware(BaseHTTPMiddleware):
                         "status_code": response.status_code,
                     },
                 )
-            except Exception:
-                pass
+            except (OSError, ValueError, TypeError, AttributeError) as log_exc:
+                logger.debug("Audit log write failed: %s", log_exc)
         return response

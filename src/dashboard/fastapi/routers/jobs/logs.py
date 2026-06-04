@@ -28,6 +28,13 @@ async def get_job_logs(
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
     job = await get_enriched_job(job_id, services)
+    # Bug #34 fix: ``get_enriched_job`` can return ``None`` (e.g. when the
+    # job exists in the queue but has not yet been enriched). The previous
+    # code went straight to ``job.get("target_name")`` which raised
+    # ``AttributeError: 'NoneType' object has no attribute 'get'``,
+    # surfacing as a 500 to the client. Emit a clean 404 instead.
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
     job_target = str(job.get("target_name") or job.get("hostname") or job.get("target") or "")
     if not is_target_owned_by_tenant(job_target, tenant_id):
         raise HTTPException(status_code=404, detail="Job not found")

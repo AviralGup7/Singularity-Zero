@@ -211,7 +211,9 @@ class PersistentCache:
                             backup.unlink()
                         shutil.copy2(str(db_path), str(backup))
                     except OSError as e:
-                        logger.error("Failed to back up corrupted cache DB %s: %s", self._db_path, e)
+                        logger.error(
+                            "Failed to back up corrupted cache DB %s: %s", self._db_path, e
+                        )
                     try:
                         db_path.unlink()
                     except OSError as e:

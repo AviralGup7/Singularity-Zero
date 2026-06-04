@@ -490,8 +490,8 @@ class AuditLogger:
         if getattr(self, "_db", None) is not None:
             try:
                 self._db.close()
-            except Exception:
-                pass
+            except (OSError, AttributeError) as close_exc:
+                logger.debug("Audit DB close failed: %s", close_exc)
             self._db = None
 
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")

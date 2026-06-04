@@ -1,6 +1,5 @@
 """Unit tests for src.core.frontier.shared_memory (SharedMemoryBuffer + ZeroCopyRouter)."""
 
-import os
 import unittest
 import uuid
 
@@ -66,9 +65,7 @@ class TestSharedMemoryBuffer(unittest.TestCase):
             self.buf.read(10, offset=-1)
 
     def test_close_releases_segment(self) -> None:
-        # Closing twice should not raise on the second call thanks to unlink guard
         self.buf.close()
-        # On Windows, SharedMemory may raise FileNotFoundError; we accept either
         try:
             self.buf.close()
         except Exception:
@@ -90,7 +87,6 @@ class TestZeroCopyRouter(unittest.TestCase):
         try:
             self.router.close()
         finally:
-            # On Windows, unlink is best-effort; we make sure to release what we created
             for r in self.created:
                 try:
                     r.close()
@@ -109,7 +105,7 @@ class TestZeroCopyRouter(unittest.TestCase):
 
     def test_invalid_payload_type_raises(self) -> None:
         with self.assertRaises(TypeError):
-            self.router.route_payload("not bytes")  # type: ignore[arg-type]
+            self.router.route_payload("not bytes")
 
     def test_oversized_payload_raises(self) -> None:
         with self.assertRaises(ValueError):
@@ -130,17 +126,13 @@ class TestZeroCopyRouter(unittest.TestCase):
             self.router.retrieve_payload("shm://missing-at-sign")
 
     def test_retrieve_corrupted_magic_raises(self) -> None:
-        # Corrupt the magic directly on the router's buffer. We need a fresh
-        # router so the buffer is still initialized.
         corrupt_name = _unique_name("test_zcr_corrupt")
         corrupt_router = ZeroCopyRouter(
             buffer_name=corrupt_name, buffer_size=64 * 1024
         )
         try:
-            # Force buffer initialization by routing a real payload first
             corrupt_router.route_payload(b"x")
-            # Now corrupt the first 4 bytes (the magic)
-            shm = corrupt_router._shm  # type: ignore[union-attr]
+            shm = corrupt_router._shm
             shm.write(b"XXXX" + b"\x00" * (_HEADER_SIZE - 4), offset=0)
             with self.assertRaises(ValueError):
                 corrupt_router.retrieve_payload(f"shm://{corrupt_name}@0:1")
@@ -165,7 +157,6 @@ class TestZeroCopyRouter(unittest.TestCase):
 
     def test_buffer_size_clamped_to_header_minimum(self) -> None:
         r = ZeroCopyRouter(buffer_name=_unique_name("min"), buffer_size=2)
-        # buffer_size must always be at least _HEADER_SIZE + 16
         self.assertGreaterEqual(r.buffer_size, _HEADER_SIZE + 16)
         r.close()
 

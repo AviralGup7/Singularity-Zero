@@ -42,7 +42,6 @@ class TestRedactedSnippet(unittest.TestCase):
 
     def test_strips_newlines(self) -> None:
         body = "before\nmatch_here\nafter"
-        # Find "match_here"
         idx = body.index("match_here")
         snippet = redacted_snippet(body, idx, idx + len("match_here"))
         self.assertNotIn("\n", snippet)
@@ -52,8 +51,7 @@ class TestRedactedSnippet(unittest.TestCase):
         snippet = redacted_snippet(body, 200, 250, context=48)
         self.assertLessEqual(len(snippet), 180)
 
-    def test_handles_negative_start_via_clamp(self) -> None:
-        # start=0, no clamping needed but ensure no crash
+    def test_handles_start_at_zero(self) -> None:
         body = "abcdef"
         snippet = redacted_snippet(body, 0, 3)
         self.assertIsInstance(snippet, str)
@@ -67,7 +65,6 @@ class TestRedactedSnippet(unittest.TestCase):
 @pytest.mark.unit
 class TestNormalizeCompareText(unittest.TestCase):
     def test_replaces_digits_with_zero(self) -> None:
-        # \d+ collapses consecutive digits into a single "0"
         self.assertEqual(normalize_compare_text("user1234"), "user0")
         self.assertEqual(normalize_compare_text("user12.34"), "user0.0")
 
@@ -82,8 +79,7 @@ class TestNormalizeCompareText(unittest.TestCase):
         self.assertEqual(normalize_compare_text(""), "")
 
     def test_handles_none_safe(self) -> None:
-        # Implementation uses `value or ""` so None becomes ""
-        self.assertEqual(normalize_compare_text(None), "")  # type: ignore[arg-type]
+        self.assertEqual(normalize_compare_text(None), "")
 
     def test_preserves_letters(self) -> None:
         self.assertEqual(normalize_compare_text("abc"), "abc")
@@ -101,7 +97,6 @@ class TestExtractKeyFields(unittest.TestCase):
         self.assertIn("username", fields)
 
     def test_ignores_short_field_names(self) -> None:
-        # Field must have at least 2 chars after the first
         fields = extract_key_fields('{"a": 1, "b": 2}')
         self.assertNotIn("a", fields)
         self.assertNotIn("b", fields)
@@ -110,7 +105,7 @@ class TestExtractKeyFields(unittest.TestCase):
         self.assertEqual(extract_key_fields(""), set())
 
     def test_handles_none_safe(self) -> None:
-        self.assertEqual(extract_key_fields(None), set())  # type: ignore[arg-type]
+        self.assertEqual(extract_key_fields(None), set())
 
     def test_supports_underscore_and_dash(self) -> None:
         fields = extract_key_fields('{"first_name": 1, "x-trace-id": "abc"}')
@@ -136,7 +131,7 @@ class TestJsonHeaders(unittest.TestCase):
         self.assertEqual(json_headers({}), "")
 
     def test_handles_none_safe(self) -> None:
-        self.assertEqual(json_headers(None), "")  # type: ignore[arg-type]
+        self.assertEqual(json_headers(None), "")
 
 
 @pytest.mark.unit
@@ -151,11 +146,9 @@ class TestShannonEntropy(unittest.TestCase):
         self.assertEqual(shannon_entropy("aaaaaaaa"), 0.0)
 
     def test_two_equally_distributed_chars(self) -> None:
-        # "ab" -> 1 bit
         self.assertAlmostEqual(shannon_entropy("ab"), 1.0, places=5)
 
     def test_four_equally_distributed_chars(self) -> None:
-        # "abcd" -> 2 bits
         self.assertAlmostEqual(shannon_entropy("abcd"), 2.0, places=5)
 
     def test_returns_non_negative(self) -> None:
@@ -177,14 +170,10 @@ class TestLooksRandom(unittest.TestCase):
         self.assertFalse(looks_random("aaaaaaa"))
 
     def test_high_entropy_with_mix_returns_true(self) -> None:
-        # Mix of letters and digits with reasonable entropy
         self.assertTrue(looks_random("aB3xZ9qW1nM4pQ7"))
 
-    def test_no_digits_returns_false(self) -> None:
-        # Pure letter "random" looking text - needs entropy > 4.0
-        # "AbCdEfGhIjKlMnOp" has only 13 unique chars out of 16
+    def test_no_digits_returns_false_or_bool(self) -> None:
         result = looks_random("AbCdEfGhIjKlMnOp")
-        # Should be either; we just ensure it doesn't crash
         self.assertIsInstance(result, bool)
 
     def test_returns_bool(self) -> None:

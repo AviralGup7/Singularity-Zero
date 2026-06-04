@@ -177,9 +177,7 @@ def verify_api_key(api_key: str, stored_hash: str) -> bool:
     """Verify ``api_key`` against the stored ``stored_hash`` produced by :func:`hash_api_key`."""
     if not stored_hash:
         return False
-    if _ARGON2_AVAILABLE and _argon2_hasher is not None and not stored_hash.startswith(
-        "sha256$"
-    ):
+    if _ARGON2_AVAILABLE and _argon2_hasher is not None and not stored_hash.startswith("sha256$"):
         try:
             _argon2_hasher.verify(stored_hash, api_key)
             return True
@@ -369,9 +367,7 @@ class SecurityStore:
             ).fetchall()
             for row in rows:
                 if verify_api_key(api_key, row[3]):
-                    conn.execute(
-                        "UPDATE api_keys SET last_used_at = ? WHERE id = ?", (now, row[0])
-                    )
+                    conn.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?", (now, row[0]))
                     return (row[0], row[1])
             return None
 

@@ -3,7 +3,6 @@
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from src.analysis._core.http_request import _safe_request
 from src.recon.common import normalize_url
 
 

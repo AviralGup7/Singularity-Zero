@@ -119,9 +119,7 @@ class TestPatternQuality(unittest.TestCase):
         }
         self.assertTrue(expected.issubset(CDN_WAF_PATTERNS.keys()))
 
-    def test_header_strings_are_lowercase_or_specific(self) -> None:
-        # Some patterns intentionally use mixed case like "Incapsula" - just
-        # ensure no entries are blank
+    def test_header_strings_are_non_blank(self) -> None:
         for name, data in CDN_WAF_PATTERNS.items():
             for h in data["headers"]:
                 self.assertIsInstance(h, str)

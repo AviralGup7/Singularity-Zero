@@ -269,6 +269,13 @@ class CacheManager:
         try:
             import redis
 
+            # Bug #23 fix: previously the ``self._lock_redis_client.ping()``
+            # call was OUTSIDE the try/except (it followed the
+            # ``redis.from_url(...)`` call but the ``except`` only wrapped
+            # that constructor), so a transient Redis blip during the
+            # ping raised out of the helper and crashed the calling
+            # code. Move the ping inside the try and clear the client
+            # on any failure so subsequent calls retry cleanly.
             self._lock_redis_client = redis.from_url(
                 self._config.redis_url,
                 decode_responses=True,

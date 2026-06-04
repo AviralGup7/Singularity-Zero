@@ -140,11 +140,12 @@ class ResourceWatchdog:
                                     os.killpg(os.getpgid(pid), signal.SIGTERM)
                                 else:
                                     p.process.terminate()
-                            except Exception:
+                            except (OSError, ProcessLookupError) as term_exc:
+                                logger.debug("Worker process terminate failed: %s", term_exc)
                                 try:
                                     p.process.kill()
-                                except Exception:
-                                    pass
+                                except (OSError, ProcessLookupError) as kill_exc:
+                                    logger.debug("Worker process kill failed: %s", kill_exc)
 
                             # Wait for termination outside the lock-heavy loop with a timeout
                             try:

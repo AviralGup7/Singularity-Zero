@@ -5,6 +5,7 @@ for memoized HTTP responses with persistence, and fetch_response() as the
 primary entry point for passive analysis modules.
 """
 
+import concurrent.futures
 import logging
 import threading
 import time
@@ -137,8 +138,8 @@ class RequestScheduler:
                         future = asyncio.run_coroutine_threadsafe(asyncio.sleep(sleep_time), loop)
                         future.result()
                         continue
-                    except Exception:
-                        pass
+                    except (RuntimeError, asyncio.TimeoutError, concurrent.futures.TimeoutError, OSError) as wait_exc:
+                        logger.debug("Cross-thread event-loop wait failed, falling back to time.sleep: %s", wait_exc)
             time.sleep(sleep_time)
 
     async def acquire_async(self) -> None:
@@ -380,8 +381,8 @@ class ResponseCache:
                             else:
                                 import fcntl
                                 fcntl.flock(fd, fcntl.LOCK_UN)
-                        except Exception:
-                            pass
+                        except (OSError, ValueError) as lock_release_exc:
+                            logger.debug("Lock release failed during fd cleanup: %s", lock_release_exc)
                         fd.close()
 
     def _request_with_policy(
@@ -559,8 +560,8 @@ def _fetch_response_stream(
         if resp is not None:
             try:
                 resp.release_conn()
-            except Exception:
-                pass
+            except (OSError, AttributeError, RuntimeError) as release_exc:
+                logger.debug("urllib3 response.release_conn() failed: %s", release_exc)
 
 
 def fetch_response(

@@ -1,6 +1,8 @@
+import logging
 import os
 import sys
-import time
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessLifespanLock:
@@ -20,8 +22,6 @@ class ProcessLifespanLock:
             return False
 
     def acquire(self) -> bool:
-        import errno
-
         try:
             self._pid = os.getpid()
             self.fd = open(self.lock_path, "w")
@@ -38,8 +38,8 @@ class ProcessLifespanLock:
             if self.fd:
                 try:
                     self.fd.close()
-                except Exception:
-                    pass
+                except OSError as close_exc:
+                    logger.debug("Process lock fd close failed: %s", close_exc)
                 self.fd = None
             try:
                 existing_pid = _read_pid_from_lock(self.lock_path)
@@ -62,12 +62,12 @@ class ProcessLifespanLock:
                 else:
                     import fcntl
                     fcntl.flock(self.fd, fcntl.LOCK_UN)
-            except Exception:
-                pass
+            except (ImportError, OSError, ValueError) as unlock_exc:
+                logger.debug("Process lock unlock failed: %s", unlock_exc)
             try:
                 self.fd.close()
-            except Exception:
-                pass
+            except OSError as close_exc:
+                logger.debug("Process lock fd close failed: %s", close_exc)
             self.fd = None
         try:
             if os.path.exists(self.lock_path):

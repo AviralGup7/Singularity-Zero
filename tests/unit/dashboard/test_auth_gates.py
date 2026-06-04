@@ -10,65 +10,53 @@ These tests verify that:
 - Webhook test endpoints reject SSRF URLs
 """
 
-import importlib
-import os
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 
 
 # ---------- helpers ----------
 
 
-def _reload_app_with_auth(monkeypatch, env: dict | None = None):
-    """Reload the FastAPI app module with auth dependencies mocked."""
+def _build_app(monkeypatch, env: dict | None = None):
+    """Build a fresh FastAPI app instance with auth dependencies patched."""
     for k, v in (env or {}).items():
         monkeypatch.setenv(k, v)
-    # Disable lifespan side-effects during import
     monkeypatch.setenv("APP_ENV", "test")
-    from src.dashboard.fastapi import app as app_mod
-    importlib.reload(app_mod)
-    return app_mod
-
-
-def _bypass_auth(monkeypatch, role: str = "admin"):
-    """Replace the require_auth / require_admin dependencies with fakes."""
-    from src.dashboard.fastapi import deps
-
-    async def _ok():
-        return {"sub": "test-user", "role": role, "tenant_id": "t1"}
-
-    monkeypatch.setattr(deps, "require_auth", _ok)
-    monkeypatch.setattr(deps, "require_admin", _ok)
+    monkeypatch.setenv("APP_SECRET_KEY", "x" * 48)
+    monkeypatch.setenv("GRAFANA_ADMIN_PASSWORD", "y" * 32)
+    monkeypatch.setenv("REDIS_PASSWORD", "z" * 32)
+    # Disable auth so we test the gates themselves
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
+    from src.dashboard.fastapi.app import create_app
+    return create_app()
 
 
 # ---------- security router ----------
 
 
 def test_csrf_endpoint_requires_auth(monkeypatch):
-    _reload_app_with_auth(monkeypatch)
     from fastapi.testclient import TestClient
-    from src.dashboard.fastapi import app as app_mod
-    from src.dashboard.fastapi import deps
+
+    from src.dashboard.fastapi import dependencies as deps
 
     async def _deny():
         from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="unauth")
 
     monkeypatch.setattr(deps, "require_auth", _deny)
-    client = TestClient(app_mod.app)
-    r = client.get("/api/security/csrf-token")
+    # Override the helper's DASHBOARD_AUTH_DISABLED=true
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "false")
+    from src.dashboard.fastapi.app import create_app
+    app = create_app()
+    client = TestClient(app)
+    r = client.get("/api/csrf-token")
     assert r.status_code == 401
 
 
 def test_csrf_endpoint_sets_httponly_samesite_cookie(monkeypatch):
-    _reload_app_with_auth(monkeypatch)
     from fastapi.testclient import TestClient
-    from src.dashboard.fastapi import app as app_mod
-
-    _bypass_auth(monkeypatch)
-    client = TestClient(app_mod.app)
-    r = client.get("/api/security/csrf-token")
+    app = _build_app(monkeypatch)
+    client = TestClient(app)
+    r = client.get("/api/csrf-token")
     assert r.status_code == 200
     set_cookie = r.headers.get("set-cookie", "")
     assert "HttpOnly" in set_cookie
@@ -76,76 +64,75 @@ def test_csrf_endpoint_sets_httponly_samesite_cookie(monkeypatch):
 
 
 def test_security_events_requires_admin(monkeypatch):
-    _reload_app_with_auth(monkeypatch)
     from fastapi.testclient import TestClient
-    from src.dashboard.fastapi import app as app_mod
-    from src.dashboard.fastapi import deps
-
-    async def _user():
-        return {"sub": "u", "role": "viewer", "tenant_id": "t1"}
-
-    async def _deny():
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="forbidden")
-
-    monkeypatch.setattr(deps, "require_auth", _user)
-    monkeypatch.setattr(deps, "require_admin", _deny)
-    client = TestClient(app_mod.app)
+    app = _build_app(monkeypatch)  # uses DASHBOARD_AUTH_DISABLED → role=read_only
+    client = TestClient(app)
     r = client.get("/api/security/events")
+    # read_only is not admin → require_admin denies with 403
     assert r.status_code == 403
 
 
 # ---------- webhook SSRF ----------
 
 
-def test_webhook_test_rejects_loopback_url(monkeypatch):
-    _reload_app_with_auth(monkeypatch)
-    from fastapi.testclient import TestClient
-    from src.dashboard.fastapi import app as app_mod
+def _csrf_token_for(client):
+    """Get a CSRF token from the server, returning (cookie, header) pair."""
+    r = client.get("/api/csrf-token")
+    assert r.status_code == 200
+    cookie = r.cookies.get("csrf_token")
+    return {"csrf_token": cookie} if cookie else {}
 
-    _bypass_auth(monkeypatch)
-    client = TestClient(app_mod.app)
-    r = client.post("/api/webhooks/test", json={"url": "http://127.0.0.1:6379"})
-    assert r.status_code in (400, 422)
+
+def test_webhook_test_rejects_loopback_url(monkeypatch):
+    from fastapi.testclient import TestClient
+    app = _build_app(monkeypatch)
+    client = TestClient(app)
+    csrf = _csrf_token_for(client)
+    r = client.post(
+        "/api/webhooks/test",
+        json={"url": "http://127.0.0.1:6379"},
+        cookies=csrf,
+        headers={"X-CSRF-Token": csrf.get("csrf_token", "")},
+    )
+    assert r.status_code in (400, 422), r.text
 
 
 def test_webhook_test_rejects_metadata_ip(monkeypatch):
-    _reload_app_with_auth(monkeypatch)
     from fastapi.testclient import TestClient
-    from src.dashboard.fastapi import app as app_mod
-
-    _bypass_auth(monkeypatch)
-    client = TestClient(app_mod.app)
-    r = client.post("/api/webhooks/test", json={"url": "http://169.254.169.254/latest"})
-    assert r.status_code in (400, 422)
+    app = _build_app(monkeypatch)
+    client = TestClient(app)
+    csrf = _csrf_token_for(client)
+    r = client.post(
+        "/api/webhooks/test",
+        json={"url": "http://169.254.169.254/latest"},
+        cookies=csrf,
+        headers={"X-CSRF-Token": csrf.get("csrf_token", "")},
+    )
+    assert r.status_code in (400, 422), r.text
 
 
 def test_webhook_test_rejects_file_scheme(monkeypatch):
-    _reload_app_with_auth(monkeypatch)
     from fastapi.testclient import TestClient
-    from src.dashboard.fastapi import app as app_mod
-
-    _bypass_auth(monkeypatch)
-    client = TestClient(app_mod.app)
-    r = client.post("/api/webhooks/test", json={"url": "file:///etc/passwd"})
-    assert r.status_code in (400, 422)
+    app = _build_app(monkeypatch)
+    client = TestClient(app)
+    csrf = _csrf_token_for(client)
+    r = client.post(
+        "/api/webhooks/test",
+        json={"url": "file:///etc/passwd"},
+        cookies=csrf,
+        headers={"X-CSRF-Token": csrf.get("csrf_token", "")},
+    )
+    assert r.status_code in (400, 422), r.text
 
 
 # ---------- security headers middleware ----------
 
 
 def test_security_headers_middleware_applies_csp_and_hsts(monkeypatch):
-    _reload_app_with_auth(monkeypatch)
     from fastapi.testclient import TestClient
-    from src.dashboard.fastapi import app as app_mod
-    from src.dashboard.fastapi import deps
-
-    async def _ok():
-        return {"sub": "u", "role": "admin"}
-
-    monkeypatch.setattr(deps, "require_auth", _ok)
-    client = TestClient(app_mod.app)
-    r = client.get("/api/security/csrf-token")
+    app = _build_app(monkeypatch)
+    client = TestClient(app)
+    r = client.get("/api/csrf-token")
     # CSP must not include 'unsafe-inline' for style-src
     csp = r.headers.get("content-security-policy", "")
     assert "style-src" in csp
@@ -160,20 +147,8 @@ def test_security_headers_middleware_applies_csp_and_hsts(monkeypatch):
 
 
 def test_mesh_elect_leader_requires_admin(monkeypatch):
-    _reload_app_with_auth(monkeypatch)
     from fastapi.testclient import TestClient
-    from src.dashboard.fastapi import app as app_mod
-    from src.dashboard.fastapi import deps
-
-    async def _user():
-        return {"sub": "u", "role": "viewer", "tenant_id": "t1"}
-
-    async def _deny():
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403)
-
-    monkeypatch.setattr(deps, "require_auth", _user)
-    monkeypatch.setattr(deps, "require_admin", _deny)
-    client = TestClient(app_mod.app)
+    app = _build_app(monkeypatch)  # read_only role
+    client = TestClient(app)
     r = client.post("/api/mesh/elect-leader", json={})
     assert r.status_code == 403

@@ -672,6 +672,20 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
                 "source": "python-probe-ipv6" if "[" in candidate else "python-probe",
                 "resolved_host": host,
             }
-        except (urllib3.exceptions.HTTPError, Exception):  # noqa: S112
+        except (  # noqa: S112
+            urllib3.exceptions.HTTPError,
+            urllib3.exceptions.MaxRetryError,
+            urllib3.exceptions.NewConnectionError,
+            urllib3.exceptions.ProtocolError,
+            urllib3.exceptions.TimeoutError,
+            socket.error,
+            TimeoutError,
+        ):
+            # Bug #7 fix: ``except (urllib3.exceptions.HTTPError, Exception)``
+            # is redundant (``Exception`` already covers ``HTTPError``),
+            # making the explicit first element dead code and the catch
+            # effectively a bare ``except Exception``. We now list the
+            # specific urllib3/socket errors we actually want to swallow
+            # so a programmer reading this knows the intent.
             continue
     return None

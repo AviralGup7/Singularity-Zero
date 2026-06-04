@@ -174,7 +174,17 @@ class FrontierWAL:
             )
             self._redis_call(lambda: self._client.ping(), mark_inactive=False)
             self._active = True
-        except (redis.exceptions.RedisError, ValueError, ConnectionError) as exc:
+        except (  # noqa: BLE001 - broad catch is intentional: connection failures can
+            # raise any subclass of redis exceptions, plus OSError, socket errors,
+            # and arbitrary client-library errors. We must not let the WAL
+            # constructor crash the surrounding pipeline.
+            redis.exceptions.RedisError,
+            ValueError,
+            ConnectionError,
+            OSError,
+            TimeoutError,
+            Exception,
+        ) as exc:
             logger.warning("Frontier WAL inactive: Redis connection failed: %s", exc)
             self._active = False
 
@@ -294,7 +304,16 @@ class FrontierWAL:
                 stage_name,
             )
             return None
-        except (ValueError, TypeError, AttributeError) as exc:
+        except (  # noqa: BLE001 - log_delta is the public entry point and must
+            # NEVER propagate exceptions, otherwise one bad call would crash
+            # the surrounding pipeline stage. We log the failure and return
+            # None so the caller can choose to retry.
+            ValueError,
+            TypeError,
+            AttributeError,
+            OSError,
+            Exception,
+        ) as exc:
             logger.error("WAL append failed for stage '%s': %s", stage_name, exc)
             return None
 

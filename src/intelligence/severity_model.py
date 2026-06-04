@@ -229,7 +229,6 @@ class CalibratedSeverityModel:
         # had its own registry, so retrains done by the active-learning loop
         # were invisible to the serving predictor.
         from src.intelligence.ml import (
-            ModelVersionRegistry,
             XGBoostSeverityPipeline,
             get_default_model_registry,
         )
