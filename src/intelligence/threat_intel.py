@@ -174,6 +174,7 @@ class ThreatIntelCorrelator:
         # Local simulation fallback if no external matches but suspicious keywords exist
         # Limit to active test suites to prevent fake flags on production targets
         import sys
+
         is_testing = "pytest" in sys.modules or "unittest" in sys.modules
         if is_testing:
             suspicious_keywords = {"malicious", "botnet", "phishing", "c2-server", "tor-exit"}
@@ -208,6 +209,7 @@ class ThreatIntelCorrelator:
         # Simulate active indicators for testing and realistic execution
         # Limit to active test suites to prevent fake flags on production targets
         import sys
+
         is_testing = "pytest" in sys.modules or "unittest" in sys.modules
         suspicious_keywords = {"malicious", "botnet", "phishing", "c2-server", "tor-exit"}
         malicious = any(kw in host for kw in suspicious_keywords) if is_testing else False

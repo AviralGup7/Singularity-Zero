@@ -35,6 +35,14 @@ class TestPipelineError(unittest.TestCase):
     def test_subclass_of_exception(self) -> None:
         self.assertTrue(issubclass(PipelineError, Exception))
 
+    def test_can_be_raised_and_caught(self) -> None:
+        with self.assertRaises(PipelineError):
+            raise PipelineError("test error")
+
+    def test_args_attribute(self) -> None:
+        exc = PipelineError("boom")
+        self.assertEqual(exc.args, ("boom",))
+
 
 @pytest.mark.unit
 class TestConfigErrorAndChildren(unittest.TestCase):
@@ -57,6 +65,11 @@ class TestConfigErrorAndChildren(unittest.TestCase):
         with self.assertRaises(PipelineError):
             raise ConfigError("config bad")
 
+    def test_all_subclasses_can_carry_details(self) -> None:
+        for cls in (ConfigError, FindingError, ReplayError, AuthError, CacheError):
+            exc = cls("msg", details={"k": "v"})
+            self.assertEqual(exc.details, {"k": "v"})
+
 
 @pytest.mark.unit
 class TestStageError(unittest.TestCase):
@@ -75,6 +88,11 @@ class TestStageError(unittest.TestCase):
     def test_details_optional(self) -> None:
         exc = StageError("failed")
         self.assertEqual(exc.details, {})
+
+    def test_details_with_stage(self) -> None:
+        exc = StageError("failed", stage="x", details={"k": "v"})
+        self.assertEqual(exc.details, {"k": "v"})
+        self.assertEqual(exc.stage, "x")
 
 
 @pytest.mark.unit
@@ -95,6 +113,10 @@ class TestExternalToolError(unittest.TestCase):
     def test_message_propagates(self) -> None:
         exc = ExternalToolError("crashed")
         self.assertEqual(str(exc), "crashed")
+
+    def test_details_with_tool(self) -> None:
+        exc = ExternalToolError("crashed", tool="nuclei", details={"k": "v"})
+        self.assertEqual(exc.details, {"k": "v"})
 
 
 @pytest.mark.unit
@@ -117,6 +139,14 @@ class TestScopeViolationError(unittest.TestCase):
 
     def test_inherits_pipeline_error(self) -> None:
         self.assertTrue(issubclass(ScopeViolationError, PipelineError))
+
+    def test_none_target_url_accepted(self) -> None:
+        exc = ScopeViolationError("oops")
+        self.assertIsNone(exc.target_url)
+
+    def test_details_preserved(self) -> None:
+        exc = ScopeViolationError("oops", details={"k": "v"})
+        self.assertEqual(exc.details, {"k": "v"})
 
 
 if __name__ == "__main__":

@@ -11,7 +11,36 @@ from src.analysis.plugin_runtime_models import (
     EndpointEntity,
     EvidenceEntity,
     FlowEdge,
+    IdentityEntity,
+    MutationResult,
 )
+
+
+def _empty_exec_context() -> AnalysisExecutionContext:
+    return AnalysisExecutionContext(
+        live_hosts=set(),
+        urls=set(),
+        priority_urls=set(),
+        analysis_config={},
+        header_targets=[],
+        responses=[],
+        response_map={},
+        response_cache=None,
+        ranked_items=[],
+        flow_items=[],
+        bulk_items=[],
+        payload_items=[],
+        token_findings=[],
+        csrf_findings=[],
+        ssti_findings=[],
+        upload_findings=[],
+        business_logic_findings=[],
+        rate_limit_findings=[],
+        jwt_findings=[],
+        smuggling_findings=[],
+        ssrf_findings=[],
+        idor_findings=[],
+    )
 
 
 @pytest.mark.unit
@@ -26,7 +55,7 @@ class TestEndpointEntity(unittest.TestCase):
     def test_frozen(self) -> None:
         e = EndpointEntity(endpoint_key="k", url="https://x.com/", host="x.com")
         with self.assertRaises(Exception):
-            e.url = "https://other.com/"  # type: ignore[misc]
+            e.url = "https://other.com/"
 
     def test_query_params_default(self) -> None:
         e = EndpointEntity(
@@ -44,6 +73,30 @@ class TestEndpointEntity(unittest.TestCase):
 
 
 @pytest.mark.unit
+class TestIdentityEntity(unittest.TestCase):
+    def test_minimal_construction(self) -> None:
+        e = IdentityEntity(identity_key="u1")
+        self.assertEqual(e.identity_key, "u1")
+        self.assertEqual(e.role, "unknown")
+        self.assertEqual(e.token, "")
+
+    def test_custom_role_and_token(self) -> None:
+        e = IdentityEntity(identity_key="admin", role="admin", token="abc123")
+        self.assertEqual(e.role, "admin")
+        self.assertEqual(e.token, "abc123")
+
+    def test_frozen(self) -> None:
+        e = IdentityEntity(identity_key="u1")
+        with self.assertRaises(Exception):
+            e.identity_key = "u2"
+
+    def test_equality(self) -> None:
+        a = IdentityEntity(identity_key="u1", role="user", token="t")
+        b = IdentityEntity(identity_key="u1", role="user", token="t")
+        self.assertEqual(a, b)
+
+
+@pytest.mark.unit
 class TestFlowEdge(unittest.TestCase):
     def test_default_confidence(self) -> None:
         e = FlowEdge(source_key="a", target_key="b", edge_type="nav")
@@ -57,7 +110,35 @@ class TestFlowEdge(unittest.TestCase):
     def test_frozen(self) -> None:
         e = FlowEdge(source_key="a", target_key="b", edge_type="x")
         with self.assertRaises(Exception):
-            e.source_key = "z"  # type: ignore[misc]
+            e.source_key = "z"
+
+
+@pytest.mark.unit
+class TestMutationResult(unittest.TestCase):
+    def test_minimal_construction(self) -> None:
+        m = MutationResult(url="https://x.com/", mutation_type="param_swap")
+        self.assertEqual(m.url, "https://x.com/")
+        self.assertEqual(m.mutation_type, "param_swap")
+        self.assertIsNone(m.status_code)
+        self.assertEqual(m.body_similarity, 1.0)
+        self.assertFalse(m.changed)
+
+    def test_custom_values(self) -> None:
+        m = MutationResult(
+            url="https://x.com/",
+            mutation_type="param_swap",
+            status_code=200,
+            body_similarity=0.7,
+            changed=True,
+        )
+        self.assertEqual(m.status_code, 200)
+        self.assertEqual(m.body_similarity, 0.7)
+        self.assertTrue(m.changed)
+
+    def test_mutable_dataclass(self) -> None:
+        m = MutationResult(url="https://x.com/", mutation_type="swap")
+        m.changed = True
+        self.assertTrue(m.changed)
 
 
 @pytest.mark.unit
@@ -88,7 +169,7 @@ class TestEvidenceEntity(unittest.TestCase):
     def test_frozen(self) -> None:
         e = EvidenceEntity(analyzer_key="x", phase="p", url="u", summary="s")
         with self.assertRaises(Exception):
-            e.url = "other"  # type: ignore[misc]
+            e.url = "other"
 
 
 @pytest.mark.unit
@@ -126,30 +207,7 @@ class TestAnalyzerBinding(unittest.TestCase):
 @pytest.mark.unit
 class TestAnalysisExecutionContext(unittest.TestCase):
     def test_default_construction(self) -> None:
-        ctx = AnalysisExecutionContext(
-            live_hosts=set(),
-            urls=set(),
-            priority_urls=set(),
-            analysis_config={},
-            header_targets=[],
-            responses=[],
-            response_map={},
-            response_cache=None,
-            ranked_items=[],
-            flow_items=[],
-            bulk_items=[],
-            payload_items=[],
-            token_findings=[],
-            csrf_findings=[],
-            ssti_findings=[],
-            upload_findings=[],
-            business_logic_findings=[],
-            rate_limit_findings=[],
-            jwt_findings=[],
-            smuggling_findings=[],
-            ssrf_findings=[],
-            idor_findings=[],
-        )
+        ctx = _empty_exec_context()
         self.assertEqual(ctx.live_hosts, set())
         self.assertEqual(ctx.urls, set())
         self.assertIsNone(ctx.response_cache)
@@ -188,32 +246,8 @@ class TestAnalysisExecutionContext(unittest.TestCase):
 @pytest.mark.unit
 class TestDetectionGraphContext(unittest.TestCase):
     def _build_ctx(self) -> DetectionGraphContext:
-        exec_ctx = AnalysisExecutionContext(
-            live_hosts=set(),
-            urls=set(),
-            priority_urls=set(),
-            analysis_config={},
-            header_targets=[],
-            responses=[],
-            response_map={},
-            response_cache=None,
-            ranked_items=[],
-            flow_items=[],
-            bulk_items=[],
-            payload_items=[],
-            token_findings=[],
-            csrf_findings=[],
-            ssti_findings=[],
-            upload_findings=[],
-            business_logic_findings=[],
-            rate_limit_findings=[],
-            jwt_findings=[],
-            smuggling_findings=[],
-            ssrf_findings=[],
-            idor_findings=[],
-        )
         return DetectionGraphContext(
-            execution=exec_ctx,
+            execution=_empty_exec_context(),
             endpoints={},
             identities={},
             flow_edges=[],
@@ -236,7 +270,6 @@ class TestDetectionGraphContext(unittest.TestCase):
 
     def test_has_artifacts_empty_tuple(self) -> None:
         ctx = self._build_ctx()
-        # all() of empty iterable is True
         self.assertTrue(ctx.has_artifacts(()))
 
     def test_put_artifact_adds(self) -> None:

@@ -100,7 +100,6 @@ class TestCrlfProbePayloads(unittest.TestCase):
         self.assertTrue(any("xss" in n for n in names))
 
     def test_templates_reference_crlf_placeholder(self) -> None:
-        # Templates that use literal %0d%0a instead of the {crlf} placeholder
         literal_only = {
             "location_redirect",
             "location_with_tab",
@@ -112,7 +111,6 @@ class TestCrlfProbePayloads(unittest.TestCase):
                 self.assertIn("{crlf}", template)
 
     def test_templates_reference_token(self) -> None:
-        # Templates that don't include a {token} placeholder
         no_token = {
             "status_code_inject",
             "location_redirect",

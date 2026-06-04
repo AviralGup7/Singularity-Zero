@@ -50,12 +50,16 @@ def normalize_url(url: str) -> str:
         import os
 
         cleaned_path = os.path.normpath(path).replace("\\", "/")  # cross-platform safety
+        # Bug #9 fix: the previous code had a dead ``elif path.endswith("/")``
+        # branch that only contained a ``pass`` statement, so the documented
+        # "preserve trailing slash" behaviour never ran. Trailing slashes
+        # were silently stripped on every URL canonicalization. We now
+        # actually preserve a trailing slash when the original path had
+        # one and ``normpath`` collapsed it away.
         if cleaned_path == ".":
             cleaned_path = ""
-        elif path.endswith("/") and not cleaned_path.endswith("/"):
-            # normpath strips trailing slash, but we might want to preserve it if significant
-            # however, for security scans, we typically normalize it away
-            pass
+        if path.endswith("/") and not cleaned_path.endswith("/"):
+            cleaned_path = cleaned_path + "/" if cleaned_path else "/"
 
         # 3. Query Normalization
         normalized_query = urlencode(

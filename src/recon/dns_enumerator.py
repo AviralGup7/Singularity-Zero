@@ -254,7 +254,15 @@ def _parse_nslookup_output(output: str, record_type: str) -> list[str]:
             values.append(line.rstrip("."))
         elif record_type == "CNAME" and "canonical name" in line_lower:
             values.append(line.split("canonical name =")[-1].strip().rstrip("."))
-        elif record_type == "SRV" and "sv service" in line_lower:
+        elif (
+            record_type == "SRV"
+            and ("svr hostname" in line_lower or "svr = " in line_lower or "service" in line_lower)
+        ):
+            # Bug #6 fix: the previous predicate ``"sv service" in line_lower``
+            # was a typo and never matched real nslookup output (the actual
+            # prefix is ``svr hostname =`` or ``svr = ...``), so SRV records
+            # were silently dropped. We now match on the real tokens and
+            # fall back to a substring check on ``service``.
             values.append(line.rstrip("."))
         else:
             # Fallback for standard matches

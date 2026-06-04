@@ -54,7 +54,6 @@ class TestBuildAnalyzerResultFlags(unittest.TestCase):
         )
         self.assertNotIn("endpoint_key", result)
         self.assertNotIn("endpoint_base_key", result)
-        # endpoint_type is still included when url is non-empty
         self.assertIn("endpoint_type", result)
 
     def test_include_endpoint_keys_explicit_true(self) -> None:
@@ -71,16 +70,14 @@ class TestBuildAnalyzerResultEdgeCases(unittest.TestCase):
     def test_empty_url(self) -> None:
         result = build_analyzer_result("")
         self.assertEqual(result["url"], "")
-        # No endpoint keys when URL is empty
         self.assertNotIn("endpoint_key", result)
         self.assertNotIn("endpoint_type", result)
 
     def test_none_url_becomes_empty_string(self) -> None:
-        result = build_analyzer_result(None)  # type: ignore[arg-type]
+        result = build_analyzer_result(None)
         self.assertEqual(result["url"], "")
 
-    def test_response_with_non_dict_status_skipped(self) -> None:
-        # If response is a dict with non-int status, it still gets stored
+    def test_response_with_non_int_status_still_stored(self) -> None:
         result = build_analyzer_result("https://x.com/", response={"status_code": "200"})
         self.assertEqual(result["status_code"], "200")
 
@@ -88,7 +85,7 @@ class TestBuildAnalyzerResultEdgeCases(unittest.TestCase):
         result = build_analyzer_result("https://x.com/", response={"body": "ok"})
         self.assertNotIn("status_code", result)
 
-    def test_extra_can_override_endpoint_keys(self) -> None:
+    def test_extra_can_override_endpoint_type(self) -> None:
         result = build_analyzer_result(
             "https://example.com/api", endpoint_type="custom"
         )

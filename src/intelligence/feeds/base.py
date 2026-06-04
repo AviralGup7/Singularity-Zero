@@ -24,12 +24,24 @@ def _parse_retry_after_seconds(raw_value: str | None, fallback: float) -> float:
         return max(1.0, fallback)
     text = str(raw_value).strip()
     try:
-        return max(1.0, float(text))
+        seconds = float(text)
+        # Bug #18 fix: previously every branch used ``max(1.0, seconds)``,
+        # so when the server's Retry-After was 0 (immediate retry) or in
+        # the past (clock skew, stale value), the function floored the
+        # result to 1.0 and the client hammered the endpoint one second
+        # later. We now treat non-positive seconds as "use the fallback"
+        # so we never under-wait, and only floor genuinely-positive
+        # values to defend against zero/negative server hints.
+        if seconds <= 0:
+            return max(1.0, fallback)
+        return max(1.0, seconds)
     except (TypeError, ValueError):
         pass
     try:
         retry_at = datetime.fromisoformat(text.replace("Z", "+00:00"))
         seconds = (retry_at - datetime.now(UTC)).total_seconds()
+        if seconds <= 0:
+            return max(1.0, fallback)
         return max(1.0, seconds)
     except (TypeError, ValueError):
         return max(1.0, fallback)

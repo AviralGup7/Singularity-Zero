@@ -1,7 +1,6 @@
 """Import endpoints for the FastAPI dashboard (semgrep ingestion)."""
 
 import datetime
-import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -96,7 +95,14 @@ async def import_semgrep(
         raise HTTPException(status_code=400, detail="Invalid or oversized JSON payload")
 
     try:
-        dest.write_text(json.dumps(parsed), encoding="utf-8")
+        # Bug #30 fix: previously the just-validated JSON was re-serialised
+        # with ``json.dumps(parsed)`` and re-written. That round-trip lost
+        # the original key ordering, indentation, Unicode escapes, and
+        # numeric precision, so a downstream diff would see a "changed"
+        # file even when semantically identical, and it doubled the I/O
+        # for large imports. Write the validated bytes verbatim after
+        # ``validate_json_payload`` has already parsed them.
+        dest.write_bytes(content)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save semgrep.json: {exc}")
 

@@ -32,6 +32,10 @@ class TestSeverityScores(unittest.TestCase):
         for level in ("critical", "high", "medium", "low", "info"):
             self.assertIn(level, C.SEVERITY_SCORES)
 
+    def test_severity_scores_values_positive(self) -> None:
+        for score in C.SEVERITY_SCORES.values():
+            self.assertGreater(score, 0)
+
     def test_severity_scores_descending(self) -> None:
         self.assertGreater(C.SEVERITY_SCORES["critical"], C.SEVERITY_SCORES["high"])
         self.assertGreater(C.SEVERITY_SCORES["high"], C.SEVERITY_SCORES["medium"])
@@ -41,6 +45,9 @@ class TestSeverityScores(unittest.TestCase):
     def test_severity_priority_scores_descending(self) -> None:
         for a, b in (("critical", "high"), ("high", "medium"), ("medium", "low")):
             self.assertGreater(C.SEVERITY_PRIORITY_SCORES[a], C.SEVERITY_PRIORITY_SCORES[b])
+
+    def test_priority_scores_have_no_info(self) -> None:
+        self.assertNotIn("info", C.SEVERITY_PRIORITY_SCORES)
 
 
 @pytest.mark.unit
@@ -72,6 +79,13 @@ class TestAllowedOrigins(unittest.TestCase):
         self.assertIn("http://localhost:3000", C.DEFAULT_ALLOWED_ORIGINS)
         self.assertIn("http://127.0.0.1:5173", C.DEFAULT_ALLOWED_ORIGINS)
         self.assertIn("http://127.0.0.1:3000", C.DEFAULT_ALLOWED_ORIGINS)
+
+    def test_is_list(self) -> None:
+        self.assertIsInstance(C.DEFAULT_ALLOWED_ORIGINS, list)
+
+    def test_all_origins_are_strings(self) -> None:
+        for origin in C.DEFAULT_ALLOWED_ORIGINS:
+            self.assertIsInstance(origin, str)
 
 
 @pytest.mark.unit

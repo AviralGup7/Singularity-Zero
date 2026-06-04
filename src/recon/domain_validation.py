@@ -13,6 +13,7 @@ slashes, query markers, or null bytes.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from typing import Final
 
@@ -54,7 +55,9 @@ def is_safe_domain(domain: str | None) -> bool:
     Rejects inputs that contain SSRF markers (null bytes, encoded null
     bytes, line terminators) and URL contamination (slashes, query
     markers, ``:``, ``@``, whitespace).  Returns ``False`` for any input
-    that does not match the RFC 1035 / 1123 domain pattern.
+    that does not match the RFC 1035 / 1123 domain pattern.  Inputs
+    that look like IP addresses (valid or malformed) are also rejected
+    because this function is intended for *hostname* inputs.
     """
     if not domain:
         return False
@@ -62,6 +65,8 @@ def is_safe_domain(domain: str | None) -> bool:
     for bad in _FORBIDDEN_STRINGS:
         if bad in lowered:
             return False
+    if _looks_like_ip(lowered):
+        return False
     return bool(_DOMAIN_RE.fullmatch(domain))
 
 
@@ -70,8 +75,9 @@ def normalize_domain(domain: str | None) -> str:
 
     Performs: strip whitespace, lowercase, strip trailing dots, reject
     inputs containing forbidden characters, and validate against the
-    domain regex.  The empty string signals "invalid input" so callers
-    can short-circuit cleanly.
+    domain regex.  Returns the empty string for anything that is empty
+    or that looks like an IP address (valid or malformed).  The empty
+    string signals "invalid input" so callers can short-circuit cleanly.
     """
     cleaned = str(domain or "").strip().lower().rstrip(".")
     if not cleaned:
@@ -79,9 +85,28 @@ def normalize_domain(domain: str | None) -> str:
     for bad in _FORBIDDEN_STRINGS:
         if bad in cleaned:
             return ""
+    if _looks_like_ip(cleaned):
+        return ""
     if not _DOMAIN_RE.fullmatch(cleaned):
         return ""
     return cleaned
+
+
+def _looks_like_ip(value: str) -> bool:
+    """Return True if ``value`` is a valid IP or a malformed IP-shaped string.
+
+    This guards against cases like ``"999.999.999.999"`` slipping past
+    the domain regex when callers pass a numeric input.
+    """
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except (ipaddress.AddressValueError, ValueError):
+        pass
+    parts = value.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        return True
+    return False
 
 
 __all__ = ["is_safe_domain", "normalize_domain", "DOMAIN_PATTERN"]

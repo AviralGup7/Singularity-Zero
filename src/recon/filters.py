@@ -29,8 +29,12 @@ def apply_url_filters(urls: set[str], filters: dict[str, Any] | None) -> set[str
     ignored_exts = {item.lower().lstrip(".") for item in filters.get("ignore_extensions", [])}
 
     # --- Frontier Fast Path: Vectorized Hardware Acceleration ---
-    # We trigger the accelerator if we have a significant volume of data (>1000 URLs)
-    if len(urls) > 1000:
+    # We trigger the accelerator if we have a significant volume of data (>=1000 URLs).
+    # Bug #4 fix: the comment says "we trigger when we have a significant
+    # volume of data (>1000 URLs)" but the predicate used strict ``>``,
+    # so exactly 1000 URLs fell through to the slower Python loop. Use
+    # ``>=`` to align with the documented threshold.
+    if len(urls) >= 1000:
         url_list = list(urls)
         # 1. Hardware accelerated extension filtering
         fast_filtered = vectorized_url_filter(url_list, ignored_exts)

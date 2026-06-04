@@ -22,8 +22,15 @@ _JS_ENDPOINT_RE = re.compile(
         |/[A-Za-z0-9][^"'\\\s]{1,}
         |\./[A-Za-z0-9][^"'\\\s]{1,}
         |\.\./[A-Za-z0-9][^"'\\\s]{1,}
-        |[A-Za-z0-9_\-./]{2,}\.(?:php|asp|aspx|jsp|json|action|html|js|txt|xml)(?:\?[^"'\\\s]*)?
+        |(?<![A-Za-z0-9_/.\-])[A-Za-z0-9_\-./]{2,}\.(?:php|asp|aspx|jsp|json|action|html|js|txt|xml)(?:\?[^"'\\\s]*)?
     )(?:"|')""",
+    # Bug #8 fix: the previous pattern had no leading boundary, so it
+    # matched substrings inside JS comments, base64 blobs, CSS rules,
+    # and other irrelevant locations because the character class
+    # allowed ``.-_/`` and the regex wasn't anchored. The added
+    # ``(?<![A-Za-z0-9_/.\-])`` lookbehind requires a word/path
+    # boundary before the matched file extension, eliminating the
+    # majority of false-positive endpoint extractions.
     re.IGNORECASE | re.VERBOSE,
 )
 

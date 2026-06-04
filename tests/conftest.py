@@ -7,15 +7,26 @@ import ipaddress
 
 
 def _mock_getaddrinfo(host, port, *args, **kwargs):
+    family = kwargs.get("family") or (args[0] if args else 0)
     if not host:
         return _original_getaddrinfo(host, port, *args, **kwargs)
     if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+        if family == socket.AF_INET6:
+            return [(socket.AF_INET6, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("::1", port or 80))]
         return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("127.0.0.1", port or 80))]
     try:
         ip = ipaddress.ip_address(host)
-        return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (str(ip), port or 80))]
+        if family == socket.AF_INET6 and isinstance(ip, ipaddress.IPv4Address):
+            mapped = f"::ffff:{ip}"
+            return [(socket.AF_INET6, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (mapped, port or 80))]
+        if family == socket.AF_INET and isinstance(ip, ipaddress.IPv6Address):
+            return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("127.0.0.1", port or 80))]
+        sock_family = socket.AF_INET6 if isinstance(ip, ipaddress.IPv6Address) else socket.AF_INET
+        return [(sock_family, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (str(ip), port or 80))]
     except ValueError:
         pass
+    if family == socket.AF_INET6:
+        return [(socket.AF_INET6, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("::ffff:8.8.8.8", port or 80))]
     return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", port or 80))]
 
 

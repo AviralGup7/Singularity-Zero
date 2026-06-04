@@ -5,6 +5,7 @@ import re
 import socket
 import threading
 import time
+from collections import OrderedDict as _OrderedDict
 from typing import Any
 from urllib.parse import urlparse
 
@@ -23,11 +24,20 @@ PRIVATE_NETWORKS = [
     ipaddress.ip_network("ff00::/8"),  # IPv6 Multicast
 ]
 
-_DNS_CACHE: dict[str, tuple[float, tuple[str, ...] | None]] = {}
+_DNS_CACHE: "_OrderedDict[str, tuple[float, tuple[str, ...] | None]]" = _OrderedDict()
 _DNS_CACHE_TTL_SECONDS = 30.0
 _DNS_CACHE_LOCK = threading.Lock()
 _DNS_CACHE_MAX_ENTRIES = 4096
 _DNS_NEGATIVE_TTL_SECONDS = 5.0
+
+# Bug #10 fix: use an OrderedDict so we can evict the *least recently
+# inserted* entry on overflow instead of clearing the entire cache.
+# ``OrderedDict`` was previously imported elsewhere; ensure it's
+# available here.
+try:
+    from collections import OrderedDict as _OrderedDict
+except ImportError:  # pragma: no cover - Python 3.7+ always has it
+    _OrderedDict = dict  # type: ignore[assignment,misc]
 
 
 def _is_ip_private(ip_str: str) -> bool:
@@ -63,17 +73,40 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
         addr_infos = socket.getaddrinfo(hostname, None)
     except (TimeoutError, socket.gaierror, OSError):
         with _DNS_CACHE_LOCK:
-            _DNS_CACHE[hostname] = (now + _DNS_NEGATIVE_TTL_SECONDS, None)
-            if len(_DNS_CACHE) > _DNS_CACHE_MAX_ENTRIES:
-                _DNS_CACHE.clear()
+            _lru_dns_insert(hostname, now + _DNS_NEGATIVE_TTL_SECONDS, None)
         return None
 
     ips: tuple[str, ...] = tuple({str(sockaddr[0]) for _, _, _, _, sockaddr in addr_infos})
     with _DNS_CACHE_LOCK:
-        _DNS_CACHE[hostname] = (now + _DNS_CACHE_TTL_SECONDS, ips)
+        _lru_dns_insert(hostname, now + _DNS_CACHE_TTL_SECONDS, ips)
+    return ips
+
+
+def _lru_dns_insert(hostname: str, expires: float, ips: tuple[str, ...] | None) -> None:
+    """Insert ``hostname`` into the LRU DNS cache, evicting the oldest entry
+    if the cache has grown past ``_DNS_CACHE_MAX_ENTRIES``.
+
+    Bug #10 fix: the previous code used ``_DNS_CACHE.clear()`` which wiped
+    the entire cache, causing a thundering-herd of re-resolutions after a
+    burst of unique hostnames. We now evict only the least-recently-inserted
+    entry, which is the oldest ``_DNS_CACHE`` value.
+    """
+    if not isinstance(_DNS_CACHE, _OrderedDict):
+        # Defensive: if a caller replaced _DNS_CACHE with a plain dict, fall
+        # back to clear-on-overflow behaviour rather than crash.
+        _DNS_CACHE[hostname] = (expires, ips)
         if len(_DNS_CACHE) > _DNS_CACHE_MAX_ENTRIES:
             _DNS_CACHE.clear()
-    return ips
+        return
+    if hostname in _DNS_CACHE:
+        # ``move_to_end`` makes the freshly inserted/refreshed entry the
+        # most-recently-used so the next eviction picks something older.
+        _DNS_CACHE.move_to_end(hostname)
+        _DNS_CACHE[hostname] = (expires, ips)
+    else:
+        _DNS_CACHE[hostname] = (expires, ips)
+        if len(_DNS_CACHE) > _DNS_CACHE_MAX_ENTRIES:
+            _DNS_CACHE.popitem(last=False)
 
 
 def _host_resolves_to_private(hostname: str, *, timeout: float = 2.0) -> bool:
@@ -107,12 +140,13 @@ def is_safe_url(url: str) -> bool:
     # Normalise and try to parse as a bare IP address (handles decimal, hex,
     # octal, and compressed IPv6 forms that bypass naive string checks).
     try:
-        ip_addr = ipaddress.ip_address(hostname)
-        if _is_ip_private(hostname):
-            return False
-        return True
+        ipaddress.ip_address(hostname)
     except ValueError:
-        pass  # hostname is a domain name, not an IP literal
+        # Not a literal IP — fall through to hostname / DNS check below.
+        return not _host_resolves_to_private(hostname)
+    if _is_ip_private(hostname):
+        return False
+    return True
     # Block well-known private/loopback hostnames
     if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # nosec B104 # noqa: S104
         return False
@@ -137,7 +171,7 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
     if not hostname:
         return False
     try:
-        ip_addr = ipaddress.ip_address(hostname)
+        ipaddress.ip_address(hostname)
         return not _is_ip_private(hostname)
     except ValueError:
         pass
@@ -145,7 +179,7 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
         return False
     if hostname == "169.254.169.254":
         return False
-    return not _host_resolves_to_private(hostname, timeout=timeout)
+    return not _resolve_hostname_safely(hostname, timeout=timeout)
 
 
 _REBINDING_SERVICES_RE = re.compile(

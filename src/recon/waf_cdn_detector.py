@@ -157,7 +157,15 @@ async def detect_waf_cdn(
             await client.aclose()
 
     # Stash on the list so the report builder can recover the true tested count.
-    setattr(results, "_tested_urls", tested_urls)  # type: ignore[attr-defined]
+    if isinstance(results, list):
+        class _ListWithMetadata(list):
+            pass
+
+        wrapped = _ListWithMetadata(results)
+        wrapped._tested_urls = tested_urls
+        results = wrapped  # type: ignore[assignment]
+    else:
+        setattr(results, "_tested_urls", tested_urls)  # type: ignore[attr-defined]
 
     logger.info(
         "CDN/WAF detection: tested %d URLs, found %d provider detections (active_probe=%s)",

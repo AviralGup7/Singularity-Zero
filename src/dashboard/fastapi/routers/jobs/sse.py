@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
-from src.dashboard.fastapi.routers.sse_events import SSEEventEmitter
+from src.dashboard.fastapi.routers.sse_events import SSEEventEmitter, _global_tracker
 from src.dashboard.fastapi.routers.utils import (
     current_stage_entry,
     current_stage_percent,
@@ -20,6 +20,12 @@ from src.dashboard.fastapi.routers.utils import (
 )
 from src.dashboard.fastapi.schemas import ErrorResponse
 from src.dashboard.feature_flags import FeatureFlags
+# Bug #32 fix: import ``STAGE_LABELS`` at module scope so both branches of
+# the ``ENABLE_SSE_PROGRESS`` flag can reference it without a NameError.
+try:
+    from src.dashboard.registry import STAGE_LABELS  # noqa: F401
+except ImportError:  # pragma: no cover - registry is part of the project
+    STAGE_LABELS = {}  # type: ignore[assignment]
 
 # Simple cache: job_id -> (timestamp, job_dict)
 _JOB_CACHE: dict[str, tuple[float, dict[str, Any] | None]] = {}
@@ -90,9 +96,14 @@ async def stream_job_logs(
                 pass
 
     if FeatureFlags.ENABLE_SSE_PROGRESS():
-        from src.dashboard.fastapi.routers.sse_events import _global_tracker
-        from src.dashboard.registry import STAGE_LABELS
-
+        # Bug #32 fix: previously the imports for ``_global_tracker`` and
+        # ``STAGE_LABELS`` were inside this branch only, but the ``else``
+        # branch (and its ``_global_tracker.register_client`` /
+        # ``deregister_client`` calls further down) referenced those
+        # names without importing them. Disabling ``ENABLE_SSE_PROGRESS``
+        # triggered a ``NameError`` and a 500 response. We now import
+        # unconditionally at module scope so both branches can use the
+        # helpers.
         emitter = SSEEventEmitter(job_id)
         emitter.last_count = last_count
         emitter.last_stage = last_stage
@@ -227,15 +238,31 @@ async def stream_job_logs(
                                 if isinstance(job_snapshot.get("progress_telemetry"), dict)
                                 else None,
                             )
-                        started_at = _coerce_epoch(current_job.get("started_at"), 0.0)
+                        started_at = _coerce_epoch(current_job.get("started_at"), None)
                         finished_or_now = _coerce_epoch(current_job.get("finished_at"), time.time())
-                        elapsed = max(0.0, finished_or_now - started_at)
+                        # Bug #33 fix: previously ``started_at`` defaulted
+                        # to ``0.0`` when missing, so a job without a
+                        # recorded start time had its ``elapsed`` computed
+                        # against the Unix epoch and reported durations
+                        # of ~1.7 billion seconds. We now skip emitting a
+                        # ``total_duration_seconds`` when both timestamps
+                        # are unknown.
+                        if started_at is None or finished_or_now is None:
+                            elapsed = None
+                        else:
+                            elapsed = max(0.0, finished_or_now - started_at)
                         yield emitter.completed(
                             status=status,
                             progress_percent=100 if status == "completed" else progress,
                             stage=stage,
                             stage_label=stage_label,
-                            total_duration_seconds=round(elapsed, 1),
+                            # Bug #33 fix: emit ``None`` (rather than the
+                            # round of 1.7e9) when either timestamp is
+                            # missing so the UI can render "unknown"
+                            # instead of "30+ years".
+                            total_duration_seconds=(
+                                round(elapsed, 1) if elapsed is not None else None
+                            ),
                             total_findings=current_job.get("total_findings", 0),
                             failed_stage=current_job.get("failed_stage") or None,
                             failure_reason_code=current_job.get("failure_reason_code") or None,

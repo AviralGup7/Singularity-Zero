@@ -636,8 +636,8 @@ class JobQueue:
                             try:
                                 fallback_info = WorkerInfo(id=w_id, status="degraded")
                                 self.scheduler.update_worker(w_id, fallback_info)
-                            except Exception:
-                                pass
+                            except (KeyError, ValueError, OSError) as fb_exc:
+                                logger.debug("Worker scheduler fallback update failed: %s", fb_exc)
                             continue
         except Exception as exc:
             logger.warning("Failed to load global worker context for scheduling: %s", exc)

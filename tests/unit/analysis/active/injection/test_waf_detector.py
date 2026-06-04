@@ -113,8 +113,6 @@ class TestWafDetectorDetectFromResponse(unittest.TestCase):
             response_headers={},
             triggered_by_injection=False,
         )
-        # triggered_by_injection=False, score >= 2.0 needed for detection
-        # body match contributes 1.0, code 0, headers 0 -> 1.0 total
         self.assertFalse(result.detected)
 
     def test_detection_when_not_triggered_and_high_score(self) -> None:
@@ -126,7 +124,6 @@ class TestWafDetectorDetectFromResponse(unittest.TestCase):
             response_headers={"cf-ray": "abc", "cf-cache-status": "HIT"},
             triggered_by_injection=False,
         )
-        # body (1.0) + headers (1.0) = 2.0 -> detected
         self.assertTrue(result.detected)
 
     def test_status_code_below_400_no_detection_when_triggered(self) -> None:
@@ -138,7 +135,6 @@ class TestWafDetectorDetectFromResponse(unittest.TestCase):
             response_headers={"cf-ray": "abc"},
             triggered_by_injection=True,
         )
-        # status_code < 400 short-circuits
         self.assertFalse(result.detected)
 
     def test_evidence_collected(self) -> None:
@@ -225,7 +221,6 @@ class TestWafDetectorDetect(unittest.TestCase):
             http_client=client,
         )
         call_kwargs = client.get.call_args.kwargs
-        # Noise payload should appear in params under "waf_test"
         self.assertIn("params", call_kwargs)
         self.assertIn("waf_test", call_kwargs["params"])
         self.assertEqual(call_kwargs["params"]["waf_test"], "<custom>")

@@ -43,17 +43,37 @@ def _resolve_trusted_pubkey() -> str:
     pubkey_hex = os.getenv("NUCLEI_SIGNATURE_PUBLIC_KEY")
     if pubkey_hex:
         return pubkey_hex.strip()
-    if _resolve_environment() in _PROD_ENVIRONMENTS:
+    # Bug #12 fix: previously the function only refused the dev key when
+    # the resolved environment was in ``_PROD_ENVIRONMENTS``. Any other
+    # value (including an unset/empty environment, ``"qa"``, ``"staging"``
+    # misconfigured, or a typo) silently fell through to the embedded
+    # development key, whose private counterpart is in this public repo.
+    # We now require *both* the env to be an explicitly dev-allow-listed
+    # value AND ``APP_SECURITY_PERMISSIVE=1`` to use the dev key;
+    # otherwise we refuse to verify.
+    env = _resolve_environment()
+    if env not in _DEV_ALLOWED_ENVIRONMENTS:
         raise ValueError(
-            "Provenance Error: NUCLEI_SIGNATURE_PUBLIC_KEY is required in "
-            "production-like environments; refusing to fall back to the "
-            "embedded development key."
+            "Provenance Error: NUCLEI_SIGNATURE_PUBLIC_KEY is required outside "
+            "of explicitly allow-listed dev environments "
+            f"(env={env!r}, allowed={sorted(_DEV_ALLOWED_ENVIRONMENTS)}); "
+            "refusing to fall back to the embedded development key."
+        )
+    if os.environ.get("APP_SECURITY_PERMISSIVE", "").strip().lower() not in {"1", "true", "yes"}:
+        raise ValueError(
+            "Provenance Error: dev public key may only be used when "
+            "APP_SECURITY_PERMISSIVE=1 is set explicitly."
         )
     logger.warning(
         "Provenance: using embedded development public key. Set "
         "NUCLEI_SIGNATURE_PUBLIC_KEY before any non-development use."
     )
     return DEFAULT_DEV_TRUSTED_PUBKEY
+
+
+# Bug #12 fix: hard-coded allow-list of environments that may use the
+# embedded dev key, mirroring ``secret_validator._is_dev_environment``.
+_DEV_ALLOWED_ENVIRONMENTS = frozenset({"dev", "development", "local", "test"})
 
 
 def verify_provenance(template_path: str | Path, manifest_dir: str | Path) -> bool:

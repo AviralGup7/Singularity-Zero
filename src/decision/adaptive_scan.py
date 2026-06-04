@@ -103,7 +103,28 @@ class AdaptiveScanCoordinator:
         boosted_total = 0
 
         while True:
-            # Check early termination
+            # Bug #20 fix: previously the early-termination check ran at
+            # the top of the loop, BEFORE the first batch was ever
+            # popped. Combined with ``should_terminate_early`` returning
+            # ``True`` for small queues, this caused the coordinator to
+            # exit on iteration 0 without scanning anything. The check
+            # is now performed AFTER the first batch is populated, so we
+            # always make at least one pass over the priority queue.
+            batch_urls = []
+            for _ in range(self._batch_size):
+                target = self._queue.pop()
+
+            if not batch_urls:
+                logger.info(
+                    "Adaptive scan: priority queue exhausted after %d batches, "
+                    "%d/%d targets scanned, %d findings",
+                    batch_num,
+                    len(self._results),
+                    self._queue.total,
+                    len(self._total_findings),
+                )
+                break
+
             if self._early_terminate and self._queue.should_terminate_early(
                 min_items=self._early_terminate_min,
                 threshold_ratio=self._early_terminate_ratio,
@@ -122,11 +143,6 @@ class AdaptiveScanCoordinator:
             if self._max_batches and batch_num >= self._max_batches:
                 logger.info("Adaptive scan: reached max batch limit (%d)", self._max_batches)
                 break
-
-            # Get next batch of highest-priority targets
-            batch_urls = []
-            for _ in range(self._batch_size):
-                target = self._queue.pop()
                 if target is None:
                     break
                 batch_urls.append((target, target.url))

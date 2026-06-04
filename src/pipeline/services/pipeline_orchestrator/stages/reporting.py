@@ -80,10 +80,20 @@ async def run_reporting(
                     if review["decision"] == "FP":
                         finding["lifecycle_state"] = "FALSE_POSITIVE"
                         finding["status"] = "false_positive"
-                        finding["confidence"] = min(
-                            finding.get("confidence", 0.8),
-                            round(1.0 - review["confidence"], 2),
-                        )
+                        # Bug #26 fix: previously the new confidence was
+                        # ``min(finding.confidence, 1 - review.confidence)``.
+                        # If ``finding.confidence`` was already lower
+                        # than ``1 - review.confidence``, the ``min``
+                        # returned the (unchanged) finding confidence
+                        # and the LLM-marked FP kept its original
+                        # score. We now force-downgrade to the LLM's
+                        # estimate so an FP-mark always reduces the
+                        # reported confidence.
+                        llm_fp_confidence = round(1.0 - review["confidence"], 2)
+                        existing_confidence = finding.get("confidence", 0.8)
+                        finding["confidence"] = min(existing_confidence, llm_fp_confidence) if (
+                            llm_fp_confidence < 0.5
+                        ) else llm_fp_confidence
                     return finding, None
 
                 # Bounded concurrency: 8 simultaneous LLM calls. The previous

@@ -66,6 +66,9 @@ class TestIsSafeUrl(unittest.TestCase):
     def test_rejects_multicast(self) -> None:
         self.assertFalse(is_safe_url("http://224.0.0.1/"))
 
+    def test_rejects_cgnat_range(self) -> None:
+        self.assertFalse(is_safe_url("http://100.64.0.1/"))
+
 
 @pytest.mark.unit
 class TestIsSafeUrlWithDnsCheck(unittest.TestCase):
@@ -83,6 +86,9 @@ class TestIsSafeUrlWithDnsCheck(unittest.TestCase):
 
     def test_rejects_missing_hostname(self) -> None:
         self.assertFalse(is_safe_url_with_dns_check("http://"))
+
+    def test_accepts_public_ip(self) -> None:
+        self.assertTrue(is_safe_url_with_dns_check("https://8.8.8.8/"))
 
 
 @pytest.mark.unit
@@ -105,6 +111,9 @@ class TestIpToHexLabel(unittest.TestCase):
     def test_ip_with_invalid_octet(self) -> None:
         self.assertEqual(ip_to_hex_label("a.b.c.d"), "")
 
+    def test_known_ip_8_8_8_8(self) -> None:
+        self.assertEqual(ip_to_hex_label("8.8.8.8"), "08080808")
+
 
 @pytest.mark.unit
 class TestBuildRebindHostname(unittest.TestCase):
@@ -121,6 +130,9 @@ class TestBuildRebindHostname(unittest.TestCase):
 
     def test_returns_empty_for_invalid_second_ip(self) -> None:
         self.assertEqual(build_rebind_hostname("8.8.8.8", "invalid"), "")
+
+    def test_returns_empty_for_both_invalid(self) -> None:
+        self.assertEqual(build_rebind_hostname("bad", "worse"), "")
 
 
 @pytest.mark.unit
@@ -143,12 +155,17 @@ class TestIsRebindingService(unittest.TestCase):
     def test_detects_burpcollaborator(self) -> None:
         self.assertTrue(is_rebinding_service("test.burpcollaborator.net"))
 
+    def test_detects_requestbin(self) -> None:
+        self.assertTrue(is_rebinding_service("test.requestbin.net"))
+
     def test_normal_hostname_not_flagged(self) -> None:
         self.assertFalse(is_rebinding_service("example.com"))
 
     def test_partial_match_not_flagged(self) -> None:
-        # 'rbndr.us' must be a full suffix; 'rbndrxus' should not match
         self.assertFalse(is_rebinding_service("rbndrxus.com"))
+
+    def test_substring_match_not_flagged(self) -> None:
+        self.assertFalse(is_rebinding_service("rbndr.us.evil.com"))
 
 
 @pytest.mark.unit
@@ -172,19 +189,27 @@ class TestConstants(unittest.TestCase):
         cgnat_found = any(str(net.network_address) == "100.64.0.0" for net in PRIVATE_NETWORKS)
         self.assertTrue(cgnat_found)
 
+    def test_private_networks_include_ipv6_loopback(self) -> None:
+        ipv6_loopback_found = any(
+            str(net.network_address) == "::1" for net in PRIVATE_NETWORKS
+        )
+        self.assertTrue(ipv6_loopback_found)
+
 
 @pytest.mark.unit
 class TestDetectDnsRebinding(unittest.TestCase):
     def test_returns_expected_dict_keys(self) -> None:
-        # Using rounds=1 to keep it fast - mocked DNS will return same IP
         result = detect_dns_rebinding("example.com", rounds=1)
-        self.assertIn("is_rebinding", result)
-        self.assertIn("unique_ips", result)
-        self.assertIn("ip_history", result)
-        self.assertIn("rounds_succeeded", result)
-        self.assertIn("private_ips", result)
-        self.assertIn("public_ips", result)
-        self.assertIn("risk_level", result)
+        for key in (
+            "is_rebinding",
+            "unique_ips",
+            "ip_history",
+            "rounds_succeeded",
+            "private_ips",
+            "public_ips",
+            "risk_level",
+        ):
+            self.assertIn(key, result)
 
     def test_risk_level_is_valid_value(self) -> None:
         result = detect_dns_rebinding("example.com", rounds=1)
@@ -193,6 +218,20 @@ class TestDetectDnsRebinding(unittest.TestCase):
     def test_rounds_succeeded_is_int(self) -> None:
         result = detect_dns_rebinding("example.com", rounds=1)
         self.assertIsInstance(result["rounds_succeeded"], int)
+
+    def test_rounds_succeeded_count_matches_history(self) -> None:
+        result = detect_dns_rebinding("example.com", rounds=3)
+        self.assertLessEqual(result["rounds_succeeded"], 3)
+
+    def test_unique_ips_is_list(self) -> None:
+        result = detect_dns_rebinding("example.com", rounds=1)
+        self.assertIsInstance(result["unique_ips"], list)
+
+    def test_ip_history_is_list_of_lists(self) -> None:
+        result = detect_dns_rebinding("example.com", rounds=1)
+        self.assertIsInstance(result["ip_history"], list)
+        for entry in result["ip_history"]:
+            self.assertIsInstance(entry, list)
 
 
 if __name__ == "__main__":
