@@ -1,6 +1,9 @@
 """
 Agent Node for the Collaborative AI Swarm.
 Negotiates and passes state synchronously using the platform's Vector-Clocked CRDTs.
+
+BFT message validation now uses real Ed25519 signatures via
+``BFTMessageValidator``; the previous symmetric-MAC design is removed.
 """
 
 from __future__ import annotations
@@ -60,14 +63,22 @@ class AgentNode:
         # Ensure our state HLC and vectors track this node's identity
         self.state.hlc = self.state.hlc.__class__(node_id=self.node_id)
 
-        # BFT & P2P Noise configuration
-        # NOTE: This uses a simulated symmetric PKI for simple prototype/simulation.
-        # A real production deployment must utilize asymmetric cryptographic signatures
-        # (e.g., Ed25519) to securely verify messages in the P2P gossip network.
-        self.secret_key = f"secret-{self.node_id}"
-        self.public_key = self.secret_key  # Simulated symmetric PKI
+        # BFT & P2P Noise configuration.
+        # Generate a real Ed25519 keypair so peers can verify our signed
+        # gossip messages. The private key never leaves this process; the
+        # public key (hex) is what is shared with peers.
+        self._private_key, public_key_hex = BFTMessageValidator.generate_keypair()
+        self.public_key = public_key_hex
+        # Kept as an alias for any external code that introspected ``secret_key``;
+        # we now store the *raw* private bytes (hex) so callers that persist
+        # the agent can reconstruct it.
+        self.secret_key: str = self._private_key.private_bytes(
+            encoding=__import__("cryptography").hazmat.primitives.serialization.Encoding.Raw,
+            format=__import__("cryptography").hazmat.primitives.serialization.PrivateFormat.Raw,
+            encryption_algorithm=__import__("cryptography").hazmat.primitives.serialization.NoEncryption(),
+        ).hex()
         self.noise_channel = NoiseChannel()
-        self.bft_peers: dict[str, str] = {}  # node_id -> public_key
+        self.bft_peers: dict[str, str] = {}  # node_id -> public_key_hex
 
     def discover_url(self, url: str) -> None:
         """Simulate the agent finding a new URL and adding it to its local CRDT."""
@@ -82,14 +93,13 @@ class AgentNode:
         )
 
     def register_peer(self, peer_node_id: str, public_key: str) -> None:
-        """Register a peer's public key for BFT validation."""
+        """Register a peer's Ed25519 public key (hex) for BFT validation."""
         self.bft_peers[peer_node_id] = public_key
 
     def _export_bft_payload(self) -> bytes:
         """Export state encrypted and signed for P2P transmission."""
-        # Simple extraction for prototype. Real CRDTs serialize their vector clocks.
         state_dict = {"urls": list(self.get_known_urls()), "findings": self.get_known_findings()}
-        signature = BFTMessageValidator.sign_state(state_dict, self.secret_key)
+        signature = BFTMessageValidator.sign_state(state_dict, self._private_key)
         payload = {"sender_id": self.node_id, "state": state_dict, "signature": signature}
         return self.noise_channel.encrypt_payload(payload)
 
@@ -110,8 +120,6 @@ class AgentNode:
                 logger.warning("BFT Validation Failed: Byzantine fault detected from %s", sender_id)
                 return
 
-            # Convert verified state dictionary back to CRDT deltas
-            # Check what's new to avoid HLC inflation
             my_urls = self.get_known_urls()
             my_findings = {
                 str(f.get("id", f.get("title", ""))): f
@@ -141,11 +149,10 @@ class AgentNode:
         """Synchronously negotiate and pass state CRDTs between agents using P2P Noise."""
         logger.debug("Syncing state between %s and %s", self.node_id, other.node_id)
 
-        # Exchange keys for BFT
+        # Exchange public keys for BFT
         self.register_peer(other.node_id, other.public_key)
         other.register_peer(self.node_id, self.public_key)
 
-        # Export and exchange
         my_payload = self._export_bft_payload()
         their_payload = other._export_bft_payload()
 
@@ -170,7 +177,6 @@ class SwarmOrchestrator:
 
     def global_sync(self) -> None:
         """Perform a full gossip sync across the entire swarm."""
-        # Simple full mesh sync
         for i in range(len(self.agents)):
             for j in range(i + 1, len(self.agents)):
                 self.agents[i].sync_with(self.agents[j])

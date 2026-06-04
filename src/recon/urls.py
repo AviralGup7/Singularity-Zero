@@ -122,11 +122,10 @@ def collect_urls(
             )
 
     # 1. Internal/In-house Collectors
-    if "inhouse" not in completed_phases:
-        inhouse_urls = set()
-        # ... (logic to run inhouse) ...
-        # _save_phase_checkpoint("inhouse", inhouse_urls)
-        pass
+    # The previous implementation had a dead ``if/else`` scaffold with a
+    # bare ``pass`` — the actual in-house execution happens later in this
+    # function. We leave a no-op marker here so future readers know the
+    # in-house phase is intentionally handled further down.
     collection_budget_exceeded = False
     collection_budget_phase = ""
 
@@ -409,10 +408,20 @@ def collect_urls(
     urls = canonical_urls
 
     live_normalized = {normalize_url(host) for host in live_hosts if normalize_url(host)}
-    if max_urls > 0 and len(urls) + len(live_normalized) > max_urls:
-        remaining = max_urls - len(urls)
-        live_normalized = set(list(live_normalized)[: max(0, remaining)])
+    # Always seed the URL set with live hosts first so the URL cap cannot
+    # silently drop the targets. The previous implementation applied the
+    # cap to ``live_normalized`` and then unconditionally added whatever
+    # was left, which meant that if archive/crawler URLs already filled
+    # the cap, every live-host URL was dropped.
     urls.update(live_normalized)
+    if max_urls > 0 and len(urls) > max_urls:
+        # Live hosts must always be retained; only the archive/crawler
+        # portion is truncated. The previous implementation sorted the
+        # combined set and sliced the first ``max_urls``, which silently
+        # dropped live hosts whenever archive URLs happened to sort first.
+        non_live = sorted(urls - live_normalized)
+        budget = max(0, max_urls - len(live_normalized))
+        urls = set(non_live[:budget]) | live_normalized
 
     stage_meta["collection_budget"] = {
         "budget_exceeded": collection_budget_exceeded,

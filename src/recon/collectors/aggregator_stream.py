@@ -4,6 +4,10 @@ Yields URLs as providers produce results. This is an incremental,
 non-blocking (per provider) streaming model that keeps memory usage
 bounded and allows downstream consumers to process results while
 collection is still ongoing.
+
+The provider list is sourced from
+:mod:`src.recon.collectors.provider_selection` so any change to the
+tool-gating rules only has to be made in one place.
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from typing import Any
 from src.core.models.config import Config
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
-from src.recon.collectors.providers import commoncrawl, crawler, otx, urlscan, wayback
+from src.recon.collectors.provider_selection import select_enabled_providers
 
 
 def collect_urls_stream(
@@ -43,47 +47,32 @@ def collect_urls_stream(
     if not hostnames:
         return stage_meta
 
-    providers = []
-    # choose providers based on config flags; maintain order
-    if config.tools.get("waybackurls", True):
-        providers.append(("wayback", wayback.collect_for_hosts))
-    if config.tools.get("commoncrawl", True):
-        providers.append(("commoncrawl", commoncrawl.collect_for_hosts))
-    if config.tools.get("urlscan", True):
-        providers.append(("urlscan", urlscan.collect_for_hosts))
-    if config.tools.get("otx", True):
-        providers.append(("otx", otx.collect_for_hosts))
-    # crawler last
-    if config.tools.get("katana", True):
-        providers.append(("crawler", crawler.collect_for_hosts))
+    providers = select_enabled_providers(config)
+    if not providers:
+        return stage_meta
 
     seen: set[str] = set()
-    tasks = []
+    tasks: list[tuple[str, Any]] = []
     start = time.monotonic()
     with ThreadPoolExecutor(max_workers=max(1, len(providers))) as executor:
-        for name, func in providers:
-            timeout = int(getattr(config, name, {}).get("timeout_seconds", 30))
-            per_host = (
-                int(config.filters.get("per_host_archive_limit", 1000)) if config.filters else 1000
-            )
+        for spec in providers:
+            kwargs: dict[str, Any] = {
+                "timeout_seconds": spec.timeout_seconds,
+                "per_host_limit": spec.per_host_limit,
+                "max_workers": min(spec.max_workers or 6, len(hostnames)),
+                "progress_callback": progress_callback,
+            }
             tasks.append(
                 (
-                    name,
-                    executor.submit(
-                        func,
-                        hostnames,
-                        timeout,
-                        per_host,
-                        min(6, len(hostnames)),
-                        progress_callback,
-                    ),
+                    spec.name,
+                    executor.submit(spec.func, hostnames, **kwargs),
                 )
             )
 
         for fut_name, future in tasks:
             try:
                 discovered, meta = future.result()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 discovered, meta = (
                     set(),
                     {"status": "error", "duration_seconds": 0.0, "new_urls": 0},

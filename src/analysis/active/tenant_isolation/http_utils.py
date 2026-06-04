@@ -3,64 +3,8 @@
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-import requests
-
+from src.analysis._core.http_request import _safe_request
 from src.recon.common import normalize_url
-
-
-def _safe_request(
-    url: str,
-    method: str = "GET",
-    headers: dict[str, str] | None = None,
-    body: bytes | None = None,
-    timeout: int = 10,
-) -> dict[str, Any]:
-    req_headers = dict(headers or {})
-    req_headers.setdefault(
-        "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SecurityPipeline/1.0"
-    )
-    req_headers.setdefault("Accept", "*/*")
-    try:
-        resp = requests.request(
-            method, url, headers=req_headers, data=body, timeout=timeout, verify=True
-        )
-        resp_body = resp.text or ""
-        return {
-            "status": getattr(resp, "status_code", 0),
-            "headers": dict(resp.headers),
-            "body": resp_body[:8000],
-            "body_length": len(resp_body),
-            "success": resp.status_code < 400,
-        }
-    except requests.RequestException as e:
-        resp_body = ""
-        resp_obj = getattr(e, "response", None)
-        status = 0
-        headers = {}
-        if resp_obj is not None:
-            try:
-                resp_body = resp_obj.text
-                status = getattr(resp_obj, "status_code", 0)
-                headers = dict(resp_obj.headers)
-            except Exception:  # noqa: S110
-                pass
-        return {
-            "status": status,
-            "headers": headers,
-            "body": (resp_body or "")[:8000],
-            "body_length": len(resp_body or ""),
-            "success": False,
-            "error": str(e),
-        }
-    except Exception as e:
-        return {
-            "status": 0,
-            "headers": {},
-            "body": "",
-            "body_length": 0,
-            "success": False,
-            "error": str(e),
-        }
 
 
 def _build_url_with_tenant(url: str, tenant_param: str, tenant_value: str) -> str:

@@ -1,5 +1,8 @@
 {
   "$schema": "https://app.kilo.ai/config.json",
+  "indexing": {
+    "enabled": false
+  },
   "agent": {
     "frontend-specialist": {
       "prompt": "You are a frontend developer expert in React, TypeScript, and modern CSS. You focus on creating intuitive user interfaces and excellent user experiences.\n\n\nPrioritize accessibility, responsive design, and performance. Use semantic HTML and follow React best practices.\n",
@@ -95,8 +98,5 @@
         "@playwright/mcp@0.0.38"
       ]
     }
-  },
-  "indexing": {
-    "enabled": false
   }
 }

@@ -7,12 +7,31 @@ any changes in subdomains, live hosts, open ports, and resolved URL paths.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+import threading
 from pathlib import Path
 from typing import Any, cast
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
+
+# Per-target locks ensure that concurrent compute_drift calls for the same
+# target serialise their read-modify-write of the snapshot file. Without
+# this lock the second writer would overwrite the first's snapshot,
+# silently losing observations.
+_TARGET_LOCKS: dict[str, threading.Lock] = {}
+_TARGET_LOCKS_GUARD = threading.Lock()
+
+
+def _get_target_lock(target: str) -> threading.Lock:
+    with _TARGET_LOCKS_GUARD:
+        lock = _TARGET_LOCKS.get(target)
+        if lock is None:
+            lock = threading.Lock()
+            _TARGET_LOCKS[target] = lock
+        return lock
 
 
 class DriftDetector:
@@ -23,10 +42,31 @@ class DriftDetector:
         self.snapshots_dir = self.output_dir / "recon_snapshots"
         self.snapshots_dir.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _safe_target_filename(target: str) -> str:
+        """Return a path-safe filename derived from the target string.
+
+        Strips directory separators and parent-directory references, then
+        replaces any remaining unsafe characters with underscores. The
+        result is bounded in length to avoid pathological filenames.
+        """
+        raw = str(target or "").strip()
+        if not raw:
+            return "_invalid_target"
+        # Remove any path separators and parent-directory markers
+        sanitized = raw.replace("\\", "_").replace("/", "_").replace("..", "_")
+        # Replace any remaining non-alphanumeric, dot, dash, or underscore chars
+        sanitized = "".join(c if c.isalnum() or c in ".-_" else "_" for c in sanitized)
+        sanitized = sanitized.strip("._")
+        if not sanitized:
+            sanitized = "_invalid_target"
+        return sanitized[:200]
+
     def _get_snapshot_path(self, target: str) -> Path:
-        # Sanitize target to make it a safe filename
-        safe_target = "".join(c if c.isalnum() or c in ".-_" else "_" for c in target)
-        return self.snapshots_dir / f"{safe_target}_snapshot.json"
+        return self.snapshots_dir / f"{self._safe_target_filename(target)}_snapshot.json"
+
+    def _get_report_path(self, target: str) -> Path:
+        return self.output_dir / f"{self._safe_target_filename(target)}_drift_report.json"
 
     def load_latest_snapshot(self, target: str) -> dict[str, Any] | None:
         """Load the latest saved snapshot for a target."""
@@ -48,8 +88,23 @@ class DriftDetector:
         """Save a new snapshot of recon outcomes for a target."""
         path = self._get_snapshot_path(target)
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            # Atomic write: tempfile + os.replace prevents a crash mid-write
+            # from leaving the snapshot half-rendered.
+            parent = path.parent
+            parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_path = tempfile.mkstemp(
+                prefix=path.name + ".", suffix=".tmp", dir=str(parent)
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                os.replace(tmp_path, path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except Exception:
             logger.warning(
                 "drift_detection: failed to save snapshot for %s; operation skipped",
@@ -61,7 +116,17 @@ class DriftDetector:
         """Compare current run outputs with the historical snapshot.
 
         Returns a dictionary detailing the drift delta.
+
+        Concurrent invocations for the same target are serialised via a
+        per-target lock so the snapshot/report files cannot be torn or
+        clobbered by interleaved read-modify-write sequences.
         """
+        with _get_target_lock(target):
+            return self._compute_drift_locked(target, current_data)
+
+    def _compute_drift_locked(
+        self, target: str, current_data: dict[str, Any]
+    ) -> dict[str, Any]:
         historical = self.load_latest_snapshot(target) or {}
         is_first_run = not bool(historical)
 
@@ -140,7 +205,7 @@ class DriftDetector:
         self.save_snapshot(target, current_data)
 
         # Dump a target-specific drift report to output directory
-        report_path = self.output_dir / f"{target}_drift_report.json"
+        report_path = self._get_report_path(target)
         try:
             with open(report_path, "w", encoding="utf-8") as f:
                 json.dump(drift_report, f, indent=2, ensure_ascii=False)

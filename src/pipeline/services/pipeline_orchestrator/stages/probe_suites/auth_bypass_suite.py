@@ -28,7 +28,6 @@ def _run_auth_bypass_suite(
         return []
 
     flattened: list[dict[str, Any]] = []
-    fallback_url = str(priority_items[0].get("url", "")).strip() if priority_items else ""
     for suite_name, suite_findings in suite_results.items():
         if not isinstance(suite_findings, list):
             continue
@@ -42,7 +41,16 @@ def _run_auth_bypass_suite(
                 item["issues"] = [f"{suite_name}_signal"]
             item.setdefault("confidence", 0.55)
             item.setdefault("severity", "medium")
-            if not str(item.get("url", "")).strip() and fallback_url:
-                item["url"] = fallback_url
+            # The previous implementation unconditionally copied
+            # ``fallback_url`` (the first priority item's URL) into any
+            # finding missing a URL. This caused auth-bypass findings
+            # from suite 3 to be reported as occurring on the very
+            # first target URL, regardless of where the bypass actually
+            # was. We now mark such findings as needing manual
+            # attribution instead.
+            if not str(item.get("url", "")).strip():
+                item["needs_attribution"] = True
+                if item.get("target_host"):
+                    item["url"] = ""
             flattened.append(item)
     return flattened[:limit]

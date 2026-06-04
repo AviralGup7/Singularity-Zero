@@ -58,7 +58,8 @@ async def run_reporting(
                 logger.info(
                     "Running automated AI triage on %d scan findings", len(findings_to_triage)
                 )
-                for finding in findings_to_triage:
+
+                async def _triage_one(finding: dict[str, Any]) -> tuple[dict[str, Any] | None, BaseException | None]:
                     req_payload = (
                         finding.get("request_payload")
                         or finding.get("payload")
@@ -69,22 +70,43 @@ async def run_reporting(
                         or finding.get("response")
                         or finding.get("body")
                     )
-
                     try:
                         review = await llm.triage_false_positive(finding, req_payload, resp_body)
-                        finding["ai_triage_decision"] = review["decision"]
-                        finding["ai_confidence_score"] = review["confidence"]
-                        finding["ai_reasoning"] = review["reasoning"]
+                    except Exception as exc:  # noqa: BLE001
+                        return finding, exc
+                    finding["ai_triage_decision"] = review["decision"]
+                    finding["ai_confidence_score"] = review["confidence"]
+                    finding["ai_reasoning"] = review["reasoning"]
+                    if review["decision"] == "FP":
+                        finding["lifecycle_state"] = "FALSE_POSITIVE"
+                        finding["status"] = "false_positive"
+                        finding["confidence"] = min(
+                            finding.get("confidence", 0.8),
+                            round(1.0 - review["confidence"], 2),
+                        )
+                    return finding, None
 
-                        # Automatically suppress and adjust FP based on AI review decision
-                        if review["decision"] == "FP":
-                            finding["lifecycle_state"] = "FALSE_POSITIVE"
-                            finding["status"] = "false_positive"
-                            finding["confidence"] = min(
-                                finding.get("confidence", 0.8), round(1.0 - review["confidence"], 2)
-                            )
-                    except Exception as e:
-                        logger.debug("AI triage failed for finding %s: %s", finding.get("id"), e)
+                # Bounded concurrency: 8 simultaneous LLM calls. The previous
+                # implementation awaited each one sequentially, which for 5 000
+                # findings at 1 s/LLM call took 1.4 hours and blocked the
+                # report stage.
+                semaphore = asyncio.Semaphore(8)
+
+                async def _bounded(finding: dict[str, Any]) -> None:
+                    async with semaphore:
+                        await _triage_one(finding)
+
+                results = await asyncio.gather(
+                    *[_bounded(f) for f in findings_to_triage],
+                    return_exceptions=True,
+                )
+                failures = sum(1 for r in results if isinstance(r, BaseException))
+                if failures:
+                    logger.warning(
+                        "AI triage failed for %d/%d findings (errors swallowed)",
+                        failures,
+                        len(findings_to_triage),
+                    )
         except Exception as exc:
             logger.warning("Failed to run automated AI triage: %s", exc)
 
@@ -264,6 +286,7 @@ async def run_reporting(
         )
 
         # Wire FPWatchlistManager and Compliance GRC Alerts (Phase 9.2 & Phase 6.2)
+        notification_manager: Any = None
         try:
             from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
             from src.recon.fp_watchlist import FPWatchlistManager
@@ -273,7 +296,6 @@ async def run_reporting(
 
             fp_manager = FPWatchlistManager(watchlist_path=watchlist_path)
 
-            # Initialize a NotificationManager for dispatching
             notification_manager = NotificationManager(ManagerConfig())
             await notification_manager.initialize()
 
@@ -313,12 +335,19 @@ async def run_reporting(
                     logger.info("Fired %d GRC SLA breach escalation alerts.", sla_alerts)
             except Exception as e:
                 logger.warning("Failed to run SLA tracking auto-escalations: %s", e)
-
-            await notification_manager.close()
         except Exception as exc:
             logger.warning(
                 "Failed to run false-positive watchlist manager check or GRC alerts: %s", exc
             )
+        finally:
+            # The previous implementation called ``await notification_manager.close()``
+            # only on the success path; on any exception the manager's HTTP/email/IMAP
+            # clients leaked. Always close.
+            if notification_manager is not None:
+                try:
+                    await notification_manager.close()
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("Failed to close notification manager: %s", exc)
 
         await asyncio.to_thread(
             generate_run_report,

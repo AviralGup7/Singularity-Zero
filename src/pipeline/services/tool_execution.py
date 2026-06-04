@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -34,6 +35,8 @@ logger = get_pipeline_logger(__name__)
 SHELL_META = re.compile(r"[;|&$`\n\r]")
 
 _CIRCUIT_BREAKERS: dict[str, CircuitBreaker] = {}
+_CIRCUIT_BREAKER_LAST_ACCESS: dict[str, float] = {}
+_CIRCUIT_BREAKERS_LOCK = threading.Lock()
 # TTL eviction: prune stale circuit-breaker entries on each access (_CIRCUIT_BREAKERS_TTL_SECONDS)
 _CIRCUIT_BREAKER_LAST_PRUNED: float = 0.0
 _CIRCUIT_BREAKERS_TTL_SECONDS: int = 3600
@@ -107,16 +110,20 @@ def get_circuit_breaker(tool_name: str) -> CircuitBreaker:
     now = time.monotonic()
     context_key = _get_context_key()
     key = f"{context_key}:{tool_name}"
-    if key not in _CIRCUIT_BREAKERS:
-        _CIRCUIT_BREAKERS[key] = CircuitBreaker()
-    _CIRCUIT_BREAKERS[key]._last_accessed = now
-    if now - _CIRCUIT_BREAKER_LAST_PRUNED > _CIRCUIT_BREAKERS_TTL_SECONDS:
-        _CIRCUIT_BREAKER_LAST_PRUNED = now
-        for name in list(_CIRCUIT_BREAKERS):
-            cb = _CIRCUIT_BREAKERS[name]
-            if now - getattr(cb, "_last_accessed", now) > _CIRCUIT_BREAKERS_TTL_SECONDS:
-                _CIRCUIT_BREAKERS.pop(name, None)
-    return _CIRCUIT_BREAKERS[key]
+    with _CIRCUIT_BREAKERS_LOCK:
+        breaker = _CIRCUIT_BREAKERS.get(key)
+        if breaker is None:
+            breaker = CircuitBreaker()
+            _CIRCUIT_BREAKERS[key] = breaker
+        _CIRCUIT_BREAKER_LAST_ACCESS[key] = now
+        if now - _CIRCUIT_BREAKER_LAST_PRUNED > _CIRCUIT_BREAKERS_TTL_SECONDS:
+            _CIRCUIT_BREAKER_LAST_PRUNED = now
+            for name in list(_CIRCUIT_BREAKERS):
+                last_access = _CIRCUIT_BREAKER_LAST_ACCESS.get(name, now)
+                if now - last_access > _CIRCUIT_BREAKERS_TTL_SECONDS:
+                    _CIRCUIT_BREAKERS.pop(name, None)
+                    _CIRCUIT_BREAKER_LAST_ACCESS.pop(name, None)
+        return breaker
 
 
 class ToolExecutionError(RuntimeError):
@@ -156,7 +163,13 @@ async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
     """
     started = time.monotonic()
     command = invocation.command
-    timeout = invocation.timeout_seconds or int(TIMEOUT_DEFAULTS["tool_command_seconds"])
+    if invocation.timeout_seconds is None:
+        timeout: float | None = float(int(TIMEOUT_DEFAULTS["tool_command_seconds"]))
+    elif int(invocation.timeout_seconds) == 0:
+        # 0 means "no timeout" - matches ToolExecutionService._resolve_timeout semantics
+        timeout = None
+    else:
+        timeout = float(int(invocation.timeout_seconds))
     env = invocation.env
     cwd = str(invocation.working_dir) if invocation.working_dir else None
 

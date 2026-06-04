@@ -7,15 +7,17 @@ pipeline context for use in exit-code resolution and post-run reporting.
 from __future__ import annotations
 
 from src.core.models.stage_result import PipelineContext, StageStatus
+from .fatal_detection import metrics_indicate_fatal_failure
 
 
 def collect_failed_stages(ctx: PipelineContext) -> list[tuple[str, str]]:
     """Gather all fatal stage failures for reporting.
 
     Returns a list of ``(stage_name, reason)`` pairs for every stage that
-    finished with a ``FAILED`` status **and** carries a truthy ``fatal`` flag
-    in its module metrics.  Stages without an explicit ``fatal`` key are
-    treated as fatal by default (conservative safety-net behaviour).
+    finished with a ``FAILED`` status and is judged fatal by
+    :func:`metrics_indicate_fatal_failure`. The fatal-detection helper
+    applies a conservative safety-net rule: any failed status is treated
+    as fatal unless the metrics explicitly mark it non-fatal.
 
     Args:
         ctx: The current pipeline context holding stage status and metrics.
@@ -28,8 +30,7 @@ def collect_failed_stages(ctx: PipelineContext) -> list[tuple[str, str]]:
         if status != StageStatus.FAILED.value:
             continue
         metrics = ctx.result.module_metrics.get(stage_name, {})
-        # Only report if it's considered fatal
-        if not metrics.get("fatal", False):
+        if not isinstance(metrics, dict) or not metrics_indicate_fatal_failure(metrics):
             continue
         reason: str = (
             metrics.get("failure_reason")

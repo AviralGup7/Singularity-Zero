@@ -18,13 +18,22 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_BUSY_TIMEOUT_MS as _BUSY_TIMEOUT_MS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_CONNECT_TIMEOUT_SECONDS as _CONNECT_TIMEOUT_SECONDS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_LOCK_RETRY_ATTEMPTS as _LOCK_RETRY_ATTEMPTS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
+)
+
 from .protocol import _ThreadLocalConnections
 
 logger = logging.getLogger(__name__)
-_CONNECT_TIMEOUT_SECONDS = 5.0
-_BUSY_TIMEOUT_MS = 5000
-_LOCK_RETRY_ATTEMPTS = 4
-_LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
 
 
 class SQLiteBackend:
@@ -670,15 +679,34 @@ class SQLiteBackend:
             self._init_db()
             return True
 
+        conn: sqlite3.Connection | None = None
         try:
+            # Bug #31 fix: ensure the connection is closed on every code path
+            # (success, "ok" return, integrity failure, etc.). The previous
+            # implementation only called ``conn.close()`` on the happy path,
+            # so any DatabaseError from the integrity check leaked the file
+            # descriptor until the process exited.
             conn = sqlite3.connect(self._db_path)
+            # Bug #32 fix: PRAGMA integrity_check can return more than one
+            # row when the database has multiple pages. The previous code
+            # only inspected ``cursor.fetchone()`` which is the *first* page
+            # result, so a partially-corrupt DB with the first page intact
+            # would be reported as healthy and never recovered.
             cursor = conn.execute("PRAGMA integrity_check")
-            check_result = cursor.fetchone()
-            conn.close()
-            if check_result and check_result[0] == "ok":
+            check_result = cursor.fetchall()
+            all_ok = bool(check_result) and all(
+                isinstance(row, tuple) and len(row) > 0 and row[0] == "ok" for row in check_result
+            )
+            if all_ok:
                 return True
         except sqlite3.DatabaseError:
             pass
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         backup_path = db_path.with_suffix(".db.corrupted.bak")
         try:

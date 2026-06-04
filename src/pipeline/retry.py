@@ -305,7 +305,7 @@ def execute_with_retry[T](  # pylint: disable=W0621
                 raise
 
             if attempt < policy.max_attempts:
-                backoff = policy.delay_for_attempt(attempt)
+                backoff = policy.delay_for_attempt(attempt + 1, jitter=policy.jitter_factor)
                 m.record_retry(backoff)
                 if backoff > 0:
                     logger.debug(

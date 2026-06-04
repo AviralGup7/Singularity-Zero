@@ -79,7 +79,12 @@ while IFS= read -r root; do
   fi
 
   if [[ "${SKIP_CRTSH:-0}" != "1" ]] && have curl && have jq; then
-    curl -fsSL "https://crt.sh/?q=%25.${exact}&output=json" \
+    # SECURITY: URL-encode the exact value before interpolating it into
+    # the crt.sh query string. The previous form spliced the raw value,
+    # which leaked shell metacharacters into the URL when scope entries
+    # contained ``&``, ``?`` or other reserved characters.
+    encoded_exact=$(printf '%s' "$exact" | jq -sRr @uri)
+    curl --proto '=https' --tlsv1.2 -fsSL "https://crt.sh/?q=%25.${encoded_exact}&output=json" \
       | jq -r '.[].name_value' 2>/dev/null \
       | tr '\n' '\n' \
       | sed 's/^\*\.//' >> "$RUN_DIR/subdomains.txt" || true

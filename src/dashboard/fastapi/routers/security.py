@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 
 from src.dashboard.fastapi.dependencies import require_admin, require_auth
 from src.dashboard.fastapi.schemas import (
@@ -24,19 +25,39 @@ from src.dashboard.rate_limiter import get_rate_limit_status
 
 router = APIRouter(tags=["Security"])
 
+_CSRF_COOKIE_NAME = "csrf_token"
+
 
 @router.get(
     "/api/csrf-token",
     summary="Retrieve the current active CSRF token for the session",
+    responses={401: {"model": ErrorResponse}},
 )
-async def get_csrf_token(request: Request) -> dict[str, str]:
-    """Exposes the session's active CSRF token securely to verified SPA clients."""
-    csrf_token = request.cookies.get("csrf_token")
-    if not csrf_token:
-        import secrets
+async def get_csrf_token(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> Response:
+    """Issue a fresh CSRF token, set it as an HttpOnly cookie, and return it.
 
-        csrf_token = secrets.token_urlsafe(32)
-    return {"csrf_token": csrf_token}
+    The endpoint now requires authentication. The cookie is ``HttpOnly``,
+    ``Secure`` (in production) and ``SameSite=Strict`` so it cannot be
+    exfiltrated by client-side scripts. The response body returns the
+    token so SPAs can copy it into the ``X-CSRF-Token`` header.
+    """
+    import secrets
+
+    csrf_token = request.cookies.get(_CSRF_COOKIE_NAME) or secrets.token_urlsafe(32)
+    response = JSONResponse(content={"csrf_token": csrf_token})
+    response.set_cookie(
+        key=_CSRF_COOKIE_NAME,
+        value=csrf_token,
+        max_age=60 * 60 * 8,
+        httponly=True,
+        secure=(os.environ.get("APP_ENV") == "production"),
+        samesite="strict",
+        path="/",
+    )
+    return response
 
 
 @router.post(
@@ -64,10 +85,10 @@ async def create_dashboard_token(request: Request, body: TokenRequest) -> TokenR
 @router.get(
     "/api/security/rate-limit-status",
     response_model=RateLimitStatusResponse,
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
     summary="Get current rate limiting telemetry",
 )
-async def rate_limit_status(_auth: Any = Depends(require_auth)) -> RateLimitStatusResponse:
+async def rate_limit_status(_admin: Any = Depends(require_admin)) -> RateLimitStatusResponse:
     return RateLimitStatusResponse(
         enabled=api_security_enabled(),
         buckets=cast(Any, get_rate_limit_status()),
@@ -77,13 +98,13 @@ async def rate_limit_status(_auth: Any = Depends(require_auth)) -> RateLimitStat
 @router.get(
     "/api/security/events",
     response_model=list[SecurityEventResponse],
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
     summary="List recent security events",
 )
 async def list_security_events(
     request: Request,
     limit: int = Query(100, ge=1, le=500),
-    _auth: Any = Depends(require_auth),
+    _admin: Any = Depends(require_admin),
 ) -> list[SecurityEventResponse]:
     return [
         SecurityEventResponse(**event)
@@ -94,12 +115,12 @@ async def list_security_events(
 @router.get(
     "/api/security/api-keys",
     response_model=list[APIKeyResponse],
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
     summary="List API keys",
 )
 async def list_api_keys(
     request: Request,
-    _auth: Any = Depends(require_auth),
+    _admin: Any = Depends(require_admin),
 ) -> list[APIKeyResponse]:
     return [APIKeyResponse(**key) for key in request.app.state.security_store.list_keys()]
 
@@ -160,13 +181,13 @@ async def revoke_api_key(
 @router.get(
     "/api/security/csp-reports",
     response_model=list[CSPReportResponse],
-    responses={401: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
     summary="List CSP violation reports",
 )
 async def list_csp_reports(
     request: Request,
     limit: int = Query(50, ge=1, le=200),
-    _auth: Any = Depends(require_auth),
+    _admin: Any = Depends(require_admin),
 ) -> list[CSPReportResponse]:
     return [
         CSPReportResponse(**report)

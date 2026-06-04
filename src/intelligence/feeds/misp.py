@@ -90,25 +90,31 @@ class MISPClient(BaseFeedConnector):
         """Correlate a target subdomain, IP, or host against MISP attributes."""
         attributes = await self.search_attributes(value)
         if not attributes:
-            # Fallback simulator for realistic target matches or sandboxes in testing
-            val_lower = str(value or "").lower()
-            if any(
-                kw in val_lower
-                for kw in ("malicious", "botnet", "phishing", "c2-server", "tor-exit")
-            ):
-                return {
-                    "matched": True,
-                    "reputation_score": 85,
-                    "events": [
-                        {
-                            "event_id": "42",
-                            "info": "Active C2 server mapped to threat group APT-Unknown",
-                            "category": "Network activity",
-                            "type": "ip-dst",
-                            "value": value,
-                        }
-                    ],
-                }
+            # Fallback simulator ONLY when explicitly opted in via env var.
+            # Previously this ran in production whenever the MISP search returned
+            # empty, fabricating "APT-Unknown" matches for any host containing
+            # suspicious substrings. This was a critical false-positive backdoor.
+            import os
+
+            if os.environ.get("THREAT_INTEL_SIMULATE", "").lower() in {"1", "true", "yes"}:
+                val_lower = str(value or "").lower()
+                if any(
+                    kw in val_lower
+                    for kw in ("malicious", "botnet", "phishing", "c2-server", "tor-exit")
+                ):
+                    return {
+                        "matched": True,
+                        "reputation_score": 85,
+                        "events": [
+                            {
+                                "event_id": "42",
+                                "info": "Active C2 server mapped to threat group APT-Unknown",
+                                "category": "Network activity",
+                                "type": "ip-dst",
+                                "value": value,
+                            }
+                        ],
+                    }
             return {"matched": False, "events": []}
 
         events = []

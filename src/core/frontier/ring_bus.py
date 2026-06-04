@@ -51,6 +51,7 @@ class FrontierRingBus:
         # Shared Memory Zero-Copy Router
         self._enable_shm = enable_shm
         self._shm_router = None
+        self._shm_max_in_flight = max(1, capacity // 10)
         if enable_shm:
             try:
                 from src.core.frontier.shared_memory import ZeroCopyRouter
@@ -62,7 +63,8 @@ class FrontierRingBus:
 
     def subscribe(self, event_type: str, callback: Callable[[NeuralEvent], Any]) -> None:
         """Subscribe a handler to an event type. '*' for all events."""
-        self._subscribers.setdefault(event_type, []).append(callback)
+        with self._lock:
+            self._subscribers.setdefault(event_type, []).append(callback)
 
     def emit(self, event_type: str, source: str, data: dict[str, Any], priority: int = 0) -> None:
         """Append event to the ring buffer."""
@@ -83,12 +85,18 @@ class FrontierRingBus:
             shm_ref = None
             if self._enable_shm and self._shm_router:
                 try:
-                    # Offload data to shared memory for large payloads
+                    # Offload data to shared memory for large payloads. Previously
+                    # the offload was gated on "no other SHM events pending",
+                    # which silently disabled the optimization under load.
+                    # The cap is now expressed as a maximum number of in-flight
+                    # SHM references so that high-throughput producers continue
+                    # to benefit from zero-copy routing.
                     payload = msgpack.packb(data)
-                    has_pending_shm = any(event.shm_ref for event in self._buffer)
-                    if len(payload) > 1024 and not has_pending_shm:  # Only offload if > 1KB
-                        shm_ref = self._shm_router.route_payload(payload)
-                        data = {"_shm": True}  # Placeholder for small in-memory state
+                    if len(payload) > 1024:
+                        pending_shm = sum(1 for event in self._buffer if event.shm_ref)
+                        if pending_shm < self._shm_max_in_flight:
+                            shm_ref = self._shm_router.route_payload(payload)
+                            data = {"_shm": True}  # Placeholder for small in-memory state
                 except Exception as e:
                     logger.debug("SHM offload failed, falling back to in-memory: %s", e)
 

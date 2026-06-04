@@ -16,16 +16,19 @@ from typing import Any
 from starlette.websockets import WebSocketState  # Fix #369: top-level import
 
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.infrastructure.queue.redis_config import (
+    REDIS_MAX_RETRIES as REDIS_PUBLISH_RETRIES,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_RECONNECT_SECONDS,
+    REDIS_TIMEOUT_SECONDS,
+)
 from src.websocket_server.manager import ConnectionManager
 from src.websocket_server.metrics import WS_LATENCY, WS_MESSAGES, WS_REDIS_FANOUT
 from src.websocket_server.protocol import BaseMessage
 
 # Fix #362: use project-wide structured logger
 logger = get_pipeline_logger(__name__)
-
-REDIS_TIMEOUT_SECONDS = 5.0
-REDIS_PUBLISH_RETRIES = 2
-REDIS_RECONNECT_SECONDS = 30.0
 
 
 class CircuitBreaker:

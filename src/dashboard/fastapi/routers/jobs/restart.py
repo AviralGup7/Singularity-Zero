@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.dashboard.fastapi.dependencies import get_queue_client, require_worker
 from src.dashboard.fastapi.routers.utils import snapshot_job_api
 from src.dashboard.fastapi.schemas import ErrorResponse, JobResponse
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/jobs")
 )
 async def restart_job_safe(
     job_id: str,
-    _auth: Any = Depends(require_auth),
+    _auth: Any = Depends(require_worker),
     services: Any = Depends(get_queue_client),
 ) -> JobResponse:
     tenant_id = (_auth or {}).get("tenant_id", "default")

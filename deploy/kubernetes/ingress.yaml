@@ -15,9 +15,13 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    # SECURITY: tighten proxy timeouts from 3600s to 60s. The 1-hour
+    # timeout allowed slow-loris style exhaustion attacks. The 60s value
+    # is more than enough for the dashboard's API calls and WebSocket
+    # upgrades (which use a separate wss-connection-timeout).
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
     # WebSocket support and TLS configuration (snippets disabled for CVE-2021-25742 compliance)
     # TLS configuration
     cert-manager.io/cluster-issuer: letsencrypt-prod

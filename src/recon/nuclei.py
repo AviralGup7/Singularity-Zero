@@ -305,11 +305,30 @@ def run_nuclei_adaptive(
 
 
 def _verify_templates(config: Config) -> None:
-    """Run template provenance check; raises ValueError on failure."""
+    """Run template provenance check; raises ValueError on failure.
+
+    The previous implementation only checked templates that were explicitly
+    passed via ``-t`` / ``-templates`` in ``extra_args``. If the operator
+    configured nuclei via a YAML tag list (the common case), no provenance
+    check was performed at all. We now also verify the default templates
+    directory whenever it exists.
+    """
     try:
         from src.core.security.provenance import verify_provenance
 
         manifest_dir = os.getenv("NUCLEI_MANIFEST_DIR") or "configs/templates"
+        import pathlib
+
+        # Always verify the canonical templates directory if it exists.
+        canonical = pathlib.Path(manifest_dir).resolve()
+        if canonical.exists():
+            try:
+                verify_provenance(str(canonical), manifest_dir)
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError(
+                    f"Canonical nuclei template directory failed provenance: {exc}"
+                ) from exc
+
         extra_args = (
             config.nuclei.get("extra_args", [])
             if hasattr(config, "nuclei") and isinstance(config.nuclei, dict)
@@ -318,9 +337,6 @@ def _verify_templates(config: Config) -> None:
         for idx, arg in enumerate(extra_args):
             if arg in ("-t", "-templates") and idx + 1 < len(extra_args):
                 template_path = extra_args[idx + 1]
-                # Path-traversal guard: resolve and assert within allowed root
-                import pathlib
-
                 resolved = pathlib.Path(template_path).resolve()
                 allowed_root = pathlib.Path(manifest_dir).resolve()
                 try:
@@ -349,6 +365,12 @@ def run_nuclei(priority_urls: Iterable[str], config: Config, tags: list[str] | N
     .. deprecated::
         Use run_nuclei_adaptive() for structured, WAF-aware output.
     """
+    # Always verify templates, even on the legacy entry point. The previous
+    # implementation skipped this step, which let callers bypass the
+    # provenance check entirely by using this function instead of the
+    # adaptive wrapper.
+    _verify_templates(config)
+
     url_list = list(priority_urls)
     if not url_list or not config.tools.get("nuclei") or not tool_available("nuclei"):
         return ""

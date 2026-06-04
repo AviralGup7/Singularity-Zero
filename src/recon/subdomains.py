@@ -25,27 +25,9 @@ from src.recon.common import (
     run_async_in_sync_context,
     run_commands_parallel,
 )
+from src.recon.domain_validation import is_safe_domain
 
 SUBDOMAIN_ENUMERATOR = "subdomain_enumerator"
-
-
-def is_safe_domain(domain: str) -> bool:
-    """Strict validation for domain input against SSRF, newlines, and null bytes."""
-    import re
-
-    if not domain:
-        return False
-    lower_domain = domain.lower()
-    for bad in ("\x00", "%00", "\n", "\r", "%0a", "%0d", "%0A", "%0D"):
-        if bad in lower_domain:
-            return False
-    if any(ch in domain for ch in ("/", "\\", ":", "@", "?", "#", " ", "\t")):
-        return False
-    _DOMAIN_RE = re.compile(
-        r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$",
-        re.IGNORECASE,
-    )
-    return bool(_DOMAIN_RE.fullmatch(domain))
 
 
 def fetch_crtsh_subdomains(
@@ -122,19 +104,31 @@ try:
 except ImportError:
     pass
 
-# Dynamic customizable passive subdomain sources registry
-for source in ["dnsdumpster", "bufferover", "certspotter", "spyse", "securitytrails", "chaos"]:
-    try:
-        import importlib
+# Dynamic customizable passive subdomain sources registry.
+# The previous implementation used ``importlib.import_module`` with a
+# hard-coded source list and a bare ``except ImportError: pass`` that
+# silently swallowed every failure (including a typo'd provider, a
+# broken submodule import, or a missing dependency). We now do
+# explicit imports per source, log at WARNING on failure, and never
+# silently fall through.
+import importlib
+import logging as _logging
 
+for source in ("dnsdumpster", "bufferover", "certspotter", "spyse", "securitytrails", "chaos"):
+    try:
         module = importlib.import_module(f"src.recon.sources.{source}")
-        func = getattr(module, f"query_{source}", None)
-        if func:
-            register_plugin(SUBDOMAIN_ENUMERATOR, source, contract=SubdomainEnumeratorProtocol)(
-                func
-            )
-    except ImportError:
-        pass
+    except ImportError as exc:
+        _logging.getLogger(__name__).warning(
+            "Subdomain source %r unavailable: %s", source, exc
+        )
+        continue
+    func = getattr(module, f"query_{source}", None)
+    if func is None:
+        _logging.getLogger(__name__).warning(
+            "Subdomain source %r module loaded but query_%s() not found", source, source
+        )
+        continue
+    register_plugin(SUBDOMAIN_ENUMERATOR, source, contract=SubdomainEnumeratorProtocol)(func)
 
 
 # CLI Tools registered as plugins

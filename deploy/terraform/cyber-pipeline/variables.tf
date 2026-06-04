@@ -50,10 +50,20 @@ variable "database_user" {
 }
 
 variable "database_password" {
-  description = "Application database password. If empty, a random password is generated."
+  description = "Application database password. If empty, a random password is generated and stored in the cluster's secret manager. Leaving this unset is the recommended default for production deployments."
   type        = string
   default     = ""
   sensitive   = true
+
+  validation {
+    # SECURITY: an empty value is the only acceptable default. Any
+    # user-supplied value must be at least 16 characters to prevent the
+    # operator from accidentally deploying a weak shared password. The
+    # terraform module itself generates a strong random password when
+    # the variable is left empty.
+    condition     = var.database_password == "" || length(var.database_password) >= 16
+    error_message = "database_password must be empty (a random password will be generated) or at least 16 characters long."
+  }
 }
 
 variable "aws_vpc_id" {
@@ -99,9 +109,14 @@ variable "gcp_region" {
 }
 
 variable "gcp_network" {
-  description = "GCP VPC network self-link or name."
+  description = "GCP VPC network self-link or name. Defaults to a dedicated network name; the historical ``default`` VPC is rejected because it ships with overly permissive firewall rules."
   type        = string
-  default     = "default"
+  default     = "cyber-pipeline-vpc"
+
+  validation {
+    condition     = var.gcp_network != "default"
+    error_message = "gcp_network must NOT be 'default' - the default VPC has overly permissive firewall rules. Use a dedicated VPC."
+  }
 }
 
 variable "gcp_sql_tier" {

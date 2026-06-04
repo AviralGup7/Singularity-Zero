@@ -103,13 +103,20 @@ class FindingsRepo(BaseRepo):
             return []
 
         with self._cursor() as cur:
+            # Bug #37 fix: ``tech_stack`` was previously accepted as a parameter
+            # but never injected into the SQL query, so the function silently
+            # ignored caller intent and returned findings for *any* tech
+            # stack. We now build a parameterized IN clause for the tech
+            # stack values and add it to the WHERE filter.
+            placeholders = ",".join("?" for _ in tech_stack)
             cur.execute(
-                """SELECT f.*, sr.target_name
-                   FROM findings f
-                   JOIN scan_runs sr ON f.run_id = sr.run_id
-                   WHERE f.category = ? AND sr.target_name != ?
-                   ORDER BY f.confidence DESC LIMIT ?""",
-                (category, exclude_target, limit),
+                f"""SELECT f.*, sr.target_name
+                    FROM findings f
+                    JOIN scan_runs sr ON f.run_id = sr.run_id
+                    WHERE f.category = ? AND sr.target_name != ?
+                      AND f.tech_stack IN ({placeholders})
+                    ORDER BY f.confidence DESC LIMIT ?""",  # noqa: S608
+                [category, exclude_target, *tech_stack, limit],
             )
             return [dict(r) for r in cur.fetchall()]
 

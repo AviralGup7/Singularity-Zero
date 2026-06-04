@@ -211,7 +211,3 @@ class TestTaskEnvelopeWorkerValidation:
         assert len(trace_id) == 32, f"trace_id must be 32 chars: {trace_id}"
         assert len(parent_id) == 16, f"parent_id must be 16 chars: {parent_id}"
         assert len(flags) == 2, f"flags must be 2 chars: {flags}"
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-q"])

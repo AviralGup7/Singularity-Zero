@@ -169,18 +169,37 @@ def _match_reemergence(watchlist_entry: dict[str, Any], new_finding: dict[str, A
 def fnmatch_url(url: str, pattern: str) -> bool:
     """Lightweight wildcard URL match.
 
-    Supports the ``*`` wildcard (matching any non-empty substring) and uses
-    |fnmatch| underneath so patterns like ``*.example.com`` continue to work
-    in the watchlist schema after future migrations.
+    Supports the ``*`` wildcard (matching any character sequence, *including
+    none*, but `*` does NOT match the path-separator-like behavior of
+    ``fnmatch``: literal ``.`` is matched literally so ``*.example.com`` does
+    not also match ``aXexample.com``). The match is fully anchored.
     """
-    import fnmatch
+    import re
 
     norm_url = url.strip().lower()
     norm_pattern = pattern.strip().lower()
     # Anchor pattern to avoid partial substring matches when no wildcard is present
     if "*" not in norm_pattern and "?" not in norm_pattern:
         return norm_url == norm_pattern
-    return fnmatch.fnmatch(norm_url, norm_pattern)
+    # Translate the wildcard pattern to a fully-anchored regex with literal
+    # ``.`` (re.escape) and only ``*`` / ``?`` treated as wildcards. This
+    # avoids the two ``fnmatch`` flaws:
+    #   - ``*`` matching the literal ``.`` character (so ``*.example.com``
+    #     would match ``aXexample.com``)
+    #   - ``*`` matching path separators across host boundaries.
+    regex_parts: list[str] = []
+    for ch in norm_pattern:
+        if ch == "*":
+            regex_parts.append(".*")
+        elif ch == "?":
+            regex_parts.append(".")
+        else:
+            regex_parts.append(re.escape(ch))
+    regex = "^" + "".join(regex_parts) + "$"
+    try:
+        return re.fullmatch(regex, norm_url) is not None
+    except re.error:
+        return False
 
 
 class FPWatchlistManager:
@@ -398,9 +417,10 @@ class FPWatchlistManager:
             import asyncio
 
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    raise RuntimeError("loop closed")
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None and not loop.is_closed():
                 loop.create_task(
                     notification_manager.send(
                         event=NotificationEvent.CUSTOM,
@@ -411,7 +431,7 @@ class FPWatchlistManager:
                         correlation_id=corr_id,
                     )
                 )
-            except RuntimeError:
+            else:
                 asyncio.run(
                     notification_manager.send(
                         event=NotificationEvent.CUSTOM,

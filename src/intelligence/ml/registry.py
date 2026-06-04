@@ -37,6 +37,15 @@ class ModelVersionRegistry:
         current = self._active.get(model.name)
         current_pipe = self._pipelines.get(model.name)
 
+        # Detect version collision: re-registering the *same* version while
+        # it is active silently overwrites. Surface this so callers do not
+        # lose the previous version's audit trail.
+        if current is not None and current.version == model.version and activate:
+            raise ValueError(
+                f"Model '{model.name}' version '{model.version}' is already active; "
+                "use a new version string or rollback first"
+            )
+
         if current is not None and current.version != model.version:
             history.append(current)
             if current_pipe is not None:
@@ -50,6 +59,14 @@ class ModelVersionRegistry:
             history.append(model)
             if pipeline is not None:
                 pipe_history.append(pipeline)
+
+    def get_active_model(self, model_name: str) -> ModelVersion | None:
+        """Public accessor for the active model of ``model_name`` (or None)."""
+        return self._active.get(model_name)
+
+    def get_active_pipeline(self, model_name: str) -> Any | None:
+        """Public accessor for the active pipeline of ``model_name`` (or None)."""
+        return self._pipelines.get(model_name)
 
     def record_health(
         self,
@@ -111,13 +128,31 @@ class ModelVersionRegistry:
                 "reason": "no previous version",
             }
 
-        previous = history.pop()
+        # Use an index-based cursor so a second rollback for the same model
+        # can still find a previous version. Previously ``history.pop()``
+        # removed the entry permanently, so a second rollback failed
+        # silently with "no previous version".
+        cursor = getattr(self, "_rollback_cursor", {}).get(current.name, len(history))
+        if cursor <= 0:
+            return {
+                "rolled_back": False,
+                "model_name": current.name,
+                "version": current.version,
+                "reason": "rollback history exhausted",
+            }
+        cursor -= 1
+        previous = history[cursor]
+        getattr(self, "_rollback_cursor", {}).setdefault(current.name, cursor)
+        # The standard dict form would not persist; keep a real attribute:
+        if not hasattr(self, "_rollback_cursor"):
+            self._rollback_cursor = {current.name: cursor}
+        else:
+            self._rollback_cursor[current.name] = cursor
         self._active[current.name] = previous
 
-        # Rollback actual pipeline too
         pipe_history = self._pipeline_history.get(current.name, [])
-        if pipe_history:
-            self._pipelines[current.name] = pipe_history.pop()
+        if pipe_history and cursor < len(pipe_history):
+            self._pipelines[current.name] = pipe_history[cursor]
         else:
             self._pipelines.pop(current.name, None)
 

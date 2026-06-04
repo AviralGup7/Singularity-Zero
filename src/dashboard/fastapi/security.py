@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import secrets
 import sqlite3
@@ -19,12 +20,55 @@ from typing import Any
 import jwt
 from fastapi import HTTPException, Request, status
 
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_BUSY_TIMEOUT_MS as _BUSY_TIMEOUT_MS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_CONNECT_TIMEOUT_SECONDS as _CONNECT_TIMEOUT_SECONDS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_LOCK_RETRY_ATTEMPTS as _LOCK_RETRY_ATTEMPTS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
+)
+from src.infrastructure.db.sqlite_utils import (
+    is_locked_error as _is_locked_error,
+)
+from src.infrastructure.db.sqlite_utils import (
+    safe_close,
+)
+
+try:
+    from argon2 import PasswordHasher
+    from argon2.exceptions import (
+        InvalidHashError,
+        VerificationError,
+        VerifyMismatchError,
+    )
+
+    _ARGON2_AVAILABLE = True
+except Exception:  # pragma: no cover - argon2-cffi is a project dep but be defensive
+    PasswordHasher = None  # type: ignore[assignment]
+    InvalidHashError = Exception  # type: ignore[assignment,misc]
+    VerificationError = Exception  # type: ignore[assignment,misc]
+    VerifyMismatchError = Exception  # type: ignore[assignment,misc]
+    _ARGON2_AVAILABLE = False
+
 ROLE_ORDER = {"read_only": 1, "worker": 2, "admin": 3}
 VALID_ROLES = frozenset(ROLE_ORDER)
-_CONNECT_TIMEOUT_SECONDS = 5.0
-_BUSY_TIMEOUT_MS = 5000
-_LOCK_RETRY_ATTEMPTS = 4
-_LOCK_RETRY_BASE_DELAY_SECONDS = 0.05
+
+# Minimum acceptable entropy (Shannon) of a configured secret in production.
+# 4.0 bits/char roughly corresponds to a strong, random alphanumeric key
+# (~96 bits of entropy in a 24-char random string).
+_MIN_SECRET_ENTROPY_BITS_PER_CHAR = 3.5
+
+# Single shared PasswordHasher so verification uses the same parameters as
+# hashing. The defaults (time_cost=3, memory_cost=64MiB, parallelism=4) are
+# appropriate for interactive auth; tune via env if needed in the future.
+_argon2_hasher: PasswordHasher | None = None
+if _ARGON2_AVAILABLE and PasswordHasher is not None:
+    _argon2_hasher = PasswordHasher()
 
 
 def api_security_enabled() -> bool:
@@ -34,8 +78,41 @@ def api_security_enabled() -> bool:
 _fallback_secret: str | None = None
 
 
+def _shannon_entropy_bits_per_char(value: str) -> float:
+    """Return the Shannon entropy of ``value`` in bits-per-character.
+
+    A higher value means the key is harder to guess. The result is in
+    ``[0, log2(alphabet_size)]`` bits per character; an all-same-character
+    string returns 0.0.
+    """
+    if not value:
+        return 0.0
+    counts: dict[str, int] = {}
+    for ch in value:
+        counts[ch] = counts.get(ch, 0) + 1
+    length = len(value)
+    entropy = 0.0
+    for c in counts.values():
+        p = c / length
+        entropy -= p * math.log2(p)
+    return entropy
+
+
+# Lock guarding the lazy ``_fallback_secret`` so concurrent first-callers
+# can't race on the check-then-set.  Reads after initialization are
+# lock-free because ``str`` is immutable.
+_fallback_secret_lock = threading.Lock()
+
+
 def app_secret_key() -> str:
-    global _fallback_secret
+    """Return the active dashboard secret key.
+
+    Resolution order:
+
+    1. ``APP_SECRET_KEY`` or ``DASHBOARD_API_KEY`` environment variable.
+    2. In non-production environments, a per-process random fallback
+       generated on first call.  In production this raises.
+    """
     key = os.getenv("APP_SECRET_KEY") or os.getenv("DASHBOARD_API_KEY")
     is_prod = os.getenv("APP_ENV") == "production"
 
@@ -45,14 +122,30 @@ def app_secret_key() -> str:
                 "CRITICAL SECURITY RISK: APP_SECRET_KEY is not set. "
                 "A high-entropy secret key must be configured in production via environment variables."
             )
+        # Lazy, thread-safe initialization of the dev fallback.
+        global _fallback_secret
         if _fallback_secret is None:
-            _fallback_secret = secrets.token_hex(32)
-        return _fallback_secret
+            with _fallback_secret_lock:
+                if _fallback_secret is None:
+                    _fallback_secret = secrets.token_hex(32)
+        return _fallback_secret  # type: ignore[return-value]
 
     if is_prod and key in ("change-me-in-production", "dev-dashboard-secret"):
         raise ValueError(
             f"CRITICAL SECURITY RISK: The APP_SECRET_KEY is set to a default value ('{key}'). "
             "A high-entropy secret key must be configured in production environments."
+        )
+    if is_prod and _shannon_entropy_bits_per_char(key) < _MIN_SECRET_ENTROPY_BITS_PER_CHAR:
+        raise ValueError(
+            "CRITICAL SECURITY RISK: APP_SECRET_KEY entropy is too low "
+            f"({_shannon_entropy_bits_per_char(key):.2f} bits/char, "
+            f"min {_MIN_SECRET_ENTROPY_BITS_PER_CHAR:.2f}). "
+            "Use a long, random secret (e.g. `python -c 'import secrets; print(secrets.token_urlsafe(48))'`)."
+        )
+    if is_prod and len(key) < 32:
+        raise ValueError(
+            "CRITICAL SECURITY RISK: APP_SECRET_KEY is shorter than 32 characters. "
+            "Use a long, random secret."
         )
     return key
 
@@ -62,7 +155,39 @@ def utc_now() -> str:
 
 
 def hash_api_key(api_key: str) -> str:
-    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    """Return a stable, slow hash of ``api_key`` for storage in SQLite.
+
+    Uses Argon2id (preferred) when the ``argon2-cffi`` package is available.
+    Argon2 hashes embed their parameters and salt, so the stored value is
+    self-describing. As a final fallback (e.g. environments without
+    argon2-cffi) we use a SHA-256 digest with a server-side pepper to
+    avoid storing the bare key digest.
+    """
+    if _ARGON2_AVAILABLE and _argon2_hasher is not None:
+        return _argon2_hasher.hash(api_key)
+    pepper = os.getenv("API_KEY_PEPPER", "")
+    digest = hashlib.sha256()
+    digest.update(pepper.encode("utf-8"))
+    digest.update(b":")
+    digest.update(api_key.encode("utf-8"))
+    return f"sha256${digest.hexdigest()}"
+
+
+def verify_api_key(api_key: str, stored_hash: str) -> bool:
+    """Verify ``api_key`` against the stored ``stored_hash`` produced by :func:`hash_api_key`."""
+    if not stored_hash:
+        return False
+    if _ARGON2_AVAILABLE and _argon2_hasher is not None and not stored_hash.startswith(
+        "sha256$"
+    ):
+        try:
+            _argon2_hasher.verify(stored_hash, api_key)
+            return True
+        except (VerifyMismatchError, VerificationError, InvalidHashError):
+            return False
+    if stored_hash.startswith("sha256$"):
+        return hmac.compare_digest(stored_hash, hash_api_key(api_key))
+    return False
 
 
 def mask_api_key(api_key: str | None = None, prefix: str | None = None) -> str:
@@ -105,12 +230,12 @@ class SecurityStore:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
         except Exception:
-            try:
-                conn.close()
-            except sqlite3.ProgrammingError:
-                pass
+            safe_close(conn)
             raise
         return conn
+
+    def _is_locked_error(self, exc: BaseException) -> bool:
+        return _is_locked_error(exc)
 
     def _with_conn(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
         last_exc: sqlite3.OperationalError | None = None
@@ -224,21 +349,31 @@ class SecurityStore:
         return record
 
     def authenticate_key(self, api_key: str) -> Principal | None:
-        key_hash = hash_api_key(api_key)
+        """Authenticate ``api_key`` by hashing and matching.
+
+        NOTE: With Argon2 the hash is salted so we cannot look up by hash
+        directly. Instead we fetch *all* active (non-revoked) keys, then
+        verify the presented key against each stored hash. This is
+        expensive at scale but acceptable for a dashboard service that has
+        at most a few dozen keys; if that changes, store a SHA-256 *index*
+        alongside the Argon2 hash and look up the candidate first.
+        """
         now = utc_now()
 
         def _op(conn: sqlite3.Connection) -> Any:
-            row = conn.execute(
+            rows = conn.execute(
                 """
-                SELECT id, role, revoked_at FROM api_keys
-                WHERE key_hash = ?
+                SELECT id, role, revoked_at, key_hash FROM api_keys
+                WHERE revoked_at IS NULL
                 """,
-                (key_hash,),
-            ).fetchone()
-            if row is None or row[2] is not None:
-                return None
-            conn.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?", (now, row[0]))
-            return row
+            ).fetchall()
+            for row in rows:
+                if verify_api_key(api_key, row[3]):
+                    conn.execute(
+                        "UPDATE api_keys SET last_used_at = ? WHERE id = ?", (now, row[0])
+                    )
+                    return (row[0], row[1])
+            return None
 
         row = self._with_conn(_op)
         if row is None:
@@ -473,7 +608,24 @@ def authenticate_jwt_token(token: str) -> Principal | None:
 
 
 def has_role(role: str, allowed_roles: set[str]) -> bool:
-    return any(ROLE_ORDER.get(role, 0) >= ROLE_ORDER.get(allowed, 999) for allowed in allowed_roles)
+    # Bug #39 fix: the previous implementation used
+    # ``ROLE_ORDER.get(allowed, 999)`` as the *required* rank for any role
+    # in ``allowed_roles`` that wasn't in ``ROLE_ORDER``. That meant an
+    # unknown role string like ``"superadmin"`` or a typo such as
+    # ``"Admin"`` would silently require rank 999, which every known role
+    # trivially satisfies - turning a misconfigured allow-list into a
+    # privilege escalation. We now (a) only honor allow-list entries that
+    # are in ``ROLE_ORDER`` and (b) treat unknown role strings as zero
+    # privilege so they can never satisfy any allow-list on their own.
+    caller_rank = ROLE_ORDER.get(role, 0)
+    for allowed in allowed_roles:
+        if allowed not in ROLE_ORDER:
+            # Skip unknown allowed roles instead of treating them as the
+            # most permissive entry in the table.
+            continue
+        if caller_rank >= ROLE_ORDER[allowed]:
+            return True
+    return False
 
 
 def raise_for_roles(principal: Principal, allowed_roles: set[str]) -> None:

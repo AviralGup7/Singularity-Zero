@@ -19,9 +19,29 @@ logger = logging.getLogger(__name__)
 class CloudBucketScanner:
     """Asynchronous multi-cloud storage bucket enumerator."""
 
-    def __init__(self, timeout_seconds: int = 5, concurrency: int = 25):
+    def __init__(
+        self,
+        timeout_seconds: int = 5,
+        concurrency: int = 25,
+        enable_write_probes: bool = False,
+    ):
+        """Initialize the scanner.
+
+        Args:
+            timeout_seconds: Per-request timeout budget.
+            concurrency: Max concurrent connections.
+            enable_write_probes: When True, the scanner will perform an
+                authenticated ``PUT`` against candidate buckets to test for
+                public write access. **Defaults to False** because such
+                probes can be mistaken for malicious activity by the target
+                or its CDN/WAF, may create artifacts in storage that the
+                operator must clean up, and require explicit authorization
+                from the bucket owner. Enable only in offensive contexts
+                where a written scope-of-work exists.
+        """
         self.timeout_seconds = timeout_seconds
         self.concurrency = concurrency
+        self.enable_write_probes = enable_write_probes
 
     def generate_candidates(self, target: str) -> list[str]:
         """Generate smart storage bucket candidates based on target domain.
@@ -132,20 +152,24 @@ class CloudBucketScanner:
                     pass
 
                 # Active Probe 2: Check Public Write (Upload)
-                try:
-                    async with session.put(
-                        f"{url}/cyber_pipeline_write_test.txt",
-                        data="test",
-                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
-                    ) as put_resp:
-                        finding["permissions"]["write"] = put_resp.status == 200
-                        if put_resp.status == 200:
-                            finding["severity"] = "critical"
-                            finding["details"] += (
-                                " Bucket allows unauthenticated file uploads (Public Write)!"
-                            )
-                except Exception:  # noqa: S110
-                    pass
+                # Gated by enable_write_probes: PUT probes mutate remote
+                # state, may trigger abuse reports, and must be authorised
+                # in writing before they are run.
+                if self.enable_write_probes:
+                    try:
+                        async with session.put(
+                            f"{url}/cyber_pipeline_write_test.txt",
+                            data="test",
+                            timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        ) as put_resp:
+                            finding["permissions"]["write"] = put_resp.status == 200
+                            if put_resp.status == 200:
+                                finding["severity"] = "critical"
+                                finding["details"] += (
+                                    " Bucket allows unauthenticated file uploads (Public Write)!"
+                                )
+                    except Exception:  # noqa: S110
+                        pass
 
                 return finding
 
@@ -199,20 +223,21 @@ class CloudBucketScanner:
                     pass
 
                 # Active Probe 2: Check Public Write (Upload)
-                try:
-                    async with session.put(
-                        f"{url}/cyber_pipeline_write_test.txt",
-                        data="test",
-                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
-                    ) as put_resp:
-                        finding["permissions"]["write"] = put_resp.status == 200
-                        if put_resp.status == 200:
-                            finding["severity"] = "critical"
-                            finding["details"] += (
-                                " Bucket allows unauthenticated file uploads (Public Write)!"
-                            )
-                except Exception:  # noqa: S110
-                    pass
+                if self.enable_write_probes:
+                    try:
+                        async with session.put(
+                            f"{url}/cyber_pipeline_write_test.txt",
+                            data="test",
+                            timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        ) as put_resp:
+                            finding["permissions"]["write"] = put_resp.status == 200
+                            if put_resp.status == 200:
+                                finding["severity"] = "critical"
+                                finding["details"] += (
+                                    " Bucket allows unauthenticated file uploads (Public Write)!"
+                                )
+                    except Exception:  # noqa: S110
+                        pass
 
                 return finding
 
@@ -280,7 +305,11 @@ class CloudBucketScanner:
         if not candidates:
             return []
 
-        connector = aiohttp.TCPConnector(limit=self.concurrency, ssl=False)
+        # Enforce TLS certificate validation. Disabling verification silently
+        # downgrades the connection to plaintext-equivalent and exposes the
+        # scan to MITM. Operators who need a custom CA should pass a
+        # ``ssl_context`` via the connector and leave verification on.
+        connector = aiohttp.TCPConnector(limit=self.concurrency, ssl=True)
         async with aiohttp.ClientSession(connector=connector) as session:
             tasks = [self.scan_bucket(session, bucket) for bucket in candidates]
             # Run tasks concurrently

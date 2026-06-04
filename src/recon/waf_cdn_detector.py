@@ -92,15 +92,18 @@ async def detect_waf_cdn(
     max_urls: int = 100,
     *,
     client: httpx.AsyncClient | None = None,
-    active_probe: bool = True,
+    active_probe: bool = False,
 ) -> list[dict[str, Any]]:
     """Detect CDN/WAF presence for a list of URLs.
 
     Two detection modes run for each URL:
     1. Passive: normal GET request, headers/cookies/body matched against
        known CDN/WAF signatures.
-    2. Active (default on): malformed request with a SQLi-like probe path
+    2. Active (opt-in): malformed request with a SQLi-like probe path
        to trigger WAF block pages – catches WAFs that hide on normal traffic.
+       **Default disabled** because the probe payload is logged by upstream
+       SIEM/WAF systems as a real attack attempt and should only run when
+       the engagement's rules-of-engagement explicitly authorise it.
 
     Args:
         urls: List of URLs to test.
@@ -108,8 +111,8 @@ async def detect_waf_cdn(
         max_urls: Maximum number of URLs to test.
         client: Optional shared httpx.AsyncClient for connection pool reuse.
                 If None, a new client is created and closed after the call.
-        active_probe: Whether to run the active fingerprinting probe.
-                      Set False in safe/passive mode.
+        active_probe: Set True to run the active fingerprinting probe.
+                      Defaults to False (passive-only) for safe operation.
 
     Returns:
         List of finding dicts with keys: url, provider, detection_method,
@@ -133,12 +136,14 @@ async def detect_waf_cdn(
         )
 
     results: list[dict[str, Any]] = []
+    tested_urls: set[str] = set()
     try:
         for url in urls[:max_urls]:
             # SSRF protection: skip URLs that target internal/private hosts
             if not is_safe_url(url):
                 logger.warning("WAF detector: URL failed SSRF safety check, skipping: %s", url)
                 continue
+            tested_urls.add(url)
             passive_findings = await _passive_detect(url, client)
             results.extend(passive_findings)
 
@@ -151,9 +156,12 @@ async def detect_waf_cdn(
         if _own_client:
             await client.aclose()
 
+    # Stash on the list so the report builder can recover the true tested count.
+    setattr(results, "_tested_urls", tested_urls)  # type: ignore[attr-defined]
+
     logger.info(
         "CDN/WAF detection: tested %d URLs, found %d provider detections (active_probe=%s)",
-        min(len(urls), max_urls),
+        len(tested_urls),
         len(results),
         active_probe,
     )
@@ -162,6 +170,7 @@ async def detect_waf_cdn(
 
 def build_waf_cdn_report(
     findings: list[dict[str, Any]],
+    tested_urls: set[str] | None = None,
 ) -> dict[str, Any]:
     """Build a structured WAF/CDN report from detection results.
 
@@ -170,6 +179,10 @@ def build_waf_cdn_report(
 
     Args:
         findings: Detection findings from detect_waf_cdn.
+        tested_urls: Optional set of URLs that were actually probed. When
+            omitted, the function attempts to recover it from a hidden
+            attribute on ``findings`` and falls back to the set of URLs
+            that produced at least one finding.
 
     Returns:
         Report dict with per-provider counts, URL breakdowns, and
@@ -190,8 +203,11 @@ def build_waf_cdn_report(
 
     unique_providers = set(by_provider.keys())
 
+    if tested_urls is None:
+        tested_urls = getattr(findings, "_tested_urls", None) or urls_with_waf
+
     return {
-        "total_urls_tested": len(urls_with_waf),
+        "total_urls_tested": len(tested_urls),
         "urls_protected": len(urls_with_waf),
         "unique_providers": sorted(unique_providers),
         "high_confidence_protected_urls": sorted(high_confidence_urls),

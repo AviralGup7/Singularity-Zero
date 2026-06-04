@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Awaitable, Mapping
 from pathlib import Path
 from typing import Any
@@ -24,9 +25,19 @@ from typing import Any
 try:
     from jsonschema import Draft7Validator
 except ModuleNotFoundError:
+    # Hard-fail fallback: instead of silently passing malformed data, we
+    # raise on the first use. Previously the no-op validator allowed
+    # corrupted stage outputs to propagate undetected through the
+    # pipeline, breaking the contract-enforcement story. Operators must
+    # either install ``jsonschema`` or set ``PIPELINE_ALLOW_NO_SCHEMA=1``
+    # to explicitly opt out (with a loud warning).
+    import os as _os
 
     class Draft7Validator:  # type: ignore[no-redef]
-        """No-op validator fallback for environments without jsonschema."""
+        """Strict fallback for environments without jsonschema."""
+
+        class _DisabledValidationError(RuntimeError):
+            pass
 
         class TypeChecker:
             @staticmethod
@@ -34,10 +45,40 @@ except ModuleNotFoundError:
                 return type("ValidationError", (), {"path": (), "message": message})()
 
         def __init__(self, _schema: dict[str, Any]) -> None:
-            pass
+            self._schema = _schema
 
         def iter_errors(self, _payload: Any) -> list[Any]:
-            return []
+            if _os.environ.get("PIPELINE_ALLOW_NO_SCHEMA", "").lower() in {"1", "true", "yes"}:
+                return []
+            raise self._DisabledValidationError(
+                "jsonschema is not installed and PIPELINE_ALLOW_NO_SCHEMA is not set; "
+                "refusing to validate. Install the 'jsonschema' package to restore "
+                "StageOutput/finding contract enforcement."
+            )
+
+
+_JSONSCHEMA_MISSING_LOGGED = False
+
+
+def install_jsonschema_warning() -> None:
+    """Log (once) a warning that schema validation is bypassed.
+
+    Called from the schema-builder entry points so operators notice the
+    degraded state on startup instead of after a malformed payload silently
+    propagates through the pipeline.
+    """
+    global _JSONSCHEMA_MISSING_LOGGED
+    if _JSONSCHEMA_MISSING_LOGGED:
+        return
+    _JSONSCHEMA_MISSING_LOGGED = True
+    import logging as _logging
+
+    if _os.environ.get("PIPELINE_ALLOW_NO_SCHEMA", "").lower() in {"1", "true", "yes"}:
+        _logging.getLogger(__name__).warning(
+            "jsonschema is not installed and PIPELINE_ALLOW_NO_SCHEMA=1; "
+            "StageOutput/finding contract validation is DISABLED. "
+            "Install the 'jsonschema' package to restore schema enforcement."
+        )
 
 
 from src.core.contracts.pipeline_runtime import PipelineInput, StageOutput
@@ -47,6 +88,7 @@ from src.infrastructure.observability.alerts import get_alert_rule_checker
 from src.pipeline.constants.progress import _STAGE_BASELINE_PROGRESS
 
 from .._constants import STAGE_ORDER, STAGE_TIMEOUTS
+from .security import CHECKPOINT_CURRENT_VERSION
 
 logger = get_pipeline_logger(__name__)
 
@@ -216,6 +258,8 @@ def _stage_output_schema_validator() -> Draft7Validator:
         except Exception as exc:
             logger.error("Failed to load schema JSON from %s: %s", schema_path, exc)
             return _NoOpValidator()  # type: ignore[return-value]
+    if isinstance(_stage_output_validator_instance, _NoOpValidator):
+        install_jsonschema_warning()
     return _stage_output_validator_instance
 
 
@@ -255,6 +299,8 @@ def _finding_schema_validator() -> Draft7Validator:
         except Exception as exc:
             logger.error("Failed to load finding schema JSON from %s: %s", schema_path, exc)
             return _NoOpValidator()  # type: ignore[return-value]
+    if isinstance(_finding_validator_instance, _NoOpValidator):
+        install_jsonschema_warning()
     return _finding_validator_instance
 
 
@@ -619,13 +665,31 @@ async def record_stage_post_run(
 
     try:
         if hasattr(checkpoint_mgr, "save_context_snapshot"):
-            checkpoint_mgr.save_context_snapshot(stage_name, ctx.to_dict())
+            # Stamp the checkpoint version so recovery can reject
+            # incompatible payloads (see ``security.run_secured``).
+            snapshot = dict(ctx.to_dict())
+            snapshot["checkpoint_version"] = CHECKPOINT_CURRENT_VERSION
+            checkpoint_mgr.save_context_snapshot(stage_name, snapshot)
         else:
             checkpoint_dir = Path(checkpoint_mgr.checkpoint_dir)
             (checkpoint_dir / stage_name).parent.mkdir(parents=True, exist_ok=True)
-            (checkpoint_dir / f"{stage_name}.json").write_text(
-                json.dumps(ctx.to_dict(), default=str)
-            )
+            target = checkpoint_dir / f"{stage_name}.json"
+            # Atomic write: serialize to a sibling tmp file then ``os.replace``
+            # onto the real path. The previous implementation called
+            # ``Path.write_text`` directly which could leave a truncated
+            # file on a crash, breaking the next ``attempt_recovery``.
+            tmp = target.with_suffix(target.suffix + ".tmp")
+            snapshot = dict(ctx.to_dict())
+            snapshot["checkpoint_version"] = CHECKPOINT_CURRENT_VERSION
+            payload = json.dumps(snapshot, default=str)
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+                fh.flush()
+                try:
+                    os.fsync(fh.fileno())
+                except OSError:
+                    pass
+            os.replace(tmp, target)
     except (OSError, TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.warning("Failed to persist checkpoint for stage %s: %s", stage_name, exc)
 

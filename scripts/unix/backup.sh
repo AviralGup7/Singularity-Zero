@@ -132,13 +132,18 @@ preflight() {
         fi
     done
 
-    # Check Redis if backing up
+    # Check Redis if backing up. The password is passed via the
+    # ``REDISCLI_AUTH`` env var (and the ``--no-auth-warning`` flag) so
+    # it never appears in the process command line. The historical
+    # ``-a $REDIS_PASSWORD`` style interpolated the secret into the
+    # shell command and leaked it to the process table.
     if [[ "$BACKUP_REDIS" == "true" ]]; then
         if command -v redis-cli &>/dev/null; then
-            local redis_cmd="redis-cli -h $REDIS_HOST -p $REDIS_PORT"
-            [[ -n "$REDIS_PASSWORD" ]] && redis_cmd="$redis_cmd -a $REDIS_PASSWORD"
-            if ! $redis_cmd ping &>/dev/null 2>&1; then
-                log_warn "Redis is not responding at $REDIS_HOST:$REDIS_PORT"
+            local redis_cmd="redis-cli -h $REDIS_HOST -p $REDIS_PORT --no-auth-warning"
+            if [[ -n "$REDIS_PASSWORD" ]]; then
+                REDISCLI_AUTH="$REDIS_PASSWORD" $redis_cmd ping &>/dev/null 2>&1 || log_warn "Redis is not responding at $REDIS_HOST:$REDIS_PORT"
+            else
+                $redis_cmd ping &>/dev/null 2>&1 || log_warn "Redis is not responding at $REDIS_HOST:$REDIS_PORT"
             fi
         else
             log_warn "redis-cli not found, Redis backup will use volume copy"
@@ -157,10 +162,15 @@ backup_redis() {
     local redis_dump_dir="$backup_stage/redis"
     mkdir -p "$redis_dump_dir"
 
-    # Method 1: Use BGSAVE and copy dump file
+    # Method 1: Use BGSAVE and copy dump file. Password is passed via
+    # ``REDISCLI_AUTH`` so it never appears in the process command line.
     if command -v redis-cli &>/dev/null; then
-        local redis_cmd="redis-cli -h $REDIS_HOST -p $REDIS_PORT"
-        [[ -n "$REDIS_PASSWORD" ]] && redis_cmd="$redis_cmd -a $REDIS_PASSWORD"
+        local redis_cmd="redis-cli -h $REDIS_HOST -p $REDIS_PORT --no-auth-warning"
+        if [[ -n "$REDIS_PASSWORD" ]]; then
+            export REDISCLI_AUTH="$REDIS_PASSWORD"
+        else
+            unset REDISCLI_AUTH
+        fi
 
         # Trigger background save
         log_info "Triggering Redis BGSAVE..."

@@ -71,7 +71,12 @@ def _prune_launcher_dirs(launcher_root: Path, keep_launcher_runs: int) -> list[P
         (path for path in launcher_root.iterdir() if path.is_dir()),
         key=lambda path: (path.stat().st_mtime, path.name),
     )
-    stale_dirs = job_dirs[:-keep_launcher_runs] if len(job_dirs) > keep_launcher_runs else []
+    if keep_launcher_runs <= 0:
+        stale_dirs = list(job_dirs)
+    elif len(job_dirs) > keep_launcher_runs:
+        stale_dirs = job_dirs[: len(job_dirs) - keep_launcher_runs]
+    else:
+        stale_dirs = []
     for path in stale_dirs:
         _remove_tree(path)
     return stale_dirs

@@ -147,7 +147,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 10
+fail_under = 25
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
@@ -208,12 +208,16 @@ ignore = [
     "E402",   # module-import-not-at-top-of-file
     "N806",   # non-lowercase-variable-in-function
     "N803",   # non-lowercase-argument-name
-    "S104",   # hardcoded-bind-all-interfaces
-    "S310",   # audit-url-open
-    "S311",   # pseudo-random-generator
-    "S103",   # bad-file-permissions
     "N818",   # exception-name-without-error
 ]
+# SECURITY: the following Bandit rules are intentionally NOT suppressed.
+# They are re-enabled so that CI catches new security regressions:
+#   S104: hardcoded-bind-all-interfaces (0.0.0.0 binding)
+#   S103: bad-file-permissions (world-writable files)
+#   S310: audit-url-open (unverified URL opening)
+#   S311: pseudo-random-generator (for security/crypto)
+# The full Ruff rule reference lists them in [tool.ruff.lint] by default
+# once they are removed from the ignore list above.
 
 [tool.ruff.lint.isort]
 known-first-party = ["src", "src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure", "src.infrastructure.queue", "src.infrastructure.cache", "src.infrastructure.execution_engine", "src.infrastructure.observability", "src.infrastructure.security", "src.websocket_server", "src.learning", "src.exploitation"]

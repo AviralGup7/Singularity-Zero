@@ -297,7 +297,8 @@ class TestEventBusThreadSafety(unittest.TestCase):
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10.0)
+            assert not t.is_alive(), "worker thread did not terminate"
         self.assertEqual(errors, [])
 
 

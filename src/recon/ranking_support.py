@@ -93,7 +93,10 @@ def load_history_feedback(previous_run: Path | str | None) -> HistoryFeedback:
     """Load history feedback from a previous pipeline run's findings and scores.
 
     Args:
-        previous_run: Path to previous run output directory.
+        previous_run: Path to previous run output directory. The path is
+            resolved and must be an existing directory; traversal sequences
+            (e.g. ``..``) are rejected so a malicious config cannot redirect
+            the loader to sensitive host paths (e.g. ``/etc``).
 
     Returns:
         Dict with hosts, endpoint_keys, endpoint_bases, parameter_names, and scores.
@@ -108,6 +111,24 @@ def load_history_feedback(previous_run: Path | str | None) -> HistoryFeedback:
     previous_run_path = _coerce_previous_run_path(previous_run)
     if previous_run_path is None:
         return feedback
+
+    # Reject paths that would escape via traversal segments before opening
+    # any file under them. The check uses the resolved, absolute form so
+    # that ``..`` injected through symlinks is also caught.
+    try:
+        resolved = previous_run_path.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        logger.debug("Refusing history path that cannot be resolved: %s (%s)", previous_run_path, exc)
+        return feedback
+    if ".." in resolved.parts:
+        logger.debug(
+            "Refusing history path containing traversal segments: %s", resolved
+        )
+        return feedback
+    if not resolved.is_dir():
+        logger.debug("History path is not a directory, skipping: %s", resolved)
+        return feedback
+    previous_run_path = resolved
 
     # 1. Load scores for regression tracking
     scores_path = previous_run_path / "priority_scores.json"

@@ -17,14 +17,18 @@ from src.core.security.circuit_breaker import CircuitBreaker
 from src.core.tenant_context import TenantContext
 from src.infrastructure.queue.fallback_db import FallbackDB
 from src.infrastructure.queue.fallback_emulator import FallbackEmulator
+from src.infrastructure.queue.redis_config import (
+    REDIS_BACKOFF_SECONDS as DEFAULT_REDIS_BACKOFF_SECONDS,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_MAX_RETRIES as DEFAULT_REDIS_RETRIES,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_RECONNECT_SECONDS as DEFAULT_RECONNECT_INTERVAL_SECONDS,
+)
 from src.infrastructure.security.encryption import redis_tls_kwargs_from_env
 
 logger = get_pipeline_logger(__name__)
-
-DEFAULT_REDIS_TIMEOUT_SECONDS = 5
-DEFAULT_REDIS_RETRIES = 2
-DEFAULT_REDIS_BACKOFF_SECONDS = 0.1
-DEFAULT_RECONNECT_INTERVAL_SECONDS = 30.0
 
 
 class RedisClient:

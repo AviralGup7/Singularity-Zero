@@ -160,6 +160,16 @@ class TLSAnalyzer:
         ]
 
         for tls_version, name, severity in protocols:
+            # SECURITY: ``verify_mode = CERT_NONE`` and ``check_hostname = False``
+            # are required here because we are intentionally negotiating a
+            # deprecated protocol version (SSLv3 / TLSv1.0 / TLSv1.1) to
+            # detect the server's support for it. Verification of the peer
+            # certificate is not the goal of this test. The context is local
+            # to this function so the settings cannot leak to other code
+            # paths, and the loop only appends a finding on a *successful*
+            # handshake - failed handshakes are silently ignored (which is
+            # the desired behavior, since failure means the protocol is not
+            # supported and that is good news for the operator).
             try:
                 context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 context.check_hostname = False

@@ -340,7 +340,17 @@ class FeedbackLoopEngine:
         # Find high-confidence unvalidated findings
         for finding in findings:
             lifecycle = finding.get("lifecycle_state", "")
-            confidence = finding.get("confidence", 0)
+            try:
+                # Bug #38 fix: confidence is stored as TEXT in the findings
+                # table (or arrives as None from a misjoined row), and a
+                # raw ``> 0.7`` comparison raises TypeError on such values.
+                # The TypeError was being swallowed by a broad ``except`` in
+                # the caller, silently dropping the entire finding from the
+                # exploit queue. Coerce safely and treat unparseable
+                # confidence as 0.0 so we never lose findings here.
+                confidence = float(finding.get("confidence") or 0.0)
+            except (TypeError, ValueError):
+                confidence = 0.0
             category = finding.get("category", "")
 
             # Queue for active testing if high confidence but not validated

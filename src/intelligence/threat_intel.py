@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.core.utils import indicator_type_for, is_ip
+
 logger = logging.getLogger(__name__)
 
 
@@ -103,10 +105,7 @@ class ThreatIntelCorrelator:
                 otx_cfg = OTXConfig(api_key=otx_key)
                 async with OTXClient(otx_cfg) as otx_client:
                     # Determine indicator type (simple heuristic)
-                    import re
-
-                    is_ip = re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host)
-                    indicator_type = "IPv4" if is_ip else "domain"
+                    indicator_type = indicator_type_for(host)
                     otx_res = await otx_client.get_indicator_details(indicator_type, host_or_ip)
                     # If indicator has active pulses, it's threat-flagged
                     if hasattr(otx_res, "pulses") and otx_res.pulses:
@@ -142,10 +141,7 @@ class ThreatIntelCorrelator:
             try:
                 vt_cfg = VirusTotalConfig(api_key=vt_key)
                 async with VirusTotalClient(vt_cfg) as vt_client:
-                    import re
-
-                    is_ip = re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host)
-                    if is_ip:
+                    if is_ip(host):
                         vt_res = await vt_client.get_ip_report(host_or_ip)
                     else:
                         vt_res = await vt_client.get_domain_report(host_or_ip)

@@ -14,14 +14,21 @@ from typing import Any, cast
 
 import redis.asyncio as redis
 
+from src.infrastructure.queue.redis_config import (
+    REDIS_BACKOFF_SECONDS as DEFAULT_REDIS_BACKOFF_SECONDS,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_MAX_RETRIES as DEFAULT_REDIS_RETRIES,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_RECONNECT_SECONDS as DEFAULT_DEGRADED_RETRY_SECONDS,
+)
+from src.infrastructure.queue.redis_config import (
+    REDIS_TIMEOUT_SECONDS as DEFAULT_REDIS_TIMEOUT_SECONDS,
+)
 from src.learning.models.fp_pattern import FPPattern
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_REDIS_TIMEOUT_SECONDS = 3.0
-DEFAULT_REDIS_RETRIES = 2
-DEFAULT_REDIS_BACKOFF_SECONDS = 0.1
-DEFAULT_DEGRADED_RETRY_SECONDS = 30.0
 
 
 class RedisFPRepository:

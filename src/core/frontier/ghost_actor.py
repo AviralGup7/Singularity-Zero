@@ -17,10 +17,6 @@ from src.core.frontier.ghost_actor_coordinator import GhostMeshCoordinator as Ba
 
 # Modular imports
 from src.core.frontier.ghost_actor_state import ActorState
-from src.core.frontier.marshaller import (
-    mesh_marshal_pickle,
-    mesh_unmarshal_pickle,
-)
 from src.core.frontier.state import CRDTCompactionBudget, stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -77,12 +73,10 @@ class ScanActor(pykka.ThreadingActor):
             "target_elapsed_ms": getattr(self.compaction_budget, "target_elapsed_ms", 30.0),
         }
 
-        try:
-            serialized_logic = mesh_marshal_pickle(self.logic_fn)
-        except Exception as e:
-            logger.warning("Ghost-Actor [%s]: Failed to serialize logic_fn: %s", self.actor_id, e)
-            serialized_logic = None
-
+        # SECURITY: Logic functions are recovered from the in-process
+        # ``_LOGIC_REGISTRY`` by name on rehydrate. We no longer embed a
+        # pickled blob in the actor state, which eliminates the entire
+        # cloudpickle-RCE attack surface for the migration path.
         actor_state = ActorState(
             actor_id=self.actor_id,
             stage=self.state.get("current_stage", "init"),
@@ -95,7 +89,7 @@ class ScanActor(pykka.ThreadingActor):
             migration_id=migration_id,
             applied_wal_ids=list(self._applied_wal_ids),
             compaction_budget=compaction_budget_data,
-            serialized_logic_fn=serialized_logic,
+            serialized_logic_fn=None,
         )
         return actor_state.dehydrate()
 
@@ -123,13 +117,26 @@ class ScanActor(pykka.ThreadingActor):
             )
 
         restored_logic = None
-        if unpacked.serialized_logic_fn:
-            try:
-                restored_logic = mesh_unmarshal_pickle(unpacked.serialized_logic_fn)
-            except Exception as e:
-                logger.error(
-                    "Ghost-Actor [%s]: Failed to deserialize logic_fn: %s", self.actor_id, e
-                )
+        # SECURITY: Logic functions are resolved purely from the in-process
+        # ``_LOGIC_REGISTRY`` by name. We never deserialize callables from
+        # an untrusted blob, which eliminates the cloudpickle-RCE attack
+        # surface for the migration path. If the function is not in the
+        # registry, the actor falls back to the constructor-supplied
+        # default rather than accepting the unknown callable.
+        if unpacked.logic_fn_name:
+            reg_logic = _LOGIC_REGISTRY.get(unpacked.logic_fn_name)
+            if reg_logic is not None:
+                restored_logic = reg_logic
+        if restored_logic is None and unpacked.serialized_logic_fn is not None:
+            # Defense-in-depth: if a legacy snapshot still carries a
+            # serialized_logic_fn blob we deliberately ignore it. The
+            # actor continues using the constructor-supplied default
+            # logic_fn rather than executing attacker-controlled bytes.
+            logger.warning(
+                "Ghost-Actor [%s]: Dropping legacy serialized_logic_fn blob; "
+                "logic functions are registry-resolved only.",
+                self.actor_id,
+            )
 
         if restored_logic:
             self.logic_fn = restored_logic
@@ -139,6 +146,10 @@ class ScanActor(pykka.ThreadingActor):
             reg_logic = _LOGIC_REGISTRY.get(unpacked.logic_fn_name)
             if reg_logic:
                 self.logic_fn = reg_logic
+        # else: leave self.logic_fn as the constructor-supplied default.
+        # We refuse to instantiate a logic function from a malicious
+        # pickle blob when neither the registry nor the constructor
+        # already know the function name.
 
     def cold_start(self, snapshot_bytes: bytes, wal_deltas: list[dict[str, Any]]) -> None:
         """Completely reconstruct state from a cold-start checkpoint snapshot plus trailing WAL."""

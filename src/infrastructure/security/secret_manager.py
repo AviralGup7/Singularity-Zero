@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.infrastructure.security.config import SecurityConfig
-    from src.infrastructure.security.encryption import DataEncryptor
 
 from src.core.logging.trace_logging import get_pipeline_logger
 

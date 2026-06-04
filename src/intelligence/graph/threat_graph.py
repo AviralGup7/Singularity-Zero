@@ -103,25 +103,35 @@ def find_critical_paths(graph: dict, min_severity: str = "high") -> list[dict]:
     impact_nodes = {n.get("id") for n in nodes if n.get("role") == "impact"}
 
     critical_paths: list[dict] = []
+    seen_paths: set[tuple[str, ...]] = set()
     for entry in entry_nodes:
         entry_id = entry.get("id", "")
-        visited: set[str] = set()
-        stack = [(entry_id, [entry_id])]
+        # path_visited tracks the *current recursion path* (cycle guard).
+        # seen_paths deduplicates enumerated paths across the DFS — previously
+        # a single shared `visited` set was used which meant once a node was
+        # visited by any branch it could never appear in any other path,
+        # collapsing enumeration to a single path.
+        path_visited: set[str] = set()
+        stack: list[tuple[str, tuple[str, ...]]] = [(entry_id, (entry_id,))]
 
         while stack:
             current, path = stack.pop()
-            if current in visited:
+            if current in path_visited:
                 continue
-            visited.add(current)
+            path_visited = path_visited | {current}
 
             if current in impact_nodes and len(path) >= 2:
+                path_tuple = tuple(path)
+                if path_tuple in seen_paths:
+                    continue
+                seen_paths.add(path_tuple)
                 path_nodes = [node_map.get(nid, {}) for nid in path]
                 severities = [severity_order.get(n.get("severity", "low"), 0) for n in path_nodes]
                 if all(s >= min_score for s in severities):
                     risk = sum(s for s in severities) / max(1, len(severities))
                     critical_paths.append(
                         {
-                            "path": path,
+                            "path": list(path),
                             "risk_score": round(risk / 4.0, 2),
                             "description": " -> ".join(
                                 node_map.get(nid, {}).get("title", nid) for nid in path
@@ -131,8 +141,8 @@ def find_critical_paths(graph: dict, min_severity: str = "high") -> list[dict]:
                     )
 
             for neighbor in adjacency.get(current, []):
-                if neighbor not in visited:
-                    stack.append((neighbor, path + [neighbor]))
+                if neighbor not in path_visited:
+                    stack.append((neighbor, path + (neighbor,)))
 
     critical_paths.sort(key=lambda p: p["risk_score"], reverse=True)
     return critical_paths

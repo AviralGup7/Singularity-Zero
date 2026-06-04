@@ -182,15 +182,22 @@ async def run_passive_scanning(
                         )
                     if deterministic_error or attempt == passive_scan_retries:
                         logger.error(
-                            "Passive scanners failed after %d retries in iteration %d, using partial results",
+                            "Passive scanners failed after %d retries in iteration %d, keeping prior results",
                             attempt,
                             iteration,
                         )
-                        state_delta["analysis_results"] = {}
-                        state_delta["validation_runtime_inputs"] = {
-                            "urls": [],
-                            "responses": [],
-                        }
+                        # Previously this overwrote ``analysis_results`` with an
+                        # empty dict, wiping the results from every prior
+                        # iteration. Keep whatever we have and just reset the
+                        # validation inputs so downstream stages can still
+                        # attempt to run with a degraded payload.
+                        if not state_delta.get("analysis_results"):
+                            state_delta["analysis_results"] = {}
+                        if not state_delta.get("validation_runtime_inputs"):
+                            state_delta["validation_runtime_inputs"] = {
+                                "urls": [],
+                                "responses": [],
+                            }
                         break
 
             state_delta["merged_findings"] = annotate_finding_decisions(
@@ -289,29 +296,42 @@ async def run_passive_scanning(
             finding_events: list[dict[str, Any]] = []
             try:
                 from src.core.telemetry import build_telemetry_event
+                from src.pipeline.services.instrumentation import event_bus
 
                 for index, finding in enumerate(state_delta["reportable_findings"]):
                     finding_id = finding_identity(finding)
-                    finding_events.append(
-                        build_telemetry_event(
-                            event_type="finding.discovered",
-                            stage="passive_scan",
-                            message=str(finding.get("title") or finding.get("type") or "Finding"),
-                            status="running",
-                            source="stage.passive_scan",
-                            check_id=str(finding.get("module") or finding.get("type") or ""),
-                            finding_id=finding_id,
-                            severity=str(finding.get("severity") or "info").lower(),
-                            target=str(finding.get("url") or finding.get("host") or ""),
-                            sequence=index + 1,
-                            payload={
-                                "iteration": iteration,
-                                "confidence": finding.get("confidence"),
-                                "url": finding.get("url"),
-                                "module": finding.get("module") or finding.get("type"),
-                            },
-                        )
+                    event = build_telemetry_event(
+                        event_type="finding.discovered",
+                        stage="passive_scan",
+                        message=str(finding.get("title") or finding.get("type") or "Finding"),
+                        status="running",
+                        source="stage.passive_scan",
+                        check_id=str(finding.get("module") or finding.get("type") or ""),
+                        finding_id=finding_id,
+                        severity=str(finding.get("severity") or "info").lower(),
+                        target=str(finding.get("url") or finding.get("host") or ""),
+                        sequence=index + 1,
+                        payload={
+                            "iteration": iteration,
+                            "confidence": finding.get("confidence"),
+                            "url": finding.get("url"),
+                            "module": finding.get("module") or finding.get("type"),
+                        },
                     )
+                    finding_events.append(event)
+                    # Pass-through: forward every finding event to the
+                    # global event bus so subscribers (the dashboard,
+                    # learning subscriber, …) get a real-time stream
+                    # instead of the truncated 250-event window that
+                    # ``emit_progress`` allowed. Per-event failures are
+                    # isolated: a single bad finding cannot stop the
+                    # stream.
+                    try:
+                        event_bus(event)
+                    except Exception as bus_exc:  # noqa: BLE001
+                        logger.debug(
+                            "event_bus rejected finding event %s: %s", finding_id, bus_exc
+                        )
             except Exception as exc:
                 logger.exception("Failed to build telemetry events during passive scan iteration: %s", exc)
                 finding_events = []

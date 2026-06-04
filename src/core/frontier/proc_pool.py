@@ -13,11 +13,28 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-from src.core.frontier.marshaller import mesh_marshal_pickle, mesh_unmarshal_pickle
+from src.core.frontier.marshaller import safe_pack, safe_unpack
 from src.core.frontier.state import stable_digest
 from src.core.logging.trace_logging import get_pipeline_logger
 
 logger = get_pipeline_logger(__name__)
+
+
+def _loop_time() -> float:
+    """Return the running event loop's monotonic time.
+
+    Falls back to ``time.monotonic`` when no loop is active, so the
+    helper is safe to call from sync code paths and avoids the
+    deprecated ``asyncio.get_event_loop()`` (which has been scheduled
+    for removal in Python 3.14+ and warns at runtime in 3.12+).
+    """
+    import time
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return time.monotonic()
+    return loop.time()
 
 try:
     import psutil
@@ -225,11 +242,11 @@ class FrontierProcessPool:
             status=status,
             output=output,
             error=error,
-            timestamp=asyncio.get_event_loop().time(),
+            timestamp=_loop_time(),
         )
 
     def _prune_stale_receipts(self) -> None:
-        now = asyncio.get_event_loop().time()
+        now = _loop_time()
         if now - self._last_receipt_prune < _STALE_TTL:
             return
         self._last_receipt_prune = now
@@ -457,7 +474,7 @@ class FrontierProcessPool:
                 stderr=asyncio.subprocess.PIPE,
                 stdin=asyncio.subprocess.PIPE,
             )
-            packed_data = mesh_marshal_pickle(task_obj)
+            packed_data = safe_pack(task_obj, payload_kind="proc_pool_ipc")
             try:
                 input_bytes = struct.pack("!I", len(packed_data)) + packed_data
                 stdout, stderr = await asyncio.wait_for(
@@ -502,7 +519,7 @@ class FrontierProcessPool:
                 raise ValueError(f"Payload length {length} exceeds maximum {MAX_PAYLOAD_BYTES}")
             if len(stdout) < 4 + length:
                 raise RuntimeError("ToolExecutionError: One-off process output incomplete")
-            output = mesh_unmarshal_pickle(stdout[4 : 4 + length])
+            output = safe_unpack(stdout[4 : 4 + length])
             if len(self._binary_task_cache) >= _BINARY_CACHE_MAX:
                 oldest_key = next(iter(self._binary_task_cache))
                 del self._binary_task_cache[oldest_key]
@@ -536,7 +553,7 @@ class FrontierProcessPool:
                     )
                 raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
 
-            packed_data = mesh_marshal_pickle(task_obj)
+            packed_data = safe_pack(task_obj, payload_kind="proc_pool_ipc")
             p.process.stdin.write(struct.pack("!I", len(packed_data)) + packed_data)
             await p.process.stdin.drain()
 
@@ -550,7 +567,7 @@ class FrontierProcessPool:
                 payload_bytes = await asyncio.wait_for(
                     p.process.stdout.readexactly(length), timeout=max(0.05, timeout_seconds)
                 )
-                output = mesh_unmarshal_pickle(payload_bytes)
+                output = safe_unpack(payload_bytes)
             except TimeoutError:
                 if p.current_task_id:
                     async with self._lock:

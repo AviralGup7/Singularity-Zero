@@ -15,6 +15,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
       labels:
         {{- include "cyber-pipeline.selectorLabels" . | nindent 8 }}
     spec:
@@ -43,12 +44,21 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "cyber-pipeline.fullname" . }}-config
+            - secretRef:
+                name: {{ include "cyber-pipeline.fullname" . }}-secrets
           env:
             - name: APP_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "cyber-pipeline.fullname" . }}-secrets
                   key: app-secret-key
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cyber-pipeline.fullname" . }}-secrets
+                  key: redis-password
+            - name: REDIS_URL
+              value: "redis://redis-master:6379/0"
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
         - name: worker
@@ -58,11 +68,18 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "cyber-pipeline.fullname" . }}-config
+            - secretRef:
+                name: {{ include "cyber-pipeline.fullname" . }}-secrets
           env:
             - name: APP_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "cyber-pipeline.fullname" . }}-secrets
                   key: app-secret-key
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cyber-pipeline.fullname" . }}-secrets
+                  key: redis-password
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
