@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { AuthContext } from './auth-context';
 import { useAuthStore } from '@/stores/authStore';
+import { useAuth as useAuthLocal } from '@/hooks/useAuth';
 
 import type { UserRole, Permission, AuthContextType } from './auth-context';
 export type { UserRole, Permission, AuthContextType };
@@ -43,4 +44,3 @@ export function RequireRole({
   return <>{children}</>;
 }
 
-import { useAuth as useAuthLocal } from '@/hooks/useAuth';

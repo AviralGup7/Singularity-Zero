@@ -25,7 +25,16 @@ const FindingRow = memo(function FindingRow({
 
   const initials = finding.target?.substring(0, 2).toUpperCase() || '??';
 
-  const timestamp = typeof finding.timestamp === 'number' ? finding.timestamp * 1000 : Date.parse(finding.timestamp);
+  const timestamp = (() => {
+    if (typeof finding.timestamp === 'number' && Number.isFinite(finding.timestamp)) {
+      return finding.timestamp * 1000;
+    }
+    if (typeof finding.timestamp === 'string') {
+      const parsed = Date.parse(finding.timestamp);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  })();
 
   return (
     <div className="px-4 py-2">

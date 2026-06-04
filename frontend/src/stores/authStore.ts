@@ -38,8 +38,10 @@ const ROLE_HIERARCHY = new Map<UserRole, number>([
 const AUTH_STORAGE_KEY = 'cyber-pipeline-auth';
 
 function mapApiRole(role: string): UserRole {
-  if (role === 'admin') return 'admin';
-  if (role === 'worker') return 'analyst';
+  const normalized = role?.toLowerCase() ?? '';
+  if (normalized === 'admin' || normalized === 'superadmin') return 'admin';
+  if (normalized === 'worker' || normalized === 'analyst') return 'analyst';
+  if (normalized === 'viewer' || normalized === 'guest') return 'viewer';
   return 'viewer';
 }
 

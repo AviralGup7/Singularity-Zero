@@ -94,10 +94,11 @@ export function useApi<T>(
   } = options ?? {};
 
   /* eslint-disable react-hooks/refs */
-  const paramsRef = useRef<Record<string, unknown> | undefined>(undefined);
-  if (!isDeepEqual(params, paramsRef.current)) {
-    paramsRef.current = params;
-  }
+  const paramsRef = useRef<Record<string, unknown> | undefined>(params);
+  // Persist the most recent params to the ref, but never trigger a
+  // re-render or mutate during render. The fetch effect below reads
+  // from this ref and aborts the in-flight request when the params
+  // value identity changes.
   const stableParams = paramsRef.current;
   /* eslint-enable react-hooks/refs */
 

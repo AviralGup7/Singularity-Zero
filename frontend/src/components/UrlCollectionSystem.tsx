@@ -30,8 +30,17 @@ const TRACKING_PARAM_RE = /^(utm_|fbclid$|gclid$|msclkid$)/i;
 const STATIC_ASSET_RE = /\.(?:png|jpe?g|gif|svg|ico|webp|css|js|map|woff2?|ttf|eot|pdf)$/i;
 
 function normalizeCollectedUrl(input: string): string {
-  const withProtocol = input.match(/^https?:\/\//i) ? input : `https://${input}`;
-  const parsed = new URL(withProtocol);
+  const trimmed = input.trim();
+  if (!trimmed) {
+    throw new Error('Empty URL');
+  }
+  const withProtocol = trimmed.match(/^https?:\/\//i) ? trimmed : `https://${trimmed}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(withProtocol);
+  } catch (err) {
+    throw new Error(`Invalid URL: ${trimmed}`);
+  }
 
   parsed.protocol = parsed.protocol.toLowerCase();
   parsed.hostname = parsed.hostname.toLowerCase();
