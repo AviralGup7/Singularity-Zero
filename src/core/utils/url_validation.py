@@ -229,7 +229,7 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
         return not _is_ip_private(hostname)
     except ValueError:
         pass
-    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # noqa: S104
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # noqa: S104  # nosec B104  (this is a banned-hostname check, not a bind)
         return False
     if hostname == "169.254.169.254":
         return False

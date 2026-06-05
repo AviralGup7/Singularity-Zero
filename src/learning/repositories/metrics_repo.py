@@ -69,8 +69,8 @@ class MetricsRepo(BaseRepo):
             return []
         placeholders = ",".join("?" for _ in run_ids)
         with self._cursor() as cur:
-            cur.execute(  # noqa: S608
-                f"SELECT * FROM plugin_stats WHERE run_id IN ({placeholders}) ORDER BY plugin_name",  # noqa: S608
+            cur.execute(  # noqa: S608  # nosec B608  (placeholders are static "?" chars)
+                f"SELECT * FROM plugin_stats WHERE run_id IN ({placeholders}) ORDER BY plugin_name",  # noqa: S608  # nosec B608
                 list(run_ids),
             )
             return [dict(r) for r in cur.fetchall()]

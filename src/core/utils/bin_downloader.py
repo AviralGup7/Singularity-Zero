@@ -164,7 +164,7 @@ def download_and_extract_tool(
                 print("  └─ Downloading from GitHub...")
 
             with (
-                urllib.request.urlopen(req, timeout=60) as response,  # noqa: S310
+                urllib.request.urlopen(req, timeout=60) as response,  # noqa: S310  # nosec B310  (scheme allowlist checked above)
                 open(tmp_archive_path, "wb") as out_file,
             ):
                 shutil.copyfileobj(response, out_file)

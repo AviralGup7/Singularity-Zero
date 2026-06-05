@@ -39,14 +39,14 @@ _KNOWN_TABLES = {
 }
 _KNOWN_TIME_COLUMNS = {"created_at", "updated_at", "timestamp", "last_seen"}
 
-_DELETE_QUERIES = {  # noqa: S608
-    (t, c): f"DELETE FROM {t} WHERE {c} < ?"  # noqa: S608
+_DELETE_QUERIES = {  # noqa: S608  # nosec B608  (t and c are from hardcoded allowlisted sets)
+    (t, c): f"DELETE FROM {t} WHERE {c} < ?"  # noqa: S608  # nosec B608
     for t in _KNOWN_TABLES
     for c in _KNOWN_TIME_COLUMNS
 }
 
-_COUNT_QUERIES = {  # noqa: S608
-    t: f"SELECT COUNT(*) FROM {t}"  # noqa: S608
+_COUNT_QUERIES = {  # noqa: S608  # nosec B608  (t is from hardcoded allowlisted set)
+    t: f"SELECT COUNT(*) FROM {t}"  # noqa: S608  # nosec B608
     for t in _KNOWN_TABLES
 }
 
