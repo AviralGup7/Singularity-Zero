@@ -220,9 +220,14 @@ class TriageCollaborationService:
             with self.audit_path.open("r", encoding="utf-8") as handle:
                 for line in handle:
                     if line.strip():
-                        latest = str(json.loads(line).get("hash") or latest)
-        except (OSError, json.JSONDecodeError):
-            return latest
+                        parsed_hash = json.loads(line).get("hash")
+                        if parsed_hash:
+                            latest = str(parsed_hash)
+        except OSError as exc:
+            logger.warning("Failed to read audit log %s: %s", self.audit_path, exc)
+            return "0" * 64
+        except json.JSONDecodeError as exc:
+            logger.warning("Corrupt audit log entry in %s: %s", self.audit_path, exc)
         return latest
 
     def list_events(

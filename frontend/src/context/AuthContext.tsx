@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { AuthContext } from './auth-context';
 import { useAuthStore } from '@/stores/authStore';
-import { useAuth as useAuthLocal } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
 
 import type { UserRole, Permission, AuthContextType } from './auth-context';
 export type { UserRole, Permission, AuthContextType };
@@ -25,7 +25,7 @@ export function RequirePermission({
   children: ReactNode;
   fallback?: ReactNode;
 }) {
-  const { hasPermission } = useAuthLocal();
+  const { hasPermission } = useAuth();
   if (!hasPermission(permission)) return <>{fallback}</>;
   return <>{children}</>;
 }
@@ -39,7 +39,7 @@ export function RequireRole({
   children: ReactNode;
   fallback?: ReactNode;
 }) {
-  const { user } = useAuthLocal();
+  const { user } = useAuth();
   if (!user || !roles.includes(user.role)) return <>{fallback}</>;
   return <>{children}</>;
 }

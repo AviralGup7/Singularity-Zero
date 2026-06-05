@@ -76,6 +76,7 @@ class ResourcePool:
         self._lock = asyncio.Lock()
         self._closed = False
         self._wait_times: list[float] = []
+        self._shrink_drain_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def max_concurrent(self) -> int:
@@ -109,7 +110,7 @@ class ResourcePool:
                 added = new_max - self._max_concurrent
                 for _ in range(added):
                     self._semaphore.release()
-            elif new_max < self._max_concurrent:
+            if new_max < self._max_concurrent:
                 removed = self._max_concurrent - new_max
                 # We can't easily "reduce" a semaphore's internal counter,
                 # so we must acquire the difference to block those permits.
@@ -120,8 +121,24 @@ class ResourcePool:
                     try:
                         await asyncio.wait_for(self._semaphore.acquire(), timeout=0.1)
                     except TimeoutError:
-                        # If we can't acquire it now, start a background task to eventually drain it
-                        asyncio.create_task(self._semaphore.acquire())
+                        # If we can't acquire it now, schedule a background
+                        # coroutine on the running event loop (we're already
+                        # inside ``resize`` which is async, so ``get_loop``
+                        # would be wrong). Keep a strong reference so the
+                        # event loop doesn't garbage-collect it mid-flight.
+                        try:
+                            running_loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            running_loop = None
+                        if running_loop is not None and not running_loop.is_closed():
+                            bg_task = running_loop.create_task(self._semaphore.acquire())
+                            self._shrink_drain_tasks.add(bg_task)
+                            bg_task.add_done_callback(self._shrink_drain_tasks.discard)
+                        else:
+                            logger.debug(
+                                "Resource pool '%s' shrink: cannot schedule drain, no running loop",
+                                self.name,
+                            )
 
             self._max_concurrent = new_max
             self._health.max_concurrent = new_max

@@ -10,7 +10,10 @@ class FindingLifecycleState(StrEnum):
 
 
 _ALLOWED_TRANSITIONS: dict[FindingLifecycleState, set[FindingLifecycleState]] = {
-    state: set(FindingLifecycleState) for state in FindingLifecycleState
+    FindingLifecycleState.DETECTED: {FindingLifecycleState.VALIDATED, FindingLifecycleState.EXPLOITABLE},
+    FindingLifecycleState.VALIDATED: {FindingLifecycleState.EXPLOITABLE, FindingLifecycleState.REPORTABLE},
+    FindingLifecycleState.EXPLOITABLE: {FindingLifecycleState.REPORTABLE},
+    FindingLifecycleState.REPORTABLE: set(),
 }
 
 
@@ -23,6 +26,13 @@ def normalize_lifecycle_state(value: str | None) -> FindingLifecycleState:
 
 
 def can_transition(current: FindingLifecycleState, target: FindingLifecycleState) -> bool:
+    """Return True if a transition from ``current`` to ``target`` is allowed.
+
+    Self-transitions (current == target) are always allowed so callers can
+    safely re-apply lifecycle inference without raising.
+    """
+    if current == target:
+        return True
     return target in _ALLOWED_TRANSITIONS.get(current, set())
 
 

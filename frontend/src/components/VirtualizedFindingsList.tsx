@@ -69,7 +69,7 @@ const FindingRow = memo(function FindingRow({
           <div className="w-px h-8 bg-white/5" />
           <div className="text-right">
             <div className="text-[10px] text-muted flex items-center gap-1 justify-end">
-              <Clock size={10} /> {new Date(timestamp).toLocaleDateString()}
+              <Clock size={10} /> {timestamp !== null ? new Date(timestamp).toLocaleDateString() : 'Unknown'}
             </div>
             <div className="text-[9px] text-accent uppercase tracking-widest font-black">
               {finding.lifecycle_state}

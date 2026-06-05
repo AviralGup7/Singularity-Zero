@@ -54,22 +54,30 @@ class DistributedCheckpointStore:
         data = json.dumps(state.to_dict())
 
         try:
-            # Use Redis pipeline for atomic operation
-            # Since execute_command doesn't support pipeline, we'll do sequential
-            self.redis.execute_command("HSET", key, "state", data)
-            self.redis.execute_command("HSET", key, "owner", worker_id)
-            self.redis.execute_command("HSET", key, "updated_at", str(time.time()))
-            self.redis.execute_command("HSET", key, "node_id", self.node_id)
-            self.redis.execute_command("EXPIRE", key, 86400)  # 24 hour TTL
+            # Use Redis MULTI/EXEC transaction so the four hash writes,
+            # the worker-set writes and the global-index writes commit
+            # atomically. Without this, a crash between HSET and SADD
+            # would leave the checkpoint half-stored and the worker-set
+            # pointing at a key that no longer exists. ``pipeline`` is
+            # used instead of bare ``execute_command("MULTI")`` so the
+            # commands are buffered in a single round-trip and committed
+            # atomically on EXEC.
+            pipe = self.redis.pipeline(transaction=True)
+            pipe.hset(key, "state", data)
+            pipe.hset(key, "owner", worker_id)
+            pipe.hset(key, "updated_at", str(time.time()))
+            pipe.hset(key, "node_id", self.node_id)
+            pipe.expire(key, 86400)  # 24 hour TTL
 
             # Track which workers have checkpoints
             worker_key = f"{WORKER_CHECKPOINTS_KEY}:{worker_id}"
-            self.redis.execute_command("SADD", worker_key, state.pipeline_run_id)
-            self.redis.execute_command("EXPIRE", worker_key, 86400)
+            pipe.sadd(worker_key, state.pipeline_run_id)
+            pipe.expire(worker_key, 86400)
 
             # Track in global checkpoint index for dead-worker detection
-            self.redis.execute_command("SADD", ALL_CHECKPOINTS_KEY, state.pipeline_run_id)
-            self.redis.execute_command("EXPIRE", ALL_CHECKPOINTS_KEY, 86400)
+            pipe.sadd(ALL_CHECKPOINTS_KEY, state.pipeline_run_id)
+            pipe.expire(ALL_CHECKPOINTS_KEY, 86400)
+            pipe.execute()
 
             logger.info(
                 "Saved checkpoint for run %s (owner=%s, node=%s)",

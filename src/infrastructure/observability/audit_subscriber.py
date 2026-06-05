@@ -22,6 +22,7 @@ class AuditSubscriber:
         self._event_bus = event_bus
         self._audit_logger = audit_logger or AuditLogger(SecurityConfig())
         self._subscription_ids: list[str] = []
+        self._audit_event_map: dict[Any, AuditEvent] = {}
 
     def start(self) -> None:
         """Start listening for events to audit."""
@@ -41,7 +42,10 @@ class AuditSubscriber:
             EventType.PIPELINE_ERROR: (self._on_pipeline_failed, AuditEvent.PIPELINE_FAILED),
         }
 
-        for event_type, (handler, _) in mappings.items():
+        for event_type, mapping in mappings.items():
+            handler = mapping[0]
+            audit_event = mapping[1]
+            self._audit_event_map[event_type] = audit_event
             sub_id = self._event_bus.subscribe(event_type, handler)
             self._subscription_ids.append(sub_id)
 

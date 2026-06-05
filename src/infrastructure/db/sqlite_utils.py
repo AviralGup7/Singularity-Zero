@@ -53,12 +53,6 @@ SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS: float = _env_float(
     "SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS", 0.05
 )
 
-# Back-compat aliases for the old underscore-prefixed names.
-_DEFAULT_BUSY_TIMEOUT_MS = SQLITE_BUSY_TIMEOUT_MS
-_DEFAULT_CONNECT_TIMEOUT_SECONDS = SQLITE_CONNECT_TIMEOUT_SECONDS
-_DEFAULT_MAX_RETRIES = SQLITE_LOCK_RETRY_ATTEMPTS
-
-
 @contextmanager
 def retrying_connect(
     db_path: str | Any,
@@ -74,6 +68,11 @@ def retrying_connect(
     Yields a configured :class:`sqlite3.Connection` and rolls back any
     uncommitted transaction on exception.  Re-raises the last
     :class:`sqlite3.OperationalError` after exhausting retries.
+
+    Note: this helper does **not** auto-commit changes. The caller is
+    responsible for calling :meth:`sqlite3.Connection.commit` on the
+    yielded connection (or for closing the context without committing
+    to roll back).
     """
     last_exc: sqlite3.OperationalError | None = None
     for attempt in range(max(1, max_retries)):
@@ -100,8 +99,6 @@ def retrying_connect(
             if attempt == max_retries - 1:
                 raise
             time.sleep(SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS * (2**attempt))
-    if last_exc is not None:
-        raise last_exc
 
 
 @contextmanager
@@ -187,8 +184,6 @@ class _RetryDB:
                     if not self._is_locked(exc) or attempt == self._max_attempts - 1:
                         raise
                 time.sleep(self._base_delay * (2**attempt))
-        if last_exc is not None:
-            raise last_exc
         raise RuntimeError("retry_db: exhausted retries with no captured error")
 
 

@@ -174,7 +174,9 @@ def format_duration(seconds: float | None) -> str:
     if seconds is None:
         return "estimating"
 
-    total = max(0, int(round(seconds)))
+    # Use explicit "round half away from zero" semantics for ETA display
+    # so that 0.5s always shows as 1s rather than rounding to 0.
+    total = max(0, int(seconds + 0.5)) if seconds >= 0 else 0
     minutes, secs = divmod(total, 60)
     hours, minutes = divmod(minutes, 60)
     if hours:

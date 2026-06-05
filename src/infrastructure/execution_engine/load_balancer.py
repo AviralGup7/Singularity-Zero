@@ -188,7 +188,10 @@ class LoadBalancer:
                 bp = stats.compute_backpressure()
 
                 # Sticky/decaying selection penalty: if selected very recently, artificially inflate score
-                time_since_select = now - getattr(stats, "last_selected_at", 0.0)
+                last_selected = getattr(stats, "last_selected_at", 0.0)
+                if not isinstance(last_selected, (int, float)):
+                    last_selected = 0.0
+                time_since_select = now - last_selected
                 # Decaying penalty up to 0.2 seconds
                 penalty = max(0.0, (0.2 - time_since_select) * 5.0)
 
@@ -198,11 +201,17 @@ class LoadBalancer:
                     best_worker_id = worker_id
 
             if best_worker_id is None:
-                best_worker_id = list(self._workers.keys())[0]
+                if not self._workers:
+                    return None
+                best_worker_id = next(iter(self._workers))
 
             selected_stats = self._workers[best_worker_id]
             selected_stats.record_start()
-            selected_stats.last_selected_at = now
+            # ``last_selected_at`` is an opportunistic hint used by the
+            # decaying-penalty logic above. ``setattr`` keeps the type
+            # flexible (we don't want a hard dataclass dependency for one
+            # field) and tolerates stats backends that don't expose it.
+            setattr(selected_stats, "last_selected_at", now)
             logger.debug(
                 "Load balancer selected worker '%s' (score=%.2f, active=%d)",
                 best_worker_id,

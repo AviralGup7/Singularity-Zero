@@ -5,8 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
-from src.dashboard.fastapi.routers.utils import snapshot_job_api
+from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+from src.dashboard.fastapi.routers.utils import job_target_name, snapshot_job_api
 from src.dashboard.fastapi.schemas import ErrorResponse, JobListResponse, JobResponse
+from src.dashboard.job_state import _coerce_epoch
 
 router = APIRouter(prefix="/api/jobs")
 
@@ -27,19 +29,14 @@ async def list_jobs(
     services: Any = Depends(get_queue_client),
 ) -> JobListResponse:
     """List all scan jobs with sorting, filtering and pagination."""
-    from src.dashboard.job_state import _coerce_epoch
-
     all_jobs = services.list_jobs()
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
-    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
     all_jobs = [
         j
         for j in all_jobs
-        if is_target_owned_by_tenant(
-            str(j.get("target_name") or j.get("hostname") or j.get("target") or ""), tenant_id
-        )
+        if is_target_owned_by_tenant(job_target_name(j), tenant_id)
     ]
 
     if status:

@@ -139,8 +139,6 @@ class BaseNotifier(ABC):
                     exc,
                 )
                 if attempt < self._config.retry_count:
-                    import asyncio
-
                     await asyncio.sleep(self._config.retry_delay_seconds)
 
         self._logger.error(

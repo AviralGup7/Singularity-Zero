@@ -35,7 +35,12 @@ class FilterRule:
         elif self.field == "body":
             return str(item.get("response_body", ""))
         elif self.field == "headers":
-            return str(item.get("request_headers", {}))
+            headers = item.get("request_headers")
+            if headers is None:
+                return ""
+            if isinstance(headers, dict):
+                return "\n".join(f"{k}: {v}" for k, v in headers.items())
+            return str(headers)
         elif self.field == "method":
             return str(item.get("method", ""))
         elif self.field == "status":

@@ -55,13 +55,18 @@ class RedisFPRepository:
         self._degraded_backoff = DEFAULT_DEGRADED_RETRY_SECONDS
 
         # Prime the fallback cache eagerly so reads are non-blocking even before Redis connects.
+        # The underlying client is the async Redis client, so schedule a
+        # background warm-up coroutine on the currently running event loop
+        # (if any) rather than calling the sync ping from a possibly
+        # synchronous constructor context. Using ``get_event_loop`` here
+        # is intentional: it returns the running loop without falling back
+        # to creating a new one in a worker thread.
         try:
-            self._client.ping()
             loop = asyncio.get_event_loop()
-            if loop.is_running():
+            if not loop.is_closed() and loop.is_running():
                 loop.create_task(self._prime_fallback())
             else:
-                loop.run_until_complete(self._prime_fallback())
+                logger.debug("RedisFPRepo initial warm-up skipped (no running event loop)")
         except Exception:
             logger.debug("RedisFPRepo initial warm-up skipped (Redis unavailable)")
 

@@ -510,8 +510,9 @@ class MetricsRegistry:
             lines.append(f"{s_metric.name}_count{label_str} {data['count']}")
             lines.append(f"{s_metric.name}_sum{label_str} {data['sum']}")
             for quantile_name in ("p50", "p90", "p95", "p99"):
+                quantile_value = quantile_name[1:].lstrip("0") or "0"
                 q_label = _format_labels(
-                    {**s_metric.labels, "quantile": quantile_name.replace("p", "0.")}
+                    {**s_metric.labels, "quantile": f"0.{quantile_value}"}
                 )
                 lines.append(f"{s_metric.name}{q_label} {data.get(quantile_name, 0)}")
 
@@ -541,9 +542,16 @@ class MetricsRegistry:
             for gm in self._gauges.values():
                 gm.set(0.0)
             for hm in self._histograms.values():
-                hm.bucket_counts = [0] * (len(hm.buckets) + 1)
-                hm.sum_value = 0.0
-                hm.count_value = 0
+                hist_lock = getattr(hm, "_lock", None)
+                if hist_lock is not None:
+                    with hist_lock:
+                        hm.bucket_counts = [0] * (len(hm.buckets) + 1)
+                        hm.sum_value = 0.0
+                        hm.count_value = 0
+                else:
+                    hm.bucket_counts = [0] * (len(hm.buckets) + 1)
+                    hm.sum_value = 0.0
+                    hm.count_value = 0
             for sm in self._summaries.values():
                 sm.observations.clear()
 

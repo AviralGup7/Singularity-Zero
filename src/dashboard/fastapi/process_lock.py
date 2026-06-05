@@ -22,6 +22,16 @@ class ProcessLifespanLock:
             return False
 
     def acquire(self) -> bool:
+        # Snapshot the existing PID (if any) *before* we truncate the
+        # lock file. Opening the file in ``"w"`` mode below empties it,
+        # so reading afterwards would always return an empty/None PID
+        # and the stale-PID cleanup branch below would never fire.
+        existing_pid: int | None = None
+        try:
+            if os.path.exists(self.lock_path):
+                existing_pid = _read_pid_from_lock(self.lock_path)
+        except OSError:
+            existing_pid = None
         try:
             self._pid = os.getpid()
             self.fd = open(self.lock_path, "w")
@@ -42,7 +52,6 @@ class ProcessLifespanLock:
                     logger.debug("Process lock fd close failed: %s", close_exc)
                 self.fd = None
             try:
-                existing_pid = _read_pid_from_lock(self.lock_path)
                 if existing_pid is not None and not self._pid_alive(existing_pid):
                     try:
                         os.unlink(self.lock_path)

@@ -330,13 +330,13 @@ async def check_rate_limit(
     client_ip = request.client.host if request.client else "unknown"
     path = request.url.path
 
-    limits = {
+    auth_limit = getattr(config, "rate_limit_auth", 10)
+    limits: dict[str, int] = {
         "/api/jobs/start": config.rate_limit_jobs,
         "/api/replay": config.rate_limit_replay,
-        # Security Fix: Rate-limit authentication endpoints to prevent brute-force attacks.
-        "/api/auth/token": config.rate_limit_auth if hasattr(config, "rate_limit_auth") else 10,
-        "/api/auth/login": config.rate_limit_auth if hasattr(config, "rate_limit_auth") else 10,
-        "/api/keys": config.rate_limit_auth if hasattr(config, "rate_limit_auth") else 10,
+        "/api/auth/token": auth_limit,
+        "/api/auth/login": auth_limit,
+        "/api/keys": auth_limit,
     }
 
     if path.startswith("/api/remediated/") and path.endswith("/verify"):

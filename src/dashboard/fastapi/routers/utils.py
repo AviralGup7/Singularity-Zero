@@ -135,3 +135,18 @@ async def get_enriched_job(job_id: str, services: Any) -> dict[str, Any]:
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return cast(dict[str, Any], job)
+
+
+def job_target_name(job: dict[str, Any] | None) -> str:
+    """Return the canonical target identifier for a job, or '' if missing.
+
+    The dashboard stores the target under several different keys depending
+    on the job source (``target_name``, ``hostname``, ``target``). All
+    job routers funnel through this helper so the tenant boundary check
+    in :func:`is_target_owned_by_tenant` always sees the same value.
+    """
+    if not isinstance(job, dict):
+        return ""
+    return str(
+        job.get("target_name") or job.get("hostname") or job.get("target") or ""
+    )
