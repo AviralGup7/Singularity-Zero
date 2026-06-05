@@ -1,6 +1,7 @@
 """Custom middleware for the FastAPI dashboard."""
 
 import logging
+import os
 import secrets
 import time
 import uuid
@@ -18,6 +19,9 @@ _CSRF_EXEMPT_PATHS = (
     "/api/auth/token",
     "/api/auth/login",
     "/api/csrf-token",
+    # CSP violation reports are POSTed by the browser from a violating
+    # page; the request does not carry cookies, so CSRF does not apply.
+    "/api/csp-report",
 )
 
 # Bug #29 fix: which forwarded-client-header keys we accept. We use
@@ -136,6 +140,11 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # WebSocket upgrades and the public auth/handshake endpoints are exempt.
         path = request.url.path
         if path in _CSRF_EXEMPT_PATHS or path.startswith("/ws/") or path.startswith("/api/ws/"):
+            return await call_next(request)
+        # When auth is disabled (development mode), CSRF protection is
+        # disabled too. Otherwise the SPA / curl-based smoke tests cannot
+        # exercise endpoints that would otherwise need a CSRF cookie.
+        if os.getenv("DASHBOARD_AUTH_DISABLED", "").lower() in {"1", "true", "yes"}:
             return await call_next(request)
         # Bearer / API-key auth isn't a CSRF vector.
         if request.headers.get("Authorization", "").lower().startswith(

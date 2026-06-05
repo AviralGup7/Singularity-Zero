@@ -21,7 +21,7 @@ import pytest
 from fastapi import FastAPI
 from httpx._transports.asgi import ASGITransport
 
-from src.dashboard.fastapi.dependencies import get_learning_integration
+from src.dashboard.fastapi.dependencies import get_learning_integration, require_auth
 from src.dashboard.fastapi.routers.learning import router as learning_router
 from src.learning.integration import LearningIntegration
 from src.learning.telemetry_store import TelemetryStore
@@ -54,6 +54,11 @@ def _build_learning_app(
     dep.store = store
 
     app.dependency_overrides[get_learning_integration] = _get_dep
+    # Learning endpoints are gated by ``require_auth`` in the router. The
+    # test suite exercises the response shape, not the auth contract, so
+    # we override the dependency to return ``None`` (an unauthenticated
+    # principal) so the request reaches the handler.
+    app.dependency_overrides[require_auth] = lambda: None
 
     transport = ASGITransport(app=app)
     client = httpx.AsyncClient(transport=transport, base_url="http://test")  # noqa: S603

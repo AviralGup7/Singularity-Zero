@@ -9,13 +9,21 @@ import json
 import os
 import tempfile
 import time
+from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.pipeline.storage import ensure_dir
 
 logger = get_pipeline_logger(__name__)
+
+
+class TTLMode(StrEnum):
+    """TTL enforcement strategy for cached responses."""
+
+    HARD_TTL = "hard_ttl"
+    STALE_WHILE_REVALIDATE = "stale_while_revalidate"
 
 
 def cache_enabled(settings: dict[str, Any]) -> bool:
@@ -183,17 +191,30 @@ def _remove_stale_alternate(path: Path) -> None:
 
 
 def response_cache_fresh(
-    record: dict[str, Any], ttl_hours: int, content_hash: str | None = None
+    record: dict[str, Any],
+    ttl_hours: int,
+    content_hash: str | None = None,
+    *,
+    ttl_mode: TTLMode = TTLMode.HARD_TTL,
+    stale_threshold_hours: int | None = None,
+    background_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> bool:
     """Check if a cached response is still fresh based on TTL and optional content hash.
+
+    Supports both HARD_TTL (current behavior) and STALE_WHILE_REVALIDATE mode.
+    In STALE_WHILE_REVALIDATE mode, returns True for stale-but-recent entries
+    and triggers background refresh via ``background_callback`` if provided.
 
     Args:
         record: Cached response record with 'cached_at_epoch' and optional 'content_hash'.
         ttl_hours: Time-to-live in hours.
         content_hash: Optional content hash for validation.
+        ttl_mode: TTL enforcement strategy (HARD_TTL or STALE_WHILE_REVALIDATE).
+        background_callback: Optional callable invoked with the stale record
+            to trigger an async refresh.
 
     Returns:
-        True if cache is fresh, False otherwise.
+        True if cache is fresh (or stale-but-reusable under STALE_WHILE_REVALIDATE).
     """
     if ttl_hours <= 0:
         return False
@@ -205,4 +226,10 @@ def response_cache_fresh(
         return False
     if content_hash and record.get("content_hash") != content_hash:
         return False
-    return (time.time() - fetched_at) < ttl_hours * 3600
+    age_seconds = time.time() - fetched_at
+    max_age_seconds = ttl_hours * 3600
+    if age_seconds < max_age_seconds:
+        return True
+    if ttl_mode == TTLMode.STALE_WHILE_REVALIDATE and background_callback is not None:
+        background_callback(record)
+    return False

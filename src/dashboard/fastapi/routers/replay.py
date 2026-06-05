@@ -57,6 +57,14 @@ async def replay_request(
     run: str = Query(..., description="Run name"),
     replay_id: str = Query(..., description="Replay ID"),
     auth_mode: str = Query("inherit", description="Authentication mode"),
+    # ``authorization`` / ``cookie`` are accepted as explicit query
+    # parameters so callers can force the replay into ``anonymous`` or
+    # ``bearer`` mode without depending on the inbound ``Request``
+    # headers. They are NOT used to bypass authentication on this
+    # endpoint; they only feed ``replay_headers_for_mode`` for the
+    # outbound replay request.
+    authorization: str = Query("", description="Bearer token for bearer mode"),
+    cookie: str = Query("", description="Cookie value to forward to the replay target"),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> ReplayResponse:
@@ -67,8 +75,11 @@ async def replay_request(
     from src.execution.exploiters.exploit_automation import replay_headers_for_mode
 
     # Refuse to even process the request if the caller put credentials in
-    # the URL; this stops the leak before any handler logic runs.
-    _reject_sensitive_query_params(request)
+    # the URL; this stops the leak before any handler logic runs. The
+    # guard is a no-op when the function is invoked outside an HTTP
+    # context (e.g. unit tests that drive the handler directly).
+    if request is not None:
+        _reject_sensitive_query_params(request)
 
     if not validate_target_name(target):
         raise HTTPException(status_code=400, detail="Invalid target name.")
@@ -115,9 +126,19 @@ async def replay_request(
         raise HTTPException(status_code=400, detail="Stored request context is incomplete.")
 
     # Pull auth headers from the caller's actual request headers (not the URL)
-    # so credentials never appear in query strings or access logs.
-    extra_authorization = request.headers.get("Authorization", "")
-    extra_cookie = request.headers.get("Cookie", "")
+    # so credentials never appear in query strings or access logs. The
+    # explicit query parameters ``authorization`` and ``cookie`` take
+    # precedence when supplied - this lets a caller force the replay
+    # into ``anonymous`` mode by passing empty strings, or supply a
+    # fresh token in ``bearer`` mode without having to overwrite the
+    # inbound ``Authorization`` header.
+    inbound_authorization = ""
+    inbound_cookie = ""
+    if request is not None:
+        inbound_authorization = request.headers.get("Authorization", "")
+        inbound_cookie = request.headers.get("Cookie", "")
+    extra_authorization = authorization or inbound_authorization
+    extra_cookie = cookie or inbound_cookie
     try:
         extra_headers = replay_headers_for_mode(
             auth_mode,

@@ -27,7 +27,12 @@ from src.infrastructure.observability.notification_subscriber import (
 from src.infrastructure.observability.progress_subscriber import register_progress_subscriber
 from src.learning.integration import LearningIntegration
 from src.pipeline.cache import cache_enabled  # noqa: F401 – module-namespace seam
-from src.pipeline.retry import RetryMetrics, RetryPolicy
+from src.pipeline.retry import (
+    AdaptiveBackoffHeuristic,
+    RetryMetrics,
+    RetryPolicy,
+    StageRetryPolicy,
+)
 from src.pipeline.runner_support import (
     build_tool_status,  # noqa: F401 – module-namespace seam
     emit_progress,
@@ -153,7 +158,7 @@ class PipelineOrchestrator:
     """Orchestrates the security testing pipeline execution."""
 
     def __init__(self, event_bus: EventBus | None = None) -> None:
-        self._stage_retry_policy: RetryPolicy | None = None
+        self._stage_retry_policy: StageRetryPolicy | None = None
         self._stage_retry_metrics: RetryMetrics = RetryMetrics()
         self._event_bus: EventBus = event_bus or get_event_bus()
 
@@ -200,11 +205,18 @@ class PipelineOrchestrator:
     def _learning_integration(self) -> LearningIntegration:
         return self.observability_bus.learning_integration
 
-    def _get_stage_retry_policy(self, config: Any) -> RetryPolicy:
+    def _get_stage_retry_policy(self, config: Any) -> StageRetryPolicy:
         if self._stage_retry_policy is None:
-            self._stage_retry_policy = RetryPolicy.from_settings(
+            raw = RetryPolicy.from_settings(
                 global_settings=getattr(config, "retry", None),
                 tool_settings=None,
+            )
+            self._stage_retry_policy = StageRetryPolicy(
+                base_policy=raw,
+                adaptive_heuristic=AdaptiveBackoffHeuristic(),
+                max_retry_budget_seconds=getattr(
+                    getattr(config, "retry", None), "max_retry_budget_seconds", 0.0
+                ),
             )
         return self._stage_retry_policy
 
@@ -569,3 +581,124 @@ class PipelineOrchestrator:
         checkpoint_mgr: Any,
     ) -> None:
         await record_stage_post_run(stage_name, ctx, checkpoint_mgr)
+
+    async def _execute_single_stage(
+        self,
+        stage_name: str,
+        method: Any,
+        args: argparse.Namespace,
+        config: Any,
+        ctx: PipelineContext,
+        scope_interceptor: Any,
+        checkpoint_mgr: Any,
+        stage_checkpoint_guard: Any,
+        progress_emitter: Any,
+        error_emitter: Any,
+    ) -> int | str | None:
+        """Execute a single stage under the actor scheduler.
+
+        Wraps ``_run_stage_with_retry`` with the lifecycle event
+        emission, checkpoint guard, post-run checkpoint record, and
+        fatal-recon detection that the legacy tier runner used to
+        provide.  The actor scheduler calls this method once per
+        dispatched node; the return value is informational and
+        interpreted by :class:`ActorScheduler`.
+        """
+        import time
+
+        from src.core.models.stage_result import StageStatus
+
+        from ._constants import PIPELINE_STAGES
+        from ._orchestrator import metrics_indicate_fatal_failure
+
+        stage_started = time.time()
+
+        progress_emitter(
+            stage_name,
+            f"Neural-Mesh: Entering {PIPELINE_STAGES.get(stage_name, stage_name)}",
+            self._stage_baseline(stage_name),
+            status="running",
+            stage_status="running",
+            event_trigger="stage_transition",
+        )
+        self._emit_event(
+            EventType.STAGE_STARTED,
+            source=f"stage.{stage_name}",
+            data={"contract": self._build_stage_input_contract(stage_name, ctx, config)},
+        )
+
+        timeout = self._resolve_stage_timeout(stage_name, config, ctx)
+
+        previous_deltas: list[dict[str, Any]] = []
+        if hasattr(checkpoint_mgr, "load_stage_deltas"):
+            previous_deltas = checkpoint_mgr.load_stage_deltas(stage_name)
+
+        with stage_checkpoint_guard(checkpoint_mgr, stage_name):
+            if getattr(ctx.result, "cancel_requested", False):
+                return None
+
+            try:
+                stage_output = await self._run_stage_with_retry(
+                    stage_name,
+                    method,
+                    args,
+                    config,
+                    ctx,
+                    timeout,
+                    scope_interceptor,
+                    previous_deltas=previous_deltas,
+                )
+
+                if stage_output is not None:
+                    self._merge_stage_output(ctx, stage_name, stage_output)
+                    ctx.compact_state()
+
+                elapsed = time.time() - stage_started
+
+                await self._record_stage_post_run(stage_name, ctx, checkpoint_mgr)
+
+                progress_emitter(
+                    stage_name,
+                    f"Neural-Mesh: Finished {PIPELINE_STAGES.get(stage_name, stage_name)}",
+                    self._stage_baseline(stage_name),
+                    status="completed",
+                    stage_status="completed",
+                    details={"duration_seconds": round(elapsed, 2)},
+                    event_trigger="stage_complete",
+                    stage_percent=100,
+                )
+
+                self._emit_event(
+                    EventType.STAGE_COMPLETED,
+                    source=f"stage.{stage_name}",
+                    data={"contract": self._build_stage_output_contract(stage_name, elapsed, ctx)},
+                )
+
+                if stage_name in {"subdomains", "live_hosts", "urls"}:
+                    stage_metrics = ctx.result.module_metrics.get(stage_name, {})
+                    if metrics_indicate_fatal_failure(stage_metrics):
+                        progress_emitter(
+                            stage_name,
+                            f"Stage failed: {PIPELINE_STAGES.get(stage_name, stage_name)}",
+                            self._stage_baseline(stage_name),
+                            status="failed",
+                            stage_status="failed",
+                            event_trigger="stage_failed",
+                            error=stage_metrics.get("error", "Fatal recon failure"),
+                        )
+                        return 1
+
+                return None
+
+            except Exception as exc:
+                logger.exception("Fatal failure in Neural-Mesh stage '%s'", stage_name)
+                if "WAL durability layer failed" in str(exc):
+                    return "WAL_FAILURE"
+                ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
+                ctx.result.module_metrics[stage_name] = {
+                    "status": "error",
+                    "error": str(exc) or exc.__class__.__name__,
+                    "failure_reason": str(exc) or exc.__class__.__name__,
+                    "fatal": stage_name in {"subdomains", "live_hosts", "urls"},
+                }
+                return 1

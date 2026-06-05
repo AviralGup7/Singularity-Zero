@@ -28,7 +28,12 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import StderrClassification, classify_stderr_lines
 from src.pipeline.retry import RetryPolicy, retry_ready, sleep_before_retry
 
-from .circuit_breaker import CircuitBreaker
+from .circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerStats,
+    ProbeCallback,
+)
 
 logger = get_pipeline_logger(__name__)
 
@@ -270,26 +275,187 @@ class ToolExecutionOutcome:
     warning_messages: list[str] = dataclasses.field(default_factory=list)
     error_message: str = ""
     duration_seconds: float = 0.0
+    circuit_breaker_state: str = ""
+    circuit_breaker_skipped: bool = False
 
     @property
     def stderr_text(self) -> str:
         return "\n".join(self.stderr_lines)
 
+    @property
+    def circuit_breaker_open(self) -> bool:
+        """Convenience accessor: was the call short-circuited by an OPEN breaker?"""
+        return self.circuit_breaker_skipped
+
 
 class ToolExecutionService:
-    """Service for resolving and executing external security tools."""
+    """Service for resolving and executing external security tools.
 
-    def __init__(self) -> None:
+    Each instance owns its own ``dict[str, CircuitBreaker]`` keyed by tool
+    name so that breakers are isolated per service instance.  Callers can
+    supply per-tool :class:`CircuitBreakerConfig` overrides at construction
+    time to tune ``failure_threshold`` and ``recovery_timeout`` (e.g.
+    ``nuclei`` recovers in 60 s, a blacklisted ``crt.sh`` may need 10
+    minutes).
+
+    The self-healing controller can call :meth:`force_open_breaker` when
+    monitoring detects sustained error rates, and the coordinator can
+    register per-tool :meth:`schedule_recovery_probe` callbacks to run
+    cheap health probes the moment the breaker transitions to HALF_OPEN.
+    """
+
+    def __init__(
+        self,
+        *,
+        default_breaker_config: CircuitBreakerConfig | None = None,
+        breaker_config_by_tool: dict[str, CircuitBreakerConfig] | None = None,
+    ) -> None:
         # Instance-level circuit breakers so each service instance has an isolated state.
         # This prevents cross-test pollution when tests create fresh ToolExecutionService
         # instances in setUp.
         self._circuit_breakers: dict[str, CircuitBreaker] = {}
+        self._default_breaker_config: CircuitBreakerConfig = (
+            default_breaker_config or CircuitBreakerConfig()
+        )
+        self._breaker_config_by_tool: dict[str, CircuitBreakerConfig] = (
+            dict(breaker_config_by_tool) if breaker_config_by_tool else {}
+        )
+        self._recovery_probes: dict[str, ProbeCallback] = {}
+
+    def configure_breaker(
+        self,
+        tool_name: str,
+        config: CircuitBreakerConfig,
+        *,
+        reset_existing: bool = False,
+    ) -> CircuitBreaker:
+        """Install (or replace) a per-tool breaker config.
+
+        Args:
+            tool_name: The external tool to bind the config to.
+            config: Tunables (threshold, recovery_timeout, etc.).
+            reset_existing: If ``True`` and a breaker already exists for the
+                tool, drop it so the new config takes effect immediately.
+                The next call will create a fresh breaker with the new
+                config applied.  Default ``False`` keeps the existing
+                breaker (the new config is recorded for future inspection
+                but live state is preserved).
+        """
+        self._breaker_config_by_tool[tool_name] = config
+        if reset_existing:
+            self._circuit_breakers.pop(tool_name, None)
+        return self._get_circuit_breaker(tool_name)
 
     def _get_circuit_breaker(self, tool_name: str) -> CircuitBreaker:
-        key = f"{_get_context_key()}:{tool_name}"
-        if key not in self._circuit_breakers:
-            self._circuit_breakers[key] = CircuitBreaker()
-        return self._circuit_breakers[key]
+        breaker = self._circuit_breakers.get(tool_name)
+        if breaker is not None:
+            return breaker
+        config = self._breaker_config_by_tool.get(tool_name, self._default_breaker_config)
+        breaker = CircuitBreaker(
+            name=tool_name,
+            failure_threshold=config.failure_threshold,
+            recovery_timeout=config.recovery_timeout,
+        )
+        if config.force_open_initial:
+            breaker.force_open(
+                reason=config.force_open_reason or "configured-initial",
+                duration_seconds=config.force_open_duration_seconds or None,
+            )
+        probe = self._recovery_probes.get(tool_name)
+        if probe is not None:
+            breaker.schedule_recovery_probe(probe)
+        self._circuit_breakers[tool_name] = breaker
+        return breaker
+
+    # ------------------------------------------------------------------ #
+    # Self-healing controller hot-path                                     #
+    # ------------------------------------------------------------------ #
+
+    def force_open_breaker(
+        self,
+        tool_name: str,
+        reason: str,
+        duration_seconds: float | None = None,
+    ) -> CircuitBreaker:
+        """Trip a tool's breaker externally.
+
+        Used by the self-healing controller when monitoring detects
+        sustained error rates.  While force-opened the breaker rejects
+        calls regardless of ``recovery_timeout``; a subsequent successful
+        call clears the forced state and returns the breaker to its normal
+        failure-driven path.
+
+        Args:
+            tool_name: External tool to trip.
+            reason: Human-readable reason, used in logs and the breaker
+                stats payload.
+            duration_seconds: Fixed cool-down.  ``None`` defaults to the
+                breaker's ``recovery_timeout``.  ``0`` keeps the breaker
+                open until :meth:`reset_breaker` is invoked or a probe
+                succeeds.
+
+        Returns:
+            The breaker instance that was tripped.
+        """
+        breaker = self._get_circuit_breaker(tool_name)
+        if duration_seconds is None:
+            duration_seconds = breaker.recovery_timeout
+        breaker.force_open(
+            reason=reason,
+            duration_seconds=duration_seconds,
+        )
+        return breaker
+
+    def reset_breaker(self, tool_name: str) -> CircuitBreaker:
+        """Manually reset a tool's breaker to CLOSED."""
+        return self._get_circuit_breaker(tool_name).reset()
+
+    def schedule_recovery_probe(
+        self,
+        tool_name: str,
+        callback: ProbeCallback,
+    ) -> None:
+        """Register a recovery probe callback for a tool.
+
+        The coordinator consumes pending probes via
+        :meth:`consume_pending_probes` and invokes the callback exactly
+        once per HALF_OPEN transition.  Probes are typically low-cost
+        liveness checks (``tool -version`` or a single guarded request)
+        used to confirm a tool has recovered before real traffic resumes.
+        """
+        self._recovery_probes[tool_name] = callback
+        existing = self._circuit_breakers.get(tool_name)
+        if existing is not None:
+            existing.schedule_recovery_probe(callback)
+
+    def consume_pending_probes(self) -> dict[str, ProbeCallback]:
+        """Drain all HALF_OPEN probe callbacks across every tool.
+
+        Returns:
+            A mapping of ``tool_name -> probe callback`` for tools whose
+            breakers just transitioned to ``HALF_OPEN`` since the last
+            drain.  The coordinator invokes each callback (e.g. on a
+            background task) to test recovery.
+        """
+        pending: dict[str, ProbeCallback] = {}
+        for tool_name, breaker in list(self._circuit_breakers.items()):
+            callback = breaker.consume_pending_probe()
+            if callback is not None:
+                pending[tool_name] = callback
+        return pending
+
+    def breaker_snapshot(self) -> dict[str, CircuitBreakerStats]:
+        """Return a serializable snapshot of every per-tool breaker.
+
+        Suitable for telemetry, self-healing metrics, and the dashboard.
+        """
+        return {
+            tool_name: breaker.stats()
+            for tool_name, breaker in self._circuit_breakers.items()
+        }
+
+    def known_tool_names(self) -> list[str]:
+        return sorted(self._circuit_breakers.keys())
 
     def search_dirs(self) -> list[Path]:
         """Return directories to search for external tool binaries.
@@ -383,7 +549,11 @@ class ToolExecutionService:
         breaker = self._get_circuit_breaker(tool_name)
         resolved_command = self.resolve_command(sanitized)
         if not breaker.can_execute():
-            raise ToolExecutionError(resolved_command, 1, f"Circuit breaker OPEN for {tool_name}")
+            raise ToolExecutionError(
+                resolved_command,
+                1,
+                f"Circuit breaker OPEN for {tool_name} (state={breaker.state})",
+            )
         policy = retry_policy or RetryPolicy()
         last_error: Exception | None = None
         timeout_arg, timeout_effective = self._resolve_timeout(timeout)
@@ -445,7 +615,7 @@ class ToolExecutionService:
         resolved_command = self.resolve_command(sanitized)
         timeout_arg, effective_timeout_seconds = self._resolve_timeout(timeout)
         if not breaker.can_execute():
-            error_message = f"Circuit breaker OPEN for {tool_name}"
+            error_message = f"Circuit breaker OPEN for {tool_name} (state={breaker.state})"
             return ToolExecutionOutcome(
                 command=resolved_command,
                 returncode=1,
@@ -455,6 +625,8 @@ class ToolExecutionService:
                 fatal=True,
                 error_message=error_message,
                 warning_messages=[error_message],
+                circuit_breaker_state=breaker.state,
+                circuit_breaker_skipped=True,
             )
 
         policy = retry_policy or RetryPolicy()
@@ -501,6 +673,7 @@ class ToolExecutionService:
                         f"Command {resolved_command!r} timed out after {effective_timeout_seconds} seconds"
                     ),
                     duration_seconds=time.monotonic() - started,
+                    circuit_breaker_state=breaker.state,
                 )
                 if not policy.retry_on_timeout or not self._prepare_retry(
                     resolved_command,
@@ -524,6 +697,7 @@ class ToolExecutionService:
                     warning_messages=[error_message],
                     error_message=error_message,
                     duration_seconds=time.monotonic() - started,
+                    circuit_breaker_state=breaker.state,
                 )
             except Exception as exc:
                 breaker.record_failure()
@@ -539,6 +713,7 @@ class ToolExecutionService:
                     warning_messages=[error_message],
                     error_message=error_message,
                     duration_seconds=time.monotonic() - started,
+                    circuit_breaker_state=breaker.state,
                 )
 
             stderr_lines = self._stderr_lines(process.stderr)
@@ -563,6 +738,7 @@ class ToolExecutionService:
                     warning_messages=stderr_classification.nonfatal_lines,
                     error_message="",
                     duration_seconds=time.monotonic() - started,
+                    circuit_breaker_state=breaker.state,
                 )
 
             breaker.record_failure()
@@ -585,6 +761,7 @@ class ToolExecutionService:
                 warning_messages=stderr_classification.nonfatal_lines,
                 error_message=error_message,
                 duration_seconds=time.monotonic() - started,
+                circuit_breaker_state=breaker.state,
             )
             if not policy.retry_on_error or not self._prepare_retry(
                 resolved_command,

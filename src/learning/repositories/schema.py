@@ -41,12 +41,14 @@ CREATE TABLE IF NOT EXISTS findings (
     evidence            TEXT,
     response_status     INTEGER,
     response_body_hash  TEXT,
+    tech_stack          TEXT,
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_findings_run ON findings(run_id);
 CREATE INDEX IF NOT EXISTS idx_findings_category ON findings(category, severity);
 CREATE INDEX IF NOT EXISTS idx_findings_endpoint ON findings(endpoint_base, host);
 CREATE INDEX IF NOT EXISTS idx_findings_decision ON findings(decision);
+CREATE INDEX IF NOT EXISTS idx_findings_tech ON findings(tech_stack);
 
 -- Feedback events
 CREATE TABLE IF NOT EXISTS feedback_events (

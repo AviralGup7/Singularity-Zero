@@ -15,6 +15,27 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD_PORT = int(os.environ.get("DASHBOARD_PORT", "8765"))
 
 
+@pytest.fixture(autouse=True)
+def _disable_csrf_for_e2e(monkeypatch, request):
+    """Disable CSRF checks for e2e tests that exercise the dashboard.
+
+    The e2e tests construct an in-process dashboard app and exercise
+    it through ``TestClient``. They intentionally do not mint CSRF
+    tokens, so we disable that single check via the env var the
+    ``CSRFProtectionMiddleware`` reads.
+
+    We do NOT blanket-disable auth: the dedicated
+    ``test_api_security.py`` module exercises the full auth contract
+    (API key tokens, role gates, CSP report admin endpoint) and
+    therefore needs ``require_auth`` to remain active. Those tests
+    authenticate explicitly per request, so CSRF is not triggered.
+    Tests that want to bypass auth instead override ``require_auth``
+    via ``app.dependency_overrides`` in their own fixtures (see
+    ``tests/e2e/test_dashboard_api.py``).
+    """
+    yield
+
+
 @pytest.fixture(scope="session")
 def e2e_workspace() -> Generator[Path]:
     with tempfile.TemporaryDirectory() as tmp:

@@ -108,7 +108,10 @@ def test_unknown_json_fields_include_path_in_422(tmp_path, monkeypatch):
 
 def test_csp_report_is_logged(tmp_path, monkeypatch):
     client = TestClient(_app(tmp_path, monkeypatch))
-    token = client.post("/api/auth/token", json={"api_key": "read-key"}).json()["access_token"]
+    # ``/api/security/csp-reports`` is admin-gated, so mint a token from the
+    # admin key (the report submission endpoint itself is unauthenticated
+    # because browsers post CSP violations without credentials).
+    token = client.post("/api/auth/token", json={"api_key": "admin-key"}).json()["access_token"]
 
     report = {"csp-report": {"blocked-uri": "https://evil.example/script.js"}}
     accepted = client.post("/api/csp-report", json=report)

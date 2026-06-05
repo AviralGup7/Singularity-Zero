@@ -1,32 +1,28 @@
-"""Neural-Mesh DAG execution entry-point.
+"""Neural-Mesh execution entry-point.
 
-Orchestrates the tier-by-tier execution of pipeline stages using the
-Neural-Mesh DAG engine.  Concrete helpers live in the ``_orchestrator``
-sub-package:
+Drives the :class:`ActorScheduler` to execute the pipeline graph
+with per-node readiness polling, conditional gating, and priority
+ordering.  Replaces the legacy tier-batched runner that lived here
+prior to the actor-scheduler refactor.
+
+Concrete helpers live in the ``_orchestrator`` sub-package:
 
 * Fatal failure detection → ``_orchestrator.fatal_detection``
 * Recon output validation  → ``_orchestrator.recon_validator``
 * Stage error collection   → ``_orchestrator.error_reporting``
 * Stage retry execution    → ``_orchestrator.retry``
 """
-
 from __future__ import annotations
 
 import argparse
-import asyncio
-import time
 from typing import Any
 
-from src.core.events import EventType
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
 
-from ._constants import PIPELINE_STAGES
-from ._orchestrator import (
-    metrics_indicate_fatal_failure,
-    validate_recon_outputs,
-)
-from .dag_engine import build_neural_mesh_dag
+from ._orchestrator import validate_recon_outputs
+from .actor_scheduler import ActorScheduler
+from .graph_builder import build_pipeline_graph
 
 logger = get_pipeline_logger(__name__)
 
@@ -47,253 +43,79 @@ async def execute_remaining_stages(
     progress_emitter: Any,
     error_emitter: Any,
 ) -> int | None:
-    """Execute the pipeline using the Neural-Mesh DAG execution engine."""
-    # Build the dependency graph
-    dag = build_neural_mesh_dag(stage_methods)
-    execution_plan = dag.get_execution_order()
+    """Execute the pipeline using the ActorScheduler.
 
-    logger.info("Neural-Mesh DAG Engine: Multi-tiered execution plan initialized")
-    dag.visualize()
+    ``handled_by_parallel`` is accepted for backward compatibility with
+    callers that previously separated "tier stages" from "parallel
+    stages".  In the actor model every stage is dispatched uniformly
+    by the readiness loop, so the set is no longer populated by this
+    function — callers can still inspect it for telemetry if they
+    wish.
+    """
+    graph = build_pipeline_graph(stage_methods)
+    logger.info(
+        "Neural-Mesh ActorScheduler: greedy readiness loop "
+        "(%d nodes, %d remaining, %d pre-completed)",
+        len(graph.nodes),
+        len(remaining_stages),
+        len(checkpoint_mgr.completed_stages)
+        if hasattr(checkpoint_mgr, "completed_stages")
+        else 0,
+    )
 
     completed_stages: set[str] = set()
     if hasattr(checkpoint_mgr, "completed_stages"):
         completed_stages.update(checkpoint_mgr.completed_stages)
 
-    for tier_index, tier in enumerate(execution_plan):
-        # Cooperative shutdown check between tiers
-        try:
-            from src.pipeline.runtime import shutdown_flag as _shutdown_flag
+    # The recon validator is a post-completion hook on ``urls``.  It
+    # sets ``recon_validation=FAILED`` in the context when the URL
+    # collection completed but produced no discoverable URLs.  The
+    # exit-code resolver consults that flag to decide whether to
+    # surface a non-zero exit for a dead-scope run.
+    post_hooks: dict[str, Any] = {
+        "urls": lambda _ctx: validate_recon_outputs(ctx),
+    }
 
-            # ``shutdown_flag`` is an ``asyncio.Event``; the previous
-            # boolean was replaced as part of the runtime hardening
-            # (see ``src/pipeline/runtime.py``). ``asyncio.Event`` is
-            # always truthy, so we must call ``.is_set()`` explicitly;
-            # otherwise every run would exit with code 130.
-            is_set = (
-                bool(_shutdown_flag.is_set())
-                if hasattr(_shutdown_flag, "is_set")
-                else bool(_shutdown_flag)
-            )
-            if is_set:
-                logger.warning("Shutdown flag detected between DAG tiers, stopping execution.")
-                return 130
-        except ImportError:
-            pass
-
-        # Filter tier to only includes stages that still need to run
-        active_tier = [
-            s
-            for s in tier
-            if s in remaining_stages and s not in completed_stages and s not in handled_by_parallel
-        ]
-        if not active_tier:
-            continue
-
-        logger.info("Executing Neural-Mesh Tier %d: %s", tier_index, active_tier)
-
-        # ──────────────────────────────────────────────────────────
-        # Target Scan Suspend/Resume Integration
-        # ──────────────────────────────────────────────────────────
-        try:
-            from src.core.hot_reload import HotReloadManager
-
-            reload_mgr = HotReloadManager(config.output_dir)
-            if active_tier and reload_mgr.check_suspend_trigger(config.target_name, active_tier[0]):
-                logger.warning(
-                    "Pipeline paused cleanly via suspend trigger. Exiting stage execution loop."
-                )
-                return (
-                    7  # Exits with status 7 (suspended cleanly), ready to recover from checkpoints
-                )
-        except Exception as exc:
-            logger.warning("Failed to check suspend trigger: %s", exc)
-
-        # Parallel execution of all stages in this tier
-        tier_tasks = []
-        for stage_name in active_tier:
-            method = dag.get_method(stage_name)
-            if not method:
-                logger.error(
-                    "Stage method resolution failed for stage '%s'. Marking failed.", stage_name
-                )
-                error_emitter(stage_name, "Stage method resolution failed: stage method not found.")
-                ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
-                ctx.result.module_metrics[stage_name] = {
-                    "status": "failed",
-                    "error": "Stage method not found.",
-                    "fatal": stage_name in {"subdomains", "live_hosts", "urls"},
-                }
-                if stage_name in {"subdomains", "live_hosts", "urls"}:
-                    return 1
-                continue
-
-            tier_tasks.append(
-                _execute_single_stage(
-                    orchestrator,
-                    stage_name,
-                    method,
-                    args,
-                    config,
-                    ctx,
-                    scope_interceptor,
-                    checkpoint_mgr,
-                    stage_checkpoint_guard,
-                    progress_emitter,
-                    error_emitter,
-                )
-            )
-
-        # Wait for all stages in the current tier to complete before moving to the next
-        results = await asyncio.gather(*tier_tasks, return_exceptions=True)
-
-        # Check for fatal failures in this tier
-        for stage_name, res in zip(active_tier, results):
-            if isinstance(res, Exception):
-                logger.error("Stage '%s' failed with fatal error: %s", stage_name, res)
-                error_emitter(stage_name, f"Neural-Mesh Tier Exception: {res}")
-                if stage_name in {"subdomains", "live_hosts", "urls"}:
-                    return 1  # Fatal recon failure stops the mesh
-            elif res == "WAL_FAILURE":
-                logger.error(
-                    "WAL durability layer failed for stage '%s'. Aborting pipeline execution.",
-                    stage_name,
-                )
-                error_emitter(stage_name, "WAL durability layer failed.")
-                return 1
-            elif res == 1 and stage_name in {"subdomains", "live_hosts", "urls"}:
-                return 1
-
-        completed_stages.update(active_tier)
-
-        if "urls" in active_tier:
-            logger.debug("ctx.result.urls = %s", ctx.result.urls)
-            logger.debug("ctx.result.stage_status = %s", ctx.result.stage_status)
-            validate_recon_outputs(ctx)
-            logger.debug(
-                "recon_validation status = %s",
-                ctx.result.stage_status.get("recon_validation"),
-            )
-            if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
-                if getattr(args, "dry_run", False):
-                    ctx.result.stage_status["recon_validation"] = StageStatus.COMPLETED.value
-                else:
-                    logger.error("Recon validation failed: no discoverable URLs found.")
-                    error_emitter(
-                        "recon_validation", "Recon validation failed: no discoverable URLs found."
-                    )
-                    return 1
-
-    return None
-
-
-async def _execute_single_stage(
-    orchestrator: Any,
-    stage_name: str,
-    method: Any,
-    args: argparse.Namespace,
-    config: Any,
-    ctx: PipelineContext,
-    scope_interceptor: Any,
-    checkpoint_mgr: Any,
-    stage_checkpoint_guard: Any,
-    progress_emitter: Any,
-    error_emitter: Any,
-) -> int | str | None:
-    """Internal helper to execute a single stage within a DAG tier."""
-    stage_started = time.time()
-
-    # 1. Emit start progress
-    progress_emitter(
-        stage_name,
-        f"Neural-Mesh: Entering {PIPELINE_STAGES.get(stage_name, stage_name)}",
-        orchestrator._stage_baseline(stage_name),
-        status="running",
-        stage_status="running",
-        event_trigger="stage_transition",
-    )
-    orchestrator._emit_event(
-        EventType.STAGE_STARTED,
-        source=f"stage.{stage_name}",
-        data={"contract": orchestrator._build_stage_input_contract(stage_name, ctx, config)},
+    scheduler = ActorScheduler(
+        graph=graph,
+        stage_methods=stage_methods,
+        ctx=ctx,
+        remaining_stages=list(remaining_stages),
+        completed_stages=completed_stages,
+        orchestrator=orchestrator,
+        args=args,
+        config=config,
+        scope_interceptor=scope_interceptor,
+        nuclei_available=nuclei_available,
+        checkpoint_mgr=checkpoint_mgr,
+        stage_checkpoint_guard=stage_checkpoint_guard,
+        progress_emitter=progress_emitter,
+        error_emitter=error_emitter,
+        post_completion_hooks=post_hooks,
     )
 
-    timeout = orchestrator._resolve_stage_timeout(stage_name, config, ctx)
+    outcome = await scheduler.run()
 
-    # Load incremental deltas for mid-stage resume support
-    previous_deltas = []
-    if hasattr(checkpoint_mgr, "load_stage_deltas"):
-        previous_deltas = checkpoint_mgr.load_stage_deltas(stage_name)
-
-    with stage_checkpoint_guard(checkpoint_mgr, stage_name):
-        if getattr(ctx.result, "cancel_requested", False):
-            return None
-
-        try:
-            stage_output = await orchestrator._run_stage_with_retry(
-                stage_name,
-                method,
-                args,
-                config,
-                ctx,
-                timeout,
-                scope_interceptor,
-                previous_deltas=previous_deltas,
+    # Recon validator: the legacy code returned ``1`` from this
+    # function when ``recon_validation`` was FAILED.  The actor
+    # scheduler does not itself abort on this condition (it only
+    # aborts on critical stage failures), so the exit-code policy is
+    # enforced here, before the orchestrator's own resolver runs.
+    if (
+        outcome.exit_code is None
+        and ctx.result.stage_status.get("recon_validation")
+        == StageStatus.FAILED.value
+    ):
+        if not getattr(args, "dry_run", False):
+            logger.error("Recon validation failed: no discoverable URLs found.")
+            error_emitter(
+                "recon_validation",
+                "Recon validation failed: no discoverable URLs found.",
             )
-
-            if stage_output is not None:
-                orchestrator._merge_stage_output(ctx, stage_name, stage_output)
-                # 🛸 Implement CRDT State Compaction (Stability Focus)
-                # Triggered after merge to ensure minimal state transfer for subsequent stages
-                ctx.compact_state()
-
-            elapsed = time.time() - stage_started
-
-            # Post-run recording
-            await orchestrator._record_stage_post_run(stage_name, ctx, checkpoint_mgr)
-
-            # 2. Emit completion progress
-            progress_emitter(
-                stage_name,
-                f"Neural-Mesh: Finished {PIPELINE_STAGES.get(stage_name, stage_name)}",
-                orchestrator._stage_baseline(stage_name),
-                status="completed",
-                stage_status="completed",
-                details={"duration_seconds": round(elapsed, 2)},
-                event_trigger="stage_complete",
-                stage_percent=100,
-            )
-
-            orchestrator._emit_event(
-                EventType.STAGE_COMPLETED,
-                source=f"stage.{stage_name}",
-                data={
-                    "contract": orchestrator._build_stage_output_contract(stage_name, elapsed, ctx)
-                },
-            )
-
-            # Fail fast check for recon
-            if stage_name in {"subdomains", "live_hosts", "urls"}:
-                stage_metrics = ctx.result.module_metrics.get(stage_name, {})
-                indicate_fatal = metrics_indicate_fatal_failure(stage_metrics)
-                if indicate_fatal:
-                    progress_emitter(
-                        stage_name,
-                        f"Stage failed: {PIPELINE_STAGES.get(stage_name, stage_name)}",
-                        orchestrator._stage_baseline(stage_name),
-                        status="failed",
-                        stage_status="failed",
-                        event_trigger="stage_failed",
-                        error=stage_metrics.get("error", "Fatal recon failure"),
-                    )
-                    return 1
-
-            return None
-
-        except Exception as exc:
-            logger.exception("Fatal failure in Neural-Mesh stage '%s'", stage_name)
-            if "WAL durability layer failed" in str(exc):
-                return "WAL_FAILURE"
             return 1
+        ctx.result.stage_status["recon_validation"] = StageStatus.COMPLETED.value
+
+    return outcome.exit_code
 
 
 def resolve_pipeline_exit_code(
@@ -305,22 +127,26 @@ def resolve_pipeline_exit_code(
     progress_emitter: Any,
 ) -> int:
     """Compute the final exit code for the pipeline run."""
+    import time
+
     duration = time.time() - started_at
     findings_count = len(ctx.result.reportable_findings)
 
-    # If any recon stage failed fatally, it's a critical failure (exit 1)
-    for recon_stage in ["subdomains", "live_hosts", "urls", "recon_validation"]:
+    if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
+        metrics = ctx.result.module_metrics.get("recon_validation", {})
+        if metrics.get("fatal", True):
+            return 1
+
+    for recon_stage in ("subdomains", "live_hosts", "urls"):
         if ctx.result.stage_status.get(recon_stage) == StageStatus.FAILED.value:
             metrics = ctx.result.module_metrics.get(recon_stage, {})
             if metrics.get("fatal", True):
                 return 1
 
-    # Check for cancellation
     if getattr(ctx.result, "cancel_requested", False):
         progress_emitter("shutdown", "Pipeline cancelled by user", 100, status="stopped")
         return 130
 
-    # Otherwise successful (exit 0)
     progress_emitter(
         "shutdown",
         f"Pipeline execution complete. Found {findings_count} finding(s).",

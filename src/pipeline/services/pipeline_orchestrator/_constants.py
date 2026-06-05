@@ -1,14 +1,26 @@
-"""Constants and configuration for pipeline orchestration."""
+"""Constants and configuration for pipeline orchestration.
+
+The Neural-Mesh executable graph lives in ``STAGE_GRAPH`` and is the
+single source of truth for dependencies, conditional gating, and
+priority weights.  The legacy ``STAGE_DEPS`` mapping is now derived
+from the graph for backward compatibility with dashboards and
+plugins; new code should import ``STAGE_GRAPH`` directly.
+"""
+from __future__ import annotations
+
+from ._graph_dsl import Graph
+from .graph_builder import build_pipeline_graph
 
 __all__ = [
     "PIPELINE_STAGES",
     "STAGE_ORDER",
     "STAGE_TIMEOUTS",
     "STAGE_DEPS",
+    "STAGE_GRAPH",
     "DEFAULT_ITERATION_LIMIT",
     "DEFAULT_TIMEOUT_SECONDS",
-    "PARALLEL_STAGE_GROUPS",
 ]
+
 
 PIPELINE_STAGES = {
     "subdomains": "Subdomain enumeration",
@@ -26,6 +38,8 @@ PIPELINE_STAGES = {
     "reporting": "Report generation",
 }
 
+# Per-stage timeouts in seconds.  Used by ``orchestrator._resolve_stage_timeout``
+# unless a ``StageNode.timeout`` override is supplied (currently none are).
 STAGE_TIMEOUTS = {
     "subdomains": 600,
     "live_hosts": 900,
@@ -59,7 +73,10 @@ STAGE_TIMEOUTS = {
 # reporting (300s): Report generation and export
 # nuclei (600s): Nuclei vulnerability scanning with custom templates
 
-STAGE_ORDER = [
+# Declared execution order.  Used by tests, dashboards, and the
+# ``stage_index`` field of progress events.  The scheduler itself is
+# not constrained by this order — the graph topology governs.
+STAGE_ORDER = (
     "subdomains",
     "live_hosts",
     "waf",
@@ -74,58 +91,34 @@ STAGE_ORDER = [
     "validation",
     "intelligence",
     "reporting",
-]
+)
 
 DEFAULT_ITERATION_LIMIT = 3
 DEFAULT_TIMEOUT_SECONDS = 3600
 
-# Stage dependency graph: each stage maps to the set of stages it depends on.
-# Used for topological layering to identify parallel execution opportunities.
-STAGE_DEPS = {
-    "subdomains": set(),
-    "live_hosts": {"subdomains"},
-    "waf": {"live_hosts"},
-    "urls": {"live_hosts"},
-    "parameters": {"urls"},
-    "ranking": {"urls", "parameters", "waf"},
-    "passive_scan": {"ranking", "live_hosts", "urls"},
-    "active_scan": {"passive_scan"},
-    "semgrep": {"passive_scan"},
-    "nuclei": {"passive_scan"},
-    "access_control": {"ranking", "passive_scan"},
-    "validation": {"passive_scan", "active_scan"},
-    "intelligence": {"passive_scan", "active_scan", "nuclei", "validation"},
-    "reporting": {"intelligence", "nuclei", "access_control", "validation", "passive_scan"},
-}
 
-# Groups of stages that can execute in parallel.
-# Each tuple is (after_stage, [parallel_stages]).
-# After `after_stage` completes, all stages in the list can run concurrently.
-PARALLEL_STAGE_GROUPS = [
-    ("live_hosts", ["waf", "urls"]),
-    ("passive_scan", ["nuclei", "access_control", "semgrep"]),
-]
+def _build_default_graph() -> Graph:
+    """Construct the canonical pipeline graph.
+
+    The graph is built without a ``stage_methods`` mapping, so the
+    ``startup`` node is not injected.  Callers that need startup
+    injection (e.g. the orchestrator) should call
+    :func:`graph_builder.build_pipeline_graph` directly.
+    """
+    return build_pipeline_graph()
 
 
-def _check_parallel_consistency() -> None:
-    """Validate that PARALLEL_STAGE_GROUPS does not contradict STAGE_DEPS."""
-    import logging
-
-    _const_logger = logging.getLogger(__name__)
-    for trigger, paral_stages in PARALLEL_STAGE_GROUPS:
-        for stage in paral_stages:
-            stage_deps = STAGE_DEPS.get(stage, set())
-            if trigger not in stage_deps:
-                _const_logger.warning(
-                    "PARALLEL_STAGE_GROUPS: stage '%s' listed as parallel after '%s', "
-                    "but STAGE_DEPS['%s']=%s does not include '%s' as a dependency. "
-                    "This contradiction may cause incorrect execution ordering.",
-                    stage,
-                    trigger,
-                    stage,
-                    stage_deps,
-                    trigger,
-                )
+STAGE_GRAPH: Graph = _build_default_graph()
 
 
-_check_parallel_consistency()
+def _derive_stage_deps(graph: Graph) -> dict[str, frozenset[str]]:
+    """Project the graph down to the legacy ``{stage: deps}`` mapping.
+
+    The projection is computed at import time and frozen.  Dashboards
+    and plugins that still read ``STAGE_DEPS`` get a stable snapshot;
+    the ``ActorScheduler`` does not consult this mapping at all.
+    """
+    return {node.name: frozenset(node.needs) for node in graph.nodes}
+
+
+STAGE_DEPS: dict[str, frozenset[str]] = _derive_stage_deps(STAGE_GRAPH)

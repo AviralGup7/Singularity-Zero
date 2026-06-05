@@ -6,9 +6,11 @@ originally lived inside `orchestrator.py` to keep the orchestrator file
 smaller and more focused.
 """
 
+from __future__ import annotations
+
 import asyncio
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from src.core.checkpoint import StageCheckpointGuard
 from src.core.events import EventType
@@ -16,45 +18,77 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import StageStatus
 from src.pipeline.runner_support import emit_progress
 
-from ._constants import PARALLEL_STAGE_GROUPS, PIPELINE_STAGES, STAGE_DEPS, STAGE_ORDER
+from ._constants import PIPELINE_STAGES, STAGE_ORDER, STAGE_GRAPH
+from ._graph_dsl import StageNode
 
 logger = get_pipeline_logger(__name__)
 
 
+def _build_parallel_groups() -> list[tuple[str, tuple[str, ...]]]:
+    return [
+        (node.name, tuple(n.name for n in STAGE_GRAPH.downstream_of(node.name)))
+        for node in STAGE_GRAPH.nodes
+    ]
+
+
+PARALLEL_STAGE_GROUPS: list[tuple[str, tuple[str, ...]]] = _build_parallel_groups()
+
+_STAGE_GRAPH_DEP_MAP: dict[str, tuple[str, ...]] = {node.name: node.needs for node in STAGE_GRAPH.nodes}
+
+if TYPE_CHECKING:
+    STAGE_DEPS: dict[str, tuple[str, ...]]
+else:
+    STAGE_DEPS = _STAGE_GRAPH_DEP_MAP  # type: ignore[assignment]
+
+
 def build_parallel_graph() -> dict[str, list[str]]:
-    """Build a parallel execution graph from STAGE_DEPS.
+    """Build a legacy parallel-group graph from the current ``STAGE_GRAPH``.
 
     .. deprecated::
         Use the Neural-Mesh DAG engine (``execute_remaining_stages``) instead.
-        This function is retained as a legacy stub for backwards-compatibility
-        with any external callers; it delegates to the active STAGE_DEPS
-        constant and PARALLEL_STAGE_GROUPS concatenated together.
+        This legacy shim reconstructs the old trigger->siblings mapping from
+        the declarative graph so existing callers, dashboard queries, and
+        plugins that still read ``PARALLEL_STAGE_GROUPS`` continue to work.
     """
     graph: dict[str, list[str]] = {}
-
     for trigger, paral_stages in PARALLEL_STAGE_GROUPS:
-        graph[trigger] = paral_stages
-
+        graph[trigger] = list(paral_stages)
     return graph
 
 
 def resolve_parallel_group(
-    stage_name: str, nuclei_available: bool, remaining_stages: list[str]
+    stage_name: str,
+    nuclei_available: bool,
+    remaining_stages: list[str],
 ) -> list[str] | None:
-    """Resolve which stages can run in parallel after the given stage."""
-    for trigger, paral_stages in PARALLEL_STAGE_GROUPS:
-        if stage_name == trigger:
-            return [
-                s
-                for s in paral_stages
-                if s in remaining_stages and (s != "nuclei" or nuclei_available)
-            ]
-    return None
+    """Resolve which stages can run in parallel after the given stage.
+
+    .. deprecated::
+        Use the Neural-Mesh actor scheduler; this is a legacy shim.
+    """
+    node = STAGE_GRAPH.get(stage_name)
+    if node is None:
+        for trigger, paral_stages in PARALLEL_STAGE_GROUPS:
+            if stage_name == trigger:
+                return [
+                    s
+                    for s in paral_stages
+                    if s in remaining_stages and (s != "nuclei" or nuclei_available)
+                ]
+        return None
+    return [
+        n.name
+        for n in STAGE_GRAPH.downstream_of(stage_name)
+        if n.name in remaining_stages and (n.name != "nuclei" or nuclei_available)
+    ]
 
 
 def all_deps_met(stage: str, completed: set[str], graph: dict[str, list[str]]) -> bool:
-    deps = STAGE_DEPS.get(stage, set())
-    return deps.issubset(completed)
+    node = STAGE_GRAPH.get(stage)
+    if node is None:
+        deps = set(graph.get(stage, []))
+        return deps.issubset(completed)
+    return set(node.needs).issubset(completed)
 
 
 async def run_parallel_group(

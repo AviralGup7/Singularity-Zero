@@ -178,6 +178,18 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
     emitted_progress: list[dict[str, object]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
+    # ``security.py`` imports STAGE_ORDER directly from ``_constants`` and
+    # also runs the recovery / skip-completed-stages logic, so the patch
+    # on ``orch_mod.STAGE_ORDER`` alone is not enough. Patch the
+    # constants module (the source of truth) and the security module's
+    # own binding as well, so the recovery filter sees the reduced
+    # three-stage list rather than the full fourteen-stage production
+    # pipeline.
+    from src.pipeline.services.pipeline_orchestrator import _constants as const_mod
+    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
+
+    monkeypatch.setattr(const_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
+    monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
 
     recovered_context: dict[str, object] = {
         "scope_entries": ["example.com"],
@@ -191,6 +203,12 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
             "subdomains": {"status": "ok"},
             "live_hosts": {"status": "ok"},
         },
+        # Include the target name and the current checkpoint schema
+        # version so the orchestrator's recovery validator (which
+        # rejects payloads that do not match the target and the minimum
+        # supported checkpoint version) accepts the snapshot.
+        "target_name": "example.com",
+        "checkpoint_version": 2,
     }
 
     managers: dict[str, _RecoveryCheckpointManager] = {}

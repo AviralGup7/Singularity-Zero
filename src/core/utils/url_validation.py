@@ -233,7 +233,12 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
         return False
     if hostname == "169.254.169.254":
         return False
-    return not _resolve_hostname_safely(hostname, timeout=timeout)
+    # Bug #N fix: ``not _resolve_hostname_safely(...)`` always returned False
+    # because a non-empty tuple is truthy and ``not tuple`` is False. That
+    # marked every resolvable host as unsafe. Use ``_host_resolves_to_private``
+    # which already implements fail-closed semantics: returns True on
+    # resolution failure OR if any resolved IP is private.
+    return not _host_resolves_to_private(hostname, timeout=timeout)
 
 
 _REBINDING_SERVICES_RE = re.compile(

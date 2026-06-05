@@ -12,6 +12,7 @@ import pytest
 
 from src.core.models.stage_result import PipelineContext, StageResult
 from src.pipeline.services.pipeline_orchestrator.stages import active_scan
+from src.pipeline.services.pipeline_orchestrator.stages import active_scan_adaptive
 
 
 @pytest.mark.asyncio
@@ -91,7 +92,9 @@ async def test_active_scan_degraded_probes_populated_on_timeout(
 
     # Apply monkeypatches to avoid running adaptive mode and load our mock probes
     monkeypatch.setattr(active_scan, "_load_active_probe_functions", lambda: mock_probes)
+    monkeypatch.setattr(active_scan_adaptive, "_load_active_probe_functions", lambda: mock_probes)
     monkeypatch.setattr(active_scan, "emit_progress", lambda *a, **k: None)
+    monkeypatch.setattr(active_scan_adaptive, "emit_progress", lambda *a, **k: None)
 
     # Disable adaptive mode to run standard run_active_scanning
     config = SimpleNamespace(
@@ -208,7 +211,9 @@ async def test_active_scan_adaptive_degraded_probes_populated_on_timeout(
 
     # Apply monkeypatches to avoid running adaptive mode and load our mock probes
     monkeypatch.setattr(active_scan, "_load_active_probe_functions", lambda: mock_probes)
+    monkeypatch.setattr(active_scan_adaptive, "_load_active_probe_functions", lambda: mock_probes)
     monkeypatch.setattr(active_scan, "emit_progress", lambda *a, **k: None)
+    monkeypatch.setattr(active_scan_adaptive, "emit_progress", lambda *a, **k: None)
 
     # Enable adaptive mode to run standard run_active_scanning
     config = SimpleNamespace(

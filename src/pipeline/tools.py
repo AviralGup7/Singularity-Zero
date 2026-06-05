@@ -7,6 +7,12 @@ Provides functions for running external security testing tools
 from typing import Any
 
 from src.pipeline.retry import RetryPolicy
+from src.pipeline.services.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerStats,
+    ProbeCallback,
+)
 from src.pipeline.services.tool_execution import (
     ToolExecutionError,
     ToolExecutionOutcome,
@@ -72,6 +78,49 @@ def projectdiscovery_httpx_available() -> bool:
     return _DEFAULT_TOOL_SERVICE.projectdiscovery_httpx_available()
 
 
+def configure_breaker(
+    tool_name: str,
+    config: CircuitBreakerConfig,
+    *,
+    reset_existing: bool = False,
+) -> CircuitBreaker:
+    """Install a per-tool breaker config on the default service."""
+    return _DEFAULT_TOOL_SERVICE.configure_breaker(
+        tool_name, config, reset_existing=reset_existing
+    )
+
+
+def force_open_breaker(
+    tool_name: str,
+    reason: str,
+    duration_seconds: float | None = None,
+) -> CircuitBreaker:
+    """Trip a tool's breaker externally (self-healing controller hot-path)."""
+    return _DEFAULT_TOOL_SERVICE.force_open_breaker(
+        tool_name, reason, duration_seconds=duration_seconds
+    )
+
+
+def reset_breaker(tool_name: str) -> CircuitBreaker:
+    return _DEFAULT_TOOL_SERVICE.reset_breaker(tool_name)
+
+
+def schedule_recovery_probe(tool_name: str, callback: ProbeCallback) -> None:
+    _DEFAULT_TOOL_SERVICE.schedule_recovery_probe(tool_name, callback)
+
+
+def consume_pending_probes() -> dict[str, ProbeCallback]:
+    return _DEFAULT_TOOL_SERVICE.consume_pending_probes()
+
+
+def breaker_snapshot() -> dict[str, CircuitBreakerStats]:
+    return _DEFAULT_TOOL_SERVICE.breaker_snapshot()
+
+
+def known_tool_names() -> list[str]:
+    return _DEFAULT_TOOL_SERVICE.known_tool_names()
+
+
 def build_retry_policy(
     global_settings: dict[str, Any] | None = None, tool_settings: dict[str, Any] | None = None
 ) -> RetryPolicy:
@@ -79,17 +128,28 @@ def build_retry_policy(
 
 
 __all__ = [
+    "CircuitBreaker",
+    "CircuitBreakerConfig",
+    "CircuitBreakerStats",
+    "ProbeCallback",
     "RetryPolicy",
     "ToolExecutionError",
     "ToolExecutionOutcome",
     "ToolExecutionService",
+    "breaker_snapshot",
     "build_retry_policy",
     "command_env",
+    "configure_breaker",
+    "consume_pending_probes",
     "execute_command",
+    "force_open_breaker",
+    "known_tool_names",
     "projectdiscovery_httpx_available",
+    "reset_breaker",
     "resolve_command",
     "resolve_tool_path",
     "run_command",
+    "schedule_recovery_probe",
     "tool_available",
     "try_command",
 ]

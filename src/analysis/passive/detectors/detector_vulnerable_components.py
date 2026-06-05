@@ -55,7 +55,12 @@ _KNOWN_VULNERABLE_VERSIONS: list[tuple[str, str, str, str]] = [
     (r"PHP/5\.6\.", "PHP 5.6", "medium", "End-of-life PHP version"),
     (r"Django/1\.", "Django 1.x", "critical", "End-of-life Django with critical vulnerabilities"),
     (r"Django/2\.[01]\.", "Django 2.0-2.1", "high", "End-of-life Django version"),
-    (r"Django/3\.[01]\.", "Django 3.0-3.1", "medium", "Outdated Django with known security patches needed"),
+    (
+        r"Django/3\.[01]\.",
+        "Django 3.0-3.1",
+        "medium",
+        "Outdated Django with known security patches needed",
+    ),
     (r"Django/3\.\d+\.", "Django 3.x", "low", "Older Django branch; verify latest patch level"),
     (r"Rails/3\.", "Rails 3.x", "critical", "End-of-life Rails with critical vulnerabilities"),
     (r"Rails/4\.", "Rails 4.x", "high", "End-of-life Rails version"),
@@ -226,7 +231,8 @@ def _check_vulnerable_versions(
                 "description": desc,
             }
             if component.endswith(".x") and any(
-                keyword in component.lower() for keyword in ("jquery", "react", "vue", "moment", "lodash")
+                keyword in component.lower()
+                for keyword in ("jquery", "react", "vue", "moment", "lodash")
             ):
                 frontend_matches.append(entry)
             else:
@@ -250,11 +256,12 @@ def _check_debug_indicators(response: dict[str, Any]) -> list[dict[str, Any]]:
             (r"SQL\s+syntax\s+error\s+near", "SQL error exposure"),
             (r"Flask\s+Debugger\s+enabled", "Flask debugger"),
         ):
-            if re.search(pattern_str, body, re.IGNORECASE):
+            match_body = re.search(pattern_str, body, re.IGNORECASE)
+            if match_body:
                 indicators.append(
                     {
                         "indicator": label,
-                        "value": re.search(pattern_str, body, re.IGNORECASE).group(0)[:100],
+                        "value": match_body.group(0)[:100],
                     }
                 )
                 break
@@ -263,7 +270,9 @@ def _check_debug_indicators(response: dict[str, Any]) -> list[dict[str, Any]]:
     if headers.get("x-debug", "").lower() in ("true", "1", "yes", "on"):
         indicators.append(
             {
-                "indicator": "X-Debug-Token header" if "x-debug-token" in headers else "X-Debug header",
+                "indicator": "X-Debug-Token header"
+                if "x-debug-token" in headers
+                else "X-Debug header",
                 "value": headers.get("x-debug-token") or headers.get("x-debug", ""),
             }
         )
@@ -392,7 +401,9 @@ def vulnerable_component_detector(
             continue
 
         seen.add(endpoint_key)
-        evidence: dict[str, list[dict[str, Any]]] = {"deprecated_endpoints": [{"indicators": signals}]}
+        evidence: dict[str, list[dict[str, Any]]] = {
+            "deprecated_endpoints": [{"indicators": signals}]
+        }
         severity = "medium"
         risk_score = 5
         confidence = normalized_confidence(base=0.40, score=risk_score, signals=signals, cap=0.85)
@@ -431,7 +442,7 @@ def vulnerable_component_detector(
         # Frontend library vulnerability findings appear in their own bucket
         # but should also count as a "vulnerable_version" signal.
 
-        evidence: dict[str, list[dict[str, Any]]] = {}
+        evidence = {}
         if server_issues:
             evidence["server_issues"] = server_issues
         if powered_by_issues:
@@ -446,7 +457,9 @@ def vulnerable_component_detector(
             evidence["frontend_issues"] = frontend_issues
         if frontend_vuln:
             # Promote frontend vulnerability list to its own bucket too
-            evidence["vulnerable_versions"] = evidence.get("vulnerable_versions", []) + frontend_vuln
+            evidence["vulnerable_versions"] = (
+                evidence.get("vulnerable_versions", []) + frontend_vuln
+            )
 
         if not evidence:
             continue
@@ -477,11 +490,7 @@ def vulnerable_component_detector(
         if "framework_header" in signals:
             title_parts.append("Framework Header Disclosure")
 
-        title = (
-            "; ".join(title_parts)
-            if title_parts
-            else "Vulnerable Component Indicator Detected"
-        )
+        title = "; ".join(title_parts) if title_parts else "Vulnerable Component Indicator Detected"
 
         findings.append(
             {

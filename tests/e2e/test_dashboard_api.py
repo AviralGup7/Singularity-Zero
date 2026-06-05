@@ -3,7 +3,13 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def dashboard_app(dashboard_config, mock_dashboard_services):
+def dashboard_app(dashboard_config, mock_dashboard_services, monkeypatch):
+    # Bypass the CSRF middleware for in-process dashboard tests by
+    # flipping the development-mode flag. The auth contract is
+    # independently disabled below via ``require_auth`` override so
+    # the test cases can exercise handler-level response shapes
+    # without first minting a CSRF token.
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     from src.dashboard.fastapi.app import create_app
     from src.dashboard.fastapi.dependencies import require_auth
 

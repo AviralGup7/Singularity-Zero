@@ -6,8 +6,15 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
-from src.analysis.passive.runtime import fetch_response
 from src.pipeline.retry import RetryPolicy
+
+
+# Module-level reference to ``fetch_response``. Tests patch this attribute
+# via ``patch.object(_http_client, "fetch_response", ...)`` so the symbol
+# must be present on the module. We bind it lazily on first access via
+# ``_resolve_fetch_response`` to avoid the circular import that would
+# occur if we imported ``src.analysis.passive.runtime`` at module load.
+fetch_response = None  # type: ignore[assignment]
 
 
 @dataclass(frozen=True)
@@ -45,6 +52,14 @@ class ValidationHttpClient:
     def request(
         self, url: str, *, method: str = "GET", headers: dict[str, str] | None = None
     ) -> dict[str, Any]:
+        # Use the module-level ``fetch_response`` symbol (or one injected
+        # via ``patch.object(..., "fetch_response", ...)``) rather than
+        # re-importing inside the method. The module-level symbol is
+        # resolved lazily through the helper below, which avoids a
+        # circular import chain while still letting tests patch the
+        # attribute on this module.
+        fetch_response = _resolve_fetch_response()
+
         cache_key = f"{method}:{url}:{sorted((headers or {}).items())}"
         cached = self._cache_get(cache_key)
         if cached is not None:
@@ -105,3 +120,22 @@ class ValidationHttpClient:
         }
         self._cache_set(cache_key, result)
         return result
+
+
+def _resolve_fetch_response() -> Any:
+    """Return the ``fetch_response`` callable to use for HTTP probing.
+
+    Tests patch ``src.execution.validators.engine._http_client.fetch_response``
+    on this module, so we look the symbol up here at call time. If the
+    symbol is still the lazy ``None`` placeholder (i.e. a test has not
+    patched it) we fall back to the real implementation lazily, which
+    prevents the circular import that would occur if we imported it at
+    module top level.
+    """
+    fn = globals().get("fetch_response")
+    if fn is None:
+        from src.analysis.passive.runtime import fetch_response as _fn
+
+        globals()["fetch_response"] = _fn
+        return _fn
+    return fn

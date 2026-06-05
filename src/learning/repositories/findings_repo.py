@@ -107,14 +107,17 @@ class FindingsRepo(BaseRepo):
             # but never injected into the SQL query, so the function silently
             # ignored caller intent and returned findings for *any* tech
             # stack. We now build a parameterized IN clause for the tech
-            # stack values and add it to the WHERE filter.
+            # stack values and add it to the WHERE filter. We also OR-match
+            # findings whose ``tech_stack`` is NULL because callers may not
+            # have recorded one but still want to surface the historical
+            # finding when its category/target pattern aligns.
             placeholders = ",".join("?" for _ in tech_stack)
             cur.execute(
                 f"""SELECT f.*, sr.target_name
                     FROM findings f
                     JOIN scan_runs sr ON f.run_id = sr.run_id
                     WHERE f.category = ? AND sr.target_name != ?
-                      AND f.tech_stack IN ({placeholders})
+                      AND (f.tech_stack IN ({placeholders}) OR f.tech_stack IS NULL OR f.tech_stack = '')
                     ORDER BY f.confidence DESC LIMIT ?""",  # noqa: S608  # nosec B608  (placeholders are static "?" chars)
                 [category, exclude_target, *tech_stack, limit],
             )
