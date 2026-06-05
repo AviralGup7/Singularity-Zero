@@ -6,6 +6,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
+from src.analysis.passive.runtime import fetch_response
 from src.pipeline.retry import RetryPolicy
 
 
@@ -44,8 +45,6 @@ class ValidationHttpClient:
     def request(
         self, url: str, *, method: str = "GET", headers: dict[str, str] | None = None
     ) -> dict[str, Any]:
-        from src.analysis.passive.runtime import fetch_response
-
         cache_key = f"{method}:{url}:{sorted((headers or {}).items())}"
         cached = self._cache_get(cache_key)
         if cached is not None:

@@ -146,16 +146,13 @@ class AdaptiveScanCoordinator:
             if self._max_batches and batch_num >= self._max_batches:
                 logger.info("Adaptive scan: reached max batch limit (%d)", self._max_batches)
                 break
-                if target is None:
-                    break
-                batch_urls.append((target, target.url))
 
             if not batch_urls:
                 logger.info("Adaptive scan: all targets consumed")
                 break
 
             batch_num += 1
-            urls = [url for _, url in batch_urls]
+            urls = [target.url for target in batch_urls]
 
             logger.info(
                 "Adaptive scan batch %d: scanning %d targets (remaining: %d, findings so far: %d)",
