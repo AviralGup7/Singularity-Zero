@@ -651,27 +651,7 @@ class StageRetryPolicy(RetryPolicyState):
         except Exception:  # noqa: BLE001
             pass  # Event emission must never break the retry loop
 
-    @classmethod
-    def from_settings(
-        cls,
-        global_settings: dict[str, Any] | None = None,
-        tool_settings: dict[str, Any] | None = None,
-        *,
-        max_retry_budget_seconds: float = 0.0,
-        backoff_profile: str | None = None,
-        adaptive: bool = False,
-    ) -> StageRetryPolicy:
-        state = RetryPolicyState.from_settings(
-            global_settings, tool_settings, adaptive=adaptive
-        )
-        return cls(
-            base_policy=state.base_policy,
-            adaptive_heuristic=state.adaptive_heuristic,
-            max_retry_budget_seconds=max_retry_budget_seconds,
-            backoff_profile=backoff_profile,
-        )
-
-    def tool_policy(self, tool_identifier: str) -> "ToolRetryPolicy":
+    def tool_policy(self, tool_identifier: str) -> ToolRetryPolicy:
         """Return a :class:`ToolRetryPolicy` that shares budget/state with this stage."""
         return ToolRetryPolicy(
             base_policy=self.base_policy,
@@ -685,7 +665,7 @@ class StageRetryPolicy(RetryPolicyState):
             _stage_parent=self,
         )
 
-    def tool_policy(self, tool_identifier: str) -> "ToolRetryPolicy":
+    def tool_policy(self, tool_identifier: str) -> ToolRetryPolicy:
         """Return a :class:`ToolRetryPolicy` that shares state with this stage."""
         return ToolRetryPolicy(
             base_policy=self.base_policy,
@@ -721,7 +701,7 @@ class ToolRetryPolicy(StageRetryPolicy):
     tool_identifier: str = ""
     _recent_outcome_window: list[bool] = field(default_factory=list, repr=False)
     _recent_window_max: int = 16
-    _stage_parent: "StageRetryPolicy | None" = field(default=None, repr=False, compare=False)
+    _stage_parent: StageRetryPolicy | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.adaptive_heuristic is None:

@@ -389,8 +389,8 @@ class CircuitBreakerConfig:
         cls,
         settings: dict[str, Any] | None,
         *,
-        default: "CircuitBreakerConfig | None" = None,
-    ) -> "CircuitBreakerConfig":
+        default: CircuitBreakerConfig | None = None,
+    ) -> CircuitBreakerConfig:
         """Build a config from a settings dict, falling back to ``default``."""
         settings = settings or {}
         base = default or cls()

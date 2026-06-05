@@ -8,7 +8,6 @@ from typing import Any
 
 from src.pipeline.retry import RetryPolicy
 
-
 # Module-level reference to ``fetch_response``. Tests patch this attribute
 # via ``patch.object(_http_client, "fetch_response", ...)`` so the symbol
 # must be present on the module. We bind it lazily on first access via

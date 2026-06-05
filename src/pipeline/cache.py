@@ -9,9 +9,10 @@ import json
 import os
 import tempfile
 import time
+from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.pipeline.storage import ensure_dir

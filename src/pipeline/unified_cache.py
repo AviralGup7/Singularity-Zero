@@ -10,18 +10,18 @@ bytes for a given key.
 from __future__ import annotations
 
 import asyncio
-import gzip
 import hashlib
 import json
 import os
 import tempfile
 import threading
 import time
+from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.pipeline.cache_backend import PersistentCache
@@ -472,7 +472,7 @@ class UnifiedCache:
             partition.setdefault(namespace, []).append(entry)
         return partition
 
-    def coalesce(self) -> "CoalescingCacheWrapper":
+    def coalesce(self) -> CoalescingCacheWrapper:
         return self._coalesce
 
     def close(self) -> None:
