@@ -157,13 +157,10 @@ class CircuitBreaker:
                 self._trip_open(exc)
             elif admission_state == "CLOSED" and self.state == "CLOSED":
                 self.failure_count += 1
-                # Bug #14 fix: ``>=`` opened the breaker on the threshold-th
-                # failure rather than the (threshold+1)-th. With
-                # threshold=3, the breaker tripped on the 3rd failure but
-                # documentation/comments elsewhere call for "open after N
-                # failures" (which is the 4th). Use ``>`` so the breaker
-                # trips exactly when the count *exceeds* the threshold.
-                if self.failure_count > max(1, self.failure_threshold):
+                # Trip on the N-th failure, where N is the failure_threshold.
+                # With threshold=2 the breaker opens after the 2nd consecutive
+                # failure; with threshold=1 it opens after the first.
+                if self.failure_count >= max(1, self.failure_threshold):
                     self._trip_open(exc)
 
     def _release_aborted_probe(self, admission_state: str, state_version: int) -> None:
