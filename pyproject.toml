@@ -42,8 +42,6 @@ dependencies = [
     "opentelemetry-api==1.40.0",
     "opentelemetry-sdk==1.40.0",
     "opentelemetry-exporter-otlp-proto-http==1.40.0",
-    # --- Performance ---
-    "orjson==3.11.9",
     # --- System monitoring ---
     "psutil==5.9.1",
     # --- Database & migrations ---
