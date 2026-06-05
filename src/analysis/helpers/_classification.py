@@ -107,19 +107,34 @@ def is_low_value_endpoint(url: str) -> bool:
 def is_self_endpoint(url: str) -> bool:
     """Check if a URL targets the current user's own resource (/me, /users/me)."""
     path = urlparse(url).path.lower()
-    return any(
-        path == token or path.endswith(token) or token in path
-        for token in (
-            "/me",
-            "/users/me",
-            "/users/me.json",
-            "/account",
-            "/profile",
-            "/my",
-            "/self",
-            "/current",
-        )
+    # Split into segments so ``/api/accounts/10`` does not match the
+    # ``/account`` token (substring match would otherwise flag every
+    # URL whose path contains the letters "account" or "profile" as
+    # a self-referential endpoint, causing real IDOR candidates to be
+    # filtered out).
+    segments = [seg for seg in path.split("/") if seg]
+    if not segments:
+        return False
+    self_tokens = (
+        "me",
+        "my",
+        "self",
+        "current",
     )
+    for seg in segments:
+        if seg in self_tokens:
+            return True
+        # Match compound tokens like ``users/me`` or ``users/me.json``.
+        for tok in self_tokens:
+            if seg == f"users.{tok}":
+                return True
+    # Match trailing ``/account`` or ``/profile`` only when there is no
+    # further ID segment (e.g., ``/me/account`` vs ``/api/accounts/10``).
+    if len(segments) >= 1:
+        last = segments[-1]
+        if last in {"account", "profile", "me", "my", "self", "current"}:
+            return True
+    return False
 
 
 @lru_cache(maxsize=4096)
