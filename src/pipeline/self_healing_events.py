@@ -6,14 +6,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from src.core.events import EventBus, EventType, PipelineEvent, get_event_bus
 from src.core.contracts.health import (
-    CorrectiveAction,
     HealthComponent,
-    HealthFinding,
     HealthMetric,
     HealthStatus,
 )
+from src.core.events import EventType, PipelineEvent, get_event_bus
 
 logger = logging.getLogger(__name__)
 
