@@ -269,12 +269,15 @@ class AuditLogger:
         Args:
             config: Security configuration.
         """
+        import sqlite3
+
         self.config = config
         self._counter = 0
         self._last_hash = ""
         self._lock = threading.Lock()
         self._file_handle: Any = None
         self._current_size = 0
+        self._db: sqlite3.Connection | None = None
 
         self._ensure_log_file()
 
@@ -303,7 +306,7 @@ class AuditLogger:
             self._last_hash = self._read_last_hash()
 
         # Fix #300: Add SQLite backing store for queries (now persistent)
-        if getattr(self, "_db", None) is None:
+        if self._db is None:
             import sqlite3
 
             db_path = f"{log_path}.sqlite"
@@ -459,7 +462,7 @@ class AuditLogger:
 
         # Fix #300: Index in SQLite for high-performance queries
         # Performance #4: Lock already held by caller (log method)
-        if hasattr(self, "_db"):
+        if self._db is not None:
             try:
                 self._db.execute(
                     "INSERT INTO audit_log (id, event, user_id, severity, data) VALUES (?, ?, ?, ?, ?)",
@@ -487,12 +490,13 @@ class AuditLogger:
         log_path = Path(self.config.audit.log_path)
         db_path = Path(f"{log_path}.sqlite")
 
-        if getattr(self, "_db", None) is not None:
+        if self._db is not None:
             try:
                 self._db.close()
             except (OSError, AttributeError) as close_exc:
                 logger.debug("Audit DB close failed: %s", close_exc)
             self._db = None
+            assert self._db is None
 
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         archive_name = f"{log_path.stem}_{timestamp}{log_path.suffix}"
@@ -651,6 +655,8 @@ class AuditLogger:
             params.extend([limit, offset])
 
             try:
+                if self._db is None:
+                    return []
                 cursor = self._db.execute(query, params)
                 return [AuditEntry(**json.loads(row[0])) for row in cursor.fetchall()]
             except Exception as e:
@@ -733,7 +739,7 @@ class AuditLogger:
                 finally:
                     self._file_handle = None
 
-            if getattr(self, "_db", None) is not None:
+            if self._db is not None:
                 try:
                     self._db.close()
                 except Exception as exc:

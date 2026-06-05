@@ -5,7 +5,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -48,7 +48,7 @@ async def get_cached_job(job_id: str, services: Any) -> dict[str, Any] | None:
                 return cached_job
         job = await asyncio.to_thread(services.get_job, job_id)
         _JOB_CACHE[job_id] = (now, job)
-        return job
+        return cast(dict[str, Any] | None, job)
 
 
 logger = logging.getLogger(__name__)
@@ -124,7 +124,7 @@ async def stream_job_logs(
 
             last_heartbeat = time.time()
             last_telemetry_count = 0
-            last_progress_data = {}
+            last_progress_data: dict[str, Any] = {}
 
             try:
                 while True:
@@ -259,7 +259,7 @@ async def stream_job_logs(
                                 if isinstance(job_snapshot.get("progress_telemetry"), dict)
                                 else None,
                             )
-                        started_at = _coerce_epoch(current_job.get("started_at"), None)
+                        started_at = _coerce_epoch(current_job.get("started_at"), 0.0)
                         finished_or_now = _coerce_epoch(current_job.get("finished_at"), time.time())
                         # Bug #33 fix: previously ``started_at`` defaulted
                         # to ``0.0`` when missing, so a job without a
@@ -402,8 +402,9 @@ async def stream_job_progress(
     from src.dashboard.registry import STAGE_LABELS
 
     emitter = SSEEventEmitter(job_id)
-    last_stage = job.get("stage", "")
-    last_iteration = job.get("iteration", 0)
+    job_dict: dict[str, Any] = job or {}
+    last_stage = job_dict.get("stage", "")
+    last_iteration = job_dict.get("iteration", 0)
 
     last_event_id = request.headers.get("last-event-id", "")
     if last_event_id and last_event_id.startswith(f"{job_id}:"):
@@ -429,7 +430,7 @@ async def stream_job_progress(
         last_heartbeat = time.time()
         last_mesh_health = 0.0
         last_telemetry_count = 0
-        last_progress_data = {}
+        last_progress_data: dict[str, Any] = {}
 
         event_chan: asyncio.Queue[str] = asyncio.Queue()
 

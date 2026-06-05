@@ -1,6 +1,7 @@
 """Unit tests for src.core.tenant_context."""
 
 import asyncio
+import logging
 import threading
 import unittest
 
@@ -16,14 +17,14 @@ class TestCurrentTenant(unittest.TestCase):
             with TenantContext.scope(None):
                 pass
         except Exception:
-            pass
+            logging.getLogger(__name__).exception("TenantContext setup failed")
 
     def tearDown(self) -> None:
         try:
             with TenantContext.scope(None):
                 pass
         except Exception:
-            pass
+            logging.getLogger(__name__).exception("TenantContext teardown failed")
 
     def test_default_tenant_is_none(self) -> None:
         self.assertIsNone(TenantContext.get_current_tenant())

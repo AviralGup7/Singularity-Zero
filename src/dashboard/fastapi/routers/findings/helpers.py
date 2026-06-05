@@ -130,6 +130,7 @@ def _collect_timeline_events(
             try:
                 findings = json.loads(findings_path.read_text(encoding="utf-8"))
             except Exception:
+                logger.warning("Failed to parse findings at %s", findings_path, exc_info=True)
                 continue
             if not isinstance(findings, list):
                 continue

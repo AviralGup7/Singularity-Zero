@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 from src.core.models.config import Config
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
-from src.recon.collectors.provider_selection import select_enabled_providers
+from src.recon.collectors.provider_selection import ProviderSpec, select_enabled_providers
 from src.recon.collectors.providers import (
     commoncrawl as _commoncrawl,
 )
@@ -91,7 +91,7 @@ def collect_urls(
 
     providers = select_enabled_providers(config)
 
-    def run_provider(spec) -> tuple[str, set[str], dict[str, Any]]:
+    def run_provider(spec: ProviderSpec) -> tuple[str, set[str], dict[str, Any]]:
         if spec.name == "crawler" and not hostnames:
             return (
                 spec.name,

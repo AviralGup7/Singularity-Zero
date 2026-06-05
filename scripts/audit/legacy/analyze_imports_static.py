@@ -1,5 +1,8 @@
 import ast
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(r"D:\cyber security test pipeline - Copy")
 DEPRECATED = {
@@ -42,6 +45,7 @@ for py in pyfiles:
         src = py.read_text(encoding="utf-8", errors="ignore")
         tree = ast.parse(src)
     except Exception:
+        logger.exception("Failed to read/parse %s", py)
         continue
 
     imported_names = {}  # bind -> (lineno, module_or_name)
@@ -143,6 +147,7 @@ for py in pyfiles:
         src = py.read_text(encoding="utf-8", errors="ignore")
         tree = ast.parse(src)
     except Exception:
+        logger.exception("Failed to read/parse %s", py)
         continue
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):

@@ -198,6 +198,19 @@ class RedisClient:
             return None
         return self._client
 
+    def pipeline(self, transaction: bool = True) -> Any:
+        """Return a Redis pipeline bound to the underlying client.
+
+        Returns the raw redis-py ``Pipeline`` object. The caller is
+        responsible for ``execute()`` and exception handling. When the
+        client is in fallback mode the underlying fallback adapter's
+        pipeline helper is used; if it does not expose one, ``None`` is
+        returned and the caller should fall back to ``execute_command``.
+        """
+        if self._use_fallback or self._client is None:
+            return None
+        return self._client.pipeline(transaction=transaction)
+
     def execute_command(self, command: str, *args: Any, **kwargs: Any) -> Any:
         """Execute a Redis command with automatic fallback.
 

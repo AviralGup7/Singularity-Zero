@@ -33,9 +33,6 @@ from src.infrastructure.db.sqlite_utils import (
     SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS as _LOCK_RETRY_BASE_DELAY_SECONDS,
 )
 from src.infrastructure.db.sqlite_utils import (
-    is_locked_error as _is_locked_error,
-)
-from src.infrastructure.db.sqlite_utils import (
     safe_close,
 )
 
@@ -49,7 +46,7 @@ try:
 
     _ARGON2_AVAILABLE = True
 except Exception:  # pragma: no cover - argon2-cffi is a project dep but be defensive
-    PasswordHasher = None  # type: ignore[assignment]
+    PasswordHasher = None  # type: ignore[assignment,misc]
     InvalidHashError = Exception  # type: ignore[assignment,misc]
     VerificationError = Exception  # type: ignore[assignment,misc]
     VerifyMismatchError = Exception  # type: ignore[assignment,misc]
@@ -231,9 +228,6 @@ class SecurityStore:
             safe_close(conn)
             raise
         return conn
-
-    def _is_locked_error(self, exc: BaseException) -> bool:
-        return _is_locked_error(exc)
 
     def _with_conn(self, operation: Callable[[sqlite3.Connection], Any]) -> Any:
         last_exc: sqlite3.OperationalError | None = None

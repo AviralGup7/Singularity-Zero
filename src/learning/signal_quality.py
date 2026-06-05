@@ -58,7 +58,7 @@ class SignalQualityMLPipeline:
             ]
         )
         self.intercept_ = np.array([-0.85])
-        self.classes_ = np.array([0, 1])
+        self.classes_: np.ndarray | None = np.array([0, 1])
 
         self.model = None
         if HAS_ML_LIBS:

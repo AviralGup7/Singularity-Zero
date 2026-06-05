@@ -3,7 +3,7 @@
 All public accessors are exposed in two equivalent forms:
 
   * PEP-8 snake_case methods (``enable_sse_progress()``)
-  * UPPER_CASE class-method aliases (``ENABLE_SSE_PROGRESS()``)
+  * UPPER_CASE classmethod aliases (``ENABLE_SSE_PROGRESS()``)
 
 Both call into the same single-source-of-truth helper so behaviour is
 identical regardless of which style a caller prefers. Legacy code that
@@ -84,13 +84,6 @@ class FeatureFlags:
         return max(1, int(os.getenv("STALLED_THRESHOLD_SECONDS", "120")))
 
     @classmethod
-    def __getattr__(cls, name: str):  # pragma: no cover - dispatch only
-        if name in _FLAG_BOOL_NAMES:
-            return classmethod(lambda cls, n=name: cls._bool_flag(n))
-        raise AttributeError(f"FeatureFlags has no attribute {name!r}")
-        return os.getenv("ETA_HISTORICAL_DATA_PATH", "output/eta_history.json")
-
-    @classmethod
     def sse_max_findings_per_batch(cls) -> int:
         return max(1, int(os.getenv("SSE_MAX_FINDINGS_PER_BATCH", "50")))
 
@@ -98,20 +91,18 @@ class FeatureFlags:
     def job_cleanup_age_days(cls) -> int:
         return int(os.getenv("JOB_CLEANUP_AGE_DAYS", "30"))
 
-
-# Backwards-compatible UPPER_SNAKE_CASE aliases for legacy callers.
-FeatureFlags.ENABLE_SSE_PROGRESS = FeatureFlags.enable_sse_progress  # type: ignore[attr-defined]
-FeatureFlags.ENABLE_BAYESIAN_ETA = FeatureFlags.enable_bayesian_eta  # type: ignore[attr-defined]
-FeatureFlags.ENABLE_PLUGIN_PROGRESS = FeatureFlags.enable_plugin_progress  # type: ignore[attr-defined]
-FeatureFlags.ENABLE_DURATION_FORECAST = FeatureFlags.enable_duration_forecast  # type: ignore[attr-defined]
-FeatureFlags.ENABLE_FINDINGS_STREAM = FeatureFlags.enable_findings_stream  # type: ignore[attr-defined]
-FeatureFlags.ENABLE_DAG_EXECUTION = FeatureFlags.enable_dag_execution  # type: ignore[attr-defined]
-FeatureFlags.ENABLE_API_SECURITY = FeatureFlags.enable_api_security  # type: ignore[attr-defined]
-FeatureFlags.SSE_HEARTBEAT_INTERVAL_SECONDS = FeatureFlags.sse_heartbeat_interval_seconds  # type: ignore[attr-defined]
-FeatureFlags.ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS = (
-    FeatureFlags.eta_engine_background_interval_seconds
-)  # type: ignore[attr-defined]
-FeatureFlags.ETA_HISTORICAL_DATA_PATH = FeatureFlags.eta_historical_data_path  # type: ignore[attr-defined]
-FeatureFlags.SSE_MAX_FINDINGS_PER_BATCH = FeatureFlags.sse_max_findings_per_batch  # type: ignore[attr-defined]
-FeatureFlags.STALLED_THRESHOLD_SECONDS = FeatureFlags.stalled_threshold_seconds  # type: ignore[attr-defined]
-FeatureFlags.JOB_CLEANUP_AGE_DAYS = FeatureFlags.job_cleanup_age_days  # type: ignore[attr-defined]
+    # Backwards-compatible UPPER_SNAKE_CASE aliases for legacy callers.
+    # Declared inside the class so mypy sees them on the symbol table.
+    ENABLE_SSE_PROGRESS = enable_sse_progress
+    ENABLE_BAYESIAN_ETA = enable_bayesian_eta
+    ENABLE_PLUGIN_PROGRESS = enable_plugin_progress
+    ENABLE_DURATION_FORECAST = enable_duration_forecast
+    ENABLE_FINDINGS_STREAM = enable_findings_stream
+    ENABLE_DAG_EXECUTION = enable_dag_execution
+    ENABLE_API_SECURITY = enable_api_security
+    SSE_HEARTBEAT_INTERVAL_SECONDS = sse_heartbeat_interval_seconds
+    ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS = eta_engine_background_interval_seconds
+    ETA_HISTORICAL_DATA_PATH = eta_historical_data_path
+    SSE_MAX_FINDINGS_PER_BATCH = sse_max_findings_per_batch
+    STALLED_THRESHOLD_SECONDS = stalled_threshold_seconds
+    JOB_CLEANUP_AGE_DAYS = job_cleanup_age_days

@@ -576,7 +576,7 @@ class JobQueue:
             ),
         ]
 
-        for worker in self._list_workers():
+        for worker in await self._list_workers():
             heartbeat_age = max(0.0, time.time() - worker.last_heartbeat)
             result.append(
                 HealthMetric(

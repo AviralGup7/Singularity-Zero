@@ -41,13 +41,11 @@ class ActiveLearningController:
                     # anomalous, otherwise the per-key counter is inflated by the very
                     # poisoning bursts we are trying to detect, and legitimate FP confirmations
                     # would be over-counted.
-                    anomalous_runs = set()
+                    anomalous_runs_ts: dict[str, list[float]] = {}
                     for row in raw_rows:
                         item = dict(row)
                         if bool(item.get("was_false_positive")):
                             rid = item.get("run_id") or "unknown"
-                            if rid in anomalous_runs:
-                                continue
                             ts_str = item.get("timestamp") or ""
                             try:
                                 if isinstance(ts_str, (int, float)):
@@ -58,11 +56,11 @@ class ActiveLearningController:
                                     ts = datetime.datetime.fromisoformat(str(ts_str)).timestamp()
                             except Exception:
                                 ts = time.time()
-                            anomalous_runs.setdefault(rid, []).append(ts)  # type: ignore[arg-type]
+                            anomalous_runs_ts.setdefault(rid, []).append(ts)
                     # Compute anomalous_runs *first* by checking burst windows, then
                     # rebuild the FP counter excluding those quarantined runs.
                     confirmed_anomalous: set[str] = set()
-                    for rid, ts_list in anomalous_runs.items():  # type: ignore[union-attr]
+                    for rid, ts_list in anomalous_runs_ts.items():
                         if not isinstance(ts_list, list):
                             continue
                         if len(ts_list) < 5:
@@ -76,7 +74,6 @@ class ActiveLearningController:
                                     rid,
                                 )
                                 break
-                    anomalous_runs = confirmed_anomalous
 
                     fp_counts: dict[tuple[Any, Any], int] = {}
                     for row in raw_rows:
@@ -84,7 +81,7 @@ class ActiveLearningController:
                         if not bool(item.get("was_false_positive")):
                             continue
                         rid = item.get("run_id") or "unknown"
-                        if rid in anomalous_runs:
+                        if rid in confirmed_anomalous:
                             # Exclude FP confirmations that came from a quarantined burst run -
                             # they are exactly the kind of poisoned input we don't trust.
                             continue
@@ -144,7 +141,7 @@ class ActiveLearningController:
 
                             # Defense 2: Quarantine anomalous runs/bursts
                             rid = item.get("run_id") or "unknown"
-                            if rid in anomalous_runs:
+                            if rid in confirmed_anomalous:
                                 logger.info(
                                     "Poisoning protection: Quarantining feedback from run %s due to anomalous submission burst.",
                                     rid,

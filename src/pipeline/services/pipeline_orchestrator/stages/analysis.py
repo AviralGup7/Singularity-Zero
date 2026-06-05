@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Any
+from typing import Any, cast
 
 from src.analysis.behavior.analysis import annotate_behavior_history
 from src.analysis.intelligence.aggregator import (
@@ -296,7 +296,7 @@ async def run_passive_scanning(
             finding_events: list[dict[str, Any]] = []
             try:
                 from src.core.telemetry import build_telemetry_event
-                from src.pipeline.services.instrumentation import event_bus
+                from src.pipeline.services.instrumentation import StageEvent, event_bus
 
                 for index, finding in enumerate(state_delta["reportable_findings"]):
                     finding_id = finding_identity(finding)
@@ -327,7 +327,7 @@ async def run_passive_scanning(
                     # isolated: a single bad finding cannot stop the
                     # stream.
                     try:
-                        event_bus(event)
+                        event_bus(cast(StageEvent, event))
                     except Exception as bus_exc:  # noqa: BLE001
                         logger.debug("event_bus rejected finding event %s: %s", finding_id, bus_exc)
             except Exception as exc:

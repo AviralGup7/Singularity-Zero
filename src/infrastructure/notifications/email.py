@@ -26,6 +26,7 @@ class EmailConfig(NotificationConfig):
     to_addresses: list[EmailStr] = Field(min_length=1)
     cc_addresses: list[EmailStr] = Field(default_factory=list)
     subject_prefix: str = Field(default="[Cyber Security Pipeline]")
+    smtp_timeout_seconds: float = Field(default=30.0, gt=0)
 
 
 class EmailNotifier(BaseNotifier):

@@ -563,7 +563,7 @@ class LiteWorker:
         # would otherwise leak into operator logs.
         logger.info(
             "Connecting to Redis Backplane at %s",
-            self._redact_redis_url(self.redis_url),
+            _redact_redis_url(self.redis_url),
         )
         self._redis = aioredis.from_url(self.redis_url)
         await self._redis.ping()

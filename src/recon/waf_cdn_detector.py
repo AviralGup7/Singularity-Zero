@@ -163,7 +163,7 @@ async def detect_waf_cdn(
             pass
 
         wrapped = _ListWithMetadata(results)
-        wrapped._tested_urls = tested_urls
+        wrapped._tested_urls = tested_urls  # type: ignore[attr-defined]
         results = wrapped  # type: ignore[assignment]
     else:
         setattr(results, "_tested_urls", tested_urls)  # type: ignore[attr-defined]

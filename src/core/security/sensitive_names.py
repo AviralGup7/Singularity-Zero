@@ -17,7 +17,7 @@ The names are case-insensitive.  They cover:
 from __future__ import annotations
 
 import re
-from typing import Final
+from typing import Any, Final
 
 SENSITIVE_HEADER_NAMES: Final[frozenset[str]] = frozenset(
     {
@@ -82,7 +82,7 @@ def is_sensitive_name(name: str) -> bool:
     return bool(_SENSITIVE_NAME_PATTERN.match(name or ""))
 
 
-def reject_if_query_contains_credentials(query_params) -> list[str]:
+def reject_if_query_contains_credentials(query_params: Any) -> list[str]:
     """Return the sorted list of credential-like query parameter names that
     appear in ``query_params`` (a ``Mapping[str, str]`` or any object
     supporting ``.keys()`` and ``.get()``).  Empty list means safe.

@@ -59,7 +59,7 @@ def get_default_active_version(registry: Any | None) -> str:
         return DEFAULT_ACTIVE_MODEL_VERSION
     if active is None:
         return DEFAULT_ACTIVE_MODEL_VERSION
-    return active.version
+    return str(active.version)
 
 
 @dataclass(frozen=True)

@@ -46,11 +46,9 @@ _DNS_INFLIGHT_LOCK = threading.Lock()
 # ``OrderedDict`` was previously imported elsewhere; ensure it's
 # available here.
 try:
-    from collections import OrderedDict as _ImportedOrderedDict
+    from collections import OrderedDict as _OrderedDict
 except ImportError:  # pragma: no cover - Python 3.7+ always has it
-    _ImportedOrderedDict = dict  # type: ignore[assignment,misc]
-
-_OrderedDict = _ImportedOrderedDict
+    _OrderedDict = dict  # type: ignore[assignment,misc]
 
 
 def _is_ip_private(ip_str: str) -> bool:
@@ -125,14 +123,14 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
             inflight.set()
         return None
 
-    ips: tuple[str, ...] = tuple({str(sockaddr[0]) for _, _, _, _, sockaddr in addr_infos})
+    resolved_ips: tuple[str, ...] = tuple({str(sockaddr[0]) for _, _, _, _, sockaddr in addr_infos})
     with _DNS_CACHE_LOCK:
-        _lru_dns_insert(hostname, now + _DNS_CACHE_TTL_SECONDS, ips)
+        _lru_dns_insert(hostname, now + _DNS_CACHE_TTL_SECONDS, resolved_ips)
     if is_leader:
         with _DNS_INFLIGHT_LOCK:
             _DNS_INFLIGHT.pop(hostname, None)
         inflight.set()
-    return ips
+    return resolved_ips
 
 
 def _lru_dns_insert(hostname: str, expires: float, ips: tuple[str, ...] | None) -> None:
