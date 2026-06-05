@@ -76,7 +76,11 @@ def compute_entropy_vectorized(data_list: list[str]) -> np.ndarray:
     def shannon(s: str) -> float:
         if not s:
             return 0.0
-        probabilities = [float(s.count(c)) / len(s) for c in set(s)]
+        counts: dict[str, int] = {}
+        for c in s:
+            counts[c] = counts.get(c, 0) + 1
+        total = len(s)
+        probabilities = [cnt / total for cnt in counts.values()]
         return float(-sum(p * np.log2(p) for p in probabilities))
 
     vec_shannon = np.frompyfunc(shannon, 1, 1)
@@ -94,11 +98,9 @@ def has_avx512() -> bool:
         except Exception:  # noqa: BLE001, S110
             pass
     elif system == "windows":
-        try:
-            # Fallback to standard environment checks on Windows
-            pass
-        except Exception:  # noqa: BLE001, S110
-            pass
+        # No reliable way to detect AVX-512 from user-mode on Windows without
+        # a CPUID helper; fall through to False.
+        return False
     return False
 
 

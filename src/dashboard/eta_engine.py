@@ -26,6 +26,27 @@ STAGE_ORDER = [
 ]
 
 
+def _percentile_index(n: int, p: float) -> int:
+    """Return a 0-based index into a sorted array of ``n`` samples.
+
+    Uses the "nearest rank" rule: the percentile ``p`` is the smallest
+    index such that at least ``p`` of the samples are less than or
+    equal to the value at that index. For ``n == 1`` the only sample
+    is returned regardless of ``p`` to avoid an out-of-bounds access
+    on degenerate single-sample stages.
+    """
+    if n <= 0:
+        return 0
+    if n == 1:
+        return 0
+    idx = int(p * n) - 1
+    if idx < 0:
+        idx = 0
+    if idx > n - 1:
+        idx = n - 1
+    return idx
+
+
 class BayesianSimpleModel:
     """Simple Bayesian model for per-stage duration estimation.
 
@@ -66,6 +87,16 @@ class BayesianSimpleModel:
     @property
     def sample_count(self) -> int:
         return len(self._samples)
+
+    @property
+    def samples(self) -> tuple[float, ...]:
+        return tuple(self._samples)
+
+    def add_samples(self, durations: "list[float] | tuple[float, ...]") -> None:
+        """Bulk-add positive samples. Useful for batch loading from history."""
+        for duration in durations:
+            if duration > 0:
+                self._samples.append(duration)
 
     def estimate_remaining(
         self, stage_elapsed: float, stage_index: int, total_stages: int
@@ -248,8 +279,8 @@ class ETAEngine:
         found = False
         for job_models in self._models.values():
             if stage_index in job_models:
-                for s in job_models[stage_index]._samples:
-                    agg.add_sample(s)
+                agg.add_samples(job_models[stage_index].samples)
+                if job_models[stage_index].sample_count > 0:
                     found = True
         return agg if found else None
 
@@ -260,14 +291,13 @@ class ETAEngine:
             stage_index = STAGE_ORDER.index(stage_name)
             model = self._get_aggregate_model(stage_index)
             if model and model.sample_count > 0:
-                samples = model._samples
-                sorted_samples = sorted(samples)
-                n = len(sorted_samples)
+                samples = sorted(model.samples)
+                n = len(samples)
                 stats[stage_name] = {
                     "mean": round(sum(samples) / n, 1),
-                    "p50": round(sorted_samples[n // 2], 1),
-                    "p90": round(sorted_samples[int(n * 0.9)], 1),
-                    "p99": round(sorted_samples[min(int(n * 0.99), n - 1)], 1),
+                    "p50": round(samples[_percentile_index(n, 0.5)], 1),
+                    "p90": round(samples[_percentile_index(n, 0.9)], 1),
+                    "p99": round(samples[_percentile_index(n, 0.99)], 1),
                     "count": n,
                 }
         total_mean = sum(v["mean"] for v in stats.values()) if stats else 0

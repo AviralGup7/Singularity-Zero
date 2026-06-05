@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -55,34 +56,37 @@ class EmailNotifier(BaseNotifier):
         all_recipients = self._email_config.to_addresses + self._email_config.cc_addresses
 
         def _send() -> None:
-            if self._email_config.use_tls:
-                server = smtplib.SMTP(
-                    self._email_config.smtp_host,
-                    self._email_config.smtp_port,
-                )
-                server.starttls()
-            else:
-                server = smtplib.SMTP(
-                    self._email_config.smtp_host,
-                    self._email_config.smtp_port,
-                )
-
-            if self._email_config.smtp_user and self._email_config.smtp_password:
-                server.login(
-                    self._email_config.smtp_user,
-                    self._email_config.smtp_password,
-                )
-
+            server: smtplib.SMTP | None = None
             try:
+                server = smtplib.SMTP(
+                    self._email_config.smtp_host,
+                    self._email_config.smtp_port,
+                    timeout=self._email_config.smtp_timeout_seconds,
+                )
+                if self._email_config.use_tls:
+                    server.starttls()
+                    if self._email_config.smtp_user and self._email_config.smtp_password:
+                        server.ehlo()
+                else:
+                    server.ehlo()
+
+                if self._email_config.smtp_user and self._email_config.smtp_password:
+                    server.login(
+                        self._email_config.smtp_user,
+                        self._email_config.smtp_password,
+                    )
+
                 server.sendmail(
                     self._email_config.from_address,
                     all_recipients,
                     msg.as_string(),
                 )
             finally:
-                server.quit()
-
-        import asyncio
+                if server is not None:
+                    try:
+                        server.quit()
+                    except (smtplib.SMTPException, OSError):
+                        pass
 
         await asyncio.get_running_loop().run_in_executor(None, _send)
 

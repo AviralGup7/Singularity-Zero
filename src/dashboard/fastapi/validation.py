@@ -146,7 +146,7 @@ def _resolve_hostname_stable(hostname: str, samples: int = 3) -> str | None:
         addr = _resolve_hostname(hostname)
         if addr is None:
             return None
-        if addr not in addresses:
+        if addresses and addr != addresses[0]:
             # Answer flipped between samples - reject as a rebinding attempt.
             return None
         addresses.append(addr)
@@ -199,40 +199,6 @@ def is_safe_replay_url(url: str) -> bool:
         ip = ipaddress.ip_address(ip_str)
         if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
             _log_ssrf_block(url, "Resolved IP is private/loopback/reserved/link-local")
-            return False
-        return True
-    except (ValueError, OSError, socket.gaierror):
-        return False
-        hostname = parsed.hostname
-        if not hostname:
-            return False
-        if hostname in _get_replay_allowlist():
-            return True
-        if _is_ip_literal(hostname):
-            ip = ipaddress.ip_address(hostname)
-            if str(ip) == _CLOUD_METADATA_IP:
-                _log_ssrf_block(url, "Cloud metadata IP literal")
-                return False
-            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
-                _log_ssrf_block(url, "IP literal is private/loopback/reserved/link-local")
-                return False
-        lower_host = hostname.lower()
-        if lower_host.endswith(_BLOCKED_SUFFIXES):
-            _log_ssrf_block(url, "Special-use domain suffix")
-            return False
-        ip_str = _resolve_hostname(hostname)
-        if ip_str is None:
-            return False
-        if ip_str == _CLOUD_METADATA_IP:
-            _log_ssrf_block(url, "Resolves to cloud metadata IP")
-            return False
-        ip = ipaddress.ip_address(ip_str)
-        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
-            _log_ssrf_block(url, "Resolved IP is private/loopback/reserved/link-local")
-            return False
-        resolved_again = _resolve_hostname(hostname)
-        if resolved_again and resolved_again != ip_str:
-            _log_ssrf_block(url, "DNS rebinding detected: IPs differ on resolution")
             return False
         return True
     except (ValueError, OSError, socket.gaierror):

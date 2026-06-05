@@ -54,6 +54,16 @@ REDACTED_VALUE = "[REDACTED]"
 EMAIL_REDACTED = "***@***.***"
 IP_REDACTED = "***.***.***.***"
 
+# Pre-compute the (pattern, replacement) tuples once at import time so
+# the redaction hot path does not re-iterate ``SENSITIVE_PATTERNS`` on
+# every log call. This keeps the cost of a single ``_redact_string_patterns``
+# invocation at O(M * N) (M = number of patterns, N = text length) rather
+# than spending an extra O(M) cycle rebuilding the dispatch list.
+_REDACTION_RULES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (pattern, EMAIL_REDACTED if name == "email" else IP_REDACTED if name == "ipv4" else REDACTED_VALUE)
+    for name, pattern in SENSITIVE_PATTERNS.items()
+)
+
 
 def get_trace_id() -> str | None:
     """Get the current trace ID from context."""
@@ -173,13 +183,8 @@ def _redact_string_patterns(text: str) -> str:
         The string with sensitive patterns replaced.
     """
     result = text
-    for pattern_name, pattern in SENSITIVE_PATTERNS.items():
-        if pattern_name == "email":
-            result = pattern.sub(EMAIL_REDACTED, result)
-        elif pattern_name == "ipv4":
-            result = pattern.sub(IP_REDACTED, result)
-        else:
-            result = pattern.sub(REDACTED_VALUE, result)
+    for pattern, replacement in _REDACTION_RULES:
+        result = pattern.sub(replacement, result)
     return result
 
 

@@ -2,10 +2,11 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
-from src.dashboard.fastapi.routers.utils import get_enriched_job
+from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
+from src.dashboard.fastapi.routers.utils import get_enriched_job, job_target_name
 from src.dashboard.fastapi.schemas import ErrorResponse, JobLogsResponse
 
 router = APIRouter(prefix="/api/jobs")
@@ -23,10 +24,6 @@ async def get_job_logs(
     services: Any = Depends(get_queue_client),
 ) -> JobLogsResponse:
     tenant_id = (_auth or {}).get("tenant_id", "default")
-    from fastapi import HTTPException
-
-    from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
-
     job = await get_enriched_job(job_id, services)
     # Bug #34 fix: ``get_enriched_job`` can return ``None`` (e.g. when the
     # job exists in the queue but has not yet been enriched). The previous
@@ -35,8 +32,7 @@ async def get_job_logs(
     # surfacing as a 500 to the client. Emit a clean 404 instead.
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    job_target = str(job.get("target_name") or job.get("hostname") or job.get("target") or "")
-    if not is_target_owned_by_tenant(job_target, tenant_id):
+    if not is_target_owned_by_tenant(job_target_name(job), tenant_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
     from pathlib import Path

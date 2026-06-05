@@ -61,11 +61,17 @@ class MeshBidder:
         if psutil:
             try:
                 # getloadavg is Unix-only
-                if hasattr(psutil, "getloadavg"):
-                    load_avg = psutil.getloadavg()[0]
+                load_avg_getter = getattr(psutil, "getloadavg", None)
+                if callable(load_avg_getter):
+                    load_avg = load_avg_getter()[0]
                 else:
-                    # Fallback for Windows
-                    load_avg = psutil.cpu_percent() / 100.0 * (psutil.cpu_count() or 1)
+                    # Fallback for Windows: prime the counter (interval=None
+                    # is non-blocking after the first call) and use the
+                    # last reading. ``psutil.cpu_percent()`` without an
+                    # interval sleeps for a full second on first call, so
+                    # we explicitly prime here.
+                    psutil.cpu_percent(interval=None)
+                    load_avg = psutil.cpu_percent(interval=None) / 100.0 * (psutil.cpu_count() or 1)
 
                 return float(min(1.0, load_avg / (psutil.cpu_count() or 1)))
             except Exception:

@@ -383,11 +383,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     async def _mesh_telemetry_pulse(node: MeshNode, app_ref: FastAPI) -> None:
         while True:
             try:
-                if psutil:
-                    # Fix S1-1: Use to_thread to avoid blocking the event loop
-                    # while getting fresh CPU %
-                    node.cpu_usage = await asyncio.to_thread(psutil.cpu_percent, interval=0.1)
-                    node.ram_available_mb = psutil.virtual_memory().available / 1024 / 1024
+                if psutil is not None:
+                    try:
+                        # Fix S1-1: Use to_thread to avoid blocking the event loop
+                        # while getting fresh CPU %
+                        node.cpu_usage = await asyncio.to_thread(psutil.cpu_percent, interval=0.1)
+                        node.ram_available_mb = psutil.virtual_memory().available / 1024 / 1024
+                    except (AttributeError, OSError) as psutil_exc:
+                        logger.debug("psutil metric read failed: %s", psutil_exc)
                 # Filter running jobs
                 running = [
                     j for j in app_ref.state.services.jobs.values() if j.get("status") == "running"
@@ -409,11 +412,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await eta_engine.start()
 
     logger.info("Neural-Mesh Infrastructure: ACTIVE (NodeID: %s)", node_id)
-    logger.info("Dashboard lifecyle transition: READY")
+    logger.info("Dashboard lifecycle transition: READY")
+    if psutil is None:
+        logger.warning(
+            "psutil is not installed; mesh CPU/RAM telemetry will be unavailable"
+        )
 
     yield
 
-    logger.info("Dashboard lifecyle transition: SHUTDOWN")
+    logger.info("Dashboard lifecycle transition: SHUTDOWN")
 
     if hasattr(app.state, "mesh_telemetry_task"):
         app.state.mesh_telemetry_task.cancel()

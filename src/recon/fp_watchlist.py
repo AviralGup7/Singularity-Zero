@@ -9,6 +9,7 @@ Per EVOLUTION_ALPHA_PLAN.md Phase 9.2 hardening + GAP_ANALYSIS.md Phase 9.2.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -31,7 +32,7 @@ _MONITORING_STATUS = "monitoring"
 
 _REMEDIATED_STATUSES: set[str] = {"remediated", "resolved", "closed"}
 
-_REEMERGENCE_MATCH_STREPTH = 0.6  # jaccard threshold kept for future fuzzy matching
+_REEMERGENCE_MATCH_STRENGTH = 0.6  # jaccard threshold kept for future fuzzy matching
 
 
 def _is_false_positive(finding: dict[str, Any]) -> bool:
@@ -151,7 +152,7 @@ def _build_watchlist_entry(finding: dict[str, Any]) -> dict[str, Any]:
 def _match_reemergence(watchlist_entry: dict[str, Any], new_finding: dict[str, Any]) -> bool:
     """Return True if `new_finding` re-emerges the same issue tracked in `watchlist_entry`.
 
-    Matches on two dimenions:
+    Matches on two dimensions:
     - Vulnerability class must be identical.
     - URL of the new finding must satisfy the stored url_pattern wildcard.
     """
@@ -413,9 +414,7 @@ class FPWatchlistManager:
             }
             corr_id = wid
             # Run the coroutine in the existing event loop when possible;
-            # fall back to running_asyncio only if the loop is already closed.
-            import asyncio
-
+            # fall back to ``asyncio.run`` only if the loop is already closed.
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:

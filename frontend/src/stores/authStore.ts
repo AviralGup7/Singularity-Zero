@@ -40,6 +40,7 @@ const AUTH_STORAGE_KEY = 'cyber-pipeline-auth';
 function mapApiRole(role: string): UserRole {
   const normalized = role?.toLowerCase() ?? '';
   if (normalized === 'admin' || normalized === 'superadmin') return 'admin';
+  if (normalized === 'team-lead' || normalized === 'team_lead' || normalized === 'lead') return 'team-lead';
   if (normalized === 'worker' || normalized === 'analyst') return 'analyst';
   if (normalized === 'viewer' || normalized === 'guest') return 'viewer';
   return 'viewer';
