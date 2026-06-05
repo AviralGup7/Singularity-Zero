@@ -4,10 +4,8 @@ from __future__ import annotations
 import logging
 import time
 from threading import Lock
-from typing import ClassVar
 
 from src.core.contracts.health import CorrectiveAction, HealthComponent
-
 
 logger = logging.getLogger(__name__)
 

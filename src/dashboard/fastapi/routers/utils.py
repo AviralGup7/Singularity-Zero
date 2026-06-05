@@ -5,8 +5,6 @@ from typing import Any, cast
 
 from fastapi import HTTPException
 
-from src.dashboard.feature_flags import FeatureFlags
-
 logger = logging.getLogger(__name__)
 
 
@@ -70,6 +68,8 @@ def heartbeat_interval_seconds() -> float:
     Supports both callable and scalar style values so runtime patching
     cannot crash SSE loops with type errors.
     """
+    from src.dashboard.feature_flags import FeatureFlags
+
     raw_value = getattr(FeatureFlags, "SSE_HEARTBEAT_INTERVAL_SECONDS", 25)
     interval = raw_value() if callable(raw_value) else raw_value
     try:
