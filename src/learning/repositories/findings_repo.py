@@ -46,7 +46,7 @@ class FindingsRepo(BaseRepo):
         placeholders = ",".join("?" for _ in range(placeholders_count))
         with self._cursor() as cur:
             cur.execute(
-                f"SELECT * FROM findings WHERE run_id IN ({placeholders}) ORDER BY confidence DESC",  # noqa: S608
+                f"SELECT * FROM findings WHERE run_id IN ({placeholders}) ORDER BY confidence DESC",  # noqa: S608  # nosec B608  (placeholders are static "?" chars)
                 list(run_ids),
             )
             return [dict(r) for r in cur.fetchall()]
@@ -115,7 +115,7 @@ class FindingsRepo(BaseRepo):
                     JOIN scan_runs sr ON f.run_id = sr.run_id
                     WHERE f.category = ? AND sr.target_name != ?
                       AND f.tech_stack IN ({placeholders})
-                    ORDER BY f.confidence DESC LIMIT ?""",  # noqa: S608
+                    ORDER BY f.confidence DESC LIMIT ?""",  # noqa: S608  # nosec B608  (placeholders are static "?" chars)
                 [category, exclude_target, *tech_stack, limit],
             )
             return [dict(r) for r in cur.fetchall()]

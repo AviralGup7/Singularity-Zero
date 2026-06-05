@@ -60,8 +60,8 @@ class FeedbackRepo(BaseRepo):
             return []
         placeholders = ",".join("?" for _ in run_ids)
         with self._cursor() as cur:
-            cur.execute(  # noqa: S608
-                f"SELECT * FROM feedback_events WHERE run_id IN ({placeholders})",  # noqa: S608
+            cur.execute(  # noqa: S608  # nosec B608  (placeholders are static "?" chars)
+                f"SELECT * FROM feedback_events WHERE run_id IN ({placeholders})",  # noqa: S608  # nosec B608
                 list(run_ids),
             )
             return [dict(r) for r in cur.fetchall()]
@@ -160,7 +160,7 @@ class FeedbackRepo(BaseRepo):
                             {" ".join(case_clauses)}
                         END
                         WHERE event_id IN ({placeholders})
-                    """  # noqa: S608
+                    """  # noqa: S608  # nosec B608  (placeholders/case_clauses are static "?" chars)
                     cur.execute(query, params)
 
             return len(updates)

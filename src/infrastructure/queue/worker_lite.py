@@ -124,7 +124,7 @@ def setup_tools(dest_dir: str | None = None) -> None:
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmp_archive = Path(tmpdir) / "archive.zip"
                 with (
-                    urllib.request.urlopen(req, timeout=60) as response,  # noqa: S310
+                    urllib.request.urlopen(req, timeout=60) as response,  # noqa: S310  # nosec B310  (scheme allowlist checked above)
                     open(tmp_archive, "wb") as out_file,
                 ):
                     shutil.copyfileobj(response, out_file)
