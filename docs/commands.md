@@ -1,4 +1,4 @@
-# Commands Reference
+﻿# Commands Reference
 
 This guide provides a reference for all CLI operations using the unified `cyber` command engine.
 
@@ -119,5 +119,5 @@ Scaffold a new custom scanning plugin with clean absolute imports and automatic 
 
 For backward compatibility, individual legacy script wrappers remain available (defined in `pyproject.toml`):
 - **Pipeline Runner**: `cyber-pipeline` (aliases `cyber scan run`)
-- **Dashboard Server**: `cyber-dashboard` (aliases `cyber start dashboard`)
+- **Dashboard Server**: cyber-dashboard was removed; use `cyber start dashboard` directly
 - **Queue Worker**: `cyber-worker` (aliases `cyber start worker`)

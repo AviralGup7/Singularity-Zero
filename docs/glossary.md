@@ -17,7 +17,7 @@ Key terms and concepts used in the Singularity-Zero Cyber Security Test Pipeline
 
 ## G
 - **Ghost-Actor**: A task actor capable of serializing its entire execution state (and logic function) and migrating dynamically across mesh nodes mid-execution. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
-- **Ghost-VFS**: An anti-forensic, memory-only Virtual File System encrypted with AES-256-GCM that prevents sensitive scan artifacts from touching physical storage. See [Architecture - Stealth & Anti-Forensics](architecture.md#3-stealth--anti-forensics).
+- **Ghost-VFS**: An anti-forensic, memory-only Virtual File System encrypted with AES-256-GCM that prevents sensitive scan artifacts from touching physical storage. See [Architecture - Stealth & Anti-Forensics](architecture.md#3-stealth-anti-forensics).
 - **Gossip Protocol**: An authenticated SWIM-based peer-to-peer protocol used by mesh nodes to share load metrics and monitor cluster health. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
 
 ## H
@@ -27,7 +27,7 @@ Key terms and concepts used in the Singularity-Zero Cyber Security Test Pipeline
 - **Neural-Mesh**: The collective term for the pipeline's self-organizing P2P distributed intelligence layer. See [Architecture - The 'Ghost' Execution Plane](architecture.md#1-the-ghost-execution-plane-actor-mesh).
 
 ## P
-- **Polymorphic Chameleon**: An evasion subsystem leveraging a Hidden Markov Model (HMM) to dynamically mutate request headers, JA3 TLS fingerprints, and inject timing delays to bypass WAF heuristic profiling. See [Architecture - Stealth & Anti-Forensics](architecture.md#3-stealth--anti-forensics).
+- **Polymorphic Chameleon**: An evasion subsystem leveraging a Hidden Markov Model (HMM) to dynamically mutate request headers, JA3 TLS fingerprints, and inject timing delays to bypass WAF heuristic profiling. See [Architecture - Stealth & Anti-Forensics](architecture.md#3-stealth-anti-forensics).
 
 ## S
 - **Semantic Deduplication**: A technique that groups functionally identical vulnerability findings using vector-space Cosine Similarity, bypassing rigid signature limitations. See [Architecture - Cognitive-Logic Analysis](architecture.md#2-cognitive-logic-analysis).
@@ -43,8 +43,8 @@ Key terms and concepts used in the Singularity-Zero Cyber Security Test Pipeline
 
 ## 🔢 3D Visualization & Control Layer
 
-- **3D Attack-Chain Cockpit**: A real-time, interactive visual interface mapping target hierarchies and threat lateral movement directly from Kuzu graph DB queries. See [Architecture - UI / UX Synchronization](architecture.md#-ui--ux-synchronization).
-- **Pipeline Control Deck**: A floating glassmorphic controller integrated into the 3D Cockpit to configure scans, view SSE active-stage telemetry, and execute restart-safe control actions. See [Architecture - UI / UX Synchronization](architecture.md#-ui--ux-synchronization).
-- **Dynamic Level-of-Detail (LOD)**: A visual performance optimization that scales down geometric complexity of node meshes based on active network graph size to ensure 60 FPS rendering. See [Architecture - UI / UX Synchronization](architecture.md#-ui--ux-synchronization).
-- **Frustum Culling**: A rendering optimization that excludes calculations and GPU draw calls for objects located outside the camera's current viewing volume. See [Architecture - UI / UX Synchronization](architecture.md#-ui--ux-synchronization).
+- **3D Attack-Chain Cockpit**: A real-time, interactive visual interface mapping target hierarchies and threat lateral movement directly from Kuzu graph DB queries. See [Architecture - UI / UX Synchronization](architecture.md#ui-ux-synchronization).
+- **Pipeline Control Deck**: A floating glassmorphic controller integrated into the 3D Cockpit to configure scans, view SSE active-stage telemetry, and execute restart-safe control actions. See [Architecture - UI / UX Synchronization](architecture.md#ui-ux-synchronization).
+- **Dynamic Level-of-Detail (LOD)**: A visual performance optimization that scales down geometric complexity of node meshes based on active network graph size to ensure 60 FPS rendering. See [Architecture - UI / UX Synchronization](architecture.md#ui-ux-synchronization).
+- **Frustum Culling**: A rendering optimization that excludes calculations and GPU draw calls for objects located outside the camera's current viewing volume. See [Architecture - UI / UX Synchronization](architecture.md#ui-ux-synchronization).
 

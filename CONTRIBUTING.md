@@ -12,8 +12,8 @@ workflow, code style, and review expectations for the project.
 git clone <repo-url> cyber-pipeline
 cd cyber-pipeline
 
-# 2. Create a virtual environment (Python 3.12+ required; CI tests on 3.14)
-python3.12 -m venv .venv
+# 2. Create a virtual environment (Python 3.14 or newer required)
+python3.14 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\Activate.ps1
 
 # 3. Install dev dependencies
@@ -35,7 +35,7 @@ hooks are configured in `.pre-commit-config.yaml`; install them with
 
 ## Code style
 
-* **Python 3.12 baseline** — use modern type hints (`list[str]`,
+* **Python 3.14 baseline** � use modern type hints (`list[str]`,
   `dict[str, int]`, `T | None`) and `from __future__ import annotations`
   is no longer required.  Imports are sorted with `isort` (via ruff).
 * **Formatting** — `ruff format` is the source of truth.  Do not
@@ -48,7 +48,7 @@ hooks are configured in `.pre-commit-config.yaml`; install them with
   for backend modules; the standard `logging` module is fine for
   leaf libraries.
 * **Tests** — every new public function gets at least one unit test.
-  The coverage gate is currently 10 % at the project level, with 5 %
+  The coverage gate is currently 25 % at the project level, with 5 %
   per module.  New modules should aim for **≥ 80 % line coverage**; the
   gate will be raised over time.
 

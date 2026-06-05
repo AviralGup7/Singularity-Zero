@@ -1,4 +1,4 @@
-# Frontend Handbook
+﻿# Frontend Handbook
 
 This document is the current source of truth for the frontend in this repository.
 
@@ -49,7 +49,7 @@ Testing:
 ## 2. Project Layout
 
 Primary frontend root:
-- `D:\cyber security test pipeline - Copy\frontend`
+- `frontend/`
 
 Main source tree:
 - `frontend/src/api`: API modules and transport core
@@ -61,6 +61,12 @@ Main source tree:
 - `frontend/src/pages`: route pages
 - `frontend/src/styles`: canonical CSS system
 - `frontend/src/tests`: Vitest unit/component tests
+- `frontend/src/utils`: utility functions and init helpers
+- `frontend/src/workers`: web worker modules
+- `frontend/src/assets`: static assets
+- `frontend/src/stores`: state stores
+- `frontend/src/stories`: Storybook stories
+- `frontend/src/types`: TypeScript type definitions
 - `frontend/tests`: Playwright e2e/audit/visual suites
 
 ---
@@ -73,7 +79,7 @@ Entrypoint:
 Boot sequence:
 1. Imports `frontend/src/styles/index.css` (single style pipeline entry).
 2. Registers `vite:preloadError` auto-reload for stale chunk recovery.
-3. Lazily imports init helpers from `@/utils/init` if available.
+3. Lazily imports init helpers from `frontend/src/utils/init` if available.
 4. Installs global handlers for:
    - uncaught JS errors
    - unhandled promise rejections
@@ -487,13 +493,13 @@ Operational reliability:
 
 Used keys:
 - `VITE_API_BASE` (API base URL; empty in dev with Vite proxy)
-- `VITE_ENABLE_NOTIFICATION_DIGEST`
 - `VITE_NOTIFICATION_DIGEST_MAX_ITEMS`
 - `VITE_NOTIFICATION_DIGEST_THROTTLE_MS`
 
 Defined in:
-- `frontend/.env`
 - `frontend/src/config.ts`
+
+Note: `frontend/.env` is referenced in project conventions but no `.env` file currently exists in the workspace; placeholders and defaults are handled in `frontend/src/config.ts`.
 
 ---
 

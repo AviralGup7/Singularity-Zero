@@ -1,13 +1,13 @@
-# Project: Singularity-Zero Architecture
+﻿# Project: Singularity-Zero Architecture
 
-This document defines the high-resilience, distributed execution model of the Cyber Security Test Pipeline. The system operates as a **Ghost-Actor Mesh**—a self-organizing, hardware-accelerated autonomous entity designed for infinite scale and zero silent failures.
+This document defines the high-resilience, distributed execution model of the Cyber Security Test Pipeline. The system operates as a **Ghost-Actor Mesh**â€”a self-organizing, hardware-accelerated autonomous entity designed for infinite scale and zero silent failures.
 
 ---
 
-## 🏗️ Core Principles: 'Singularity-Zero'
+## ðŸ—ï¸ Core Principles: 'Singularity-Zero'
 
 ### 1. The 'Ghost' Execution Plane (Actor-Mesh)
-- **Location-Transparent Actors**: Tasks are encapsulated as stateful `pykka.ThreadingActor` instances (see `src/core/frontier/ghost_actor.py`). If a node experiences heavy load, actors serialize their entire state — including compaction budgets, applied WAL IDs, and dynamic logic functions (using `cloudpickle`-based `mesh_marshal_pickle`) — and migrate to colder nodes mid-execution. An earlier design proposed replacing `pykka` with a custom asyncio actor model; that effort was paused and the project still depends on `pykka` for thread-isolated actor lifecycles.
+- **Location-Transparent Actors**: Tasks are encapsulated as stateful `pykka.ThreadingActor` instances (see `src/core/frontier/ghost_actor.py`). If a node experiences heavy load, actors serialize their entire state â€” including compaction budgets, applied WAL IDs, and dynamic logic functions (using `cloudpickle`-based `mesh_marshal_pickle`) â€” and migrate to colder nodes mid-execution. An earlier design proposed replacing `pykka` with a custom asyncio actor model; that effort was never fully landed and the project still depends on `pykka` for thread-isolated actor lifecycles.
 - **Distributed Consensus & Sharding**: The mesh uses an authenticated SWIM-based Gossip protocol (HMAC-SHA256). A deterministic Bully algorithm elects shard leaders, and targets are distributed using Consistent Hashing.
 - **CRDT State Engine**: All critical pipeline data (subdomains, URLs, findings) are stored in Conflict-free Replicated Data Types using **Hybrid Logical Clock (HLC) LWW-Sets**. Every state update preserves causal consistency with a constant $O(1)$ logical clock size instead of unbounded Vector Clocks. Tombstone compaction runs under AIMD budgeting, accelerated by a high-speed compiled Cython radix sort (`_state_cython.pyx`) with a robust pure-Python fallback.
 - **Durable Ledger & Circuit Breaker (WAL)**: All state transitions are committed to the write-ahead log using a physical dual-commit protocol. Deltas are logged concurrently to a Redis Stream and a local Append-Only File (AOF). All Redis command streams are wrapped by an active **Circuit Breaker** pattern (CLOSED, OPEN, HALF_OPEN). If the Redis link drops or times out, the circuit trips to `OPEN`, immediately redirecting all operations to local AOF and SQLite-backed queues with zero thread blockage. Nodes automatically replay and reconcile missed deltas using the local ledger once the Redis link heals. Disk-level durability is guaranteed via explicit buffer flushes and `os.fsync()` commits.
@@ -49,7 +49,7 @@ This document defines the high-resilience, distributed execution model of the Cy
 
 ---
 
-## 🖥️ UI / UX Synchronization
+## ðŸ–¥ï¸ UI / UX Synchronization
 The dashboard acts as a **Real-Time Mesh Command Center**:
 - **Action Buffer Engine**: Employs a 100ms micro-batching reducer to prevent UI flicker and race conditions during massive telemetry bursts.
 - **High-Performance Virtualization**: Uses `react-virtuoso` to render 100,000+ log lines and findings at a steady 60 FPS.
@@ -59,12 +59,12 @@ The dashboard acts as a **Real-Time Mesh Command Center**:
 - **Interactive Request Replay**: Supports real-time "Replay with Diff" for finding verification. Enables analysts to modify headers, auth-modes, and payloads with side-by-side behavioral change detection.
 - **Finding Intelligence**: Integrated collaborative notes and threaded analyst commentary for each security finding, synced via SSE.
 - **Bloom Mesh Health Tile**: The dashboard polls `/api/bloom/health` for per-node memory, element count, false-positive probability, saturation history, and admin-triggered reconciliation.
-- **Interactive Sandbox & Time-Travel Proxies**: Leverages the FastAPI `sandbox_service.py` layer to orchestrate and proxy ephemeral container environments. Analysts can view timeline state snapshots for every pipeline milestone and open secure, isolated xterm.js terminals directly from the dashboard to perform manual validations with zero local configuration.
 
-
+### 5. Sandbox Proxies & Time-Travel
+ - Leverages the FastAPI `sandbox_service.py` layer to orchestrate and proxy ephemeral container environments. Analysts can view timeline state snapshots for every pipeline milestone and open secure, isolated xterm.js terminals directly from the dashboard to perform manual validations with zero local configuration.
 ---
 
-## 🔐 Platform Hardening & Governance
+## ðŸ” Platform Hardening & Governance
 
 The platform features strict governance and defense-in-depth mechanisms to protect concurrent client operations and secure the automated supply chain:
 
@@ -106,6 +106,7 @@ The platform features strict governance and defense-in-depth mechanisms to prote
 
 ### 8. Recurring False-Positive Watchlist
 - **Regression Watchlist Management**: The `FPWatchlistManager` (`src/recon/fp_watchlist.py`) serializes analyst-confirmed `FALSE_POSITIVE` findings to a persistent `<output>/regression-watchlist.json` file on every run completion. De-duplicated URL templates are extracted, and `check_reemergence()` dispatches elevated alerts via the `NotificationManager` if a regression is detected.
+
 
 
 

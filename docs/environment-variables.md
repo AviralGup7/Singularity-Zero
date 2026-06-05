@@ -73,12 +73,12 @@ Any field on the `DashboardConfig` schema can also be explicitly overridden usin
 
 In addition to system configurations, the system ingests custom HTTP request headers to govern multi-tenancy and security boundaries. 
 
-> **SOURCE OF TRUTH**: For detailed header requirements, dynamic namespacing scopes, and anti-CSRF policies, see [API Reference - Global Security Headers](api-reference.md#-global-security--governance-headers).
+> **SOURCE OF TRUTH**: For detailed header requirements, dynamic namespacing scopes, and anti-CSRF policies, see [API Reference - Global Security Headers](api-reference.md#global-security-governance-headers).
 
 | Header | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `X-Tenant-ID` | No | `default` | Identifies client tenant context. See [Global Security Headers](api-reference.md#-global-security--governance-headers). |
-| `X-CSRF-Token` | Yes (Mutating requests) | (None) | Stateless double-submit cookie token. See [Global Security Headers](api-reference.md#-global-security--governance-headers). |
+| `X-Tenant-ID` | No | `default` | Identifies client tenant context. See [Global Security Headers](api-reference.md#global-security-governance-headers). |
+| `X-CSRF-Token` | Yes (Mutating requests) | (None) | Stateless double-submit cookie token. See [Global Security Headers](api-reference.md#global-security-governance-headers). |
 
 ---
 

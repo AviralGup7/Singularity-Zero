@@ -34,6 +34,6 @@ if (-not (Test-Path $ConfigTarget) -and (Test-Path $ConfigExample)) {
 }
 
 Write-Host "Dev setup complete. Next steps:"
-Write-Host "  - Start the dashboard: cyber-dashboard --port 8000"
+Write-Host "  - Start the dashboard: cyber start dashboard --port 8000"
 Write-Host "  - Run the pipeline: cyber-pipeline --config $ConfigTarget --scope configs/scope.example.txt"
 Write-Host "  - Run unit tests: pytest tests/unit -q"

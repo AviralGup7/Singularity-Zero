@@ -24,14 +24,15 @@ pip install -e ".[dev]"
 ### 3. Basic Configuration
 ```bash
 cp configs/config.example.json configs/config.json
+cat configs/scope.example.txt  # See configs/scope.example.txt for multi-line and wildcard formats
 echo "example.com" > scope.txt
 ```
 
 ### 4. Multi-Tenant Scoping (Local Development)
 To test and develop under a multi-tenant context:
-- Set `ENABLE_API_SECURITY=true` in your `.env` file to activate role and tenant boundaries.
+- Set `ENABLE_API_SECURITY=true` in your `.env` file to enable auth token checks globally on the dashboard API and to activate multi-tenant role and tenant boundaries.
 - Include the `X-Tenant-ID` header on requests (e.g. `X-Tenant-ID: client_alpha`) to automatically scope Redis keys and findings paths.
-- For security header requirements and CSRF Double-Submit token specifications, see [API Reference - Global Security Headers](api-reference.md#-global-security--governance-headers).
+- For security header requirements and CSRF Double-Submit token specifications, see [API Reference - Global Security Headers](api-reference.md#global-security-governance-headers).
 
 
 ### 5. Running Your First Scan
@@ -129,15 +130,22 @@ python worker_lite.py --redis-url redis://<YOUR_PC_IP>:16379/0
 ### Debugging a Stage
 Run the orchestrator synchronously for easier stepping:
 ```python
+import argparse
 from pathlib import Path
 from src.pipeline.services.pipeline_flow import run_pipeline
 from src.core.config.loader import load_config
 
 cfg = load_config(Path("configs/config.json"))
-run_pipeline(cfg.__dict__, ["example.com"], output_dir="output/debug")
+run_pipeline(
+    cfg.to_dict(),
+    ["example.com"],
+    output_dir="output/debug",
+    args=argparse.Namespace(),
+)
 ```
 
 ### Database
 Manage migrations with Alembic:
 - `alembic upgrade head`
 - `alembic revision --autogenerate -m "description"`
+
