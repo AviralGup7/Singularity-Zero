@@ -92,9 +92,7 @@ class DriftDetector:
             # from leaving the snapshot half-rendered.
             parent = path.parent
             parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp_path = tempfile.mkstemp(
-                prefix=path.name + ".", suffix=".tmp", dir=str(parent)
-            )
+            fd, tmp_path = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(parent))
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
@@ -124,9 +122,7 @@ class DriftDetector:
         with _get_target_lock(target):
             return self._compute_drift_locked(target, current_data)
 
-    def _compute_drift_locked(
-        self, target: str, current_data: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _compute_drift_locked(self, target: str, current_data: dict[str, Any]) -> dict[str, Any]:
         historical = self.load_latest_snapshot(target) or {}
         is_first_run = not bool(historical)
 

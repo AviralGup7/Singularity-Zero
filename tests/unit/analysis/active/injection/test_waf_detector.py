@@ -209,9 +209,7 @@ class TestWafDetectorDetect(unittest.TestCase):
 
     def test_injection_params_added_with_noise(self) -> None:
         client = MagicMock()
-        client.get.return_value = MagicMock(
-            status_code=200, text="ok", headers={}
-        )
+        client.get.return_value = MagicMock(status_code=200, text="ok", headers={})
 
         detector = WafDetector(noise_payload="<custom>")
         detector.detect(

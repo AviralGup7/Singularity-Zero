@@ -152,7 +152,6 @@ class GoldenSetEvaluation:
         }
 
 
-
 def _numeric(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)

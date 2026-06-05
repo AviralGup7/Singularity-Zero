@@ -239,6 +239,7 @@ def _json_payloads(param: str, value: str) -> list[dict[str, str]]:
     json_ast_mutator = None
     try:
         from src.fuzzing.ast_mutator import JSONASTMutator
+
         json_ast_mutator = JSONASTMutator()
     except ImportError as exc:
         logger.warning(

@@ -128,9 +128,7 @@ def save_forensic_exchange(
     output_root = output_dir.resolve()
     forensics_dir = (output_root / target_name / "forensics").resolve()
     if not forensics_dir.is_relative_to(output_root):
-        raise ValueError(
-            f"target_name {target_name!r} resolves outside output_dir"
-        )
+        raise ValueError(f"target_name {target_name!r} resolves outside output_dir")
     forensics_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = forensics_dir / f"exchange_{exchange.exchange_id}.json"

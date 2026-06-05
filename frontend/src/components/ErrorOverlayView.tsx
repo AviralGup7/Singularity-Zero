@@ -42,13 +42,6 @@ export function ErrorOverlay({ title, message, stack }: { title: string; message
     setVisible(true);
   }, [title, message, stack]);
 
-  useEffect(() => {
-    return () => {
-      setVisible(false);
-      // cede control back to the state shim;
-    };
-  }, []);
-
   if (!visible) return null;
 
   return (

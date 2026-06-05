@@ -33,12 +33,17 @@ except ImportError:  # pragma: no cover - registry is part of the project
 _JOB_CACHE: dict[str, tuple[float, dict[str, Any] | None]] = {}
 _JOB_CACHE_LOCK = asyncio.Lock()
 
+
 async def get_cached_job(job_id: str, services: Any) -> dict[str, Any] | None:
     async with _JOB_CACHE_LOCK:
         now = time.time()
         if job_id in _JOB_CACHE:
             ts, cached_job = _JOB_CACHE[job_id]
-            is_terminal = cached_job and cached_job.get("status") in ("completed", "failed", "stopped")
+            is_terminal = cached_job and cached_job.get("status") in (
+                "completed",
+                "failed",
+                "stopped",
+            )
             if is_terminal or (now - ts < 0.5):
                 return cached_job
         job = await asyncio.to_thread(services.get_job, job_id)
@@ -114,6 +119,7 @@ async def stream_job_logs(
         async def typed_event_stream() -> AsyncGenerator[str]:
             nonlocal last_count, last_stage
             from src.dashboard.job_state import _coerce_epoch
+
             _global_tracker.register_client(job_id)
 
             last_heartbeat = time.time()
@@ -183,13 +189,27 @@ async def stream_job_logs(
                         "failure_reason_code": current_job.get("failure_reason_code") or None,
                         "failure_step": current_job.get("failure_step") or None,
                         "failure_reason": current_job.get("failure_reason") or None,
-                        "stage_status": (stage_entry or {}).get("status") if isinstance(stage_entry, dict) else None,
-                        "stage_reason": (stage_entry or {}).get("reason") if isinstance(stage_entry, dict) else None,
-                        "stage_error": (stage_entry or {}).get("error") if isinstance(stage_entry, dict) else None,
-                        "retry_count": (stage_entry or {}).get("retry_count") if isinstance(stage_entry, dict) else None,
-                        "stage_progress": job_snapshot.get("stage_progress") if isinstance(job_snapshot.get("stage_progress"), list) else None,
-                        "progress_telemetry": job_snapshot.get("progress_telemetry") if isinstance(job_snapshot.get("progress_telemetry"), dict) else None,
-                        "telemetry_events": telemetry_events[-25:] if isinstance(telemetry_events, list) else None,
+                        "stage_status": (stage_entry or {}).get("status")
+                        if isinstance(stage_entry, dict)
+                        else None,
+                        "stage_reason": (stage_entry or {}).get("reason")
+                        if isinstance(stage_entry, dict)
+                        else None,
+                        "stage_error": (stage_entry or {}).get("error")
+                        if isinstance(stage_entry, dict)
+                        else None,
+                        "retry_count": (stage_entry or {}).get("retry_count")
+                        if isinstance(stage_entry, dict)
+                        else None,
+                        "stage_progress": job_snapshot.get("stage_progress")
+                        if isinstance(job_snapshot.get("stage_progress"), list)
+                        else None,
+                        "progress_telemetry": job_snapshot.get("progress_telemetry")
+                        if isinstance(job_snapshot.get("progress_telemetry"), dict)
+                        else None,
+                        "telemetry_events": telemetry_events[-25:]
+                        if isinstance(telemetry_events, list)
+                        else None,
                     }
 
                     if current_data != last_progress_data:
@@ -482,13 +502,27 @@ async def stream_job_progress(
                     "failure_reason_code": current_job.get("failure_reason_code") or None,
                     "failure_step": current_job.get("failure_step") or None,
                     "failure_reason": current_job.get("failure_reason") or None,
-                    "stage_status": (stage_entry or {}).get("status") if isinstance(stage_entry, dict) else None,
-                    "stage_reason": (stage_entry or {}).get("reason") if isinstance(stage_entry, dict) else None,
-                    "stage_error": (stage_entry or {}).get("error") if isinstance(stage_entry, dict) else None,
-                    "retry_count": (stage_entry or {}).get("retry_count") if isinstance(stage_entry, dict) else None,
-                    "stage_progress": job_snapshot.get("stage_progress") if isinstance(job_snapshot.get("stage_progress"), list) else None,
-                    "progress_telemetry": job_snapshot.get("progress_telemetry") if isinstance(job_snapshot.get("progress_telemetry"), dict) else None,
-                    "telemetry_events": telemetry_events[-25:] if isinstance(telemetry_events, list) else None,
+                    "stage_status": (stage_entry or {}).get("status")
+                    if isinstance(stage_entry, dict)
+                    else None,
+                    "stage_reason": (stage_entry or {}).get("reason")
+                    if isinstance(stage_entry, dict)
+                    else None,
+                    "stage_error": (stage_entry or {}).get("error")
+                    if isinstance(stage_entry, dict)
+                    else None,
+                    "retry_count": (stage_entry or {}).get("retry_count")
+                    if isinstance(stage_entry, dict)
+                    else None,
+                    "stage_progress": job_snapshot.get("stage_progress")
+                    if isinstance(job_snapshot.get("stage_progress"), list)
+                    else None,
+                    "progress_telemetry": job_snapshot.get("progress_telemetry")
+                    if isinstance(job_snapshot.get("progress_telemetry"), dict)
+                    else None,
+                    "telemetry_events": telemetry_events[-25:]
+                    if isinstance(telemetry_events, list)
+                    else None,
                 }
 
                 if current_data != last_progress_data:
@@ -606,6 +640,7 @@ async def stream_job_progress(
                 await asyncio.sleep(1.0)
         finally:
             from src.core.events import get_event_bus
+
             _global_tracker.deregister_client(job_id)
 
             try:

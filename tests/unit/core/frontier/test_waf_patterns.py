@@ -46,9 +46,7 @@ class TestKnownProviders(unittest.TestCase):
 
     def test_aws_waf_present(self) -> None:
         self.assertIn("AWS WAF", CDN_WAF_PATTERNS)
-        self.assertTrue(
-            any("AWS WAF" in b for b in CDN_WAF_PATTERNS["AWS WAF"]["body"])
-        )
+        self.assertTrue(any("AWS WAF" in b for b in CDN_WAF_PATTERNS["AWS WAF"]["body"]))
 
     def test_akamai_present(self) -> None:
         self.assertIn("Akamai", CDN_WAF_PATTERNS)
@@ -73,9 +71,7 @@ class TestKnownProviders(unittest.TestCase):
 
     def test_modsecurity_present(self) -> None:
         self.assertIn("ModSecurity", CDN_WAF_PATTERNS)
-        self.assertTrue(
-            any("mod_security" in b for b in CDN_WAF_PATTERNS["ModSecurity"]["body"])
-        )
+        self.assertTrue(any("mod_security" in b for b in CDN_WAF_PATTERNS["ModSecurity"]["body"]))
 
     def test_fortiweb_present(self) -> None:
         self.assertIn("FortiWeb WAF", CDN_WAF_PATTERNS)

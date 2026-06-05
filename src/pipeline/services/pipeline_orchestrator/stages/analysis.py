@@ -329,11 +329,11 @@ async def run_passive_scanning(
                     try:
                         event_bus(event)
                     except Exception as bus_exc:  # noqa: BLE001
-                        logger.debug(
-                            "event_bus rejected finding event %s: %s", finding_id, bus_exc
-                        )
+                        logger.debug("event_bus rejected finding event %s: %s", finding_id, bus_exc)
             except Exception as exc:
-                logger.exception("Failed to build telemetry events during passive scan iteration: %s", exc)
+                logger.exception(
+                    "Failed to build telemetry events during passive scan iteration: %s", exc
+                )
                 finding_events = []
             emit_progress(
                 "passive_scan",

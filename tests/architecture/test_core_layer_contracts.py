@@ -303,9 +303,15 @@ class TestStageIsolationBoundaries:
                         "decision",
                     }:
                         # Exclude allowed loader references (loading plugins at runtime) and mutation engine dynamic imports
-                        if "core/plugins/loader.py" in str(py_file).replace("\\", "/") and parts[1] == "analysis":
+                        if (
+                            "core/plugins/loader.py" in str(py_file).replace("\\", "/")
+                            and parts[1] == "analysis"
+                        ):
                             continue
-                        if "core/mutation_engine.py" in str(py_file).replace("\\", "/") and imp == "src.fuzzing.ast_mutator":
+                        if (
+                            "core/mutation_engine.py" in str(py_file).replace("\\", "/")
+                            and imp == "src.fuzzing.ast_mutator"
+                        ):
                             continue
                         violations.append(
                             f"Core module {py_file.relative_to(WORKSPACE)} imports stage implementation '{imp}'"

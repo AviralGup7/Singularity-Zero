@@ -75,7 +75,9 @@ class AgentNode:
         self.secret_key: str = self._private_key.private_bytes(
             encoding=__import__("cryptography").hazmat.primitives.serialization.Encoding.Raw,
             format=__import__("cryptography").hazmat.primitives.serialization.PrivateFormat.Raw,
-            encryption_algorithm=__import__("cryptography").hazmat.primitives.serialization.NoEncryption(),
+            encryption_algorithm=__import__(
+                "cryptography"
+            ).hazmat.primitives.serialization.NoEncryption(),
         ).hex()
         self.noise_channel = NoiseChannel()
         self.bft_peers: dict[str, str] = {}  # node_id -> public_key_hex

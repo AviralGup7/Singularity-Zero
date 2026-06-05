@@ -118,12 +118,12 @@ def load_history_feedback(previous_run: Path | str | None) -> HistoryFeedback:
     try:
         resolved = previous_run_path.expanduser().resolve(strict=False)
     except (OSError, RuntimeError) as exc:
-        logger.debug("Refusing history path that cannot be resolved: %s (%s)", previous_run_path, exc)
+        logger.debug(
+            "Refusing history path that cannot be resolved: %s (%s)", previous_run_path, exc
+        )
         return feedback
     if ".." in resolved.parts:
-        logger.debug(
-            "Refusing history path containing traversal segments: %s", resolved
-        )
+        logger.debug("Refusing history path containing traversal segments: %s", resolved)
         return feedback
     if not resolved.is_dir():
         logger.debug("History path is not a directory, skipping: %s", resolved)

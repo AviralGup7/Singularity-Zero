@@ -49,9 +49,7 @@ def _safe_identifier(value: object, *, label: str = "id") -> str:
     if not s:
         raise ValueError(f"{label} must be a non-empty string")
     if not _IDENTIFIER_RE.match(s):
-        raise ValueError(
-            f"{label} contains characters not in the safe identifier allowlist"
-        )
+        raise ValueError(f"{label} contains characters not in the safe identifier allowlist")
     return s
 
 
@@ -158,16 +156,14 @@ class LateralGraph:
 
         # Link Finding to Asset.
         self._execute(
-            "MATCH (a:Asset {id: $asset}), (f:Finding {id: $fid}) "
-            "MERGE (a)-[:HAS_VULN]->(f)",
+            "MATCH (a:Asset {id: $asset}), (f:Finding {id: $fid}) MERGE (a)-[:HAS_VULN]->(f)",
             params,
         )
 
         # Heuristic: If finding is an IDOR or SSRF, it's a PIVOT point.
         if "idor" in finding_type or "ssrf" in finding_type:
             self._execute(
-                "MATCH (a:Asset {id: $asset}), (f:Finding {id: $fid}) "
-                "MERGE (f)-[:PIVOTS_TO]->(a)",
+                "MATCH (a:Asset {id: $asset}), (f:Finding {id: $fid}) MERGE (f)-[:PIVOTS_TO]->(a)",
                 params,
             )
 
@@ -253,7 +249,11 @@ class LateralGraph:
                     f"{query} LIMIT $limit",
                     {"limit": int(limit) * 2},
                 ):
-                    source_id = f"asset:{source}" if label != "pivots_to" or "id" in str(source) else f"finding:{source}"
+                    source_id = (
+                        f"asset:{source}"
+                        if label != "pivots_to" or "id" in str(source)
+                        else f"finding:{source}"
+                    )
                     target_id = f"asset:{target}" if label == "belongs_to" else f"finding:{target}"
                     if label == "has_vuln":
                         source_id = f"asset:{source}"

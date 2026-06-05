@@ -2,7 +2,20 @@ import ast
 from pathlib import Path
 
 ROOT = Path(r"D:\cyber security test pipeline - Copy")
-DEPRECATED = {"distutils", "imp", "optparse", "commands", "md5", "sha", "cStringIO", "asyncore", "asynchat", "sunau", "xdrlib", "sunaudiodev"}
+DEPRECATED = {
+    "distutils",
+    "imp",
+    "optparse",
+    "commands",
+    "md5",
+    "sha",
+    "cStringIO",
+    "asyncore",
+    "asynchat",
+    "sunau",
+    "xdrlib",
+    "sunaudiodev",
+}
 findings = []
 
 
@@ -11,12 +24,14 @@ def rel(path: Path) -> str:
 
 
 def add(path, lineno, category, detail):
-    findings.append({
-        "path": rel(path),
-        "line": lineno,
-        "category": category,
-        "detail": detail,
-    })
+    findings.append(
+        {
+            "path": rel(path),
+            "line": lineno,
+            "category": category,
+            "detail": detail,
+        }
+    )
 
 
 SKIP = {".venv", "venv", "node_modules", "__pycache__", ".git"}
@@ -39,14 +54,24 @@ for py in pyfiles:
             module = node.module or ""
             for alias in node.names:
                 if alias.name == "*":
-                    add(py, node.lineno, "wildcard_import", f"from {module or '(relative)'} import * (PEP8 / tooling / namespace risk)")
+                    add(
+                        py,
+                        node.lineno,
+                        "wildcard_import",
+                        f"from {module or '(relative)'} import * (PEP8 / tooling / namespace risk)",
+                    )
                     if module:
                         imported_names[module.split(".")[0]] = (node.lineno, module)
                 else:
                     bind = alias.asname or alias.name
                     imported_names[bind] = (node.lineno, module)
             if node.level and node.level > 1:
-                add(py, node.lineno, "relative_import_too_deep", f"relative import level {node.level} for '{module}' (possible wrong path)")
+                add(
+                    py,
+                    node.lineno,
+                    "relative_import_too_deep",
+                    f"relative import level {node.level} for '{module}' (possible wrong path)",
+                )
 
     for bind, (ln, mod) in list(imported_names.items()):
         base = (mod or bind).split(".")[0]
@@ -72,13 +97,18 @@ for py in pyfiles:
                     assigns.append((item.optional_vars.id, node.lineno))
 
     seen_a = set()
-    for (a_name, a_line) in assigns:
+    for a_name, a_line in assigns:
         if (a_name, a_line) in seen_a:
             continue
         seen_a.add((a_name, a_line))
         for name, (imp_line, _) in imported_names.items():
             if a_name == name and a_line > imp_line + 1:
-                add(py, a_line, "shadowed_name", f"name '{name}' (imported at line {imp_line}) shadowed by assignment at line {a_line}")
+                add(
+                    py,
+                    a_line,
+                    "shadowed_name",
+                    f"name '{name}' (imported at line {imp_line}) shadowed by assignment at line {a_line}",
+                )
                 break
 
     skip = {"os", "sys", "re", "io", "typing"}
@@ -86,7 +116,12 @@ for py in pyfiles:
         if bind in skip:
             continue
         if bind not in src:
-            add(py, ln, "unused_import_heuristic", f"imported name '{bind}' (from '{mod or bind}') not obviously used")
+            add(
+                py,
+                ln,
+                "unused_import_heuristic",
+                f"imported name '{bind}' (from '{mod or bind}') not obviously used",
+            )
 
     sf = {}
     for node in ast.walk(tree):
@@ -96,7 +131,12 @@ for py in pyfiles:
                 sf.setdefault((module, alias.name), []).append(node.lineno)
     for (mod, name), lines in sf.items():
         if len(lines) > 1:
-            add(py, lines[-1], "duplicate_import", f"'{name}' from '{mod}' imported multiple times at lines {lines}")
+            add(
+                py,
+                lines[-1],
+                "duplicate_import",
+                f"'{name}' from '{mod}' imported multiple times at lines {lines}",
+            )
 
 for py in pyfiles:
     try:
@@ -112,7 +152,12 @@ for py in pyfiles:
                 current = current / part
                 if current.is_dir():
                     if not (current / "__init__.py").exists():
-                        add(py, node.lineno, "missing_init_py", f"package directory '{rel(current)}' imported but missing __init__.py")
+                        add(
+                            py,
+                            node.lineno,
+                            "missing_init_py",
+                            f"package directory '{rel(current)}' imported but missing __init__.py",
+                        )
                         break
                 else:
                     break

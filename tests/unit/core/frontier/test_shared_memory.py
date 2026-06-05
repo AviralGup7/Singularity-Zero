@@ -127,9 +127,7 @@ class TestZeroCopyRouter(unittest.TestCase):
 
     def test_retrieve_corrupted_magic_raises(self) -> None:
         corrupt_name = _unique_name("test_zcr_corrupt")
-        corrupt_router = ZeroCopyRouter(
-            buffer_name=corrupt_name, buffer_size=64 * 1024
-        )
+        corrupt_router = ZeroCopyRouter(buffer_name=corrupt_name, buffer_size=64 * 1024)
         try:
             corrupt_router.route_payload(b"x")
             shm = corrupt_router._shm
@@ -145,15 +143,11 @@ class TestZeroCopyRouter(unittest.TestCase):
 
     def test_retrieve_declared_length_too_large_raises(self) -> None:
         with self.assertRaises(ValueError):
-            self.router.retrieve_payload(
-                f"shm://{self.name}@0:{_MAX_PAYLOAD_BYTES + 1}"
-            )
+            self.router.retrieve_payload(f"shm://{self.name}@0:{_MAX_PAYLOAD_BYTES + 1}")
 
     def test_retrieve_declared_payload_overflow_raises(self) -> None:
         with self.assertRaises(ValueError):
-            self.router.retrieve_payload(
-                f"shm://{self.name}@{self.router.buffer_size - 2}:10"
-            )
+            self.router.retrieve_payload(f"shm://{self.name}@{self.router.buffer_size - 2}:10")
 
     def test_buffer_size_clamped_to_header_minimum(self) -> None:
         r = ZeroCopyRouter(buffer_name=_unique_name("min"), buffer_size=2)

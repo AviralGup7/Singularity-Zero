@@ -49,8 +49,6 @@ def _build_control_lookup() -> dict[str, NumericControlSpec]:
 _CONTROL_LOOKUP = _build_control_lookup()
 
 
-
-
 def validate_control_value(control_id: str, value: int | float) -> int | float:
     spec = _CONTROL_LOOKUP.get(control_id)
     if spec is None:

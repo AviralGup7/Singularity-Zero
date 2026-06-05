@@ -247,7 +247,9 @@ def _build_finding(
 ) -> dict[str, Any]:
     score_map = {"critical": 100, "high": 80, "medium": 50, "low": 20, "info": 5}
     if confidence is None:
-        confidence = 0.80 if severity in ("critical", "high") else 0.65 if severity == "medium" else 0.50
+        confidence = (
+            0.80 if severity in ("critical", "high") else 0.65 if severity == "medium" else 0.50
+        )
     return {
         "url": url,
         "endpoint_key": endpoint_signature(url),

@@ -183,7 +183,9 @@ class JobQueue:
         self._register_scripts()
 
         queue_key = self._key("queue")
-        candidates = await asyncio.to_thread(self.redis.execute_command, "ZREVRANGE", queue_key, 0, 24)
+        candidates = await asyncio.to_thread(
+            self.redis.execute_command, "ZREVRANGE", queue_key, 0, 24
+        )
 
         if not candidates:
             return None
@@ -204,7 +206,9 @@ class JobQueue:
             )
 
             if result and int(result[0]) == 1:
-                job_data = await asyncio.to_thread(self.redis.execute_command, "HGETALL", self._job_key(job_id))
+                job_data = await asyncio.to_thread(
+                    self.redis.execute_command, "HGETALL", self._job_key(job_id)
+                )
                 if job_data:
                     job = Job.from_redis_hash(job_data)
                     logger.info("Worker %s claimed job %s", worker_id, job_id)
@@ -272,7 +276,9 @@ class JobQueue:
         """
         self._register_scripts()
 
-        job_data = await asyncio.to_thread(self.redis.execute_command, "HGETALL", self._job_key(job_id))
+        job_data = await asyncio.to_thread(
+            self.redis.execute_command, "HGETALL", self._job_key(job_id)
+        )
         if not job_data:
             logger.warning("Job %s not found for fail operation", job_id)
             return False, "not_found"
@@ -354,7 +360,9 @@ class JobQueue:
         Returns:
             Job instance if found, None otherwise.
         """
-        job_data = await asyncio.to_thread(self.redis.execute_command, "HGETALL", self._job_key(job_id))
+        job_data = await asyncio.to_thread(
+            self.redis.execute_command, "HGETALL", self._job_key(job_id)
+        )
         if not job_data:
             return None
         return Job.from_redis_hash(job_data)
@@ -374,7 +382,9 @@ class JobQueue:
         Returns:
             Number of dead-lettered jobs.
         """
-        result = await asyncio.to_thread(self.redis.execute_command, "ZCARD", self._key(self.dead_letter_queue_name))
+        result = await asyncio.to_thread(
+            self.redis.execute_command, "ZCARD", self._key(self.dead_letter_queue_name)
+        )
         return int(result) if result else 0
 
     async def list_dead_letters(self, limit: int = 50) -> list[Job]:
@@ -454,7 +464,9 @@ class JobQueue:
 
         await asyncio.to_thread(
             self.redis.execute_command,
-            "ZREM", self._key(self.dead_letter_queue_name), self._job_key(job_id)
+            "ZREM",
+            self._key(self.dead_letter_queue_name),
+            self._job_key(job_id),
         )
         await asyncio.to_thread(
             self.redis.execute_script,
@@ -520,7 +532,9 @@ class JobQueue:
         Returns:
             Dict with queue statistics including lengths, rates, and state counts.
         """
-        metrics_data = await asyncio.to_thread(self.redis.execute_command, "HGETALL", self._key("metrics"))
+        metrics_data = await asyncio.to_thread(
+            self.redis.execute_command, "HGETALL", self._key("metrics")
+        )
         metrics: dict[str, Any] = {}
 
         if metrics_data:
@@ -618,7 +632,9 @@ class JobQueue:
         # Load all active workers into scheduler for global context
         try:
             workers_key = self._key("workers")
-            worker_ids = await asyncio.to_thread(self.redis.execute_command, "SMEMBERS", workers_key)
+            worker_ids = await asyncio.to_thread(
+                self.redis.execute_command, "SMEMBERS", workers_key
+            )
             if worker_ids:
                 for w_id_bytes in worker_ids:
                     w_id = (
@@ -626,13 +642,17 @@ class JobQueue:
                         if isinstance(w_id_bytes, bytes)
                         else str(w_id_bytes)
                     )
-                    w_data = await asyncio.to_thread(self.redis.execute_command, "HGETALL", self._key(f"worker:{w_id}"))
+                    w_data = await asyncio.to_thread(
+                        self.redis.execute_command, "HGETALL", self._key(f"worker:{w_id}")
+                    )
                     if w_data:
                         try:
                             w_info = WorkerInfo.from_redis_hash(w_data)
                             self.scheduler.update_worker(w_id, w_info)
                         except Exception as exc:  # noqa: S112
-                            logger.error("Failed to deserialize worker %s from Redis: %s", w_id, exc)
+                            logger.error(
+                                "Failed to deserialize worker %s from Redis: %s", w_id, exc
+                            )
                             try:
                                 fallback_info = WorkerInfo(id=w_id, status="degraded")
                                 self.scheduler.update_worker(w_id, fallback_info)
@@ -644,7 +664,9 @@ class JobQueue:
 
         # Get candidates from the queue
         queue_key = self._key("queue")
-        candidates = await asyncio.to_thread(self.redis.execute_command, "ZREVRANGE", queue_key, 0, 49)
+        candidates = await asyncio.to_thread(
+            self.redis.execute_command, "ZREVRANGE", queue_key, 0, 49
+        )
 
         if not candidates:
             return None
@@ -652,7 +674,9 @@ class JobQueue:
         for candidate in candidates:
             job_key_str = candidate.decode("utf-8") if isinstance(candidate, bytes) else candidate
             job_id = job_key_str.split(":")[-1]
-            job_data = await asyncio.to_thread(self.redis.execute_command, "HGETALL", self._job_key(job_id))
+            job_data = await asyncio.to_thread(
+                self.redis.execute_command, "HGETALL", self._job_key(job_id)
+            )
             if not job_data:
                 continue
 
@@ -695,7 +719,9 @@ class JobQueue:
         workers: list[WorkerInfo] = []
         for raw_id in worker_ids:
             worker_id = raw_id.decode("utf-8") if isinstance(raw_id, bytes) else str(raw_id)
-            worker_data = await asyncio.to_thread(self.redis.execute_command, "HGETALL", self._key(f"worker:{worker_id}"))
+            worker_data = await asyncio.to_thread(
+                self.redis.execute_command, "HGETALL", self._key(f"worker:{worker_id}")
+            )
             if worker_data:
                 try:
                     workers.append(WorkerInfo.from_redis_hash(worker_data))
@@ -746,7 +772,12 @@ class JobQueue:
                 # Use SCAN to find all worker job sets without blocking
                 scan_result = await asyncio.to_thread(
                     self.redis.execute_command,
-                    "SCAN", cursor, "MATCH", self._key("worker:*:jobs"), "COUNT", 100
+                    "SCAN",
+                    cursor,
+                    "MATCH",
+                    self._key("worker:*:jobs"),
+                    "COUNT",
+                    100,
                 )
                 if not scan_result:
                     break

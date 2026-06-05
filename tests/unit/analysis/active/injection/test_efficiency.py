@@ -91,44 +91,32 @@ class TestFilterEfficiencies(unittest.TestCase):
 @pytest.mark.unit
 class TestScorePayloadExecutability(unittest.TestCase):
     def test_high_efficiency_html_context(self) -> None:
-        score, verdict = score_payload_executability(
-            "Hello, v3dm0s is here", "v3dm0s", "html"
-        )
+        score, verdict = score_payload_executability("Hello, v3dm0s is here", "v3dm0s", "html")
         self.assertEqual(score, 100)
         self.assertEqual(verdict, "highly_executable")
 
     def test_attribute_context_penalty(self) -> None:
-        score, verdict = score_payload_executability(
-            "v3dm0s", "v3dm0s", "attribute"
-        )
+        score, verdict = score_payload_executability("v3dm0s", "v3dm0s", "attribute")
         self.assertEqual(score, 90)
         self.assertEqual(verdict, "highly_executable")
 
     def test_comment_context_penalty(self) -> None:
-        score, verdict = score_payload_executability(
-            "v3dm0s", "v3dm0s", "comment"
-        )
+        score, verdict = score_payload_executability("v3dm0s", "v3dm0s", "comment")
         self.assertEqual(score, 70)
         self.assertEqual(verdict, "likely_executable")
 
     def test_script_context_bonus(self) -> None:
-        score, verdict = score_payload_executability(
-            "v3dm0s", "v3dm0s", "script"
-        )
+        score, verdict = score_payload_executability("v3dm0s", "v3dm0s", "script")
         self.assertEqual(score, 100)
         self.assertEqual(verdict, "highly_executable")
 
     def test_dead_context_strong_penalty(self) -> None:
-        score, verdict = score_payload_executability(
-            "v3dm0s", "v3dm0s", "dead"
-        )
+        score, verdict = score_payload_executability("v3dm0s", "v3dm0s", "dead")
         self.assertEqual(score, 50)
         self.assertEqual(verdict, "possibly_executable")
 
     def test_unknown_context_default_penalty(self) -> None:
-        score, verdict = score_payload_executability(
-            "v3dm0s", "v3dm0s", "unknown_type"
-        )
+        score, verdict = score_payload_executability("v3dm0s", "v3dm0s", "unknown_type")
         self.assertEqual(score, 80)
         self.assertEqual(verdict, "likely_executable")
 

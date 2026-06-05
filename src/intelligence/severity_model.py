@@ -314,7 +314,9 @@ class CalibratedSeverityModel:
                 active_ver = active_model.version
 
         current_metadata = finding.get("severity_model") or {}
-        current_version = current_metadata.get("model_version") if isinstance(current_metadata, dict) else None
+        current_version = (
+            current_metadata.get("model_version") if isinstance(current_metadata, dict) else None
+        )
 
         if "severity_score" in finding and current_version == active_ver:
             return finding

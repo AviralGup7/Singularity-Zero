@@ -57,9 +57,7 @@ def _unavailable_probe(name: str, exc: BaseException) -> Any:
     """
 
     def _stub(*_args: Any, **_kwargs: Any) -> Any:
-        raise NotImplementedError(
-            f"Probe {name!r} is unavailable: {type(exc).__name__}: {exc}"
-        )
+        raise NotImplementedError(f"Probe {name!r} is unavailable: {type(exc).__name__}: {exc}")
 
     return _stub
 

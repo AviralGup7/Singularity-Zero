@@ -95,6 +95,7 @@ __all__ = [
     "xxe_active_probe",
 ]
 
+
 def websocket_message_probe(
     priority_urls: list[dict[str, Any]], response_cache: ResponseCache, limit: int = 8
 ) -> list[dict[str, Any]]:

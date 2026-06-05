@@ -93,6 +93,7 @@ def write_json(path: Path, payload: dict[str, Any] | list[Any]) -> None:
     tmp_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path.write_text(format_json(payload), encoding="utf-8")
     import os
+
     os.replace(str(tmp_path), str(path))
 
 

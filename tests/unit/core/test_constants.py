@@ -115,9 +115,7 @@ class TestHealthScoreMultipliers(unittest.TestCase):
         self.assertGreater(
             C.HEALTH_SCORE_MULTIPLIERS["critical"], C.HEALTH_SCORE_MULTIPLIERS["high"]
         )
-        self.assertGreater(
-            C.HEALTH_SCORE_MULTIPLIERS["high"], C.HEALTH_SCORE_MULTIPLIERS["medium"]
-        )
+        self.assertGreater(C.HEALTH_SCORE_MULTIPLIERS["high"], C.HEALTH_SCORE_MULTIPLIERS["medium"])
 
     def test_positive_multipliers(self) -> None:
         for value in C.HEALTH_SCORE_MULTIPLIERS.values():

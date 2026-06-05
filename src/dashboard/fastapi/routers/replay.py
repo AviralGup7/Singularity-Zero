@@ -93,9 +93,7 @@ async def replay_request(
         not is_within_directory(output_root, run_dir)
         or not is_within_directory(output_root, behavior_path)
         or not is_within_directory(output_root, legacy_path)
-    ) or (
-        not behavior_path.exists() and not legacy_path.exists()
-    ):
+    ) or (not behavior_path.exists() and not legacy_path.exists()):
         raise HTTPException(status_code=404, detail="Replay context not found.")
 
     records = load_plugin_artifact(run_dir, "behavior_analysis_layer")

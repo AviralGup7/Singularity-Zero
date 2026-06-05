@@ -97,8 +97,12 @@ class SelfHealingController:
         self._config = config
         self.interval_seconds = interval_seconds
         if config is not None:
-            self.stale_stage_seconds = float(getattr(config, "stale_stage_seconds", stale_stage_seconds))
-            self.queue_depth_threshold = int(getattr(config, "queue_depth_threshold", queue_depth_threshold))
+            self.stale_stage_seconds = float(
+                getattr(config, "stale_stage_seconds", stale_stage_seconds)
+            )
+            self.queue_depth_threshold = int(
+                getattr(config, "queue_depth_threshold", queue_depth_threshold)
+            )
             self.worker_heartbeat_timeout = float(
                 getattr(config, "worker_heartbeat_timeout", worker_heartbeat_timeout)
             )

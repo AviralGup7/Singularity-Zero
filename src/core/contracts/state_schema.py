@@ -139,9 +139,9 @@ register_state_schema("stage_status", dict, "Per-stage execution status")
 register_state_schema("findings", (list, tuple), "Legacy security findings list")
 register_state_schema("vulnerabilities", (list, tuple), "Validated vulnerability records")
 register_state_schema("artifacts_meta", dict, "Metadata about persisted stage artifacts")
-register_state_schema("_neural_state", dict, "CRDT state representation for neural-mesh coordination")
+register_state_schema(
+    "_neural_state", dict, "CRDT state representation for neural-mesh coordination"
+)
 register_state_schema("_wal_id", (int, str), "Write-ahead log ID for stage delta replay")
 register_state_schema("threat_graph", dict, "Threat graph structure representing attack vectors")
 register_state_schema("threat_graph_summary", dict, "Summary of the threat graph metrics")
-
-

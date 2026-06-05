@@ -57,7 +57,8 @@ def check_docs_truthfulness(filepath, lines):
 for py_file in ROOT.rglob("*.py"):
     rel = str(py_file.relative_to(ROOT)).replace("\\", "/")
     if any(
-        part in {".venv", ".venv-linux", "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+        part
+        in {".venv", ".venv-linux", "__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache"}
         for part in py_file.relative_to(ROOT).parts
     ):
         continue
@@ -130,8 +131,7 @@ for py_file in ROOT.rglob("*.py"):
                 )
                 if not has_return_doc:
                     has_return_stmt = any(
-                        isinstance(n, ast.Return) and n.value is not None
-                        for n in ast.walk(node)
+                        isinstance(n, ast.Return) and n.value is not None for n in ast.walk(node)
                     )
                     if has_return_stmt:
                         issues[(rel, "undocumented_return")].append(
@@ -153,7 +153,7 @@ with OUT.open("w", encoding="utf-8") as out:
         for m in msgs[:200]:
             out.write(f"  {m}\n")
         if len(msgs) > 200:
-            out.write(f"  ... and {len(msgs)-200} more\n")
+            out.write(f"  ... and {len(msgs) - 200} more\n")
         out.write("\n")
 
     for fname in ("CHANGES.md", "CHANGELOG.md", "CHANGELOG"):
@@ -161,7 +161,9 @@ with OUT.open("w", encoding="utf-8") as out:
         if p.exists():
             text = p.read_text(encoding="utf-8", errors="ignore")
             nonempty = [line for line in text.splitlines() if line.strip()]
-            out.write(f"Found {fname}. Latest non-empty line: {nonempty[-1] if nonempty else '(empty)'}\n")
+            out.write(
+                f"Found {fname}. Latest non-empty line: {nonempty[-1] if nonempty else '(empty)'}\n"
+            )
             break
     else:
         out.write("No CHANGES.md / CHANGELOG.md found.\n")

@@ -45,7 +45,7 @@ def _extract_real_client_ip(request: Request) -> str:
     if fwd_for:
         # Take the left-most IP - that's the original client. Limit the
         # split depth so a malicious client cannot OOM the audit log.
-        hops = [h.strip() for h in fwd_for.split(",") if h.strip()][: _MAX_FORWARDED_HOPS]
+        hops = [h.strip() for h in fwd_for.split(",") if h.strip()][:_MAX_FORWARDED_HOPS]
         if hops:
             return hops[0]
     rfc7239 = request.headers.get(_FORWARDED_RFC7239, "")
@@ -138,10 +138,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if path in _CSRF_EXEMPT_PATHS or path.startswith("/ws/") or path.startswith("/api/ws/"):
             return await call_next(request)
         # Bearer / API-key auth isn't a CSRF vector.
-        if (
-            request.headers.get("Authorization", "").lower().startswith("bearer ")
-            or request.headers.get("X-API-Key")
-        ):
+        if request.headers.get("Authorization", "").lower().startswith(
+            "bearer "
+        ) or request.headers.get("X-API-Key"):
             return await call_next(request)
 
         cookie_token = request.cookies.get(_CSRF_COOKIE_NAME)
@@ -159,9 +158,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 content={"detail": "CSRF token missing. Reload the page or re-authenticate."},
             )
         if not secrets.compare_digest(cookie_token, header_token):
-            logger.warning(
-                "CSRF rejection: token mismatch (path=%s method=%s)", path, method
-            )
+            logger.warning("CSRF rejection: token mismatch (path=%s method=%s)", path, method)
             return JSONResponse(
                 status_code=403,
                 content={"detail": "CSRF token mismatch."},

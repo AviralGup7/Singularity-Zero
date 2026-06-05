@@ -36,6 +36,7 @@ def _loop_time() -> float:
         return time.monotonic()
     return loop.time()
 
+
 try:
     import psutil
 except ImportError:
@@ -119,7 +120,11 @@ class ResourceWatchdog:
                         continue
 
                     if self._failed_kills.get(pid, 0) > 3:
-                        logger.warning("ResourceWatchdog: Process %d (PID %d) is a zombie/D-state worker. Skipping recycling attempt.", p.id, pid)
+                        logger.warning(
+                            "ResourceWatchdog: Process %d (PID %d) is a zombie/D-state worker. Skipping recycling attempt.",
+                            p.id,
+                            pid,
+                        )
                         continue
 
                     try:

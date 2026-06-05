@@ -53,6 +53,7 @@ SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS: float = _env_float(
     "SQLITE_LOCK_RETRY_BASE_DELAY_SECONDS", 0.05
 )
 
+
 @contextmanager
 def retrying_connect(
     db_path: str | Any,

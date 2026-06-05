@@ -60,7 +60,10 @@ IP_REDACTED = "***.***.***.***"
 # invocation at O(M * N) (M = number of patterns, N = text length) rather
 # than spending an extra O(M) cycle rebuilding the dispatch list.
 _REDACTION_RULES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
-    (pattern, EMAIL_REDACTED if name == "email" else IP_REDACTED if name == "ipv4" else REDACTED_VALUE)
+    (
+        pattern,
+        EMAIL_REDACTED if name == "email" else IP_REDACTED if name == "ipv4" else REDACTED_VALUE,
+    )
     for name, pattern in SENSITIVE_PATTERNS.items()
 )
 
