@@ -141,6 +141,23 @@ def _build_parser() -> argparse.ArgumentParser:
         default=5,
         help="How many recent launcher job directories to keep.",
     )
+    cleanup.add_argument(
+        "--output-root",
+        default="output",
+        help="Path to the output directory to prune (default: output).",
+    )
+    cleanup.add_argument(
+        "--keep-target-runs",
+        type=int,
+        default=2,
+        help="How many recent target runs to keep per target.",
+    )
+    cleanup.add_argument(
+        "--keep-launcher-runs",
+        type=int,
+        default=5,
+        help="How many recent launcher job directories to keep.",
+    )
 
     # ██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
     # LAUNCH COMMAND (Local unified dashboard + worker)

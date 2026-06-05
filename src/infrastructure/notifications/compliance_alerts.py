@@ -6,6 +6,7 @@ and issues high-priority slack/email updates upon control failures.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -59,8 +60,6 @@ class ComplianceAlertsDispatcher:
 
         try:
             # Broadcast to all registered channels
-            import asyncio
-
             from src.infrastructure.notifications.base import (
                 NotificationEvent,
                 NotificationPriority,
@@ -73,13 +72,14 @@ class ComplianceAlertsDispatcher:
                 message=full_msg,
             )
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(coro)
-                else:
-                    loop.run_until_complete(coro)
+                loop = asyncio.get_running_loop()
             except RuntimeError:
+                # No running loop: drive the coroutine to completion in a
+                # short-lived event loop so callers running from sync code
+                # (CLI hooks, Celery tasks) still see the side-effects.
                 asyncio.run(coro)
+            else:
+                loop.create_task(coro)
             logger.info("GRC compliance maturity failure notifications successfully dispatched.")
         except Exception as exc:
             logger.error("Failed to broadcast compliance alerts: %s", exc)

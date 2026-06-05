@@ -135,7 +135,7 @@ def build_telemetry_event(
         severity=severity,
         target=target,
         run_id=run_id,
-        sequence=sequence,
+        sequence=resolved_sequence,
         metrics=metrics or {},
         payload=payload or {},
     ).to_dict()
@@ -146,6 +146,8 @@ def normalize_telemetry_event(raw: dict[str, Any], *, fallback_stage: str = "") 
 
     if raw.get("schema_version") == TELEMETRY_SCHEMA_VERSION and raw.get("event_id"):
         return dict(raw)
+    if "sequence" in raw and raw.get("sequence") is not None and "resolved_sequence" not in raw:
+        raw = {**raw, "resolved_sequence": raw["sequence"]}
 
     stage = str(raw.get("stage") or fallback_stage or "unknown")
     return build_telemetry_event(

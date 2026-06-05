@@ -46,9 +46,11 @@ _DNS_INFLIGHT_LOCK = threading.Lock()
 # ``OrderedDict`` was previously imported elsewhere; ensure it's
 # available here.
 try:
-    from collections import OrderedDict as _OrderedDict
+    from collections import OrderedDict as _ImportedOrderedDict
 except ImportError:  # pragma: no cover - Python 3.7+ always has it
-    _OrderedDict = dict  # type: ignore[assignment,misc]
+    _ImportedOrderedDict = dict  # type: ignore[assignment,misc]
+
+_OrderedDict = _ImportedOrderedDict
 
 
 def _is_ip_private(ip_str: str) -> bool:
@@ -210,15 +212,6 @@ def is_safe_url(url: str) -> bool:
         return not _host_resolves_to_private(hostname)
     # Bare IP literal: check that it is not in a private/loopback range.
     return not _is_ip_private(hostname)
-    # Block well-known private/loopback hostnames
-    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # nosec B104 # noqa: S104
-        return False
-    # Block cloud metadata IPs
-    if hostname == "169.254.169.254":
-        return False
-    # SECURITY: Resolve DNS to prevent SSRF via domain rebinding/loopback.
-    # Fail-closed if resolution fails or any resolved IP is private.
-    return not _host_resolves_to_private(hostname)
 
 
 def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:

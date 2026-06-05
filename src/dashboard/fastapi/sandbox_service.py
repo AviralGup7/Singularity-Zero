@@ -15,6 +15,7 @@ Interactive 3D Exploit Sandbox & Time-Travel Replay Service.
     execution against a production target.
 """
 
+import asyncio
 import time
 import uuid
 from typing import Any
@@ -32,7 +33,7 @@ class SandboxService:
         self._sandboxes: dict[str, dict[str, Any]] = {}
         self._mock = True
 
-    def launch_sandbox(self, target_node: str, image: str = "ubuntu:latest") -> str:
+    async def launch_sandbox(self, target_node: str, image: str = "ubuntu:latest") -> str:
         """Launch a mock dockerized sandbox for a specific graph node."""
         sandbox_id = f"sandbox-{uuid.uuid4().hex[:8]}"
         self._sandboxes[sandbox_id] = {
@@ -45,7 +46,7 @@ class SandboxService:
             "current_state": "Initialized secure enclave.",
             "is_mock": True,
         }
-        self._record_event(sandbox_id, "Sandbox launched (MOCK)")
+        await asyncio.to_thread(self._record_event, sandbox_id, "Sandbox launched (MOCK)")
         return sandbox_id
 
     def _record_event(self, sandbox_id: str, action: str, output: str = "") -> None:
@@ -70,7 +71,7 @@ class SandboxService:
         history = sandbox.get("history", [])
         return history if isinstance(history, list) else []
 
-    def execute_terminal_command(self, sandbox_id: str, command: str) -> str:
+    async def execute_terminal_command(self, sandbox_id: str, command: str) -> str:
         """Return a mock response for a small set of well-known commands.
 
         The returned string is **not** the result of any real execution.
@@ -100,7 +101,7 @@ class SandboxService:
         else:
             output = f"{prefix_marker}bash: {command}: command not found\n"
 
-        self._record_event(sandbox_id, f"Executed: {command}", output)
+        await asyncio.to_thread(self._record_event, sandbox_id, f"Executed: {command}", output)
         return output
 
 

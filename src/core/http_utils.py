@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import time
+import weakref
 from typing import Any
 
 import httpx
@@ -21,8 +22,6 @@ from src.core.pid_limiter import PIDRateLimiter
 from src.core.utils.url_validation import is_safe_url
 
 logger = get_pipeline_logger(__name__)
-
-import weakref
 
 _PID_LIMITERS: dict[str, PIDRateLimiter] = {}
 

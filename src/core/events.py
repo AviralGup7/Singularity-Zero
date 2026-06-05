@@ -119,10 +119,7 @@ class EventBus:
         event = PipelineEvent(
             event_type=event_type,
             source=source,
-            data={
-                "event_schema_version": EVENT_SCHEMA_VERSION,
-                **(data or {}),
-            },
+            data=data or {},
             correlation_id=correlation_id or str(uuid.uuid4()),
         )
         self.publish(event)

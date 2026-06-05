@@ -158,6 +158,16 @@ export function useSSEProgress<T = SseEventData>({
     connectionState,
     isPollingFallback,
     reconnect: connect,
-    disconnect: () => { if (esRef.current) esRef.current.close(); setConnectionState('closed'); }
+    disconnect: () => {
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+      if (heartbeatRef.current) {
+        clearTimeout(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+      setConnectionState('closed');
+    }
   };
 }

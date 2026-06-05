@@ -3,6 +3,7 @@
 import logging
 import secrets
 import time
+import uuid
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -74,8 +75,6 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
     """Middleware for measuring and logging request processing time and request ID tracing."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        import uuid
-
         # TODO: Propagate this request_id to downstream pipeline stages via contextvars
         # so that every log line in a request's lifecycle can carry the same correlation ID.
         request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex

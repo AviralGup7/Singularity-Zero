@@ -51,7 +51,7 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-   
+
     config.headers['X-Request-ID'] = generateRequestId();
     config.metadata = { startTime: Date.now() };
 
@@ -148,11 +148,17 @@ apiClient.interceptors.response.use(
       message = 'Mesh offline - check connection.';
     }
 
-    // Auto-Toast for critical failures
-    if (status === 401) {
-      dispatchToast('Session expired.', 'error');
-    } else if (status === 429) {
-      dispatchToast('Rate limit reached.', 'warning');
+    // Auto-Toast for critical failures is opt-in. The `__apiAutoToast`
+    // flag is set on the request config by callers that want the
+    // hard-wired toast UX (e.g. login, token refresh). All other calls
+    // get the wrapped error returned to the caller, which can choose
+    // to surface a custom message in its own UI.
+    if (error.config?.__apiAutoToast) {
+      if (status === 401) {
+        dispatchToast('Session expired.', 'error');
+      } else if (status === 429) {
+        dispatchToast('Rate limit reached.', 'warning');
+      }
     }
 
     const wrapped = new ApiError(message, status, error);

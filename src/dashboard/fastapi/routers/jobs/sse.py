@@ -16,6 +16,7 @@ from src.dashboard.fastapi.routers.utils import (
     current_stage_entry,
     current_stage_percent,
     heartbeat_interval_seconds,
+    job_target_name,
     snapshot_job_api,
 )
 from src.dashboard.fastapi.schemas import ErrorResponse
@@ -70,8 +71,7 @@ async def stream_job_logs(
     job = await get_cached_job(job_id, services)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    job_target = str(job.get("target_name") or job.get("hostname") or job.get("target") or "")
-    if not is_target_owned_by_tenant(job_target, tenant_id):
+    if not is_target_owned_by_tenant(job_target_name(job), tenant_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
     last_count = len(job.get("latest_logs", []))
@@ -374,8 +374,7 @@ async def stream_job_progress(
     tenant_id = (_auth or {}).get("tenant_id", "default")
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
 
-    job_target = str(job.get("target_name") or job.get("hostname") or job.get("target") or "")
-    if not is_target_owned_by_tenant(job_target, tenant_id):
+    if not is_target_owned_by_tenant(job_target_name(job), tenant_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
     from src.dashboard.fastapi.routers.sse_events import _global_tracker

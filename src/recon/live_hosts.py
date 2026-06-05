@@ -13,6 +13,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from urllib.parse import urlparse
 
+from src.recon.collectors.observability import emit_collection_progress
+
 import urllib3
 
 from src.core.models import DEFAULT_USER_AGENT, Config
@@ -70,8 +72,6 @@ def clear_probe_cache() -> None:
         except Exception as exc:  # noqa: BLE001
             logger.debug("Fallback probe cache clear failed: %s", exc)
 
-
-from src.recon.collectors.observability import emit_collection_progress
 
 _emit_live_host_progress = emit_collection_progress
 

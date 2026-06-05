@@ -110,12 +110,7 @@ export function parseUrls(url: string): string[] {
 export function validateUrl(url: string): { valid: boolean; error?: string } {
   if (!url || !url.trim()) return { valid: false, error: 'URL is required' };
 
-    
-  const urls = url.split(/[,;\n]+/).map(u => u.trim()).filter(Boolean);
-
-  if (urls.length === 0) return { valid: false, error: 'URL is required' };
-
-  for (const rawUrl of urls) {
+  for (const rawUrl of parseUrls(url)) {
     const trimmed = rawUrl.trim();
     if (!trimmed) continue;
 
@@ -124,7 +119,7 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
 
     try {
       const parsed = new URL(normalized);
-    
+
       if (!['http:', 'https:'].includes(parsed.protocol)) {
         return { valid: false, error: `Only http:// and https:// protocols are allowed (got: ${trimmed})` };
       }
@@ -148,12 +143,12 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
       if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
         return { valid: false, error: 'Private IP ranges (192.168.x.x) are not allowed' };
       }
-    
+
       if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
         return { valid: false, error: 'Private IP ranges (172.16-31.x.x) are not allowed' };
       }
       const tld = parsed.hostname.split('.').pop() || '';
-    
+
       if (tld.length < 2 || !/^[a-z]{2,}$/.test(tld)) {
         return { valid: false, error: `URL must have a valid top-level domain (e.g., .com, .org): ${trimmed}` };
       }
