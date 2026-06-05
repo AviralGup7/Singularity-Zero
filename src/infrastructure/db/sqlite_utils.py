@@ -74,7 +74,6 @@ def retrying_connect(
     yielded connection (or for closing the context without committing
     to roll back).
     """
-    last_exc: sqlite3.OperationalError | None = None
     for attempt in range(max(1, max_retries)):
         conn: sqlite3.Connection | None = None
         try:
@@ -93,7 +92,6 @@ def retrying_connect(
                 yield managed
             return
         except sqlite3.OperationalError as exc:
-            last_exc = exc
             if conn is not None:
                 safe_close(conn)
             if attempt == max_retries - 1:
@@ -174,13 +172,11 @@ class _RetryDB:
 
     def run(self, operation: Callable[[], T]) -> T:
         """Run ``operation`` and retry on locked-DB errors with exponential backoff."""
-        last_exc: sqlite3.OperationalError | None = None
         with self._lock:
             for attempt in range(self._max_attempts):
                 try:
                     return operation()
                 except sqlite3.OperationalError as exc:
-                    last_exc = exc
                     if not self._is_locked(exc) or attempt == self._max_attempts - 1:
                         raise
                 time.sleep(self._base_delay * (2**attempt))

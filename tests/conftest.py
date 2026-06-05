@@ -10,7 +10,7 @@ def _mock_getaddrinfo(host, port, *args, **kwargs):
     family = kwargs.get("family") or (args[0] if args else 0)
     if not host:
         return _original_getaddrinfo(host, port, *args, **kwargs)
-    if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+    if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # noqa: S104
         if family == socket.AF_INET6:
             return [(socket.AF_INET6, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("::1", port or 80))]
         return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("127.0.0.1", port or 80))]

@@ -113,7 +113,6 @@ def _check_parallel_consistency() -> None:
 
     _const_logger = logging.getLogger(__name__)
     for trigger, paral_stages in PARALLEL_STAGE_GROUPS:
-        declared_deps = STAGE_DEPS.get(trigger, set())
         for stage in paral_stages:
             stage_deps = STAGE_DEPS.get(stage, set())
             if trigger not in stage_deps:

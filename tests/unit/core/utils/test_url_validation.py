@@ -97,7 +97,7 @@ class TestIpToHexLabel(unittest.TestCase):
         self.assertEqual(ip_to_hex_label("127.0.0.1"), "7f000001")
 
     def test_zero_ip(self) -> None:
-        self.assertEqual(ip_to_hex_label("0.0.0.0"), "00000000")
+        self.assertEqual(ip_to_hex_label("0.0.0.0"), "00000000")  # noqa: S104
 
     def test_max_ip(self) -> None:
         self.assertEqual(ip_to_hex_label("255.255.255.255"), "ffffffff")

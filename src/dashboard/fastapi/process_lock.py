@@ -44,7 +44,7 @@ class ProcessLifespanLock:
                 import fcntl
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return True
-        except (ImportError, OSError) as exc:
+        except (ImportError, OSError):
             if self.fd:
                 try:
                     self.fd.close()
@@ -88,7 +88,7 @@ class ProcessLifespanLock:
 
 def _read_pid_from_lock(lock_path: str) -> int | None:
     try:
-        with open(lock_path, "r") as f:
+        with open(lock_path) as f:
             raw = f.read().strip()
         return int(raw) if raw else None
     except (OSError, ValueError):

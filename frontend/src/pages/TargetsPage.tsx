@@ -229,6 +229,11 @@ export function TargetsPage() {
     );
 
     results.forEach((res, index) => {
+      // ``name`` is a value the user pasted into the target list. It
+      // is used as a ``Map`` key below (not a property name on a plain
+      // object), so there is no prototype-pollution attack surface;
+      // the rule is overzealous.
+      // eslint-disable-next-line security/detect-object-injection
       const name = targetList[index];
       if (res.status === 'rejected') {
         const p = progress.get(name);

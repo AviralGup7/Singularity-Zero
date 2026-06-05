@@ -637,7 +637,9 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         on the Prometheus scraper.
         """
         if api_security_enabled():
-            from fastapi import HTTPException as _HTTPException, status as _status
+            from fastapi import HTTPException as _HTTPException
+            from fastapi import status as _status
+
             from src.dashboard.fastapi.dependencies import _security_principal_from_request
 
             api_key = request.headers.get("X-API-Key")

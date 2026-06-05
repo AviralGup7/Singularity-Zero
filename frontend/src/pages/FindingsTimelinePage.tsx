@@ -63,12 +63,11 @@ export function FindingsTimelinePage() {
 
   // Reset pagination state when filters change
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    /* eslint-disable react-hooks/set-state-in-effect */
     setOffset(0);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEvents([]);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedEvent(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [filterKey]);
 
   // Append new events when timeline data arrives/changes

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import threading
 import time
 import uuid
@@ -15,6 +16,8 @@ from pathlib import Path
 from typing import Any, cast
 
 from starlette.websockets import WebSocket, WebSocketState
+
+logger = logging.getLogger(__name__)
 
 TRIAGE_ACTIONS = {
     "comment_added",

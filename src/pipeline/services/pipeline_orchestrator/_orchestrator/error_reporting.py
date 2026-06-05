@@ -7,6 +7,7 @@ pipeline context for use in exit-code resolution and post-run reporting.
 from __future__ import annotations
 
 from src.core.models.stage_result import PipelineContext, StageStatus
+
 from .fatal_detection import metrics_indicate_fatal_failure
 
 

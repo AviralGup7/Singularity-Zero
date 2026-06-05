@@ -1,5 +1,4 @@
 import ast
-import os
 from pathlib import Path
 
 ROOT = Path(r"D:\cyber security test pipeline - Copy")
@@ -122,6 +121,7 @@ out = Path(r"D:\cyber security test pipeline - Copy\import_analysis_report.txt")
 lines = [f"Total modules analyzed: {len(pyfiles)}"]
 lines.append(f"Total findings: {len(findings)}\n")
 from collections import Counter
+
 cats = Counter(f["category"] for f in findings)
 for cat, cnt in cats.items():
     lines.append(f"  {cat}: {cnt}")

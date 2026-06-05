@@ -5,7 +5,6 @@ for memoized HTTP responses with persistence, and fetch_response() as the
 primary entry point for passive analysis modules.
 """
 
-import concurrent.futures
 import logging
 import threading
 import time
@@ -138,7 +137,7 @@ class RequestScheduler:
                         future = asyncio.run_coroutine_threadsafe(asyncio.sleep(sleep_time), loop)
                         future.result()
                         continue
-                    except (RuntimeError, asyncio.TimeoutError, concurrent.futures.TimeoutError, OSError) as wait_exc:
+                    except (TimeoutError, RuntimeError, OSError) as wait_exc:
                         logger.debug("Cross-thread event-loop wait failed, falling back to time.sleep: %s", wait_exc)
             time.sleep(sleep_time)
 
