@@ -790,7 +790,7 @@ class ToolRetryPolicy(StageRetryPolicy):
 def _pipeline_event_from_retry_event(event: RetryEvent) -> Any:
     """Convert :class:`RetryEvent` into a :class:`~src.core.events.PipelineEvent`."""
     try:
-        from src.core.events import EventType, PipelineEvent  # lazy to avoid circular
+        from src.core.events import PipelineEvent  # lazy to avoid circular
         return PipelineEvent(
             event_type=_retry_event_type_to_event_type(event.event_type),
             source=f"retry.{event.stage}",
