@@ -146,16 +146,16 @@ def download_and_extract_tool(
 
     try:
         # Request with a standard User-Agent header
-        req = urllib.request.Request(  # nosec B310 noqa: S310
-            url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                )
-            },
-        )
+            req = urllib.request.Request(  # noqa: S310
+                url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    )
+                },
+            )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_archive_path = Path(tmpdir) / "archive.zip"
@@ -164,7 +164,7 @@ def download_and_extract_tool(
                 print("  └─ Downloading from GitHub...")
 
             with (
-                urllib.request.urlopen(req, timeout=60) as response,  # nosec B310 noqa: S310
+                urllib.request.urlopen(req, timeout=60) as response,  # noqa: S310
                 open(tmp_archive_path, "wb") as out_file,
             ):
                 shutil.copyfileobj(response, out_file)
@@ -174,7 +174,7 @@ def download_and_extract_tool(
             # release, or a transient DNS poisoning that points us at an
             # attacker-controlled mirror would otherwise run with the
             # full shell privileges of the pipeline user.
-            expected_sha = _expected_sha256(tool_name, version, os_name, arch)
+            expected_sha = _expected_sha256(tool_name, version, os_name, arch_name)
             if expected_sha is None:
                 # Refuse to extract an un-pinned archive. This is the
                 # safe default; operators must explicitly add a
@@ -186,7 +186,7 @@ def download_and_extract_tool(
                     pass
                 raise ValueError(
                     f"No pinned SHA-256 for {tool_name} {version} on "
-                    f"{os_name}/{arch}. Refusing to install an "
+                    f"{os_name}/{arch_name}. Refusing to install an "
                     "unverified binary; add the checksum to "
                     "_PINNED_SHA256 in core/utils/bin_downloader.py."
                 )
@@ -198,7 +198,7 @@ def download_and_extract_tool(
                     pass
                 raise ValueError(
                     f"Checksum mismatch for {tool_name} {version} on "
-                    f"{os_name}/{arch}: expected {expected_sha}, got {actual_sha}. "
+                    f"{os_name}/{arch_name}: expected {expected_sha}, got {actual_sha}. "
                     "Aborting install to avoid running a tampered binary."
                 )
 

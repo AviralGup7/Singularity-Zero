@@ -95,10 +95,6 @@ class FeatureFlags:
         return max(1, int(os.getenv("SSE_MAX_FINDINGS_PER_BATCH", "50")))
 
     @classmethod
-    def stalled_threshold_seconds(cls) -> int:
-        return int(os.getenv("STALLED_THRESHOLD_SECONDS", "75"))
-
-    @classmethod
     def job_cleanup_age_days(cls) -> int:
         return int(os.getenv("JOB_CLEANUP_AGE_DAYS", "30"))
 

@@ -81,6 +81,10 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
       set({
         user: newUser,
+        // ``role`` is a ``UserRole`` string-literal union and ``ROLE_PERMISSIONS``
+        // exhaustively covers every member of that union, so the dynamic key
+        // can never be a value outside the record.
+        /* eslint-disable-next-line security/detect-object-injection */
         permissions: ROLE_PERMISSIONS[role],
       });
     },
@@ -93,6 +97,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
       set({
         user: newUser,
+        /* eslint-disable-next-line security/detect-object-injection */
         permissions: ROLE_PERMISSIONS[role],
       });
     },
@@ -108,6 +113,9 @@ export const useAuthStore = create<AuthStore>((set, get) => {
 
     hasPermission: (permission: keyof Permission) => {
       const state = get();
+      // ``permission`` is typed as ``keyof Permission`` so the lookup
+      // is statically bounded to the union members of the record.
+      /* eslint-disable-next-line security/detect-object-injection */
       return state.permissions[permission] === true;
     },
 

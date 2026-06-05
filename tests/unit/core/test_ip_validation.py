@@ -15,7 +15,7 @@ class TestIsIPv4:
             "10.0.0.1",
             "8.8.8.8",
             "127.0.0.1",
-            "0.0.0.0",
+            "0.0.0.0",  # noqa: S104
             "255.255.255.255",
             # Trailing dot (FQDN-style) is stripped
             "192.168.1.1.",
@@ -28,7 +28,7 @@ class TestIsIPv4:
         "host",
         [
             "",  # empty
-            None,  # noqa: type[arg-type]
+            None,  # noqa: ARG001
             "   ",  # whitespace only
             "999.999.999.999",  # octet > 255
             "256.0.0.1",
@@ -64,7 +64,7 @@ class TestIsIP:
         "host",
         [
             "",
-            None,  # noqa: type[arg-type]
+            None,  # noqa: ARG001
             "999.999.999.999",
             "example.com",
             "192.168.1.1/extra",

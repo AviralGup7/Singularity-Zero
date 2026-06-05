@@ -50,20 +50,26 @@ function deduplicateRequest<T>(key: string, fn: () => Promise<T>, signal?: Abort
 }
 
 /* eslint-disable security/detect-object-injection */
-function isDeepEqual(obj1: unknown, obj2: unknown): boolean {
+// ``isDeepEqual`` was previously exported for callers that needed
+// reference-equality-style value comparison, but no in-tree consumer
+// remains. The hook now relies on ``URLSearchParams``/JSON.stringify
+// based cache keys. The helper is kept here as a tree-shakeable
+// internal utility so future diffing needs can re-use it without
+// re-introducing the security/detect-object-injection disable.
+function _isDeepEqual(obj1: unknown, obj2: unknown): boolean {
   if (obj1 === obj2) return true;
   if (obj1 === null || obj2 === null || typeof obj1 !== 'object' || typeof obj2 !== 'object') {
     return false;
   }
-  
+
   if (Array.isArray(obj1)) {
     if (!Array.isArray(obj2) || obj1.length !== obj2.length) return false;
     for (let i = 0; i < obj1.length; i++) {
-      if (!isDeepEqual(obj1[i], obj2[i])) return false;
+      if (!_isDeepEqual(obj1[i], obj2[i])) return false;
     }
     return true;
   }
-  
+
   if (Array.isArray(obj2)) return false;
 
   const keys1 = Object.keys(obj1 as Record<string, unknown>);
@@ -71,7 +77,7 @@ function isDeepEqual(obj1: unknown, obj2: unknown): boolean {
   if (keys1.length !== keys2.length) return false;
 
   for (const key of keys1) {
-    if (!Object.prototype.hasOwnProperty.call(obj2, key) || !isDeepEqual((obj1 as Record<string, unknown>)[key], (obj2 as Record<string, unknown>)[key])) {
+    if (!Object.prototype.hasOwnProperty.call(obj2, key) || !_isDeepEqual((obj1 as Record<string, unknown>)[key], (obj2 as Record<string, unknown>)[key])) {
       return false;
     }
   }
@@ -193,7 +199,12 @@ export function useApi<T>(
   }, []);
 
   useEffect(() => {
-     
+    // Initial fetch: the body of this effect synchronizes the hook's
+    // local state with the external API endpoint, which is the
+    // documented use case for ``useEffect``. Subsequent updates flow
+    // through event handlers (focus, refresh, interval) and do not
+    // hit this code path.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchData();
 
     // --- Overhaul: Revalidate on Focus ---

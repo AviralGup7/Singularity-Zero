@@ -13,8 +13,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from urllib.parse import urlparse
 
-from src.recon.collectors.observability import emit_collection_progress
-
 import urllib3
 
 from src.core.models import DEFAULT_USER_AGENT, Config
@@ -25,6 +23,7 @@ from src.pipeline.tools import (
     execute_command,
     projectdiscovery_httpx_available,
 )
+from src.recon.collectors.observability import emit_collection_progress
 from src.recon.common import normalize_url
 
 PROBE_CACHE_MIN_TTL_SECONDS = 600
@@ -672,15 +671,7 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
                 "source": "python-probe-ipv6" if "[" in candidate else "python-probe",
                 "resolved_host": host,
             }
-        except (  # noqa: S112
-            urllib3.exceptions.HTTPError,
-            urllib3.exceptions.MaxRetryError,
-            urllib3.exceptions.NewConnectionError,
-            urllib3.exceptions.ProtocolError,
-            urllib3.exceptions.TimeoutError,
-            socket.error,
-            TimeoutError,
-        ):
+        except (OSError, urllib3.exceptions.HTTPError, urllib3.exceptions.MaxRetryError, urllib3.exceptions.NewConnectionError, urllib3.exceptions.ProtocolError, urllib3.exceptions.TimeoutError, TimeoutError):
             # Bug #7 fix: ``except (urllib3.exceptions.HTTPError, Exception)``
             # is redundant (``Exception`` already covers ``HTTPError``),
             # making the explicit first element dead code and the catch

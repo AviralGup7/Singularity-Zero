@@ -250,7 +250,7 @@ class EventBus:
             task = loop.create_task(handler(event))
             self._track_task(task)
         except RuntimeError:
-            result = asyncio.run(handler(event))
+            asyncio.run(handler(event))
 
     def _track_task(self, task: asyncio.Task[Any]) -> None:
         self._pending_tasks.add(task)

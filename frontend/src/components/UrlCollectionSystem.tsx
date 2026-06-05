@@ -38,7 +38,7 @@ function normalizeCollectedUrl(input: string): string {
   let parsed: URL;
   try {
     parsed = new URL(withProtocol);
-  } catch (err) {
+  } catch (_err) {
     throw new Error(`Invalid URL: ${trimmed}`);
   }
 

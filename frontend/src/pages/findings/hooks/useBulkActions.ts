@@ -54,18 +54,22 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     const ids = Array.from(selectedIds);
     setLocalOverrides(prev => {
       const next = { ...prev };
-      // Lock the loop-variable so each handler closes over a stable string.
+      // ``id`` is a finding ID sourced from the dashboard's own
+      // selected-IDs set; it is not a user-controlled key and is
+      // safe to use as a dynamic record key.
+      /* eslint-disable security/detect-object-injection */
       for (const id of ids) {
         const prevItem = Object.hasOwn(prev, id) ? prev[id] : {};
         next[id] = { ...prevItem, ...updates };
         addAuditLog(id, 'bulk_status_change', `Changed to ${status}`);
       }
+      /* eslint-enable security/detect-object-injection */
       return next;
     });
     setSelectedIds(new Set());
     setBulkActionMode(null);
     showToast?.('success', `Status updated for ${ids.length} finding${ids.length > 1 ? 's' : ''}`);
-   
+
   }, [selectedIds, addAuditLog, setLocalOverrides, showToast]);
 
   const handleBulkFalsePositive = useCallback(() => {
@@ -73,17 +77,19 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     const ids = Array.from(selectedIds);
     setLocalOverrides(prev => {
       const next = { ...prev };
+      /* eslint-disable security/detect-object-injection */
       for (const id of ids) {
         const prevItem = Object.hasOwn(prev, id) ? prev[id] : {};
         next[id] = { ...prevItem, ...updates };
         addAuditLog(id, 'bulk_false_positive', 'Marked as false positive');
       }
+      /* eslint-enable security/detect-object-injection */
       return next;
     });
     setSelectedIds(new Set());
     setBulkActionMode(null);
     showToast?.('success', `${ids.length} finding${ids.length > 1 ? 's' : ''} marked as false positive`);
-   
+
   }, [selectedIds, addAuditLog, setLocalOverrides, showToast]);
 
   const handleBulkAssign = useCallback(() => {
@@ -92,35 +98,39 @@ export function useBulkActions({ addAuditLog, setLocalOverrides, showToast }: Us
     const ids = Array.from(selectedIds);
     setLocalOverrides(prev => {
       const next = { ...prev };
+      /* eslint-disable security/detect-object-injection */
       for (const id of ids) {
         const prevItem = Object.hasOwn(prev, id) ? prev[id] : {};
         next[id] = { ...prevItem, assignedTo: assignee };
         addAuditLog(id, 'bulk_assign', `Assigned to ${assignee}`);
       }
+      /* eslint-enable security/detect-object-injection */
       return next;
     });
     setSelectedIds(new Set());
     setBulkAssignee('');
     setBulkActionMode(null);
     showToast?.('success', `Assigned ${ids.length} finding${ids.length > 1 ? 's' : ''} to ${assignee}`);
-   
+
   }, [selectedIds, bulkAssignee, addAuditLog, setLocalOverrides, showToast]);
 
   const handleBulkDelete = useCallback(() => {
     const ids = Array.from(selectedIds);
     setLocalOverrides(prev => {
       const next = { ...prev };
+      /* eslint-disable security/detect-object-injection */
       for (const id of ids) {
         const prevItem = Object.hasOwn(prev, id) ? prev[id] : {};
         next[id] = { ...prevItem, _deleted: true };
         addAuditLog(id, 'bulk_delete', 'Deleted via bulk action');
       }
+      /* eslint-enable security/detect-object-injection */
       return next;
     });
     setSelectedIds(new Set());
     setBulkActionMode(null);
     showToast?.('warning', `${ids.length} finding${ids.length > 1 ? 's' : ''} deleted`);
-   
+
   }, [selectedIds, addAuditLog, setLocalOverrides, showToast]);
 
   return {

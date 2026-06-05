@@ -88,13 +88,23 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={cn(
           'inline-flex items-center justify-center gap-2 font-mono font-bold uppercase tracking-wider cursor-pointer transition-all duration-200 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed',
+          // The four lookups below index into statically-typed record
+          // objects (``toneClasses``, ``intensityClasses``, ``variantClasses``,
+          // ``sizeClasses``) where the keyset is exhaustively checked against
+          // the corresponding TS string-literal union. The keys can never
+          // come from user input, so the dynamic-key warning is a false
+          // positive.
+          /* eslint-disable-next-line security/detect-object-injection */
           toneClasses[tone],
+          /* eslint-disable-next-line security/detect-object-injection */
           intensityClasses[intensity],
           !interactive && 'pointer-events-none',
           status === 'running' && 'animate-pulse',
           status === 'failed' && 'ring-2 ring-[var(--bad)]/60',
           status === 'completed' && 'ring-2 ring-[var(--ok)]/60',
+          /* eslint-disable-next-line security/detect-object-injection */
           variantClasses[variant],
+          /* eslint-disable-next-line security/detect-object-injection */
           sizeClasses[size],
           className
         )}

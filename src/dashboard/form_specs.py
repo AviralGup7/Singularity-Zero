@@ -8,17 +8,16 @@ canonical list of runtime controls live in
 legacy callers can keep importing from ``form_specs``.
 """
 
-from collections.abc import Callable
 from typing import Any
 
 from src.dashboard.controls.controls import (
+    CONFIG_TOGGLE_CONTROLS,
     EXECUTION_TOGGLE_CONTROLS,
-    NumericControlSpec,
     RUNTIME_FORM_FIELD_NAMES,
     RUNTIME_NUMERIC_CONTROLS,
     RUNTIME_TOGGLE_CONTROLS,
+    NumericControlSpec,
     ToggleControlSpec,
-    CONFIG_TOGGLE_CONTROLS,
 )
 from src.dashboard.registry import ANALYSIS_CHECK_OPTIONS
 

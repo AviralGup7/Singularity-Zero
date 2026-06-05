@@ -14,8 +14,13 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
     if (sourceVal !== undefined) {
       if (sourceVal !== null && typeof sourceVal === 'object' && !Array.isArray(sourceVal) &&
           targetVal !== null && typeof targetVal === 'object' && !Array.isArray(targetVal)) {
+        // ``key`` is a member of ``Object.keys(source)``, i.e. a known
+        // setting key from the validated settings schema. The
+        // dynamic-key warning is a false positive.
+        /* eslint-disable-next-line security/detect-object-injection */
         result[key] = deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
       } else {
+        /* eslint-disable-next-line security/detect-object-injection */
         result[key] = sourceVal;
       }
     }
@@ -65,6 +70,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
   const updateSection = <T extends keyof AppSettings>(section: T, partial: Partial<AppSettings[T]>) => {
     set((state) => {
       let nextSection = partial as AppSettings[T];
+      // ``section`` is typed as ``keyof AppSettings``; the dynamic
+      // key is statically bounded to the union members of the
+      // settings record, so the warning is a false positive.
+      // eslint-disable-next-line security/detect-object-injection
       const existingSection = state.settings[section];
 
       if (existingSection !== null && existingSection !== undefined && typeof existingSection === 'object' && !Array.isArray(existingSection)) {

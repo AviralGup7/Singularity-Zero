@@ -1,12 +1,5 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-// captureException not used in this view; tracking handled by ErrorBoundary
-// import { captureException } from '@/utils/errorTracker';
-
-type OverlayState = {
-  show: (title: string, message: string, stack?: string) => void;
-  hide: () => void;
-};
 
 let errorRoot: Root | null = null;
 let currentOverlay: HTMLDivElement | null = null;
@@ -37,33 +30,6 @@ function removeOverlayRoot() {
   }
   const root = document.getElementById('error-overlay-root');
   if (root && root.parentNode) root.parentNode.removeChild(root);
-}
-
-export function createErrorOverlayState(): OverlayState {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _listeners = new Set<{ title: string; message: string; stack?: string }>();
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useEffect(() => {
-    const body = document.body;
-    if (body) body.style.overflow = 'hidden';
-    return () => {
-      if (document.body) document.body.style.overflow = '';
-      removeOverlayRoot();
-    };
-  }, []);
-
-  const show = () => {
-    ensureOverlayRoot();
-  };
-
-  // This hook is only referenced from state, hence no-op return.
-  const state = {
-    show,
-    hide: removeOverlayRoot,
-  } satisfies OverlayState;
-
-  return state;
 }
 
 export function ErrorOverlay({ title, message, stack }: { title: string; message: string; stack?: string }) {

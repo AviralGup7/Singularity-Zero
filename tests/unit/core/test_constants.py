@@ -4,7 +4,7 @@ import unittest
 
 import pytest
 
-from src.core import constants as C
+from src.core import constants as C  # noqa: N812
 
 
 @pytest.mark.unit

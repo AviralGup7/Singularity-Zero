@@ -21,6 +21,7 @@ from src.dashboard.fastapi.routers.utils import (
 )
 from src.dashboard.fastapi.schemas import ErrorResponse
 from src.dashboard.feature_flags import FeatureFlags
+
 # Bug #32 fix: import ``STAGE_LABELS`` at module scope so both branches of
 # the ``ENABLE_SSE_PROGRESS`` flag can reference it without a NameError.
 try:

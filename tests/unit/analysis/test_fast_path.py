@@ -5,13 +5,13 @@ import unittest
 import pytest
 
 from src.analysis.fast_path import (
-    FastPathDispatcher,
-    FastPathStats,
     _CACHE_HIT_KEY,
     _CACHE_MISS_KEY,
     _CACHE_TTL_SECONDS,
     _MAX_CACHE_SIZE,
     _RESPONSE_CACHE,
+    FastPathDispatcher,
+    FastPathStats,
 )
 
 

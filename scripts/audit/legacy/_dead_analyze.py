@@ -1,4 +1,6 @@
-﻿import os, re, ast
+﻿import ast
+import os
+import re
 from pathlib import Path
 
 ROOT = Path(r"D:\cyber security test pipeline - Copy")

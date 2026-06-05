@@ -160,7 +160,7 @@ with OUT.open("w", encoding="utf-8") as out:
         p = ROOT / fname
         if p.exists():
             text = p.read_text(encoding="utf-8", errors="ignore")
-            nonempty = [l for l in text.splitlines() if l.strip()]
+            nonempty = [line for line in text.splitlines() if line.strip()]
             out.write(f"Found {fname}. Latest non-empty line: {nonempty[-1] if nonempty else '(empty)'}\n")
             break
     else:
