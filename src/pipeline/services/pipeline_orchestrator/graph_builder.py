@@ -109,6 +109,12 @@ _BASE_NODES: tuple[StageNode, ...] = (
         when=OutputNonEmpty("live_hosts"),
     ),
     StageNode(
+        name="subdomain_takeover",
+        needs=("subdomains",),
+        weight=8,
+        timeout=300,
+    ),
+    StageNode(
         name="nuclei",
         needs=("passive_scan",),
         weight=10,
@@ -140,6 +146,12 @@ _BASE_NODES: tuple[StageNode, ...] = (
         timeout=180,
     ),
     StageNode(
+        name="threat_modeling",
+        needs=("intelligence",),
+        weight=4,
+        timeout=300,
+    ),
+    StageNode(
         name="reporting",
         needs=(
             "intelligence",
@@ -147,11 +159,13 @@ _BASE_NODES: tuple[StageNode, ...] = (
             "access_control",
             "validation",
             "passive_scan",
+            "threat_modeling",
         ),
         weight=5,
         timeout=300,
     ),
 )
+
 
 
 def build_pipeline_graph(

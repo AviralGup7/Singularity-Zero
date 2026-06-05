@@ -39,6 +39,30 @@ logger = get_pipeline_logger(__name__)
 
 SHELL_META = re.compile(r"[;|&$`\n\r]")
 
+
+def _clean_env(env: dict[str, str] | None) -> dict[str, str]:
+    if env is None:
+        return {}
+    clean = {}
+    for k, v in env.items():
+        try:
+            k_str = str(k)
+            v_str = str(v)
+            if sys.platform.startswith("win"):
+                k_str.encode("utf-8")
+                v_str.encode("utf-8")
+            clean[k_str] = v_str
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+    return clean
+
+
+def _get_creationflags() -> int:
+    if sys.platform.startswith("win"):
+        return subprocess.CREATE_NO_WINDOW
+    return 0
+
+
 _CIRCUIT_BREAKERS: dict[str, CircuitBreaker] = {}
 _CIRCUIT_BREAKER_LAST_ACCESS: dict[str, float] = {}
 _CIRCUIT_BREAKERS_LOCK = threading.Lock()
@@ -178,9 +202,9 @@ async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
     env = invocation.env
     cwd = str(invocation.working_dir) if invocation.working_dir else None
 
-    base_env = os.environ.copy()
+    base_env = _clean_env(os.environ.copy())
     if env:
-        merged_env = {**base_env, **env}
+        merged_env = {**base_env, **_clean_env(env)}
     else:
         merged_env = base_env
 
@@ -200,6 +224,7 @@ async def run_external_tool(invocation: ToolInvocation) -> CompletedToolRun:
                 check=False,
                 env=merged_env,
                 cwd=cwd,
+                creationflags=_get_creationflags(),
             ),
         )
     except subprocess.TimeoutExpired as exc:
@@ -502,7 +527,7 @@ class ToolExecutionService:
                     extra_dirs.append(resolved)
         if extra_dirs:
             env["PATH"] = os.pathsep.join([*extra_dirs, env.get("PATH", "")])
-        return env
+        return _clean_env(env)
 
     def sanitize_tool_arguments(self, command: list[str]) -> list[str]:
         """Validate and sanitize tool arguments to prevent command injection.
@@ -569,6 +594,7 @@ class ToolExecutionService:
                     timeout=timeout_arg,
                     check=False,
                     env=self.command_env(),
+                    creationflags=_get_creationflags(),
                 )
             except subprocess.TimeoutExpired as exc:
                 breaker.record_failure()
@@ -648,6 +674,7 @@ class ToolExecutionService:
                     timeout=timeout_arg,
                     check=False,
                     env=self.command_env(),
+                    creationflags=_get_creationflags(),
                 )
             except subprocess.TimeoutExpired as exc:
                 breaker.record_failure()

@@ -50,6 +50,15 @@ class CheckpointManager:
         self._state: CheckpointState | None = None
         self._lock = threading.RLock()
 
+    @property
+    def completed_stages(self) -> list[str]:
+        with self._lock:
+            state = self.load()
+            if state is None:
+                return []
+            return self._ensure_completed_stages_list(state)
+
+
     def _checkpoint_path(self, version: int) -> Path:
         return self._run_dir / f"checkpoint_v{version}.json"
 

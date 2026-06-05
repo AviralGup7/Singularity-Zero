@@ -51,12 +51,14 @@ def _register_defaults() -> None:
     from src.pipeline.services.pipeline_orchestrator.stages.reporting import run_reporting
     from src.pipeline.services.pipeline_orchestrator.stages.semgrep import run_semgrep_stage
     from src.pipeline.services.pipeline_orchestrator.stages.validation import run_validation
+    from src.pipeline.services.pipeline_orchestrator.stages.adaptive_extra import run_subdomain_takeover, run_threat_modeling
 
     register_plugin(RECON_PROVIDER, "subdomains")(run_subdomain_enumeration)
     register_plugin(RECON_PROVIDER, "live_hosts")(run_live_hosts)
     register_plugin(RECON_PROVIDER, "urls")(run_url_collection)
     register_plugin(RECON_PROVIDER, "parameters")(run_parameter_extraction)
     register_plugin(RECON_PROVIDER, "ranking")(run_priority_ranking)
+    register_plugin(RECON_PROVIDER, "subdomain_takeover")(run_subdomain_takeover)
 
     register_plugin(SCANNER, "passive_scan")(run_passive_scanning)
     register_plugin(SCANNER, "active_scan")(run_active_scanning)
@@ -67,7 +69,9 @@ def _register_defaults() -> None:
     register_plugin(VALIDATOR, "validation")(run_validation)
 
     register_plugin(ENRICHMENT_PROVIDER, "intelligence")(run_post_analysis_enrichments)
+    register_plugin(ENRICHMENT_PROVIDER, "threat_modeling")(run_threat_modeling)
     register_plugin(EXPORTER, "reporting")(run_reporting)
+
 
     # Trigger internal plugin registrations via module imports
     import src.analysis.behavior.api_security  # noqa: F401

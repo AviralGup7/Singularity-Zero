@@ -195,12 +195,9 @@ async def run_live_hosts(
         if stage_input is None:
             stage_input = build_stage_input_from_context("live_hosts", config, ctx)
 
-        prober_func = (
-            recon_service.probe_live_hosts
-            if probe_live_hosts is _DEFAULT_PROBE_LIVE_HOSTS
-            else probe_live_hosts
-        )
-        prober = partial(prober_func, config=config)
+        prober = None
+        if probe_live_hosts is not _DEFAULT_PROBE_LIVE_HOSTS:
+            prober = partial(probe_live_hosts, config=config)
 
         async def enricher_wrapper(
             records: list[dict[str, Any]], context: Any
@@ -341,10 +338,9 @@ async def run_url_collection(
         if stage_input is None:
             stage_input = build_stage_input_from_context("urls", config, ctx)
 
-        collector_func = (
-            recon_service.collect_urls if collect_urls is _DEFAULT_COLLECT_URLS else collect_urls
-        )
-        collector = partial(collector_func, scope_entries=list(ctx.scope_entries), config=config)
+        collector = None
+        if collect_urls is not _DEFAULT_COLLECT_URLS:
+            collector = partial(collect_urls, scope_entries=list(ctx.scope_entries), config=config)
 
         stage_output = await run_url_collection_service(
             stage_input,

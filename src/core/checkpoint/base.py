@@ -22,6 +22,9 @@ class CheckpointState:
     checkpoint_version: int = 1
     """Incremented on each checkpoint."""
 
+    schema_version: int = 2
+    """Checkpoint schema structure version."""
+
     completed_stages: list[str] = field(default_factory=list)
     """Stage names that completed successfully."""
 
@@ -63,9 +66,19 @@ class CheckpointState:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CheckpointState:
         """Reconstruct a CheckpointState from a deserialized dictionary."""
+        from src.core.checkpoint.migrations import GLOBAL_MIGRATION_REGISTRY
+        import dataclasses
+        
         data.pop("checksum", None)
-        restored = _deserialize_sets(data)
+        migrated = GLOBAL_MIGRATION_REGISTRY.migrate(data)
+        
+        # Keep only fields present in CheckpointState dataclass for robustness/forward-compatibility
+        valid_fields = {f.name for f in dataclasses.fields(cls)}
+        filtered = {k: v for k, v in migrated.items() if k in valid_fields}
+        
+        restored = _deserialize_sets(filtered)
         return cls(**restored)
+
 
 
 def _serialize_sets(obj: Any) -> Any:

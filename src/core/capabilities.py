@@ -4,26 +4,47 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
-class TemplateScanner(Protocol):
-    def scan_templates(
-        self, targets: list[str], templates: list[str], **kwargs: Any
-    ) -> list[dict[str, Any]]: ...
+@dataclass(frozen=True, slots=True)
+class ToolExecutionContext:
+    """Execution context containing paths, environments, and sandbox constraints for a tool."""
 
-
-class ReconProvider(Protocol):
-    def collect(self, scope_entries: list[str], **kwargs: Any) -> set[str]: ...
-
-
-class HttpProbeProvider(Protocol):
-    def probe(self, hosts: list[str], **kwargs: Any) -> tuple[list[dict[str, Any]], set[str]]: ...
-
-
-class CrawlerProvider(Protocol):
-    def crawl(self, seeds: list[str], **kwargs: Any) -> set[str]: ...
+    resolved_paths: dict[str, str] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict)
+    sandbox_constraints: dict[str, Any] = field(default_factory=dict)
+    config: Any = None
 
 
 @dataclass(frozen=True, slots=True)
 class CapabilityManifest:
+    """Estimated performance and constraint requirements for a pipeline capability."""
+
+    estimated_duration_seconds: float
+    memory_mb: float
+    network_calls_per_target: int
+    supports_checkpoint_resume: bool
+    version_requirements: dict[str, str] = field(default_factory=dict)
+
+
+class TemplateScanner(Protocol):
+    def scan_templates(
+        self, targets: list[str], templates: list[str], context: ToolExecutionContext, **kwargs: Any
+    ) -> list[dict[str, Any]]: ...
+
+
+class ReconProvider(Protocol):
+    def collect(self, scope_entries: list[str], context: ToolExecutionContext, **kwargs: Any) -> set[str]: ...
+
+
+class HttpProbeProvider(Protocol):
+    def probe(self, hosts: list[str], context: ToolExecutionContext, **kwargs: Any) -> tuple[list[dict[str, Any]], set[str]]: ...
+
+
+class CrawlerProvider(Protocol):
+    def crawl(self, seeds: list[str], context: ToolExecutionContext, **kwargs: Any) -> set[str]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class SystemPluginManifest:
     """Serializable view of built-in and dynamic extension capabilities."""
 
     generated_by: str = "src.core.capabilities.generate_capability_manifest"
@@ -44,8 +65,12 @@ class CapabilityManifest:
         }
 
 
-def generate_capability_manifest() -> CapabilityManifest:
-    """Build a fresh capability manifest from the live plugin registry."""
+# Backwards compatibility alias
+CapabilityManifestLegacy = SystemPluginManifest
+
+
+def generate_capability_manifest() -> SystemPluginManifest:
+    """Build a fresh system capability/plugin manifest from the live plugin registry."""
 
     from src.core.plugins import list_plugins
     from src.core.plugins.loader import dynamic_plugin_payload, refresh_dynamic_plugins
@@ -72,9 +97,10 @@ def generate_capability_manifest() -> CapabilityManifest:
         ]
 
     payload = dynamic_plugin_payload()
-    return CapabilityManifest(
+    return SystemPluginManifest(
         providers=providers,
         dynamic_plugins=payload["plugins"],
         invalid_dynamic_plugins=payload["invalid"],
         watched_dirs=payload["watched_dirs"],
     )
+

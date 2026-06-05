@@ -24,6 +24,7 @@ __all__ = [
 
 PIPELINE_STAGES = {
     "subdomains": "Subdomain enumeration",
+    "subdomain_takeover": "Subdomain Takeover check",
     "live_hosts": "Live host probing",
     "waf": "WAF/CDN detection",
     "urls": "URL collection",
@@ -34,9 +35,11 @@ PIPELINE_STAGES = {
     "semgrep": "Static analysis (Semgrep)",
     "validation": "Validation runtime",
     "intelligence": "Intelligence merge",
+    "threat_modeling": "Threat modeling enrichment",
     "access_control": "Authorization bypass detection",
     "reporting": "Report generation",
 }
+
 
 # Per-stage timeouts in seconds.  Used by ``orchestrator._resolve_stage_timeout``
 # unless a ``StageNode.timeout`` override is supplied (currently none are).
@@ -78,6 +81,7 @@ STAGE_TIMEOUTS = {
 # not constrained by this order — the graph topology governs.
 STAGE_ORDER = (
     "subdomains",
+    "subdomain_takeover",
     "live_hosts",
     "waf",
     "urls",
@@ -90,8 +94,10 @@ STAGE_ORDER = (
     "access_control",
     "validation",
     "intelligence",
+    "threat_modeling",
     "reporting",
 )
+
 
 DEFAULT_ITERATION_LIMIT = 3
 DEFAULT_TIMEOUT_SECONDS = 3600
