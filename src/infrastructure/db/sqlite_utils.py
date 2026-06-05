@@ -91,7 +91,7 @@ def retrying_connect(
             with _connection_scope(conn) as managed:
                 yield managed
             return
-        except sqlite3.OperationalError as exc:
+        except sqlite3.OperationalError:
             if conn is not None:
                 safe_close(conn)
             if attempt == max_retries - 1:

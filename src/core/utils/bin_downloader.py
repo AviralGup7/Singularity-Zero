@@ -146,16 +146,16 @@ def download_and_extract_tool(
 
     try:
         # Request with a standard User-Agent header
-            req = urllib.request.Request(  # noqa: S310
-                url,
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/120.0.0.0 Safari/537.36"
-                    )
-                },
-            )
+        req = urllib.request.Request(  # noqa: S310
+            url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                )
+            },
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_archive_path = Path(tmpdir) / "archive.zip"
