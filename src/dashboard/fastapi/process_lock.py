@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from typing import IO
 
 logger = logging.getLogger(__name__)
 
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 class ProcessLifespanLock:
     def __init__(self, lock_path: str):
         self.lock_path = lock_path
-        self.fd = None
+        self.fd: IO[str] | None = None
         self._pid: int | None = None
 
     @staticmethod
@@ -35,6 +36,7 @@ class ProcessLifespanLock:
         try:
             self._pid = os.getpid()
             self.fd = open(self.lock_path, "w")
+            assert self.fd is not None
             self.fd.write(str(self._pid))
             self.fd.flush()
             if sys.platform == "win32":

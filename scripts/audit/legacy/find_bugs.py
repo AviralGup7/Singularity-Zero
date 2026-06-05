@@ -1,5 +1,8 @@
+import logging
 import os
 import re
+
+logger = logging.getLogger(__name__)
 
 src = r"D:\cyber security test pipeline - Copy\src"
 
@@ -18,6 +21,7 @@ for root, dirs, files in os.walk(src):
             with open(path, encoding="utf-8") as fh:
                 lines = fh.readlines()
         except Exception:
+            logger.exception("Failed to read %s", path)
             continue
         for i, line in enumerate(lines, 1):
             for pat, label in patterns:

@@ -1,7 +1,10 @@
 import ast
+import logging
 import re
 from collections import defaultdict
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(r"D:\cyber security test pipeline - Copy")
 OUT = ROOT / "audit_report.txt"
@@ -65,6 +68,7 @@ for py_file in ROOT.rglob("*.py"):
     try:
         text = py_file.read_text(encoding="utf-8", errors="ignore")
     except Exception:
+        logger.exception("Failed to read %s", py_file)
         continue
     lines = text.splitlines()
     if not lines:

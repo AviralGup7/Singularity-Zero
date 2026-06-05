@@ -1,5 +1,6 @@
 """Unit tests for src.core.frontier.shared_memory (SharedMemoryBuffer + ZeroCopyRouter)."""
 
+import logging
 import unittest
 import uuid
 
@@ -30,7 +31,7 @@ class TestSharedMemoryBuffer(unittest.TestCase):
         try:
             self.buf.close()
         except Exception:
-            pass
+            logging.getLogger(__name__).exception("Failed to close shared memory buffer")
 
     def test_write_and_read_roundtrip(self) -> None:
         data = b"hello shared memory"
@@ -69,7 +70,7 @@ class TestSharedMemoryBuffer(unittest.TestCase):
         try:
             self.buf.close()
         except Exception:
-            pass
+            logging.getLogger(__name__).exception("Failed to close shared memory buffer")
 
     def test_name_and_size_attributes(self) -> None:
         self.assertEqual(self.buf.name, self.name)
@@ -91,7 +92,7 @@ class TestZeroCopyRouter(unittest.TestCase):
                 try:
                     r.close()
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).exception("Failed to close route %s", r)
 
     def test_route_payload_returns_location_string(self) -> None:
         loc = self.router.route_payload(b"hello")

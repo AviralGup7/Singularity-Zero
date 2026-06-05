@@ -76,7 +76,7 @@ class ResourcePool:
         self._lock = asyncio.Lock()
         self._closed = False
         self._wait_times: list[float] = []
-        self._shrink_drain_tasks: set[asyncio.Task[None]] = set()
+        self._shrink_drain_tasks: set[asyncio.Task[Any]] = set()
 
     @property
     def max_concurrent(self) -> int:

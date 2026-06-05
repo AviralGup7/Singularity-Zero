@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import socket
-from typing import Any
+from typing import Any, cast
 
 try:
     import dns.asyncresolver
@@ -110,10 +110,10 @@ async def enumerate_dns_records(
 
     results: list[dict[str, Any]] = []
     for item in completed:
-        if isinstance(item, Exception):
+        if isinstance(item, BaseException):
             logger.debug("DNS query failed: %s", item)
             continue
-        domain, rtype, found = item
+        domain, rtype, found = cast(tuple[str, str, list[str]], item)
         for value in found:
             results.append(
                 {

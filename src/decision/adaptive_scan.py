@@ -110,9 +110,12 @@ class AdaptiveScanCoordinator:
             # exit on iteration 0 without scanning anything. The check
             # is now performed AFTER the first batch is populated, so we
             # always make at least one pass over the priority queue.
-            batch_urls = []
+            batch_urls: list[Any] = []
             for _ in range(self._batch_size):
                 target = self._queue.pop()
+                if target is None:
+                    break
+                batch_urls.append(target)
 
             if not batch_urls:
                 logger.info(

@@ -315,12 +315,12 @@ class CloudBucketScanner:
             # Run tasks concurrently
             completed = await asyncio.gather(*tasks, return_exceptions=True)
             # Flatten results list
-            findings = []
+            findings: list[dict[str, Any]] = []
             for sublist in completed:
-                if isinstance(sublist, Exception):
+                if isinstance(sublist, BaseException):
                     logger.debug("Cloud bucket scan failed: %s", sublist)
                     continue
-                findings.extend(sublist)
+                findings.extend(cast(list[dict[str, Any]], sublist))
             return findings
 
     def run_scan_sync(self, target: str) -> list[dict[str, Any]]:

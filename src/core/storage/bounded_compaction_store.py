@@ -58,6 +58,12 @@ class BoundedCompactionStateStore:
     def read_version(self, path: str | Path) -> dict[str, Any] | None:
         return self.backend.read_version(path)
 
+    def list_versions(self, run_id: str) -> list[str | Path]:
+        return self.backend.list_versions(run_id)
+
+    def delete(self, path: str | Path) -> None:
+        self.backend.delete(path)
+
 
 # Bug #15 fix: explicit list of legacy keys that should be cleared from
 # the payload before overlaying the freshly-compacted CRDT snapshot.
@@ -70,9 +76,3 @@ def _clear_legacy_state_keys(payload: dict[str, Any]) -> None:
     """
     for key in _LEGACY_STATE_KEYS:
         payload.pop(key, None)
-
-    def list_versions(self, run_id: str) -> list[str | Path]:
-        return self.backend.list_versions(run_id)
-
-    def delete(self, path: str | Path) -> None:
-        self.backend.delete(path)

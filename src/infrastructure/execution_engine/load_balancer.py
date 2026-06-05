@@ -202,7 +202,7 @@ class LoadBalancer:
 
             if best_worker_id is None:
                 if not self._workers:
-                    return None
+                    raise RuntimeError("No workers available for selection")
                 best_worker_id = next(iter(self._workers))
 
             selected_stats = self._workers[best_worker_id]

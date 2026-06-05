@@ -1,7 +1,10 @@
 import ast
+import logging
 import os
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(r"D:\cyber security test pipeline - Copy")
 SKIP = {
@@ -50,6 +53,7 @@ for dirpath, dirnames, filenames in os.walk(ROOT):
             text = path.read_text(encoding="utf-8", errors="ignore")
             text = illegal_chars.sub("", text)
         except Exception:
+            logger.exception("Failed to read %s", path)
             continue
         lines = text.splitlines()
 
@@ -111,6 +115,7 @@ for dirpath, dirnames, filenames in os.walk(ROOT):
         try:
             tree = ast.parse(text)
         except Exception:
+            logger.exception("Failed to parse AST for %s", path)
             continue
         imported = set()
         used = set()
