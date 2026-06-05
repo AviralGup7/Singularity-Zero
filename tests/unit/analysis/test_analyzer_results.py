@@ -27,9 +27,7 @@ class TestBuildAnalyzerResultBasic(unittest.TestCase):
         self.assertEqual(result["status_code"], 200)
 
     def test_status_code_from_response_dict(self) -> None:
-        result = build_analyzer_result(
-            "https://example.com/", response={"status_code": 404}
-        )
+        result = build_analyzer_result("https://example.com/", response={"status_code": 404})
         self.assertEqual(result["status_code"], 404)
 
     def test_explicit_status_code_wins(self) -> None:
@@ -39,9 +37,7 @@ class TestBuildAnalyzerResultBasic(unittest.TestCase):
         self.assertEqual(result["status_code"], 500)
 
     def test_extra_fields_merged(self) -> None:
-        result = build_analyzer_result(
-            "https://example.com/", custom="value", count=3
-        )
+        result = build_analyzer_result("https://example.com/", custom="value", count=3)
         self.assertEqual(result["custom"], "value")
         self.assertEqual(result["count"], 3)
 
@@ -49,17 +45,13 @@ class TestBuildAnalyzerResultBasic(unittest.TestCase):
 @pytest.mark.unit
 class TestBuildAnalyzerResultFlags(unittest.TestCase):
     def test_exclude_endpoint_keys(self) -> None:
-        result = build_analyzer_result(
-            "https://example.com/api", include_endpoint_keys=False
-        )
+        result = build_analyzer_result("https://example.com/api", include_endpoint_keys=False)
         self.assertNotIn("endpoint_key", result)
         self.assertNotIn("endpoint_base_key", result)
         self.assertIn("endpoint_type", result)
 
     def test_include_endpoint_keys_explicit_true(self) -> None:
-        result = build_analyzer_result(
-            "https://example.com/api", include_endpoint_keys=True
-        )
+        result = build_analyzer_result("https://example.com/api", include_endpoint_keys=True)
         self.assertIn("endpoint_key", result)
         self.assertIn("endpoint_base_key", result)
         self.assertIn("endpoint_type", result)
@@ -86,9 +78,7 @@ class TestBuildAnalyzerResultEdgeCases(unittest.TestCase):
         self.assertNotIn("status_code", result)
 
     def test_extra_can_override_endpoint_type(self) -> None:
-        result = build_analyzer_result(
-            "https://example.com/api", endpoint_type="custom"
-        )
+        result = build_analyzer_result("https://example.com/api", endpoint_type="custom")
         self.assertEqual(result["endpoint_type"], "custom")
 
 

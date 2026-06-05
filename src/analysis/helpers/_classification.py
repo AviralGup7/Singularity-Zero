@@ -26,12 +26,40 @@ def is_auth_flow_endpoint(url: str) -> bool:
     """Check if a URL is part of an authentication flow."""
     path = urlparse(url).path.lower()
     auth_flow_hints = {
-        "login", "logout", "signin", "signout", "signup", "register",
-        "auth", "oauth", "token", "refresh", "reset", "forgot",
-        "password", "verify", "confirm", "activate", "deactivate",
-        "session", "sso", "saml", "openid", "callback", "authorize",
-        "consent", "challenge", "mfa", "totp", "webauthn", "passkey",
-        "magic-link", "invite", "accept-invite", "recover", "unlock",
+        "login",
+        "logout",
+        "signin",
+        "signout",
+        "signup",
+        "register",
+        "auth",
+        "oauth",
+        "token",
+        "refresh",
+        "reset",
+        "forgot",
+        "password",
+        "verify",
+        "confirm",
+        "activate",
+        "deactivate",
+        "session",
+        "sso",
+        "saml",
+        "openid",
+        "callback",
+        "authorize",
+        "consent",
+        "challenge",
+        "mfa",
+        "totp",
+        "webauthn",
+        "passkey",
+        "magic-link",
+        "invite",
+        "accept-invite",
+        "recover",
+        "unlock",
     }
     return any(hint in path for hint in auth_flow_hints)
 
@@ -81,7 +109,16 @@ def is_self_endpoint(url: str) -> bool:
     path = urlparse(url).path.lower()
     return any(
         path == token or path.endswith(token) or token in path
-        for token in ("/me", "/users/me", "/users/me.json", "/account", "/profile", "/my", "/self", "/current")
+        for token in (
+            "/me",
+            "/users/me",
+            "/users/me.json",
+            "/account",
+            "/profile",
+            "/my",
+            "/self",
+            "/current",
+        )
     )
 
 
@@ -96,10 +133,7 @@ def is_debug_endpoint(url: str) -> bool:
 def is_backup_endpoint(url: str) -> bool:
     """Check if a URL points to a backup/config file."""
     lowered = urlparse(url).path.lower()
-    return any(
-        lowered.endswith(token) or token in lowered
-        for token in BACKUP_PATH_HINTS
-    )
+    return any(lowered.endswith(token) or token in lowered for token in BACKUP_PATH_HINTS)
 
 
 @lru_cache(maxsize=4096)
@@ -180,7 +214,21 @@ def same_host_family(left: str, right: str) -> bool:
     if not left_labels or not right_labels:
         return False
 
-    common_slds = {"co", "com", "org", "gov", "edu", "net", "mil", "asn", "id", "ltd", "me", "plc", "sch"}
+    common_slds = {
+        "co",
+        "com",
+        "org",
+        "gov",
+        "edu",
+        "net",
+        "mil",
+        "asn",
+        "id",
+        "ltd",
+        "me",
+        "plc",
+        "sch",
+    }
 
     def get_family_slice(labels: list[str]) -> list[str]:
         if len(labels) >= 3:
@@ -199,8 +247,7 @@ def is_third_party_auth_host(host: str, target_host: str = "") -> bool:
     if target_host and same_host_family(lowered, target_host.lower()):
         return False
     return any(
-        lowered == domain or lowered.endswith(f".{domain}")
-        for domain in THIRD_PARTY_AUTH_HOSTS
+        lowered == domain or lowered.endswith(f".{domain}") for domain in THIRD_PARTY_AUTH_HOSTS
     )
 
 

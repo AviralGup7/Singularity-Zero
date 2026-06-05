@@ -378,7 +378,9 @@ def resolve_stage_timeout(
         subdomains_attr = getattr(ctx.result, "subdomains", None)
         subdomain_count = len(subdomains_attr) if subdomains_attr is not None else 0
         if subdomains_attr is None:
-            logger.debug("compute_stage_timeout: ctx.result.subdomains is None (stage=%s)", stage_name)
+            logger.debug(
+                "compute_stage_timeout: ctx.result.subdomains is None (stage=%s)", stage_name
+            )
         scope_entry_count = len(getattr(ctx.result, "scope_entries", []) or [])
         candidate_count = max(subdomain_count, scope_entry_count)
 

@@ -110,6 +110,7 @@ class RequestScheduler:
         loop = None
         try:
             import asyncio
+
             loop = asyncio.get_running_loop()
         except RuntimeError:
             pass
@@ -131,6 +132,7 @@ class RequestScheduler:
             sleep_time = max(0.01, required_sleep)
             if loop is not None and loop.is_running():
                 import threading
+
                 loop_thread = getattr(loop, "_thread", None)
                 if loop_thread is not None and threading.current_thread() != loop_thread:
                     try:
@@ -138,7 +140,10 @@ class RequestScheduler:
                         future.result()
                         continue
                     except (TimeoutError, RuntimeError, OSError) as wait_exc:
-                        logger.debug("Cross-thread event-loop wait failed, falling back to time.sleep: %s", wait_exc)
+                        logger.debug(
+                            "Cross-thread event-loop wait failed, falling back to time.sleep: %s",
+                            wait_exc,
+                        )
             time.sleep(sleep_time)
 
     async def acquire_async(self) -> None:
@@ -305,11 +310,7 @@ class ResponseCache:
 
             if len(self._active_records) >= 1000:
                 now = time.time()
-                expired = [
-                    k
-                    for k, (_, exp) in list(self._active_records.items())
-                    if now > exp
-                ]
+                expired = [k for k, (_, exp) in list(self._active_records.items()) if now > exp]
                 for k in expired:
                     self._active_records.pop(k, None)
                 if len(self._active_records) >= 1000:
@@ -355,17 +356,24 @@ class ResponseCache:
         if self.persistent_cache_path:
             lock_path = self.persistent_cache_path.with_suffix(".lock")
             import sys
+
             with self._lock:
                 fd = None
                 try:
                     fd = open(lock_path, "w")
                     if sys.platform == "win32":
                         import msvcrt
+
                         msvcrt.locking(fd.fileno(), msvcrt.LK_LOCK, 1)
                     else:
                         import fcntl
+
                         fcntl.flock(fd, fcntl.LOCK_EX)
-                    current_on_disk = load_cached_json(self.persistent_cache_path) if self.persistent_cache_path.exists() else {}
+                    current_on_disk = (
+                        load_cached_json(self.persistent_cache_path)
+                        if self.persistent_cache_path.exists()
+                        else {}
+                    )
                     current_on_disk.update(self._persistent_records)
                     save_cached_json(self.persistent_cache_path, current_on_disk)
                 except Exception as exc:
@@ -375,13 +383,17 @@ class ResponseCache:
                         try:
                             if sys.platform == "win32":
                                 import msvcrt
+
                                 fd.seek(0)
                                 msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
                             else:
                                 import fcntl
+
                                 fcntl.flock(fd, fcntl.LOCK_UN)
                         except (OSError, ValueError) as lock_release_exc:
-                            logger.debug("Lock release failed during fd cleanup: %s", lock_release_exc)
+                            logger.debug(
+                                "Lock release failed during fd cleanup: %s", lock_release_exc
+                            )
                         fd.close()
 
     def _request_with_policy(

@@ -39,9 +39,11 @@ class ProcessLifespanLock:
             self.fd.flush()
             if sys.platform == "win32":
                 import msvcrt
+
                 msvcrt.locking(self.fd.fileno(), msvcrt.LK_NBLCK, 1)
             else:
                 import fcntl
+
                 fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return True
         except (ImportError, OSError):
@@ -66,10 +68,12 @@ class ProcessLifespanLock:
             try:
                 if sys.platform == "win32":
                     import msvcrt
+
                     self.fd.seek(0)
                     msvcrt.locking(self.fd.fileno(), msvcrt.LK_UNLCK, 1)
                 else:
                     import fcntl
+
                     fcntl.flock(self.fd, fcntl.LOCK_UN)
             except (ImportError, OSError, ValueError) as unlock_exc:
                 logger.debug("Process lock unlock failed: %s", unlock_exc)

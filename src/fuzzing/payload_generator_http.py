@@ -283,6 +283,7 @@ def _infer_body_fields_from_url(url: str) -> list[tuple[str, str]]:
         from urllib.parse import parse_qsl
 
         from src.core.mutation_engine import detect_parameter_type
+
         for q_name, q_val in parse_qsl(parsed.query, keep_blank_values=True):
             ptype = detect_parameter_type(q_name, q_val)
             mapped_type = "string"
@@ -294,14 +295,16 @@ def _infer_body_fields_from_url(url: str) -> list[tuple[str, str]]:
 
     # If still empty, fall back to a set of generic REST/GraphQL parameters
     if not fields:
-        fields.extend([
-            ("id", "integer"),
-            ("data", "string"),
-            ("query", "string"),
-            ("payload", "string"),
-            ("input", "string"),
-            ("status", "string"),
-        ])
+        fields.extend(
+            [
+                ("id", "integer"),
+                ("data", "string"),
+                ("query", "string"),
+                ("payload", "string"),
+                ("input", "string"),
+                ("status", "string"),
+            ]
+        )
 
     # Deduplicate while preserving order
     seen: set[str] = set()

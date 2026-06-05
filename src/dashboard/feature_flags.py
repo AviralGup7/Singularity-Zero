@@ -108,7 +108,9 @@ FeatureFlags.ENABLE_FINDINGS_STREAM = FeatureFlags.enable_findings_stream  # typ
 FeatureFlags.ENABLE_DAG_EXECUTION = FeatureFlags.enable_dag_execution  # type: ignore[attr-defined]
 FeatureFlags.ENABLE_API_SECURITY = FeatureFlags.enable_api_security  # type: ignore[attr-defined]
 FeatureFlags.SSE_HEARTBEAT_INTERVAL_SECONDS = FeatureFlags.sse_heartbeat_interval_seconds  # type: ignore[attr-defined]
-FeatureFlags.ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS = FeatureFlags.eta_engine_background_interval_seconds  # type: ignore[attr-defined]
+FeatureFlags.ETA_ENGINE_BACKGROUND_INTERVAL_SECONDS = (
+    FeatureFlags.eta_engine_background_interval_seconds
+)  # type: ignore[attr-defined]
 FeatureFlags.ETA_HISTORICAL_DATA_PATH = FeatureFlags.eta_historical_data_path  # type: ignore[attr-defined]
 FeatureFlags.SSE_MAX_FINDINGS_PER_BATCH = FeatureFlags.sse_max_findings_per_batch  # type: ignore[attr-defined]
 FeatureFlags.STALLED_THRESHOLD_SECONDS = FeatureFlags.stalled_threshold_seconds  # type: ignore[attr-defined]

@@ -147,6 +147,4 @@ def job_target_name(job: dict[str, Any] | None) -> str:
     """
     if not isinstance(job, dict):
         return ""
-    return str(
-        job.get("target_name") or job.get("hostname") or job.get("target") or ""
-    )
+    return str(job.get("target_name") or job.get("hostname") or job.get("target") or "")

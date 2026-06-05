@@ -279,10 +279,7 @@ class DistributedCheckpointStore:
             members = self.redis.execute_command("SMEMBERS", ALL_CHECKPOINTS_KEY)
             if not members:
                 return []
-            return [
-                m.decode("utf-8") if isinstance(m, bytes) else m
-                for m in members
-            ]
+            return [m.decode("utf-8") if isinstance(m, bytes) else m for m in members]
         except Exception as exc:
             logger.error("Failed to list all checkpoint keys: %s", exc)
             return []

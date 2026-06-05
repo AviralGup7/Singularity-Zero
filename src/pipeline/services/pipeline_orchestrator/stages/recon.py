@@ -404,9 +404,7 @@ async def run_url_collection(
             # Running it inline blocks the event loop and stalls every
             # other concurrent stage (URL collection, parameter
             # extraction, …). Push it to a worker thread.
-            bucket_findings = await asyncio.to_thread(
-                bucket_scanner.run_scan_sync, target_name
-            )
+            bucket_findings = await asyncio.to_thread(bucket_scanner.run_scan_sync, target_name)
             logger.info(
                 "Cloud bucket scan found %d exposed/secure containers", len(bucket_findings)
             )

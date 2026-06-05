@@ -1,6 +1,5 @@
 """Tests for the secret placeholder validator."""
 
-
 import pytest
 
 from src.core.security import secret_validator
@@ -120,6 +119,7 @@ def test_extra_secret_env_vars_via_env(monkeypatch):
     monkeypatch.setenv("EXTRA_SECRET_ENV_VARS", "CUSTOM_TENANT_KEY")
     # Reload to pick up the new env var
     import importlib
+
     importlib.reload(secret_validator)
     try:
         names = secret_validator.collect_secret_env_vars()

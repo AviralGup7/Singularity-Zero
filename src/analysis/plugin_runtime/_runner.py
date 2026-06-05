@@ -423,14 +423,16 @@ def run_analysis_plugins(
             if progress_callback and callable(progress_callback):
                 pct = int(50 + (completed_plugins / max(1, total_plugins)) * 45)
                 try:
-                    progress_callback({
-                        "group": "passive_analysis",
-                        "status": f"running_scanners ({key})",
-                        "processed": completed_plugins,
-                        "total": total_plugins,
-                        "stage_percent": pct,
-                        "plugin": key,
-                    })
+                    progress_callback(
+                        {
+                            "group": "passive_analysis",
+                            "status": f"running_scanners ({key})",
+                            "processed": completed_plugins,
+                            "total": total_plugins,
+                            "stage_percent": pct,
+                            "plugin": key,
+                        }
+                    )
                 except Exception as p_exc:
                     logger.debug("Progress callback failed: %s", p_exc)
 

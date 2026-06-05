@@ -121,6 +121,7 @@ def test_no_pickle_in_marshaller_source():
 def test_envelope_includes_schema_fields():
     """The envelope must contain schema_version + payload_kind."""
     from src.core.frontier.marshaller import _verify_payload, safe_pack
+
     packed = safe_pack({"x": 1}, payload_kind="schema-fields")
     # Strip the HMAC signature to access the inner envelope
     inner = _verify_payload(packed)

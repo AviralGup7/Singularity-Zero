@@ -177,10 +177,7 @@ class ScenarioExecutionEngine:
         while pending:
             ready: list[ScenarioStep] = []
             for step in pending:
-                step_deps_met = all(
-                    name in step_results_by_name
-                    for name in step.wait_for_steps
-                )
+                step_deps_met = all(name in step_results_by_name for name in step.wait_for_steps)
                 if not step_deps_met:
                     continue
                 if any(name and name not in barrier_times for name in step.wait_for_barriers):
@@ -383,7 +380,10 @@ class ScenarioExecutionEngine:
                 sessions_changed = True
             else:
                 for k, v in registry.sessions.items():
-                    if k not in self.last_persisted_sessions or self.last_persisted_sessions[k] != v:
+                    if (
+                        k not in self.last_persisted_sessions
+                        or self.last_persisted_sessions[k] != v
+                    ):
                         sessions_changed = True
                         break
 

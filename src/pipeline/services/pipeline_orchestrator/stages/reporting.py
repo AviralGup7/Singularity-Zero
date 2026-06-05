@@ -59,7 +59,9 @@ async def run_reporting(
                     "Running automated AI triage on %d scan findings", len(findings_to_triage)
                 )
 
-                async def _triage_one(finding: dict[str, Any]) -> tuple[dict[str, Any] | None, BaseException | None]:
+                async def _triage_one(
+                    finding: dict[str, Any],
+                ) -> tuple[dict[str, Any] | None, BaseException | None]:
                     req_payload = (
                         finding.get("request_payload")
                         or finding.get("payload")
@@ -91,9 +93,11 @@ async def run_reporting(
                         # reported confidence.
                         llm_fp_confidence = round(1.0 - review["confidence"], 2)
                         existing_confidence = finding.get("confidence", 0.8)
-                        finding["confidence"] = min(existing_confidence, llm_fp_confidence) if (
-                            llm_fp_confidence < 0.5
-                        ) else llm_fp_confidence
+                        finding["confidence"] = (
+                            min(existing_confidence, llm_fp_confidence)
+                            if (llm_fp_confidence < 0.5)
+                            else llm_fp_confidence
+                        )
                     return finding, None
 
                 # Bounded concurrency: 8 simultaneous LLM calls. The previous

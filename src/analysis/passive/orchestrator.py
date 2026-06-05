@@ -110,6 +110,7 @@ def run_passive_scanners(
     responses = response_cache.prefetch(content_targets)
     response_map = {}
     from urllib.parse import urlparse
+
     for response in responses:
         url = response.get("url")
         if url:

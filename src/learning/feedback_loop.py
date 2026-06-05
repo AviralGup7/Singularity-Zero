@@ -214,7 +214,9 @@ class FeedbackLoopEngine:
             adaptations.target_boosts = dict(sorted_boosts)
 
         if len(adaptations.target_suppressions) > 100:
-            sorted_suppressions = sorted(adaptations.target_suppressions.items(), key=lambda x: x[1])[:100]
+            sorted_suppressions = sorted(
+                adaptations.target_suppressions.items(), key=lambda x: x[1]
+            )[:100]
             adaptations.target_suppressions = dict(sorted_suppressions)
 
     def _compute_plugin_adaptations(

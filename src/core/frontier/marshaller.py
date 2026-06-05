@@ -187,23 +187,15 @@ def safe_unpack(raw: bytes) -> Any:
     if not isinstance(raw, (bytes, bytearray, memoryview)):
         raise TypeError("safe_unpack: raw must be bytes-like")
     if len(raw) > MAX_PAYLOAD_BYTES:
-        raise ValueError(
-            f"Refusing payload larger than {MAX_PAYLOAD_BYTES} bytes"
-        )
+        raise ValueError(f"Refusing payload larger than {MAX_PAYLOAD_BYTES} bytes")
     verified = _verify_payload(bytes(raw))
     if len(verified) > MAX_PAYLOAD_BYTES:
-        raise ValueError(
-            f"Refusing decoded payload larger than {MAX_PAYLOAD_BYTES} bytes"
-        )
+        raise ValueError(f"Refusing decoded payload larger than {MAX_PAYLOAD_BYTES} bytes")
     envelope = _msgspec_decoder.decode(verified)
     if envelope.schema_version != 1:
-        raise ValueError(
-            f"Unsupported schema_version={envelope.schema_version}"
-        )
+        raise ValueError(f"Unsupported schema_version={envelope.schema_version}")
     if not _is_schema_compatible(envelope.data):
-        raise TypeError(
-            "safe_unpack: decoded envelope contains non-primitive values"
-        )
+        raise TypeError("safe_unpack: decoded envelope contains non-primitive values")
     return envelope.data
 
 
@@ -214,6 +206,7 @@ def safe_unpack(raw: bytes) -> Any:
 # legacy caller that still passes a cloudpickle blob will now receive a
 # msgspec decoding error instead of executing attacker-controlled code.
 # ---------------------------------------------------------------------------
+
 
 def mesh_marshal(data: Any) -> bytes:
     return cast(bytes, msgpack.packb(data, use_bin_type=True))

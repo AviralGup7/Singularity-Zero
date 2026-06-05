@@ -511,9 +511,7 @@ class MetricsRegistry:
             lines.append(f"{s_metric.name}_sum{label_str} {data['sum']}")
             for quantile_name in ("p50", "p90", "p95", "p99"):
                 quantile_value = quantile_name[1:].lstrip("0") or "0"
-                q_label = _format_labels(
-                    {**s_metric.labels, "quantile": f"0.{quantile_value}"}
-                )
+                q_label = _format_labels({**s_metric.labels, "quantile": f"0.{quantile_value}"})
                 lines.append(f"{s_metric.name}{q_label} {data.get(quantile_name, 0)}")
 
         lines.append("")

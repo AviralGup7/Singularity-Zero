@@ -158,6 +158,7 @@ async def detect_waf_cdn(
 
     # Stash on the list so the report builder can recover the true tested count.
     if isinstance(results, list):
+
         class _ListWithMetadata(list):
             pass
 

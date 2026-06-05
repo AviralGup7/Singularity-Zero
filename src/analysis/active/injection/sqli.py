@@ -73,11 +73,15 @@ def sqli_safe_probe(
                 body = str(response.get("body_text", "") or "")[:8000]
                 status = int(response.get("status_code") or 0)
                 match = SQL_ERROR_RE.search(body)
-                status_drift = (status == 500 and 200 <= baseline_status < 400)
+                status_drift = status == 500 and 200 <= baseline_status < 400
 
                 if match or status_drift:
                     reason = match.group(0) if match else "HTTP 500 status drift from baseline"
-                    context = body[max(0, match.start() - 60) : match.end() + 60] if match else "Generic 500 error response without stack trace"
+                    context = (
+                        body[max(0, match.start() - 60) : match.end() + 60]
+                        if match
+                        else "Generic 500 error response without stack trace"
+                    )
                     url_findings.append(
                         {
                             "parameter": param_name,

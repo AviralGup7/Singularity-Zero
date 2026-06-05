@@ -78,7 +78,9 @@ class SSEEventEmitter:
         ts_ms = int(time.time() * 1000)
         seq = _global_tracker.next(self.job_id)
         stage_safe = self.last_stage.replace(":", "_")
-        return f"{self.job_id}:{ts_ms}:{seq:04d}:{self.last_count}:{stage_safe}:{self.last_iteration}"
+        return (
+            f"{self.job_id}:{ts_ms}:{seq:04d}:{self.last_count}:{stage_safe}:{self.last_iteration}"
+        )
 
     def emit(
         self,

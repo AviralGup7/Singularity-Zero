@@ -118,9 +118,7 @@ for source in ("dnsdumpster", "bufferover", "certspotter", "spyse", "securitytra
     try:
         module = importlib.import_module(f"src.recon.sources.{source}")
     except ImportError as exc:
-        _logging.getLogger(__name__).warning(
-            "Subdomain source %r unavailable: %s", source, exc
-        )
+        _logging.getLogger(__name__).warning("Subdomain source %r unavailable: %s", source, exc)
         continue
     func = getattr(module, f"query_{source}", None)
     if func is None:

@@ -124,10 +124,14 @@ class StageInput:
     contract_version: str = RUNTIME_CONTRACT_VERSION
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "state_snapshot", ThawingMapping(_freeze_value(dict(self.state_snapshot or {}))))
+        object.__setattr__(
+            self, "state_snapshot", ThawingMapping(_freeze_value(dict(self.state_snapshot or {})))
+        )
         object.__setattr__(self, "runtime", ThawingMapping(_freeze_value(dict(self.runtime or {}))))
         object.__setattr__(
-            self, "previous_deltas", tuple(ThawingMapping(_freeze_value(d)) for d in (self.previous_deltas or ()))
+            self,
+            "previous_deltas",
+            tuple(ThawingMapping(_freeze_value(d)) for d in (self.previous_deltas or ())),
         )
 
     def to_dict(self) -> dict[str, Any]:

@@ -119,6 +119,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     # Initialize persistent job store (SQLite)
     from src.dashboard.fastapi.process_lock import ProcessLifespanLock
+
     lock_path = config.output_root / "startup.lock"
     app.state.lifespan_lock = ProcessLifespanLock(str(lock_path))
     is_primary = app.state.lifespan_lock.acquire()
@@ -177,6 +178,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     # 2. Start Authenticated Gossip Engine
     import secrets
+
     mesh_secret = os.getenv("MESH_SECRET")
     is_prod = os.getenv("APP_ENV") == "production"
 
@@ -414,9 +416,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("Neural-Mesh Infrastructure: ACTIVE (NodeID: %s)", node_id)
     logger.info("Dashboard lifecycle transition: READY")
     if psutil is None:
-        logger.warning(
-            "psutil is not installed; mesh CPU/RAM telemetry will be unavailable"
-        )
+        logger.warning("psutil is not installed; mesh CPU/RAM telemetry will be unavailable")
 
     yield
 
@@ -711,7 +711,9 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         total_targets = len(all_targets)
         completed_targets = max(0, total_targets - len(active_targets))
 
-        health_score = max(0.0, 100.0 - min(100.0, weighted_score / max(1, len(unique_target_names)) * 2))
+        health_score = max(
+            0.0, 100.0 - min(100.0, weighted_score / max(1, len(unique_target_names)) * 2)
+        )
         completed_jobs = sum(1 for j in jobs if j.get("status") == "completed")
         failed_jobs = sum(1 for j in jobs if j.get("status") == "failed")
         health_label = (

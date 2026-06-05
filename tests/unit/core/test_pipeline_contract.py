@@ -38,6 +38,7 @@ class PipelineContractTests(unittest.TestCase):
 
     def test_same_host_family_supports_multi_part_tld(self) -> None:
         from src.core.contracts.pipeline import same_host_family
+
         self.assertFalse(same_host_family("target.co.uk", "evil.co.uk"))
         self.assertTrue(same_host_family("sub.target.co.uk", "target.co.uk"))
         self.assertFalse(same_host_family("target.com.au", "evil.com.au"))
@@ -63,11 +64,13 @@ class PipelineContractTests(unittest.TestCase):
 
     def test_char_overlap_score_bounds(self) -> None:
         from src.analysis.active.xss_context_engine import _char_overlap_score
+
         self.assertEqual(_char_overlap_score("abc", "abc"), 100)
         self.assertEqual(_char_overlap_score("", "abc"), 0)
 
     def test_pop_matching_no_in_place_warn(self) -> None:
         from src.analysis.active.xss_context_engine import _pop_matching
+
         stack = ["{", "(", "[", ")"]
         _pop_matching(stack, "(")
         self.assertEqual(stack, ["{", "[", ")"])

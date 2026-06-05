@@ -20,7 +20,9 @@ class Request:
         body_val = self.body
         if isinstance(body_val, bytes):
             body_val = body_val.decode("utf-8", errors="replace")
-        return hash((self.method, self.url, headers_tuple, params_tuple, body_val, self.timeout_seconds))
+        return hash(
+            (self.method, self.url, headers_tuple, params_tuple, body_val, self.timeout_seconds)
+        )
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Request):

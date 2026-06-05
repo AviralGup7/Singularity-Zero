@@ -174,9 +174,7 @@ class TestConstants(unittest.TestCase):
         self.assertEqual(ALLOWED_SCHEMES, frozenset({"http", "https"}))
 
     def test_private_networks_include_loopback(self) -> None:
-        loopback_found = any(
-            str(net.network_address) == "127.0.0.0" for net in PRIVATE_NETWORKS
-        )
+        loopback_found = any(str(net.network_address) == "127.0.0.0" for net in PRIVATE_NETWORKS)
         self.assertTrue(loopback_found)
 
     def test_private_networks_include_link_local(self) -> None:
@@ -190,9 +188,7 @@ class TestConstants(unittest.TestCase):
         self.assertTrue(cgnat_found)
 
     def test_private_networks_include_ipv6_loopback(self) -> None:
-        ipv6_loopback_found = any(
-            str(net.network_address) == "::1" for net in PRIVATE_NETWORKS
-        )
+        ipv6_loopback_found = any(str(net.network_address) == "::1" for net in PRIVATE_NETWORKS)
         self.assertTrue(ipv6_loopback_found)
 
 

@@ -186,6 +186,7 @@ class FuzzingOrchestrator:
             try:
                 if not hasattr(self, "_ast_mutator"):
                     from src.fuzzing.ast_mutator import JSONASTMutator
+
                     self._ast_mutator = JSONASTMutator()
 
                 for v in self._ast_mutator.mutate(base_value):
@@ -316,7 +317,9 @@ class FuzzingOrchestrator:
 
             sem = asyncio.Semaphore(10)
 
-            async def evaluate_variant(idx: int, param_name: str, payload_dict: dict[str, Any]) -> None:
+            async def evaluate_variant(
+                idx: int, param_name: str, payload_dict: dict[str, Any]
+            ) -> None:
                 nonlocal stop_campaign
                 if stop_campaign:
                     return

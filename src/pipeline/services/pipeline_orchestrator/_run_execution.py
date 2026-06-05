@@ -63,12 +63,17 @@ async def execute_remaining_stages(
         # Cooperative shutdown check between tiers
         try:
             from src.pipeline.runtime import shutdown_flag as _shutdown_flag
+
             # ``shutdown_flag`` is an ``asyncio.Event``; the previous
             # boolean was replaced as part of the runtime hardening
             # (see ``src/pipeline/runtime.py``). ``asyncio.Event`` is
             # always truthy, so we must call ``.is_set()`` explicitly;
             # otherwise every run would exit with code 130.
-            is_set = bool(_shutdown_flag.is_set()) if hasattr(_shutdown_flag, "is_set") else bool(_shutdown_flag)
+            is_set = (
+                bool(_shutdown_flag.is_set())
+                if hasattr(_shutdown_flag, "is_set")
+                else bool(_shutdown_flag)
+            )
             if is_set:
                 logger.warning("Shutdown flag detected between DAG tiers, stopping execution.")
                 return 130

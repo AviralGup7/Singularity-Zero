@@ -38,7 +38,7 @@ def test_safe_identifier_accepts_alnum_and_common_separators():
     [
         "Host;DROP",
         "Host'",
-        "Host\"",
+        'Host"',
         "Host n match",
         "Host\nname",
         "host{}",
@@ -162,6 +162,7 @@ def test_legacy_cypher_string_is_a_shim():
     value as-is (when safe) or hashes it. It is NOT used by the safe
     ingest path, which uses Kuzu's parameterized API."""
     from src.analysis.intelligence.lateral_graph import _cypher_string
+
     result = _cypher_string("Host_42")
     assert result == "Host_42"
     # Unsafe values are returned as a hashed placeholder

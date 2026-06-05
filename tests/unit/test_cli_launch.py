@@ -68,6 +68,7 @@ class TestCliLaunch(unittest.TestCase):
 
         # Assert Path check called
         import src.cli
+
         mock_path.assert_any_call(src.cli.__file__)
 
         # Assert Thread started for worker

@@ -337,7 +337,9 @@ class LWWset[T]:
                         str(item.get("parameter", "")),
                         str(item.get("method", "")),
                     ]
-                    generated_fid = hashlib.sha256("|".join(stable_parts).encode("utf-8")).hexdigest()
+                    generated_fid = hashlib.sha256(
+                        "|".join(stable_parts).encode("utf-8")
+                    ).hexdigest()
                     try:
                         item["id"] = generated_fid
                     except TypeError as exc:

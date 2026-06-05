@@ -33,11 +33,7 @@ async def list_jobs(
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
 
-    all_jobs = [
-        j
-        for j in all_jobs
-        if is_target_owned_by_tenant(job_target_name(j), tenant_id)
-    ]
+    all_jobs = [j for j in all_jobs if is_target_owned_by_tenant(job_target_name(j), tenant_id)]
 
     if status:
         all_jobs = [j for j in all_jobs if j.get("status") == status]

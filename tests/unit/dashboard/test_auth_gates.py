@@ -11,8 +11,6 @@ These tests verify that:
 """
 
 
-
-
 # ---------- helpers ----------
 
 
@@ -27,6 +25,7 @@ def _build_app(monkeypatch, env: dict | None = None):
     # Disable auth so we test the gates themselves
     monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
     from src.dashboard.fastapi.app import create_app
+
     return create_app()
 
 
@@ -40,12 +39,14 @@ def test_csrf_endpoint_requires_auth(monkeypatch):
 
     async def _deny():
         from fastapi import HTTPException
+
         raise HTTPException(status_code=401, detail="unauth")
 
     monkeypatch.setattr(deps, "require_auth", _deny)
     # Override the helper's DASHBOARD_AUTH_DISABLED=true
     monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "false")
     from src.dashboard.fastapi.app import create_app
+
     app = create_app()
     client = TestClient(app)
     r = client.get("/api/csrf-token")
@@ -54,6 +55,7 @@ def test_csrf_endpoint_requires_auth(monkeypatch):
 
 def test_csrf_endpoint_sets_httponly_samesite_cookie(monkeypatch):
     from fastapi.testclient import TestClient
+
     app = _build_app(monkeypatch)
     client = TestClient(app)
     r = client.get("/api/csrf-token")
@@ -65,6 +67,7 @@ def test_csrf_endpoint_sets_httponly_samesite_cookie(monkeypatch):
 
 def test_security_events_requires_admin(monkeypatch):
     from fastapi.testclient import TestClient
+
     app = _build_app(monkeypatch)  # uses DASHBOARD_AUTH_DISABLED → role=read_only
     client = TestClient(app)
     r = client.get("/api/security/events")
@@ -85,6 +88,7 @@ def _csrf_token_for(client):
 
 def test_webhook_test_rejects_loopback_url(monkeypatch):
     from fastapi.testclient import TestClient
+
     app = _build_app(monkeypatch)
     client = TestClient(app)
     csrf = _csrf_token_for(client)
@@ -99,6 +103,7 @@ def test_webhook_test_rejects_loopback_url(monkeypatch):
 
 def test_webhook_test_rejects_metadata_ip(monkeypatch):
     from fastapi.testclient import TestClient
+
     app = _build_app(monkeypatch)
     client = TestClient(app)
     csrf = _csrf_token_for(client)
@@ -113,6 +118,7 @@ def test_webhook_test_rejects_metadata_ip(monkeypatch):
 
 def test_webhook_test_rejects_file_scheme(monkeypatch):
     from fastapi.testclient import TestClient
+
     app = _build_app(monkeypatch)
     client = TestClient(app)
     csrf = _csrf_token_for(client)
@@ -130,6 +136,7 @@ def test_webhook_test_rejects_file_scheme(monkeypatch):
 
 def test_security_headers_middleware_applies_csp_and_hsts(monkeypatch):
     from fastapi.testclient import TestClient
+
     app = _build_app(monkeypatch)
     client = TestClient(app)
     r = client.get("/api/csrf-token")
@@ -148,6 +155,7 @@ def test_security_headers_middleware_applies_csp_and_hsts(monkeypatch):
 
 def test_mesh_elect_leader_requires_admin(monkeypatch):
     from fastapi.testclient import TestClient
+
     app = _build_app(monkeypatch)  # read_only role
     client = TestClient(app)
     r = client.post("/api/mesh/elect-leader", json={})

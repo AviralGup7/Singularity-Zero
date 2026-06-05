@@ -110,7 +110,9 @@ def sanitize_log_message(message: str) -> str:
     result = basic_pattern.sub(r"\1[REDACTED]", result)
 
     header_value_pattern = re.compile(
-        r"((?:" + _SENSITIVE_NAME_ALT + r")\s*[:=]\s*)(?:(?:Bearer|Basic|Token)\s+)?(.+?)(?:\s+(?:and|or|,)\s|$)",
+        r"((?:"
+        + _SENSITIVE_NAME_ALT
+        + r")\s*[:=]\s*)(?:(?:Bearer|Basic|Token)\s+)?(.+?)(?:\s+(?:and|or|,)\s|$)",
         re.IGNORECASE,
     )
     result = header_value_pattern.sub(r"\1[REDACTED]", result)

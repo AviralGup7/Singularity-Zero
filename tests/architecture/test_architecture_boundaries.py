@@ -33,6 +33,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_every_analysis_plugin_spec_has_a_registered_binding(self) -> None:
         from src.core.plugins import list_plugins
+
         dynamic_keys = {reg.key for reg in list_plugins("dynamic_plugin")}
         spec_keys = {spec.key for spec in ANALYSIS_PLUGIN_SPECS} - dynamic_keys
         binding_keys = set(ANALYZER_BINDINGS) - dynamic_keys
@@ -51,6 +52,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_detection_registry_is_unified_with_analysis_plugin_specs(self) -> None:
         from src.core.plugins import list_plugins
+
         dynamic_keys = {reg.key for reg in list_plugins("dynamic_plugin")}
         spec_keys = {spec.key for spec in ANALYSIS_PLUGIN_SPECS} - dynamic_keys
         registry_keys = {plugin.key for plugin in list_detection_plugins()} - dynamic_keys
