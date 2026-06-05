@@ -43,6 +43,67 @@ def find_previous_run(target_root: Path) -> Path | None:
     return cast(Path | None, _find_previous_run(target_root))
 
 
+def _merge_and_diff_scopes(ctx: PipelineContext, recovered_completed_stages: set[str], current_scope: list[str]) -> None:
+    """Three-way merge/diff logic for scan scopes at resume start."""
+    old_scope = set(ctx.result.scope_entries or [])
+    new_scope = set(current_scope)
+    
+    if old_scope == new_scope:
+        return
+        
+    added = new_scope - old_scope
+    removed = old_scope - new_scope
+    
+    logger.info("Scope change detected on resume: added=%s, removed=%s", added, removed)
+    
+    def _is_in_scope(item_str: str, active_scope: list[str]) -> bool:
+        from urllib.parse import urlparse
+        parsed = urlparse(item_str)
+        host = parsed.netloc or parsed.path or item_str
+        host = host.split(":")[0].strip().lower()
+        for domain in active_scope:
+            domain = domain.strip().lower()
+            if host == domain or host.endswith("." + domain):
+                return True
+        return False
+        
+    if removed:
+        # Filter subdomains, urls, and live hosts
+        filtered_subdomains = {s for s in ctx.subdomains if _is_in_scope(s, current_scope)}
+        filtered_urls = {u for u in ctx.urls if _is_in_scope(u, current_scope)}
+        ctx.live_hosts = {h for h in ctx.live_hosts if _is_in_scope(h, current_scope)}
+        
+        # Filter findings
+        filtered_findings = [f for f in ctx.reportable_findings if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)]
+        ctx.result.waf_findings = [f for f in ctx.result.waf_findings if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)]
+        ctx.result.nuclei_findings = [f for f in ctx.result.nuclei_findings if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)]
+        ctx.result.merged_findings = [f for f in ctx.result.merged_findings if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)]
+        
+        # Re-initialize the CRDT neural state from the filtered data
+        from src.core.frontier.state import NeuralState
+        new_state = NeuralState()
+        new_state.apply_delta({
+            "subdomains": list(filtered_subdomains),
+            "urls": list(filtered_urls),
+            "findings": list(filtered_findings),
+        })
+        ctx.result._neural_state = new_state
+        ctx.subdomains = filtered_subdomains
+        ctx.urls = filtered_urls
+        ctx.reportable_findings = filtered_findings
+        
+    # Update active scope in context
+
+    ctx.result.scope_entries = list(current_scope)
+    
+    if added:
+        # Reset completed recon stages so they re-run to collect data on added targets
+        logger.info("Resetting completed stages to execute on added scope targets: %s", added)
+        # Reset subdomains, live_hosts, urls so they re-execute on new targets
+        for stage in {"subdomains", "live_hosts", "urls"}:
+            recovered_completed_stages.discard(stage)
+
+
 async def run_secured(
     orchestrator: Any,
     args: argparse.Namespace,
@@ -124,12 +185,14 @@ async def run_secured(
                     recovered_state.completed_stages,
                 )
                 ctx = PipelineContext.restore(recovered_payload)
+                _merge_and_diff_scopes(ctx, recovered_completed_stages, scope_entries)
                 checkpoint_mgr = recovered_checkpoint_mgr
                 orchestrator._checkpoint_mgr = checkpoint_mgr
                 run_id = rec_run_id
                 remaining_stages = [
                     stage for stage in STAGE_ORDER if stage not in recovered_completed_stages
                 ]
+
         else:
             logger.warning(
                 "Skipping checkpoint recovery for run=%s: incompatible checkpoint payload "

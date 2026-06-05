@@ -45,6 +45,10 @@ class _DummyLearning:
     async def run_learning_update(self, _ctx: dict[str, object]) -> None:
         return None
 
+    def predict_stage_value(self, _stage: str, _ctx: Any) -> float:
+        return 1.0
+
+
 
 class _RecoveryCheckpointManager:
     def __init__(
@@ -55,6 +59,12 @@ class _RecoveryCheckpointManager:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self._recovered_context = recovered_context
         self.outcomes: list[tuple[str, str]] = []
+        self.completed_stages: list[str] = []
+        if recovered_context and isinstance(recovered_context.get("stage_status"), dict):
+            self.completed_stages = [
+                k for k, v in recovered_context["stage_status"].items() if str(v).upper() == "COMPLETED"
+            ]
+
 
     def get_remaining_stages(self, all_stages: list[str]) -> list[str]:
         return list(all_stages)
@@ -131,6 +141,8 @@ def _patch_runtime_environment(
         "_record_stage_post_run",
         AsyncMock(return_value=None),
     )
+    monkeypatch.setattr("src.pipeline.validation.validate_stage_artifact", lambda stage_name, ctx: (True, None))
+
 
     monkeypatch.setattr(
         orch_mod,
@@ -344,3 +356,122 @@ async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
         and event.get("status") == "error"
         for event in emitted_progress
     )
+
+
+def test_checkpoint_migration_v1_to_v2() -> None:
+    from src.core.checkpoint.migrations import GLOBAL_MIGRATION_REGISTRY
+    
+    # Pre-migration v1 checkpoint data
+    v1_data = {
+        "pipeline_run_id": "test-run",
+        "checkpoint_version": 1,
+        # schema_version is missing (defaults to 1)
+        "stage_results": {
+            "active_scan": {
+                "status": "completed",
+                "reportable_findings": [
+                    {
+                        "category": "XSS",
+                        # missing fields like title, url, severity, score, evidence, signals, cwe_id
+                    }
+                ]
+            }
+        }
+    }
+    
+    migrated = GLOBAL_MIGRATION_REGISTRY.migrate(v1_data)
+    assert migrated["schema_version"] == 2
+    
+    findings = migrated["stage_results"]["active_scan"]["reportable_findings"]
+    assert len(findings) == 1
+    f = findings[0]
+    assert f["category"] == "XSS"
+    assert f["title"] == ""
+    assert f["url"] == ""
+    assert f["severity"] == "low"
+    assert f["confidence"] == 0.5
+    assert f["score"] == 0
+    assert f["evidence"] == {}
+    assert f["signals"] == []
+    assert f["cwe_id"] is None
+
+
+def test_scope_merge_diffing_on_resume() -> None:
+    from src.core.models.stage_result import PipelineContext, StageResult
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.security import _merge_and_diff_scopes
+    
+    ctx = PipelineContext(
+        result=StageResult(
+            scope_entries=["example.com", "target.com"],
+            subdomains={"a.example.com", "b.target.com", "other.com"},
+            urls={"https://a.example.com/path", "https://b.target.com/path"},
+            reportable_findings=[
+                {"url": "https://a.example.com/path", "category": "vuln"},
+                {"url": "https://other.com/path", "category": "vuln"},
+            ]
+        )
+    )
+    
+    completed_stages = {"subdomains", "live_hosts", "urls"}
+    
+    # Current scope removes target.com and other.com, but adds new.com
+    current_scope = ["example.com", "new.com"]
+    
+    _merge_and_diff_scopes(ctx, completed_stages, current_scope)
+    
+    # Removed targets are filtered out
+    assert "target.com" not in ctx.result.scope_entries
+    assert "example.com" in ctx.result.scope_entries
+    assert "new.com" in ctx.result.scope_entries
+    
+    assert "a.example.com" in ctx.subdomains
+    assert "b.target.com" not in ctx.subdomains
+    assert "other.com" not in ctx.subdomains
+    
+    assert "https://a.example.com/path" in ctx.urls
+    assert "https://b.target.com/path" not in ctx.urls
+    
+    assert len(ctx.reportable_findings) == 1
+    assert ctx.reportable_findings[0]["url"] == "https://a.example.com/path"
+    
+    # completed_stages is cleared because new.com was added
+    assert not completed_stages
+
+
+@pytest.mark.asyncio
+async def test_adaptive_scan_cancellation_shield() -> None:
+    import asyncio
+    from src.decision.adaptive_scan import AdaptiveScanCoordinator
+    
+    async def mock_probe(url: str) -> list[dict]:
+        await asyncio.sleep(0.1)
+        return [{"url": url, "category": "mock_vuln"}]
+        
+    coordinator = AdaptiveScanCoordinator(
+        urls=["http://target1.com", "http://target2.com"],
+        probe_fn=mock_probe,
+        batch_size=1,
+        concurrency=1,
+    )
+    
+    deltas_saved = []
+    def save_delta_fn(urls, findings):
+        deltas_saved.append((urls, findings))
+        
+    # Cancel the run loop after starting
+    async def run_and_cancel():
+        run_task = asyncio.create_task(coordinator.run(save_delta_fn=save_delta_fn))
+        await asyncio.sleep(0.05)
+        run_task.cancel()
+        try:
+            await run_task
+        except asyncio.CancelledError:
+            pass
+            
+    await run_and_cancel()
+    
+    # Verifies that at least the first batch finishes scanning, flushes delta, and registers findings before cancelling
+    assert len(deltas_saved) == 1
+    assert deltas_saved[0][0] == ["http://target1.com"]
+    assert len(deltas_saved[0][1]) == 1
+

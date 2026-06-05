@@ -39,7 +39,7 @@ from src.recon.urls import extract_parameters  # noqa: E402
 async def run_url_collection_service(
     stage_input: StageInput,
     *,
-    collector: typing.Callable[..., Any],
+    collector: typing.Callable[..., Any] | None = None,
     progress_callback: Any = None,
 ) -> StageOutput:
     """Pure service implementation for URL collection with strict type guards."""
@@ -49,12 +49,36 @@ async def run_url_collection_service(
     live_hosts = set(state.get("live_hosts", []) or [])
 
     try:
-        urls = await asyncio.to_thread(
-            collector,
-            sorted(list(live_hosts)),
-            timeout_seconds=int(stage_input.runtime.get("timeout_seconds", 120)),
-            progress_callback=progress_callback,
-        )
+        if collector is None:
+            from src.pipeline.tools_capabilities import resolve_capability
+            from src.core.capabilities import ToolExecutionContext
+            from src.pipeline.tools import resolve_tool_path, command_env
+
+            provider = resolve_capability("crawler_provider")
+            resolved_paths = {
+                "katana": resolve_tool_path("katana") or "",
+                "gau": resolve_tool_path("gau") or "",
+                "waybackurls": resolve_tool_path("waybackurls") or "",
+            }
+            context = ToolExecutionContext(
+                resolved_paths=resolved_paths,
+                env=command_env(),
+                sandbox_constraints={"fd_limit": 1024},
+                config=stage_input.runtime,
+            )
+            # Run using the provider interface
+            urls = await asyncio.to_thread(
+                provider.crawl,
+                sorted(list(live_hosts)),
+                context=context,
+            )
+        else:
+            urls = await asyncio.to_thread(
+                collector,
+                sorted(list(live_hosts)),
+                timeout_seconds=int(stage_input.runtime.get("timeout_seconds", 120)),
+                progress_callback=progress_callback,
+            )
 
         duration = round(time.monotonic() - started, 2)
         metrics = {
@@ -85,7 +109,7 @@ async def run_url_collection_service(
 async def run_live_hosts_service(
     stage_input: StageInput,
     *,
-    prober: typing.Callable[..., Any],
+    prober: typing.Callable[..., Any] | None = None,
     enricher: Any = None,
     force_recheck: bool = False,
 ) -> StageOutput:
@@ -105,12 +129,34 @@ async def run_live_hosts_service(
 
     try:
         # 1. Probing
-        live_records, live_hosts = await asyncio.to_thread(
-            prober,
-            subdomains,
-            timeout_seconds=int(stage_input.runtime.get("timeout_seconds", 120)),
-            force_recheck=force_recheck,
-        )
+        if prober is None:
+            from src.pipeline.tools_capabilities import resolve_capability
+            from src.core.capabilities import ToolExecutionContext
+            from src.pipeline.tools import resolve_tool_path, command_env
+
+            provider = resolve_capability("http_probe_provider")
+            resolved_paths = {
+                "httpx": resolve_tool_path("httpx") or "",
+            }
+            context = ToolExecutionContext(
+                resolved_paths=resolved_paths,
+                env=command_env(),
+                sandbox_constraints={"fd_limit": 1024},
+                config=stage_input.runtime,
+            )
+            live_records, live_hosts = await asyncio.to_thread(
+                provider.probe,
+                list(subdomains),
+                context=context,
+                force_recheck=force_recheck,
+            )
+        else:
+            live_records, live_hosts = await asyncio.to_thread(
+                prober,
+                subdomains,
+                timeout_seconds=int(stage_input.runtime.get("timeout_seconds", 120)),
+                force_recheck=force_recheck,
+            )
 
         # 2. Enrichment
         enrichment_delta: dict[str, Any] = {}
@@ -209,8 +255,25 @@ async def run_subdomain_enumeration_service(
         )
 
     try:
+        from src.pipeline.tools_capabilities import resolve_capability
+        from src.core.capabilities import ToolExecutionContext
+        from src.pipeline.tools import resolve_tool_path, command_env
+
+        provider = resolve_capability("recon_provider")
+        resolved_paths = {
+            "subfinder": resolve_tool_path("subfinder") or "",
+            "amass": resolve_tool_path("amass") or "",
+            "assetfinder": resolve_tool_path("assetfinder") or "",
+        }
+        context = ToolExecutionContext(
+            resolved_paths=resolved_paths,
+            env=command_env(),
+            sandbox_constraints={"fd_limit": 1024},
+            config=stage_input.runtime,
+        )
+
         enumerated_subdomains = await asyncio.to_thread(
-            enumerate_subdomains, scope_entries, stage_input.runtime, skip_crtsh
+            provider.collect, scope_entries, context=context, skip_crtsh=skip_crtsh
         )
         scope_hosts = {entry.strip().lower() for entry in scope_entries if str(entry).strip()}
         scope_hosts.update(seed_roots)

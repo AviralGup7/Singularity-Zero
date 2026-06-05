@@ -9,8 +9,10 @@ import base64
 import io
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 from pydantic import BaseModel, Field
+from scipy.signal import convolve2d
 
 from src.core.logging.trace_logging import get_pipeline_logger
 
@@ -77,46 +79,81 @@ def _compute_mse(img_a: Image.Image, img_b: Image.Image) -> float:
     return total / (count * 3)
 
 
-def _compute_ssim(img_a: Image.Image, img_b: Image.Image, window_size: int = 11) -> float:
+def _gaussian_kernel(size: int = 11, sigma: float = 1.5) -> np.ndarray:
+    x = np.arange(-(size // 2), size // 2 + 1)
+    kernel = np.exp(-0.5 * (x**2) / sigma**2)
+    kernel2d = np.outer(kernel, kernel)
+    return kernel2d / kernel2d.sum()
+
+
+def _compute_ssim(img_a: Image.Image, img_b: Image.Image, win_size: int = 11, sigma: float = 1.5) -> float:
+    """Compute structural similarity (SSIM) using a 2D Gaussian window."""
+    # Convert to grayscale float array
+    arr_a = np.array(img_a.convert("L"), dtype=float)
+    arr_b = np.array(img_b.convert("L"), dtype=float)
+
+    window = _gaussian_kernel(win_size, sigma)
+
     c1 = (0.01 * 255) ** 2
     c2 = (0.03 * 255) ** 2
-    pixels_a = [list(img_a.getdata())]
-    pixels_b = [list(img_b.getdata())]
-    width, height = img_a.size
-    channels = 3
-    total_pixels = width * height
 
-    means_a: list[float] = []
-    means_b: list[float] = []
-    for ch in range(channels):
-        vals_a = [p[ch] for p in pixels_a[0]]
-        vals_b = [p[ch] for p in pixels_b[0]]
-        means_a.append(sum(vals_a) / total_pixels)
-        means_b.append(sum(vals_b) / total_pixels)
+    # Local means
+    mu1 = convolve2d(arr_a, window, mode='valid')
+    mu2 = convolve2d(arr_b, window, mode='valid')
 
-    var_a = 0.0
-    var_b = 0.0
-    cov_ab = 0.0
-    for i in range(total_pixels):
-        for ch in range(channels):
-            diff_a = pixels_a[0][i][ch] - means_a[ch]
-            diff_b = pixels_b[0][i][ch] - means_b[ch]
-            var_a += diff_a * diff_a
-            var_b += diff_b * diff_b
-            cov_ab += diff_a * diff_b
+    mu1_sq = mu1 ** 2
+    mu2_sq = mu2 ** 2
+    mu1_mu2 = mu1 * mu2
 
-    var_a /= total_pixels * channels
-    var_b /= total_pixels * channels
-    cov_ab /= total_pixels * channels
+    # Local variances and covariances
+    sigma1_sq = convolve2d(arr_a ** 2, window, mode='valid') - mu1_sq
+    sigma2_sq = convolve2d(arr_b ** 2, window, mode='valid') - mu2_sq
+    sigma12 = convolve2d(arr_a * arr_b, window, mode='valid') - mu1_mu2
 
-    mean_a = sum(means_a) / channels
-    mean_b = sum(means_b) / channels
+    # SSIM map calculation
+    ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / (
+        (mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2)
+    )
+    return float(np.mean(ssim_map))
 
-    numerator = (2 * mean_a * mean_b + c1) * (2 * cov_ab + c2)
-    denominator = (mean_a**2 + mean_b**2 + c1) * (var_a + var_b + c2)
-    if denominator == 0:
-        return 0.0
-    return float(numerator / denominator)
+
+def _highlight_changes(
+    img_a: Image.Image,
+    img_b: Image.Image,
+    diff: Image.Image,
+    grid_cols: int = 8,
+    grid_rows: int = 8,
+    threshold: float = 0.98,
+) -> Image.Image:
+    """Split the images into a grid, run SSIM per tile, and draw bounding boxes around changed tiles."""
+    w, h = img_a.size
+    tile_w = w / grid_cols
+    tile_h = h / grid_rows
+
+    highlighted = diff.convert("RGBA")
+    overlay = Image.new("RGBA", highlighted.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    for row in range(grid_rows):
+        for col in range(grid_cols):
+            x0 = int(col * tile_w)
+            y0 = int(row * tile_h)
+            x1 = int((col + 1) * tile_w)
+            y1 = int((row + 1) * tile_h)
+
+            if x1 <= x0 or y1 <= y0:
+                continue
+
+            crop_a = img_a.crop((x0, y0, x1, y1))
+            crop_b = img_b.crop((x0, y0, x1, y1))
+
+            tile_ssim = _compute_ssim(crop_a, crop_b)
+            if tile_ssim < threshold:
+                # Highlight changed region in semi-transparent red
+                draw.rectangle([x0, y0, x1 - 1, y1 - 1], outline=(255, 0, 0, 180), width=2)
+                draw.rectangle([x0 + 1, y0 + 1, x1 - 2, y1 - 2], fill=(255, 0, 0, 30))
+
+    return Image.alpha_composite(highlighted, overlay).convert("RGB")
 
 
 def _count_diff_pixels(diff: Image.Image, threshold: int = 0) -> int:
@@ -176,11 +213,16 @@ def compute_screenshot_diff(
     img_current = _load_image(current)
     img_base, img_current = _normalize_images(img_base, img_current)
     diff_image = _compute_pixel_diff(img_base, img_current)
+    
+    # Highlight changed regions in diff panel using tiled SSIM
+    diff_image = _highlight_changes(img_base, img_current, diff_image)
+
     diff_pixel_count = _count_diff_pixels(diff_image, threshold)
     total_pixels = img_base.width * img_base.height
     pixel_diff_pct = (diff_pixel_count / total_pixels * 100) if total_pixels > 0 else 0.0
     mse = _compute_mse(img_base, img_current)
     ssim = _compute_ssim(img_base, img_current)
+    
     metrics = DiffMetrics(
         pixel_diff_count=diff_pixel_count,
         pixel_diff_percentage=round(pixel_diff_pct, 4),
@@ -209,3 +251,4 @@ def compute_screenshot_diff(
         metrics.identical,
     )
     return result
+

@@ -185,6 +185,10 @@ class ActorScheduler:
             len(self._completed),
         )
 
+        # Seed StagePlanner with learning integration
+        from src.pipeline.services.pipeline_orchestrator.stage_planner import StagePlanner
+        planner = StagePlanner(self._config, self._ctx, self._orchestrator.observability_bus.learning_integration)
+
         while True:
             if self._failed_critical is not None:
                 break
@@ -193,8 +197,28 @@ class ActorScheduler:
                 self._outcome.exit_code = 130
                 break
 
+            # Dynamically plan remaining stages and calibrate resources/timeouts
+            self._remaining, resources = planner.plan_stages(list(self._remaining))
+            if resources:
+                # Merge dynamically planned stage timeouts or other adjustments
+                for k, v in resources.items():
+                    if k.endswith("_stage_timeout_seconds"):
+                        stage_name = k.replace("_stage_timeout_seconds", "")
+                        # Save/override timeout settings in config or runtime state
+                        setattr(self._config, f"{stage_name}_stage_timeout_seconds", v)
+                    else:
+                        setattr(self._config, k, v)
+
             ready = self._collect_ready_nodes()
             if ready:
+                from src.pipeline.validation import probe_system_resources
+                is_healthy, details = probe_system_resources(getattr(self._config, "output_dir", "."))
+                if not is_healthy:
+                    logger.error("System resource check failed: %s", details)
+                    self._error_emitter("resource_probe", f"Insufficient system resources: {details}")
+                    self._failed_critical = "resource_probe"
+                    self._outcome.exit_code = 1
+                    break
                 for node in ready:
                     self._dispatch(node)
                 if self._in_flight:
@@ -206,6 +230,7 @@ class ActorScheduler:
             await self._await_any_completion()
 
         self._apply_re_scheduling()
+
         self._finalize_unsatisfiable_nodes()
 
         logger.info(
@@ -232,7 +257,7 @@ class ActorScheduler:
         """
         ready: list[tuple[int, int, StageNode]] = []
         for index, node in enumerate(self._graph.nodes):
-            if node.name in self._completed:
+            if node.name in self._completed or node.name in self._skipped:
                 continue
             if node.name in self._launched:
                 continue
@@ -260,7 +285,8 @@ class ActorScheduler:
         return [node for _w, _i, node in ready]
 
     def _deps_satisfied(self, node: StageNode) -> bool:
-        return all(dep in self._completed for dep in node.needs)
+        return all(dep in self._completed or dep in self._skipped or dep in self._outcome.skipped for dep in node.needs)
+
 
     def _condition_holds(self, node: StageNode) -> bool:
         try:

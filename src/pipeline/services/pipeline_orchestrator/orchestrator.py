@@ -652,6 +652,10 @@ class PipelineOrchestrator:
                 if stage_output is not None:
                     self._merge_stage_output(ctx, stage_name, stage_output)
                     ctx.compact_state()
+                    from src.pipeline.validation import validate_stage_artifact
+                    is_valid, err_msg = validate_stage_artifact(stage_name, ctx)
+                    if not is_valid:
+                        raise RuntimeError(f"Stage output integrity validation failed: {err_msg}")
 
                 elapsed = time.time() - stage_started
 

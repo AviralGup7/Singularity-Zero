@@ -1,0 +1,261 @@
+{
+  "$defs": {
+    "ToolsConfigModel": {
+      "additionalProperties": true,
+      "properties": {
+        "timeout_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 120,
+          "title": "Timeout Seconds"
+        },
+        "retry_attempts": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 2,
+          "title": "Retry Attempts"
+        },
+        "retry_backoff_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 2.0,
+          "title": "Retry Backoff Seconds"
+        },
+        "retry_backoff_multiplier": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 1.0,
+          "title": "Retry Backoff Multiplier"
+        },
+        "retry_max_backoff_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 2.0,
+          "title": "Retry Max Backoff Seconds"
+        },
+        "retry_on_timeout": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Retry On Timeout"
+        },
+        "retry_on_error": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Retry On Error"
+        },
+        "retry_jitter": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0.25,
+          "title": "Retry Jitter"
+        },
+        "subfinder": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Subfinder"
+        },
+        "assetfinder": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Assetfinder"
+        },
+        "amass": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": false,
+          "title": "Amass"
+        },
+        "httpx": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Httpx"
+        },
+        "gau": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Gau"
+        },
+        "waybackurls": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Waybackurls"
+        },
+        "katana": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Katana"
+        },
+        "nuclei": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Nuclei"
+        }
+      },
+      "title": "ToolsConfigModel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "target_name": {
+      "title": "Target Name",
+      "type": "string"
+    },
+    "output_dir": {
+      "title": "Output Dir",
+      "type": "string"
+    },
+    "http_timeout_seconds": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 12,
+      "title": "Http Timeout Seconds"
+    },
+    "mode": {
+      "title": "Mode",
+      "type": "string"
+    },
+    "cache": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Cache"
+    },
+    "tools": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ToolsConfigModel"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "target_name",
+    "output_dir",
+    "mode"
+  ],
+  "title": "ConfigModel",
+  "type": "object"
+}

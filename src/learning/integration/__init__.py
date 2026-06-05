@@ -311,6 +311,51 @@ class LearningIntegration:
 
         return await _run(self, ctx)
 
+    def predict_stage_value(self, stage: str, ctx: dict[str, Any]) -> float:
+        """Estimate the marginal value of completing the next stage given current findings.
+
+        Returns a float between 0.0 and 1.0.
+        """
+        if stage in ("subdomains", "live_hosts", "urls", "reporting"):
+            return 1.0
+
+        # Access ctx result
+        result = ctx.get("result", ctx)
+        if hasattr(ctx, "result"):
+            result = ctx.result
+
+        findings = getattr(result, "reportable_findings", []) or []
+        findings_count = len(findings)
+
+        if stage == "active_scan":
+            live_hosts = getattr(result, "live_hosts", []) or []
+            if not live_hosts:
+                return 0.0
+            return 0.9 if findings_count > 0 else 0.6
+
+        if stage == "waf":
+            live_hosts = getattr(result, "live_hosts", []) or []
+            return 0.9 if len(live_hosts) > 0 else 0.1
+
+        if stage == "semgrep":
+            urls = getattr(result, "urls", []) or []
+            has_js = any(str(u).endswith(".js") or ".js?" in str(u) for u in urls)
+            return 0.95 if has_js else 0.15
+
+        if stage == "nuclei":
+            live_hosts = getattr(result, "live_hosts", []) or []
+            return 0.85 if len(live_hosts) > 0 else 0.1
+
+        if stage == "access_control":
+            urls = getattr(result, "urls", []) or []
+            return 0.8 if len(urls) > 10 else 0.3
+
+        if stage == "threat_modeling":
+            return 0.9 if findings_count >= 50 else 0.2
+
+        return 0.5
+
+
 
 def _cleanup_learning_integration() -> None:
     """Close the global learning integration store on interpreter shutdown."""

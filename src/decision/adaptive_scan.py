@@ -89,7 +89,7 @@ class AdaptiveScanCoordinator:
         self._results: list[ScanResult] = []
         self._total_findings: list[dict[str, Any]] = []
 
-    async def run(self) -> ScanBatchResult:
+    async def run(self, save_delta_fn: Callable[[list[str], list[dict[str, Any]]], None] | None = None) -> ScanBatchResult:
         """Run the adaptive scan loop.
 
         Scans targets in priority order, boosting correlated targets
@@ -134,7 +134,6 @@ class AdaptiveScanCoordinator:
             logger.info(
                 "Adaptive scan batch %d: scanning %d targets (remaining: %d, findings so far: %d)",
                 batch_num,
-                len(urls),
                 self._queue.remaining,
                 len(self._total_findings),
             )
@@ -147,8 +146,15 @@ class AdaptiveScanCoordinator:
                 len(self._total_findings),
             )
 
-            # Scan the batch
-            batch_results = await self._scan_batch(urls)
+            # Scan the batch with cancellation-safe shielding
+            cancelled = False
+            task = asyncio.create_task(self._scan_batch(urls))
+            try:
+                batch_results = await asyncio.shield(task)
+            except asyncio.CancelledError:
+                cancelled = True
+                batch_results = await task
+
             self._results.extend(batch_results)
 
             # Collect findings and boost correlated targets
@@ -166,6 +172,18 @@ class AdaptiveScanCoordinator:
                     len(batch_findings),
                     boosted,
                 )
+
+            # Flush the batch delta to checkpoint before potentially propagating cancellation
+            if save_delta_fn:
+                try:
+                    save_delta_fn(urls, batch_findings)
+                except Exception as exc:
+                    logger.warning("Adaptive scan: failed to save batch checkpoint delta: %s", exc)
+
+            if cancelled:
+                logger.warning("Adaptive scan: execution cancelled, propagating cancellation after flushing batch delta")
+                raise asyncio.CancelledError()
+
 
             if self._max_batches and batch_num >= self._max_batches:
                 logger.info("Adaptive scan: reached max batch limit (%d)", self._max_batches)

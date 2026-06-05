@@ -5,7 +5,7 @@ import unittest
 import pytest
 
 from src.core.capabilities import (
-    CapabilityManifest,
+    SystemPluginManifest as CapabilityManifest,
     generate_capability_manifest,
 )
 
@@ -75,6 +75,40 @@ class TestGenerateCapabilityManifest(unittest.TestCase):
         m1 = generate_capability_manifest()
         m2 = generate_capability_manifest()
         self.assertEqual(m1.plugin_schema_version, m2.plugin_schema_version)
+
+
+@pytest.mark.unit
+class TestCapabilityManifestDataclass(unittest.TestCase):
+    def test_construction_with_fields(self) -> None:
+        from src.core.capabilities import CapabilityManifest
+        manifest = CapabilityManifest(
+            estimated_duration_seconds=120.0,
+            memory_mb=512.0,
+            network_calls_per_target=100,
+            supports_checkpoint_resume=True,
+            version_requirements={"test": ">=1.0"},
+        )
+        self.assertEqual(manifest.estimated_duration_seconds, 120.0)
+        self.assertEqual(manifest.memory_mb, 512.0)
+        self.assertEqual(manifest.network_calls_per_target, 100)
+        self.assertTrue(manifest.supports_checkpoint_resume)
+        self.assertEqual(manifest.version_requirements["test"], ">=1.0")
+
+
+@pytest.mark.unit
+class TestToolExecutionContext(unittest.TestCase):
+    def test_construction_with_fields(self) -> None:
+        from src.core.capabilities import ToolExecutionContext
+        context = ToolExecutionContext(
+            resolved_paths={"tool": "/path/to/tool"},
+            env={"VAR": "val"},
+            sandbox_constraints={"limit": 10},
+            config="test_config",
+        )
+        self.assertEqual(context.resolved_paths["tool"], "/path/to/tool")
+        self.assertEqual(context.env["VAR"], "val")
+        self.assertEqual(context.sandbox_constraints["limit"], 10)
+        self.assertEqual(context.config, "test_config")
 
 
 if __name__ == "__main__":

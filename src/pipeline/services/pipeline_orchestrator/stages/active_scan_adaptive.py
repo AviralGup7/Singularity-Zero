@@ -39,22 +39,57 @@ async def run_active_scanning_adaptive(
     """Adaptive Stage: Active probing with dynamic prioritization and boosting."""
     stage_started = time.monotonic()
 
+    # Retrieve checkpoint manager and load previous deltas for sub-stage resumption
+    checkpoint_mgr = getattr(ctx, "_checkpoint_mgr", None)
+    scanned_urls: set[str] = set()
+    historical_findings: list[dict[str, Any]] = []
+    
+    if checkpoint_mgr and hasattr(checkpoint_mgr, "load_stage_deltas"):
+        try:
+            previous_deltas = checkpoint_mgr.load_stage_deltas("active_scan")
+            for p in previous_deltas:
+                delta_dict = p.get("delta") or {}
+                scanned_urls.update(delta_dict.get("scanned_targets", []))
+                historical_findings.extend(delta_dict.get("findings", []))
+            if scanned_urls:
+                logger.info(
+                    "Resuming active scan: %d targets already scanned, %d findings restored",
+                    len(scanned_urls),
+                    len(historical_findings),
+                )
+        except Exception as exc:
+            logger.warning("Failed to load active scan previous deltas: %s", exc)
+
     # 1. Target Preparation
     live_hosts = set(ctx.live_hosts) if ctx.live_hosts else set()
     urls = set(ctx.urls) if ctx.urls else set()
 
     all_urls = _normalize_scan_targets([*list(urls), *list(live_hosts)])
+    
+    # Filter out already scanned URLs
+    if scanned_urls:
+        all_urls = [u for u in all_urls if u not in scanned_urls]
+
     if not all_urls:
-        logger.info("Adaptive active scan: no targets available, skipping")
+        logger.info("Adaptive active scan: all targets already scanned, skipping execution")
+        duration = round(time.monotonic() - stage_started, 2)
         return StageOutput(
             stage_name="active_scan",
-            outcome=StageOutcome.SKIPPED,
-            duration_seconds=round(time.monotonic() - stage_started, 2),
-            metrics={"status": "skipped", "reason": "no_targets"},
-            state_delta={},
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=duration,
+            metrics={
+                "status": "ok",
+                "duration_seconds": duration,
+                "targets_total": len(scanned_urls),
+                "targets_scanned": len(scanned_urls),
+                "findings_count": len(historical_findings),
+                "resumed": True,
+            },
+            state_delta={"active_scan_findings": historical_findings},
         )
 
     emit_progress("active_scan", f"Starting adaptive scan on {len(all_urls)} targets", 75)
+
 
     # 2. Resource Initialization
     try:
@@ -121,7 +156,7 @@ async def run_active_scanning_adaptive(
     ]
     host_results = await asyncio.gather(*host_tasks, return_exceptions=True)
 
-    all_findings: list[dict[str, Any]] = []
+    all_findings: list[dict[str, Any]] = list(historical_findings)
     host_probe_errors: list[str] = []
     for probe_name, r in zip(host_probe_names, host_results, strict=False):
         if isinstance(r, BaseException):
@@ -153,12 +188,26 @@ async def run_active_scanning_adaptive(
         boost_on_findings=True,
     )
 
+    def save_delta_fn(batch_urls: list[str], batch_findings: list[dict[str, Any]]) -> None:
+        if checkpoint_mgr and hasattr(checkpoint_mgr, "save_stage_delta"):
+            try:
+                checkpoint_mgr.save_stage_delta(
+                    "active_scan",
+                    delta={
+                        "scanned_targets": list(batch_urls),
+                        "findings": list(batch_findings),
+                    },
+                )
+            except Exception as exc:
+                logger.warning("Failed to save active scan batch delta: %s", exc)
+
     logger.info("Starting AdaptiveScanCoordinator loop")
-    batch_result = await coordinator.run()
+    batch_result = await coordinator.run(save_delta_fn=save_delta_fn)
 
     for result in batch_result.results:
         if result.findings:
             all_findings.extend(result.findings)
+
 
     # 5. Result Consolidation
     duration = round(time.monotonic() - stage_started, 2)
