@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import logging
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Protocol
@@ -23,6 +22,8 @@ from src.core.logging.trace_logging import get_pipeline_logger
 
 if TYPE_CHECKING:
     from src.infrastructure.notifications.manager import NotificationManager
+    from src.pipeline.self_healing.dampening import DampeningWindow
+    from src.pipeline.self_healing.history_store import CorrectionHistoryStore
 
 logger = get_pipeline_logger(__name__)
 

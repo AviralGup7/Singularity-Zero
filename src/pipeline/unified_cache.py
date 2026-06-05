@@ -624,7 +624,7 @@ class CoalescingCacheWrapper:
             if cached is not None and ttl_mode == TTLMode.HARD_TTL:
                 return cached
             if cached is not None and ttl_mode == TTLMode.STALE_WHILE_REVALIDATE:
-                if response_cache_fresh(cached, stale_threshold_hours, ttl_mode=TTLMode.HARD_TTL):
+                if _response_cache_fresh(cached, stale_threshold_hours):
                     return cached
                 background = self._maybe_kick_off_refresh(key, cached, loader, refresh_ttl, priority)
                 if background is not None:

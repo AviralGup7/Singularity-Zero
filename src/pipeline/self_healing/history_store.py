@@ -1,6 +1,7 @@
 from collections import defaultdict
-from typing import Dict, List
+
 from src.core.contracts.health import CorrectiveAction
+
 
 class CorrectionHistoryStore:
     """Tracks rolling success rates of corrective actions and determines escalation."""
@@ -9,7 +10,7 @@ class CorrectionHistoryStore:
         self.window_size = window_size
         self.failure_threshold = failure_threshold
         # Maps action to list of booleans (True for success, False for failure)
-        self._history: Dict[CorrectiveAction, List[bool]] = defaultdict(list)
+        self._history: dict[CorrectiveAction, list[bool]] = defaultdict(list)
 
     def record(self, action: CorrectiveAction, success: bool) -> None:
         history = self._history[action]
