@@ -26,6 +26,7 @@ class HealthComponent(StrEnum):
     MODEL_REGISTRY = "model_registry"
     DASHBOARD_CONNECTION = "dashboard_connection"
     EXECUTION_ENGINE = "execution_engine"
+    TOOL_EXECUTION = "tool_execution"
 
 
 class CorrectiveAction(StrEnum):
@@ -36,6 +37,7 @@ class CorrectiveAction(StrEnum):
     FLUSH_BLOOM_FILTER = "flush_bloom_filter"
     ROLLBACK_MODEL_VERSION = "rollback_model_version"
     ESCALATE_ANALYST = "escalate_analyst"
+    TRIP_TOOL_CIRCUIT_BREAKER = "trip_tool_circuit_breaker"
     NOOP = "noop"
 
 

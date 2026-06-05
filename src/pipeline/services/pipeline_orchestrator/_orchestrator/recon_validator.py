@@ -27,7 +27,12 @@ def validate_recon_outputs(ctx: PipelineContext) -> None:
         ctx.result.stage_status["recon_validation"] = StageStatus.FAILED.value
         ctx.result.module_metrics["recon_validation"] = {
             "status": "failed",
-            "reason": "Pipeline finished recon without discoverable URLs.",
+            # Bug #N fix: ``collect_failed_stages`` only surfaces the
+            # canonical ``failure_reason`` key; we previously wrote to a
+            # different key (``reason``) which caused the validator to
+            # report a generic "Stage recon_validation failed" string
+            # in dashboards instead of the specific recon explanation.
+            "failure_reason": "Pipeline finished recon without discoverable URLs.",
             "fatal": True,
         }
         logger.warning(

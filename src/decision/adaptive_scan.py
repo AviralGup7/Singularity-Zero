@@ -128,29 +128,6 @@ class AdaptiveScanCoordinator:
                 )
                 break
 
-            if self._early_terminate and self._queue.should_terminate_early(
-                min_items=self._early_terminate_min,
-                threshold_ratio=self._early_terminate_ratio,
-            ):
-                logger.info(
-                    "Adaptive scan: early termination after %d batches, "
-                    "%d/%d targets scanned, %d findings",
-                    batch_num,
-                    len(self._results),
-                    self._queue.total,
-                    len(self._total_findings),
-                )
-                break
-
-            # Check max batches
-            if self._max_batches and batch_num >= self._max_batches:
-                logger.info("Adaptive scan: reached max batch limit (%d)", self._max_batches)
-                break
-
-            if not batch_urls:
-                logger.info("Adaptive scan: all targets consumed")
-                break
-
             batch_num += 1
             urls = [target.url for target in batch_urls]
 
@@ -189,6 +166,24 @@ class AdaptiveScanCoordinator:
                     len(batch_findings),
                     boosted,
                 )
+
+            if self._max_batches and batch_num >= self._max_batches:
+                logger.info("Adaptive scan: reached max batch limit (%d)", self._max_batches)
+                break
+
+            if self._early_terminate and self._queue.should_terminate_early(
+                min_items=self._early_terminate_min,
+                threshold_ratio=self._early_terminate_ratio,
+            ):
+                logger.info(
+                    "Adaptive scan: early termination after %d batches, "
+                    "%d/%d targets scanned, %d findings",
+                    batch_num,
+                    len(self._results),
+                    self._queue.total,
+                    len(self._total_findings),
+                )
+                break
 
         elapsed_ms = (time.monotonic() - start) * 1000
 

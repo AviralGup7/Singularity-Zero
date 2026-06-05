@@ -229,14 +229,17 @@ async def require_admin(
         HTTPException: If the authenticated user is not an admin.
     """
     if auth is None:
-        # Bug #28 fix: previously the fallback for ``auth is None`` was
-        # ``{"user": "anonymous", "role": "admin", ...}`` which silently
-        # granted admin role to anonymous requesters when
-        # ``api_security_enabled()`` was False. That allowed any
-        # unauthenticated caller to reach admin-only handlers. Default
-        # to the lowest privilege role and let ``raise_for_roles``
-        # below emit the correct 401/403.
-        auth = {"user": "anonymous", "role": "read_only", "tenant_id": "default"}
+        # No authentication was performed at all. Surface a 401 (not
+        # a 403) so the caller knows the request is missing
+        # credentials rather than authenticated-but-insufficient. This
+        # also lets handler tests assert that body validation
+        # (``422``) can win when auth is satisfied - 401 short-
+        # circuits before the handler runs but is semantically
+        # distinct from 403.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin authentication required",
+        )
     if api_security_enabled():
         principal = Principal(
             user=auth.get("user", ""),
@@ -261,10 +264,16 @@ async def require_worker(
 ) -> dict[str, str]:
     """Require worker-level authentication when API security is enabled."""
     if auth is None:
-        # Bug #28 fix: same anonymous-default-to-admin privilege
-        # escalation as in ``require_admin``. Default to the lowest
-        # privilege role and let the role check raise.
-        auth = {"user": "anonymous", "role": "read_only", "tenant_id": "default"}
+        # No authentication was performed at all. Surface a 401 (not
+        # a 403) so the caller knows the request is missing
+        # credentials rather than authenticated-but-insufficient. This
+        # mirrors the policy in ``require_admin`` and lets handler
+        # tests assert the body-validation (422) contract when auth
+        # is otherwise satisfied.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Worker authentication required",
+        )
     if api_security_enabled():
         principal = Principal(
             user=auth.get("user", ""),

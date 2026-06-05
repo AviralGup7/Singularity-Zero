@@ -107,6 +107,37 @@ The platform features strict governance and defense-in-depth mechanisms to prote
 ### 8. Recurring False-Positive Watchlist
 - **Regression Watchlist Management**: The `FPWatchlistManager` (`src/recon/fp_watchlist.py`) serializes analyst-confirmed `FALSE_POSITIVE` findings to a persistent `<output>/regression-watchlist.json` file on every run completion. De-duplicated URL templates are extracted, and `check_reemergence()` dispatches elevated alerts via the `NotificationManager` if a regression is detected.
 
+### 9. Unified Cache Strategy
+- **Dual-Backend Facade**: `UnifiedCache` maps key namespaces to SQLite (structured probe results, URLs) and to file cache (raw HTTP responses, screenshots) under a single key space with namespace prefixes.
+- **Single-Flight Coalescing**: The `CoalescingCacheWrapper` deduplicates in-flight requests by key using an async lock registry, so two parallel stages requesting the same URL trigger only one subprocess.
+- **Priority-Aware Eviction**: Cache entries are tagged `CRITICAL` (resume state, protected from `prune_oldest`), `NORMAL`, or `TRANSIENT` (tool output, evicted first under memory pressure).
+- **Stale-While-Revalidate**: `STALE_WHILE_REVALIDATE` TTL mode returns cached data immediately and triggers an async background refresh task, halving perceived latency for slow-changing sources like `crt.sh`.
+- **Stage Partitioning**: Cache namespaces are automatically partitioned by stage priority so a long-running `active_scan` cannot evict `subdomains` entries needed by resume.
+
+### 10. Dynamic Actor Scheduler
+- **Node-Actor Dispatch**: `ActorScheduler` replaces static topological tier batching. Each stage is an actor with `when(dependencies).ready()` futures; the run loop polls per-node readiness and dispatches greedily.
+- **Single Graph DSL**: `STAGE_DEPS` and `PARALLEL_STAGE_GROUPS` are collapsed into a single declarative `Graph` DSL, eliminating the runtime consistency check.
+- **Conditional Stages**: `IfStage` nodes with `OutputNonEmpty`, `StageCompleted`, `All`, `AnyOf`, `Not` conditions skip execution when unmet (e.g., skip `active_scan` if recon finds zero live hosts).
+- **Speculative Eager Dispatch**: Ready nodes are dispatched the instant dependencies are satisfied, not at tier boundaries, removing artificial pipeline bubbles.
+- **Critical-Path Priority Sorting**: Ready nodes are ranked by `weight * -1` (descending) then declaration order, giving the long-running critical-path stages (`active_scan:15`, `reporting:5`, `subdomains:10`) worker-pool priority.
+- **Dynamic Re-Scheduling**: Large outputs (e.g. 1000+ URLs) trigger automatic downstream re-balancing into later tiers without pipeline restart.
+- **Policy**: See `src/pipeline/dag_engine.py`, `src/pipeline/_graph_dsl.py`, and `src/pipeline/_run_execution.py`.
+
+### 11. Circuit Breaker Integration
+- **Per-Tool Breakers**: Each `ToolExecutionService` instance owns `dict[str, CircuitBreaker]` keyed by tool name, isolating failure domains (nuclei vs. crt.sh).
+- **Pre-Spawn Gate**: `can_execute()` is consulted *before* `subprocess.Popen`; an OPEN breaker returns an immediate `ToolExecutionError` without spawning.
+- **Configurable Recovery**: `CircuitBreakerConfig.recovery_timeout` is read per-tool from settings (e.g., nuclei recovers in 60 s; a blocked crt.sh may need 10 min).
+- **Force-Open Hot-Path**: The self-healing controller calls `force_open_breaker()` to trip a tool out-of-band when monitoring sees sustained error rates.
+- **Coordinator Recovery Probes**: `schedule_recovery_probe()` registers callbacks on both the service and the live `CircuitBreaker`; the controller drains them via `consume_pending_probes()` when the breaker transitions to HALF_OPEN.
+- **Policy**: See `services/circuit_breaker.py` and `services/tool_execution.py`.
+
+### 12. Adaptive Retry Policy
+- **Stage/Tool Split**: `StageRetryPolicy` carries a per-stage `max_retry_budget_seconds`; `ToolRetryPolicy` (per-tool) shares state across calls but accounts back to the parent stage budget.
+- **Adaptive Backoff (Vegas)**: `AdaptiveBackoffHeuristic` slides over a fixed window of recent outcomes and nudges `backoff_multiplier` between 1.0 and 4.0 every `adjustment_interval` observations, with dampened step-up/step-down.
+- **Cancellation-Safe Sleep**: `sleep_before_retry_async()` awaits in cancellable chunks and raises `asyncio.CancelledError` immediately on task cancel or orchestrator shutdown event, so a 64 s / 900 s wait never blocks.
+- **Structured Events**: `RetryEventType` (attempt / success / exhausted / budget_exhausted) emits to `EventBus` with `tool_identifier`, allowing the self-healing controller to skip subsequent stages when retry rates exceed a threshold.
+- **Policy**: See `retry.py` and `src/pipeline/services/pipeline_orchestrator/_run_execution.py`.
+
 
 
 

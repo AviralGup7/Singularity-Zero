@@ -54,7 +54,10 @@ them.  For the branded, capability-focused description, see
 | Passive analysis | `src/analysis/passive/` | Static detectors that read existing responses / JS / spec files for known-bad fingerprints. |
 | Execution / exploitation | `src/execution/`, `src/exploitation/` | Validates candidate findings end-to-end.  All exploit PoCs run inside a WASM sandbox (`wasmtime`). |
 | Detection registry | `src/detection/`, `src/core/plugins/` | Plugin-based module loader with hot-reload support. |
-| Pipeline orchestrator | `src/pipeline/services/pipeline_orchestrator/` | DAG of stages with retry, circuit-breaker, and resume support. |
+| Pipeline orchestrator | `src/pipeline/services/pipeline_orchestrator/` | DAG of stages with retry, circuit-breaker, resume support. |
+| Unified cache | `src/pipeline/unified_cache.py`, `src/pipeline/cache.py`, `src/pipeline/cache_backend.py` | SQLite + file facade with coalescing, priority queue, stale-while-revalidate, and stage partitioning. |
+| Dynamic DAG scheduler | `src/pipeline/dag_engine.py`, `src/pipeline/_graph_dsl.py`, `src/pipeline/_run_execution.py` | Actor-based per-node readiness futures replacing static tier batching; speculatively eager dispatch; conditional `IfStage` nodes; critical-path priority. |
+| Self-healing controller | `src/pipeline/self_healing/` | Event-driven via EventBus push subscription; `DampeningWindow` per-action cooldowns; `CorrectionHistoryStore` rolling success rates; `ESCALATE_ANALYST` wired to `NotificationManager`. |
 | Frontier state | `src/core/frontier/` | LWW-set CRDTs keyed by Hybrid Logical Clocks (HLCs).  HLCs were chosen over vector clocks because they give causal ordering in **O(1) space per node** rather than O(N). |
 | Mesh coordination | `src/infrastructure/mesh/` | Authenticated SWIM-style gossip for cluster membership and sharding.  Bullies algorithm picks shard leaders. |
 | Bloom filter plane | `src/core/frontier/bloom_mesh.py` | Redis pub/sub channel `cyber-pipeline:bloom:sync` ships packed Bloom snapshots between nodes; vector clocks reject stale snapshots and compatible filters merge via packed-bit OR. |

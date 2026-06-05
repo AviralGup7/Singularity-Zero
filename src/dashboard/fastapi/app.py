@@ -370,6 +370,53 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     action_registry.register(CorrectiveAction.ESCALATE_ANALYST, _escalate)
     action_registry.register(CorrectiveAction.REBALANCE_ACTORS, _rebalance)
 
+    async def _trip_tool_breaker(finding: Any) -> CorrectionEvent:
+        controller = app.state.self_healing_controller
+        labels = dict(finding.labels or {})
+        tool_name = labels.get("tool")
+        if not tool_name and finding.metric.startswith("tool_circuit_breaker_state."):
+            tool_name = finding.metric.split(".", 1)[1]
+        if not tool_name and finding.metric.startswith("tool_error_rate."):
+            tool_name = finding.metric.split(".", 1)[1]
+        if not tool_name:
+            return CorrectionEvent(
+                finding_id=finding.finding_id,
+                action=CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER,
+                success=False,
+                message="Unable to derive tool name from finding",
+                component=finding.component,
+                details={"reason": finding.reason, "labels": labels},
+            )
+        success = controller.force_open_tool_breaker(
+            tool_name,
+            reason=f"self_healing:{finding.reason}",
+            duration_seconds=None,
+        )
+        return CorrectionEvent(
+            finding_id=finding.finding_id,
+            action=CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER,
+            success=success,
+            message=(
+                f"Force-opened circuit breaker for {tool_name}"
+                if success
+                else f"Unable to trip breaker for {tool_name}"
+            ),
+            component=finding.component,
+            details={"reason": finding.reason, "labels": labels, "tool": tool_name},
+        )
+
+    action_registry.register(CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER, _trip_tool_breaker)
+
+    # Bind the tool-execution service to the self-healing controller so
+    # tool_breaker_state metrics get surfaced and force_open handlers
+    # can drive breaker state from sustained-error findings.
+    from src.pipeline.services.tool_execution import ToolExecutionService  # pylint: disable=C0415
+
+    tool_service: ToolExecutionService = getattr(
+        app.state, "tool_execution_service", None
+    ) or ToolExecutionService()
+    app.state.tool_execution_service = tool_service
+
     controller = SelfHealingController(action_registry=action_registry)
     controller.register_probe("pipeline_stages", _pipeline_stage_probe)
     controller.register_probe("dashboard_connections", _dashboard_connection_probe)
@@ -378,6 +425,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         lambda: bloom_mesh.health_metrics(fill_threshold=controller.bloom_fill_threshold),
     )
     controller.register_probe("model_registry", app.state.model_registry.health_metrics)
+    controller.bind_tool_execution_service(tool_service)
     app.state.self_healing_controller = controller
     await controller.start()
 

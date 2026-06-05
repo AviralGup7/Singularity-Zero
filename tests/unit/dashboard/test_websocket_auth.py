@@ -24,7 +24,15 @@ class _FakeWebSocket:
 
 
 @pytest.mark.asyncio
-async def test_authenticate_websocket_allows_anonymous_when_unconfigured() -> None:
+async def test_authenticate_websocket_allows_anonymous_when_unconfigured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Production behaviour: anonymous WebSocket access is opt-in via the
+    # ``ALLOW_ANONYMOUS_WS`` environment variable to prevent an
+    # unconfigured deployment from silently accepting unauthenticated
+    # connections (CSWSH hardening). The test sets the flag explicitly
+    # to verify the ``unconfigured`` path the test name promises.
+    monkeypatch.setenv("ALLOW_ANONYMOUS_WS", "1")
     websocket = _FakeWebSocket()
 
     creds = await authenticate_websocket(

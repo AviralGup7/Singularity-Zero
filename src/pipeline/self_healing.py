@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from src.core.contracts.health import (
     CorrectionEvent,
@@ -17,12 +18,31 @@ from src.core.contracts.health import (
     HealthStatus,
     PipelineHealthSnapshot,
 )
+from src.core.events import EventBus, EventType, get_event_bus
 from src.core.logging.trace_logging import get_pipeline_logger
+
+if TYPE_CHECKING:
+    from src.infrastructure.notifications.manager import NotificationManager
 
 logger = get_pipeline_logger(__name__)
 
 Probe = Callable[[], Awaitable[list[HealthMetric]] | list[HealthMetric]]
 ActionHandler = Callable[[HealthFinding], Awaitable[CorrectionEvent] | CorrectionEvent]
+
+
+class _CircuitBreakerBridge(Protocol):
+    def force_open_breaker(
+        self,
+        tool_name: str,
+        reason: str,
+        duration_seconds: float | None = ...,
+    ) -> Any: ...
+
+    def reset_breaker(self, tool_name: str) -> Any: ...
+
+    def breaker_snapshot(self) -> dict[str, Any]: ...
+
+    def consume_pending_probes(self) -> dict[str, Callable[[Any], None]]: ...
 
 
 class CorrectiveActionRegistry:
@@ -128,6 +148,31 @@ class SelfHealingController:
             findings=[],
             corrections=[],
         )
+        # Circuit-breaker bridge (optional). When set, the controller emits
+        # HealthMetrics for every known tool and can call force_open_breaker
+        # in response to sustained-error findings.
+        self._breaker_bridge: _CircuitBreakerBridge | None = None
+        self._tool_error_rate_threshold: float = float(
+            getattr(config, "tool_error_rate_threshold", 0.5) if config is not None else 0.5
+        )
+        self._tool_failure_count_threshold: int = int(
+            getattr(config, "tool_failure_count_threshold", 3) if config is not None else 3
+        )
+        from src.pipeline.self_healing.dampening import DampeningWindow
+        from src.pipeline.self_healing.history_store import CorrectionHistoryStore
+
+        self._dampening_window = DampeningWindow()
+        self._history_store = CorrectionHistoryStore()
+        self._notification_manager: NotificationManager | None = None
+        self._event_subscription_id: str | None = None
+
+    @property
+    def dampening_window(self) -> DampeningWindow:
+        return self._dampening_window
+
+    @property
+    def history_store(self) -> CorrectionHistoryStore:
+        return self._history_store
 
     @property
     def last_snapshot(self) -> PipelineHealthSnapshot:
@@ -136,10 +181,80 @@ class SelfHealingController:
     def register_probe(self, name: str, probe: Probe) -> None:
         self._probes[name] = probe
 
+    def bind_tool_execution_service(self, service: _CircuitBreakerBridge) -> None:
+        self._breaker_bridge = service
+
+    def bind_notification_manager(self, manager: NotificationManager | None) -> None:
+        self._notification_manager = manager
+
+    def subscribe_event_bus(self, event_bus: EventBus | None = None) -> str:
+        bus = event_bus or get_event_bus()
+        subscription_id = bus.subscribe_async(EventType.FINDING_DETECTED, self._on_health_metric_event)
+        self._event_subscription_id = subscription_id
+        return subscription_id
+
+    def _on_health_metric_event(self, event: Any) -> None:
+        data = getattr(event, "data", {}) or {}
+        if not data:
+            return
+        try:
+            metric = HealthMetric(
+                component=HealthComponent(data.get("component_name", "")),
+                name=data.get("metric_name", ""),
+                value=data.get("value"),
+                threshold=data.get("threshold"),
+                status=HealthStatus(data.get("status", HealthStatus.OK.value)),
+                labels=data.get("labels", {}),
+            )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.debug("Ignoring malformed health metric event: %s", exc)
+            return
+        asyncio.create_task(self._process_push_metric(metric))
+
+    async def _process_push_metric(self, metric: HealthMetric) -> None:
+        status = metric.status
+        if status in (HealthStatus.OK, HealthStatus.UNKNOWN):
+            status = self._derive_status(metric)
+        if status == HealthStatus.OK:
+            return
+        finding = self._finding_for_metric(metric, status)
+        corrective_action = self._resolve_action(finding.action)
+        if corrective_action == CorrectiveAction.NOOP:
+            return
+        if self._dampening_window.should_suppress(corrective_action, finding.component):
+            logger.debug(
+                "Suppressing dampened corrective action %s for %s",
+                corrective_action.value,
+                finding.component.value,
+            )
+            return
+        correction = await self.actions.execute(finding)
+        self._history_store.record(correction.action, correction.success)
+        self._dampening_window.record_fire(corrective_action, finding.component)
+        if correction.success and self._history_store.should_escalate(corrective_action):
+            degraded_finding = HealthFinding(
+                component=finding.component,
+                status=HealthStatus.CRITICAL,
+                reason=f"Success rate for {corrective_action.value} degraded; escalating to analyst.",
+                action=CorrectiveAction.ESCALATE_ANALYST,
+                metric=finding.metric,
+                labels={"autodegraded": "true", "original_action": corrective_action.value},
+            )
+            await self.actions.execute(degraded_finding)
+            correction = degraded_finding
+        await self._maybe_notify(finding, correction)
+        self._last_snapshot = PipelineHealthSnapshot(
+            status=status,
+            metrics=[metric],
+            findings=[finding],
+            corrections=[correction, *self.actions.history[-19:]],
+        )
+
     async def start(self) -> None:
         if self._running:
             return
         self._running = True
+        self.subscribe_event_bus()
         self._task = asyncio.create_task(self._run_loop(), name="self-healing-controller")
 
     async def stop(self) -> None:
@@ -158,7 +273,7 @@ class SelfHealingController:
         corrections: list[CorrectionEvent] = []
         for finding in findings:
             if finding.action != CorrectiveAction.NOOP:
-                corrections.append(await self.actions.execute(finding))
+                corrections.append(await self._execute_finding(finding))
         status = self._overall_status(metrics, findings, corrections)
         self._last_snapshot = PipelineHealthSnapshot(
             status=status,
@@ -167,6 +282,67 @@ class SelfHealingController:
             corrections=[*self.actions.history[-20:]],
         )
         return self._last_snapshot
+
+    async def _execute_finding(self, finding: HealthFinding) -> CorrectionEvent:
+        if self._history_store.should_escalate(finding.action):
+            degraded = HealthFinding(
+                component=finding.component,
+                status=finding.status,
+                reason=f"Action {finding.action.value} auto-degraded due to low success rate; escalating.",
+                action=CorrectiveAction.ESCALATE_ANALYST,
+                metric=finding.metric,
+                labels={**finding.labels, "autodegraded": "true", "original_action": finding.action.value},
+            )
+            finding = degraded
+        corrective_action = self._resolve_action(finding.action)
+        if corrective_action != CorrectiveAction.NOOP:
+            if self._dampening_window.should_suppress(corrective_action, finding.component):
+                logger.debug(
+                    "Suppressing dampened corrective action %s for %s",
+                    corrective_action.value,
+                    finding.component.value,
+                )
+                noop = CorrectionEvent(
+                    finding_id=finding.finding_id,
+                    action=finding.action,
+                    success=False,
+                    message="Dampened; corrective action suppressed within cooldown window",
+                    component=finding.component,
+                    details={"reason": finding.reason, "labels": finding.labels},
+                )
+                self._history_store.record(finding.action, False)
+                self.actions._history.append(noop)  # pylint: disable=protected-access
+                return noop
+            self._dampening_window.record_fire(corrective_action, finding.component)
+        correction = await self.actions.execute(finding)
+        self._history_store.record(finding.action, correction.success)
+        await self._maybe_notify(finding, correction)
+        if correction.success and corrective_action != CorrectiveAction.NOOP and self._history_store.should_escalate(corrective_action):
+            escalated = HealthFinding(
+                component=finding.component,
+                status=HealthStatus.CRITICAL,
+                reason=f"Success rate for {corrective_action.value} degraded; escalating to analyst.",
+                action=CorrectiveAction.ESCALATE_ANALYST,
+                metric=finding.metric,
+                labels={"autodegraded": "true", "original_action": corrective_action.value},
+            )
+            await self.actions.execute(escalated)
+            await self._maybe_notify(escalated, correction)
+        return correction
+
+    def _resolve_action(self, action: CorrectiveAction) -> CorrectiveAction:
+        if action == CorrectiveAction.NOOP:
+            return CorrectiveAction.NOOP
+        return action
+
+    async def _maybe_notify(self, finding: HealthFinding, correction: CorrectionEvent | None) -> None:
+        manager = self._notification_manager
+        if manager is None:
+            return
+        try:
+            await manager.send_self_healing_alert(finding, correction)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.debug("Self-healing notification dispatch failed: %s", exc)
 
     async def _run_loop(self) -> None:
         while self._running:
@@ -195,6 +371,66 @@ class SelfHealingController:
                         labels={"error": str(exc)},
                     )
                 )
+        metrics.extend(self._collect_breaker_metrics())
+        return metrics
+
+    def _collect_breaker_metrics(self) -> list[HealthMetric]:
+        if self._breaker_bridge is None:
+            return []
+        metrics: list[HealthMetric] = []
+        try:
+            snapshot = self._breaker_bridge.breaker_snapshot()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.debug("breaker snapshot probe failed: %s", exc)
+            return []
+        for tool_name, stats in snapshot.items():
+            if hasattr(stats, "state"):
+                state_value = stats.state
+                failure_count = getattr(stats, "failure_count", 0)
+                total_failures = getattr(stats, "total_failures", 0)
+                total_successes = getattr(stats, "total_successes", 0)
+                recovery_timeout = getattr(stats, "recovery_timeout", 0.0)
+                forced = getattr(stats, "forced_open", False)
+            else:  # tolerate plain-dict snapshots
+                state_value = stats.get("state", "closed")
+                failure_count = stats.get("failure_count", 0)
+                total_failures = stats.get("total_failures", 0)
+                total_successes = stats.get("total_successes", 0)
+                recovery_timeout = stats.get("recovery_timeout", 0.0)
+                forced = stats.get("forced_open", False)
+            status = HealthStatus.OK
+            if state_value == "open":
+                status = HealthStatus.CRITICAL
+            elif state_value == "half_open":
+                status = HealthStatus.RECOVERING
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.TOOL_EXECUTION,
+                    name=f"tool_circuit_breaker_state.{tool_name}",
+                    value=state_value,
+                    status=status,
+                    threshold=recovery_timeout,
+                    labels={
+                        "tool": tool_name,
+                        "failure_count": str(failure_count),
+                        "total_failures": str(total_failures),
+                        "total_successes": str(total_successes),
+                        "forced_open": "1" if forced else "0",
+                    },
+                )
+            )
+            denom = total_failures + total_successes
+            rate = (total_failures / denom) if denom else 0.0
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.TOOL_EXECUTION,
+                    name=f"tool_error_rate.{tool_name}",
+                    value=round(rate, 4),
+                    status=HealthStatus.OK,
+                    threshold=self._tool_error_rate_threshold,
+                    labels={"tool": tool_name},
+                )
+            )
         return metrics
 
     def _classify(self, metrics: list[HealthMetric]) -> list[HealthFinding]:
@@ -238,6 +474,14 @@ class SelfHealingController:
             metric.threshold or 0.2
         ):
             return HealthStatus.CRITICAL
+        if metric.name.startswith("tool_circuit_breaker_state.") and metric.value == "open":
+            return HealthStatus.CRITICAL
+        if metric.name.startswith("tool_circuit_breaker_state.") and metric.value == "half_open":
+            return HealthStatus.RECOVERING
+        if metric.name.startswith("tool_error_rate.") and float(metric.value or 0) > float(
+            metric.threshold or self._tool_error_rate_threshold
+        ):
+            return HealthStatus.CRITICAL
         return HealthStatus.OK
 
     def _finding_for_metric(self, metric: HealthMetric, status: HealthStatus) -> HealthFinding:
@@ -256,6 +500,8 @@ class SelfHealingController:
             action = CorrectiveAction.REFRESH_STUCK_STAGE
         elif metric.component == HealthComponent.DASHBOARD_CONNECTION:
             action = CorrectiveAction.ESCALATE_ANALYST
+        elif metric.component == HealthComponent.TOOL_EXECUTION:
+            action = CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER
 
         return HealthFinding(
             component=metric.component,
@@ -281,6 +527,34 @@ class SelfHealingController:
         if metrics:
             return HealthStatus.OK
         return HealthStatus.UNKNOWN
+
+    def consume_recovery_probes(self) -> dict[str, Callable[[Any], None]]:
+        if self._breaker_bridge is None:
+            return {}
+        try:
+            return dict(self._breaker_bridge.consume_pending_probes())
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.debug("breaker consume_pending_probes failed: %s", exc)
+            return {}
+
+    def force_open_tool_breaker(
+        self,
+        tool_name: str,
+        reason: str,
+        duration_seconds: float | None = None,
+    ) -> bool:
+        if self._breaker_bridge is None:
+            return False
+        try:
+            self._breaker_bridge.force_open_breaker(
+                tool_name,
+                reason,
+                duration_seconds=duration_seconds,
+            )
+            return True
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning("force_open_breaker(%s) failed: %s", tool_name, exc)
+            return False
 
 
 def _dataclass_to_dict(value: Any) -> dict[str, Any]:

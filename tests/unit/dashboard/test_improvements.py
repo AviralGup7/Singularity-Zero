@@ -1,12 +1,27 @@
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.dashboard.fastapi.app import create_app
 from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.routers.findings import _find_finding_by_id
+
+
+@pytest.fixture(autouse=True)
+def _disable_dashboard_security(monkeypatch):
+    """Disable CSRF and API security for the duration of each test in this module.
+
+    The test cases build an in-process dashboard and exercise endpoint
+    response shapes; the security contract is exercised by the dedicated
+    ``test_api_security.py`` e2e module, not here.
+    """
+    monkeypatch.setenv("DASHBOARD_AUTH_DISABLED", "true")
+    monkeypatch.setenv("ENABLE_API_SECURITY", "false")
+    yield
 
 
 def test_dashboard_stats_caching(tmp_path: Path) -> None:

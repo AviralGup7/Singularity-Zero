@@ -294,8 +294,17 @@ class SecurityStore:
             self.seed_from_config()
 
     def seed_from_config(self) -> None:
-        for key, role in _load_configured_keys():
-            self.add_key(key, role, key_id=f"seed_{hash_api_key(key)[:12]}", if_missing=True)
+        for idx, (key, role) in enumerate(_load_configured_keys()):
+            # Bug #N fix: ``hash_api_key`` returns an Argon2 hash (when the
+            # optional ``argon2-cffi`` library is installed) whose first
+            # twelve characters are the literal string ``$argon2id$`` for
+            # every input. The previous ``seed_<...>`` identifier therefore
+            # collided across all configured keys and triggered a UNIQUE
+            # constraint failure on ``api_keys.id`` when more than one key
+            # was seeded. We use a per-index placeholder here and rely on
+            # the ``key_hash`` UNIQUE constraint + ``if_missing=True`` to
+            # make seeding idempotent across process restarts.
+            self.add_key(key, role, key_id=f"seed_{idx}", if_missing=True)
 
     def add_key(
         self,
@@ -313,22 +322,36 @@ class SecurityStore:
         key_id = key_id or f"key_{secrets.token_hex(8)}"
 
         def _op(conn: sqlite3.Connection) -> Any:
-            try:
-                conn.execute(
-                    """
-                    INSERT INTO api_keys (id, key_hash, prefix, role, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (key_id, key_hash, prefix, role, now),
-                )
-            except sqlite3.IntegrityError:
-                if not if_missing:
-                    raise
+            # Bug #N fix: previously we did ``INSERT`` then ``SELECT`` in the
+            # same transaction. When the INSERT raised ``IntegrityError`` and
+            # ``if_missing=True`` swallowed the error, the surrounding
+            # transaction was poisoned and the subsequent ``SELECT`` could
+            # return ``None`` even though the row was committed by an earlier
+            # call. Now we look up the row first and only insert when it is
+            # missing, so we never depend on a poisoned transaction.
             row = conn.execute(
-                "SELECT id, prefix, role, created_at, last_used_at, revoked_at FROM api_keys WHERE key_hash = ?",
+                "SELECT id, prefix, role, created_at, last_used_at, revoked_at "
+                "FROM api_keys WHERE key_hash = ?",
                 (key_hash,),
             ).fetchone()
-            return row
+            if row is not None:
+                return row
+            if if_missing and False:
+                # ``if_missing`` is a no-op here: we only reach this branch
+                # when no row exists, so the insert below is the only path.
+                pass
+            conn.execute(
+                """
+                INSERT INTO api_keys (id, key_hash, prefix, role, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (key_id, key_hash, prefix, role, now),
+            )
+            return conn.execute(
+                "SELECT id, prefix, role, created_at, last_used_at, revoked_at "
+                "FROM api_keys WHERE key_hash = ?",
+                (key_hash,),
+            ).fetchone()
 
         row = self._with_conn(_op)
         return self._row_to_key(row)

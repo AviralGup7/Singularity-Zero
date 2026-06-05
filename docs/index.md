@@ -13,6 +13,7 @@ Welcome to the Cyber Security Test Pipeline documentation. This index helps you 
 - **[🧪 Testing & CI](testing.md)**: How to run the unit, integration, and architecture test suites.
 - **[🔍 Comprehensive Gap Analysis](GAP_ANALYSIS.md)**: Technical and architectural gaps roadmap.
 - **[🚀 Evolution Alpha Plan](EVOLUTION_ALPHA_PLAN.md)**: Roadmap for major feature additions and improvements.
+- **[🧬 Pipeline Orchestration Analysis](PIPELINE_ORCHESTRATION_ANALYSIS.md)**: 2026-Q2 conceptual audit of `src/pipeline/` — DAG execution, circuit-breaker wiring, retry granularity, parallelism strategy, caching, self-healing, maintenance, tools/capabilities, validation, visual testing, plan rigidity, checkpoint resume, event-driven control plane, CI/CD integration, and the local-vs-distributed gap.
 
 ---
 

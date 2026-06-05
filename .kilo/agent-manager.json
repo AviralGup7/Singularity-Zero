@@ -1,52 +1,10 @@
 {
-  "worktrees": {
-    "wt-1780042660307-1": {
-      "branch": "solar-road",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\solar-road",
-      "parentBranch": "main",
-      "createdAt": "2026-05-29T08:17:40.307Z",
-      "remote": "origin"
-    },
-    "wt-1780463034520-1": {
-      "branch": "improve-active-checks",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\improve-active-checks",
-      "parentBranch": "main",
-      "createdAt": "2026-06-03T05:03:54.520Z",
-      "remote": "origin",
-      "label": "active checks improvements"
-    },
-    "wt-1780463399554-2": {
-      "branch": "improve-passive-analysis",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\improve-passive-analysis",
-      "parentBranch": "main",
-      "createdAt": "2026-06-03T05:09:59.554Z",
-      "remote": "origin",
-      "label": "passive analysis"
-    }
-  },
-  "sessions": {
-    "ses_18d3057c4ffeW5v8IQ5eFivkTk": {
-      "worktreeId": "wt-1780042660307-1",
-      "createdAt": "2026-05-29T08:17:52.202Z"
-    },
-    "ses_174221750ffetAkdWBZpyuFXmM": {
-      "worktreeId": "wt-1780463034520-1",
-      "createdAt": "2026-06-03T05:03:56.610Z"
-    },
-    "ses_1741c87a3ffeq7w5afubMtkHSl": {
-      "worktreeId": "wt-1780463399554-2",
-      "createdAt": "2026-06-03T05:10:01.055Z"
-    }
-  },
+  "worktrees": {},
+  "sessions": {},
   "tabOrder": {
     "local": [
       "pending:1"
     ]
   },
-  "worktreeOrder": [
-    "wt-1780042660307-1",
-    "wt-1780463034520-1",
-    "wt-1780463399554-2"
-  ],
   "sessionsCollapsed": true
 }

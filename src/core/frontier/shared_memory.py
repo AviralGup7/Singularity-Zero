@@ -133,7 +133,10 @@ class ZeroCopyRouter:
         with self._lock:
             slot = self._align_offset(total)
             shm.write(header + payload_bytes, offset=slot)
-            location = f"shm://{self.buffer_name}@{slot}:{len(payload_bytes)}"
+            # Location format is ``shm://<name>@<offset>``. The payload length
+            # is read from the in-buffer header on retrieval, so it does not
+            # need to be encoded in the location string itself.
+            location = f"shm://{self.buffer_name}@{slot}"
             self._offset = (slot + total) % self.buffer_size
         return location
 
@@ -141,26 +144,24 @@ class ZeroCopyRouter:
         """Reads payload from shared memory using a location reference.
 
         Validates the magic header and length to detect partial writes
-        and corrupted buffers. The declared length in the location string
-        is cross-checked against the in-buffer header.
+        and corrupted buffers. The payload length is read from the
+        in-buffer header (the canonical record), not the location string.
         """
         if not location.startswith("shm://"):
             raise ValueError("Invalid location protocol")
         try:
             rest = location[6:]
+            # Accept both ``shm://name@<offset>`` and the legacy
+            # ``shm://name@<offset>:<length>`` form for compatibility.
             name_part, meta = rest.split("@", 1)
-            offset_part, declared_length_part = meta.split(":", 1)
+            offset_part = meta.split(":", 1)[0]
             offset = int(offset_part)
-            declared_length = int(declared_length_part)
+            declared_length = 0
         except (ValueError, AttributeError) as exc:
             raise ValueError(f"Malformed SHM location reference: {location!r}") from exc
 
         if offset < 0 or offset + _HEADER_SIZE > self.buffer_size:
             raise ValueError("SHM offset out of bounds")
-        if declared_length < 0 or declared_length > _MAX_PAYLOAD_BYTES:
-            raise ValueError("Invalid declared payload length")
-        if offset + _HEADER_SIZE + declared_length > self.buffer_size:
-            raise ValueError("Declared payload would overflow shared memory buffer")
 
         shm = self._get_buffer(create=False)
         header = shm.read(_HEADER_SIZE, offset=offset)
@@ -169,9 +170,19 @@ class ZeroCopyRouter:
             raise ValueError("SHM header magic mismatch (data corrupted or not initialised)")
         if version != _HEADER_VERSION:
             raise ValueError(f"Unsupported SHM header version: {version}")
-        if header_length != declared_length:
+        # The in-buffer header is the canonical record of the payload
+        # length. When the location string omits the length (the new
+        # ``shm://name@<offset>`` form) we trust the header value
+        # unconditionally. When the location string still carries a
+        # length (the legacy ``shm://name@<offset>:<length>`` form) we
+        # cross-check the two for early detection of corruption.
+        if declared_length > 0 and header_length != declared_length:
             raise ValueError(
                 f"SHM payload length mismatch: header says {header_length}, "
                 f"reference says {declared_length}"
             )
-        return shm.read(declared_length, offset=offset + _HEADER_SIZE)
+        if header_length < 0 or header_length > _MAX_PAYLOAD_BYTES:
+            raise ValueError("Invalid payload length in SHM header")
+        if offset + _HEADER_SIZE + header_length > self.buffer_size:
+            raise ValueError("Payload would overflow shared memory buffer")
+        return shm.read(header_length, offset=offset + _HEADER_SIZE)

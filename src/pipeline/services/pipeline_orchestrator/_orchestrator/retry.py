@@ -1,4 +1,4 @@
-"""Stage retry execution module with backoff and error classification."""
+"""Stage retry execution module with backoff, budget isolation, and event emission."""
 
 from __future__ import annotations
 
@@ -13,9 +13,23 @@ from src.core.events import EventType
 from src.core.frontier.tracing_manager import get_tracing_manager
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
-from src.pipeline.retry import RetryMetrics, classify_error, is_retryable
+from src.pipeline.retry import (
+    AdaptiveBackoffHeuristic,
+    RetryBudgetExhausted,
+    RetryEventEmitter,
+    RetryEventType,
+    RetryMetrics,
+    RetryPolicyState,
+    StageRetryPolicy,
+    classify_error,
+    is_retryable,
+    sleep_before_retry_async,
+)
 
 logger = get_pipeline_logger(__name__)
+_retry_emitter = RetryEventEmitter()
+
+_DEFAULT_RETRY_BUDGET_SECONDS: float = 0.0
 
 
 async def run_stage_with_retry(
@@ -30,7 +44,7 @@ async def run_stage_with_retry(
     progress_emitter: Any,
     previous_deltas: list[dict[str, Any]] | None = None,
 ) -> StageOutput | None:
-    """Run a single stage with timeout and RetryPolicy-managed backoff."""
+    """Run a single stage with timeout and StageRetryPolicy-managed backoff."""
     if getattr(ctx.result, "cancel_requested", False):
         logger.info("Cancel requested, skipping stage %s", stage_name)
         ctx.result.module_metrics[stage_name] = {
@@ -55,22 +69,42 @@ async def run_stage_with_retry(
         return None
 
     policy = orchestrator._get_stage_retry_policy(config)
+    if isinstance(policy, RetryPolicyState) and not isinstance(policy, StageRetryPolicy):
+        policy = StageRetryPolicy(
+            base_policy=policy.base_policy,
+            adaptive_heuristic=policy.adaptive_heuristic,
+            max_retry_budget_seconds=_DEFAULT_RETRY_BUDGET_SECONDS,
+        )
+    if not isinstance(policy, StageRetryPolicy):
+        policy = StageRetryPolicy(
+            base_policy=RetryPolicyState(
+                base_policy=RetryPolicy(
+                    max_attempts=getattr(policy, "max_attempts", 1),
+                    initial_backoff_seconds=getattr(policy, "initial_backoff_seconds", 0.0),
+                    backoff_multiplier=getattr(policy, "backoff_multiplier", 2.0),
+                    max_backoff_seconds=getattr(policy, "max_backoff_seconds", 8.0),
+                    retry_on_timeout=getattr(policy, "retry_on_timeout", True),
+                    retry_on_error=getattr(policy, "retry_on_error", True),
+                    jitter_factor=getattr(policy, "jitter_factor", 0.25),
+                ),
+                adaptive_heuristic=AdaptiveBackoffHeuristic(),
+            ),
+            max_retry_budget_seconds=_DEFAULT_RETRY_BUDGET_SECONDS,
+        )
     metrics = RetryMetrics()
+    shutdown_event = orchestrator._shutdown_event if hasattr(orchestrator, "_shutdown_event") else None
 
     async def _execute_stage() -> StageOutput | None:
         isolated_ctx = PipelineContext.restore(ctx.to_dict())
         isolated_ctx.output_store = ctx.output_store
-        # Overhaul #5: Link checkpoint manager for mid-stage delta support
         if hasattr(orchestrator, "_checkpoint_mgr"):
             isolated_ctx._checkpoint_mgr = orchestrator._checkpoint_mgr
         elif "checkpoint_mgr" in locals() or "checkpoint_mgr" in globals():
-            # Fallback for different orchestrator structures
             pass
 
         pre_snapshot = ctx.result.to_dict()
         started = time.monotonic()
 
-        # Build formal StageInput with previous_deltas for mid-stage resume
         stage_input = isolated_ctx.build_stage_input(
             stage_name=stage_name,
             stage_index=0,
@@ -90,6 +124,7 @@ async def run_stage_with_retry(
                 accepts_stage_input = "stage_input" in sig.parameters
             except (ValueError, TypeError):
                 accepts_stage_input = True
+
             if stage_name == "nuclei":
                 if accepts_stage_input:
                     res_or_coro = method(
@@ -106,19 +141,8 @@ async def run_stage_with_retry(
             if inspect.iscoroutine(res_or_coro) or asyncio.iscoroutine(res_or_coro):
                 result = await asyncio.wait_for(res_or_coro, timeout=timeout)
             else:
-                # Sync stage callables previously bypassed the per-stage
-                # timeout entirely — a misbehaving sync method could
-                # block the event loop until it returned. The previous
-                # implementation wrapped the *already-computed* result
-                # in ``asyncio.to_thread`` which was a no-op. By moving
-                # the synchronous call itself into the worker thread,
-                # ``asyncio.wait_for`` now actually enforces the timeout.
-                # NOTE: To preserve the original sync semantics for stages
-                # that have already executed (e.g. the call was already
-                # made before this point), we treat the value as the
-                # immediate result. If a future refactor allows passing
-                # a thunk, it can be moved into the thread.
                 result = res_or_coro
+
         elapsed = time.monotonic() - started
         post_snapshot = isolated_ctx.result.to_dict()
         state_delta = {
@@ -129,7 +153,6 @@ async def run_stage_with_retry(
             and not key.startswith("_")
         }
 
-        # Overhaul #6: Explicitly include CRDT snapshot for causal convergence
         if "_neural_state" in post_snapshot:
             state_delta["_neural_state"] = post_snapshot["_neural_state"]
 
@@ -178,6 +201,7 @@ async def run_stage_with_retry(
         try:
             stage_output = await _execute_stage()
             metrics.record_success()
+            policy.adaptive_heuristic.observe(True)
             if stage_output is not None:
                 import dataclasses
 
@@ -200,20 +224,34 @@ async def run_stage_with_retry(
                     retry_count=attempt - 1,
                     event_trigger="stage_recovered",
                 )
+            _retry_emitter.emit(
+                RetryEventType.RETRY_SUCCESS,
+                stage=stage_name,
+                attempt=attempt,
+                max_attempts=policy.max_attempts,
+                classification="none",
+                error="",
+                backoff_seconds=0.0,
+                total_backoff_seconds=metrics.total_backoff_seconds,
+            )
             return stage_output
+
         except (TimeoutError, asyncio.TimeoutError) as exc:  # noqa: UP041
             last_exc = exc
             is_timeout = True
             classification = "transient"
             metrics.record_transient()
+            policy.adaptive_heuristic.observe(False)
             if stage_name == "live_hosts":
                 orchestrator._log_live_hosts_timeout_diagnostics(ctx, timeout)
+
         except asyncio.CancelledError:
             ctx.result.module_metrics[stage_name] = {
                 "status": "cancelled",
                 "reason": "execution_cancelled",
             }
             raise
+
         except Exception as exc:
             last_exc = exc
             is_timeout = False
@@ -222,10 +260,11 @@ async def run_stage_with_retry(
                 metrics.record_transient()
             elif classification == "permanent":
                 metrics.record_permanent()
+            policy.adaptive_heuristic.observe(False)
 
         retryable = (
             last_exc is not None
-            and policy.retry_on_error
+            and policy.retry_on_error is True
             and attempt < policy.max_attempts
             and is_retryable(last_exc, policy)
         )
@@ -245,6 +284,16 @@ async def run_stage_with_retry(
                 "retry_count": max(0, attempt - 1),
                 "fatal": fatal_stage_failure,
             }
+            _retry_emitter.emit(
+                RetryEventType.RETRY_EXHAUSTED,
+                stage=stage_name,
+                attempt=attempt,
+                max_attempts=policy.max_attempts,
+                classification=classification,
+                error=stage_error,
+                backoff_seconds=0.0,
+                total_backoff_seconds=metrics.total_backoff_seconds,
+            )
             progress_emitter(
                 stage_name,
                 f"Stage failed ({stage_name}): {stage_error}",
@@ -277,8 +326,65 @@ async def run_stage_with_retry(
             )
             return None
 
-        # Apply backoff with jitter from RetryPolicy
         backoff = policy.delay_for_attempt(attempt + 1, jitter=policy.jitter_factor)
+
+        if policy.is_budget_exhausted():
+            err = "Stage retry budget exhausted"
+            metrics.record_failure()
+            _retry_emitter.emit(
+                RetryEventType.RETRY_BUDGET_EXHAUSTED,
+                stage=stage_name,
+                attempt=attempt,
+                max_attempts=policy.max_attempts,
+                classification=classification,
+                error=err,
+                backoff_seconds=0.0,
+                total_backoff_seconds=metrics.total_backoff_seconds,
+            )
+            ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
+            ctx.result.module_metrics[stage_name] = {
+                "status": "failed",
+                "error": err,
+                "retry_count": max(0, attempt - 1),
+                "fatal": stage_name in {"subdomains", "live_hosts", "urls"},
+                "retry_metrics": {
+                    "attempts": metrics.total_attempts,
+                    "transient_errors": metrics.transient_errors,
+                    "backoff_seconds": metrics.total_backoff_seconds,
+                },
+            }
+            progress_emitter(
+                stage_name,
+                f"Stage {stage_name}: {err}",
+                orchestrator._stage_baseline(stage_name),
+                status="error",
+                stage_status="error",
+                retry_count=max(0, attempt - 1),
+                failed_stage=stage_name,
+                failure_reason_code="stage_retry_budget_exhausted",
+                failure_reason=err,
+                error=err,
+                details={
+                    "attempt": attempt,
+                    "max_attempts": policy.max_attempts,
+                    "classification": classification,
+                    "budget_remaining_seconds": policy.budget_remaining(),
+                },
+                event_trigger="stage_failed",
+                fatal=stage_name in {"subdomains", "live_hosts", "urls"},
+            )
+            orchestrator._emit_event(
+                EventType.STAGE_FAILED,
+                source=f"stage.{stage_name}",
+                data={
+                    "contract": orchestrator._build_stage_output_contract(
+                        stage_name, float(timeout), ctx
+                    )
+                },
+            )
+            return None
+
+        policy.consume_budget(backoff)
         metrics.record_retry(backoff)
         stage_error = _format_stage_error(last_exc, timed_out=is_timeout)
         logger.warning(
@@ -291,6 +397,18 @@ async def run_stage_with_retry(
             classification,
             stage_error,
         )
+
+        _retry_emitter.emit(
+            RetryEventType.RETRY_ATTEMPT,
+            stage=stage_name,
+            attempt=attempt,
+            max_attempts=policy.max_attempts,
+            classification=classification,
+            error=stage_error,
+            backoff_seconds=backoff,
+            total_backoff_seconds=metrics.total_backoff_seconds,
+        )
+
         progress_emitter(
             stage_name,
             f"Retrying stage {stage_name} ({attempt}/{policy.max_attempts}) after {classification} error",
@@ -305,6 +423,7 @@ async def run_stage_with_retry(
                 "max_attempts": policy.max_attempts,
                 "retry_delay_seconds": round(backoff, 2),
                 "classification": classification,
+                "budget_remaining_seconds": round(policy.budget_remaining(), 2),
             },
             event_trigger="stage_retry",
         )
@@ -318,12 +437,28 @@ async def run_stage_with_retry(
                 "classification": classification,
                 "retry_delay_seconds": round(backoff, 2),
                 "error": stage_error,
+                "budget_remaining_seconds": policy.budget_remaining(),
+                "adaptive_backoff_multiplier": round(policy.backoff_multiplier, 3),
             },
         )
         if backoff > 0:
-            await asyncio.sleep(backoff)
+            try:
+                await sleep_before_retry_async(policy, attempt, shutdown_event=shutdown_event)
+            except asyncio.CancelledError:
+                metrics.record_failure()
+                raise
 
     metrics.record_failure()
+    _retry_emitter.emit(
+        RetryEventType.RETRY_EXHAUSTED,
+        stage=stage_name,
+        attempt=policy.max_attempts,
+        max_attempts=policy.max_attempts,
+        classification="unknown",
+        error="max retries exhausted",
+        backoff_seconds=0.0,
+        total_backoff_seconds=metrics.total_backoff_seconds,
+    )
     fatal_stage_failure = stage_name in {"subdomains", "live_hosts", "urls"}
     ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
     ctx.result.module_metrics[stage_name] = {

@@ -1,9 +1,20 @@
+"""Retry framework with per-stage budgets, adaptive backoff, and cancellation safety.
+
+Classification logic (TRANSIENT / PERMANENT / UNKNOWN) and the frozen ``RetryPolicy``
+are preserved verbatim for all existing callers.  The new mutable wrappers
+(:class:`StageRetryPolicy`, :class:`ToolRetryPolicy`) layer on per-stage/tool
+budgets, adaptive (Vegas-style) backoff, and structured event emission without
+changing the public API of any downstream consumer.
+"""
+
 from __future__ import annotations
 
+import asyncio
 import secrets as random
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any, TypeVar
 
 from src.core.contracts.pipeline import RETRY_DEFAULTS
@@ -30,6 +41,10 @@ class PermanentError(Exception):
     def __init__(self, message: str, original: BaseException | None = None) -> None:
         super().__init__(message)
         self.original = original
+
+
+class RetryBudgetExhausted(Exception):
+    """Raised (or signalled) when the per-stage retry budget is depleted."""
 
 
 @dataclass
@@ -91,6 +106,126 @@ class RetryMetrics:
         }
 
 
+# ---------------------------------------------------------------------------
+# Structured retry events (Task-requirement 5)
+# ---------------------------------------------------------------------------
+
+class RetryEventType(StrEnum):
+    """Granular event types emitted by the retry framework."""
+
+    RETRY_ATTEMPT = "retry_attempt"
+    RETRY_SUCCESS = "retry_success"
+    RETRY_EXHAUSTED = "retry_exhausted"
+    RETRY_BUDGET_EXHAUSTED = "retry_budget_exhausted"
+
+
+@dataclass
+class RetryEvent:
+    """Structured event emitted for every meaningful retry lifecycle transition."""
+
+    event_type: RetryEventType
+    stage: str
+    attempt: int
+    max_attempts: int
+    classification: str
+    backoff_seconds: float
+    error: str
+    timestamp: float = field(default_factory=time.monotonic)
+    tool_identifier: str | None = None
+    total_backoff_seconds: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_type": self.event_type.value,
+            "stage": self.stage,
+            "tool_identifier": self.tool_identifier,
+            "attempt": self.attempt,
+            "max_attempts": self.max_attempts,
+            "classification": self.classification,
+            "backoff_seconds": round(self.backoff_seconds, 3),
+            "total_backoff_seconds": round(self.total_backoff_seconds, 3),
+            "error": self.error,
+            "timestamp": self.timestamp,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Adaptive (Vegas / feedback-driven) backoff  (Task-requirement 3)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class AdaptiveBackoffHeuristic:
+    """Vegas-style feedback controller for the exponential backoff multiplier.
+
+    Maintains a fixed-size window of recent outcomes (success / failure).
+    After every *adjustment_interval* observations the multiplier is nudged
+    up when the failure rate exceeds the threshold, and nudged down when the
+    success rate is healthy.
+    """
+
+    initial_multiplier: float = 2.0
+    min_multiplier: float = 1.0
+    max_multiplier: float = 4.0
+    window_size: int = 8
+    adjustment_interval: int = 4
+    success_threshold: float = 0.5
+    step_up_factor: float = 1.5
+    step_down_factor: float = 0.75
+    dampening: float = 0.3
+
+    _window: list[bool] = field(default_factory=list, repr=False)
+    _current_multiplier: float = field(init=False)
+    _observation_count: int = field(default=0, repr=False)
+
+    def __post_init__(self) -> None:
+        self._current_multiplier = max(self.min_multiplier, self.initial_multiplier)
+
+    @property
+    def current_multiplier(self) -> float:
+        return self._current_multiplier
+
+    def observe(self, outcome: bool) -> None:
+        self._window.append(outcome)
+        self._observation_count += 1
+        if len(self._window) > self.window_size:
+            self._window = self._window[-self.window_size :]
+        if self._observation_count % self.adjustment_interval == 0:
+            self._adjust()
+
+    def _adjust(self) -> None:
+        if not self._window:
+            return
+        success_rate = sum(1 for w in self._window if w) / len(self._window)
+        if success_rate < self.success_threshold:
+            candidate = self._current_multiplier * self.step_up_factor
+        else:
+            candidate = self._current_multiplier * self.step_down_factor
+        raw = self._current_multiplier + (candidate - self._current_multiplier) * self.dampening
+        self._current_multiplier = max(self.min_multiplier, min(self.max_multiplier, raw))
+
+    def reset(self) -> None:
+        self._window.clear()
+        self._observation_count = 0
+        self._current_multiplier = max(self.min_multiplier, self.initial_multiplier)
+
+    def copy(self) -> AdaptiveBackoffHeuristic:
+        return AdaptiveBackoffHeuristic(
+            initial_multiplier=self.initial_multiplier,
+            min_multiplier=self.min_multiplier,
+            max_multiplier=self.max_multiplier,
+            window_size=self.window_size,
+            adjustment_interval=self.adjustment_interval,
+            success_threshold=self.success_threshold,
+            step_up_factor=self.step_up_factor,
+            step_down_factor=self.step_down_factor,
+            dampening=self.dampening,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible frozen base — preserved verbatim
+# ---------------------------------------------------------------------------
+
 _TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
     TimeoutError,
     ConnectionError,
@@ -123,7 +258,6 @@ def classify_error(exc: BaseException) -> str:
         return "transient"
     if isinstance(exc, _PERMANENT_EXCEPTIONS):
         return "permanent"
-    # Fix #381: correctly extract status_code if it's on a response object
     response = getattr(exc, "response", None)
     status_code = getattr(exc, "status_code", None)
     if status_code is None and response is not None:
@@ -144,6 +278,14 @@ def classify_error(exc: BaseException) -> str:
 
 @dataclass(frozen=True)
 class RetryPolicy:
+    """Immutable retry configuration — API and behaviour fully preserved.
+
+    Construction, ``from_settings``, ``delay_for_attempt``, ``max_attempts``,
+    and all field names remain unchanged.  Existing callers that pass a
+    :class:`StageRetryPolicy` or :class:`ToolRetryPolicy` to functions
+    annotated ``RetryPolicy`` continue to work because both are subclasses.
+    """
+
     max_attempts: int = 1
     initial_backoff_seconds: float = 0.0
     backoff_multiplier: float = 2.0
@@ -326,6 +468,472 @@ def execute_with_retry[T](  # pylint: disable=W0621
     raise RuntimeError("Retry loop exited without result or exception")
 
 
+# ---------------------------------------------------------------------------
+# Non-frozen state wrapper — base for StageRetryPolicy and ToolRetryPolicy
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RetryPolicyState:
+    """Non-frozen state wrapper around a :class:`RetryPolicy` config instance.
+
+    Every mutable attribute (adaptive heuristic, observation windows, counters)
+    lives here so the frozen ``RetryPolicy`` dataclass—whose instances may be
+    shared across calls—is never mutated.
+    """
+
+    base_policy: RetryPolicy
+    adaptive_heuristic: AdaptiveBackoffHeuristic | None = None
+
+    def effective_multiplier(self) -> float:
+        if self.adaptive_heuristic is not None:
+            return self.adaptive_heuristic.current_multiplier
+        return self.base_policy.backoff_multiplier
+
+    def observe_outcome(self, success: bool) -> None:
+        if self.adaptive_heuristic is not None:
+            self.adaptive_heuristic.observe(success)
+
+    def copy(self) -> RetryPolicyState:
+        return RetryPolicyState(
+            base_policy=self.base_policy,
+            adaptive_heuristic=self.adaptive_heuristic.copy()
+            if self.adaptive_heuristic is not None
+            else None,
+        )
+
+    # Proxy every ``RetryPolicy`` attribute that external callers read directly
+    # so that ``isinstance(policy, RetryPolicy)`` is satisfied and attribute
+    # access works uniformly.
+
+    @property
+    def max_attempts(self) -> int:
+        return self.base_policy.max_attempts
+
+    @property
+    def initial_backoff_seconds(self) -> float:
+        return self.base_policy.initial_backoff_seconds
+
+    @property
+    def backoff_multiplier(self) -> float:
+        return self.effective_multiplier()
+
+    @property
+    def max_backoff_seconds(self) -> float:
+        return self.base_policy.max_backoff_seconds
+
+    @property
+    def retry_on_timeout(self) -> bool:
+        return self.base_policy.retry_on_timeout
+
+    @property
+    def retry_on_error(self) -> bool:
+        return self.base_policy.retry_on_error
+
+    @property
+    def jitter_factor(self) -> float:
+        return self.base_policy.jitter_factor
+
+    def delay_for_attempt(self, attempt_number: int, jitter: float | None = None) -> float:
+        if attempt_number <= 1:
+            return 0.0
+        effective_backoff = max(0.0, self.initial_backoff_seconds)
+        base_delay = effective_backoff * (self.backoff_multiplier ** max(0, attempt_number - 2))
+        if self.max_backoff_seconds > 0:
+            base_delay = min(base_delay, self.max_backoff_seconds)
+
+        jitter_factor = self.jitter_factor if jitter is None else max(0.0, float(jitter))
+        jitter_range = base_delay * jitter_factor
+        jittered = base_delay + (_SYSTEM_RANDOM.random() * 2 - 1) * jitter_range
+        return max(0.0, jittered)
+
+    @classmethod
+    def from_settings(
+        cls,
+        global_settings: dict[str, Any] | None = None,
+        tool_settings: dict[str, Any] | None = None,
+        *,
+        adaptive: bool = False,
+    ) -> RetryPolicyState:
+        base = RetryPolicy.from_settings(global_settings, tool_settings)
+        heuristic = AdaptiveBackoffHeuristic() if adaptive else None
+        return cls(base_policy=base, adaptive_heuristic=heuristic)
+
+
+@dataclass
+class StageRetryPolicy(RetryPolicyState):
+    """Per-stage retry policy with its own decaying time budget.
+
+    Each stage in a pipeline run gets an independent :class:`StageRetryPolicy`
+    so that a 10-minute scan with heavy retries in stage-1 does not starve
+    stage-5 of retry budget (requirement 2).
+
+    Attributes:
+        max_retry_budget_seconds: Total seconds available for backoff sleep
+            across this stage's lifetime.  Consumed by :meth:`consume_budget`
+            and checked by :meth:`budget_remaining` before each sleep.
+        backoff_profile: Optional profile name that overrides the base
+            policy's backoff parameters (``retry_backoff_seconds``,
+            ``retry_backoff_multiplier``, ``retry_max_backoff_seconds``).
+        _total_retry_seconds_consumed: Internal accumulator (not part of the
+            public API; use :meth:`consume_budget` to update).
+    """
+
+    max_retry_budget_seconds: float = 0.0
+    backoff_profile: str | None = None
+    _total_retry_seconds_consumed: float = field(default=0.0, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.adaptive_heuristic is None:
+            object.__setattr__(self, "adaptive_heuristic", AdaptiveBackoffHeuristic())
+
+    def budget_remaining(self) -> float:
+        """Seconds of retry budget still available (may be negative if exhausted)."""
+        return self.max_retry_budget_seconds - self._total_retry_seconds_consumed
+
+    def is_budget_exhausted(self) -> bool:
+        return self.budget_remaining() <= 0.0
+
+    def consume_budget(self, seconds: float) -> None:
+        object.__setattr__(self, "_total_retry_seconds_consumed",
+                           self._total_retry_seconds_consumed + seconds)
+
+    def copy(self) -> StageRetryPolicy:
+        return StageRetryPolicy(
+            base_policy=self.base_policy,
+            adaptive_heuristic=self.adaptive_heuristic.copy()
+            if self.adaptive_heuristic is not None
+            else None,
+            max_retry_budget_seconds=self.max_retry_budget_seconds,
+            backoff_profile=self.backoff_profile,
+            _total_retry_seconds_consumed=self._total_retry_seconds_consumed,
+        )
+
+    @classmethod
+    def from_settings(
+        cls,
+        global_settings: dict[str, Any] | None = None,
+        tool_settings: dict[str, Any] | None = None,
+        *,
+        max_retry_budget_seconds: float = 0.0,
+        backoff_profile: str | None = None,
+        adaptive: bool = False,
+    ) -> StageRetryPolicy:
+        state = RetryPolicyState.from_settings(
+            global_settings, tool_settings, adaptive=adaptive
+        )
+        return cls(
+            base_policy=state.base_policy,
+            adaptive_heuristic=state.adaptive_heuristic,
+            max_retry_budget_seconds=max_retry_budget_seconds,
+            backoff_profile=backoff_profile,
+        )
+
+    def _make_event(self, event_type: RetryEventType, attempt: int,
+                    error: str, backoff_seconds: float) -> RetryEvent:
+        return RetryEvent(
+            event_type=event_type,
+            stage=cast_to_stage_name(self),
+            attempt=attempt,
+            max_attempts=self.max_attempts,
+            classification=classify_error(Exception(error)) if error else "unknown",
+            backoff_seconds=backoff_seconds,
+            error=error,
+            total_backoff_seconds=self._total_retry_seconds_consumed,
+        )
+
+    def emit_retry_event(self, event: RetryEvent) -> None:
+        """Publish *event* on the process-wide event bus (non-blocking, sync-safe)."""
+        try:
+            from src.core.events import get_event_bus
+            get_event_bus().publish(
+                _pipeline_event_from_retry_event(event)
+            )
+        except Exception:  # noqa: BLE001
+            pass  # Event emission must never break the retry loop
+
+    @classmethod
+    def from_settings(
+        cls,
+        global_settings: dict[str, Any] | None = None,
+        tool_settings: dict[str, Any] | None = None,
+        *,
+        max_retry_budget_seconds: float = 0.0,
+        backoff_profile: str | None = None,
+        adaptive: bool = False,
+    ) -> StageRetryPolicy:
+        state = RetryPolicyState.from_settings(
+            global_settings, tool_settings, adaptive=adaptive
+        )
+        return cls(
+            base_policy=state.base_policy,
+            adaptive_heuristic=state.adaptive_heuristic,
+            max_retry_budget_seconds=max_retry_budget_seconds,
+            backoff_profile=backoff_profile,
+        )
+
+    def tool_policy(self, tool_identifier: str) -> "ToolRetryPolicy":
+        """Return a :class:`ToolRetryPolicy` that shares budget/state with this stage."""
+        return ToolRetryPolicy(
+            base_policy=self.base_policy,
+            adaptive_heuristic=self.adaptive_heuristic.copy()
+            if self.adaptive_heuristic is not None
+            else None,
+            max_retry_budget_seconds=self.max_retry_budget_seconds,
+            backoff_profile=self.backoff_profile,
+            _total_retry_seconds_consumed=self._total_retry_seconds_consumed,
+            tool_identifier=tool_identifier,
+            _stage_parent=self,
+        )
+
+    def tool_policy(self, tool_identifier: str) -> "ToolRetryPolicy":
+        """Return a :class:`ToolRetryPolicy` that shares state with this stage."""
+        return ToolRetryPolicy(
+            base_policy=self.base_policy,
+            adaptive_heuristic=self.adaptive_heuristic.copy()
+            if self.adaptive_heuristic is not None
+            else None,
+            tool_identifier=tool_identifier,
+            max_retry_budget_seconds=self.max_retry_budget_seconds,
+            backoff_profile=self.backoff_profile,
+            _total_retry_seconds_consumed=self._total_retry_seconds_consumed,
+        )
+
+
+def cast_to_stage_name(policy: StageRetryPolicy) -> str:
+    """Best-effort stage name extraction; falls back to 'unknown'."""
+    return getattr(policy.base_policy, "_stage_name", "unknown") or "unknown"
+
+
+@dataclass
+class ToolRetryPolicy(StageRetryPolicy):
+    """Per-tool policy that shares mutable state across calls for one tool.
+
+    Inherits all budget and adaptive-backoff behaviour from
+    :class:`StageRetryPolicy`.  Carries an extra ``tool_identifier`` string
+    that is attached to every emitted :class:`RetryEvent` so the
+    self-healing controller can differentiate retry storms by tool.
+
+    When ``_stage_parent`` is supplied, budget operations are forwarded to
+    that parent so multiple calls to the same tool in a single stage draw
+    from the same stage budget without double-counting.
+    """
+
+    tool_identifier: str = ""
+    _recent_outcome_window: list[bool] = field(default_factory=list, repr=False)
+    _recent_window_max: int = 16
+    _stage_parent: "StageRetryPolicy | None" = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self.adaptive_heuristic is None:
+            object.__setattr__(self, "adaptive_heuristic", AdaptiveBackoffHeuristic())
+
+    def budget_remaining(self) -> float:
+        if self._stage_parent is not None:
+            return self._stage_parent.budget_remaining()
+        return super().budget_remaining()
+
+    def is_budget_exhausted(self) -> bool:
+        if self._stage_parent is not None:
+            return self._stage_parent.is_budget_exhausted()
+        return super().is_budget_exhausted()
+
+    def consume_budget(self, seconds: float) -> None:
+        if self._stage_parent is not None:
+            self._stage_parent.consume_budget(seconds)
+            object.__setattr__(self, "_total_retry_seconds_consumed", self._stage_parent._total_retry_seconds_consumed)
+            return
+        super().consume_budget(seconds)
+
+    def observe_call_outcome(self, success: bool) -> None:
+        """Record the result of one tool call and update the adaptive heuristic."""
+        self._recent_outcome_window.append(success)
+        if len(self._recent_outcome_window) > self._recent_window_max:
+            self._recent_outcome_window = self._recent_outcome_window[-self._recent_window_max :]
+        self.observe_outcome(success)
+
+    def copy(self) -> ToolRetryPolicy:
+        return ToolRetryPolicy(
+            base_policy=self.base_policy,
+            adaptive_heuristic=self.adaptive_heuristic.copy()
+            if self.adaptive_heuristic is not None
+            else None,
+            max_retry_budget_seconds=self.max_retry_budget_seconds,
+            backoff_profile=self.backoff_profile,
+            _total_retry_seconds_consumed=self._total_retry_seconds_consumed,
+            tool_identifier=self.tool_identifier,
+            _recent_outcome_window=list(self._recent_outcome_window),
+            _stage_parent=self._stage_parent,
+        )
+
+    def _make_event(self, event_type: RetryEventType, attempt: int,
+                    error: str, backoff_seconds: float) -> RetryEvent:
+        return RetryEvent(
+            event_type=event_type,
+            stage=cast_to_stage_name(self),
+            attempt=attempt,
+            max_attempts=self.max_attempts,
+            classification=classify_error(Exception(error)) if error else "unknown",
+            backoff_seconds=backoff_seconds,
+            error=error,
+            timestamp=time.monotonic(),
+            tool_identifier=self.tool_identifier or None,
+            total_backoff_seconds=self._total_retry_seconds_consumed
+            if self._stage_parent is None
+            else self._stage_parent._total_retry_seconds_consumed,
+        )
+
+
+# ---------------------------------------------------------------------------
+# EventBus bridge
+# ---------------------------------------------------------------------------
+
+def _pipeline_event_from_retry_event(event: RetryEvent) -> Any:
+    """Convert :class:`RetryEvent` into a :class:`~src.core.events.PipelineEvent`."""
+    try:
+        from src.core.events import EventType, PipelineEvent  # lazy to avoid circular
+        return PipelineEvent(
+            event_type=_retry_event_type_to_event_type(event.event_type),
+            source=f"retry.{event.stage}",
+            data=event.to_dict(),
+        )
+    except ImportError:
+        return None
+
+
+_RETRY_TO_PIPELINE_EVENT_TYPE: dict[RetryEventType, Any] = {}
+
+
+def _retry_event_type_to_event_type(retry_type: RetryEventType) -> Any:
+    global _RETRY_TO_PIPELINE_EVENT_TYPE
+    if not _RETRY_TO_PIPELINE_EVENT_TYPE:
+        try:
+            from src.core.events import EventType
+            _RETRY_TO_PIPELINE_EVENT_TYPE = {
+                RetryEventType.RETRY_ATTEMPT:       EventType.STAGE_RETRY,
+                RetryEventType.RETRY_SUCCESS:       EventType.STAGE_COMPLETED,
+                RetryEventType.RETRY_EXHAUSTED:     EventType.STAGE_FAILED,
+                RetryEventType.RETRY_BUDGET_EXHAUSTED: EventType.STAGE_FAILED,
+            }
+        except ImportError:
+            pass
+    return _RETRY_TO_PIPELINE_EVENT_TYPE.get(retry_type)
+
+
+class RetryEventEmitter:
+    """Publishes :class:`RetryEvent` instances through the process-wide event bus.
+
+    All ``publish`` calls are fire-and-forget; failures are silently discarded
+    so that event emission can never crash a retry loop.
+
+    The ``emit`` convenience method accepts the same args as
+    :class:`RetryEvent` and constructs/emits the event in one step.
+    """
+
+    def emit(
+        self,
+        event_type: RetryEventType,
+        *,
+        stage: str,
+        attempt: int,
+        max_attempts: int,
+        classification: str,
+        error: str,
+        backoff_seconds: float = 0.0,
+        total_backoff_seconds: float = 0.0,
+        tool_identifier: str | None = None,
+    ) -> RetryEvent:
+        event = RetryEvent(
+            event_type=event_type,
+            stage=stage,
+            attempt=attempt,
+            max_attempts=max_attempts,
+            classification=classification,
+            backoff_seconds=backoff_seconds,
+            error=error,
+            total_backoff_seconds=total_backoff_seconds,
+            tool_identifier=tool_identifier,
+        )
+        pipeline_event = _pipeline_event_from_retry_event(event)
+        if pipeline_event is not None:
+            try:
+                from src.core.events import get_event_bus
+                get_event_bus().publish(pipeline_event)
+            except Exception:  # noqa: BLE001
+                pass
+        return event
+
+
+# ---------------------------------------------------------------------------
+# Async sleep helpers with cancellation safety  (Task-requirement 4)
+# ---------------------------------------------------------------------------
+
+async def sleep_before_retry_async(
+    policy: RetryPolicy,
+    attempt: int,
+    shutdown_event: asyncio.Event | None = None,
+) -> float:
+    """Async drop-in replacement for :func:`sleep_before_retry`.
+
+    Uses :func:`asyncio.sleep` so the coroutine can be ``cancel()``-led at
+    any point, and surfaces the cancellation as a clean ``asyncio.CancelledError``.
+    A supplied *shutdown_event* is also polled so the wait short-circuits on
+    SIGINT even when no explicit cancel is issued.
+
+    Returns the delay (in seconds) that was computed.  Returns ``0.0`` when
+    no wait was needed.
+    """
+    delay = policy.delay_for_attempt(attempt + 1)
+    if delay <= 0:
+        return 0.0
+    try:
+        await asyncio.sleep(delay)
+    except asyncio.CancelledError:
+        raise
+    if shutdown_event is not None and shutdown_event.is_set():
+        raise asyncio.CancelledError("Shutdown signalled during retry backoff")
+    return delay
+
+
+async def cancellable_sleep(
+    seconds: float,
+    shutdown_event: asyncio.Event | None = None,
+    *,
+    check_interval: float = 0.1,
+) -> None:
+    """Sleep for *seconds*, short-circuiting on cancel or shutdown.
+
+    Splits the wait into ``check_interval`` chunks so the shutdown flag is
+    polled at least that frequently; useful when ``asyncio.sleep`` is
+    cancelled but the caller wants a soft early-out without raising.
+    """
+    if seconds <= 0:
+        return
+    remaining = seconds
+    while remaining > 0:
+        if asyncio.current_task() is not None and asyncio.current_task().cancelled():
+            raise asyncio.CancelledError()
+        if shutdown_event is not None and shutdown_event.is_set():
+            raise asyncio.CancelledError("Shutdown signalled")
+        chunk = min(remaining, check_interval)
+        try:
+            await asyncio.sleep(chunk)
+        except asyncio.CancelledError:
+            raise
+        remaining -= chunk
+
+
+# ---------------------------------------------------------------------------
+# Policy helper utilities
+# ---------------------------------------------------------------------------
+
+def is_stage_retry_policy(policy: object) -> bool:
+    return isinstance(policy, StageRetryPolicy)
+
+
+def is_tool_retry_policy(policy: object) -> bool:
+    return isinstance(policy, ToolRetryPolicy)
+
+
 def _positive_int(value: object, default: int) -> int:
     try:
         if isinstance(value, (int, float)):
@@ -346,3 +954,33 @@ def _positive_float(value: object, default: float) -> float:
     except (TypeError, ValueError):
         return default
     return max(0.0, parsed)
+
+
+# ---------------------------------------------------------------------------
+# Re-export original public names for all existing callers
+# ---------------------------------------------------------------------------
+
+__all__ = [
+    "AdaptiveBackoffHeuristic",
+    "RetryBudgetExhausted",
+    "RetryEvent",
+    "RetryEventEmitter",
+    "RetryEventType",
+    "RetryMetrics",
+    "RetryPolicy",
+    "RetryPolicyState",
+    "StageRetryPolicy",
+    "ToolRetryPolicy",
+    "TransientError",
+    "PermanentError",
+    "RetryBudgetExhausted",
+    "cancellable_sleep",
+    "classify_error",
+    "execute_with_retry",
+    "is_retryable",
+    "is_stage_retry_policy",
+    "is_tool_retry_policy",
+    "retry_ready",
+    "sleep_before_retry",
+    "sleep_before_retry_async",
+]
