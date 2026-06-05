@@ -71,17 +71,17 @@ To support multi-tenant isolation and supply chain security in production:
 ### 1. Multi-Tenant Key Namespacing & Scaling
 - Upstream reverse proxies, gateways, and load balancers must pass through the `X-Tenant-ID` header to FastAPI dashboard servers.
   
-  > For architecture details and context propagation logic, see [Architecture - Multi-Tenant Isolation](architecture.md#1-multi-tenant-key-namespacing-playbook--pubsub-isolation) and [API Reference - Global Security Headers](api-reference.md#-global-security--governance-headers).
+  > For architecture details and context propagation logic, see [Architecture - Multi-Tenant Isolation](architecture.md#1-multi-tenant-key-namespacing-playbook-pub-sub-isolation) and [API Reference - Global Security Headers](api-reference.md#global-security-governance-headers).
 
 ### 2. Double-Submit CSRF Verification
 - All mutating endpoints enforce stateless double-submit cookie matching. Upstream HTTP reverse proxies must preserve cookies.
   
-  > For exact cookie properties, exemptions, and header matching requirements, see [API Reference - Global Security Headers](api-reference.md#-global-security--governance-headers).
+  > For exact cookie properties, exemptions, and header matching requirements, see [API Reference - Global Security Headers](api-reference.md#global-security-governance-headers).
 
 ### 3. Gated Deployment Pipelines (CI/CD)
 - CD pipelines must run the automated security verification quality gate checks before launching deployments.
   
-  > See [Automated Quality Gates & Pipeline Security Verification](testing.md#-automated-quality-gates--pipeline-security-verification) for the complete execution syntax and descriptions.
+  > See [Automated Quality Gates & Pipeline Security Verification](testing.md#automated-quality-gates-pipeline-security-verification) for the complete execution syntax and descriptions.
 
 ---
 

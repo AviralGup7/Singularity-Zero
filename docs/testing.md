@@ -41,7 +41,7 @@ Decorated with `@pytest.mark.chaos`, these tests simulate runtime hardware, link
 *   **Disk Full Resilience (`test_disk_full.py`)**: Artificially injects an `ENOSPC` (No space left on device) or `OSError` failure during local WAL AOF disk flushes. Asserts that the system maintains scanning integrity by running durably on Redis Streams commits alone.
 
 > [!NOTE]
-> **Performance Metric Thresholds**: The simulated failure states, self-healing thresholds, and adaptive auto-scaling triggers in these chaos test suites match the active limits defined in [Performance - Bottleneck Detection & Mesh Auto-Scaling](performance.md#-bottleneck-detection--mesh-auto-scaling).
+> **Performance Metric Thresholds**: The simulated failure states, self-healing thresholds, and adaptive auto-scaling triggers in these chaos test suites match the active limits defined in [Performance - Bottleneck Detection & Mesh Auto-Scaling](performance.md#bottleneck-detection-mesh-auto-scaling).
 
 ### 3. Custom Actor & Subsystem Upgrades Suite (`tests/test_ghost_actor.py` & `tests/test_recovery_subsystem_upgrades.py`)
 Validates actor state serializability with MessagePack and Zstd compression, recovery and rehydration from differential checkpoints, automatic AIMD compaction budgeting, and memory-safe credentials copying.

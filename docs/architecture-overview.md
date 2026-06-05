@@ -111,7 +111,8 @@ them.  For the branded, capability-focused description, see
 ## Where to read next
 
 * `architecture.md` — branded, capability-focused walkthrough.
-* `docs/failure_modes.md` — how to distinguish a clean run from a
+* `docs/FAILURE_MODES.md` — how to distinguish a clean run from a
   degraded one.
 * `docs/environment-variables.md` — every env var the system reads.
 * `CONTRIBUTING.md` — workflow and code style.
+

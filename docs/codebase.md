@@ -1,4 +1,4 @@
-# Codebase Map & Module Directory
+﻿# Codebase Map & Module Directory
 
 This document maps the project structure and core technologies of the Singularity-Zero architecture.
 
@@ -18,13 +18,18 @@ src/
 │   │   ├── chameleon.py         # Polymorphic WAF evasion engine
 │   │   ├── chameleon_evasion.py # HMM-based evasion state machine, JA3 fingerprinting, timing permutation
 │   │   ├── drl_evasion.py       # Active PPO reinforcement learning evasion neural network model
-│   │   ├── ghost_actor.py       # Custom asyncio-based migratory actors (Pykka-compatible)
+│   │   ├── ghost_actor.py       # Stateful migratory Pykka actors with serialization and migration support
+│   │   ├── ghost_actor_coordinator.py # Actor lifecycle and migration coordination
+│   │   ├── ghost_actor_registry.py    # Named-actor lookup and binding registry
+│   │   ├── ghost_actor_state.py       # Serialisable actor state and snapshot store
 │   │   ├── ghost_vfs.py         # RAM-only anti-forensic storage with temporal AES-GCM key rotation
 │   │   ├── marshaller.py        # MessagePack zero-copy serialization
 │   │   ├── mesh_limiter.py      # Mesh message-rate limiter
 │   │   ├── plugins/             # Dynamic plugin registry for frontier extensions
+│   │   ├── policies.py          # Frontier admission and throttling policies
 │   │   ├── proc_pool.py         # Worker-process resource pool
 │   │   ├── ring_bus.py          # Inter-node broadcast ring bus
+│   │   ├── shared_memory.py     # Shared memory segment manager
 │   │   ├── state.py             # CRDT Hybrid Logical Clock / LWW-Sets / NeuralState
 │   │   ├── tracing_manager.py   # Distributed tracing collector + exporter
 │   │   ├── vault.py             # PBKDF2-600k-AES-256-GCM encrypted credential vault
@@ -144,7 +149,7 @@ scripts/                # 🛡️ CI/CD Quality Gates & Security Verification Sc
 ## 🧬 Frontier Tech Stack
 The pipeline relies on highly optimized C/C++ extensions to bypass standard Python limits:
 
-- **Infrastructure**: Custom native `asyncio` actor framework (replaces `pykka` for high-performance execution), `redis` (Pub/Sub & Streams).
+- **Infrastructure**: pykka 4.0.0 (thread-based actor model for scan orchestration); new code should use plain asyncio workers, `redis` (Pub/Sub & Streams).
 - **Hardware Acceleration**: `numpy` (SIMD Vectorization), `mmh3` (Fast Hashing), `msgpack` (Binary Marshalling).
 - **Intelligence**: `kuzu` (Graph Database), `diff-match-patch` (Differential Analysis).
 - **Security**: `cryptography` (AES-GCM, PBKDF2), `wasmtime` (Sandbox Isolation).
@@ -156,3 +161,4 @@ The pipeline relies on highly optimized C/C++ extensions to bypass standard Pyth
 - **No In-Place Mutation**: Stages must emit `state_delta` dicts; the orchestrator merges via `NeuralState` CRDTs.
 - **Strict Type Erasure**: All internal service boundaries must be wrapped with `@beartype`.
 - **Zero-Trust Storage**: Assume the disk is compromised. Use `GhostVFS` for highly sensitive artifacts.
+

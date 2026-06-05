@@ -10,14 +10,12 @@ This document provides a parseable decision tree for identifying and resolving p
 failure_diagnosis:
   at_startup:
     checks:
-      - target: "config.json syntax"
-        remedy: "Validate against 'configs/schemas/config.schema.json'"
       - target: "Redis connection"
         remedy: "Check REDIS_URL and ensure port 6379 is reachable"
       - target: "Tool PATH"
         remedy: "Verify 'subfinder', 'httpx', 'nuclei' are in $PATH"
       - target: "Template Provenance / Signature Failures"
-        remedy: "Ensure local template hashes match configs/templates/manifest.json and signature manifest.json.sig is valid. Set NUCLEI_SIGNATURE_PUBLIC_KEY environment variable to match the Ed25519 signing key."
+        remedy: "Template signature verification is currently disabled because configs/templates/ does not exist yet. To enable it, create configs/templates/manifest.json and configs/templates/manifest.json.sig Set NUCLEI_SIGNATURE_PUBLIC_KEY environment variable to match the Ed25519 signing key."
 
   during_discovery:
     checks:

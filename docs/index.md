@@ -1,4 +1,4 @@
-# Documentation Index
+﻿# Documentation Index
 
 Welcome to the Cyber Security Test Pipeline documentation. This index helps you navigate the technical guides and architectural overviews.
 
@@ -11,8 +11,8 @@ Welcome to the Cyber Security Test Pipeline documentation. This index helps you 
 - **[📂 Codebase Map](codebase.md)**: Detailed package directory and module responsibilities.
 - **[📜 Commands Reference](commands.md)**: Full CLI reference for development and production.
 - **[🧪 Testing & CI](testing.md)**: How to run the unit, integration, and architecture test suites.
-- **[🔍 Comprehensive Gap Analysis](gap_analysis.md)**: Technical and architectural gaps roadmap.
-- **[🚀 Evolution Alpha Plan](evolution_alpha_plan.md)**: Roadmap for major feature additions and improvements.
+- **[🔍 Comprehensive Gap Analysis](GAP_ANALYSIS.md)**: Technical and architectural gaps roadmap.
+- **[🚀 Evolution Alpha Plan](EVOLUTION_ALPHA_PLAN.md)**: Roadmap for major feature additions and improvements.
 
 ---
 
@@ -20,13 +20,27 @@ Welcome to the Cyber Security Test Pipeline documentation. This index helps you 
 
 - **[🎨 Frontend Handbook](frontend.md)**: Tech stack, routes, state management, and styling for the React dashboard.
 - **[📚 Glossary](glossary.md)**: Definitions of core terms and scan modes.
+- **[📚 API Reference](api-reference.md)**: OpenAPI 3.1.0 specification and AI metadata for autonomous agent orchestration.
+- **[🔌 Dynamic Plugin SDK](dynamic-plugins.md)**: Hot-load third-party security checks from a single Python file.
+- **[⚡ Performance Models & Benchmarks](performance.md)**: SIMD optimization, Actor migration, and hardware benchmarks.
+- **[🛠️ Troubleshooting Logic](troubleshooting.md)**: Parseable decision tree for identifying and resolving pipeline execution failures.
+- **[👻 Ghost-Actor Mesh Recovery Evidence](ghost_actor_recovery_evidence.md)**: CRDT snapshots, WAL dual-commit, and compaction gating evidence.
+
+---
+
+## 🚀 Deployment & Operations
+
+- **[🚢 Deployment & Infrastructure](deployment.md)**: Orchestration modes, environment configuration, and Singularity-Zero production setup.
+- **[🌍 Multi-Region Active-Active Sharding](multi-region.md)**: Cross-region topology, sharding models, and Zero-Trust network policies.
 
 ---
 
 ## 🏛️ Archive
 
+- **[📜 Changelog](../CHANGES.md)**: Comprehensive changelog of all changes.
+- **[⏱️ Benchmarks](../BENCHMARK.md)**: Bloom filter profiling and performance measurements.
 - **[🗄️ Historical Logs](archive/)**: Contains old autonomous wave logs and execution prompts.
-- **[📜 Changelog & History](archive/CHANGELOG.md)**: Consolidated log of historical improvements and refactoring efforts.
+- **[📜 Archive Changelog](archive/CHANGELOG.md)**: Consolidated log of historical improvements.
 
 ---
 

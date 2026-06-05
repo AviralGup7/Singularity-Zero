@@ -1,3 +1,13 @@
+# Naming Convention
+
+All documentation files that end with platform-appropriate ALL-CAPS identifiers follow this project convention: filenames are written in **ALL CAPS** to signal include-style references throughout the codebase.
+
+This file - **FAILURE_MODES.md** - and all linking documents reference it as docs/FAILURE_MODES.md. Do **not** use the lowercase form docs/failure_modes.md in any cross-reference, link, or search path, because case-sensitive filesystems and strict link-checkers will treat it as a missing document.
+
+> NOTE -- internal path accuracy (updated 2026-06-05):
+> active_probe_timeout_seconds is **not** declared in pyproject.toml; it is read at runtime from the pipeline analysis-settings dictionary (see src/pipeline/services/pipeline_orchestrator/stages/active_scan.py and active_scan_adaptive.py). Set it via the pipeline configuration file or the --analysis-settings JSON payload.
+
+---
 # Failure Modes & Diagnostics Handbook (Singularity-Zero)
 
 This document provides system operators, engineers, and analysts with a comprehensive guide to understanding and diagnosing pipeline execution states. It details how to differentiate between a **clean target scan** (genuine "Zero findings") and a **degraded/silent failure state** (where errors, timeouts, or missing modules masked security vulnerabilities).
