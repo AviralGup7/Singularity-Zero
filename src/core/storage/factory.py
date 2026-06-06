@@ -41,6 +41,14 @@ def create_checkpoint_store(config: dict[str, Any] | None, default_path: Path) -
             region_name=config.get("region_name"),
         )
 
+    if backend == "redis":
+        from src.core.storage.redis_backends import RedisCheckpointStore
+
+        return RedisCheckpointStore(
+            redis_url=config["redis_url"],
+            key_prefix=config.get("key_prefix", "cyber:cp"),
+        )
+
     from src.core.storage.local_backends import LocalCheckpointStore
 
     return LocalCheckpointStore(default_path)

@@ -86,6 +86,40 @@ Scaffold a new custom scanning plugin with clean absolute imports and automatic 
   - `--name`: Name of the new plugin (alphanumeric/underscore).
   - `--category`: Scaffolding category type (`recon`, `exploit`, `reporting`).
 
+### 7. CI/CD Integration Flags
+All flags are accepted by `cyber scan run`, the `cyber-pipeline` legacy wrapper, and the
+`run_orchestrator` programmatic entry point. See [CI/CD Integration Guide](ci-cd-integration.md)
+for the full schema, exit-code table, and CI examples.
+- **Apply a declarative policy file**:
+  ```bash
+  cyber scan run --config configs/config.json --scope scope.txt --policy policy.toml
+  ```
+- **Incremental scan (re-crawl only URLs mapped to files changed since `--base-ref`)**:
+  ```bash
+  cyber scan run --config configs/config.json --scope scope.txt --incremental --base-ref origin/main
+  ```
+- **Override the detected branch** (used by `[on_findings] branch_glob`):
+  ```bash
+  cyber scan run --config configs/config.json --scope scope.txt --branch feature/login
+  ```
+- **Restore legacy single-exit-code behaviour** (collapses exit codes 2/3/4 → 1):
+  ```bash
+  cyber-pipeline --config configs/config.json --scope scope.txt --legacy-exit-codes
+  ```
+
+| Flag | Effect |
+|------|--------|
+| `--policy PATH`        | Load a `policy.toml` file; defaults are conservative (≤5 high, ≤50 medium per run). |
+| `--incremental`        | Restrict the URL set to URLs mapped to files changed since `--base-ref`. |
+| `--base-ref REF`       | Git ref (branch/tag/commit) for the incremental diff baseline. |
+| `--branch NAME`        | Override the detected branch (auto-detected from `GITHUB_REF_NAME` / `CI_COMMIT_REF_NAME` / `BRANCH_NAME` / `CYBER_BRANCH`). |
+| `--legacy-exit-codes`  | Collapse 2/3/4 → 1 for backward compatibility with existing CI scripts. |
+
+Every run produces `<run_dir>/report.sarif` (SARIF 2.1.0) for native ingestion by GitHub
+Code Scanning, GitLab `artifacts.reports.sast`, and Azure DevOps SARIF tabs. Policy
+verdicts are emitted on the event bus as `INGRESS_POLICY_RESULT` events and persisted
+to `<run_dir>/policy_evaluation.json` for audit.
+
 ---
 
 ## 🛠️ Development & Debug

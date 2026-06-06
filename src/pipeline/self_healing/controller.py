@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import uuid
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Protocol
@@ -19,6 +20,7 @@ from src.core.contracts.health import (
 )
 from src.core.events import EventBus, EventType, get_event_bus
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.pipeline.self_healing_events import push_health_metric
 
 if TYPE_CHECKING:
     from src.infrastructure.notifications.manager import NotificationManager
@@ -101,7 +103,15 @@ class CorrectiveActionRegistry:
 
 
 class SelfHealingController:
-    """Polls subsystem health and runs corrective actions without operator input."""
+    """Reactive health controller that runs corrective actions in response to events.
+
+    The controller is a stateless event processor: subsystem probes publish
+    :class:`HealthMetric` events onto the :class:`EventBus`, this controller
+    subscribes to them, classifies each metric, and dispatches corrective
+    actions through its :class:`CorrectiveActionRegistry`. There is no
+    internal polling loop; probe cadence is owned by the subsystems (or by
+    callers invoking :meth:`collect_probe_metrics` on demand).
+    """
 
     def __init__(
         self,
@@ -114,6 +124,7 @@ class SelfHealingController:
         dashboard_connection_timeout: float = 75.0,
         action_registry: CorrectiveActionRegistry | None = None,
         config: Any | None = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         self._config = config
         self.interval_seconds = interval_seconds
@@ -140,9 +151,7 @@ class SelfHealingController:
             self.bloom_fill_threshold = bloom_fill_threshold
             self.dashboard_connection_timeout = dashboard_connection_timeout
         self.actions = action_registry or CorrectiveActionRegistry()
-        self._probes: dict[str, Probe] = {}
-        self._task: asyncio.Task[None] | None = None
-        self._running = False
+        self._probes: dict[str, tuple[Probe, EventBus]] = {}
         self._last_snapshot = PipelineHealthSnapshot(
             status=HealthStatus.UNKNOWN,
             metrics=[],
@@ -165,7 +174,9 @@ class SelfHealingController:
         self._dampening_window = DampeningWindow()
         self._history_store = CorrectionHistoryStore()
         self._notification_manager: NotificationManager | None = None
+        self._event_bus: EventBus = event_bus or get_event_bus()
         self._event_subscription_id: str | None = None
+        self._running = False
 
     @property
     def dampening_window(self) -> DampeningWindow:
@@ -179,8 +190,22 @@ class SelfHealingController:
     def last_snapshot(self) -> PipelineHealthSnapshot:
         return self._last_snapshot
 
-    def register_probe(self, name: str, probe: Probe) -> None:
-        self._probes[name] = probe
+    def register_probe(
+        self,
+        name: str,
+        probe: Probe,
+        *,
+        event_bus: EventBus | None = None,
+    ) -> None:
+        """Register a probe that yields ``HealthMetric`` objects on demand.
+
+        The controller no longer polls probes; it forwards each ``HealthMetric``
+        returned by a probe to the :class:`EventBus` as a
+        :attr:`EventType.HEALTH_METRIC_EMITTED` event. Subsystems that already
+        publish their own metrics can keep their callable signature; the
+        ``event_bus`` argument controls which bus receives the emitted events.
+        """
+        self._probes[name] = (probe, event_bus or self._event_bus)
 
     def bind_tool_execution_service(self, service: _CircuitBreakerBridge) -> None:
         self._breaker_bridge = service
@@ -189,12 +214,18 @@ class SelfHealingController:
         self._notification_manager = manager
 
     def subscribe_event_bus(self, event_bus: EventBus | None = None) -> str:
-        bus = event_bus or get_event_bus()
-        subscription_id = bus.subscribe_async(EventType.FINDING_DETECTED, self._on_health_metric_event)
+        """Subscribe the controller to ``HEALTH_METRIC_EMITTED`` events."""
+        bus = event_bus or self._event_bus
+        self._event_bus = bus
+        if self._event_subscription_id is not None:
+            bus.unsubscribe(self._event_subscription_id)
+        subscription_id = bus.subscribe_async(
+            EventType.HEALTH_METRIC_EMITTED, self._on_health_metric_event
+        )
         self._event_subscription_id = subscription_id
         return subscription_id
 
-    def _on_health_metric_event(self, event: Any) -> None:
+    async def _on_health_metric_event(self, event: Any) -> None:
         data = getattr(event, "data", {}) or {}
         if not data:
             return
@@ -210,7 +241,7 @@ class SelfHealingController:
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.debug("Ignoring malformed health metric event: %s", exc)
             return
-        asyncio.create_task(self._process_push_metric(metric))
+        await self._process_push_metric(metric)
 
     async def _process_push_metric(self, metric: HealthMetric) -> None:
         status = metric.status
@@ -252,84 +283,86 @@ class SelfHealingController:
         )
 
     async def start(self) -> None:
+        """Subscribe the controller to the event bus.
+
+        The controller no longer spawns a polling task; the call simply
+        wires the ``HEALTH_METRIC_EMITTED`` subscription. Subsystems (or
+        callers invoking :meth:`collect_probe_metrics`) own probe cadence.
+        """
         if self._running:
             return
         self._running = True
         self.subscribe_event_bus()
-        self._task = asyncio.create_task(self._run_loop(), name="self-healing-controller")
 
     async def stop(self) -> None:
+        """Tear down the event-bus subscription.
+
+        No background tasks are owned by the controller, so stopping only
+        requires unsubscribing the ``HEALTH_METRIC_EMITTED`` handler.
+        """
         self._running = False
-        if self._task:
-            self._task.cancel()
+        if self._event_subscription_id and self._event_bus is not None:
             try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
-            self._task = None
+                self._event_bus.unsubscribe(self._event_subscription_id)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logger.debug("Failed to unsubscribe health metric listener: %s", exc)
+            self._event_subscription_id = None
+
+    async def collect_probe_metrics(self) -> list[HealthMetric]:
+        """Invoke every registered probe and publish its metrics as events.
+
+        Each probe returns a list of :class:`HealthMetric`; this coroutine
+        fans them out to the bus as ``HEALTH_METRIC_EMITTED`` events so the
+        reactive controller (and any other subscriber) can process them
+        uniformly. Circuit-breaker metrics are emitted through the same
+        channel via :meth:`_collect_breaker_metrics`.
+        """
+        collected: list[HealthMetric] = []
+        for name, (probe, bus) in list(self._probes.items()):
+            correlation_id = str(uuid.uuid4())
+            try:
+                result = probe()
+                probe_metrics = await result if inspect.isawaitable(result) else result
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                error_metric = HealthMetric(
+                    component=HealthComponent.PIPELINE_STAGE,
+                    name=f"{name}.probe_error",
+                    value=1,
+                    status=HealthStatus.DEGRADED,
+                    labels={"error": str(exc)},
+                )
+                push_health_metric(
+                    error_metric,
+                    source=name,
+                    event_bus=bus,
+                    correlation_id=correlation_id,
+                )
+                collected.append(error_metric)
+                continue
+            for metric in probe_metrics:
+                push_health_metric(
+                    metric,
+                    source=name,
+                    event_bus=bus,
+                    correlation_id=correlation_id,
+                )
+                collected.append(metric)
+        for metric in self._collect_breaker_metrics():
+            push_health_metric(metric, source="circuit_breakers", event_bus=self._event_bus)
+            collected.append(metric)
+        return collected
 
     async def evaluate_once(self) -> PipelineHealthSnapshot:
-        metrics = await self._collect_metrics()
-        findings = self._classify(metrics)
-        corrections: list[CorrectionEvent] = []
-        for finding in findings:
-            if finding.action != CorrectiveAction.NOOP:
-                corrections.append(await self._execute_finding(finding))
-        status = self._overall_status(metrics, findings, corrections)
-        self._last_snapshot = PipelineHealthSnapshot(
-            status=status,
-            metrics=metrics,
-            findings=findings,
-            corrections=[*self.actions.history[-20:]],
-        )
-        return self._last_snapshot
+        """Run a one-shot reactive evaluation pass.
 
-    async def _execute_finding(self, finding: HealthFinding) -> CorrectionEvent:
-        if self._history_store.should_escalate(finding.action):
-            degraded = HealthFinding(
-                component=finding.component,
-                status=finding.status,
-                reason=f"Action {finding.action.value} auto-degraded due to low success rate; escalating.",
-                action=CorrectiveAction.ESCALATE_ANALYST,
-                metric=finding.metric,
-                labels={**finding.labels, "autodegraded": "true", "original_action": finding.action.value},
-            )
-            finding = degraded
-        corrective_action = self._resolve_action(finding.action)
-        if corrective_action != CorrectiveAction.NOOP:
-            if self._dampening_window.should_suppress(corrective_action, finding.component):
-                logger.debug(
-                    "Suppressing dampened corrective action %s for %s",
-                    corrective_action.value,
-                    finding.component.value,
-                )
-                noop = CorrectionEvent(
-                    finding_id=finding.finding_id,
-                    action=finding.action,
-                    success=False,
-                    message="Dampened; corrective action suppressed within cooldown window",
-                    component=finding.component,
-                    details={"reason": finding.reason, "labels": finding.labels},
-                )
-                self._history_store.record(finding.action, False)
-                self.actions._history.append(noop)  # pylint: disable=protected-access
-                return noop
-            self._dampening_window.record_fire(corrective_action, finding.component)
-        correction = await self.actions.execute(finding)
-        self._history_store.record(finding.action, correction.success)
-        await self._maybe_notify(finding, correction)
-        if correction.success and corrective_action != CorrectiveAction.NOOP and self._history_store.should_escalate(corrective_action):
-            escalated = HealthFinding(
-                component=finding.component,
-                status=HealthStatus.CRITICAL,
-                reason=f"Success rate for {corrective_action.value} degraded; escalating to analyst.",
-                action=CorrectiveAction.ESCALATE_ANALYST,
-                metric=finding.metric,
-                labels={"autodegraded": "true", "original_action": corrective_action.value},
-            )
-            await self.actions.execute(escalated)
-            await self._maybe_notify(escalated, correction)
-        return correction
+        Probes are invoked, their metrics emitted as events, and the bus is
+        flushed so the subscriber has fully processed them before the
+        snapshot is returned. Useful for ad-hoc dashboard refreshes and
+        synchronous tests; production cadence is event-driven, not polled.
+        """
+        metrics = await self.collect_probe_metrics()
+        await self._event_bus.flush_pending()
+        return self._last_snapshot
 
     def _resolve_action(self, action: CorrectiveAction) -> CorrectiveAction:
         if action == CorrectiveAction.NOOP:
@@ -344,36 +377,6 @@ class SelfHealingController:
             await manager.send_self_healing_alert(finding, correction)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.debug("Self-healing notification dispatch failed: %s", exc)
-
-    async def _run_loop(self) -> None:
-        while self._running:
-            try:
-                await self.evaluate_once()
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # pylint: disable=broad-exception-caught
-                logger.exception("Self-healing controller evaluation failed")
-            await asyncio.sleep(self.interval_seconds)
-
-    async def _collect_metrics(self) -> list[HealthMetric]:
-        metrics: list[HealthMetric] = []
-        for name, probe in list(self._probes.items()):
-            try:
-                result = probe()
-                probe_metrics = await result if inspect.isawaitable(result) else result
-                metrics.extend(probe_metrics)
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                metrics.append(
-                    HealthMetric(
-                        component=HealthComponent.PIPELINE_STAGE,
-                        name=f"{name}.probe_error",
-                        value=1,
-                        status=HealthStatus.DEGRADED,
-                        labels={"error": str(exc)},
-                    )
-                )
-        metrics.extend(self._collect_breaker_metrics())
-        return metrics
 
     def _collect_breaker_metrics(self) -> list[HealthMetric]:
         if self._breaker_bridge is None:
@@ -433,17 +436,6 @@ class SelfHealingController:
                 )
             )
         return metrics
-
-    def _classify(self, metrics: list[HealthMetric]) -> list[HealthFinding]:
-        findings: list[HealthFinding] = []
-        for metric in metrics:
-            status = metric.status
-            if status in (HealthStatus.OK, HealthStatus.UNKNOWN):
-                status = self._derive_status(metric)
-            if status == HealthStatus.OK:
-                continue
-            findings.append(self._finding_for_metric(metric, status))
-        return findings
 
     def _derive_status(self, metric: HealthMetric) -> HealthStatus:
         if (
@@ -512,22 +504,6 @@ class SelfHealingController:
             metric=metric.name,
             labels=metric.labels,
         )
-
-    @staticmethod
-    def _overall_status(
-        metrics: list[HealthMetric],
-        findings: list[HealthFinding],
-        corrections: list[CorrectionEvent],
-    ) -> HealthStatus:
-        if any(f.status == HealthStatus.CRITICAL for f in findings):
-            if corrections and any(event.success for event in corrections):
-                return HealthStatus.RECOVERING
-            return HealthStatus.CRITICAL
-        if findings:
-            return HealthStatus.DEGRADED
-        if metrics:
-            return HealthStatus.OK
-        return HealthStatus.UNKNOWN
 
     def consume_recovery_probes(self) -> dict[str, Callable[[Any], None]]:
         if self._breaker_bridge is None:

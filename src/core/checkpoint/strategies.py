@@ -20,7 +20,7 @@ from src.core.checkpoint_recovery import (
     load_latest_context_snapshot_impl,
 )
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.storage import CheckpointStore
+from src.core.storage import CheckpointStore, VersionId
 from src.core.storage.factory import create_checkpoint_store
 
 if TYPE_CHECKING:
@@ -38,7 +38,7 @@ class CheckpointManager:
         run_id: str,
         checkpoint_store: CheckpointStore | None = None,
         storage_config: dict[str, Any] | None = None,
-        distributed_store: DistributedCheckpointStore | None = None,
+        distributed_store: "DistributedCheckpointStore | None" = None,
     ) -> None:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.run_id = run_id
@@ -46,7 +46,7 @@ class CheckpointManager:
         self._store: CheckpointStore = checkpoint_store or create_checkpoint_store(
             storage_config, self.checkpoint_dir
         )
-        self._distributed: DistributedCheckpointStore | None = distributed_store
+        self._distributed: "DistributedCheckpointStore | None" = distributed_store
         self._state: CheckpointState | None = None
         self._lock = threading.RLock()
 
@@ -58,20 +58,49 @@ class CheckpointManager:
                 return []
             return self._ensure_completed_stages_list(state)
 
-
-    def _checkpoint_path(self, version: int) -> Path:
-        return self._run_dir / f"checkpoint_v{version}.json"
-
-    def _ensure_run_dir(self) -> None:
-        self._run_dir.mkdir(parents=True, exist_ok=True)
-
     def _context_snapshot_path(self, stage_name: str) -> Path:
-        safe_stage = str(stage_name or "").strip() or "unknown"
-        return self._run_dir / f"context_{safe_stage}.json"
+        from src.core.storage.local_backends import _stage_safe_name
+
+        return self._run_dir / f"context_{_stage_safe_name(stage_name)}.json"
 
     def _stage_delta_path(self, stage_name: str, sequence: int) -> Path:
-        safe_stage = str(stage_name or "").strip() or "unknown"
-        return self._run_dir / f"delta_{safe_stage}_{sequence:06d}.json"
+        from src.core.storage.local_backends import _stage_safe_name
+
+        return self._run_dir / f"delta_{_stage_safe_name(stage_name)}_{sequence:06d}.json"
+
+    def _ensure_run_dir(self) -> None:
+        """Backwards-compat shim: ensure the run directory exists on disk.
+
+        Modern runs write through the configured :class:`CheckpointStore`
+        so this method is only meaningful for the local backend. We call
+        it anyway so that callers (and tests) that pre-create the run
+        directory still work on every backend.
+        """
+        self._run_dir.mkdir(parents=True, exist_ok=True)
+
+    def _resolve_local_checkpoint_file(
+        self, version_id: "VersionId"
+    ) -> Path | None:
+        """Best-effort local file path for a given ``version_id``.
+
+        Returns the local on-disk file when the store is a
+        :class:`LocalCheckpointStore` (or wraps one) so that
+        ``get_checkpoint_history`` can still surface a ``file`` key for
+        dashboards and operators. Returns ``None`` for distributed
+        backends where there is no local file to point at.
+        """
+        from src.core.storage.local_backends import LocalCheckpointStore
+
+        store = self._store
+        if isinstance(store, LocalCheckpointStore):
+            return store._checkpoint_path(self.run_id, self._version_to_int(version_id))
+        return None
+
+    @staticmethod
+    def _version_to_int(version_id: "VersionId") -> int:
+        from src.core.storage.local_backends import _parse_version_id
+
+        return _parse_version_id(version_id)
 
     @staticmethod
     def _existing_stage_status(payload: Any) -> str:
@@ -90,8 +119,6 @@ class CheckpointManager:
 
     def save(self, state: CheckpointState) -> Path:
         with self._lock:
-            self._ensure_run_dir()
-
             state.last_checkpoint_at = time.time()
             data = state.to_dict()
             data["checksum"] = ""
@@ -103,16 +130,16 @@ class CheckpointManager:
             json_bytes = json_str.encode("utf-8")
 
             try:
-                checkpoint_path = self._store.write(
+                version_id = self._store.write(
                     run_id=state.pipeline_run_id,
                     version=state.checkpoint_version,
                     payload=json.loads(json_bytes),
                 )
                 logger.info(
-                    "Checkpoint saved: run=%s version=%d path=%s",
+                    "Checkpoint saved: run=%s version=%d id=%s",
                     state.pipeline_run_id,
                     state.checkpoint_version,
-                    checkpoint_path,
+                    version_id,
                 )
             except Exception as exc:
                 logger.error("Failed to write checkpoint: %s", exc)
@@ -123,8 +150,10 @@ class CheckpointManager:
 
                 def _log_replication_failure(exc: BaseException | None) -> None:
                     logger.warning(
-                        "Distributed replication failed for checkpoint %s: %s. Local checkpoint remains intact.",
-                        checkpoint_path,
+                        "Distributed replication failed for checkpoint %s v%s: %s. "
+                        "Local checkpoint remains intact.",
+                        state.pipeline_run_id,
+                        state.checkpoint_version,
                         exc,
                     )
 
@@ -156,7 +185,8 @@ class CheckpointManager:
                     _log_replication_failure(exc)
 
             self._state = state
-            return Path(checkpoint_path)
+            local_marker = self.checkpoint_dir / state.pipeline_run_id / f"checkpoint_v{state.checkpoint_version}.json"
+            return local_marker
 
     def load(self) -> CheckpointState | None:
         with self._lock:
@@ -169,23 +199,10 @@ class CheckpointManager:
         with self._lock:
             try:
                 target_run_id = run_id or self.run_id
-                target_dir = self.checkpoint_dir / target_run_id
-
-                if not target_dir.is_dir():
-                    payload = self._store.read_latest(target_run_id)
-                    if payload is None:
-                        return None
-                    return self._load_from_payload(payload)
-
-                checkpoint_files = sorted(target_dir.glob("checkpoint_v*.json"))
-                if not checkpoint_files:
-                    payload = self._store.read_latest(target_run_id)
-                    if payload is None:
-                        return None
-                    return self._load_from_payload(payload)
-
-                latest_path = checkpoint_files[-1]
-                return self._load_from_file(latest_path)
+                payload = self._store.read_latest(target_run_id)
+                if payload is None:
+                    return None
+                return self._load_from_payload(payload)
             except CheckpointIntegrityError:
                 return None
 
@@ -214,15 +231,16 @@ class CheckpointManager:
             logger.error("Failed to reconstruct checkpoint state: %s", exc)
             return None
 
-    def _load_from_file(self, path: str | Path) -> CheckpointState | None:
+    def _load_from_version_id(
+        self, run_id: str, version_id: VersionId
+    ) -> CheckpointState | None:
         try:
-            data = self._store.read_version(path)
-            if not data:
-                return None
+            data = self._store.read_version_by_id(run_id, version_id)
         except Exception as exc:
-            logger.error("Failed to read checkpoint file %s: %s", path, exc)
+            logger.error("Failed to read checkpoint %s/%s: %s", run_id, version_id, exc)
             return None
-
+        if not data:
+            return None
         return self._load_from_payload(data)
 
     def mark_stage_complete(self, stage_name: str, result: dict[str, Any]) -> None:
@@ -280,18 +298,14 @@ class CheckpointManager:
 
     def save_context_snapshot(self, stage_name: str, context_snapshot: dict[str, Any]) -> Path:
         with self._lock:
-            self._ensure_run_dir()
             payload = {
                 "pipeline_run_id": self.run_id,
                 "stage_name": stage_name,
                 "saved_at": time.time(),
                 "context": context_snapshot,
             }
-            target = self._context_snapshot_path(stage_name)
-            temp = target.with_suffix(".tmp")
-            temp.write_text(json.dumps(payload, default=str), encoding="utf-8")
-            temp.replace(target)
-            return target
+            self._store.write_context_snapshot(self.run_id, stage_name, payload)
+            return self._context_snapshot_path(stage_name)
 
     def save_stage_delta(
         self,
@@ -304,11 +318,9 @@ class CheckpointManager:
         metadata: dict[str, Any] | None = None,
     ) -> Path:
         with self._lock:
-            self._ensure_run_dir()
             current = self.ensure_state()
             deltas = current.stage_deltas.setdefault(stage_name, [])
             sequence = len(deltas) + 1
-            target = self._stage_delta_path(stage_name, sequence)
             payload: dict[str, Any] = {
                 "pipeline_run_id": self.run_id,
                 "stage_name": stage_name,
@@ -321,9 +333,7 @@ class CheckpointManager:
             }
             if metadata is not None:
                 payload["metadata"] = dict(metadata)
-            temp = target.with_suffix(".tmp")
-            temp.write_text(json.dumps(payload, default=str), encoding="utf-8")
-            temp.replace(target)
+            self._store.write_stage_delta(self.run_id, stage_name, sequence, payload)
 
             deltas.append(
                 {
@@ -332,30 +342,16 @@ class CheckpointManager:
                     "cursor": payload["cursor"],
                     "complete": payload["complete"],
                     "saved_at": payload["saved_at"],
-                    "path": str(target),
                 }
             )
             current.current_stage = stage_name if not complete else current.current_stage
             current.checkpoint_version += 1
             self.save(current)
-            return target
+            return self._stage_delta_path(stage_name, sequence)
 
     def load_stage_deltas(self, stage_name: str) -> list[dict[str, Any]]:
         with self._lock:
-            if not self._run_dir.exists():
-                return []
-            safe_stage = str(stage_name or "").strip() or "unknown"
-            payloads: list[dict[str, Any]] = []
-            for path in sorted(self._run_dir.glob(f"delta_{safe_stage}_*.json")):
-                try:
-                    payload = json.loads(path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError) as exc:
-                    logger.warning("Failed to read stage delta %s: %s", path, exc)
-                    continue
-                if isinstance(payload, dict):
-                    payloads.append(payload)
-            payloads.sort(key=lambda item: int(item.get("sequence", 0) or 0))
-            return payloads
+            return self._store.list_stage_deltas(self.run_id, stage_name)
 
     def load_latest_stage_delta(self, stage_name: str) -> dict[str, Any] | None:
         with self._lock:
@@ -438,40 +434,39 @@ class CheckpointManager:
 
     def cleanup_old_checkpoints(self, keep_last: int = 3) -> int:
         with self._lock:
-            checkpoint_files = self._store.list_versions(self.run_id)
-            if len(checkpoint_files) <= keep_last:
+            version_ids = self._store.list_version_ids(self.run_id)
+            if len(version_ids) <= keep_last:
                 return 0
 
-            to_delete = checkpoint_files[:-keep_last]
+            to_delete = version_ids[:-keep_last]
             deleted = 0
-            for path in to_delete:
+            for version_id in to_delete:
                 try:
-                    self._store.delete(path)
+                    self._store.delete_version(self.run_id, version_id)
                     deleted += 1
-                    logger.debug("Deleted old checkpoint: %s", path)
+                    logger.debug("Deleted old checkpoint: %s", version_id)
                 except Exception as exc:
-                    logger.warning("Failed to delete checkpoint %s: %s", path, exc)
+                    logger.warning("Failed to delete checkpoint %s: %s", version_id, exc)
             return deleted
 
     def get_checkpoint_history(self) -> list[dict[str, Any]]:
         with self._lock:
-            checkpoint_files = self._store.list_versions(self.run_id)
             history: list[dict[str, Any]] = []
-
-            for path in checkpoint_files:
-                state = self._load_from_file(path)
+            for version_id in self._store.list_version_ids(self.run_id):
+                state = self._load_from_version_id(self.run_id, version_id)
                 if state is None:
                     continue
-                history.append(
-                    {
-                        "version": state.checkpoint_version,
-                        "timestamp": state.last_checkpoint_at,
-                        "completed_stages": list(state.completed_stages),
-                        "current_stage": state.current_stage,
-                        "file": str(path),
-                    }
-                )
-
+                entry: dict[str, Any] = {
+                    "version": state.checkpoint_version,
+                    "timestamp": state.last_checkpoint_at,
+                    "completed_stages": list(state.completed_stages),
+                    "current_stage": state.current_stage,
+                    "version_id": version_id,
+                }
+                local_file = self._resolve_local_checkpoint_file(version_id)
+                if local_file is not None:
+                    entry["file"] = str(local_file)
+                history.append(entry)
             return history
 
 

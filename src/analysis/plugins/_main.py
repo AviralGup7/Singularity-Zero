@@ -343,6 +343,67 @@ def _register_specs() -> None:
                 "Detect multi-tenant applications and test tenant isolation for horizontal and vertical privilege escalation vulnerabilities.",
                 "active",
             ),
+            # ---- Modern detection handlers (Fixes A-F) --------------------
+            _spec(
+                "js_sink_source_analyzer",
+                "JavaScript Sink/Source Analyzer",
+                "Static AST analysis of inline and external JavaScript to identify sink/source paths that lead to DOM XSS.",
+                "ast",
+            ),
+            _spec(
+                "wasm_module_introspector",
+                "WebAssembly Module Introspector",
+                "Parse the section table of Wasm modules to flag high-risk imports/exports and shared-memory gadgets.",
+                "ast",
+            ),
+            _spec(
+                "prototype_pollution_walker",
+                "Prototype Pollution Walker",
+                "Walk JavaScript ASTs and JSON payloads to spot __proto__/constructor.prototype mutations and unsafe merge helpers.",
+                "ast",
+            ),
+            _spec(
+                "dom_runtime_analyzer",
+                "DOM Runtime Analyzer",
+                "Headless browser DOM instrumentation (Playwright) with static fallback to detect innerHTML/write/postMessage chains.",
+                "browser",
+            ),
+            _spec(
+                "waf_fingerprint_analyzer",
+                "WAF/CDN Fingerprint Analyzer",
+                "Identify Cloudflare, AWS WAF, Fastly, Imperva, Akamai, ModSecurity, and 10+ other WAFs from response headers/body.",
+                "waf",
+            ),
+            _spec(
+                "waf_challenge_detector",
+                "WAF Challenge Page Detector",
+                "Classify Cloudflare Turnstile, Akamai Bot Manager, hCaptcha, and similar challenge pages to suppress false-positive bypasses.",
+                "waf",
+            ),
+            _spec(
+                "csrf_entropy_analyzer",
+                "CSRF Token Entropy Analyzer",
+                "Compute Shannon entropy and uniqueness across consecutive CSRF token samples to flag static/predictable tokens.",
+                "session",
+            ),
+            _spec(
+                "session_fixation_detector",
+                "Session Fixation Detector",
+                "Compare pre-auth and post-auth session tokens to detect missing session rotation after authentication.",
+                "session",
+            ),
+            _spec(
+                "rate_limit_adaptive_prober",
+                "Rate-Limit Adaptive Prober",
+                "Adaptive backoff probing to converge on the actual rate-limit threshold (status code + delta across intervals).",
+                "active",
+            ),
+            _spec(
+                "race_concurrent_mutator",
+                "Concurrent State Mutator",
+                "Consume pre-computed concurrent response observations to flag TOCTOU race conditions with confidence scoring.",
+                "logic",
+            ),
         )
         + ACTIVE_PLUGIN_SPECS
         + PASSIVE_PLUGIN_SPECS

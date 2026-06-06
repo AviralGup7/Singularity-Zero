@@ -59,7 +59,14 @@ def attempt_recovery_impl(
     validate_checkpoint_state_func: Any,
     logger_obj: Any,
 ) -> tuple[bool, Any | None]:
-    """Scan run directories and choose the best recoverable checkpoint state."""
+    """Scan run directories and choose the best recoverable checkpoint state.
+
+    This helper predates the ``CheckpointStore`` abstraction and still walks
+    the filesystem directly. New code should call
+    :func:`src.core.checkpoint.recovery.attempt_recovery` which dispatches
+    through the configured store and therefore works on non-filesystem
+    backends (Redis, S3).
+    """
     if force_fresh:
         logger_obj.info("Fresh run forced (--force-fresh-run), skipping recovery")
         return False, None
@@ -99,52 +106,58 @@ def attempt_recovery_impl(
     return has_incomplete, best_state
 
 
-def load_context_snapshot_for_stage_impl(manager: Any, stage_name: str) -> dict[str, Any] | None:
-    """Load context snapshot payload for a specific stage from current or legacy paths."""
-    run_scoped_path = manager._context_snapshot_path(stage_name)
-    legacy_path = manager.checkpoint_dir / f"{stage_name}.json"
-    candidate_paths = [run_scoped_path, legacy_path]
-    for path in candidate_paths:
-        if not path.exists():
-            continue
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if isinstance(payload, dict):
-            if "context" in payload and isinstance(payload["context"], dict):
-                return payload["context"]
-            if "scope_entries" in payload and "stage_status" in payload:
-                return payload
+def _load_legacy_context_snapshot(manager: Any, stage_name: str) -> dict[str, Any] | None:
+    """Read a context snapshot from a pre-abstracted local file, if any.
+
+    Snapshots written by older releases lived at
+    ``<checkpoint_dir>/<stage_name>.json`` rather than being routed
+    through the store. This helper exists so recovery on an in-place
+    upgraded filesystem still works for one release cycle.
+    """
+    from src.core.storage.local_backends import _stage_safe_name
+
+    safe = _stage_safe_name(stage_name)
+    legacy_path = manager.checkpoint_dir / f"{safe}.json"
+    if not legacy_path.exists():
+        return None
+    try:
+        payload = json.loads(legacy_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if "context" in payload and isinstance(payload["context"], dict):
+        return payload["context"]
+    if "scope_entries" in payload and "stage_status" in payload:
+        return payload
     return None
+
+
+def load_context_snapshot_for_stage_impl(manager: Any, stage_name: str) -> dict[str, Any] | None:
+    """Load context snapshot payload for a specific stage from the store."""
+    payload = manager._store.read_context_snapshot(manager.run_id, stage_name)
+    if isinstance(payload, dict):
+        if "context" in payload and isinstance(payload["context"], dict):
+            return payload["context"]
+        if "scope_entries" in payload and "stage_status" in payload:
+            return payload
+    return _load_legacy_context_snapshot(manager, stage_name)
 
 
 def load_latest_context_snapshot_impl(
     manager: Any,
     completed_stages: list[str] | set[str] | None = None,
 ) -> dict[str, Any] | None:
-    """Load newest context snapshot, preferring the latest completed stage payload."""
+    """Load the most recent context snapshot for any completed stage.
+
+    Iterates ``completed_stages`` in reverse order and returns the first
+    non-empty snapshot, routed through the configured
+    :class:`CheckpointStore` so the read works on any backend.
+    """
     if completed_stages:
         ordered_stages = [str(stage) for stage in completed_stages if str(stage).strip()]
         for stage_name in reversed(ordered_stages):
             snapshot = load_context_snapshot_for_stage_impl(manager, stage_name)
             if snapshot is not None:
                 return snapshot
-
-    if not manager._run_dir.exists():
-        return None
-    context_files = sorted(
-        manager._run_dir.glob("context_*.json"),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
-    for path in context_files:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if isinstance(payload, dict) and isinstance(payload.get("context"), dict):
-            from typing import cast
-
-            return cast(dict[str, Any], payload["context"])
     return None

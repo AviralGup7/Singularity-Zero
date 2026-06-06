@@ -80,6 +80,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="validate_config",
         help="Validate config and exit without running pipeline",
     )
+    parser.add_argument(
+        "--policy",
+        type=Path,
+        default=None,
+        dest="policy",
+        help="Path to an ExitConditionPolicy TOML file that gates the run on "
+        "finding-severity thresholds. See src.pipeline.services.ci.policy for schema.",
+    )
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Restrict the URL set to URLs that map to files changed since --base-ref.",
+    )
+    parser.add_argument(
+        "--base-ref",
+        default=None,
+        dest="base_ref",
+        help="Git ref (branch / commit / tag) used as the baseline for --incremental.",
+    )
+    parser.add_argument(
+        "--branch",
+        default=None,
+        help="Current branch name (used by [on_findings] branch_glob in the policy). "
+        "Defaults to GITHUB_REF_NAME / CI_COMMIT_REF_NAME when set.",
+    )
+    parser.add_argument(
+        "--legacy-exit-codes",
+        action="store_true",
+        dest="legacy_exit_codes",
+        help="Collapse the 2/3/4 taxonomy back to a single 1 (pre-CI behaviour).",
+    )
     return parser.parse_args(argv)
 
 

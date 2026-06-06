@@ -37,6 +37,8 @@ PIPELINE_STAGES = {
     "intelligence": "Intelligence merge",
     "threat_modeling": "Threat modeling enrichment",
     "access_control": "Authorization bypass detection",
+    "git_diff_crawl": "Incremental git-diff URL filter",
+    "sarif_export": "SARIF 2.1 export for CI consumers",
     "reporting": "Report generation",
 }
 
@@ -58,6 +60,8 @@ STAGE_TIMEOUTS = {
     "access_control": 600,
     "reporting": 300,
     "nuclei": 600,
+    "git_diff_crawl": 30,
+    "sarif_export": 30,
 }
 
 # Stage timeout reasoning:
@@ -85,6 +89,7 @@ STAGE_ORDER = (
     "live_hosts",
     "waf",
     "urls",
+    "git_diff_crawl",
     "parameters",
     "ranking",
     "passive_scan",
@@ -96,6 +101,7 @@ STAGE_ORDER = (
     "intelligence",
     "threat_modeling",
     "reporting",
+    "sarif_export",
 )
 
 

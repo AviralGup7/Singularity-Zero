@@ -15,6 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from src.core.events import get_event_bus
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.bloom_mesh import NeuralBloomMesh, ReconcileBloom
 from src.core.security.secret_validator import validate_or_raise
@@ -38,6 +39,7 @@ from src.dashboard.rate_limiter import RateLimitConfig, RateLimitMiddleware
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.sharding import MeshShardManager
 from src.intelligence.ml.registry import ModelVersionRegistry
+from src.infrastructure.observability.health_subscriber import register_health_subscriber
 from src.pipeline.self_healing import (
     CorrectionEvent,
     CorrectiveAction,
@@ -427,7 +429,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     controller.register_probe("model_registry", app.state.model_registry.health_metrics)
     controller.bind_tool_execution_service(tool_service)
     app.state.self_healing_controller = controller
-    await controller.start()
+    register_health_subscriber(get_event_bus(), controller)
 
     # 4. Background telemetry heartbeat for Gossip
     async def _mesh_telemetry_pulse(node: MeshNode, app_ref: FastAPI) -> None:

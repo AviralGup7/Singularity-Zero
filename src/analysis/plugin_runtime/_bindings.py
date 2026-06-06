@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
+import src.detection.handlers
 from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
 from src.analysis.active.injection.command_injection import command_injection_active_probe
 from src.analysis.active.injection.crlf import crlf_injection_probe
@@ -494,6 +495,37 @@ def _register_bindings() -> None:
             limit_key="param_mining_limit",
             default_limit=10,
             runner=param_mining_probe,
+        ),
+        # ---- Modern detection handlers (Fixes A-F) -----------------------
+        "js_sink_source_analyzer": _binding(
+            "responses_only", src.detection.handlers.js_sink_source_analyzer
+        ),
+        "wasm_module_introspector": _binding(
+            "responses_only", src.detection.handlers.wasm_module_introspector
+        ),
+        "prototype_pollution_walker": _binding(
+            "responses_only", src.detection.handlers.prototype_pollution_walker
+        ),
+        "dom_runtime_analyzer": _binding(
+            "responses_only", src.detection.handlers.dom_runtime_analyzer
+        ),
+        "waf_fingerprint_analyzer": _binding(
+            "responses_only", src.detection.handlers.waf_fingerprint_analyzer
+        ),
+        "waf_challenge_detector": _binding(
+            "responses_only", src.detection.handlers.waf_challenge_detector
+        ),
+        "csrf_entropy_analyzer": _binding(
+            "responses_only", src.detection.handlers.csrf_entropy_analyzer
+        ),
+        "session_fixation_detector": _binding(
+            "responses_only", src.detection.handlers.session_fixation_detector
+        ),
+        "rate_limit_adaptive_prober": _binding(
+            "responses_only", src.detection.handlers.rate_limit_adaptive_prober
+        ),
+        "race_concurrent_mutator": _binding(
+            "responses_only", src.detection.handlers.race_concurrent_mutator
         ),
     }
 

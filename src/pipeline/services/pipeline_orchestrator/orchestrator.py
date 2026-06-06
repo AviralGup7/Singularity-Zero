@@ -394,6 +394,7 @@ class PipelineOrchestrator:
         ctx: PipelineContext,
         config: Any,
         started_at: float,
+        args: argparse.Namespace | None = None,
     ) -> int:
         return resolve_pipeline_exit_code(
             self,
@@ -401,6 +402,7 @@ class PipelineOrchestrator:
             config=config,
             started_at=started_at,
             progress_emitter=emit_progress,
+            args=args,
         )
 
     async def run(self, args: argparse.Namespace) -> int:

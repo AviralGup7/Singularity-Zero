@@ -1,3 +1,4 @@
+from .framing_fuzzer import run_framing_fuzzing_campaign
 from .payload_generator import generate_parameter_payloads, generate_payload_suggestions
 from .payload_generator_http import (
     HEADER_PAYLOADS,
@@ -13,4 +14,5 @@ __all__ = [
     "generate_body_payloads",
     "INJECTABLE_HEADERS",
     "HEADER_PAYLOADS",
+    "run_framing_fuzzing_campaign",
 ]

@@ -275,8 +275,13 @@ async def run_secured(
     # Distributed Write-Ahead Log (WAL)
     from src.core.frontier.wal import FrontierWAL
 
-    orchestrator._wal = FrontierWAL(getattr(config, "redis_url", None), run_id)
-    logger.info("Frontier WAL initialized: stream=cyber:wal:%s", run_id)
+    wal_aof_dir = Path(config.output_dir) / ".wal"
+    orchestrator._wal = FrontierWAL(
+        getattr(config, "redis_url", None),
+        run_id,
+        aof_dir=wal_aof_dir,
+    )
+    logger.info("Frontier WAL initialized: stream=cyber:wal:%s aof_dir=%s", run_id, wal_aof_dir)
 
     # Ghost-Actor Migration Handler (Graceful Degradation in non-Redis mode)
     if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
@@ -390,5 +395,6 @@ async def run_secured(
         ctx=ctx,
         config=config,
         started_at=started_at,
+        args=args,
     )
     return cast(int, await orchestrator._finalize_run(exit_code, ctx=ctx, config=config))
