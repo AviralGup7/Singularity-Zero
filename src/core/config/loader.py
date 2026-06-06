@@ -23,6 +23,13 @@ _ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::([^}]*))?\}")
 # these fields are merged key-by-key rather than replacing the whole sub-dict.
 _NESTED_MERGE_FIELDS: frozenset[str] = frozenset({"scoring", "analysis", "nuclei"})
 
+_STORAGE_ENV_BACKEND = "PIPELINE_STORAGE_BACKEND"
+_STORAGE_ENV_REDIS_URL = "PIPELINE_STORAGE_REDIS_URL"
+_STORAGE_ENV_S3_BUCKET = "PIPELINE_STORAGE_S3_BUCKET"
+_STORAGE_ENV_S3_PREFIX = "PIPELINE_STORAGE_S3_PREFIX"
+_STORAGE_ENV_S3_ENDPOINT = "PIPELINE_STORAGE_S3_ENDPOINT"
+_STORAGE_ENV_S3_REGION = "PIPELINE_STORAGE_S3_REGION"
+
 
 def _interpolate_env_vars(value: str) -> str:
     """Replace ${VAR} and ${VAR:default} patterns with environment variable values.
@@ -57,6 +64,45 @@ def _interpolate_env_vars(value: str) -> str:
     return _ENV_VAR_PATTERN.sub(_replace, value)
 
 
+def _resolve_storage_config(raw_storage: dict[str, Any]) -> dict[str, Any]:
+    """Apply environment-variable backfill on the ``storage`` config section.
+
+    Recognised variables:
+
+    - ``PIPELINE_STORAGE_BACKEND`` — selects ``"local"``, ``"redis"`` or ``"s3"``
+    - ``PIPELINE_STORAGE_REDIS_URL`` — Redis URL (required when backend=redis)
+    - ``PIPELINE_STORAGE_S3_BUCKET`` — S3 bucket (required when backend=s3)
+    - ``PIPELINE_STORAGE_S3_PREFIX`` — optional S3 key prefix
+    - ``PIPELINE_STORAGE_S3_ENDPOINT`` / ``PIPELINE_STORAGE_S3_REGION`` — optional
+
+    Values provided in the JSON config take precedence over environment
+    variables. The dict is returned with at least ``backend`` set.
+    """
+    storage = dict(raw_storage or {})
+
+    env_backend = os.environ.get(_STORAGE_ENV_BACKEND)
+    if env_backend:
+        storage.setdefault("backend", env_backend.lower())
+
+    env_redis_url = os.environ.get(_STORAGE_ENV_REDIS_URL)
+    if env_redis_url:
+        storage.setdefault("redis_url", env_redis_url)
+
+    for env_name, key in (
+        (_STORAGE_ENV_S3_BUCKET, "bucket"),
+        (_STORAGE_ENV_S3_PREFIX, "prefix"),
+        (_STORAGE_ENV_S3_ENDPOINT, "endpoint_url"),
+        (_STORAGE_ENV_S3_REGION, "region_name"),
+    ):
+        env_value = os.environ.get(env_name)
+        if env_value:
+            storage.setdefault(key, env_value)
+
+    if not storage:
+        storage["backend"] = "local"
+    return storage
+
+
 def load_config(path: Path) -> Config:
     """Load and validate a pipeline configuration from a JSON file.
 
@@ -85,7 +131,7 @@ def load_config(path: Path) -> Config:
         ),
         mode=str(raw.get("mode", CONFIG_DEFAULTS["mode"])).strip() or str(CONFIG_DEFAULTS["mode"]),
         cache=_optional_mapping(raw.get("cache"), "cache"),
-        storage=_optional_mapping(raw.get("storage"), "storage"),
+        storage=_resolve_storage_config(_optional_mapping(raw.get("storage"), "storage")),
         tools=_optional_mapping(raw.get("tools"), "tools"),
         httpx=_optional_mapping(raw.get("httpx"), "httpx"),
         gau=_optional_mapping(raw.get("gau"), "gau"),

@@ -227,6 +227,9 @@ class TestDetectionRegistry:
             "access",
             "idor",
             "passive",
+            "ast",
+            "browser",
+            "waf",
         }
         for plugin in DETECTION_PLUGINS:
             assert plugin.group in valid_groups

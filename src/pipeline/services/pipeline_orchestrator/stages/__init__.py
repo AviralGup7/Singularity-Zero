@@ -3,6 +3,7 @@
 from .active_scan import run_active_scanning
 from .analysis import run_passive_scanning
 from .enrichment import run_post_analysis_enrichments
+from .git_diff_crawl import run_git_diff_crawl
 from .nuclei import run_nuclei_stage
 from .recon import (
     run_live_hosts,
@@ -13,6 +14,7 @@ from .recon import (
     run_waf_detection,
 )
 from .reporting import run_reporting
+from .sarif_export import run_sarif_export
 from .semgrep import run_semgrep_stage
 from .validation import run_validation
 
@@ -30,4 +32,6 @@ __all__ = [
     "run_nuclei_stage",
     "run_semgrep_stage",
     "run_reporting",
+    "run_sarif_export",
+    "run_git_diff_crawl",
 ]

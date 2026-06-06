@@ -488,4 +488,26 @@ All changes, improvements, dependency updates, bug fixes, and refactors across t
 
 ---
 
-*Total: 360 entries — similar/identical changes consolidated into single entries throughout.*
+## CI/CD Integration (Item 14 — review)
+
+361. **Distinct exit-code taxonomy** — orchestrator now exits `0` (pass), `2` (policy_violation), `3` (infra_failure), `4` (partial); `130` reserved for SIGINT. Replaces the previous single `1`-on-failure contract so CI consumers can disambiguate "pentest succeeded and found things" from "we could not reach the target".
+362. **`--legacy-exit-codes` flag** — opt-in back-compat that collapses the new 2/3/4 taxonomy back to `1` for existing CI scripts and cron jobs.
+363. **TOML-based `policy.toml`** — declarative policy file with `[on_findings]` (severity thresholds, FP handling, category exclusions, `branch_glob`), `[on_infra]` (fatal-stage classification), and `[on_failure]` (partial-run handling). Loaded via `cyber-pipeline --policy policy.toml` or config-file `ci.policy` field. `PolicyLoadError` aborts the run pre-flight on bad TOML.
+364. **`src/pipeline/services/ci/` package** — `ExitConditionPolicy`, `evaluate_policy`, `load_policy`, `PolicyEvaluation`, `EXIT_*` constants, dataclasses for `FindingsRule`, `InfraRule`, `PolicyOnFailure`, `SeverityThresholds`. Uses stdlib `tomllib` — no new dependencies.
+365. **`INGRESS_POLICY_RESULT` event** — emitted on the process-wide event bus when the orchestrator finishes evaluating the policy. Payload includes `exit_code`, `counts`, `violations`, `failed_stages`, `branch`, and the `policy_snapshot` for downstream consumers.
+366. **`<run_dir>/policy_evaluation.json`** — persisted per-run for audit; mirrors the event-bus payload exactly.
+367. **SARIF 2.1.0 exporter** — `src/reporting/sarif_exporter.py` converts findings to a SARIF 2.1.0 document with `ruleId`, `level` (error/warning/note), CWE tags, CVSS `security-severity`, deterministic `partialFingerprints.primary`, and `originalUriBaseIds` for run-rooted URI normalisation. Catches per-finding exceptions so one bad finding cannot fail the export. Reports `result.dropped` count and diagnostic `run.logs` for transparency.
+368. **SARIF `merge_sarif_documents()`** — combines multiple SARIF documents (e.g. a vuln-type rollup plus a per-target run) into a single file with merged `tool.driver.rules` and de-duplicated `results`.
+369. **`run_sarif_export` stage** — terminal DAG stage that writes `report.sarif` into `output_store.run_dir` after `reporting`. False-positive findings are excluded by default (`lifecycle_state=FALSE_POSITIVE` or `triage_decision=FP`); opt in with `ci.include_false_positives_in_sarif`.
+370. **`git_diff_crawl` stage** — incremental scan stage that runs after `urls`. Reads the most recent prior run's `priority_scores.json`, runs `git diff --name-only <base_ref> HEAD`, and filters the URL set to URLs whose path matches a changed file. Skips (not fails) when no prior run exists or `--base-ref` is missing. Records a `reason="git_diff_failed"` partial-failure marker if `git diff` itself errors (dirty index, missing ref, not a git repo).
+371. **URL→path mapping heuristic** — basename match (e.g. `api/users.py` ⇄ `…/api/users`) with full-path substring fallback. Permissive by design because the inverse is application-specific; supply your own `path` field in `priority_scores.json` for non-standard layouts.
+372. **New CLI flags** — `--policy PATH`, `--incremental`, `--base-ref REF`, `--branch NAME`, `--legacy-exit-codes` all wired into `src/pipeline/runner_support.py` and forwarded to `resolve_pipeline_exit_code`.
+363. **Branch auto-detection** — checks `GITHUB_REF_NAME` → `CI_COMMIT_REF_NAME` → `CI_COMMIT_BRANCH` → `BRANCH_NAME` → `CIRCLE_BRANCH` → `BUILD_SOURCEBRANCHNAME` → `CYBER_BRANCH` → `--branch` in order; first non-empty wins.
+374. **Orchestrator integration** — `resolve_pipeline_exit_code()` in `_run_execution.py` now consults the policy and emits `INGRESS_POLICY_RESULT` via the orchestrator's event emitter, with a global-bus fallback for unit testing.
+375. **Updated test assertions** — `test_orchestrator_recon_failfast.py` and `test_orchestrator_checkpoint_truth.py` updated to assert `exit_code == 3` (fatal recon) instead of the old `1`.
+376. **`docs/ci-cd-integration.md`** — new dedicated guide covering exit-code taxonomy, policy schema, SARIF consumption by GitHub/GitLab/Azure, incremental scan mode, `INGRESS_POLICY_RESULT` payload, CLI reference, programmatic API, and source map.
+377. **60 new tests** — `test_exit_policy.py` (24), `test_sarif_exporter.py` (19), `test_git_diff_crawl.py` (16); covers TOML loading, all severity thresholds, infra classification edge cases, legacy mode collapse, partial-failure handling, SARIF structure, CWE tags, FP filtering, URL→path matching, diff-error fallback, and skip-conditions. All passing; ruff clean on new/modified files.
+
+---
+
+*Total: 377 entries — similar/identical changes consolidated into single entries throughout.*

@@ -23,7 +23,6 @@ from ._graph_dsl import (
     StageNode,
 )
 
-
 # Stage timeout reasoning (matches legacy STAGE_TIMEOUTS comments):
 #   subdomains (600s):   DNS enumeration with retries for large scopes
 #   live_hosts (900s):   HTTP probing with batch concurrency for 1000s of hosts
@@ -75,6 +74,12 @@ _BASE_NODES: tuple[StageNode, ...] = (
         weight=15,
         timeout=900,
         critical=True,
+    ),
+    StageNode(
+        name="git_diff_crawl",
+        needs=("urls",),
+        weight=1,
+        timeout=30,
     ),
     StageNode(
         name="parameters",
@@ -163,6 +168,12 @@ _BASE_NODES: tuple[StageNode, ...] = (
         ),
         weight=5,
         timeout=300,
+    ),
+    StageNode(
+        name="sarif_export",
+        needs=("reporting",),
+        weight=1,
+        timeout=30,
     ),
 )
 

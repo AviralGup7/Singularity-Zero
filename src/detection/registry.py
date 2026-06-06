@@ -6,7 +6,7 @@ consumes/produces metadata from analyzer bindings.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from src.analysis.plugin_runtime import (
@@ -21,6 +21,56 @@ from src.core.plugins import list_plugins
 logger = logging.getLogger(__name__)
 
 
+# Default confidence assigned to a plugin when the binding does not declare
+# a specific baseline. Active probes that produce direct evidence (sqli_safe,
+# ssrf_active, etc.) override this through the analyzer binding.
+_DEFAULT_PLUGIN_CONFIDENCE = 0.50
+_ACTIVE_PROBE_CONFIDENCE = 0.65
+_RUNTIME_CONFIDENCE = 0.70
+
+_ACTIVE_PROBE_KEYS = frozenset(
+    {
+        "sqli_safe_probe",
+        "ssrf_active_probe",
+        "path_traversal_active_probe",
+        "command_injection_active_probe",
+        "xxe_active_probe",
+        "crlf_injection_probe",
+        "host_header_injection_probe",
+        "ssti_active_probe",
+        "nosql_injection_probe",
+        "deserialization_probe",
+        "open_redirect_active_probe",
+        "xpath_injection_probe",
+        "hpp_active_probe",
+        "jwt_manipulation_probe",
+        "websocket_hijacking_probe",
+        "idor_active_probe",
+        "file_upload_active_probe",
+        "cookie_manipulation_probe",
+        "csrf_active_probe",
+        "reflected_xss_probe",
+        "http_smuggling_probe",
+        "http2_probe",
+        "ssrf_oob_validator",
+        "auth_bypass_check",
+        "access_control_analyzer",
+    }
+)
+
+_RUNTIME_DETECTION_KEYS = frozenset(
+    {
+        "cognitive_flow_analysis",
+        "behavior_analysis_layer",
+        "race_condition_signal_analyzer",
+        "flow_detector",
+        "multi_step_flow_breaking_probe",
+        "state_transition_analyzer",
+        "csrf_active_probe",
+    }
+)
+
+
 @dataclass(frozen=True)
 class DetectionPlugin:
     key: str
@@ -31,6 +81,133 @@ class DetectionPlugin:
     phase: str = "discover"
     consumes: tuple[str, ...] = ()
     produces: tuple[str, ...] = ()
+    baseline_confidence: float = _DEFAULT_PLUGIN_CONFIDENCE
+    detection_tier: str = "passive"
+    recommended_engines: tuple[str, ...] = field(default_factory=tuple)
+    tags: tuple[str, ...] = field(default_factory=tuple)
+
+
+def _classify_plugin(key: str) -> tuple[float, str, tuple[str, ...], tuple[str, ...]]:
+    """Return (baseline_confidence, detection_tier, recommended_engines, tags).
+
+    `detection_tier` is one of: passive, active, runtime, browser, ast, stateful.
+    """
+
+    if key in _ACTIVE_PROBE_KEYS:
+        return (
+            _ACTIVE_PROBE_CONFIDENCE,
+            "active",
+            ("httpexploitengine",),
+            ("active", "probe"),
+        )
+    if key in _RUNTIME_DETECTION_KEYS:
+        return (
+            _RUNTIME_CONFIDENCE,
+            "runtime",
+            ("httpexploitengine",),
+            ("runtime", "stateful"),
+        )
+    if key in {"dom_xss_signal_detector", "stored_xss_signal_detector"}:
+        return (
+            0.55,
+            "browser",
+            ("injectionengine",),
+            ("dom", "browser"),
+        )
+    if key in {
+        "js_sink_source_analyzer",
+        "wasm_module_introspector",
+        "prototype_pollution_walker",
+    }:
+        return (
+            0.60,
+            "ast",
+            ("httpexploitengine",),
+            ("ast", "static"),
+        )
+    if key in {
+        "csrf_entropy_analyzer",
+        "session_fixation_detector",
+        "rate_limit_adaptive_prober",
+        "race_concurrent_mutator",
+    }:
+        return (
+            0.60,
+            "stateful",
+            ("httpexploitengine",),
+            ("stateful", "session"),
+        )
+    if key in {"waf_fingerprint_analyzer", "waf_challenge_detector"}:
+        return (
+            0.70,
+            "active",
+            ("headerinjectionengine",),
+            ("waf", "fingerprint"),
+        )
+    if "smuggling" in key or "h2" in key or "double_encoding" in key:
+        return (
+            0.70,
+            "active",
+            ("headerinjectionengine",),
+            ("smuggling", "protocol"),
+        )
+    if "header_injection" in key or "host_header" in key:
+        return (
+            0.55,
+            "active",
+            ("headerinjectionengine", "authbypassengine"),
+            ("header", "injection"),
+        )
+    if "ssrf" in key or "proxy_ssrf" in key:
+        return (
+            0.55,
+            "active",
+            ("ssrfexploitationengine",),
+            ("ssrf",),
+        )
+    if "ssti" in key:
+        return (
+            0.55,
+            "active",
+            ("sstiexploitationengine",),
+            ("ssti",),
+        )
+    if "deserial" in key:
+        return (
+            0.55,
+            "active",
+            ("deserializationexploitationengine",),
+            ("deserialization",),
+        )
+    if "sqli" in key:
+        return (
+            0.55,
+            "active",
+            ("injectionengine",),
+            ("sqli",),
+        )
+    if "path_traversal" in key or "lfi" in key:
+        return (
+            0.55,
+            "active",
+            ("pathtraversalexploitationengine",),
+            ("path_traversal",),
+        )
+    if "file_upload" in key or "upload" in key:
+        return (
+            0.50,
+            "active",
+            ("fileuploadexploitationengine",),
+            ("upload",),
+        )
+    if "race" in key:
+        return (
+            0.55,
+            "runtime",
+            ("raceconditionengine",),
+            ("race",),
+        )
+    return (_DEFAULT_PLUGIN_CONFIDENCE, "passive", (), ())
 
 
 def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
@@ -43,6 +220,7 @@ def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
         label = spec.label if spec else key.replace("_", " ").title()
         group = spec.group if spec else "custom"
         enabled_by_default = spec.enabled_by_default if spec else True
+        baseline, tier, engines, tags = _classify_plugin(key)
         plugins.append(
             DetectionPlugin(
                 key=key,
@@ -53,6 +231,10 @@ def _build_detection_plugins() -> tuple[DetectionPlugin, ...]:
                 phase=binding.phase,
                 consumes=binding.consumes,
                 produces=binding.produces,
+                baseline_confidence=baseline,
+                detection_tier=tier,
+                recommended_engines=engines,
+                tags=tags,
             )
         )
     return tuple(plugins)
@@ -130,6 +312,10 @@ def detection_plugin_options() -> list[dict[str, object]]:
                 "phase": plugin.phase,
                 "consumes": list(plugin.consumes),
                 "produces": list(plugin.produces),
+                "baseline_confidence": plugin.baseline_confidence,
+                "detection_tier": plugin.detection_tier,
+                "recommended_engines": list(plugin.recommended_engines),
+                "tags": list(plugin.tags),
             }
             for plugin in list_detection_plugins()
         ]

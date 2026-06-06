@@ -19,12 +19,78 @@ from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
+from src.pipeline.services.ci import (
+    ExitConditionPolicy,
+    PolicyEvaluation,
+    evaluate_policy,
+    load_policy,
+)
 
 from ._orchestrator import validate_recon_outputs
 from .actor_scheduler import ActorScheduler
 from .graph_builder import build_pipeline_graph
 
 logger = get_pipeline_logger(__name__)
+
+# Exit-code taxonomy (kept stable across versions):
+#   0  pass             — run completed, no policy violation
+#   1  error            — legacy/unclassified failure
+#   2  policy_violation — findings exceeded declared policy thresholds
+#   3  infra_failure    — operational failure (network, missing tool, fatal recon)
+#   4  partial          — at least one non-fatal stage failed but the run
+#                          produced a usable report
+#  130 interrupted      — SIGINT / SIGTERM
+EXIT_OK = 0
+EXIT_POLICY_VIOLATION = 2
+EXIT_INFRA_FAILURE = 3
+EXIT_PARTIAL = 4
+
+
+def _resolve_branch(args: argparse.Namespace, config: Any) -> str:
+    """Best-effort current-branch lookup for policy gating.
+
+    The CLI is the canonical source (``--branch``) but we also accept
+    the conventional ``GITHUB_REF_NAME`` / ``CI_COMMIT_REF_NAME``
+    environment variables so dashboards and CI jobs work out of the
+    box.
+    """
+    import os
+
+    explicit = getattr(args, "branch", None) or getattr(config, "branch", None)
+    if explicit:
+        return str(explicit)
+    for env in ("CYBER_BRANCH", "GITHUB_REF_NAME", "CI_COMMIT_REF_NAME", "BRANCH_NAME"):
+        value = os.environ.get(env)
+        if value:
+            return value
+    return ""
+
+
+def _resolve_policy(args: argparse.Namespace, config: Any) -> ExitConditionPolicy:
+    """Load the policy from ``--policy`` (CLI), ``config.ci.policy``,
+    or fall back to :data:`DEFAULT_POLICY`.
+    """
+    policy_path = getattr(args, "policy", None)
+    if policy_path is None:
+        ci_cfg = getattr(config, "ci", None) or {}
+        if hasattr(config, "to_dict") and isinstance(ci_cfg, dict):
+            policy_path = ci_cfg.get("policy")
+        elif isinstance(ci_cfg, dict):
+            policy_path = ci_cfg.get("policy")
+    try:
+        return load_policy(policy_path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to load policy %r (%s); using DEFAULT_POLICY", policy_path, exc)
+        return ExitConditionPolicy()
+
+
+def _failed_stages(ctx: PipelineContext) -> dict[str, dict[str, Any]]:
+    failed: dict[str, dict[str, Any]] = {}
+    for stage_name, status in ctx.result.stage_status.items():
+        if status == StageStatus.FAILED.value:
+            metrics = ctx.result.module_metrics.get(stage_name) or {}
+            failed[stage_name] = metrics if isinstance(metrics, dict) else {"status": "failed"}
+    return failed
 
 
 async def execute_remaining_stages(
@@ -112,7 +178,7 @@ async def execute_remaining_stages(
                 "recon_validation",
                 "Recon validation failed: no discoverable URLs found.",
             )
-            return 1
+            return EXIT_INFRA_FAILURE
         ctx.result.stage_status["recon_validation"] = StageStatus.COMPLETED.value
 
     return outcome.exit_code
@@ -125,33 +191,168 @@ def resolve_pipeline_exit_code(
     config: Any,
     started_at: float,
     progress_emitter: Any,
+    args: argparse.Namespace | None = None,
 ) -> int:
-    """Compute the final exit code for the pipeline run."""
+    """Compute the final exit code for the pipeline run.
+
+    The new taxonomy:
+
+    * ``0``  — pass
+    * ``2``  — findings exceed the policy thresholds
+    * ``3``  — operational failure (fatal recon, network, etc.)
+    * ``4``  — partial (some non-fatal stages failed)
+    * ``130``— SIGINT/SIGTERM
+    """
     import time
 
     duration = time.time() - started_at
     findings_count = len(ctx.result.reportable_findings)
 
+    if getattr(ctx.result, "cancel_requested", False):
+        progress_emitter("shutdown", "Pipeline cancelled by user", 100, status="stopped")
+        return 130
+
+    args = args if args is not None else getattr(orchestrator, "_last_args", None)
+    policy = _resolve_policy(args, config) if args is not None else ExitConditionPolicy()
+    branch = _resolve_branch(args, config) if args is not None else ""
+
+    evaluation: PolicyEvaluation
     if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
         metrics = ctx.result.module_metrics.get("recon_validation", {})
         if metrics.get("fatal", True):
-            return 1
+            evaluation = PolicyEvaluation(
+                exit_code=EXIT_INFRA_FAILURE,
+                outcome="infra_failure",
+                failed_stages=("recon_validation",),
+                branch=branch,
+                policy_snapshot=policy.to_dict(),
+            )
+            _emit_policy_result(orchestrator, evaluation)
+            progress_emitter(
+                "shutdown",
+                "Pipeline aborted: recon validation failed (no discoverable URLs).",
+                100,
+                status="failed",
+            )
+            return evaluation.exit_code
 
     for recon_stage in ("subdomains", "live_hosts", "urls"):
         if ctx.result.stage_status.get(recon_stage) == StageStatus.FAILED.value:
             metrics = ctx.result.module_metrics.get(recon_stage, {})
             if metrics.get("fatal", True):
-                return 1
+                evaluation = PolicyEvaluation(
+                    exit_code=EXIT_INFRA_FAILURE,
+                    outcome="infra_failure",
+                    failed_stages=(recon_stage,),
+                    branch=branch,
+                    policy_snapshot=policy.to_dict(),
+                )
+                _emit_policy_result(orchestrator, evaluation)
+                progress_emitter(
+                    "shutdown",
+                    f"Pipeline aborted: recon stage '{recon_stage}' failed.",
+                    100,
+                    status="failed",
+                )
+                return evaluation.exit_code
 
-    if getattr(ctx.result, "cancel_requested", False):
-        progress_emitter("shutdown", "Pipeline cancelled by user", 100, status="stopped")
-        return 130
-
-    progress_emitter(
-        "shutdown",
-        f"Pipeline execution complete. Found {findings_count} finding(s).",
-        100,
-        status="completed",
-        details={"duration_seconds": round(duration, 2), "findings": findings_count},
+    evaluation = evaluate_policy(
+        policy,
+        findings=list(getattr(ctx.result, "reportable_findings", []) or []),
+        failed_stages=_failed_stages(ctx),
+        branch=branch,
     )
-    return 0
+
+    # Backwards compatibility: legacy code returned 1 for any non-zero
+    # exit; callers that haven't been updated to handle the new codes
+    # can opt in to the legacy mapping via ``--legacy-exit-codes``.
+    if args is not None and getattr(args, "legacy_exit_codes", False):
+        if evaluation.exit_code in (EXIT_POLICY_VIOLATION, EXIT_INFRA_FAILURE, EXIT_PARTIAL):
+            evaluation = PolicyEvaluation(
+                exit_code=1,
+                outcome=evaluation.outcome,
+                counts=evaluation.counts,
+                violations=evaluation.violations,
+                failed_stages=evaluation.failed_stages,
+                partial=evaluation.partial,
+                branch=evaluation.branch,
+                policy_snapshot=evaluation.policy_snapshot,
+            )
+
+    _emit_policy_result(orchestrator, evaluation)
+    _persist_policy_evaluation(ctx, evaluation)
+
+    if evaluation.exit_code == 0:
+        progress_emitter(
+            "shutdown",
+            f"Pipeline execution complete. Found {findings_count} finding(s).",
+            100,
+            status="completed",
+            details={
+                "duration_seconds": round(duration, 2),
+                "findings": findings_count,
+                "policy_outcome": evaluation.outcome,
+            },
+        )
+    else:
+        progress_emitter(
+            "shutdown",
+            f"Pipeline finished with policy outcome '{evaluation.outcome}' "
+            f"(exit {evaluation.exit_code}).",
+            100,
+            status="failed",
+            details={
+                "duration_seconds": round(duration, 2),
+                "findings": findings_count,
+                "policy_outcome": evaluation.outcome,
+                "exit_code": evaluation.exit_code,
+            },
+        )
+    return evaluation.exit_code
+
+
+def _emit_policy_result(orchestrator: Any, evaluation: PolicyEvaluation) -> None:
+    """Emit the INGRESS_POLICY_RESULT event so policy engines can subscribe.
+
+    Falls back to the process-wide event bus when ``orchestrator`` is
+    ``None`` or doesn't expose ``_emit_event`` (e.g. in unit tests that
+    invoke :func:`resolve_pipeline_exit_code` directly).
+    """
+    try:
+        from src.core.events import EventType, get_event_bus
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("EventBus unavailable for INGRESS_POLICY_RESULT: %s", exc)
+        return
+    payload = {"evaluation": evaluation.to_dict()}
+    emit = getattr(orchestrator, "_emit_event", None) if orchestrator is not None else None
+    if callable(emit):
+        try:
+            emit(EventType.INGRESS_POLICY_RESULT, source="policy", data=payload)
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Orchestrator emit failed: %s; falling back to bus.emit", exc)
+    try:
+        get_event_bus().emit(EventType.INGRESS_POLICY_RESULT, source="policy", data=payload)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Failed to emit INGRESS_POLICY_RESULT: %s", exc)
+
+
+def _persist_policy_evaluation(ctx: PipelineContext, evaluation: PolicyEvaluation) -> None:
+    """Write the policy evaluation next to the run report for CI consumers."""
+    output_store = getattr(ctx, "output_store", None)
+    if output_store is None:
+        return
+    run_dir = getattr(output_store, "run_dir", None)
+    if run_dir is None:
+        return
+    try:
+        import json
+        from pathlib import Path
+
+        path = Path(run_dir) / "policy_evaluation.json"
+        path.write_text(
+            json.dumps(evaluation.to_dict(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except OSError as exc:  # noqa: BLE001
+        logger.debug("Failed to persist policy_evaluation.json: %s", exc)

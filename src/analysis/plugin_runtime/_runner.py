@@ -229,9 +229,42 @@ def _normalize_analyzer_result(analyzer_key: str, result: object) -> list[dict[s
                 )
                 continue
             row["url"] = normalized_url
+        _enrich_finding_with_confidence(row, analyzer_key)
         findings.append(row)
 
     return findings
+
+
+def _enrich_finding_with_confidence(row: dict[str, Any], analyzer_key: str) -> None:
+    """Attach confidence/exploitability/recommended_engines if missing.
+
+    The conversion is best-effort and never overwrites fields already set
+    by the analyzer. Importing here avoids the runtime layer pulling the
+    detection facade on every analyzer registration.
+    """
+
+    try:
+        from src.detection.finding import from_dict as _finding_from_dict
+        from src.detection.coverage import recommend_engines
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("Skipping confidence enrichment: %s", exc)
+        return
+
+    try:
+        finding = _finding_from_dict(row, analyzer_key=analyzer_key, phase="discover")
+    except Exception as exc:
+        logger.debug("Confidence inference failed for %s: %s", analyzer_key, exc)
+        return
+
+    enriched = finding.to_dict()
+    for key, value in enriched.items():
+        row.setdefault(key, value)
+
+    if not row.get("recommended_engines"):
+        try:
+            row["recommended_engines"] = list(recommend_engines(finding))
+        except Exception as exc:
+            logger.debug("Engine referral failed for %s: %s", analyzer_key, exc)
 
 
 def prime_analysis_primitives(

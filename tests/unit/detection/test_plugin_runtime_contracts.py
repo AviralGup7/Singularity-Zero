@@ -116,4 +116,10 @@ def test_run_registered_analyzer_executes_async_runner_results() -> None:
 
     findings = run_registered_analyzer(binding, ctx, analyzer_key="async_runner_binding")
 
-    assert findings == [{"url": seed_url, "severity": "high"}]
+    # Confidence propagation now enriches the finding with `confidence`,
+    # `exploitability`, `recommended_engines`, etc. — the original payload
+    # keys are still preserved exactly as the runner emitted them.
+    assert findings[0]["url"] == seed_url
+    assert findings[0]["severity"] == "high"
+    assert "confidence" in findings[0]
+    assert "recommended_engines" in findings[0]

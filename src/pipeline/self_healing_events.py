@@ -11,7 +11,7 @@ from src.core.contracts.health import (
     HealthMetric,
     HealthStatus,
 )
-from src.core.events import EventType, PipelineEvent, get_event_bus
+from src.core.events import EVENT_SCHEMA_VERSION, EventBus, EventType, PipelineEvent, get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +28,11 @@ class HealthMetricEvent:
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     labels: dict[str, Any] = field(default_factory=dict)
 
-    def to_pipeline_event(self, source: str = "self_healing") -> PipelineEvent:
+    def to_pipeline_event(
+        self, source: str = "self_healing", correlation_id: str | None = None
+    ) -> PipelineEvent:
         data = {
+            "event_schema_version": EVENT_SCHEMA_VERSION,
             "component_name": self.component_name.value,
             "metric_name": self.metric_name,
             "value": self.value,
@@ -39,14 +42,21 @@ class HealthMetricEvent:
             "labels": self.labels or {},
         }
         return PipelineEvent(
-            event_type=EventType.FINDING_DETECTED,
+            event_type=EventType.HEALTH_METRIC_EMITTED,
             source=source,
             data=data,
+            correlation_id=correlation_id,
         )
 
 
-def push_health_metric(metric: HealthMetric, source: str = "self_healing") -> PipelineEvent:
-    bus = get_event_bus()
+def push_health_metric(
+    metric: HealthMetric,
+    *,
+    source: str = "self_healing",
+    event_bus: EventBus | None = None,
+    correlation_id: str | None = None,
+) -> PipelineEvent:
+    bus = event_bus or get_event_bus()
     event = HealthMetricEvent(
         component_name=metric.component,
         metric_name=metric.name,
@@ -54,7 +64,7 @@ def push_health_metric(metric: HealthMetric, source: str = "self_healing") -> Pi
         threshold=metric.threshold,
         status=metric.status,
         labels=metric.labels,
-    ).to_pipeline_event(source=source)
+    ).to_pipeline_event(source=source, correlation_id=correlation_id)
     bus.publish(event)
     logger.debug(
         "Pushed health metric event: %s.%s = %r [%s]",

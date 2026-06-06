@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.events import EventBus, EventType
 from src.core.frontier.bloom import NeuralBloomFilter
 from src.core.frontier.bloom_mesh import BloomMeshSynchronizer
+from src.infrastructure.observability.health_subscriber import register_health_subscriber
 from src.intelligence.ml.registry import ModelVersion, ModelVersionRegistry
 from src.pipeline.self_healing import (
     CorrectionEvent,
@@ -17,7 +19,8 @@ from src.pipeline.self_healing import (
 
 
 @pytest.mark.asyncio
-async def test_controller_executes_action_for_stale_stage() -> None:
+async def test_controller_reacts_to_health_metric_event() -> None:
+    """The controller processes HealthMetric events emitted onto the bus."""
     registry = CorrectiveActionRegistry()
     handled: list[str] = []
 
@@ -32,10 +35,14 @@ async def test_controller_executes_action_for_stale_stage() -> None:
         )
 
     registry.register(CorrectiveAction.REFRESH_STUCK_STAGE, refresh)
+
+    bus = EventBus()
     controller = SelfHealingController(
         stale_stage_seconds=1.0,
         action_registry=registry,
+        event_bus=bus,
     )
+    register_health_subscriber(bus, controller)
     controller.register_probe(
         "stages",
         lambda: [
@@ -46,13 +53,35 @@ async def test_controller_executes_action_for_stale_stage() -> None:
                 labels={"job_id": "job-1"},
             )
         ],
+        event_bus=bus,
     )
 
-    snapshot = await controller.evaluate_once()
+    await controller.collect_probe_metrics()
+    await bus.flush_pending()
 
+    snapshot = controller.last_snapshot
     assert snapshot.status == HealthStatus.DEGRADED
     assert handled == ["job-1"]
     assert snapshot.corrections[-1].action == CorrectiveAction.REFRESH_STUCK_STAGE
+
+
+@pytest.mark.asyncio
+async def test_register_health_subscriber_unsubscribes_on_stop() -> None:
+    """The subscriber can be cleanly torn down without leaking handlers."""
+    registry = CorrectiveActionRegistry()
+    bus = EventBus()
+    controller = SelfHealingController(
+        stale_stage_seconds=1.0,
+        action_registry=registry,
+        event_bus=bus,
+    )
+    subscriber = register_health_subscriber(bus, controller)
+
+    assert bus._get_handlers(EventType.HEALTH_METRIC_EMITTED)  # pylint: disable=protected-access
+    subscriber.stop()
+    assert (  # pylint: disable=protected-access
+        not bus._get_handlers(EventType.HEALTH_METRIC_EMITTED)
+    )
 
 
 @pytest.mark.asyncio

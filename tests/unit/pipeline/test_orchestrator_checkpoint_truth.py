@@ -343,7 +343,7 @@ async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
 
-    assert exit_code == 1
+    assert exit_code == 3
     assert any(
         event.get("stage") == "subdomains"
         and event.get("event_trigger") == "stage_failed"

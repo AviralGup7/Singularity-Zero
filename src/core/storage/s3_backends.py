@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 try:
@@ -11,7 +10,23 @@ except ImportError:
     boto3 = None  # type: ignore
     ClientError = Exception  # type: ignore
 
-from src.core.storage.interfaces import ArtifactStore, CheckpointStore, FindingStore
+from src.core.storage.interfaces import ArtifactStore, CheckpointStore, FindingStore, VersionId
+
+
+def _parse_version_id(version_id: VersionId) -> int:
+    if not isinstance(version_id, str) or not version_id.startswith("v"):
+        raise ValueError(f"Invalid checkpoint version id: {version_id!r}")
+    suffix = version_id[1:]
+    if not suffix.isdigit():
+        raise ValueError(f"Invalid checkpoint version id: {version_id!r}")
+    return int(suffix)
+
+
+def _stage_safe_name(stage_name: str) -> str:
+    safe = str(stage_name or "").strip() or "unknown"
+    if any(c in safe for c in ("/", "\\", "..")):
+        raise ValueError(f"Invalid stage name: {stage_name!r}")
+    return safe
 
 
 class _S3Base:
@@ -29,7 +44,7 @@ class _S3Base:
         self._bucket = bucket
         self._prefix = prefix.strip("/")
 
-        client_kwargs = {}
+        client_kwargs: dict[str, Any] = {}
         if endpoint_url:
             client_kwargs["endpoint_url"] = endpoint_url
         if region_name:
@@ -96,14 +111,71 @@ class S3ArtifactStore(_S3Base, ArtifactStore):
 
 
 class S3CheckpointStore(_S3Base, CheckpointStore):
+    """S3-backed CheckpointStore.
+
+    Layout under the configured ``prefix``::
+
+        <prefix>/<run_id>/checkpoint_v<n>.json
+        <prefix>/<run_id>/context_<stage>.json
+        <prefix>/<run_id>/delta_<stage>_<seq:06d>.json
+    """
+
     def _run_prefix(self, run_id: str) -> str:
         return self._s3_key(run_id)
 
-    def write(self, run_id: str, version: int, payload: dict[str, Any]) -> Path:
-        key = f"{self._run_prefix(run_id)}/checkpoint_v{version}.json"
+    def list_run_ids(self) -> list[str]:
+        prefix = f"{self._prefix}/" if self._prefix else ""
+        run_ids: set[str] = set()
+        for key in self._list_object_keys(prefix):
+            if "/checkpoint_v" not in key:
+                continue
+            relative = key[len(prefix):] if prefix else key
+            run_id = relative.split("/", 1)[0]
+            if run_id:
+                run_ids.add(run_id)
+        return sorted(run_ids)
+
+    def _checkpoint_key(self, run_id: str, version: int) -> str:
+        return f"{self._run_prefix(run_id)}/checkpoint_v{version}.json"
+
+    def _context_snapshot_key(self, run_id: str, stage_name: str) -> str:
+        return (
+            f"{self._run_prefix(run_id)}/context_{_stage_safe_name(stage_name)}.json"
+        )
+
+    def _stage_delta_key(
+        self, run_id: str, stage_name: str, sequence: int
+    ) -> str:
+        return (
+            f"{self._run_prefix(run_id)}"
+            f"/delta_{_stage_safe_name(stage_name)}_{sequence:06d}.json"
+        )
+
+    def _list_object_keys(self, prefix: str) -> list[str]:
+        try:
+            paginator = self._s3.get_paginator("list_objects_v2")
+            return [
+                obj["Key"]
+                for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix)
+                for obj in page.get("Contents", [])
+            ]
+        except ClientError:
+            return []
+
+    def _key_to_version_id(self, key: str) -> VersionId | None:
+        name = key.rsplit("/", 1)[-1]
+        if not (name.startswith("checkpoint_v") and name.endswith(".json")):
+            return None
+        try:
+            return f"v{_parse_version_id('v' + name[len('checkpoint_v'):-len('.json')])}"
+        except ValueError:
+            return None
+
+    def write(self, run_id: str, version: int, payload: dict[str, Any]) -> VersionId:
+        key = self._checkpoint_key(run_id, version)
         body = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
         self._s3.put_object(Bucket=self._bucket, Key=key, Body=body)
-        return Path(f"s3://{self._bucket}/{key}")
+        return f"v{version}"
 
     def read_latest(self, run_id: str | None = None) -> dict[str, Any] | None:
         if run_id:
@@ -111,57 +183,105 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         else:
             prefix = f"{self._prefix}/" if self._prefix else ""
 
+        candidates: list[tuple[int, str]] = []
+        for key in self._list_object_keys(prefix):
+            version_id = self._key_to_version_id(key)
+            if version_id is None:
+                continue
+            try:
+                version = _parse_version_id(version_id)
+            except ValueError:
+                continue
+            candidates.append((version, key))
+        if not candidates:
+            return None
+        candidates.sort()
+        latest_key = candidates[-1][1]
         try:
-            paginator = self._s3.get_paginator("list_objects_v2")
-            candidates = []
-            for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
-                for obj in page.get("Contents", []):
-                    if obj["Key"].endswith(".json") and "checkpoint_v" in obj["Key"]:
-                        candidates.append(obj["Key"])
-
-            if not candidates:
-                return None
-
-            candidates.sort()
-            latest_key = candidates[-1]
             response = self._s3.get_object(Bucket=self._bucket, Key=latest_key)
             return dict(json.loads(response["Body"].read().decode("utf-8")))
-        except ClientError:
+        except (ClientError, json.JSONDecodeError):
             return None
 
-    def read_version(self, path: str | Path) -> dict[str, Any] | None:
-        path_str = str(path)
-        if not path_str.startswith(f"s3://{self._bucket}/"):
-            return None
-        key = path_str[len(f"s3://{self._bucket}/") :]
+    def read_version_by_id(
+        self, run_id: str, version_id: VersionId
+    ) -> dict[str, Any] | None:
+        version = _parse_version_id(version_id)
+        key = self._checkpoint_key(run_id, version)
         try:
             response = self._s3.get_object(Bucket=self._bucket, Key=key)
             return dict(json.loads(response["Body"].read().decode("utf-8")))
-        except ClientError:
+        except (ClientError, json.JSONDecodeError):
             return None
 
-    def list_versions(self, run_id: str) -> list[str | Path]:
+    def list_version_ids(self, run_id: str) -> list[VersionId]:
         prefix = f"{self._run_prefix(run_id)}/"
-        versions: list[str | Path] = []
-        try:
-            paginator = self._s3.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
-                for obj in page.get("Contents", []):
-                    if obj["Key"].endswith(".json") and "checkpoint_v" in obj["Key"]:
-                        versions.append(f"s3://{self._bucket}/{obj['Key']}")
-        except ClientError:
-            pass
-        return sorted(versions)
+        ids: list[VersionId] = []
+        for key in self._list_object_keys(prefix):
+            version_id = self._key_to_version_id(key)
+            if version_id is not None:
+                ids.append(version_id)
+        ids.sort(key=_parse_version_id)
+        return ids
 
-    def delete(self, path: str | Path) -> None:
-        path_str = str(path)
-        if not path_str.startswith(f"s3://{self._bucket}/"):
-            return
-        key = path_str[len(f"s3://{self._bucket}/") :]
+    def delete_version(self, run_id: str, version_id: VersionId) -> None:
+        version = _parse_version_id(version_id)
         try:
-            self._s3.delete_object(Bucket=self._bucket, Key=key)
+            self._s3.delete_object(
+                Bucket=self._bucket, Key=self._checkpoint_key(run_id, version)
+            )
         except ClientError:
             pass
+
+    def write_context_snapshot(
+        self, run_id: str, stage_name: str, payload: dict[str, Any]
+    ) -> VersionId:
+        key = self._context_snapshot_key(run_id, stage_name)
+        body = json.dumps(payload, default=str).encode("utf-8")
+        self._s3.put_object(Bucket=self._bucket, Key=key, Body=body)
+        return f"context:{_stage_safe_name(stage_name)}"
+
+    def read_context_snapshot(
+        self, run_id: str, stage_name: str
+    ) -> dict[str, Any] | None:
+        key = self._context_snapshot_key(run_id, stage_name)
+        try:
+            response = self._s3.get_object(Bucket=self._bucket, Key=key)
+            return dict(json.loads(response["Body"].read().decode("utf-8")))
+        except (ClientError, json.JSONDecodeError):
+            return None
+
+    def write_stage_delta(
+        self,
+        run_id: str,
+        stage_name: str,
+        sequence: int,
+        payload: dict[str, Any],
+    ) -> VersionId:
+        key = self._stage_delta_key(run_id, stage_name, sequence)
+        body = json.dumps(payload, default=str).encode("utf-8")
+        self._s3.put_object(Bucket=self._bucket, Key=key, Body=body)
+        return f"delta:{_stage_safe_name(stage_name)}:{sequence:06d}"
+
+    def list_stage_deltas(
+        self, run_id: str, stage_name: str
+    ) -> list[dict[str, Any]]:
+        safe = _stage_safe_name(stage_name)
+        prefix = f"{self._run_prefix(run_id)}/delta_{safe}_"
+        results: list[dict[str, Any]] = []
+        for key in self._list_object_keys(prefix):
+            name = key.rsplit("/", 1)[-1]
+            if not name.endswith(".json"):
+                continue
+            try:
+                response = self._s3.get_object(Bucket=self._bucket, Key=key)
+                payload = dict(json.loads(response["Body"].read().decode("utf-8")))
+            except (ClientError, json.JSONDecodeError):
+                continue
+            if isinstance(payload, dict):
+                results.append(payload)
+        results.sort(key=lambda item: int(item.get("sequence", 0) or 0))
+        return results
 
 
 class S3FindingStore(_S3Base, FindingStore):

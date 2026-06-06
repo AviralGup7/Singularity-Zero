@@ -144,16 +144,30 @@ class FrontierWAL:
     Every 'merge_stage_output' is recorded here before mutation.
     """
 
-    def __init__(self, redis_url: str | None, run_id: str) -> None:
+    def __init__(
+        self,
+        redis_url: str | None,
+        run_id: str,
+        *,
+        aof_dir: Path | str | None = None,
+    ) -> None:
         self._run_id = run_id
         self._stream_key = f"cyber:wal:{run_id}"
         self._snapshot_key = f"cyber:wal:snapshot:{run_id}"
         self._max_stream_entries = 10000
-        # Setup local append-only file (AOF) path for dual-commit in gitignored directory
-        wal_dir = Path(".pipeline") / "wal"
+        # Setup local append-only file (AOF) path for dual-commit. When
+        # ``aof_dir`` is provided the WAL is colocated with the rest of
+        # the run output so it survives on a persistent volume; when not
+        # provided the legacy CWD-relative ``.pipeline/wal/`` location is
+        # preserved for backward compatibility (and for tests that pass
+        # ``tmp_path`` directly to ``_aof_path``).
+        if aof_dir is None:
+            wal_dir: Path = Path(".pipeline") / "wal"
+        else:
+            wal_dir = Path(aof_dir)
+        wal_dir.mkdir(parents=True, exist_ok=True)
         self._aof_path = wal_dir / f"local_wal_{_safe_run_filename(run_id)}.aof"
         try:
-            wal_dir.mkdir(parents=True, exist_ok=True)
             self._prune_expired_aof_files(wal_dir)
         except Exception as e:
             logger.debug("Failed to initialize WAL directory or prune old logs: %s", e)

@@ -205,7 +205,7 @@ async def test_stage_status_only_failure_forces_non_zero_exit(
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
 
-    assert exit_code == 1
+    assert exit_code == 3
     assert all(percent != 100 for _, _, percent in emitted_progress)
 
 
@@ -255,7 +255,7 @@ async def test_recon_fail_fast_blocks_downstream_stage_and_avoids_completion_pro
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
 
-    assert exit_code == 1
+    assert exit_code == 3
     assert all(percent != 100 for _, _, percent in emitted_progress)
 
 

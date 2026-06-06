@@ -24,6 +24,7 @@ Welcome to the Cyber Security Test Pipeline documentation. This index helps you 
 - **[📚 API Reference](api-reference.md)**: OpenAPI 3.1.0 specification and AI metadata for autonomous agent orchestration.
 - **[🔌 Dynamic Plugin SDK](dynamic-plugins.md)**: Hot-load third-party security checks from a single Python file.
 - **[⚡ Performance Models & Benchmarks](performance.md)**: SIMD optimization, Actor migration, and hardware benchmarks.
+- **[🚀 CI/CD Integration](ci-cd-integration.md)**: Exit-code taxonomy, `policy.toml` schema, SARIF output, incremental scans, and `INGRESS_POLICY_RESULT` events.
 - **[🛠️ Troubleshooting Logic](troubleshooting.md)**: Parseable decision tree for identifying and resolving pipeline execution failures.
 - **[👻 Ghost-Actor Mesh Recovery Evidence](ghost_actor_recovery_evidence.md)**: CRDT snapshots, WAL dual-commit, and compaction gating evidence.
 

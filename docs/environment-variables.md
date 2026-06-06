@@ -90,3 +90,21 @@ In addition to system configurations, the system ingests custom HTTP request hea
 | `ENABLE_LEARNING` | No | `true` | Enables AI active learning loop feedback integration. |
 | `ENABLE_NOTIFICATIONS` | No | `false` | Enables third-party integration alerts. |
 | `ENABLE_THREAT_INTEL` | No | `false` | Enables external threat intelligence feed lookup. |
+
+---
+
+## 🚦 CI/CD Integration
+
+Variables consulted in order when no `--branch` CLI flag is provided. The first one
+with a non-empty value wins; they drive `[on_findings] branch_glob` matching and
+are recorded in `policy_evaluation.json` for audit.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `CYBER_BRANCH` | No | (None) | Explicit branch override — checked first. Use when running outside a known CI vendor. |
+| `GITHUB_REF_NAME` | No | (None) | Auto-detected on GitHub Actions (the ref name of the head ref, e.g. `main`, `feature/login`). |
+| `CI_COMMIT_REF_NAME` | No | (None) | Auto-detected on GitLab CI. |
+| `CI_COMMIT_BRANCH` | No | (None) | GitLab fallback for branch name on detached builds. |
+| `BRANCH_NAME` | No | (None) | Generic CI override (Jenkins, CircleCI, Azure DevOps). |
+| `CIRCLE_BRANCH` | No | (None) | CircleCI-specific branch env. |
+| `BUILD_SOURCEBRANCHNAME` | No | (None) | Azure DevOps Pipelines branch env. |

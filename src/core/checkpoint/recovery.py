@@ -56,15 +56,40 @@ def attempt_recovery(
 
     checkpoint_dir = Path(output_dir) / target_name / "checkpoints"
     store = create_checkpoint_store(storage_config, checkpoint_dir)
-    latest_payload = store.read_latest()
-    if not latest_payload:
+
+    candidates: list[tuple[int, float, CheckpointState]] = []
+    for run_id in store.list_run_ids():
+        payload = store.read_latest(run_id)
+        if not payload:
+            continue
+        try:
+            state = CheckpointState.from_dict(payload)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to load checkpoint for run %s: %s", run_id, exc)
+            continue
+        if not _validate_checkpoint_state(state):
+            logger.warning("Skipping corrupted checkpoint: run=%s", run_id)
+            continue
+        completed_count = (
+            len(state.completed_stages)
+            if hasattr(state, "completed_stages")
+            else 0
+        )
+        candidates.append(
+            (
+                completed_count,
+                float(getattr(state, "last_checkpoint_at", 0.0) or 0.0),
+                state,
+            )
+        )
+
+    if not candidates:
         return False, None
 
-    try:
-        state = CheckpointState.from_dict(latest_payload)
-        if _validate_checkpoint_state(state):
-            return True, state
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to recover checkpoint: %s", exc)
-
-    return False, None
+    candidates.sort(key=lambda c: (c[0], c[1]), reverse=True)
+    best_state = candidates[0][2]
+    has_incomplete = (
+        best_state.current_stage is not None
+        or len(best_state.completed_stages) > 0
+    )
+    return has_incomplete, best_state
