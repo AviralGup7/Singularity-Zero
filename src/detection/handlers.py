@@ -10,6 +10,10 @@ the new modules:
 * :mod:`src.detection.waf` — WAF fingerprinting + bypass strategies.
 * :mod:`src.detection.stateful` — CSRF entropy, session fixation,
   rate-limit adaptive probing, concurrent race probing.
+* :mod:`src.detection.api` — API-specific detection: REST parameter
+  pollution, GraphQL introspection presence, API rate-limit
+  differentials, JWT claim manipulation, and WebSocket message-level
+  security.
 """
 
 from __future__ import annotations
@@ -318,6 +322,163 @@ def race_concurrent_mutator(
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# API-specific detection handlers (REST HPP, GraphQL, rate-limit diff,
+# JWT claim integrity, WebSocket message security)
+# ---------------------------------------------------------------------------
+
+
+def api_rest_param_pollution(
+    responses: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Adapter that surfaces REST parameter pollution observations.
+
+    Each response may carry an ``hpp_observations`` list (typically
+    produced by the HPP replay harness). The adapter delegates to
+    :func:`rest_param_pollution_findings_from_observations` so the
+    detector logic stays in :mod:`src.detection.api`.
+    """
+
+    from src.detection.api import rest_param_pollution_findings_from_observations
+
+    findings: list[dict[str, Any]] = []
+    for response in responses:
+        url = str(response.get("url", "")).strip()
+        if not url:
+            continue
+        observations = response.get("hpp_observations") or response.get("rest_hpp_observations")
+        if not observations:
+            continue
+        for finding in rest_param_pollution_findings_from_observations(observations):
+            finding.setdefault("analyzer_key", "api_rest_param_pollution")
+            finding.setdefault("phase", "analyze")
+            if "url" not in finding and url:
+                finding["url"] = url
+            findings.append(finding)
+    return findings
+
+
+def api_graphql_introspection(
+    responses: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Adapter that surfaces GraphQL introspection-query presence signals.
+
+    Each response may carry a ``graphql_introspection_observations``
+    list (the recorded body / headers / query of a GraphQL probe).
+    """
+
+    from src.detection.api import graphql_introspection_findings_from_observations
+
+    findings: list[dict[str, Any]] = []
+    for response in responses:
+        url = str(response.get("url", "")).strip()
+        if not url:
+            continue
+        observations = response.get("graphql_introspection_observations") or []
+        if not observations:
+            continue
+        for finding in graphql_introspection_findings_from_observations(observations):
+            finding.setdefault("analyzer_key", "api_graphql_introspection")
+            finding.setdefault("phase", "analyze")
+            if "url" not in finding and url:
+                finding["url"] = url
+            findings.append(finding)
+    return findings
+
+
+def api_rate_limit_differential(
+    responses: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Adapter that computes per-endpoint rate-limit profiles and diffs them.
+
+    Each response may carry a ``rate_limit_observations`` list. The
+    adapter builds per-endpoint profiles and converts them into
+    findings.
+    """
+
+    from src.detection.api import (
+        build_endpoint_profiles,
+        endpoint_profiles_to_findings,
+    )
+
+    observations: list[Any] = []
+    for response in responses:
+        url = str(response.get("url", "")).strip()
+        if not url:
+            continue
+        items = response.get("rate_limit_observations") or []
+        if not items:
+            continue
+        for item in items:
+            if isinstance(item, dict) and "url" not in item:
+                item = {**item, "url": item.get("url") or url}
+            observations.append(item)
+
+    if not observations:
+        return []
+
+    profiles = build_endpoint_profiles(observations)
+    findings: list[dict[str, Any]] = []
+    for finding in endpoint_profiles_to_findings(profiles):
+        finding.setdefault("analyzer_key", "api_rate_limit_differential")
+        finding.setdefault("phase", "analyze")
+        findings.append(finding)
+    return findings
+
+
+def api_jwt_claim_integrity(
+    responses: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Adapter that inspects captured JWTs for pre-signing manipulation surfaces."""
+
+    from src.detection.api import jwt_claim_findings_from_observations
+
+    findings: list[dict[str, Any]] = []
+    for response in responses:
+        url = str(response.get("url", "")).strip()
+        if not url:
+            continue
+        observations = response.get("jwt_observations") or response.get("jwt_claim_observations")
+        if not observations:
+            continue
+        for finding in jwt_claim_findings_from_observations(observations):
+            finding.setdefault("analyzer_key", "api_jwt_claim_integrity")
+            finding.setdefault("phase", "analyze")
+            if "url" not in finding and url:
+                finding["url"] = url
+            findings.append(finding)
+    return findings
+
+
+def api_websocket_message_security(
+    responses: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Adapter that inspects captured WebSocket frames."""
+
+    from src.detection.api import websocket_message_findings_from_observations
+
+    findings: list[dict[str, Any]] = []
+    for response in responses:
+        url = str(response.get("url", "")).strip()
+        if not url:
+            continue
+        observations = response.get("websocket_frame_observations") or []
+        if not observations:
+            continue
+        for finding in websocket_message_findings_from_observations(observations):
+            finding.setdefault("analyzer_key", "api_websocket_message_security")
+            finding.setdefault("phase", "analyze")
+            if "url" not in finding and url:
+                finding["url"] = url
+            findings.append(finding)
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Helpers for the bindings module
+# ---------------------------------------------------------------------------
+
+
 def list_handler_keys() -> tuple[str, ...]:
     return (
         "js_sink_source_analyzer",
@@ -330,6 +491,11 @@ def list_handler_keys() -> tuple[str, ...]:
         "session_fixation_detector",
         "rate_limit_adaptive_prober",
         "race_concurrent_mutator",
+        "api_rest_param_pollution",
+        "api_graphql_introspection",
+        "api_rate_limit_differential",
+        "api_jwt_claim_integrity",
+        "api_websocket_message_security",
     )
 
 
@@ -345,11 +511,21 @@ def get_handler(key: str) -> Any:
         "session_fixation_detector": session_fixation_detector,
         "rate_limit_adaptive_prober": rate_limit_adaptive_prober,
         "race_concurrent_mutator": race_concurrent_mutator,
+        "api_rest_param_pollution": api_rest_param_pollution,
+        "api_graphql_introspection": api_graphql_introspection,
+        "api_rate_limit_differential": api_rate_limit_differential,
+        "api_jwt_claim_integrity": api_jwt_claim_integrity,
+        "api_websocket_message_security": api_websocket_message_security,
     }
     return table.get(key)
 
 
 __all__ = [
+    "api_graphql_introspection",
+    "api_jwt_claim_integrity",
+    "api_rate_limit_differential",
+    "api_rest_param_pollution",
+    "api_websocket_message_security",
     "csrf_entropy_analyzer",
     "dom_runtime_analyzer",
     "get_handler",

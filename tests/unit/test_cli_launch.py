@@ -42,7 +42,7 @@ class TestCliLaunch(unittest.TestCase):
         assert args.queue == "custom-queue"
 
     @patch("src.cli.ui.console")
-    @patch("pathlib.Path")
+    @patch("src.cli.commands.start.Path")
     @patch("threading.Thread")
     @patch("src.dashboard.fastapi.main.main")
     def test_handle_launch_execution_flow(

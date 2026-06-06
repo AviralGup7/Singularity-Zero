@@ -271,7 +271,6 @@ async def run_stage_with_retry(
             metrics.record_failure()
             status = "timeout" if is_timeout else "failed"
             stage_error = _format_stage_error(last_exc, timed_out=is_timeout)
-            fatal_stage_failure = stage_name in {"subdomains", "live_hosts", "urls"}
             ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
             ctx.result.module_metrics[stage_name] = {
                 "status": status,
@@ -280,7 +279,7 @@ async def run_stage_with_retry(
                 "failure_reason": stage_error,
                 "retries_exhausted": attempt,
                 "retry_count": max(0, attempt - 1),
-                "fatal": fatal_stage_failure,
+                "fatal": False,
             }
             _retry_emitter.emit(
                 RetryEventType.RETRY_EXHAUSTED,
@@ -311,7 +310,7 @@ async def run_stage_with_retry(
                     "timeout_seconds": timeout if is_timeout else None,
                 },
                 event_trigger="stage_failed",
-                fatal=fatal_stage_failure,
+                fatal=False,
             )
             orchestrator._emit_event(
                 EventType.STAGE_FAILED,
@@ -344,7 +343,7 @@ async def run_stage_with_retry(
                 "status": "failed",
                 "error": err,
                 "retry_count": max(0, attempt - 1),
-                "fatal": stage_name in {"subdomains", "live_hosts", "urls"},
+                "fatal": False,
                 "retry_metrics": {
                     "attempts": metrics.total_attempts,
                     "transient_errors": metrics.transient_errors,
@@ -369,7 +368,7 @@ async def run_stage_with_retry(
                     "budget_remaining_seconds": policy.budget_remaining(),
                 },
                 event_trigger="stage_failed",
-                fatal=stage_name in {"subdomains", "live_hosts", "urls"},
+                fatal=False,
             )
             orchestrator._emit_event(
                 EventType.STAGE_FAILED,
@@ -457,13 +456,12 @@ async def run_stage_with_retry(
         backoff_seconds=0.0,
         total_backoff_seconds=metrics.total_backoff_seconds,
     )
-    fatal_stage_failure = stage_name in {"subdomains", "live_hosts", "urls"}
     ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
     ctx.result.module_metrics[stage_name] = {
         "status": "failed",
         "error": "max retries exhausted",
         "retry_count": max(0, policy.max_attempts - 1),
-        "fatal": fatal_stage_failure,
+        "fatal": False,
         "retry_metrics": {
             "attempts": metrics.total_attempts,
             "transient_errors": metrics.transient_errors,
@@ -487,7 +485,7 @@ async def run_stage_with_retry(
             "backoff_seconds": round(metrics.total_backoff_seconds, 2),
         },
         event_trigger="stage_failed",
-        fatal=fatal_stage_failure,
+        fatal=False,
     )
     orchestrator._emit_event(
         EventType.STAGE_FAILED,

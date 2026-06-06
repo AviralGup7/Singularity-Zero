@@ -286,7 +286,32 @@ class ActorScheduler:
         return [node for _w, _i, node in ready]
 
     def _deps_satisfied(self, node: StageNode) -> bool:
-        return all(dep in self._completed or dep in self._skipped or dep in self._outcome.skipped for dep in node.needs)
+        # A dependency is "satisfied" (i.e. releases downstream stages
+        # for dispatch) when it is one of:
+        #
+        # * ``completed`` — ran and finished without error.
+        # * ``skipped`` — explicitly skipped by us or by the orchestrator
+        #   (e.g. ``suspend_triggered``).
+        # * ``outcome.skipped`` — finalized as ``SKIPPED`` (condition
+        #   never satisfied, etc.).
+        # * ``outcome.failed`` with a *non-critical* dep — supports the
+        #   degraded-continue path: when a recon stage declared as
+        #   ``critical=False`` (e.g. ``subdomains`` after the policy
+        #   moved it to the degraded set) fails, downstream stages are
+        #   still allowed to run so that salvage data (``urls`` via
+        #   crt.sh, ``subdomains`` for ``subdomain_takeover``, etc.)
+        #   can be collected.  Critical-stage failures still block
+        #   downstream as before.
+        return all(
+            dep in self._completed
+            or dep in self._skipped
+            or dep in self._outcome.skipped
+            or (
+                dep in self._outcome.failed
+                and not self._graph.require(dep).critical
+            )
+            for dep in node.needs
+        )
 
 
     def _condition_holds(self, node: StageNode) -> bool:

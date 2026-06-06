@@ -53,9 +53,8 @@ class TestPolicyLoading:
         assert policy.findings.thresholds.high == 3
         assert policy.findings.thresholds.medium == 50  # default
         assert policy.findings.allow_false_positive is True
-        assert policy.infra.fatal_stages == frozenset(
-            {"subdomains", "live_hosts", "urls"}
-        )
+        assert policy.infra.fatal_stages == frozenset({"live_hosts"})
+        assert policy.infra.degraded_stages == frozenset({"subdomains", "urls"})
 
     def test_load_policy_full_toml(self, tmp_path: Path) -> None:
         path = tmp_path / "policy.toml"
@@ -73,6 +72,7 @@ class TestPolicyLoading:
 
                 [on_infra]
                 fatal_stages = ["subdomains", "urls"]
+                degraded_stages = ["live_hosts"]
 
                 [on_failure]
                 retryable_only = false
@@ -88,6 +88,7 @@ class TestPolicyLoading:
         )
         assert policy.findings.branch_glob == "main"
         assert policy.infra.fatal_stages == frozenset({"subdomains", "urls"})
+        assert policy.infra.degraded_stages == frozenset({"live_hosts"})
         assert policy.on_failure.treat_partial_as == 4
 
     def test_load_policy_missing_file_raises(self, tmp_path: Path) -> None:
@@ -190,12 +191,57 @@ class TestEvaluatePolicy:
             DEFAULT_POLICY,
             findings=[_finding("low")],
             failed_stages={
-                "subdomains": {"status": "failed", "fatal": True},
+                "live_hosts": {"status": "failed", "fatal": True},
             },
         )
         assert result.exit_code == EXIT_INFRA_FAILURE
         assert result.outcome == "infra_failure"
-        assert result.failed_stages == ("subdomains",)
+        assert result.failed_stages == ("live_hosts",)
+
+    def test_degraded_stage_failure_downgraded_to_partial(self) -> None:
+        """Degraded stages (subdomains/urls by default) should not abort
+        the run with ``infra_failure`` when their failure is salvaged.
+        """
+        result = evaluate_policy(
+            DEFAULT_POLICY,
+            findings=[_finding("low")],
+            failed_stages={
+                "subdomains": {
+                    "status": "failed",
+                    "fatal": True,
+                    "degraded": True,
+                    "degraded_salvaged_by": "urls",
+                },
+            },
+        )
+        assert result.exit_code == EXIT_PARTIAL
+        assert result.outcome == "partial"
+        assert result.partial is True
+        assert result.degraded_stages == ("subdomains",)
+        assert result.failed_stages == ()
+
+    def test_degraded_stage_without_salvage_is_partial(self) -> None:
+        """Degraded stages without downstream salvage are still treated
+        as partial failures, not infra failures.  The stage metrics
+        must NOT carry the ``degraded`` flag because the policy
+        evaluator treats ``fatal=True`` as an explicit override that
+        promotes the failure to ``infra_failure`` regardless of the
+        policy's ``degraded_stages`` set.  When a stage runner / retry
+        handler decides the failure is fatal, that decision is
+        honoured; the degraded path is opt-in via the explicit
+        ``degraded=True`` metric set by
+        ``resolve_pipeline_exit_code``.
+        """
+        result = evaluate_policy(
+            DEFAULT_POLICY,
+            findings=[],
+            failed_stages={
+                "subdomains": {"status": "failed"},
+            },
+        )
+        assert result.exit_code == EXIT_PARTIAL
+        assert result.outcome == "partial"
+        assert result.partial is True
 
     def test_partial_when_non_fatal_fails(self) -> None:
         result = evaluate_policy(
@@ -254,7 +300,9 @@ class TestEvaluatePolicy:
     def test_to_dict_round_trip(self) -> None:
         snapshot = DEFAULT_POLICY.to_dict()
         assert snapshot["on_findings"]["max_critical"] == 0
-        assert "subdomains" in snapshot["on_infra"]["fatal_stages"]
+        assert "live_hosts" in snapshot["on_infra"]["fatal_stages"]
+        assert "subdomains" in snapshot["on_infra"]["degraded_stages"]
+        assert "urls" in snapshot["on_infra"]["degraded_stages"]
 
 
 class TestResolvePipelineExitCodeIntegration:
@@ -291,8 +339,8 @@ class TestResolvePipelineExitCodeIntegration:
         class _Ctx:
             class result:  # noqa: N801 — mirrors PipelineContext.result
                 reportable_findings: list = []
-                stage_status = {"subdomains": "FAILED"}
-                module_metrics = {"subdomains": {"fatal": True, "status": "failed"}}
+                stage_status = {"live_hosts": "FAILED"}
+                module_metrics = {"live_hosts": {"fatal": True, "status": "failed"}}
                 cancel_requested = False
 
         ctx = _Ctx()

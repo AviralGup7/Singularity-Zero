@@ -6,6 +6,8 @@ import hmac
 import json
 import logging
 import re
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, cast
 
 from src.analysis._core.http_request import _safe_request
@@ -22,7 +24,8 @@ JWT_AUTH_HEADERS = [
     "X-Api-Token",
 ]
 
-WEAK_SECRETS = [
+# Inline fallback list - always available even if the packaged wordlist is missing.
+WEAK_SECRETS: list[bytes] = [
     b"secret",
     b"password",
     b"123456",
@@ -45,6 +48,55 @@ WEAK_SECRETS = [
     b"signing-key",
     b"-----BEGIN PUBLIC KEY-----\n",
 ]
+
+WORDLIST_FILENAME = "jwt-secrets.txt"
+WORDLIST_MAX_ENTRIES = 50000
+
+
+@lru_cache(maxsize=1)
+def _load_wordlist_bytes(path_str: str) -> tuple[bytes, ...]:
+    """Load weak-JWT secrets from a packaged wordlist file.
+
+    Returns an empty tuple if the file is missing or unreadable so the
+    caller can fall back to the inline ``WEAK_SECRETS`` list.
+    """
+    try:
+        path = Path(path_str)
+        if not path.is_file():
+            return ()
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        logger.debug("Could not read JWT wordlist %s: %s", path_str, exc)
+        return ()
+
+    out: list[bytes] = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if len(out) >= WORDLIST_MAX_ENTRIES:
+            break
+        out.append(stripped.encode("utf-8"))
+    return tuple(out)
+
+
+def get_weak_secrets() -> list[bytes]:
+    """Return the full weak-secret list: packaged wordlist + inline fallback.
+
+    The packaged wordlist (``data/jwt-secrets.txt``) takes precedence when
+    available; ``WEAK_SECRETS`` is always merged in last to guarantee a
+    minimum baseline coverage even with a stripped build.
+    """
+    here = Path(__file__).resolve().parent
+    wordlist_path = here / "data" / WORDLIST_FILENAME
+    from_wordlist = list(_load_wordlist_bytes(str(wordlist_path)))
+    seen: set[bytes] = set(from_wordlist)
+    merged = list(from_wordlist)
+    for secret in WEAK_SECRETS:
+        if secret not in seen:
+            seen.add(secret)
+            merged.append(secret)
+    return merged
 
 
 def _b64url_encode(data: bytes) -> str:

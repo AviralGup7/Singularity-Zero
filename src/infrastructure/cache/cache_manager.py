@@ -188,8 +188,8 @@ class CacheManager:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Store a value in all enabled cache tiers via TierManager."""
-        self._tiers.set(key, value, ttl, namespace, tags, depends_on, metadata)
         normalized_depends_on = self._normalize_dependency_keys(depends_on, namespace)
+        self._tiers.set(key, value, ttl, namespace, tags, normalized_depends_on, metadata)
         full_key = self._make_key(key, namespace)
         self._invalidation.update_entry(full_key, tags, normalized_depends_on)
 
@@ -224,6 +224,9 @@ class CacheManager:
             indexed_keys: builtins.set[str] = builtins.set()
             for tag in tags:
                 indexed_keys.update(self._invalidation.tag_strategy.get_keys_by_tag(tag))
+                for backend in (self._tiers._l1, self._tiers._l2, self._tiers._l3):
+                    if backend is not None and hasattr(backend, "get_keys_by_tag"):
+                        indexed_keys.update(backend.get_keys_by_tag(tag))
 
             keys_to_invalidate = self._filter_keys_by_namespace(indexed_keys, namespace)
             if not keys_to_invalidate:

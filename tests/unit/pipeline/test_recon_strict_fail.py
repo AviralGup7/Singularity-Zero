@@ -51,9 +51,12 @@ def _ctx(tmp_path: Path, scope_entries: list[str]) -> PipelineContext:
 
 def test_subdomain_stage_warns_when_only_seeded_scope_roots(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, ["example.com"])
+    mock_provider = SimpleNamespace(
+        collect=lambda scope_entries, context, skip_crtsh: {"example.com"}
+    )
     with patch(
-        "src.pipeline.services.services.recon_service.enumerate_subdomains",
-        return_value={"example.com"},
+        "src.pipeline.tools_capabilities.resolve_capability",
+        return_value=mock_provider,
     ):
         output = asyncio.run(recon_stages.run_subdomain_enumeration(_args(), _config(), ctx))
 

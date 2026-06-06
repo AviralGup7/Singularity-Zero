@@ -12,6 +12,7 @@ from src.analysis.active.brute_force import brute_force_resistance_probe
 from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
 from src.analysis.active.cloud_metadata import cloud_metadata_active_probe
 from src.analysis.active.graphql import graphql_active_probe
+from src.analysis.active.graphql_ws_probe import graphql_ws_injection_probe
 from src.analysis.active.http_methods import (
     cors_preflight_probe,
     head_method_probe,
@@ -66,6 +67,7 @@ __all__ = [
     "deserialization_probe",
     "file_upload_active_probe",
     "graphql_active_probe",
+    "graphql_ws_injection_probe",
     "head_method_probe",
     "hpp_active_probe",
     "http2_probe",
@@ -353,6 +355,9 @@ WS_CONFIDENCE = {
     "ws_no_subprotocol_validation": 0.60,
     "ws_error_leaks_internal_info": 0.65,
     "ws_origin_not_validated": 0.72,
+    "graphql_ws_subscription_data_leaked": 0.90,
+    "graphql_ws_unauthenticated_subscription": 0.78,
+    "graphql_ws_csws_origin_bypass": 0.80,
 }
 
 WS_SEVERITY = {
@@ -369,4 +374,7 @@ WS_SEVERITY = {
     "ws_permissive_cors": "high",
     "ws_missing_clickjacking_protection": "low",
     "ws_no_subprotocol_validation": "low",
+    "graphql_ws_subscription_data_leaked": "critical",
+    "graphql_ws_unauthenticated_subscription": "high",
+    "graphql_ws_csws_origin_bypass": "high",
 }

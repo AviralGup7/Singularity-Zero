@@ -46,7 +46,7 @@ class ToolRetryAndOutputStoreTests(unittest.TestCase):
                 "src.pipeline.services.tool_execution.subprocess.run",
                 side_effect=[failed, succeeded],
             ) as mocked_run,
-            patch("src.pipeline.retry.time.sleep") as mocked_sleep,
+            patch("src.pipeline.retry.strategies.time.sleep") as mocked_sleep,
         ):
             result = service.run_command(["demo"], timeout=5, retry_policy=retry_policy)
 

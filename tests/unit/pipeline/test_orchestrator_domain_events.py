@@ -54,6 +54,10 @@ class _DummyLearning:
     async def run_learning_update(self, _ctx: dict[str, object]) -> None:
         return None
 
+    def predict_stage_value(self, _stage: str, _ctx: Any) -> float:
+        return 1.0
+
+
 
 def _make_args(config: SimpleNamespace) -> argparse.Namespace:
     return argparse.Namespace(
@@ -124,6 +128,8 @@ def _patch_runtime_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         "_record_stage_post_run",
         AsyncMock(return_value=None),
     )
+    monkeypatch.setattr("src.pipeline.validation.validate_stage_artifact", lambda stage_name, ctx: (True, None))
+
 
 
 @pytest.mark.asyncio

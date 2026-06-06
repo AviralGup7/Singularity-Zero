@@ -311,7 +311,11 @@ async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
 ) -> None:
     emitted_progress: list[dict[str, object]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
-    monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
+    # ``live_hosts`` is the only truly fatal recon stage under the
+    # default policy.  Use it here to exercise the
+    # ``stage_failed`` progress event emission and the
+    # ``infra_failure`` (exit 3) exit code path.
+    monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
 
     monkeypatch.setattr(
         orch_mod,
@@ -320,14 +324,17 @@ async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
     )
     monkeypatch.setattr(orch_mod, "attempt_recovery", lambda *_args, **_kwargs: (False, None))
 
+    async def _subdomains_noop(*args: Any, **kwargs: Any) -> None:
+        return None
+
     async def _failed_stage(*args: Any, **kwargs: Any) -> None:
         ctx = kwargs.get("ctx") or args[2]
-        ctx.result.module_metrics["subdomains"] = {
+        ctx.result.module_metrics["live_hosts"] = {
             "status": "failed",
             "failure_reason": "mock failure",
             "error": "mock failure",
         }
-        ctx.result.stage_status["subdomains"] = "FAILED"
+        ctx.result.stage_status["live_hosts"] = "FAILED"
         ctx.result.urls = {"https://example.com"}
 
     from src.core.plugins import register_plugin
@@ -338,20 +345,21 @@ async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
     except Exception:  # noqa: S110
         pass
 
-    register_plugin(RECON_PROVIDER, "subdomains")(_failed_stage)
+    register_plugin(RECON_PROVIDER, "subdomains")(_subdomains_noop)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_failed_stage)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
 
     assert exit_code == 3
     assert any(
-        event.get("stage") == "subdomains"
+        event.get("stage") == "live_hosts"
         and event.get("event_trigger") == "stage_failed"
         and str(event.get("message", "")).startswith("Stage failed:")
         for event in emitted_progress
     )
     assert not any(
-        event.get("stage") == "subdomains"
+        event.get("stage") == "live_hosts"
         and event.get("event_trigger") == "stage_complete"
         and event.get("status") == "error"
         for event in emitted_progress

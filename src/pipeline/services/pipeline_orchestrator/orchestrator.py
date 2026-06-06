@@ -705,6 +705,6 @@ class PipelineOrchestrator:
                     "status": "error",
                     "error": str(exc) or exc.__class__.__name__,
                     "failure_reason": str(exc) or exc.__class__.__name__,
-                    "fatal": stage_name in {"subdomains", "live_hosts", "urls"},
+                    "fatal": False,
                 }
                 return 1

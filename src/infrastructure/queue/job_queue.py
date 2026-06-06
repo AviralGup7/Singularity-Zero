@@ -24,23 +24,25 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.infrastructure.queue.retry_policy import RetryPolicy
+
 from src.infrastructure.queue.consumer_groups import (
-    JobQueue as _JobQueueConsumerGroups,
+    JobQueueConsumerGroupsMixin as _JobQueueConsumerGroups,
 )
 from src.infrastructure.queue.core import JobQueueCore
 from src.infrastructure.queue.persistence import (
-    JobQueue as _JobQueuePersistence,
+    JobQueuePersistenceMixin as _JobQueuePersistence,
 )
 from src.infrastructure.queue.rate_limiter import (
-    JobQueue as _JobQueueRateLimiter,
+    JobQueueRateLimiterMixin as _JobQueueRateLimiter,
 )
 
 
 class JobQueue(
-    JobQueueCore,
     _JobQueuePersistence,
     _JobQueueConsumerGroups,
     _JobQueueRateLimiter,
+    JobQueueCore,
 ):
     """Production-grade distributed job queue with Redis backend.
 

@@ -527,6 +527,23 @@ def _register_bindings() -> None:
         "race_concurrent_mutator": _binding(
             "responses_only", src.detection.handlers.race_concurrent_mutator
         ),
+        # ---- API-specific detection handlers (REST HPP, GraphQL, rate
+        # limit diff, JWT claim integrity, WebSocket message security)
+        "api_rest_param_pollution": _binding(
+            "responses_only", src.detection.handlers.api_rest_param_pollution
+        ),
+        "api_graphql_introspection": _binding(
+            "responses_only", src.detection.handlers.api_graphql_introspection
+        ),
+        "api_rate_limit_differential": _binding(
+            "responses_only", src.detection.handlers.api_rate_limit_differential
+        ),
+        "api_jwt_claim_integrity": _binding(
+            "responses_only", src.detection.handlers.api_jwt_claim_integrity
+        ),
+        "api_websocket_message_security": _binding(
+            "responses_only", src.detection.handlers.api_websocket_message_security
+        ),
     }
 
     for key, binding in bindings.items():

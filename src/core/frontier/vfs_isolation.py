@@ -1,5 +1,5 @@
 """Cyber Security Test Pipeline - Ghost-VFS Isolation
-Policy engines, Hardware Enclave, and eBPF hooks.
+Encryption policy, hardware enclave, and eBPF hook abstractions.
 """
 
 from __future__ import annotations

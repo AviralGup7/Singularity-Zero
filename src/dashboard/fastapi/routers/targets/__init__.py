@@ -7,10 +7,13 @@ files while re-exporting public APIs and the combined router.
 from fastapi import APIRouter
 
 from .crud import router as crud_router
+from .crud import list_all_findings
 from .scoring import router as scoring_router
-from .validation import (
+from src.dashboard.fastapi.schemas import (
     TargetComparisonDetail,
     TargetComparisonResponse,
+)
+from .validation import (
     TargetFindingsResponse,
     _normalize_finding_payload,
     _validate_target_name,
@@ -32,4 +35,5 @@ __all__ = [
     "TargetComparisonResponse",
     "TargetComparisonDetail",
     "TargetFindingsResponse",
+    "list_all_findings",
 ]

@@ -7,12 +7,12 @@ from typing import Any
 
 from .jwt_attack_helpers import (
     JWT_AUTH_HEADERS,
-    WEAK_SECRETS,
     _b64url_encode,
     _create_jwt,
     _decode_jwt_part,
     _get_original_status,
     _send_with_token,
+    get_weak_secrets,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,8 +47,8 @@ def test_weak_secret(token: str, url: str, session: Any) -> dict[str, Any]:
 
         cracked_secret = None
 
-        # Offline dictionary attack
-        for secret in WEAK_SECRETS:
+        # Offline dictionary attack: packaged wordlist (jwt-secrets.txt) + inline fallback
+        for secret in get_weak_secrets():
             expected_sig = hmac.new(secret, signing_input, hash_alg).digest()
             expected_sig_b64 = _b64url_encode(expected_sig)
             if expected_sig_b64 == provided_signature:

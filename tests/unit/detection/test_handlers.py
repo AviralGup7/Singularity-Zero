@@ -21,11 +21,18 @@ from src.detection.handlers import (
 # ---------------------------------------------------------------------------
 
 
-def test_list_handler_keys_returns_ten():
+def test_list_handler_keys_includes_api_handlers():
     keys = list_handler_keys()
-    assert len(keys) == 10
     assert "js_sink_source_analyzer" in keys
     assert "race_concurrent_mutator" in keys
+    api_keys = {
+        "api_rest_param_pollution",
+        "api_graphql_introspection",
+        "api_rate_limit_differential",
+        "api_jwt_claim_integrity",
+        "api_websocket_message_security",
+    }
+    assert api_keys.issubset(set(keys))
 
 
 def test_get_handler_returns_callable_for_each_key():

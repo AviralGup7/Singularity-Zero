@@ -43,8 +43,10 @@ def can_transition(current: FindingLifecycleState, target: FindingLifecycleState
 
 
 def transition_state(current: str | None, target: str | None) -> str:
-    source = normalize_lifecycle_state(current)
     destination = normalize_lifecycle_state(target)
+    if current is None:
+        return destination.value
+    source = normalize_lifecycle_state(current)
     if not can_transition(source, destination):
         raise ValueError(f"Invalid lifecycle transition from {source} to {destination}")
     return destination.value

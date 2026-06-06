@@ -76,6 +76,8 @@ def __getattr__(name: str) -> Any:
         return import_module("src.detection.browser")
     if name in {"waf"}:
         return import_module("src.detection.waf")
+    if name in {"api"}:
+        return import_module("src.detection.api")
     raise AttributeError(name)
 
 
@@ -116,4 +118,5 @@ __all__ = [
     "signals",
     "stateful",
     "waf",
+    "api",
 ]

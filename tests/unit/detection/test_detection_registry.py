@@ -230,6 +230,8 @@ class TestDetectionRegistry:
             "ast",
             "browser",
             "waf",
+            "third-party",
+            "api",
         }
         for plugin in DETECTION_PLUGINS:
             assert plugin.group in valid_groups
@@ -248,6 +250,7 @@ class TestDetectionRegistry:
             "behavior_analysis",
             "header_targets_and_cache",
             "urls_and_cache",
+            "dynamic_analysis_context",
         }
         for plugin in DETECTION_PLUGINS:
             assert plugin.input_kind in valid_kinds
