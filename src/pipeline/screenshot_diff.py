@@ -83,7 +83,8 @@ def _gaussian_kernel(size: int = 11, sigma: float = 1.5) -> np.ndarray:
     x = np.arange(-(size // 2), size // 2 + 1)
     kernel = np.exp(-0.5 * (x**2) / sigma**2)
     kernel2d = np.outer(kernel, kernel)
-    return kernel2d / kernel2d.sum()
+    result: np.ndarray = kernel2d / kernel2d.sum()
+    return result
 
 
 def _compute_ssim(img_a: Image.Image, img_b: Image.Image, win_size: int = 11, sigma: float = 1.5) -> float:
@@ -213,7 +214,7 @@ def compute_screenshot_diff(
     img_current = _load_image(current)
     img_base, img_current = _normalize_images(img_base, img_current)
     diff_image = _compute_pixel_diff(img_base, img_current)
-    
+
     # Highlight changed regions in diff panel using tiled SSIM
     diff_image = _highlight_changes(img_base, img_current, diff_image)
 
@@ -222,7 +223,7 @@ def compute_screenshot_diff(
     pixel_diff_pct = (diff_pixel_count / total_pixels * 100) if total_pixels > 0 else 0.0
     mse = _compute_mse(img_base, img_current)
     ssim = _compute_ssim(img_base, img_current)
-    
+
     metrics = DiffMetrics(
         pixel_diff_count=diff_pixel_count,
         pixel_diff_percentage=round(pixel_diff_pct, 4),

@@ -16,7 +16,7 @@ all backends in one place::
 from src.infrastructure.cache.backends.file_backend import FileBackend
 from src.infrastructure.cache.backends.memory import MemoryBackend
 from src.infrastructure.cache.backends.protocol import CacheBackend
-from src.infrastructure.cache.backends.redis_backend import RedisBackend
+from src.infrastructure.cache.backends.redis import RedisBackend
 from src.infrastructure.cache.backends.sqlite import SQLiteBackend
 
 __all__ = ["CacheBackend", "SQLiteBackend", "RedisBackend", "FileBackend", "MemoryBackend"]

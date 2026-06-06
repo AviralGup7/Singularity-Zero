@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
-from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
-from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.models.stage_result import PipelineContext
-from src.pipeline.runner_support import emit_progress
-from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
+
 from src.analysis.checks.exposure._detectors import subdomain_takeover_indicator_checker
 from src.analysis.intelligence.aggregator import (
     annotate_finding_decisions,
@@ -17,6 +13,11 @@ from src.analysis.intelligence.aggregator import (
     merge_findings,
 )
 from src.core.contracts.finding_lifecycle import apply_lifecycle
+from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
+from src.core.logging.trace_logging import get_pipeline_logger
+from src.core.models.stage_result import PipelineContext
+from src.pipeline.runner_support import emit_progress
+from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 
 logger = get_pipeline_logger(__name__)
 
@@ -39,7 +40,7 @@ async def run_subdomain_takeover(
     # Convert subdomains to urls
     subdomains = getattr(ctx, "subdomains", []) or []
     urls = {f"http://{sub}" for sub in subdomains} | {f"https://{sub}" for sub in subdomains}
-    
+
     # Run the existing subdomain takeover check
     raw_findings = subdomain_takeover_indicator_checker(urls, [])
     duration = round(time.monotonic() - stage_started, 2)

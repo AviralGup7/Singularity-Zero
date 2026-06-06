@@ -17,7 +17,6 @@ from src.pipeline.runner_support import (
 from src.pipeline.services.pipeline_helpers import (
     build_stage_input_from_context,
 )
-from src.pipeline.services.services import recon_service
 from src.pipeline.services.services.recon_service import (
     run_live_hosts_service,
     run_parameter_extraction_stage,

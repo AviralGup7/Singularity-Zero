@@ -15,10 +15,10 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
 from src.pipeline.retry import (
     AdaptiveBackoffHeuristic,
-    RetryBudgetExhausted,
     RetryEventEmitter,
     RetryEventType,
     RetryMetrics,
+    RetryPolicy,
     RetryPolicyState,
     StageRetryPolicy,
     classify_error,
@@ -77,18 +77,16 @@ async def run_stage_with_retry(
         )
     if not isinstance(policy, StageRetryPolicy):
         policy = StageRetryPolicy(
-            base_policy=RetryPolicyState(
-                base_policy=RetryPolicy(
-                    max_attempts=getattr(policy, "max_attempts", 1),
-                    initial_backoff_seconds=getattr(policy, "initial_backoff_seconds", 0.0),
-                    backoff_multiplier=getattr(policy, "backoff_multiplier", 2.0),
-                    max_backoff_seconds=getattr(policy, "max_backoff_seconds", 8.0),
-                    retry_on_timeout=getattr(policy, "retry_on_timeout", True),
-                    retry_on_error=getattr(policy, "retry_on_error", True),
-                    jitter_factor=getattr(policy, "jitter_factor", 0.25),
-                ),
-                adaptive_heuristic=AdaptiveBackoffHeuristic(),
+            base_policy=RetryPolicy(
+                max_attempts=getattr(policy, "max_attempts", 1),
+                initial_backoff_seconds=getattr(policy, "initial_backoff_seconds", 0.0),
+                backoff_multiplier=getattr(policy, "backoff_multiplier", 2.0),
+                max_backoff_seconds=getattr(policy, "max_backoff_seconds", 8.0),
+                retry_on_timeout=getattr(policy, "retry_on_timeout", True),
+                retry_on_error=getattr(policy, "retry_on_error", True),
+                jitter_factor=getattr(policy, "jitter_factor", 0.25),
             ),
+            adaptive_heuristic=AdaptiveBackoffHeuristic(),
             max_retry_budget_seconds=_DEFAULT_RETRY_BUDGET_SECONDS,
         )
     metrics = RetryMetrics()
@@ -201,7 +199,7 @@ async def run_stage_with_retry(
         try:
             stage_output = await _execute_stage()
             metrics.record_success()
-            policy.adaptive_heuristic.observe(True)
+            policy.observe_outcome(True)
             if stage_output is not None:
                 import dataclasses
 
@@ -241,7 +239,7 @@ async def run_stage_with_retry(
             is_timeout = True
             classification = "transient"
             metrics.record_transient()
-            policy.adaptive_heuristic.observe(False)
+            policy.observe_outcome(False)
             if stage_name == "live_hosts":
                 orchestrator._log_live_hosts_timeout_diagnostics(ctx, timeout)
 
@@ -260,7 +258,7 @@ async def run_stage_with_retry(
                 metrics.record_transient()
             elif classification == "permanent":
                 metrics.record_permanent()
-            policy.adaptive_heuristic.observe(False)
+            policy.observe_outcome(False)
 
         retryable = (
             last_exc is not None

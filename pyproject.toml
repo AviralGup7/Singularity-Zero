@@ -50,6 +50,7 @@ dependencies = [
     "aiosqlite==0.20.0",
     # --- Security analysis ---
     "numpy==2.0.0",
+    "Pillow==11.1.0",
     "networkx==3.0.0",
     "beartype==0.18.5",
     "mmh3==5.1.0",

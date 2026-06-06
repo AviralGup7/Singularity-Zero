@@ -198,7 +198,8 @@ class ActorScheduler:
                 break
 
             # Dynamically plan remaining stages and calibrate resources/timeouts
-            self._remaining, resources = planner.plan_stages(list(self._remaining))
+            planned_remaining, resources = planner.plan_stages(list(self._remaining))
+            self._remaining = set(planned_remaining)
             if resources:
                 # Merge dynamically planned stage timeouts or other adjustments
                 for k, v in resources.items():
@@ -475,7 +476,7 @@ class ActorScheduler:
             return set()
         if len(rebalanced) < threshold:
             return set()
-        return rebalanced
+        return set(rebalanced)
 
     def _effective_rebalance_threshold(self) -> int:
         try:
@@ -592,4 +593,4 @@ class ActorScheduler:
 def _utcnow_iso() -> str:
     import datetime
 
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+    return datetime.datetime.now(datetime.UTC).isoformat()

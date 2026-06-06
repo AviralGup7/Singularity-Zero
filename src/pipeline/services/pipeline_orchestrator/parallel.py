@@ -18,8 +18,7 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import StageStatus
 from src.pipeline.runner_support import emit_progress
 
-from ._constants import PIPELINE_STAGES, STAGE_ORDER, STAGE_GRAPH
-from ._graph_dsl import StageNode
+from ._constants import PIPELINE_STAGES, STAGE_GRAPH, STAGE_ORDER
 
 logger = get_pipeline_logger(__name__)
 

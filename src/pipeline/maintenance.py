@@ -1,13 +1,11 @@
 import argparse
 import datetime
 import json
-import logging
 import os
 import re
 import shutil
 import sys
 import tempfile
-import time
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -191,7 +189,7 @@ class MaintenanceLock:
 
     def __init__(self, lockfile_path: Path) -> None:
         self.lockfile_path = lockfile_path
-        self._fd = None
+        self._fd: int | None = None
 
     def __enter__(self) -> "MaintenanceLock":
         self.lockfile_path.parent.mkdir(parents=True, exist_ok=True)

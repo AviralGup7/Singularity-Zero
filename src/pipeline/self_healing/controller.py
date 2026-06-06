@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 import uuid
 from collections.abc import Awaitable, Callable
@@ -272,8 +271,7 @@ class SelfHealingController:
                 metric=finding.metric,
                 labels={"autodegraded": "true", "original_action": corrective_action.value},
             )
-            await self.actions.execute(degraded_finding)
-            correction = degraded_finding
+            correction = await self.actions.execute(degraded_finding)
         await self._maybe_notify(finding, correction)
         self._last_snapshot = PipelineHealthSnapshot(
             status=status,
@@ -360,7 +358,7 @@ class SelfHealingController:
         snapshot is returned. Useful for ad-hoc dashboard refreshes and
         synchronous tests; production cadence is event-driven, not polled.
         """
-        metrics = await self.collect_probe_metrics()
+        await self.collect_probe_metrics()
         await self._event_bus.flush_pending()
         return self._last_snapshot
 

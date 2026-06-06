@@ -1,16 +1,16 @@
 import os
 import unittest
 from unittest.mock import MagicMock, patch
+
 import pytest
 
-from src.core.capabilities import ToolExecutionContext, CapabilityManifest
+from src.core.capabilities import CapabilityManifest
+from src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap import bootstrap_pipeline
 from src.pipeline.tools_capabilities import (
+    CAPABILITY_PROVIDERS,
     CapabilityRegistry,
     resolve_capability,
-    CAPABILITY_REGISTRY,
-    CAPABILITY_PROVIDERS,
 )
-from src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap import bootstrap_pipeline
 
 
 @pytest.mark.unit

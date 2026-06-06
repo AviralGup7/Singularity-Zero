@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PIL import Image
 import requests
-from scipy.fft import dct
 import urllib3
+from PIL import Image
+from scipy.fft import dct
 
 from src.core.logging.pipeline_logging import emit_warning
 from src.core.models import Config
@@ -66,7 +66,7 @@ def is_blank_page(image_path: Path, threshold_pct: float = 0.5) -> bool:
             non_white_count = np.sum(non_white_mask)
             total_pixels = arr.shape[0] * arr.shape[1]
             non_white_pct = (non_white_count / total_pixels) * 100
-            return non_white_pct <= threshold_pct
+            return bool(non_white_pct <= threshold_pct)
     except Exception:
         return False
 
@@ -75,8 +75,8 @@ def compute_phash(image_path: Path) -> str:
     """Compute an 8x8 DCT-based perceptual hash of an image."""
     try:
         with Image.open(image_path) as img:
-            img = img.convert("L").resize((32, 32), Image.Resampling.BILINEAR)
-            pixels = np.array(img, dtype=float)
+            processed = img.convert("L").resize((32, 32), Image.Resampling.BILINEAR)
+            pixels = np.array(processed, dtype=float)
             # 2D Discrete Cosine Transform
             dct_val = dct(dct(pixels, axis=0, norm='ortho'), axis=1, norm='ortho')
             dct_low = dct_val[:8, :8]
@@ -110,7 +110,7 @@ def _capture_single(
     """Capture a screenshot for a single URL, using baseline management and fidelity checks."""
     destination = screenshot_dir / f"{safe_name_from_url(url)}.png"
     viewport = settings.get("window_size", "1440,900")
-    
+
     # 1. Fetch DOM and check if we can skip capture
     dom_hash = compute_dom_hash(url)
     if dom_hash and baseline_store.should_skip_capture(target_name, url, viewport, dom_hash):
@@ -183,7 +183,7 @@ def _capture_single(
                                 image_hash = base_hash
                             except Exception:
                                 pass
-                
+
                 # Update the store
                 try:
                     with open(destination, "rb") as f:

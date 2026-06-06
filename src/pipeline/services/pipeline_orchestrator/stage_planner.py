@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+
 from src.core.models.stage_result import StageStatus
-from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode, AlwaysTrue, OutputNonEmpty
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class StagePlanner:
         # 4. Adaptive Concurrency calibration based on workload shape
         url_count = len(urls)
         time_budget = getattr(self.config, "estimated_time_budget", 3600)
-        
+
         # Calibration logic:
         # A scope yielding 500 URLs gets light concurrency to avoid being banned;
         # 50k URLs gets heavy concurrency with conservative rate-limiting.
@@ -85,7 +85,7 @@ class StagePlanner:
         live_hosts = getattr(result, "live_hosts", []) or []
         if len(live_hosts) > 3 and "waf" in adjusted_stages:
             sample_size = max(3, int(len(live_hosts) * 0.05))
-            sample_hosts = list(live_hosts)[:sample_size]
+            list(live_hosts)[:sample_size]
             # Simulate a quick checks evaluation (or logic checks if WAF features exists)
             waf_detected_count = 0
             # If no WAF issues/detections are simulated/recorded in first sample check, we mark WAF probability low
@@ -119,7 +119,7 @@ class StagePlanner:
                     result.stage_status[s] = StageStatus.SKIPPED.value
                     result.module_metrics[s] = {"status": "skipped", "reason": f"low_marginal_value_{val:.2f}"}
                 continue
-            
+
             allocated_time = int((val / max(0.1, total_value)) * remaining_time)
             resources[f"{s}_stage_timeout_seconds"] = max(60, allocated_time)
             final_stages.append(s)

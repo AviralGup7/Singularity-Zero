@@ -398,7 +398,7 @@ async def _run_fuzzing_campaign_probe(
     probes: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Execute an active mutation parameter fuzzing campaign against priority URLs."""
-    from src.fuzzing.orchestrator import FuzzingOrchestrator
+    from src.fuzzing.orchestrator import FuzzingOrchestrator  # type: ignore[attr-defined]
 
     orchestrator = FuzzingOrchestrator(priority_urls)
     findings: list[dict[str, Any]] = []

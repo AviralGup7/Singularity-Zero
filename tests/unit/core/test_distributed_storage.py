@@ -62,7 +62,7 @@ class _FakeRedis:
                 new_bucket.append(v)
             self._lists[key] = new_bucket
 
-    def pipeline(self, transaction: bool = True) -> "_FakePipeline":  # noqa: ARG002
+    def pipeline(self, transaction: bool = True) -> _FakePipeline:  # noqa: ARG002
         return _FakePipeline(self)
 
     def scan_iter(self, match: str = "*", count: int = 100) -> Any:  # noqa: ARG002
@@ -79,19 +79,19 @@ class _FakePipeline:
         self._client = redis_client
         self._ops: list[tuple[str, tuple[Any, ...]]] = []
 
-    def rpush(self, key: str, value: bytes) -> "_FakePipeline":
+    def rpush(self, key: str, value: bytes) -> _FakePipeline:
         self._ops.append(("rpush", (key, value)))
         return self
 
-    def set(self, key: str, value: bytes) -> "_FakePipeline":
+    def set(self, key: str, value: bytes) -> _FakePipeline:
         self._ops.append(("set", (key, value)))
         return self
 
-    def lrem(self, key: str, count: int, value: bytes) -> "_FakePipeline":
+    def lrem(self, key: str, count: int, value: bytes) -> _FakePipeline:
         self._ops.append(("lrem", (key, count, value)))
         return self
 
-    def delete(self, key: str) -> "_FakePipeline":
+    def delete(self, key: str) -> _FakePipeline:
         self._ops.append(("delete", (key,)))
         return self
 
@@ -289,7 +289,7 @@ def test_wal_aof_path_honours_aof_dir(tmp_path: Path) -> None:
 
     wal.log_delta("stage_1", {"k": 1})
     assert wal._aof_path.exists()
-    assert not (tmp_path / ".pipeline" / "wal" / f"local_wal_run-aof.aof").exists()
+    assert not (tmp_path / ".pipeline" / "wal" / "local_wal_run-aof.aof").exists()
 
     recovered = wal.recover_deltas()
     assert len(recovered) == 1

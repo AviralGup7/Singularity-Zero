@@ -1,12 +1,14 @@
 import hashlib
 import time
-from typing import Any, Optional
+from typing import Any
+
 from src.pipeline.unified_cache import UnifiedCache
+
 
 class ScreenshotBaselineStore:
     """Baseline manager mapping targets, URLs, and viewports to prior screenshots and DOM states."""
 
-    def __init__(self, cache: Optional[UnifiedCache] = None) -> None:
+    def __init__(self, cache: UnifiedCache | None = None) -> None:
         self.cache = cache if cache is not None else UnifiedCache()
 
     def _get_baseline_key(self, target: str, url: str, viewport: str) -> str:
@@ -18,14 +20,14 @@ class ScreenshotBaselineStore:
     def _get_blob_key(self, image_hash: str) -> str:
         return f"screenshot:blob:{image_hash}"
 
-    def get_baseline(self, target: str, url: str, viewport: str) -> Optional[dict[str, Any]]:
+    def get_baseline(self, target: str, url: str, viewport: str) -> dict[str, Any] | None:
         key = self._get_baseline_key(target, url, viewport)
         val = self.cache.get(key)
         if isinstance(val, dict):
             return val
         return None
 
-    def get_screenshot_blob(self, image_hash: str) -> Optional[str]:
+    def get_screenshot_blob(self, image_hash: str) -> str | None:
         """Returns the base64-encoded image bytes for the given image hash."""
         key = self._get_blob_key(image_hash)
         val = self.cache.get(key)

@@ -1,16 +1,13 @@
 import base64
-import hashlib
 import tempfile
 import unittest
 from pathlib import Path
 
-import numpy as np
 from PIL import Image, ImageDraw
 
 from src.pipeline.baseline_store import ScreenshotBaselineStore
 from src.pipeline.screenshot_diff import _compute_ssim, compute_screenshot_diff
 from src.pipeline.screenshots import (
-    compute_dom_hash,
     compute_phash,
     hamming_distance,
     is_blank_page,

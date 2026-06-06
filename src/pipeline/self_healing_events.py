@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -45,7 +46,7 @@ class HealthMetricEvent:
             event_type=EventType.HEALTH_METRIC_EMITTED,
             source=source,
             data=data,
-            correlation_id=correlation_id,
+            correlation_id=correlation_id or str(uuid.uuid4()),
         )
 
 

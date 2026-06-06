@@ -1,23 +1,20 @@
 """Tests for the unified cache integrations."""
 
 import tempfile
-import threading
 import time
 import unittest
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from src.pipeline.cache import TTLMode, response_cache_fresh
 from src.pipeline.cache_backend import PersistentCache
 from src.pipeline.unified_cache import (
-    Backend,
-    CachePriority,
-    CoalescingCacheWrapper,
     NAMESPACE_ROUTING,
     PRIORITY_RANK,
+    Backend,
+    CachePriority,
     UnifiedCache,
 )
 

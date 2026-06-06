@@ -6,6 +6,8 @@ import pytest
 
 from src.core.capabilities import (
     SystemPluginManifest as CapabilityManifest,
+)
+from src.core.capabilities import (
     generate_capability_manifest,
 )
 

@@ -11,8 +11,7 @@ from typing import Any, cast
 import pytest
 
 from src.core.models.stage_result import PipelineContext, StageResult
-from src.pipeline.services.pipeline_orchestrator.stages import active_scan
-from src.pipeline.services.pipeline_orchestrator.stages import active_scan_adaptive
+from src.pipeline.services.pipeline_orchestrator.stages import active_scan, active_scan_adaptive
 
 
 @pytest.mark.asyncio
