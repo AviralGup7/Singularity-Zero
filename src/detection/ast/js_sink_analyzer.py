@@ -26,6 +26,7 @@ exploitation layer (injectionengine) is responsible for confirmation.
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import logging
 import re
@@ -174,14 +175,14 @@ class JSSinkSourceFinding:
 # ---------------------------------------------------------------------------
 
 
-def fetch_inline_scripts(html: str) -> list[tuple[str, str]]:
+def fetch_inline_scripts(html: str) -> list[tuple[int, str]]:
     """Return ``(line_offset, code)`` tuples for every ``<script>`` block.
 
     The line offset is the 1-based line number where the block starts so
     findings can be reported in original HTML coordinates.
     """
 
-    out: list[tuple[str, str]] = []
+    out: list[tuple[int, str]] = []
     script_re = re.compile(
         r"<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)</script>",
         re.IGNORECASE,
@@ -218,7 +219,7 @@ def decode_inline_source_map(data_url: str) -> str | None:
     if "base64" in _header:
         try:
             return base64.b64decode(payload).decode("utf-8", errors="ignore")
-        except (ValueError, base64.binascii.Error):
+        except (ValueError, binascii.Error):
             return None
     try:
         from urllib.parse import unquote
@@ -235,9 +236,12 @@ def extract_next_data(html: str) -> dict[str, Any] | None:
     if not match:
         return None
     try:
-        return json.loads(match.group(1))
+        data = json.loads(match.group(1))
     except (json.JSONDecodeError, ValueError):
         return None
+    if isinstance(data, dict):
+        return data
+    return None
 
 
 # ---------------------------------------------------------------------------

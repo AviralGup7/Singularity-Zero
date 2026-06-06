@@ -43,7 +43,7 @@ async def run_active_scanning_adaptive(
     checkpoint_mgr = getattr(ctx, "_checkpoint_mgr", None)
     scanned_urls: set[str] = set()
     historical_findings: list[dict[str, Any]] = []
-    
+
     if checkpoint_mgr and hasattr(checkpoint_mgr, "load_stage_deltas"):
         try:
             previous_deltas = checkpoint_mgr.load_stage_deltas("active_scan")
@@ -65,7 +65,7 @@ async def run_active_scanning_adaptive(
     urls = set(ctx.urls) if ctx.urls else set()
 
     all_urls = _normalize_scan_targets([*list(urls), *list(live_hosts)])
-    
+
     # Filter out already scanned URLs
     if scanned_urls:
         all_urls = [u for u in all_urls if u not in scanned_urls]

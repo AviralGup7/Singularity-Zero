@@ -38,7 +38,7 @@ class CheckpointManager:
         run_id: str,
         checkpoint_store: CheckpointStore | None = None,
         storage_config: dict[str, Any] | None = None,
-        distributed_store: "DistributedCheckpointStore | None" = None,
+        distributed_store: DistributedCheckpointStore | None = None,
     ) -> None:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.run_id = run_id
@@ -46,7 +46,7 @@ class CheckpointManager:
         self._store: CheckpointStore = checkpoint_store or create_checkpoint_store(
             storage_config, self.checkpoint_dir
         )
-        self._distributed: "DistributedCheckpointStore | None" = distributed_store
+        self._distributed: DistributedCheckpointStore | None = distributed_store
         self._state: CheckpointState | None = None
         self._lock = threading.RLock()
 
@@ -79,7 +79,7 @@ class CheckpointManager:
         self._run_dir.mkdir(parents=True, exist_ok=True)
 
     def _resolve_local_checkpoint_file(
-        self, version_id: "VersionId"
+        self, version_id: VersionId
     ) -> Path | None:
         """Best-effort local file path for a given ``version_id``.
 
@@ -97,7 +97,7 @@ class CheckpointManager:
         return None
 
     @staticmethod
-    def _version_to_int(version_id: "VersionId") -> int:
+    def _version_to_int(version_id: VersionId) -> int:
         from src.core.storage.local_backends import _parse_version_id
 
         return _parse_version_id(version_id)

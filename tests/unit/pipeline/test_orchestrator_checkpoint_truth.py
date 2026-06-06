@@ -360,7 +360,7 @@ async def test_failed_stage_emits_stage_failed_summary_not_stage_complete(
 
 def test_checkpoint_migration_v1_to_v2() -> None:
     from src.core.checkpoint.migrations import GLOBAL_MIGRATION_REGISTRY
-    
+
     # Pre-migration v1 checkpoint data
     v1_data = {
         "pipeline_run_id": "test-run",
@@ -378,10 +378,10 @@ def test_checkpoint_migration_v1_to_v2() -> None:
             }
         }
     }
-    
+
     migrated = GLOBAL_MIGRATION_REGISTRY.migrate(v1_data)
     assert migrated["schema_version"] == 2
-    
+
     findings = migrated["stage_results"]["active_scan"]["reportable_findings"]
     assert len(findings) == 1
     f = findings[0]
@@ -398,8 +398,10 @@ def test_checkpoint_migration_v1_to_v2() -> None:
 
 def test_scope_merge_diffing_on_resume() -> None:
     from src.core.models.stage_result import PipelineContext, StageResult
-    from src.pipeline.services.pipeline_orchestrator._orchestrator.security import _merge_and_diff_scopes
-    
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.security import (
+        _merge_and_diff_scopes,
+    )
+
     ctx = PipelineContext(
         result=StageResult(
             scope_entries=["example.com", "target.com"],
@@ -411,29 +413,29 @@ def test_scope_merge_diffing_on_resume() -> None:
             ]
         )
     )
-    
+
     completed_stages = {"subdomains", "live_hosts", "urls"}
-    
+
     # Current scope removes target.com and other.com, but adds new.com
     current_scope = ["example.com", "new.com"]
-    
+
     _merge_and_diff_scopes(ctx, completed_stages, current_scope)
-    
+
     # Removed targets are filtered out
     assert "target.com" not in ctx.result.scope_entries
     assert "example.com" in ctx.result.scope_entries
     assert "new.com" in ctx.result.scope_entries
-    
+
     assert "a.example.com" in ctx.subdomains
     assert "b.target.com" not in ctx.subdomains
     assert "other.com" not in ctx.subdomains
-    
+
     assert "https://a.example.com/path" in ctx.urls
     assert "https://b.target.com/path" not in ctx.urls
-    
+
     assert len(ctx.reportable_findings) == 1
     assert ctx.reportable_findings[0]["url"] == "https://a.example.com/path"
-    
+
     # completed_stages is cleared because new.com was added
     assert not completed_stages
 
@@ -441,23 +443,24 @@ def test_scope_merge_diffing_on_resume() -> None:
 @pytest.mark.asyncio
 async def test_adaptive_scan_cancellation_shield() -> None:
     import asyncio
+
     from src.decision.adaptive_scan import AdaptiveScanCoordinator
-    
+
     async def mock_probe(url: str) -> list[dict]:
         await asyncio.sleep(0.1)
         return [{"url": url, "category": "mock_vuln"}]
-        
+
     coordinator = AdaptiveScanCoordinator(
         urls=["http://target1.com", "http://target2.com"],
         probe_fn=mock_probe,
         batch_size=1,
         concurrency=1,
     )
-    
+
     deltas_saved = []
     def save_delta_fn(urls, findings):
         deltas_saved.append((urls, findings))
-        
+
     # Cancel the run loop after starting
     async def run_and_cancel():
         run_task = asyncio.create_task(coordinator.run(save_delta_fn=save_delta_fn))
@@ -467,9 +470,9 @@ async def test_adaptive_scan_cancellation_shield() -> None:
             await run_task
         except asyncio.CancelledError:
             pass
-            
+
     await run_and_cancel()
-    
+
     # Verifies that at least the first batch finishes scanning, flushes delta, and registers findings before cancelling
     assert len(deltas_saved) == 1
     assert deltas_saved[0][0] == ["http://target1.com"]

@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from collections.abc import Awaitable, Mapping
+from collections.abc import Awaitable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -119,7 +119,7 @@ SCOPE_ENTRY_THRESHOLD = 1200
 # ---------------------------------------------------------------------------
 
 
-def stage_baseline(stage_name: str, stage_order: list[str]) -> int:
+def stage_baseline(stage_name: str, stage_order: Sequence[str]) -> int:
     """Compute the baseline progress percentage for a given stage.
 
     Uses a predefined map of known stages for accurate percentages based on
@@ -129,7 +129,7 @@ def stage_baseline(stage_name: str, stage_order: list[str]) -> int:
     if stage_name in _STAGE_BASELINE_PROGRESS:
         return _STAGE_BASELINE_PROGRESS[stage_name]
     if stage_name in stage_order:
-        index = stage_order.index(stage_name)
+        index = list(stage_order).index(stage_name)
         return int(((index + 1) / max(1, len(stage_order))) * 100)
     return 0
 
@@ -141,7 +141,7 @@ def stage_baseline(stage_name: str, stage_order: list[str]) -> int:
 
 def build_stage_methods_map(
     *,
-    stage_order: list[str],
+    stage_order: Sequence[str],
     module_globals: dict[str, Any],
     resolve_stage_runner_func: Any,
 ) -> dict[str, Any]:

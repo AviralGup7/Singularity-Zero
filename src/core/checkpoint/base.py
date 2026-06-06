@@ -66,16 +66,17 @@ class CheckpointState:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CheckpointState:
         """Reconstruct a CheckpointState from a deserialized dictionary."""
-        from src.core.checkpoint.migrations import GLOBAL_MIGRATION_REGISTRY
         import dataclasses
-        
+
+        from src.core.checkpoint.migrations import GLOBAL_MIGRATION_REGISTRY
+
         data.pop("checksum", None)
         migrated = GLOBAL_MIGRATION_REGISTRY.migrate(data)
-        
+
         # Keep only fields present in CheckpointState dataclass for robustness/forward-compatibility
         valid_fields = {f.name for f in dataclasses.fields(cls)}
         filtered = {k: v for k, v in migrated.items() if k in valid_fields}
-        
+
         restored = _deserialize_sets(filtered)
         return cls(**restored)
 

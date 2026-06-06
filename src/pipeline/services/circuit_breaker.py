@@ -315,7 +315,7 @@ class CircuitBreaker:
 
     def stats(self) -> CircuitBreakerStats:
         with self._lock:
-            now = time.time()
+            time.time()
             return CircuitBreakerStats(
                 name=self.name,
                 state=self._state,

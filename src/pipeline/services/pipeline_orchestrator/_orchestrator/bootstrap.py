@@ -37,7 +37,9 @@ def bootstrap_pipeline(args: argparse.Namespace) -> tuple[Any, list[str], dict[s
 
     # Perform capability resource validation check
     import os
+
     import psutil
+
     from src.pipeline.tools_capabilities import CAPABILITY_REGISTRY
 
     if not os.environ.get("IGNORE_CAPABILITY_RESOURCE_BUDGET"):

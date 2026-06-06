@@ -95,7 +95,7 @@ async def list_circuit_breakers(request: Request) -> dict[str, Any]:
     snapshot = service.breaker_snapshot()
     return {
         "tools": {
-            name: (stats.as_dict() if hasattr(stats, "as_dict") else dict(stats))
+            name: (stats.as_dict() if hasattr(stats, "as_dict") else dict(stats))  # type: ignore[arg-type]
             for name, stats in snapshot.items()
         },
         "count": len(snapshot),

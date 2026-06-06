@@ -10,40 +10,42 @@ import os
 import shutil
 import socket
 from pathlib import Path
-from typing import Any, Optional, Dict, List
+from typing import Any
+
 import psutil
 from pydantic import BaseModel, Field
+
 
 # Pydantic models for structural configuration validation
 class ToolsConfigModel(BaseModel):
     model_config = {"extra": "allow"}
 
-    timeout_seconds: Optional[int] = 120
-    retry_attempts: Optional[int] = 2
-    retry_backoff_seconds: Optional[float] = 2.0
-    retry_backoff_multiplier: Optional[float] = 1.0
-    retry_max_backoff_seconds: Optional[float] = 2.0
-    retry_on_timeout: Optional[bool] = True
-    retry_on_error: Optional[bool] = True
-    retry_jitter: Optional[float] = Field(default=0.25, ge=0.0, le=1.0)
-    subfinder: Optional[bool] = True
-    assetfinder: Optional[bool] = True
-    amass: Optional[bool] = False
-    httpx: Optional[bool] = True
-    gau: Optional[bool] = True
-    waybackurls: Optional[bool] = True
-    katana: Optional[bool] = True
-    nuclei: Optional[bool] = True
+    timeout_seconds: int | None = 120
+    retry_attempts: int | None = 2
+    retry_backoff_seconds: float | None = 2.0
+    retry_backoff_multiplier: float | None = 1.0
+    retry_max_backoff_seconds: float | None = 2.0
+    retry_on_timeout: bool | None = True
+    retry_on_error: bool | None = True
+    retry_jitter: float | None = Field(default=0.25, ge=0.0, le=1.0)
+    subfinder: bool | None = True
+    assetfinder: bool | None = True
+    amass: bool | None = False
+    httpx: bool | None = True
+    gau: bool | None = True
+    waybackurls: bool | None = True
+    katana: bool | None = True
+    nuclei: bool | None = True
 
 class ConfigModel(BaseModel):
     model_config = {"extra": "allow"}
 
     target_name: str
     output_dir: str
-    http_timeout_seconds: Optional[int] = 12
+    http_timeout_seconds: int | None = 12
     mode: str
-    cache: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    tools: Optional[ToolsConfigModel] = Field(default_factory=ToolsConfigModel)
+    cache: dict[str, Any] | None = Field(default_factory=dict)
+    tools: ToolsConfigModel | None = Field(default_factory=ToolsConfigModel)
 
 REQUIRED_FIELDS = ("target_name", "output_dir", "mode")
 
@@ -318,7 +320,7 @@ def validate_config(
         entry = entry.strip()
         if not entry:
             continue
-        
+
         entry_ok = True
         for validator in SCOPE_VALIDATORS:
             ok, err_msg = validator(entry)
@@ -326,7 +328,7 @@ def validate_config(
                 entry_ok = False
                 scope_errors.append(err_msg)
                 break
-        
+
         if entry_ok:
             valid_count += 1
         else:
@@ -407,7 +409,7 @@ def format_validation_report(report: dict[str, Any]) -> str:
 
 
 # Mid-flight Continuous Validation hooks
-def validate_stage_artifact(stage_name: str, ctx: Any) -> tuple[bool, Optional[str]]:
+def validate_stage_artifact(stage_name: str, ctx: Any) -> tuple[bool, str | None]:
     """Validate output artifacts written by a stage for integrity gate."""
     if not hasattr(ctx, "output_store") or ctx.output_store is None:
         return True, None

@@ -433,7 +433,9 @@ class ToolExecutionService:
 
     def reset_breaker(self, tool_name: str) -> CircuitBreaker:
         """Manually reset a tool's breaker to CLOSED."""
-        return self._get_circuit_breaker(tool_name).reset()
+        breaker = self._get_circuit_breaker(tool_name)
+        breaker.reset()
+        return breaker
 
     def schedule_recovery_probe(
         self,

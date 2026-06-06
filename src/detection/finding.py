@@ -117,7 +117,7 @@ class DetectionFinding:
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dict preserving the old shape."""
 
-        body = {
+        body: dict[str, Any] = {
             "url": self.url,
             "indicator": self.indicator,
             "summary": self.summary,

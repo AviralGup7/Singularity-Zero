@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
+
 from src.pipeline.services.pipeline_orchestrator.stage_planner import StagePlanner
-from src.learning.integration import LearningIntegration
 
 
 class DummyConfig:
@@ -40,9 +39,9 @@ def test_stage_planner_semgrep_js_insertion():
 
     planner = StagePlanner(config, ctx, learning)
     remaining = ["active_scan", "reporting"]
-    
+
     final_stages, resources = planner.plan_stages(remaining)
-    
+
     assert "semgrep" in final_stages
     assert resources["httpx_concurrency"] == 10  # light workload concurrency
     assert resources["katana_depth"] == 2
@@ -59,9 +58,9 @@ def test_stage_planner_subdomain_takeover_insertion():
 
     planner = StagePlanner(config, ctx, learning)
     remaining = ["active_scan", "reporting"]
-    
+
     final_stages, resources = planner.plan_stages(remaining)
-    
+
     assert "subdomain_takeover" in final_stages
 
 
@@ -75,9 +74,9 @@ def test_stage_planner_threat_modeling_injection_on_high_findings():
 
     planner = StagePlanner(config, ctx, learning)
     remaining = ["reporting"]
-    
+
     final_stages, resources = planner.plan_stages(remaining)
-    
+
     assert "threat_modeling" in final_stages
     assert final_stages.index("threat_modeling") < final_stages.index("reporting")
     assert resources["expand_report_details"] is True
@@ -93,9 +92,9 @@ def test_stage_planner_heavy_concurrency_calibration():
 
     planner = StagePlanner(config, ctx, learning)
     remaining = ["active_scan"]
-    
+
     final_stages, resources = planner.plan_stages(remaining)
-    
+
     assert resources["httpx_concurrency"] == 150
     assert resources["katana_depth"] == 5
     assert resources["rate_limit_delay"] == 0.5
@@ -111,9 +110,9 @@ def test_stage_planner_probabilistic_waf_skipping():
 
     planner = StagePlanner(config, ctx, learning)
     remaining = ["waf", "active_scan"]
-    
+
     final_stages, resources = planner.plan_stages(remaining)
-    
+
     # waf is removed from final_stages due to 0 sample detections
     assert "waf" not in final_stages
     assert ctx.result.stage_status["waf"] == "SKIPPED"
@@ -129,9 +128,9 @@ def test_stage_planner_budget_allocation_skipping():
 
     planner = StagePlanner(config, ctx, learning)
     remaining = ["active_scan", "reporting"]
-    
+
     final_stages, resources = planner.plan_stages(remaining)
-    
+
     # active_scan should be skipped because value (0.1) < threshold (0.3)
     assert "active_scan" not in final_stages
     assert ctx.result.stage_status["active_scan"] == "SKIPPED"

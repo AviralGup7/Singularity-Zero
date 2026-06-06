@@ -13,7 +13,6 @@ from __future__ import annotations
 from typing import Any
 
 from ._constants import STAGE_GRAPH
-from ._graph_dsl import Graph
 
 
 class _SimpleDiGraph:
@@ -30,7 +29,7 @@ class _SimpleDiGraph:
         self._nodes.update({source, target})
         self._edges.setdefault(source, set()).add(target)
 
-    def copy(self) -> "_SimpleDiGraph":
+    def copy(self) -> _SimpleDiGraph:
         clone = _SimpleDiGraph()
         clone._nodes = set(self._nodes)
         clone._edges = {key: set(value) for key, value in self._edges.items()}

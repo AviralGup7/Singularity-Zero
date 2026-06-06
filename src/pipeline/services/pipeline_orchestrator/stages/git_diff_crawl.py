@@ -62,7 +62,7 @@ def _read_priority_scores(run_dir: Path) -> list[dict[str, Any]]:
         return []
     if not isinstance(data, list):
         return []
-    return [item for item in data if isinstance(item, Mapping)]
+    return [dict(item) for item in data if isinstance(item, Mapping)]
 
 
 def _git_changed_files(base_ref: str, repo: Path) -> list[str]:

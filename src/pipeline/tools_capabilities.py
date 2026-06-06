@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.core.capabilities import (
+    CapabilityManifest,
     CrawlerProvider,
     HttpProbeProvider,
     ReconProvider,
     TemplateScanner,
     ToolExecutionContext,
-    CapabilityManifest,
 )
 from src.recon.live_hosts import probe_live_hosts
 from src.recon.subdomains import enumerate_subdomains
@@ -153,14 +153,9 @@ class CapabilityRegistry:
         if self._loaded_entry_points:
             return
         self._loaded_entry_points = True
-        import sys
         try:
-            if sys.version_info >= (3, 10):
-                from importlib.metadata import entry_points
-                eps = entry_points(group="cyber_security_pipeline.capabilities")
-            else:
-                from importlib_metadata import entry_points
-                eps = entry_points().get("cyber_security_pipeline.capabilities", [])
+            from importlib.metadata import entry_points
+            eps = entry_points(group="cyber_security_pipeline.capabilities")
 
             for ep in eps:
                 try:

@@ -314,7 +314,7 @@ class TestRetryReady(unittest.TestCase):
 
 @pytest.mark.unit
 class TestSleepBeforeRetry(unittest.TestCase):
-    @patch("src.pipeline.retry.time.sleep")
+    @patch("src.pipeline.retry.strategies.time.sleep")
     def test_sleep_called_with_delay(self, mock_sleep: MagicMock) -> None:
         policy = RetryPolicy(
             max_attempts=3,
@@ -327,7 +327,7 @@ class TestSleepBeforeRetry(unittest.TestCase):
         mock_sleep.assert_called_once()
         self.assertEqual(delay, 1.0)
 
-    @patch("src.pipeline.retry.time.sleep")
+    @patch("src.pipeline.retry.strategies.time.sleep")
     def test_no_sleep_for_attempt_0(self, mock_sleep: MagicMock) -> None:
         policy = RetryPolicy(
             max_attempts=3,

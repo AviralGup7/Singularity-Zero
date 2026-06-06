@@ -1,12 +1,9 @@
 import json
-import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from src.pipeline.cache_backend import PersistentCache
 from src.pipeline.maintenance import (
     MaintenanceLock,
     RetentionPolicy,
@@ -132,7 +129,7 @@ class OutputCleanupTests(unittest.TestCase):
             # cold run: age 100 days, high significance so it's not pruned
             cold_run = _write_run(target_root, "20260226-010101", counts={"critical": 2}, age_days=100)
 
-            summary = prune_output_history(
+            prune_output_history(
                 output_root,
                 keep_target_runs=1,
                 keep_launcher_runs=0,
@@ -151,7 +148,7 @@ class OutputCleanupTests(unittest.TestCase):
     def test_lockfile_concurrency(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             lock_path = Path(temp_dir) / "maintenance.lock"
-            with MaintenanceLock(lock_path) as lock1:
+            with MaintenanceLock(lock_path):
                 self.assertTrue(lock_path.exists())
                 # Trying to acquire it again should raise RuntimeError
                 with self.assertRaises(RuntimeError):

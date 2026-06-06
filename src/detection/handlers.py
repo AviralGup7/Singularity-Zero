@@ -333,7 +333,7 @@ def list_handler_keys() -> tuple[str, ...]:
     )
 
 
-def get_handler(key: str):
+def get_handler(key: str) -> Any:
     table: dict[str, Any] = {
         "js_sink_source_analyzer": js_sink_source_analyzer,
         "wasm_module_introspector": wasm_module_introspector,

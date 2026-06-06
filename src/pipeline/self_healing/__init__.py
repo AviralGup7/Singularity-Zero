@@ -1,6 +1,6 @@
 """Package for the self-healing controller module with event-driven extensions."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from src.core.contracts.health import (
@@ -31,7 +31,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):  # type: ignore[override]
+def __getattr__(name: str) -> Any:  # type: ignore[override]
     if name == "SelfHealingController":
         from src.pipeline.self_healing.controller import SelfHealingController
         return SelfHealingController

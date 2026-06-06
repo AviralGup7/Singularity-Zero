@@ -30,7 +30,6 @@ from src.recon.ranking_support import (  # noqa: E402
     select_deep_analysis_targets,
 )
 from src.recon.scoring import infer_target_profile, rank_urls  # noqa: E402
-from src.recon.subdomains import enumerate_subdomains  # noqa: E402
 from src.recon.urls import collect_urls as collect_urls  # noqa: E402
 from src.recon.urls import extract_parameters  # noqa: E402
 
@@ -50,9 +49,9 @@ async def run_url_collection_service(
 
     try:
         if collector is None:
-            from src.pipeline.tools_capabilities import resolve_capability
             from src.core.capabilities import ToolExecutionContext
-            from src.pipeline.tools import resolve_tool_path, command_env
+            from src.pipeline.tools import command_env, resolve_tool_path
+            from src.pipeline.tools_capabilities import resolve_capability
 
             provider = resolve_capability("crawler_provider")
             resolved_paths = {
@@ -130,9 +129,9 @@ async def run_live_hosts_service(
     try:
         # 1. Probing
         if prober is None:
-            from src.pipeline.tools_capabilities import resolve_capability
             from src.core.capabilities import ToolExecutionContext
-            from src.pipeline.tools import resolve_tool_path, command_env
+            from src.pipeline.tools import command_env, resolve_tool_path
+            from src.pipeline.tools_capabilities import resolve_capability
 
             provider = resolve_capability("http_probe_provider")
             resolved_paths = {
@@ -255,9 +254,9 @@ async def run_subdomain_enumeration_service(
         )
 
     try:
-        from src.pipeline.tools_capabilities import resolve_capability
         from src.core.capabilities import ToolExecutionContext
-        from src.pipeline.tools import resolve_tool_path, command_env
+        from src.pipeline.tools import command_env, resolve_tool_path
+        from src.pipeline.tools_capabilities import resolve_capability
 
         provider = resolve_capability("recon_provider")
         resolved_paths = {

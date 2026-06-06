@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class HealthSubscriber:
     """Subscribes a :class:`SelfHealingController` to ``HEALTH_METRIC_EMITTED`` events."""
 
-    def __init__(self, event_bus: EventBus, controller: "SelfHealingController") -> None:
+    def __init__(self, event_bus: EventBus, controller: SelfHealingController) -> None:
         self._event_bus = event_bus
         self._controller = controller
         self._subscription_id: str | None = None
@@ -64,7 +64,7 @@ class HealthSubscriber:
 
 
 def register_health_subscriber(
-    event_bus: EventBus, controller: "SelfHealingController"
+    event_bus: EventBus, controller: SelfHealingController
 ) -> HealthSubscriber:
     """Create and start a :class:`HealthSubscriber`.
 

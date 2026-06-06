@@ -95,7 +95,7 @@ class StageSucceeded:
 
     def is_satisfied(self, ctx: Any, state: Mapping[str, Any]) -> bool:  # noqa: ARG002
         result = _result_of(ctx)
-        return result.stage_status.get(self.stage) == StageStatusValue.COMPLETED
+        return bool(result.stage_status.get(self.stage) == StageStatusValue.COMPLETED)
 
 
 @dataclass(frozen=True)
@@ -106,7 +106,7 @@ class NotFailed:
 
     def is_satisfied(self, ctx: Any, state: Mapping[str, Any]) -> bool:  # noqa: ARG002
         result = _result_of(ctx)
-        return result.stage_status.get(self.stage) != StageStatusValue.FAILED
+        return bool(result.stage_status.get(self.stage) != StageStatusValue.FAILED)
 
 
 @dataclass(frozen=True)

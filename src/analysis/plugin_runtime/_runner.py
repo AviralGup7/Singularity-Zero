@@ -244,8 +244,8 @@ def _enrich_finding_with_confidence(row: dict[str, Any], analyzer_key: str) -> N
     """
 
     try:
-        from src.detection.finding import from_dict as _finding_from_dict
         from src.detection.coverage import recommend_engines
+        from src.detection.finding import from_dict as _finding_from_dict
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("Skipping confidence enrichment: %s", exc)
         return

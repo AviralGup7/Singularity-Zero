@@ -341,6 +341,27 @@ class HistoricalScoreResponse(BaseModel):
     runs_analyzed: int = 0
 
 
+class TargetComparisonDetail(BaseModel):
+    """Single side of a target comparison response."""
+
+    name: str = ""
+    risk_score: float = 0.0
+    finding_count: int = 0
+    url_count: int = 0
+    parameter_count: int = 0
+    attack_chain_count: int = 0
+    run_count: int = 0
+    latest_run: str = ""
+    severity_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class TargetComparisonResponse(BaseModel):
+    """Side-by-side target comparison response."""
+
+    target_a: TargetComparisonDetail
+    target_b: TargetComparisonDetail
+
+
 class NoteCreateRequest(StrictRequestModel):
     """Request body for creating a note."""
 

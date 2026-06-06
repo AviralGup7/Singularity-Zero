@@ -1,6 +1,7 @@
 """Unit tests for the 'cyber launch' CLI command and argument parsing."""
 
 import argparse
+import pathlib
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -15,7 +16,6 @@ class TestCliLaunch(unittest.TestCase):
         """Verify that 'launch' subparser is registered with correct options and defaults."""
         parser = _build_parser()
 
-        # Test default options
         args = parser.parse_args(["launch"])
         assert args.area == "launch"
         assert args.host == "127.0.0.1"
@@ -23,12 +23,11 @@ class TestCliLaunch(unittest.TestCase):
         assert args.concurrency == 2
         assert args.queue == "security-pipeline"
 
-        # Test custom options override
         args = parser.parse_args(
             [
                 "launch",
                 "--host",
-                "0.0.0.0",  # noqa: S104
+                "0.0.0.0",
                 "--port",
                 "9000",
                 "--concurrency",
@@ -37,13 +36,13 @@ class TestCliLaunch(unittest.TestCase):
                 "custom-queue",
             ]
         )
-        assert args.host == "0.0.0.0"  # noqa: S104
+        assert args.host == "0.0.0.0"
         assert args.port == 9000
         assert args.concurrency == 4
         assert args.queue == "custom-queue"
 
-    @patch("src.cli.console")
-    @patch("src.cli.Path")
+    @patch("src.cli.ui.console")
+    @patch("pathlib.Path")
     @patch("threading.Thread")
     @patch("src.dashboard.fastapi.main.main")
     def test_handle_launch_execution_flow(
@@ -54,10 +53,8 @@ class TestCliLaunch(unittest.TestCase):
         mock_console: MagicMock,
     ) -> None:
         """Verify the full orchestration flow of handle_launch."""
-        # Setup mocks
         mock_path_instance = MagicMock()
         mock_path.return_value = mock_path_instance
-        # Simulate static assets exist
         mock_path_instance.__truediv__.return_value.exists.return_value = True
 
         args = argparse.Namespace(
@@ -66,16 +63,13 @@ class TestCliLaunch(unittest.TestCase):
 
         handle_launch(args)
 
-        # Assert Path check called
-        import src.cli
+        import src.cli.commands.start as start_mod
 
-        mock_path.assert_any_call(src.cli.__file__)
+        mock_path.assert_any_call(start_mod.__file__)
 
-        # Assert Thread started for worker
         mock_thread.assert_called_once()
         mock_thread.return_value.start.assert_called_once()
 
-        # Assert dashboard server run is called with parsed args
         mock_run_server.assert_called_once_with(
             ["--host", "127.0.0.1", "--port", "8000", "--workers", "1"]
         )

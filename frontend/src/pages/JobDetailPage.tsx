@@ -1,131 +1,91 @@
+import { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, X, ChevronDown } from 'lucide-react';
-import { DetailSkeleton } from '../components/ui/Skeleton';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { StalledExplainerPanel } from '../components/StalledExplainerPanel';
-import { ScanSummaryCard } from '../components/ScanSummaryCard';
-import { IterationProgressBar } from '../components/IterationProgressBar';
-import { PluginProgressGrid } from '../components/PluginProgressGrid';
-import { DurationForecast } from '../components/DurationForecast';
-import { ModulePerformanceChart } from '../components/charts/ModulePerformanceChart';
-import { JobStatusHeader } from '../components/jobs/JobStatusHeader';
-import { JobLogViewer } from '../components/jobs/JobLogViewer';
-import { JobTimelineComponent } from '../components/JobTimelineComponent';
-import { StageProgressBars } from '../components/StageProgressBars';
-import { StageTheater } from '../components/ops/StageTheater';
-import { buildStageTheaterNodesFromJob } from '../lib/stageTheaterUtils';
-import { ThroughputStrip } from '../components/ops/ThroughputStrip';
+import { DetailSkeleton } from '@/components/ui/Skeleton';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { StalledExplainerPanel } from '@/components/StalledExplainerPanel';
+import { ScanSummaryCard } from '@/components/ScanSummaryCard';
+import { IterationProgressBar } from '@/components/IterationProgressBar';
+import { PluginProgressGrid } from '@/components/PluginProgressGrid';
+import { DurationForecast } from '@/components/DurationForecast';
+import { ModulePerformanceChart } from '@/components/charts/ModulePerformanceChart';
+import { JobStatusHeader } from '@/components/jobs/JobStatusHeader';
+import { JobLogViewer } from '@/components/jobs/JobLogViewer';
+import { JobTimelineComponent } from '@/components/jobs/JobTimelineComponent';
+import { StageProgressBars } from '@/components/StageProgressBars';
+import { StageTheater } from '@/components/ops/StageTheater';
+import { ThroughputStrip } from '@/components/ops/ThroughputStrip';
 import { VisualProvider } from '@/context/VisualContext';
 import { mapToVisualState } from '@/lib/mapToVisualState';
-import { useJobMonitor } from '../hooks/useJobMonitor';
-import { getJobRemediation, getJobTraceLink } from '../api/jobs';
-import { RemediationSuggestions } from '../components/RemediationSuggestions';
-import type { RemediationSuggestion, TraceLink } from '../types/api';
-import { GlassCard, GlowProgress } from '../components/ui';
+import { useJobMonitor } from '@/hooks/useJobMonitor';
+import { RemediationSuggestions } from '@/components/RemediationSuggestions';
+import { GlassCard, GlowProgress } from '@/components/ui';
+import { InfoItem, formatDurationLabel } from '@/components/jobs/JobInfoItem';
+import { useJobDetails, useJobStageTheater, useJobThroughput } from '@/hooks/useJobDetails';
+import { useJobRemediation, useJobTracePanel } from '@/hooks/useJobTracePanel';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 15 } },
+};
+
 export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
-   
-  const [tracePanel, setTracePanel] = useState<TraceLink | null>(null);
-  const [traceLoading, setTraceLoading] = useState(false);
-  const [remediation, setRemediation] = useState<RemediationSuggestion[]>([]);
-  const [remediationLoading, setRemediationLoading] = useState(false);
-  
-  // Accordion open/close states to prevent long page scrolling issues
-  const [telemetryExpanded, setTelemetryExpanded] = useState(true);
   const [warningsExpanded, setWarningsExpanded] = useState(true);
   const [logsExpanded, setLogsExpanded] = useState(true);
 
   const navigate = useNavigate();
   const handleRestarted = useCallback((newJobId: string) => {
     navigate(`/jobs/${newJobId}`);
-   
   }, [navigate]);
   const monitor = useJobMonitor(jobId, { onRestarted: handleRestarted });
 
   const {
-    job, loading, error,
-    allLogLines, pluginProgress, streamingFindings,
-    sseError, wsFailed, durationForecast, durationLoading,
-    isPollingFallback, connectionState, sseState, actionLoading,
-    showConfirmStop, showConfirmRestart,
-    setShowConfirmStop, setShowConfirmRestart,
-    reconnect, stopJob, executeStop,
-    restartJob, executeRestart, clearSseError,
+    job,
+    loading,
+    error,
+    sseError,
+    wsFailed,
+    durationForecast,
+    durationLoading,
+    isPollingFallback,
+    connectionState,
+    sseState,
+    actionLoading,
+    showConfirmStop,
+    showConfirmRestart,
+    setShowConfirmStop,
+    setShowConfirmRestart,
+    reconnect,
+    stopJob,
+    executeStop,
+    restartJob,
+    executeRestart,
+    clearSseError,
   } = monitor;
 
-  const stageTheaterNodes = useMemo(() => (job ? buildStageTheaterNodesFromJob(job) : []), [job]);
-  const throughput = useMemo(() => {
-    const telemetry = job?.progress_telemetry;
-    const jobsPerSecond = Number(telemetry?.requests_per_second ?? 0);
-    const findingsPerSecond = Number(telemetry?.throughput_per_second ?? 0);
-    const stageRatio = typeof job?.stage_percent === 'number'
-      ? Math.max(0, Math.min(100, job.stage_percent)) / 100
-      : Math.max(0, Math.min(100, job?.progress_percent ?? 0)) / 100;
-    const scanVelocity = jobsPerSecond * 0.6 + findingsPerSecond * 0.4 + stageRatio;
-    return {
-      jobsPerSecond,
-      findingsPerSecond,
-      scanVelocity,
-      activeTasks: Number(telemetry?.active_task_count ?? 0),
-    };
-   
-  }, [job]);
+  const { displayLines, warningCount, fatalSignalCount, degradedProviders, timeoutEvents, hasRuntimeSignals } =
+    useJobDetails(job ?? null);
+  const { stageTheaterNodes } = useJobStageTheater(job ?? null);
+  const throughput = useJobThroughput(job ?? null);
+  const { remediation, remediationLoading } = useJobRemediation(jobId, job?.status === 'failed' || job?.status === 'stopped');
+  const { tracePanel, traceLoading, openTracePanel, setTracePanel } = useJobTracePanel(jobId);
+
   const visualState = useMemo(
     () => mapToVisualState(job, { sseError }),
-   
-    [job, sseError]
+    [job, sseError],
   );
-  const isFailedJob = job?.status === 'failed' || job?.status === 'stopped';
-
-  useEffect(() => {
-    if (!jobId || !isFailedJob) {
-      return;
-    }
-    const controller = new AbortController();
-    const tid = setTimeout(() => setRemediationLoading(true), 0);
-    getJobRemediation(jobId, controller.signal)
-      .then((response) => setRemediation(response.suggestions ?? []))
-      .catch(() => setRemediation([]))
-      .finally(() => {
-        clearTimeout(tid);
-        setRemediationLoading(false);
-      });
-    return () => {
-      controller.abort();
-      clearTimeout(tid);
-    };
-   
-  }, [jobId, isFailedJob]);
-
-  const openTracePanel = useCallback(async () => {
-    if (!jobId) return;
-    setTraceLoading(true);
-    try {
-      const link = await getJobTraceLink(jobId);
-      setTracePanel(link);
-    } finally {
-      setTraceLoading(false);
-    }
-   
-  }, [jobId]);
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.05 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 15 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 15 } }
-  };
 
   if (loading) return <DetailSkeleton />;
 
@@ -139,29 +99,12 @@ export function JobDetailPage() {
     );
   }
 
-  const displayLines = allLogLines.length > 0 ? allLogLines : (job.latest_logs ?? []);
-  const telemetry = job.progress_telemetry;
-  const warningCount = typeof job.warning_count === 'number'
-    ? job.warning_count
-    : job.warnings?.length ?? 0;
-  const fatalSignalCount = typeof job.fatal_signal_count === 'number'
-    ? job.fatal_signal_count
-    : 0;
-  const degradedProviders = job.degraded_providers ?? [];
-  const timeoutEvents = job.timeout_events ?? [];
-  const hasRuntimeSignals =
-    warningCount > 0 ||
-    fatalSignalCount > 0 ||
-    degradedProviders.length > 0 ||
-    timeoutEvents.length > 0 ||
-    typeof job.effective_timeout_seconds === 'number';
-
   return (
     <VisualProvider initialValue={visualState}>
-      <motion.div 
-        variants={containerVariants} 
-        initial="hidden" 
-        animate="show" 
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
         className="job-detail-page space-y-6"
       >
         <JobStatusHeader
@@ -182,7 +125,7 @@ export function JobDetailPage() {
           </div>
         )}
 
-        {isFailedJob && (
+        {(job.status === 'failed' || job.status === 'stopped') && (
           <motion.div variants={itemVariants} className="card error-card" role="alert">
             <h3>Job Failure Details</h3>
             <div className="info-grid">
@@ -196,7 +139,7 @@ export function JobDetailPage() {
           </motion.div>
         )}
 
-        {isFailedJob && (
+        {(job.status === 'failed' || job.status === 'stopped') && (
           <motion.div variants={itemVariants} className="card">
             <div className="trace-actions-header flex items-center justify-between gap-4">
               <h3>Debug Actions</h3>
@@ -329,7 +272,7 @@ export function JobDetailPage() {
             )}
             <div className="mt-4">
               <PluginProgressGrid
-                plugins={pluginProgress}
+                plugins={[]}
                 loading={loading && job.status === 'running'}
               />
             </div>
@@ -348,127 +291,106 @@ export function JobDetailPage() {
           />
         </motion.div>
 
-        {/* Collapsible GRC Pipeline Telemetry Accordion */}
-        {telemetry && (
+        {job.progress_telemetry && (
           <motion.div variants={itemVariants} className="card">
-            <button
-              type="button"
-              onClick={() => setTelemetryExpanded(!telemetryExpanded)}
-              className="w-full flex items-center justify-between text-left focus:outline-none"
-            >
-              <h3>Pipeline Telemetry</h3>
-              <ChevronDown size={18} className={`transform transition-transform duration-200 text-[var(--text-secondary)] ${telemetryExpanded ? 'rotate-180 text-[var(--accent)]' : ''}`} />
-            </button>
-            <AnimatePresence initial={false}>
-              {telemetryExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: EASE_OUT }}
-                  className="overflow-hidden"
-                >
-                  <div className="pt-4 space-y-4">
-                    <div className="info-grid">
-                      <InfoItem label="Active Tasks" value={String(telemetry.active_task_count ?? 0)} />
-                      {typeof telemetry.requests_per_second === 'number' && (
-                        <InfoItem label="Requests/sec" value={telemetry.requests_per_second.toFixed(2)} />
-                      )}
-                      {typeof telemetry.throughput_per_second === 'number' && (
-                        <InfoItem label="Throughput/sec" value={telemetry.throughput_per_second.toFixed(2)} />
-                      )}
-                      {typeof telemetry.vulnerability_likelihood_score === 'number' && (
-                        <InfoItem
-                          label="Vuln Likelihood"
-                          value={`${Math.round(telemetry.vulnerability_likelihood_score * 100)}%`}
-                        />
-                      )}
-                      {typeof telemetry.confidence_score === 'number' && (
-                        <InfoItem label="Confidence" value={`${Math.round(telemetry.confidence_score * 100)}%`} />
-                      )}
-                      {typeof telemetry.high_value_target_count === 'number' && (
-                        <InfoItem label="High-Value Targets" value={String(telemetry.high_value_target_count)} />
-                      )}
-                      {typeof telemetry.retry_count === 'number' && (
-                        <InfoItem label="Retries" value={String(telemetry.retry_count)} />
-                      )}
-                      {typeof telemetry.failure_count === 'number' && (
-                        <InfoItem label="Failures Seen" value={String(telemetry.failure_count)} />
-                      )}
-                      {telemetry.targets && (
-                        <InfoItem
-                          label="Target State"
-                          value={`queued ${telemetry.targets.queued ?? 0} · scanning ${telemetry.targets.scanning ?? 0} · done ${telemetry.targets.done ?? 0}`}
-                        />
-                      )}
-                      {telemetry.drop_off && (
-                        <InfoItem
-                          label="Drop-Off"
-                          value={`input ${telemetry.drop_off.input} · kept ${telemetry.drop_off.kept} · dropped ${telemetry.drop_off.dropped}`}
-                        />
-                      )}
-                      {telemetry.deduplication && (
-                        <InfoItem
-                          label="Dedup"
-                          value={`removed ${telemetry.deduplication.removed} · remaining ${telemetry.deduplication.remaining}`}
-                        />
-                      )}
-                      {typeof telemetry.signal_noise_ratio === 'number' && (
-                        <InfoItem label="Signal/Noise Ratio" value={telemetry.signal_noise_ratio.toFixed(2)} />
-                      )}
-                      {telemetry.bottleneck_stage && (
-                        <InfoItem
-                          label="Bottleneck"
-                          value={`${telemetry.bottleneck_stage}${typeof telemetry.bottleneck_seconds === 'number' ? ` (${Math.round(telemetry.bottleneck_seconds)}s)` : ''}`}
-                        />
-                      )}
-                      {telemetry.next_best_action && (
-                        <InfoItem label="Next Best Action" value={telemetry.next_best_action} />
-                      )}
-                    </div>
+            <div className="pt-4 space-y-4">
+              <div className="info-grid">
+                <InfoItem label="Active Tasks" value={String(job.progress_telemetry.active_task_count ?? 0)} />
+                {typeof job.progress_telemetry.requests_per_second === 'number' && (
+                  <InfoItem label="Requests/sec" value={job.progress_telemetry.requests_per_second.toFixed(2)} />
+                )}
+                {typeof job.progress_telemetry.throughput_per_second === 'number' && (
+                  <InfoItem label="Throughput/sec" value={job.progress_telemetry.throughput_per_second.toFixed(2)} />
+                )}
+                {typeof job.progress_telemetry.vulnerability_likelihood_score === 'number' && (
+                  <InfoItem
+                    label="Vuln Likelihood"
+                    value={`${Math.round(job.progress_telemetry.vulnerability_likelihood_score * 100)}%`}
+                  />
+                )}
+                {typeof job.progress_telemetry.confidence_score === 'number' && (
+                  <InfoItem label="Confidence" value={`${Math.round(job.progress_telemetry.confidence_score * 100)}%`} />
+                )}
+                {typeof job.progress_telemetry.high_value_target_count === 'number' && (
+                  <InfoItem label="High-Value Targets" value={String(job.progress_telemetry.high_value_target_count)} />
+                )}
+                {typeof job.progress_telemetry.retry_count === 'number' && (
+                  <InfoItem label="Retries" value={String(job.progress_telemetry.retry_count)} />
+                )}
+                {typeof job.progress_telemetry.failure_count === 'number' && (
+                  <InfoItem label="Failures Seen" value={String(job.progress_telemetry.failure_count)} />
+                )}
+                {job.progress_telemetry.targets && (
+                  <InfoItem
+                    label="Target State"
+                    value={`queued ${job.progress_telemetry.targets.queued ?? 0} · scanning ${job.progress_telemetry.targets.scanning ?? 0} · done ${job.progress_telemetry.targets.done ?? 0}`}
+                  />
+                )}
+                {job.progress_telemetry.drop_off && (
+                  <InfoItem
+                    label="Drop-Off"
+                    value={`input ${job.progress_telemetry.drop_off.input} · kept ${job.progress_telemetry.drop_off.kept} · dropped ${job.progress_telemetry.drop_off.dropped}`}
+                  />
+                )}
+                {job.progress_telemetry.deduplication && (
+                  <InfoItem
+                    label="Dedup"
+                    value={`removed ${job.progress_telemetry.deduplication.removed} · remaining ${job.progress_telemetry.deduplication.remaining}`}
+                  />
+                )}
+                {typeof job.progress_telemetry.signal_noise_ratio === 'number' && (
+                  <InfoItem label="Signal/Noise Ratio" value={job.progress_telemetry.signal_noise_ratio.toFixed(2)} />
+                )}
+                {job.progress_telemetry.bottleneck_stage && (
+                  <InfoItem
+                    label="Bottleneck"
+                    value={`${job.progress_telemetry.bottleneck_stage}${typeof job.progress_telemetry.bottleneck_seconds === 'number' ? ` (${Math.round(job.progress_telemetry.bottleneck_seconds)}s)` : ''}`}
+                  />
+                )}
+                {job.progress_telemetry.next_best_action && (
+                  <InfoItem label="Next Best Action" value={job.progress_telemetry.next_best_action} />
+                )}
+              </div>
 
-                    {telemetry.learning_feedback && (
-                      <GlassCard variant="glow" delay={0.1} className="mt-4 p-4 border border-[var(--accent)]/30">
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--accent)] mb-2 font-mono">Neural Engine Feedback</h4>
-                        <p className="text-xs italic text-[var(--text-secondary)] leading-relaxed font-sans">
-                          {typeof telemetry.learning_feedback === 'string' 
-                            ? telemetry.learning_feedback 
-                            : JSON.stringify(telemetry.learning_feedback)}
-                        </p>
-                      </GlassCard>
-                    )}
-
-                    {telemetry.skipped_stages && telemetry.skipped_stages.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] font-mono mb-2">Skipped Stages</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {telemetry.skipped_stages.map((s) => (
-                            <span key={s.stage} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono" title={s.reason}>
-                              {s.stage}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {telemetry.top_active_targets && telemetry.top_active_targets.length > 0 && (
-                      <div className="modules-list mt-4 flex flex-wrap gap-2">
-                        {telemetry.top_active_targets.map((item) => (
-                          <span key={item} className="module-tag">{item}</span>
-                        ))}
-                      </div>
-                    )}
-                    {telemetry.event_triggers && telemetry.event_triggers.length > 0 && (
-                      <ul className="warnings-list mt-4 space-y-1">
-                        {telemetry.event_triggers.slice(-5).map((trigger) => (
-                          <li key={trigger}>{trigger}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </motion.div>
+              {job.progress_telemetry.learning_feedback && (
+                <GlassCard variant="glow" delay={0.1} className="mt-4 p-4 border border-[var(--accent)]/30">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--accent)] mb-2 font-mono">Neural Engine Feedback</h4>
+                  <p className="text-xs italic text-[var(--text-secondary)] leading-relaxed font-sans">
+                    {typeof job.progress_telemetry.learning_feedback === 'string'
+                      ? job.progress_telemetry.learning_feedback
+                      : JSON.stringify(job.progress_telemetry.learning_feedback)}
+                  </p>
+                </GlassCard>
               )}
-            </AnimatePresence>
+
+              {job.progress_telemetry.skipped_stages && job.progress_telemetry.skipped_stages.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] font-mono mb-2">Skipped Stages</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {job.progress_telemetry.skipped_stages.map((s) => (
+                      <span key={s.stage} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px] font-mono" title={s.reason}>
+                        {s.stage}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {job.progress_telemetry.top_active_targets && job.progress_telemetry.top_active_targets.length > 0 && (
+                <div className="modules-list mt-4 flex flex-wrap gap-2">
+                  {job.progress_telemetry.top_active_targets.map((item) => (
+                    <span key={item} className="module-tag">{item}</span>
+                  ))}
+                </div>
+              )}
+              {job.progress_telemetry.event_triggers && job.progress_telemetry.event_triggers.length > 0 && (
+                <ul className="warnings-list mt-4 space-y-1">
+                  {job.progress_telemetry.event_triggers.slice(-5).map((trigger) => (
+                    <li key={trigger}>{trigger}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </motion.div>
         )}
 
@@ -490,13 +412,12 @@ export function JobDetailPage() {
           />
         )}
 
-        {/* Animated Findings Card Discovered row */}
-        {streamingFindings.length > 0 && job.status === 'running' && (
+        {job.streaming_findings && job.streaming_findings.length > 0 && job.status === 'running' && (
           <motion.div variants={itemVariants} className="card">
-            <h3>Findings Discovered ({streamingFindings.length})</h3>
+            <h3>Findings Discovered ({job.streaming_findings.length})</h3>
             <div className="streaming-findings space-y-2 mt-4">
               <AnimatePresence initial={false}>
-                {streamingFindings.slice(-5).reverse().map((f, idx) => (
+                {job.streaming_findings.slice(-5).reverse().map((f, idx) => (
                   <motion.div
                     key={f.id || `${f.type}-${f.target}-${idx}`}
                     initial={{ opacity: 0, x: -20, scale: 0.95 }}
@@ -552,7 +473,6 @@ export function JobDetailPage() {
           </motion.div>
         )}
 
-        {/* Collapsible Warnings Accordion */}
         {job.warnings && job.warnings.length > 0 && (
           <motion.div variants={itemVariants} className="card warning-card">
             <button
@@ -583,7 +503,6 @@ export function JobDetailPage() {
           </motion.div>
         )}
 
-        {/* Collapsible Job Logs Accordion */}
         <motion.div variants={itemVariants} className="card">
           <button
             type="button"
@@ -638,77 +557,46 @@ export function JobDetailPage() {
           variant="warning"
         />
 
-        {/* Jaeger Slide-in Side Panel */}
-        <AnimatePresence>
-          {tracePanel && (
-            <div className="fixed inset-0 z-50 flex justify-end">
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setTracePanel(null)}
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              />
-              
-              {/* Slide-out Panel */}
-              <motion.div
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-                className="relative h-full w-full max-w-3xl bg-[var(--surface)] border-l border-[var(--border)] shadow-2xl flex flex-col"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Jaeger trace"
-              >
-                <div className="trace-side-panel-header p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-2)]">
-                  <div>
-                    <h3 className="font-bold text-lg text-[var(--text-primary)]">Jaeger Trace</h3>
-                    <span className="text-xs text-[var(--text-secondary)] font-mono">{tracePanel.mode === 'trace' ? tracePanel.trace_id : `Search for ${tracePanel.job_id}`}</span>
-                  </div>
-                  <button className="btn btn-ghost btn-sm p-1.5 hover:bg-white/5 rounded" onClick={() => setTracePanel(null)} aria-label="Close trace panel">
-                    <X size={18} aria-hidden="true" />
-                  </button>
+        {tracePanel && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setTracePanel(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+              className="relative h-full w-full max-w-3xl bg-[var(--surface)] border-l border-[var(--border)] shadow-2xl flex flex-col"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Jaeger trace"
+            >
+              <div className="trace-side-panel-header p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-2)]">
+                <div>
+                  <h3 className="font-bold text-lg text-[var(--text-primary)]">Jaeger Trace</h3>
+                  <span className="text-xs text-[var(--text-secondary)] font-mono">{tracePanel.mode === 'trace' ? tracePanel.trace_id : `Search for ${tracePanel.job_id}`}</span>
                 </div>
-                <iframe title="Jaeger trace" src={tracePanel.trace_url} className="flex-1 w-full border-none" />
-                <div className="p-4 border-t border-[var(--border)] bg-[var(--surface-2)] flex justify-end">
-                  <a className="btn btn-secondary text-xs flex items-center gap-1.5" href={tracePanel.trace_url} target="_blank" rel="noopener noreferrer">
-                    <span>Open in Jaeger</span>
-                    <ExternalLink size={12} />
-                  </a>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+                <button className="btn btn-ghost btn-sm p-1.5 hover:bg-white/5 rounded" onClick={() => setTracePanel(null)} aria-label="Close trace panel">
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
+              <iframe title="Jaeger trace" src={tracePanel.trace_url} className="flex-1 w-full border-none" />
+              <div className="p-4 border-t border-[var(--border)] bg-[var(--surface-2)] flex justify-end">
+                <a className="btn btn-secondary text-xs flex items-center gap-1.5" href={tracePanel.trace_url} target="_blank" rel="noopener noreferrer">
+                  <span>Open in Jaeger</span>
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </motion.div>
     </VisualProvider>
   );
-}
-
-function InfoItem({ label, value }: { label: string; value?: string }) {
-  if (!value) return null;
-  return (
-    <div className="info-item">
-      <span className="info-label">{label}:</span>
-      <span className="info-value">{value}</span>
-    </div>
-  );
-}
-
-function formatDurationLabel(seconds: number): string {
-  const roundedSeconds = Math.max(0, Math.round(seconds));
-  const minutes = Math.floor(roundedSeconds / 60);
-  const remainingSeconds = roundedSeconds % 60;
-
-  if (minutes === 0) {
-    return `${roundedSeconds}s`;
-  }
-
-  if (remainingSeconds === 0) {
-    return `${minutes}m`;
-  }
-
-  return `${minutes}m ${remainingSeconds}s`;
 }
