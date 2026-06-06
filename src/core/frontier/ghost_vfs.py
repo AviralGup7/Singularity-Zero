@@ -5,6 +5,7 @@ Public API maintained: GhostVFS, _DecryptingChunkIterator
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from collections.abc import Iterator

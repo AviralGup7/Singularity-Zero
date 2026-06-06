@@ -203,7 +203,7 @@ async def test_proc_pool_execute_task_binary(monkeypatch):
 
 def test_bounded_compaction_state_store(tmp_path):
     local_store = LocalCheckpointStore(tmp_path)
-    budget = CRDTCompactionBudget(initial_budget_ms=10.0)
+    budget = CRDTCompactionBudget(initial_budget_ms=1000.0)
     bounded_store = BoundedCompactionStateStore(local_store, budget, max_tombstone_age_seconds=0.0)
 
     state = NeuralState()

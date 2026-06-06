@@ -67,9 +67,9 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.projectdiscovery_httpx_available", return_value=True),
+            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
             patch(
-                "src.recon.live_hosts.execute_command",
+                "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
             ),
         ):
@@ -111,9 +111,9 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.projectdiscovery_httpx_available", return_value=True),
+            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
             patch(
-                "src.recon.live_hosts.execute_command",
+                "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
             ),
         ):
@@ -156,9 +156,9 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.projectdiscovery_httpx_available", return_value=True),
+            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
             patch(
-                "src.recon.live_hosts.execute_command",
+                "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
             ),
         ):
@@ -209,12 +209,12 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.projectdiscovery_httpx_available", return_value=True),
+            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
             patch(
-                "src.recon.live_hosts.execute_command",
+                "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
             ),
-            patch("src.recon.live_hosts.probe_live_hosts_fallback", return_value=([], set())),
+            patch("src.recon.live_hosts.health.probe_live_hosts_fallback", return_value=([], set())),
         ):
             first_records, first_live_hosts = probe_live_hosts(hosts, config)
             second_records, second_live_hosts = probe_live_hosts(hosts, config)
@@ -257,9 +257,9 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.projectdiscovery_httpx_available", return_value=True),
+            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
             patch(
-                "src.recon.live_hosts.execute_command",
+                "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
             ),
         ):
@@ -279,7 +279,7 @@ class ReconLiveHostsTests(unittest.TestCase):
         def fake_probe(host: str, timeout_seconds: int) -> dict[str, Any] | None:
             return {"url": f"https://{host}/", "status_code": 200, "source": "python-probe"}
 
-        with patch("src.recon.live_hosts.probe_host_without_httpx", side_effect=fake_probe):
+        with patch("src.recon.live_hosts.health.probe_host_without_httpx", side_effect=fake_probe):
             records, live_hosts = probe_live_hosts_fallback(
                 {"a.example.com", "b.example.com", "c.example.com"},
                 5,

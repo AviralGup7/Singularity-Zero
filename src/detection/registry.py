@@ -207,6 +207,26 @@ def _classify_plugin(key: str) -> tuple[float, str, tuple[str, ...], tuple[str, 
             ("raceconditionengine",),
             ("race",),
         )
+    if key in {
+        "api_rest_param_pollution",
+        "api_graphql_introspection",
+        "api_rate_limit_differential",
+        "api_jwt_claim_integrity",
+        "api_websocket_message_security",
+    }:
+        engines_lookup: dict[str, tuple[str, ...]] = {
+            "api_rest_param_pollution": ("injectionengine",),
+            "api_graphql_introspection": ("injectionengine",),
+            "api_rate_limit_differential": ("raceconditionengine",),
+            "api_jwt_claim_integrity": ("authbypassengine", "headerinjectionengine"),
+            "api_websocket_message_security": ("injectionengine", "headerinjectionengine"),
+        }
+        return (
+            0.55,
+            "passive",
+            engines_lookup.get(key, ()),
+            ("api",),
+        )
     return (_DEFAULT_PLUGIN_CONFIDENCE, "passive", (), ())
 
 

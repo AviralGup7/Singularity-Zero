@@ -14,6 +14,9 @@ from src.dashboard.pipeline_jobs import create_job_record
 from src.dashboard.scope_utils import build_scope_entries, normalize_base_url, root_domain
 from src.dashboard.services import DashboardHandler, DashboardServices
 from src.pipeline.storage import load_config
+import sys
+sys.path.append(str(Path(__file__).parent))
+from _dummy_process import DummyProcess
 
 
 
@@ -193,6 +196,7 @@ class DashboardHardeningTests(unittest.TestCase):
                 "reload.check",
                 "demo.header_check",
                 "demo_header_check",
+                "access_dynamic_idor",
             }
         }
         self.assertSetEqual(option_names, passive_names)

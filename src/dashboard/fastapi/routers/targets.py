@@ -9,10 +9,10 @@ so that existing imports continue to work.
 from fastapi import APIRouter
 
 from src.dashboard.fastapi.routers.targets.crud import router as crud_router
-from src.dashboard.fastapi.routers.targets.scoring import (
+from src.dashboard.fastapi.routers.targets.crud import list_all_findings
+from src.dashboard.fastapi.schemas import (
     TargetComparisonDetail,
     TargetComparisonResponse,
-    TargetFindingsResponse,
 )
 from src.dashboard.fastapi.routers.targets.scoring import router as scoring_router
 from src.dashboard.fastapi.routers.targets.validation import (
@@ -20,6 +20,7 @@ from src.dashboard.fastapi.routers.targets.validation import (
     _validate_target_name,
     is_target_owned_by_tenant,
     verify_tenant_boundary,
+    TargetFindingsResponse,
 )
 
 router = APIRouter()
@@ -35,4 +36,5 @@ __all__ = [
     "TargetComparisonResponse",
     "TargetComparisonDetail",
     "TargetFindingsResponse",
+    "list_all_findings",
 ]

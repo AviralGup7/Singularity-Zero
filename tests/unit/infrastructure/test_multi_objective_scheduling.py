@@ -101,27 +101,39 @@ def test_runtime_resource_saturation_penalizes_contentious_bid() -> None:
 
 @pytest.mark.asyncio
 async def test_job_queue_claims_highest_bid_with_fallback_redis() -> None:
-    queue = JobQueue(RedisClient(), queue_name="bid-test", enable_scheduler=False)
+    import os
+    from pathlib import Path
+    db_path = Path("output/local_queue.db")
+    if db_path.exists():
+        try:
+            os.remove(db_path)
+        except OSError:
+            pass
+    client = RedisClient()
+    try:
+        queue = JobQueue(client, queue_name="bid-test", enable_scheduler=False)
 
-    low_id = await queue.enqueue(
-        TaskEnvelope(
-            type="port_probe",
-            payload={"target": "slow.example"},
-            metadata={"exploitability": 0.1, "business_criticality": 0.1},
-        ),
-        priority=10,
-    )
-    high_id = await queue.enqueue(
-        TaskEnvelope(
-            type="dom_xss",
-            payload={"target": "critical.example"},
-            metadata={"exploitability": 1.0, "business_criticality": 1.0},
-        ),
-        priority=5,
-    )
+        low_id = await queue.enqueue(
+            TaskEnvelope(
+                type="port_probe",
+                payload={"target": "slow.example"},
+                metadata={"exploitability": 0.1, "business_criticality": 0.1},
+            ),
+            priority=10,
+        )
+        high_id = await queue.enqueue(
+            TaskEnvelope(
+                type="dom_xss",
+                payload={"target": "critical.example"},
+                metadata={"exploitability": 1.0, "business_criticality": 1.0},
+            ),
+            priority=5,
+        )
 
-    claimed = await queue.claim_job("worker-1")
+        claimed = await queue.claim_job("worker-1")
 
-    assert claimed is not None
-    assert claimed.id == high_id
-    assert claimed.id != low_id
+        assert claimed is not None
+        assert claimed.id == high_id
+        assert claimed.id != low_id
+    finally:
+        client.close()

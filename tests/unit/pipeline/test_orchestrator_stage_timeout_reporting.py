@@ -89,6 +89,15 @@ async def test_run_stage_with_retry_reports_non_empty_timeout_reason(
 async def test_run_stage_with_retry_marks_recon_timeout_as_fatal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Recon-stage timeouts are recorded as failures with ``fatal=False``
+    by the retry module.  Fatality is decided by the
+    ``ExitConditionPolicy`` (via ``policy.infra.fatal_stages``), not
+    by the retry layer.  This test verifies the timeout is recorded
+    and surfaces as an ``infra_failure`` (exit 3) only when the stage
+    is in ``policy.infra.fatal_stages``.  Here we drive the resolver
+    directly to keep the test focused on the timeout/metrics
+    contract.
+    """
     orchestrator = PipelineOrchestrator()
 
     def _fixed_policy(_config: object) -> RetryPolicy:
@@ -127,7 +136,13 @@ async def test_run_stage_with_retry_marks_recon_timeout_as_fatal(
 
     stage_metrics = ctx.result.module_metrics.get("urls", {})
     assert stage_metrics.get("status") == "timeout"
-    assert stage_metrics.get("fatal") is True
+    # The retry module no longer hard-codes the fatal flag — the
+    # policy is the source of truth.  ``urls`` is in the default
+    # ``degraded_stages`` set, so this timeout alone should not abort
+    # the run with ``infra_failure`` unless a downstream stage fails
+    # to surface salvage data.
+    assert stage_metrics.get("fatal") is False
+    assert ctx.result.stage_status.get("urls") == "FAILED"
 
 
 def test_resolve_stage_timeout_scales_urls_for_large_live_hosts() -> None:

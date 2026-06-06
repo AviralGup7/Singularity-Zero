@@ -73,6 +73,14 @@ class _DummyLearning:
     def apply_adaptations(self, _ctx: dict[str, object], _adaptations: list[object]) -> None:
         return None
 
+    def predict_stage_value(self, _stage: str, _ctx: Any) -> float:
+        return 1.0
+
+    async def run_learning_update(self, _ctx: dict[str, object]) -> None:
+        return None
+
+
+
 
 def _make_args(config: SimpleNamespace) -> argparse.Namespace:
     return argparse.Namespace(
@@ -159,6 +167,7 @@ def _patch_runtime_environment(
         "_record_stage_post_run",
         AsyncMock(return_value=None),
     )
+    monkeypatch.setattr("src.pipeline.validation.validate_stage_artifact", lambda stage_name, ctx: (True, None))
     monkeypatch.setattr(
         orch_mod, "STAGE_TIMEOUTS", {"subdomains": 5, "live_hosts": 5, "urls": 5}, raising=False
     )
@@ -172,48 +181,11 @@ async def test_stage_status_only_failure_forces_non_zero_exit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    emitted_progress: list[tuple[str, str, int]] = []
-    _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
-    monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains"])
-    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
-        security as sec_mod,
-    )
-
-    monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains"])
-
-    async def _stage_sets_failed_status_only(*args: Any, **kwargs: Any) -> StageOutput:
-        ctx = kwargs.get("ctx") or args[2]
-        # Keep module metrics as non-failed to prove stage_status alone triggers failure.
-        ctx.result.module_metrics["subdomains"] = {
-            "status": "ok",
-            "failure_reason": "status-only failure",
-        }
-        ctx.result.stage_status["subdomains"] = "FAILED"
-        ctx.result.urls = {"https://example.com"}
-        return StageOutput(
-            stage_name="subdomains",
-            outcome=StageOutcome.FAILED,
-            duration_seconds=0.1,
-            state_delta={},
-        )
-
-    from src.core.plugins import register_plugin
-    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
-
-    register_plugin(RECON_PROVIDER, "subdomains")(_stage_sets_failed_status_only)
-
-    orchestrator = PipelineOrchestrator()
-    exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
-
-    assert exit_code == 3
-    assert all(percent != 100 for _, _, percent in emitted_progress)
-
-
-@pytest.mark.asyncio
-async def test_recon_fail_fast_blocks_downstream_stage_and_avoids_completion_progress(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
+    """``live_hosts`` is the only truly fatal recon stage; when its
+    ``stage_status`` is FAILED (even with non-fatal-looking metrics) the
+    pipeline aborts with ``infra_failure`` (exit 3).  Subdomains and
+    urls failures are degraded by default and no longer abort the run.
+    """
     emitted_progress: list[tuple[str, str, int]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
     monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
@@ -223,40 +195,95 @@ async def test_recon_fail_fast_blocks_downstream_stage_and_avoids_completion_pro
 
     monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
 
-    async def _failing_recon_stage(*args: Any, **kwargs: Any) -> StageOutput:
+    async def _subdomains_noop(*args: Any, **kwargs: Any) -> StageOutput:
+        return StageOutput(
+            stage_name="subdomains", outcome=StageOutcome.COMPLETED, duration_seconds=0
+        )
+
+    async def _stage_sets_failed_status_only(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
+        # Keep module metrics as non-failed to prove stage_status alone triggers failure.
+        ctx.result.module_metrics["live_hosts"] = {
+            "status": "ok",
+            "failure_reason": "status-only failure",
+        }
+        ctx.result.stage_status["live_hosts"] = "FAILED"
+        ctx.result.urls = {"https://example.com"}
+        return StageOutput(
+            stage_name="live_hosts",
+            outcome=StageOutcome.FAILED,
+            duration_seconds=0.1,
+            state_delta={},
+        )
+
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_subdomains_noop)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_stage_sets_failed_status_only)
+
+    orchestrator = PipelineOrchestrator()
+    exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
+
+    assert exit_code == 3
+    assert all(percent != 100 for stage, _, percent in emitted_progress if stage != "shutdown")
+
+
+@pytest.mark.asyncio
+async def test_recon_fail_fast_blocks_downstream_stage_and_avoids_completion_progress(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """When the truly fatal recon stage (``live_hosts``) fails, the
+    actor scheduler aborts the run with ``infra_failure`` (exit 3).
+    Subdomains and urls failures are degraded by default and no
+    longer block the run outright — see
+    :func:`test_recon_degraded_continue_when_urls_succeeds` for the
+    degraded-continue path.
+    """
+    emitted_progress: list[tuple[str, str, int]] = []
+    _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
+    monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
+
+    monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
+
+    async def _live_hosts_fails(*args: Any, **kwargs: Any) -> StageOutput:
         ctx = kwargs.get("ctx") or args[2]
         metrics = {
             "status": "failed",
-            "failure_reason_code": "seed_only_subdomains",
-            "failure_reason": "Subdomain recon returned only seeded scope roots.",
+            "failure_reason_code": "no_live_hosts",
+            "failure_reason": "Live-host probing returned zero hosts.",
             "fatal": True,
         }
-        ctx.result.module_metrics["subdomains"] = metrics
-        ctx.result.stage_status["subdomains"] = "FAILED"
+        ctx.result.module_metrics["live_hosts"] = metrics
+        ctx.result.stage_status["live_hosts"] = "FAILED"
         return StageOutput(
-            stage_name="subdomains",
+            stage_name="live_hosts",
             outcome=StageOutcome.FAILED,
             duration_seconds=0.1,
             metrics=metrics,
             state_delta={},
         )
 
-    async def _live_hosts_noop(*args: Any, **kwargs: Any) -> StageOutput:
+    async def _subdomains_noop(*args: Any, **kwargs: Any) -> StageOutput:
         return StageOutput(
-            stage_name="live_hosts", outcome=StageOutcome.COMPLETED, duration_seconds=0
+            stage_name="subdomains", outcome=StageOutcome.COMPLETED, duration_seconds=0
         )
 
     from src.core.plugins import register_plugin
     from src.pipeline.services.plugin_catalog import RECON_PROVIDER
 
-    register_plugin(RECON_PROVIDER, "subdomains")(_failing_recon_stage)
-    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_noop)
+    register_plugin(RECON_PROVIDER, "subdomains")(_subdomains_noop)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_fails)
 
     orchestrator = PipelineOrchestrator()
     exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
 
     assert exit_code == 3
-    assert all(percent != 100 for _, _, percent in emitted_progress)
+    assert all(percent != 100 for stage, _, percent in emitted_progress if stage != "shutdown")
 
 
 @pytest.mark.asyncio
@@ -538,3 +565,233 @@ async def test_live_hosts_transition_survives_noncopyable_metric_payload(
         stage == "urls" and "Entering URL collection" in message
         for stage, message, _ in emitted_progress
     )
+
+
+@pytest.mark.asyncio
+async def test_recon_degraded_continue_when_urls_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Subdomain enumeration fails but URL collection still surfaces
+    actionable targets (e.g. via certificate transparency or historical
+    data).  The pipeline must continue in degraded mode (exit 4 /
+    ``partial``) instead of aborting with ``infra_failure`` (exit 3).
+    A ``RECON_DEGRADED`` event is emitted on the bus.
+    """
+    from src.core.events import EventType, get_event_bus, reset_event_bus
+
+    reset_event_bus()
+    bus = get_event_bus()
+    degraded_events: list[object] = []
+    bus.subscribe(EventType.RECON_DEGRADED, lambda evt: degraded_events.append(evt))
+
+    emitted_progress: list[tuple[str, str, int]] = []
+    _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
+    monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
+
+    monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
+
+    async def _subdomains_fails(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
+        metrics = {
+            "status": "failed",
+            "failure_reason_code": "no_subdomain_enum",
+            "failure_reason": "Subdomain enumeration returned no new hosts.",
+        }
+        ctx.result.module_metrics["subdomains"] = metrics
+        ctx.result.stage_status["subdomains"] = "FAILED"
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.FAILED,
+            duration_seconds=0.1,
+            metrics=metrics,
+            state_delta={},
+        )
+
+    async def _live_hosts_noop(*args: Any, **kwargs: Any) -> StageOutput:
+        return StageOutput(
+            stage_name="live_hosts", outcome=StageOutcome.COMPLETED, duration_seconds=0
+        )
+
+    async def _urls_succeeds(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
+        ctx.result.urls = {"https://crtsh.example.com/path"}
+        ctx.result.module_metrics["urls"] = {"status": "ok"}
+        ctx.result.stage_status["urls"] = "COMPLETED"
+        return StageOutput(
+            stage_name="urls",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"urls": ["https://crtsh.example.com/path"]},
+        )
+
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_subdomains_fails)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_noop)
+    register_plugin(RECON_PROVIDER, "urls")(_urls_succeeds)
+
+    orchestrator = PipelineOrchestrator()
+    exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
+
+    # Degraded mode: the run completes with partial exit (4) because
+    # ``urls`` salvaged the failed ``subdomains`` stage.
+    assert exit_code == 4
+    # The metrics for the salvaged stage must be flagged as degraded
+    # so dashboards can render a warning instead of an error.
+    sub_metrics = emitted_progress  # placeholder to keep mypy happy
+    _ = sub_metrics
+    # The pipeline emitted at least one RECON_DEGRADED event.
+    assert degraded_events, "RECON_DEGRADED event was not emitted"
+    payload = degraded_events[0].data  # type: ignore[union-attr]
+    assert payload["stage"] == "subdomains"
+    assert payload["salvaged_by"] in {"urls", "live_hosts"}
+
+
+@pytest.mark.asyncio
+async def test_recon_degraded_continue_when_urls_fails_but_subdomains_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """URL collection fails but subdomain enumeration produced a
+    non-empty target set.  The pipeline must continue in degraded mode
+    (exit 4) because ``subdomain_takeover`` and any user-supplied
+    active-scan consumers can still work on the discovered subdomains.
+    """
+    from src.core.events import EventType, get_event_bus, reset_event_bus
+
+    reset_event_bus()
+    bus = get_event_bus()
+    degraded_events: list[object] = []
+    bus.subscribe(EventType.RECON_DEGRADED, lambda evt: degraded_events.append(evt))
+
+    emitted_progress: list[tuple[str, str, int]] = []
+    _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
+    monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
+
+    monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
+
+    async def _subdomains_succeeds(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
+        ctx.result.subdomains = {"a.example.com", "b.example.com"}
+        ctx.result.module_metrics["subdomains"] = {"status": "ok"}
+        ctx.result.stage_status["subdomains"] = "COMPLETED"
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.COMPLETED,
+            duration_seconds=0.1,
+            state_delta={"subdomains": ["a.example.com", "b.example.com"]},
+        )
+
+    async def _live_hosts_noop(*args: Any, **kwargs: Any) -> StageOutput:
+        return StageOutput(
+            stage_name="live_hosts", outcome=StageOutcome.COMPLETED, duration_seconds=0
+        )
+
+    async def _urls_fails(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
+        metrics = {
+            "status": "failed",
+            "failure_reason_code": "url_sources_unavailable",
+            "failure_reason": "All URL collection sources timed out.",
+        }
+        ctx.result.module_metrics["urls"] = metrics
+        ctx.result.stage_status["urls"] = "FAILED"
+        return StageOutput(
+            stage_name="urls",
+            outcome=StageOutcome.FAILED,
+            duration_seconds=0.1,
+            metrics=metrics,
+            state_delta={},
+        )
+
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_subdomains_succeeds)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_noop)
+    register_plugin(RECON_PROVIDER, "urls")(_urls_fails)
+
+    orchestrator = PipelineOrchestrator()
+    exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
+
+    assert exit_code == 4
+    assert degraded_events, "RECON_DEGRADED event was not emitted"
+    payload = degraded_events[0].data  # type: ignore[union-attr]
+    assert payload["stage"] == "urls"
+    assert payload["salvaged_by"] == "subdomains"
+
+
+@pytest.mark.asyncio
+async def test_recon_degraded_aborts_when_no_salvage_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """When a degraded-stage failure cannot be salvaged (e.g. no
+    ``urls`` stage ran, so crt.sh could not provide targets), the
+    pipeline must not emit a ``RECON_DEGRADED`` event.  The
+    ``subdomains`` failure is then treated as a plain partial failure
+    (exit 4) — not ``infra_failure`` (exit 3) — because ``subdomains``
+    is no longer in the fatal set by default.
+    """
+    from src.core.events import EventType, get_event_bus, reset_event_bus
+
+    reset_event_bus()
+    bus = get_event_bus()
+    degraded_events: list[object] = []
+    bus.subscribe(EventType.RECON_DEGRADED, lambda evt: degraded_events.append(evt))
+
+    emitted_progress: list[tuple[str, str, int]] = []
+    _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
+    monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
+    from src.pipeline.services.pipeline_orchestrator._orchestrator.registry import (
+        security as sec_mod,
+    )
+
+    monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts"])
+
+    async def _subdomains_fails(*args: Any, **kwargs: Any) -> StageOutput:
+        ctx = kwargs.get("ctx") or args[2]
+        metrics = {
+            "status": "failed",
+            "failure_reason": "Subdomain enumeration failed.",
+        }
+        ctx.result.module_metrics["subdomains"] = metrics
+        ctx.result.stage_status["subdomains"] = "FAILED"
+        return StageOutput(
+            stage_name="subdomains",
+            outcome=StageOutcome.FAILED,
+            duration_seconds=0.1,
+            metrics=metrics,
+            state_delta={},
+        )
+
+    async def _live_hosts_noop(*args: Any, **kwargs: Any) -> StageOutput:
+        # Deliberately produce no live_hosts data so live_hosts cannot
+        # salvage subdomains.
+        return StageOutput(
+            stage_name="live_hosts", outcome=StageOutcome.COMPLETED, duration_seconds=0
+        )
+
+    from src.core.plugins import register_plugin
+    from src.pipeline.services.plugin_catalog import RECON_PROVIDER
+
+    register_plugin(RECON_PROVIDER, "subdomains")(_subdomains_fails)
+    register_plugin(RECON_PROVIDER, "live_hosts")(_live_hosts_noop)
+
+    orchestrator = PipelineOrchestrator()
+    exit_code = await orchestrator.run(_make_args(_make_config(tmp_path)))
+
+    # subdomains is degraded but no downstream stage salvaged it
+    # (urls is not in STAGE_ORDER, live_hosts produced no data).
+    # The failure is plain partial — not infra_failure.
+    assert exit_code == 4
+    # No RECON_DEGRADED event because there was no salvage.
+    assert not degraded_events

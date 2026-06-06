@@ -40,7 +40,7 @@ class TestLiveHosts:
         assert "https://host1.com" in live_hosts
         assert skipped == 1
 
-    @patch("src.recon.live_hosts.get_pooled_connection")
+    @patch("src.recon.live_hosts.health.get_pooled_connection")
     def test_probe_host_without_httpx_success(self, mock_get_pool):
         mock_pool = MagicMock()
         mock_get_pool.return_value = mock_pool
@@ -54,7 +54,7 @@ class TestLiveHosts:
         assert result["url"] == "https://example.com"
         assert result["status_code"] == 200
 
-    @patch("src.recon.live_hosts.get_pooled_connection")
+    @patch("src.recon.live_hosts.health.get_pooled_connection")
     def test_probe_host_without_httpx_failure(self, mock_get_pool):
         mock_pool = MagicMock()
         mock_get_pool.return_value = mock_pool
@@ -66,8 +66,8 @@ class TestLiveHosts:
         result = probe_host_without_httpx("example.com", timeout_seconds=5)
         assert result is None
 
-    @patch("src.recon.live_hosts.projectdiscovery_httpx_available")
-    @patch("src.recon.live_hosts.execute_command")
+    @patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available")
+    @patch("src.recon.live_hosts.discovery.execute_command")
     def test_probe_live_hosts_httpx(self, mock_execute, mock_httpx_avail):
         mock_httpx_avail.return_value = True
         config = MagicMock(spec=Config)
@@ -99,7 +99,7 @@ class TestLiveHosts:
         config.httpx = {}
         config.http_timeout_seconds = 10
 
-        with patch("src.recon.live_hosts.probe_host_without_httpx") as mock_probe:
+        with patch("src.recon.live_hosts.health.probe_host_without_httpx") as mock_probe:
             mock_probe.return_value = {"url": "https://host1.com", "status_code": 200}
 
             subdomains = {"host1.com"}

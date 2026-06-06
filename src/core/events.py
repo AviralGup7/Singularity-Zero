@@ -35,6 +35,7 @@ class EventType(StrEnum):
     GHOST_ACTOR_EVACUATED = "ghost_actor_evacuated"
     INGRESS_POLICY_RESULT = "ingress_policy_result"
     HEALTH_METRIC_EMITTED = "health_metric_emitted"
+    RECON_DEGRADED = "recon_degraded"
 
 
 @dataclass

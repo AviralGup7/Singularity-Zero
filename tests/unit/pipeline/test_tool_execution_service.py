@@ -30,7 +30,7 @@ class ToolExecutionServiceTests(unittest.TestCase):
                     subprocess.CompletedProcess(self.command, 0, stdout="ok", stderr=""),
                 ],
             ),
-            patch("src.pipeline.retry.time.sleep") as sleep_mock,
+            patch("src.pipeline.retry.strategies.time.sleep") as sleep_mock,
             redirect_stderr(stderr),
         ):
             result = self.service.run_command(self.command, timeout=9, retry_policy=retry_policy)
@@ -57,7 +57,7 @@ class ToolExecutionServiceTests(unittest.TestCase):
                     subprocess.CompletedProcess(self.command, 0, stdout="ok", stderr=""),
                 ],
             ),
-            patch("src.pipeline.retry.time.sleep") as sleep_mock,
+            patch("src.pipeline.retry.strategies.time.sleep") as sleep_mock,
             redirect_stderr(stderr),
         ):
             result = self.service.run_command(self.command, retry_policy=retry_policy)
@@ -84,7 +84,7 @@ class ToolExecutionServiceTests(unittest.TestCase):
                     subprocess.TimeoutExpired(self.command, 9),
                 ],
             ),
-            patch("src.pipeline.retry.time.sleep") as sleep_mock,
+            patch("src.pipeline.retry.strategies.time.sleep") as sleep_mock,
             redirect_stderr(stderr),
         ):
             with self.assertRaises(subprocess.TimeoutExpired):
@@ -111,7 +111,7 @@ class ToolExecutionServiceTests(unittest.TestCase):
                     subprocess.CompletedProcess(self.command, 2, stdout="", stderr="boom"),
                 ],
             ),
-            patch("src.pipeline.retry.time.sleep") as sleep_mock,
+            patch("src.pipeline.retry.strategies.time.sleep") as sleep_mock,
             redirect_stderr(stderr),
         ):
             with self.assertRaises(ToolExecutionError):

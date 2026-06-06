@@ -54,13 +54,26 @@ allow_false_positive = true   # findings marked FP by AI triage are excluded
 exclude_categories = ["info-disclosure", "fingerprint"]
 branch_glob = "main"           # only apply on `main` (fnmatch syntax)
 
-# Stages whose failure counts as infra_failure (exit 3), not partial (exit 4).
+# Stages whose failure aborts the run (exit 3).  ``live_hosts`` is
+# the only truly fatal recon stage in the default policy because it
+# gates every active scanner.  Operators that want the old
+# "any-failed-recon-is-fatal" behaviour can list every recon stage
+# here, but doing so disables the degraded-continue path documented
+# below.
 [on_infra]
-fatal_stages = ["subdomains", "live_hosts", "urls"]
+fatal_stages = ["live_hosts"]
+# Stages whose failure is allowed to continue in degraded mode if a
+# downstream recon stage still produced actionable output.  When a
+# degraded stage fails but ``urls`` (or ``subdomains`` for the reverse
+# case) still surfaced targets, a ``RECON_DEGRADED`` warning is
+# emitted and the run is downgraded to ``partial`` (exit 4) instead
+# of ``infra_failure`` (exit 3).  This maximises findings yield for
+# bug-bounty hunters who want data from every reachable stage.
+degraded_stages = ["subdomains", "urls"]
 
 # Map partial runs to a specific exit code.
 [on_failure]
-retryable_only = false
+retryable_only = false        # false ⇒ all infra failures non-zero exit
 treat_partial_as = 4            # 0, 2, or 4
 ```
 
@@ -74,8 +87,9 @@ Or via the config file's `ci.policy` field. A bad policy file is treated as a
 configuration error — the run aborts pre-flight with `PolicyLoadError`.
 
 The default policy (no `--policy` flag) allows up to 5 highs and 50 mediums per
-run, marks `subdomains`/`live_hosts`/`urls` failures as infra, and treats partial
-runs as exit `4`.
+run, marks only `live_hosts` failures as infra, treats `subdomains`/`urls`
+failures as *degraded* (downgraded to `partial` if downstream salvaged), and
+treats partial runs as exit `4`.
 
 Branch detection falls back to `GITHUB_REF_NAME` → `CI_COMMIT_REF_NAME` →
 `BRANCH_NAME` → `CYBER_BRANCH` → `--branch` in that order.

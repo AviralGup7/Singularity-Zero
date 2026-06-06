@@ -9,4 +9,3 @@ from src.dashboard.fastapi.spa import setup_spa_routes
 
 def setup_routers(app: FastAPI, config: DashboardConfig | None = None) -> None:
     app.include_router(api_router)
-    setup_spa_routes(app)

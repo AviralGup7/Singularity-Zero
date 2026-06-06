@@ -5,11 +5,15 @@ Sends safe GraphQL queries to detected /graphql endpoints to:
 - Detect batch query abuse potential
 - Test mutation surfaces
 - Identify field-level authorization gaps
+- Probe directive-based access-control bypass (@skip / @include / custom)
+- Detect GET-based query acceptance (CSRF amplification surface)
+- Chain argument-mutation IDOR (e.g., swap userId / id / accountId in mutations)
 """
 
 import json
 import re
 from typing import Any
+from urllib.parse import quote
 
 from src.analysis.helpers import (
     classify_endpoint,
@@ -96,6 +100,140 @@ GRAPHQL_PERSISTED_QUERY_TEST = """
   }
 }
 """
+
+# GraphQL directive-based access-control bypass.
+# Targets common access-control directives (@skip, @include, @auth, @requireAuth,
+# @hasRole, @allowed, @checkPermission). When a server evaluates directives
+# in a way that allows a client-controlled variable to "skip" an authorization
+# check, these queries expose it. We vary the boolean input across requests.
+GRAPHQL_DIRECTIVE_BYPASS_QUERIES = {
+    "@skip": """
+query BypassSkip($cond: Boolean!) {
+  me @skip(if: $cond) {
+    id
+    email
+  }
+}
+""",
+    "@include": """
+query BypassInclude($cond: Boolean!) {
+  me @include(if: $cond) {
+    id
+    email
+  }
+}
+""",
+    "fragment_reuse": """
+fragment UserFields on User {
+  id
+  email
+}
+
+query BypassFragment {
+  me {
+    ...UserFields
+  }
+}
+""",
+}
+
+# GraphQL argument-mutation IDOR chain.
+# Common field+argument shapes that map to a per-user / per-record object.
+# We probe by issuing an introspection-style mutation and observing whether
+# the response reveals field/argument structure that takes an identifier
+# we can later substitute with another user's id.
+GRAPHQL_ARGUMENT_FIELDS = [
+    "user",
+    "users",
+    "account",
+    "accounts",
+    "order",
+    "orders",
+    "invoice",
+    "invoices",
+    "organization",
+    "organizationUsers",
+    "team",
+    "members",
+    "profile",
+    "billing",
+    "subscription",
+    "project",
+    "workspace",
+    "document",
+    "documents",
+    "file",
+    "files",
+    "post",
+    "posts",
+    "comment",
+    "comments",
+    "message",
+    "messages",
+    "role",
+    "permission",
+    "apiKey",
+    "token",
+    "session",
+    "device",
+    "settings",
+    "notification",
+    "audit",
+    "auditLog",
+    "report",
+    "reports",
+    "dashboard",
+    "widget",
+    "integration",
+    "webhook",
+]
+
+GRAPHQL_IDOR_ARGUMENTS = [
+    "id",
+    "ID",
+    "userId",
+    "user_id",
+    "accountId",
+    "account_id",
+    "orgId",
+    "org_id",
+    "organizationId",
+    "organization_id",
+    "teamId",
+    "team_id",
+    "projectId",
+    "project_id",
+    "workspaceId",
+    "workspace_id",
+    "ownerId",
+    "owner_id",
+    "customerId",
+    "customer_id",
+    "clientId",
+    "client_id",
+    "orderId",
+    "order_id",
+    "invoiceId",
+    "invoice_id",
+]
+
+# GET-based query templates. We URL-encode the query string and embed it
+# in the path so we can confirm whether the server executes a GET GraphQL
+# request without a CSRF token or non-empty Content-Type.
+def _build_get_query_url(base_url: str, query: str) -> str:
+    encoded = quote(query.strip(), safe="")
+    sep = "&" if "?" in base_url else "?"
+    return f"{base_url}{sep}query={encoded}"
+
+
+# Cross-origin probe origins. If a GET-GraphQL endpoint accepts a request
+# whose Origin matches a different host AND returns a 2xx, the endpoint
+# is reachable from arbitrary attacker pages -> CSRF.
+GRAPHQL_CSRF_ORIGINS = [
+    "https://evil.example.com",
+    "null",
+    "https://attacker.tld",
+]
 
 # GraphQL error patterns indicating verbose errors
 GRAPHQL_VERBOSE_ERROR_PATTERNS = [
@@ -404,6 +542,151 @@ def graphql_active_probe(
                 if "persisted" in error_text or "not found" in error_text:
                     signals.append("persisted_query_enforced")
 
+        # Test 7: Directive-based access-control bypass
+        # Send queries that use @skip(if: false) / @include(if: true) on
+        # fields that are normally protected. If the server strips the auth
+        # check when the field is "included" but not "executed" by the
+        # client, we get a 200 with data we shouldn't see.
+        directive_result: dict[str, Any] | None = None
+        for directive_name, directive_query in GRAPHQL_DIRECTIVE_BYPASS_QUERIES.items():
+            for cond_value in (True, False):
+                dresp = response_cache.request(
+                    url,
+                    method="POST",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Cache-Control": "no-cache",
+                        "X-GraphQL-Probe": f"directive_{directive_name}",
+                    },
+                    body=json.dumps(
+                        {"query": directive_query, "variables": {"cond": cond_value}}
+                    ),
+                )
+                if not dresp:
+                    continue
+                dbody = str(dresp.get("body_text") or "")
+                dstatus = int(dresp.get("status_code") or 0)
+                dparsed = _parse_graphql_response(dbody)
+                if not dparsed:
+                    continue
+                data_obj = dparsed.get("data") if isinstance(dparsed, dict) else None
+                if isinstance(data_obj, dict) and data_obj.get("me"):
+                    signals.append(f"directive_bypass:{directive_name}")
+                    directive_result = {
+                        "status_code": dstatus,
+                        "directive": directive_name,
+                        "cond_value": cond_value,
+                        "leaked_fields": list((data_obj.get("me") or {}).keys()),
+                    }
+                    break
+            if directive_result:
+                break
+
+        # Test 8: GET-based query (CSRF amplification)
+        # A GraphQL endpoint that accepts GET requests without a CSRF token
+        # can be triggered cross-origin from any attacker-controlled page.
+        # We send two GETs: one without an Origin, one with an evil Origin,
+        # and a third with a 'text/plain' content-type POST (bypassing CORS
+        # preflight). A 2xx on either is a finding.
+        get_csrf_result: dict[str, Any] | None = None
+        get_url = _build_get_query_url(url, "{ __typename }")
+        baseline_get = response_cache.request(
+            get_url,
+            method="GET",
+            headers={"Cache-Control": "no-cache", "X-GraphQL-Probe": "get_baseline"},
+        )
+        baseline_get_status = int((baseline_get or {}).get("status_code") or 0)
+        baseline_get_data = ""
+        if baseline_get:
+            _b = _parse_graphql_response(str(baseline_get.get("body_text") or ""))
+            if isinstance(_b, dict) and _b.get("data"):
+                baseline_get_data = "data"
+
+        # If GET works at all, try cross-origin
+        if baseline_get_status and baseline_get_status < 400 and baseline_get_data:
+            signals.append("graphql_get_accepted")
+            for evil_origin in GRAPHQL_CSRF_ORIGINS:
+                evil_resp = response_cache.request(
+                    get_url,
+                    method="GET",
+                    headers={
+                        "Origin": evil_origin,
+                        "Referer": f"{evil_origin}/",
+                        "Cache-Control": "no-cache",
+                        "X-GraphQL-Probe": f"get_csrf_{evil_origin}",
+                    },
+                )
+                if not evil_resp:
+                    continue
+                estatus = int(evil_resp.get("status_code") or 0)
+                ebody = str(evil_resp.get("body_text") or "")
+                if estatus and estatus < 400 and "__typename" in ebody:
+                    signals.append("graphql_get_csrf_vulnerable")
+                    get_csrf_result = {
+                        "status_code": estatus,
+                        "evil_origin": evil_origin,
+                        "method": "GET",
+                    }
+                    break
+
+        # Test 9: Argument-mutation IDOR chain.
+        # Send a few common (field, idArg) mutations using probe values;
+        # 200 with no auth error suggests the server will execute mutations
+        # for arbitrary identifiers (foundation of an IDOR chain). We are
+        # intentionally non-destructive: every payload is an introspection-
+        # style / no-op mutation, never a real delete/update.
+        idor_result: dict[str, Any] | None = None
+        for field in GRAPHQL_ARGUMENT_FIELDS[:12]:  # cap to keep probe bounded
+            probe_id = "1"
+            probe_query = (
+                f"mutation ProbeIdor {{ "
+                f"delete{field.capitalize()}(id: \"{probe_id}\") {{ __typename }} "
+                f"}}"
+            )
+            idor_resp = response_cache.request(
+                url,
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "Cache-Control": "no-cache",
+                    "X-GraphQL-Probe": f"idor_arg_{field}",
+                },
+                body=json.dumps({"query": probe_query}),
+            )
+            if not idor_resp:
+                continue
+            ibody = str(idor_resp.get("body_text") or "")
+            istatus = int(idor_resp.get("status_code") or 0)
+            iparsed = _parse_graphql_response(ibody)
+            if not iparsed:
+                continue
+            idata = iparsed.get("data") if isinstance(iparsed, dict) else None
+            ierrors = iparsed.get("errors") if isinstance(iparsed, dict) else None
+            # Field-resolved successfully without an auth/forbidden error.
+            if (
+                isinstance(idata, dict)
+                and idata
+                and not ierrors
+                and istatus
+                and istatus < 400
+            ):
+                signals.append(f"idor_arg:{field}")
+                idor_result = {
+                    "status_code": istatus,
+                    "field": field,
+                    "executed": True,
+                    "response_keys": list(idata.keys()),
+                }
+                break
+            # Surface "argument not defined" patterns -> tells us the
+            # mutation root is reachable but takes different arguments.
+            if isinstance(ierrors, list) and ierrors:
+                msgs = " ".join(str(e.get("message", "")).lower() for e in ierrors if isinstance(e, dict))
+                if "cannot query field" in msgs or "unknown field" in msgs:
+                    continue
+                if "argument" in msgs and "required" in msgs:
+                    signals.append(f"idor_arg:required_args:{field}")
+
         if not signals:
             continue
 
@@ -427,6 +710,14 @@ def graphql_active_probe(
             risk_score += 3
         if "persisted_query_bypass" in signals:
             risk_score += 5
+        if any(s.startswith("directive_bypass:") for s in signals):
+            risk_score += 7
+        if "graphql_get_csrf_vulnerable" in signals:
+            risk_score += 6
+        if "graphql_get_accepted" in signals:
+            risk_score += 2
+        if any(s.startswith("idor_arg:") for s in signals):
+            risk_score += 6
 
         severity = "high" if risk_score >= 8 else "medium" if risk_score >= 4 else "low"
 
@@ -442,6 +733,9 @@ def graphql_active_probe(
                 "introspection_result": introspection_result,
                 "batch_result": batch_result,
                 "mutation_result": mutation_result,
+                "directive_result": directive_result,
+                "get_csrf_result": get_csrf_result,
+                "idor_result": idor_result,
             }
         )
 

@@ -200,8 +200,20 @@ def resolve_pipeline_exit_code(
     * ``0``  — pass
     * ``2``  — findings exceed the policy thresholds
     * ``3``  — operational failure (fatal recon, network, etc.)
-    * ``4``  — partial (some non-fatal stages failed)
+    * ``4``  — partial (some non-fatal stages failed, possibly because a
+              recon stage ran in degraded mode — see ``RECON_DEGRADED``)
     * ``130``— SIGINT/SIGTERM
+
+    Degraded mode:
+        When a stage listed in ``policy.infra.degraded_stages`` fails
+        but a sibling/downstream stage still surfaced actionable data
+        (e.g. ``urls`` succeeded via certificate transparency after
+        ``subdomains`` failed), the failure is recorded as
+        ``degraded=True`` in the stage metrics, a ``RECON_DEGRADED``
+        event is emitted, and the run is downgraded to ``partial``
+        (exit 4) instead of ``infra_failure`` (exit 3).  Bug-bounty
+        hunters want findings from every reachable stage, even when
+        upstream recon is incomplete.
     """
     import time
 
@@ -220,37 +232,105 @@ def resolve_pipeline_exit_code(
     if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
         metrics = ctx.result.module_metrics.get("recon_validation", {})
         if metrics.get("fatal", True):
-            evaluation = PolicyEvaluation(
-                exit_code=EXIT_INFRA_FAILURE,
-                outcome="infra_failure",
-                failed_stages=("recon_validation",),
-                branch=branch,
-                policy_snapshot=policy.to_dict(),
+            # Degraded-mode escape hatch: if the recon validator
+            # flagged a dead URL scope but ``subdomains`` still
+            # surfaced actionable targets, treat the validation as a
+            # warning and continue in degraded mode.  The
+            # ``subdomain_takeover`` stage and any user-supplied
+            # ``active_scan`` consumers can still work on the
+            # discovered subdomains.
+            salvaged_subdomains = (
+                ctx.result.stage_status.get("subdomains") == StageStatus.COMPLETED.value
+                and bool(ctx.result.subdomains)
             )
-            _emit_policy_result(orchestrator, evaluation)
-            progress_emitter(
-                "shutdown",
-                "Pipeline aborted: recon validation failed (no discoverable URLs).",
-                100,
-                status="failed",
-            )
-            return evaluation.exit_code
+            if salvaged_subdomains:
+                if isinstance(metrics, dict):
+                    metrics["degraded"] = True
+                    metrics["degraded_salvaged_by"] = "subdomains"
+                    metrics["fatal"] = False
+                progress_emitter(
+                    "recon_validation",
+                    "RECON_DEGRADED: no discoverable URLs but subdomains "
+                    "surfaced actionable targets; continuing in degraded mode.",
+                    100,
+                    status="warning",
+                    event_trigger="recon_degraded",
+                    degraded=True,
+                    salvaged_by="subdomains",
+                )
+                logger.warning(
+                    "RECON_DEGRADED: recon_validation failed (no URLs) but "
+                    "%d subdomain(s) are available; continuing in degraded mode.",
+                    len(ctx.result.subdomains),
+                )
+                try:
+                    from src.core.events import EventType, get_event_bus
 
-    for recon_stage in ("subdomains", "live_hosts", "urls"):
-        if ctx.result.stage_status.get(recon_stage) == StageStatus.FAILED.value:
-            metrics = ctx.result.module_metrics.get(recon_stage, {})
-            if metrics.get("fatal", True):
+                    emit = (
+                        getattr(orchestrator, "_emit_event", None)
+                        if orchestrator is not None
+                        else None
+                    )
+                    payload = {
+                        "stage": "recon_validation",
+                        "salvaged_by": "subdomains",
+                        "subdomain_count": len(ctx.result.subdomains),
+                    }
+                    if callable(emit):
+                        emit(
+                            EventType.RECON_DEGRADED,
+                            source="recon_validator",
+                            data=payload,
+                        )
+                    else:
+                        get_event_bus().emit(
+                            EventType.RECON_DEGRADED,
+                            source="recon_validator",
+                            data=payload,
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("Failed to emit RECON_DEGRADED event: %s", exc)
+            else:
                 evaluation = PolicyEvaluation(
                     exit_code=EXIT_INFRA_FAILURE,
                     outcome="infra_failure",
-                    failed_stages=(recon_stage,),
+                    failed_stages=("recon_validation",),
                     branch=branch,
                     policy_snapshot=policy.to_dict(),
                 )
                 _emit_policy_result(orchestrator, evaluation)
                 progress_emitter(
                     "shutdown",
-                    f"Pipeline aborted: recon stage '{recon_stage}' failed.",
+                    "Pipeline aborted: recon validation failed (no discoverable URLs).",
+                    100,
+                    status="failed",
+                )
+                return evaluation.exit_code
+
+    # Apply degraded-mode detection before the hard infra-failure gate
+    # so a salvaged degraded-stage failure doesn't trigger
+    # ``infra_failure``.  This consults the policy's
+    # ``degraded_stages`` set rather than the legacy hard-coded
+    # ``{"subdomains", "live_hosts", "urls"}`` triple.
+    _apply_recon_degradation(
+        orchestrator, ctx, policy, progress_emitter
+    )
+
+    for stage_name in sorted(policy.infra.fatal_stages):
+        if ctx.result.stage_status.get(stage_name) == StageStatus.FAILED.value:
+            metrics = ctx.result.module_metrics.get(stage_name, {})
+            if metrics.get("fatal", False) and not metrics.get("degraded", False):
+                evaluation = PolicyEvaluation(
+                    exit_code=EXIT_INFRA_FAILURE,
+                    outcome="infra_failure",
+                    failed_stages=(stage_name,),
+                    branch=branch,
+                    policy_snapshot=policy.to_dict(),
+                )
+                _emit_policy_result(orchestrator, evaluation)
+                progress_emitter(
+                    "shutdown",
+                    f"Pipeline aborted: fatal stage '{stage_name}' failed.",
                     100,
                     status="failed",
                 )
@@ -277,6 +357,7 @@ def resolve_pipeline_exit_code(
                 partial=evaluation.partial,
                 branch=evaluation.branch,
                 policy_snapshot=evaluation.policy_snapshot,
+                degraded_stages=evaluation.degraded_stages,
             )
 
     _emit_policy_result(orchestrator, evaluation)
@@ -309,6 +390,153 @@ def resolve_pipeline_exit_code(
             },
         )
     return evaluation.exit_code
+
+
+# Downstream-stage lookup for degraded-mode salvage detection.
+# A failure in ``stage_name`` is considered salvaged when a
+# later-listed stage produced non-empty output.  Only stages that
+# can independently surface targets without depending on the failed
+# stage count as salvagers:
+#
+#   * ``urls`` can salvage ``subdomains`` because crt.sh and
+#     historical URL databases surface URLs without first
+#     enumerating subdomains.
+#   * ``subdomains`` can salvage ``urls`` because ``subdomain_takeover``
+#     and any user-supplied active-scan consumers can still probe
+#     the discovered subdomains.
+#   * ``live_hosts`` is intentionally NOT a salvager for any other
+#     stage — it depends on subdomains as input, so a live-hosts
+#     result that depends on subdomains is not a valid salvage.
+_RECON_DEGRADED_SALVAGED_BY: dict[str, tuple[str, ...]] = {
+    "subdomains": ("urls",),
+    "urls": ("subdomains",),
+}
+
+
+def _apply_recon_degradation(
+    orchestrator: Any,
+    ctx: PipelineContext,
+    policy: ExitConditionPolicy,
+    progress_emitter: Any,
+) -> None:
+    """Detect degraded-mode salvage for failed recon stages.
+
+    For each stage in ``policy.infra.degraded_stages`` that ended in
+    FAILED status, look for a sibling/downstream stage that produced
+    non-empty output.  If one is found, the failure is recorded as
+    ``degraded=True`` in the metrics (overriding ``fatal=True``) and a
+    ``RECON_DEGRADED`` event is emitted so dashboards and CI
+    consumers can show a warning without aborting the run.
+
+    This is what lets ``subdomains`` failure + ``urls`` success (via
+    crt.sh or historical data) continue the pipeline in degraded mode
+    instead of aborting with ``infra_failure`` (exit 3).
+    """
+    if not policy.infra.degraded_stages:
+        return
+
+    try:
+        from src.core.events import EventType, get_event_bus
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("EventBus unavailable for RECON_DEGRADED: %s", exc)
+        EventType = None  # type: ignore[assignment]
+        get_event_bus = None  # type: ignore[assignment]
+
+    for stage_name in policy.infra.degraded_stages:
+        if ctx.result.stage_status.get(stage_name) != StageStatus.FAILED.value:
+            continue
+        salvaging = _recon_degraded_salvage_stage(ctx, stage_name)
+        if salvaging is None:
+            continue
+        metrics = ctx.result.module_metrics.setdefault(stage_name, {})
+        if not isinstance(metrics, dict):
+            metrics = {"status": str(metrics)}
+            ctx.result.module_metrics[stage_name] = metrics
+        metrics["degraded"] = True
+        metrics["degraded_salvaged_by"] = salvaging
+        # Override the fatal flag so the policy evaluator (and any
+        # downstream consumer) treats this failure as non-fatal.
+        metrics["fatal"] = False
+        reason = str(metrics.get("failure_reason") or "stage failed")
+        logger.warning(
+            "RECON_DEGRADED: stage '%s' failed (%s) but '%s' produced "
+            "actionable output; continuing in degraded mode.",
+            stage_name,
+            reason,
+            salvaging,
+        )
+        progress_emitter(
+            stage_name,
+            f"RECON_DEGRADED: {stage_name} failed but {salvaging} salvaged the run.",
+            100,
+            status="warning",
+            event_trigger="recon_degraded",
+            degraded=True,
+            salvaged_by=salvaging,
+            failure_reason=reason,
+        )
+        payload = {
+            "stage": stage_name,
+            "salvaged_by": salvaging,
+            "failure_reason": reason,
+            "metrics": {k: v for k, v in metrics.items() if k != "retry_metrics"},
+        }
+        if EventType is not None and get_event_bus is not None:
+            try:
+                emit = (
+                    getattr(orchestrator, "_emit_event", None) if orchestrator is not None else None
+                )
+                if callable(emit):
+                    emit(EventType.RECON_DEGRADED, source=f"stage.{stage_name}", data=payload)
+                else:
+                    get_event_bus().emit(
+                        EventType.RECON_DEGRADED, source=f"stage.{stage_name}", data=payload
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Failed to emit RECON_DEGRADED event: %s", exc)
+
+
+def _recon_degraded_salvage_stage(
+    ctx: PipelineContext, stage_name: str
+) -> str | None:
+    """Return the name of a downstream stage that salvaged ``stage_name``.
+
+    A stage is considered salvaged when:
+
+    * it ran and completed successfully (``stage_status`` is COMPLETED),
+      AND
+    * it produced a non-empty output (``ctx.subdomains`` or ``ctx.urls``
+      contains at least one entry, or its own state attribute is
+      non-empty).
+
+    The order of candidates is governed by
+    :data:`_RECON_DEGRADED_SALVAGED_BY` so the first matching candidate
+    is preferred (e.g. ``urls`` over ``live_hosts`` for ``subdomains``).
+    """
+    candidates = _RECON_DEGRADED_SALVAGED_BY.get(stage_name, ())
+    for candidate in candidates:
+        if ctx.result.stage_status.get(candidate) != StageStatus.COMPLETED.value:
+            continue
+        if not _stage_output_is_non_empty(ctx, candidate):
+            continue
+        return candidate
+    return None
+
+
+def _stage_output_is_non_empty(ctx: PipelineContext, stage_name: str) -> bool:
+    """Return True if the pipeline context holds non-empty output for
+    ``stage_name``.
+
+    Falls back to reading the named attribute on ``ctx.result`` so
+    arbitrary stage names work without hard-coding each one.
+    """
+    value = getattr(ctx.result, stage_name, None)
+    if value is None:
+        return False
+    try:
+        return len(value) > 0
+    except TypeError:
+        return bool(value)
 
 
 def _emit_policy_result(orchestrator: Any, evaluation: PolicyEvaluation) -> None:

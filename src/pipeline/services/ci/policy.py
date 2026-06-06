@@ -20,8 +20,17 @@ Example ``policy.toml``::
     treat_partial_as = 4         # partial runs exit 4 instead of 0
 
     [on_infra]
-    # Stage names whose failure counts as infra, not partial.
-    fatal_stages = ["subdomains", "live_hosts", "urls"]
+    # Stages whose failure aborts the run (exit 3).  ``live_hosts`` is
+    # the only truly fatal recon stage in the default policy because it
+    # gates every active scanner.
+    fatal_stages = ["live_hosts"]
+    # Stages whose failure is allowed to continue in degraded mode if a
+    # downstream recon stage still produced actionable output.  When a
+    # degraded stage fails but the pipeline still surfaced URLs (via
+    # certificate transparency, historical data, or a sibling stage) a
+    # ``RECON_DEGRADED`` warning is emitted and the run is downgraded
+    # to ``partial`` (exit 4) instead of ``infra_failure`` (exit 3).
+    degraded_stages = ["subdomains", "urls"]
 """
 
 from __future__ import annotations
@@ -104,11 +113,35 @@ class FindingsRule:
 
 @dataclass(frozen=True)
 class InfraRule:
-    """``[on_infra]`` block — which stages count as infrastructure."""
+    """``[on_infra]`` block — which stages count as infrastructure.
+
+    Attributes:
+        fatal_stages: Stage names whose failure aborts the run with
+            ``infra_failure`` (exit 3).  These are the truly critical
+            stages that gate the entire active-scan pipeline.
+        degraded_stages: Stage names whose failure is allowed to
+            continue in degraded mode.  When a degraded stage fails
+            but downstream stages still produced actionable output
+            (e.g. ``urls`` succeeded via crt.sh after ``subdomains``
+            failed), the pipeline emits a ``RECON_DEGRADED`` warning
+            event and downgrades the exit to ``partial`` (exit 4)
+            instead of aborting with ``infra_failure`` (exit 3).
+    """
 
     fatal_stages: frozenset[str] = field(
-        default_factory=lambda: frozenset({"subdomains", "live_hosts", "urls"})
+        default_factory=lambda: frozenset({"live_hosts"})
     )
+    degraded_stages: frozenset[str] = field(
+        default_factory=lambda: frozenset({"subdomains", "urls"})
+    )
+
+    def is_fatal(self, stage_name: str) -> bool:
+        """Return True if ``stage_name`` aborts the run on failure."""
+        return stage_name in self.fatal_stages
+
+    def is_degraded(self, stage_name: str) -> bool:
+        """Return True if ``stage_name`` may continue in degraded mode."""
+        return stage_name in self.degraded_stages
 
 
 @dataclass(frozen=True)
@@ -138,7 +171,10 @@ class ExitConditionPolicy:
                 "exclude_categories": sorted(self.findings.exclude_categories),
                 "branch_glob": self.findings.branch_glob,
             },
-            "on_infra": {"fatal_stages": sorted(self.infra.fatal_stages)},
+            "on_infra": {
+                "fatal_stages": sorted(self.infra.fatal_stages),
+                "degraded_stages": sorted(self.infra.degraded_stages),
+            },
             "on_failure": {
                 "retryable_only": self.on_failure.retryable_only,
                 "treat_partial_as": self.on_failure.treat_partial_as,
@@ -248,8 +284,12 @@ def _from_mapping(data: Mapping[str, Any]) -> ExitConditionPolicy:
         raise PolicyLoadError("'on_infra' must be a table")
     infra = InfraRule(
         fatal_stages=_as_str_set(
-            infra_block.get("fatal_stages", ["subdomains", "live_hosts", "urls"]),
+            infra_block.get("fatal_stages", ["live_hosts"]),
             field_name="fatal_stages",
+        ),
+        degraded_stages=_as_str_set(
+            infra_block.get("degraded_stages", ["subdomains", "urls"]),
+            field_name="degraded_stages",
         ),
     )
 
@@ -320,6 +360,7 @@ class PolicyEvaluation:
     partial: bool = False
     branch: str = ""
     policy_snapshot: dict[str, Any] = field(default_factory=dict)
+    degraded_stages: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -331,6 +372,7 @@ class PolicyEvaluation:
             "partial": self.partial,
             "branch": self.branch,
             "policy_snapshot": dict(self.policy_snapshot),
+            "degraded_stages": list(self.degraded_stages),
         }
 
 
@@ -351,16 +393,32 @@ def evaluate_policy(
             whose status is not COMPLETED.  The function inspects the
             ``fatal`` flag and the configured ``infra.fatal_stages`` set
             to decide whether each entry counts as infra or partial.
+            Stages whose metrics include ``degraded=True`` are excluded
+            from infra failure — they are reported in
+            :attr:`PolicyEvaluation.degraded_stages` and the run is
+            downgraded to ``partial`` (exit 4) instead of
+            ``infra_failure`` (exit 3).
         branch: Git branch name (used for ``[on_findings] branch_glob``
             filtering).  Empty string is treated as ``"*"`` (always match).
     """
     failed_stage_names = tuple(sorted(failed_stages.keys()))
+    degraded_salvaged = sorted(
+        name
+        for name, metrics in failed_stages.items()
+        if bool(metrics.get("degraded", False))
+    )
     infra_failures = sorted(
         name
         for name, metrics in failed_stages.items()
-        if name in policy.infra.fatal_stages or bool(metrics.get("fatal", False))
+        if name in policy.infra.fatal_stages
+        or (
+            bool(metrics.get("fatal", False))
+            and not bool(metrics.get("degraded", False))
+        )
     )
-    partial_failures = sorted(set(failed_stage_names) - set(infra_failures))
+    partial_failures = sorted(
+        set(failed_stage_names) - set(infra_failures) - set(degraded_salvaged)
+    )
 
     if infra_failures:
         return PolicyEvaluation(
@@ -369,6 +427,7 @@ def evaluate_policy(
             failed_stages=tuple(infra_failures),
             branch=branch,
             policy_snapshot=policy.to_dict(),
+            degraded_stages=tuple(degraded_salvaged),
         )
 
     counts = _count_findings(
@@ -388,9 +447,10 @@ def evaluate_policy(
                 failed_stages=failed_stage_names,
                 branch=branch,
                 policy_snapshot=policy.to_dict(),
+                degraded_stages=tuple(degraded_salvaged),
             )
 
-    if partial_failures:
+    if partial_failures or degraded_salvaged:
         return PolicyEvaluation(
             exit_code=policy.on_failure.treat_partial_as,
             outcome="partial",
@@ -399,6 +459,7 @@ def evaluate_policy(
             partial=True,
             branch=branch,
             policy_snapshot=policy.to_dict(),
+            degraded_stages=tuple(degraded_salvaged),
         )
 
     return PolicyEvaluation(
@@ -408,4 +469,5 @@ def evaluate_policy(
         failed_stages=(),
         branch=branch,
         policy_snapshot=policy.to_dict(),
+        degraded_stages=tuple(degraded_salvaged),
     )

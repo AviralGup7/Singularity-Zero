@@ -404,6 +404,36 @@ def _register_specs() -> None:
                 "Consume pre-computed concurrent response observations to flag TOCTOU race conditions with confidence scoring.",
                 "logic",
             ),
+            _spec(
+                "api_rest_param_pollution",
+                "REST Parameter Pollution Detector",
+                "Detect HTTP Parameter Pollution (HPP) by classifying binding style (array, concat, first/last-wins) on repeated query/body parameters.",
+                "api",
+            ),
+            _spec(
+                "api_graphql_introspection",
+                "GraphQL Introspection Query Detector",
+                "Surface GraphQL endpoints, IDEs (GraphiQL/Playground/Altair), and introspection query tokens (incl. persisted-query / Apollo headers).",
+                "api",
+            ),
+            _spec(
+                "api_rate_limit_differential",
+                "API Rate-Limit Differential Analyzer",
+                "Aggregate per-endpoint rate-limit observations and flag the weakest link, inconsistent headers, and sensitive endpoints missing throttling.",
+                "api",
+            ),
+            _spec(
+                "api_jwt_claim_integrity",
+                "JWT Claim Manipulation Surface Detector",
+                "Inspect captured JWTs for alg=none, HS/RS confusion, suspicious kid/jku/jwk/x5c headers, exp/iss/aud anomalies, and role escalation candidates.",
+                "api",
+            ),
+            _spec(
+                "api_websocket_message_security",
+                "WebSocket Message Security Detector",
+                "Analyze captured WebSocket frames for origin validation gaps, subprotocol confusion, JSON NoSQL/prototype-pollution operators, and HTML/SSRF URLs.",
+                "api",
+            ),
         )
         + ACTIVE_PLUGIN_SPECS
         + PASSIVE_PLUGIN_SPECS

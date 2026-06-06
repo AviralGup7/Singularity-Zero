@@ -202,6 +202,7 @@ class DashboardHardeningTests(unittest.TestCase):
                 "reload.check",
                 "demo.header_check",
                 "demo_header_check",
+                "access_dynamic_idor",
             }
         }
         self.assertSetEqual(option_names, passive_names)

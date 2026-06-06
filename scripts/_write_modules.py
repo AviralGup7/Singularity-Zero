@@ -93,7 +93,7 @@ class VFSPathMixin:
         raw_path = os.fspath(path)
         if not isinstance(raw_path, str) or not raw_path:
             raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
-        if "\\x00" in repr(raw_path):
+        if "\\x00" in raw_path:
             raise ValueError(f"Ghost-VFS: Invalid virtual path: {path}")
 
         virtual_path = raw_path.replace("\\\\", "/")
@@ -510,7 +510,7 @@ class LWWset[T]:
             to_remove = [
                 k
                 for k, el in self._elements.items()
-                if el.deleted and (now - el.timestamp) > max_tombstone_age_seconds
+                if el.deleted and (now - el.timestamp) >= max_tombstone_age_seconds
             ]
             for k in to_remove:
                 del self._elements[k]
@@ -527,7 +527,7 @@ class LWWset[T]:
             tombstones = [
                 (k, el.timestamp)
                 for k, el in self._elements.items()
-                if el.deleted and (now - el.timestamp) > max_tombstone_age_seconds
+                if el.deleted and (now - el.timestamp) >= max_tombstone_age_seconds
             ]
         if not tombstones:
             return 0
@@ -715,4 +715,3 @@ for name, content in files.items():
     with open(path, "w", newline="", encoding="utf-8") as f:
         f.write(content)
     print(f"  Created {path}")
-'''

@@ -114,7 +114,7 @@ class TestRetryPolicy:
 
     def test_sleep_before_retry_returns_delay(self) -> None:
         policy = RetryPolicy(initial_backoff_seconds=0.01, jitter_factor=0.0)
-        with patch("src.pipeline.retry.time.sleep"):
+        with patch("src.pipeline.retry.strategies.time.sleep"):
             delay = sleep_before_retry(policy, 1)
         assert delay > 0
 
@@ -255,7 +255,7 @@ class TestExecuteWithRetry:
             return 99
 
         policy = RetryPolicy(max_attempts=5, initial_backoff_seconds=0.0, jitter_factor=0.0)
-        with patch("src.pipeline.retry.time.sleep"):
+        with patch("src.pipeline.retry.policy.time.sleep"):
             result = execute_with_retry(flaky, policy, metrics)
         assert result == 99
         assert call_count[0] == 3
@@ -284,7 +284,7 @@ class TestExecuteWithRetry:
             raise ConnectionError("refused")
 
         policy = RetryPolicy(max_attempts=3, initial_backoff_seconds=0.0, jitter_factor=0.0)
-        with patch("src.pipeline.retry.time.sleep"):
+        with patch("src.pipeline.retry.policy.time.sleep"):
             with pytest.raises(ConnectionError):
                 execute_with_retry(always_transient, policy, metrics)
         assert metrics.total_attempts == 3
@@ -314,7 +314,7 @@ class TestExecuteWithRetry:
         policy = RetryPolicy(
             max_attempts=3, retry_on_error=True, initial_backoff_seconds=0.0, jitter_factor=0.0
         )
-        with patch("src.pipeline.retry.time.sleep"):
+        with patch("src.pipeline.retry.policy.time.sleep"):
             result = execute_with_retry(flaky_unknown, policy, metrics)
         assert result == 1
         assert call_count[0] == 2

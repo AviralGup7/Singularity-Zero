@@ -154,11 +154,14 @@ class ZeroCopyRouter:
             # Accept both ``shm://name@<offset>`` and the legacy
             # ``shm://name@<offset>:<length>`` form for compatibility.
             name_part, meta = rest.split("@", 1)
-            offset_part = meta.split(":", 1)[0]
-            offset = int(offset_part)
-            declared_length = 0
+            parts = meta.split(":", 1)
+            offset = int(parts[0])
+            declared_length = int(parts[1]) if len(parts) > 1 else 0
         except (ValueError, AttributeError) as exc:
             raise ValueError(f"Malformed SHM location reference: {location!r}") from exc
+
+        if declared_length < 0 or declared_length > _MAX_PAYLOAD_BYTES:
+            raise ValueError("Invalid payload length in SHM reference")
 
         if offset < 0 or offset + _HEADER_SIZE > self.buffer_size:
             raise ValueError("SHM offset out of bounds")

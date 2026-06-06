@@ -145,14 +145,12 @@ def run(payload):
 
     assert records[0].manifest.key == "access_dynamic_idor"
     assert any(option["name"] == "access_dynamic_idor" for option in options)
-    assert run_detection_plugin("access_dynamic_idor", ctx) == [
-        {
-            "url": "https://api.example.com/v1/orders?account_id=42",
-            "category": "idor",
-            "severity": "medium",
-            "signals": ["dynamic_idor_account_id"],
-        }
-    ]
+    findings = run_detection_plugin("access_dynamic_idor", ctx)
+    assert len(findings) == 1
+    assert findings[0]["url"] == "https://api.example.com/v1/orders?account_id=42"
+    assert findings[0]["category"] == "idor"
+    assert findings[0]["severity"] == "medium"
+    assert findings[0]["signals"] == ["dynamic_idor_account_id"]
 
 
 def test_dynamic_plugin_catalog_hot_reload_updates_manifest(tmp_path: Path) -> None:

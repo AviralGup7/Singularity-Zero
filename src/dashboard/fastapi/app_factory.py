@@ -13,7 +13,9 @@ from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.lifespan import lifespan
 from src.dashboard.fastapi.middleware_setup import setup_middleware
 from src.dashboard.fastapi.router_setup import setup_routers
+from src.dashboard.fastapi.spa import setup_spa_routes
 from src.dashboard.fastapi.schemas import DashboardStatsResponse
+from src.dashboard.fastapi.security_setup import setup_security_store
 
 
 def create_app(config: DashboardConfig | None = None) -> FastAPI:
@@ -31,6 +33,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     )
 
     app.state.config = config
+    setup_security_store(app, config)
     setup_middleware(app, config)
     setup_routers(app, config)
 
@@ -48,14 +51,16 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         event_type = "server_error" if status_code >= 500 else "client_error"
         if status_code in {401, 403}:
             event_type = "invalid_auth"
-        app.state.security_store.record_event(
-            event_type,
-            status_code=status_code,
-            method=request.method,
-            path=request.url.path,
-            client_ip=request.client.host if request.client else "unknown",
-            detail=detail if isinstance(detail, str) else str(detail),
-        )
+        security_store = getattr(app.state, "security_store", None)
+        if security_store is not None:
+            security_store.record_event(
+                event_type,
+                status_code=status_code,
+                method=request.method,
+                path=request.url.path,
+                client_ip=request.client.host if request.client else "unknown",
+                detail=detail if isinstance(detail, str) else str(detail),
+            )
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
@@ -251,4 +256,6 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             app.state.dashboard_stats_cache_time = now
         return stats
 
+    setup_spa_routes(app)
     return app
+

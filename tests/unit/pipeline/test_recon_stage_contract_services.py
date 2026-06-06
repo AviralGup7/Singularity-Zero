@@ -27,14 +27,16 @@ class _DummyOutputStore:
 async def test_subdomain_enumeration_filters_sensitive_wildcard_hosts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        recon_service,
-        "enumerate_subdomains",
-        lambda scope_entries, runtime, skip_crtsh: {
+    mock_provider = SimpleNamespace(
+        collect=lambda scope_entries, context, skip_crtsh: {
             "api.example.com",
             "git.example.com",
             "vault.example.com",
-        },
+        }
+    )
+    monkeypatch.setattr(
+        "src.pipeline.tools_capabilities.resolve_capability",
+        lambda name: mock_provider,
     )
     stage_input = StageInput(
         stage_name="subdomains",
@@ -62,10 +64,12 @@ async def test_subdomain_enumeration_filters_sensitive_wildcard_hosts(
 async def test_subdomain_enumeration_keeps_explicit_sensitive_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    mock_provider = SimpleNamespace(
+        collect=lambda scope_entries, context, skip_crtsh: {"git.example.com"}
+    )
     monkeypatch.setattr(
-        recon_service,
-        "enumerate_subdomains",
-        lambda scope_entries, runtime, skip_crtsh: {"git.example.com"},
+        "src.pipeline.tools_capabilities.resolve_capability",
+        lambda name: mock_provider,
     )
     stage_input = StageInput(
         stage_name="subdomains",

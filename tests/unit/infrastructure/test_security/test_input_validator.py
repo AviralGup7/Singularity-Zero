@@ -35,9 +35,9 @@ from src.infrastructure.security.rate_limiter import (
     SlidingWindowCounter,
 )
 
-class SecurityTestBase(unittest.TestCase):
-    def setUp(self) -> None:
-        self.security_config = make_security_config()
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from _security_base import SecurityTestBase, make_security_config
 
 class TestInputValidator(SecurityTestBase):
     def test_sanitize_string(self) -> None:

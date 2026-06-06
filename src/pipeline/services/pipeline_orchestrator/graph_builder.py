@@ -53,13 +53,23 @@ _BASE_NODES: tuple[StageNode, ...] = (
         needs=(),
         weight=10,
         timeout=600,
-        critical=True,
+        # ``subdomains`` is no longer critical: when active subdomain
+        # enumeration fails the pipeline can still proceed in degraded
+        # mode if a downstream stage (``urls``) surfaces actionable
+        # targets via certificate transparency or historical data.
+        # The ``RECON_DEGRADED`` warning is emitted from
+        # ``resolve_pipeline_exit_code`` and the run is downgraded to
+        # ``partial`` (exit 4) instead of ``infra_failure`` (exit 3).
+        critical=False,
     ),
     StageNode(
         name="live_hosts",
         needs=("subdomains",),
         weight=15,
         timeout=900,
+        # ``live_hosts`` is the only truly fatal recon stage: it gates
+        # every active scanner via ``OutputNonEmpty("live_hosts")`` and
+        # without it there is nothing to probe.
         critical=True,
     ),
     StageNode(
@@ -73,7 +83,12 @@ _BASE_NODES: tuple[StageNode, ...] = (
         needs=("live_hosts",),
         weight=15,
         timeout=900,
-        critical=True,
+        # ``urls`` is no longer critical: when URL collection fails the
+        # pipeline can still complete passively if ``subdomains``
+        # produced a non-empty set, or it can fall back to live-host
+        # probing directly.  See ``RECON_DEGRADED`` handling in
+        # ``resolve_pipeline_exit_code``.
+        critical=False,
     ),
     StageNode(
         name="git_diff_crawl",

@@ -147,6 +147,11 @@ def _load_active_probe_functions() -> dict[str, Any]:
             "src.analysis.active.graphql",
             "graphql_active_probe",
         ),
+        "graphql_ws_injection_probe": _try_import(
+            "graphql_ws_injection_probe",
+            "src.analysis.active.graphql_ws_probe",
+            "graphql_ws_injection_probe",
+        ),
         "http2_probe": _try_import(
             "http2_probe",
             "src.analysis.active.http_smuggling",

@@ -24,6 +24,7 @@ from src.dashboard.fastapi.ws_setup import setup_websocket
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
 from src.infrastructure.mesh.sharding import MeshShardManager
 from src.infrastructure.observability.health_subscriber import register_health_subscriber
+from src.core.contracts.health import HealthMetric, HealthStatus
 from src.pipeline.self_healing import (
     CorrectionEvent,
     CorrectiveAction,
@@ -297,9 +298,75 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     tool_service: ToolExecutionService = getattr(app.state, "tool_execution_service", None) or ToolExecutionService()
     app.state.tool_execution_service = tool_service
 
+    async def _pipeline_stage_probe() -> list[HealthMetric]:
+        jobs = getattr(app.state.services, "jobs", {})
+        now = time.time()
+        metrics = [
+            HealthMetric(
+                component=HealthComponent.PIPELINE_STAGE,
+                name="stage_count",
+                value=len(jobs),
+            )
+        ]
+        for job_id, job in list(jobs.items()):
+            if job.get("status") != "running":
+                continue
+            updated = float(
+                job.get("updated_at")
+                or job.get("last_update")
+                or job.get("started_at")
+                or now
+            )
+            age = max(0.0, now - updated)
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.PIPELINE_STAGE,
+                    name="stage_age_seconds",
+                    value=round(age, 2),
+                    labels={
+                        "job_id": job_id,
+                        "stage": job.get("stage", "unknown"),
+                        "target": job.get("target", ""),
+                    },
+                )
+            )
+        return metrics
+
+    async def _dashboard_connection_probe() -> list[HealthMetric]:
+        ws = getattr(app.state, "ws_services", None)
+        if ws is None:
+            return [
+                HealthMetric(
+                    component=HealthComponent.DASHBOARD_CONNECTION,
+                    name="dashboard_connection_age",
+                    value=0,
+                    status=HealthStatus.DEGRADED,
+                    labels={"reason": "websocket_services_unavailable"},
+                )
+            ]
+        connections = await ws.manager.get_all_connections()
+        now = time.time()
+        metrics = [
+            HealthMetric(
+                component=HealthComponent.DASHBOARD_CONNECTION,
+                name="dashboard_active_connections",
+                value=len(connections),
+            )
+        ]
+        for connection in connections:
+            metrics.append(
+                HealthMetric(
+                    component=HealthComponent.DASHBOARD_CONNECTION,
+                    name="dashboard_connection_age",
+                    value=round(now - connection.last_activity, 2),
+                    labels={"connection_id": connection.connection_id, "user_id": connection.user_id},
+                )
+            )
+        return metrics
+
     controller = setup_self_healing_controller(action_registry=action_registry)
-    controller.register_probe("pipeline_stages", _pipeline_stage_probe)  # noqa: F821
-    controller.register_probe("dashboard_connections", _dashboard_connection_probe)  # noqa: F821
+    controller.register_probe("pipeline_stages", _pipeline_stage_probe)
+    controller.register_probe("dashboard_connections", _dashboard_connection_probe)
     controller.register_probe(
         "bloom_mesh",
         lambda: bloom_mesh.health_metrics(fill_threshold=controller.bloom_fill_threshold),
@@ -329,7 +396,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.mesh_telemetry_task = asyncio.create_task(_mesh_telemetry_pulse(local_node, app))
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
-        from src.dashboard.feature_flags_setup import maybe_start_bayesian_eta
+        from src.dashboard.fastapi.feature_flags_setup import maybe_start_bayesian_eta
         maybe_start_bayesian_eta()
 
     logger.info("Neural-Mesh Infrastructure: ACTIVE (NodeID: %s)", node_id)
