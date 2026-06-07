@@ -11,8 +11,14 @@ import threading
 import time
 import uuid
 from dataclasses import asdict
+from types import MappingProxyType
 from typing import Any
 
+from src.infrastructure.mesh.gossip.fragmentation import (
+    DEFAULT_FRAGMENT_THRESHOLD,
+    Fragmenter,
+    MessageDeduper,
+)
 from src.infrastructure.mesh.gossip.models import MeshNode, PeerHealthStats
 from src.infrastructure.mesh.gossip.protocol import GossipProtocol
 
@@ -64,6 +70,23 @@ class GossipEngine:
         self.retry_max_attempts = _env_int("MESH_RETRY_MAX_ATTEMPTS", 5)
         self.heartbeat_interval_sec = _env_int("HEARTBEAT_INTERVAL_SEC", 2)
         self.heartbeat_fail_threshold = _env_int("HEARTBEAT_FAIL_THRESHOLD", 3)
+        # UDP hardening: fragmentation for oversized envelopes and
+        # msg_id dedup for at-least-once semantics.  Per-peer rate
+        # limiting lives on the receive path (see GossipProtocol).
+        self._fragmenter = Fragmenter(threshold=DEFAULT_FRAGMENT_THRESHOLD)
+        self._msg_deduper = MessageDeduper()
+        # Imported lazily to avoid an import cycle with protocol.py.
+        from src.infrastructure.mesh.gossip.fragmentation import (
+            PeerRateLimiter as _PeerRateLimiter,
+        )
+        from src.infrastructure.mesh.gossip.fragmentation import (
+            Reassembler as _Reassembler,
+        )
+
+        self._peer_rate_limiter = _PeerRateLimiter()
+        self._reassembler = _Reassembler()
+        self.fragmented_envelopes_total = 0
+        self.fragmented_fragments_total = 0
 
     def _sign(self, data: bytes) -> str:
         """Create HMAC-SHA256 signature."""
@@ -87,7 +110,13 @@ class GossipEngine:
         for i in range(100):
             try:
                 self._transport, _ = await loop.create_datagram_endpoint(  # type: ignore[type-var]
-                    lambda: GossipProtocol(self, secret=self._secret),  # type: ignore[return-value]
+                    lambda: GossipProtocol(
+                        self,
+                        secret=self._secret,
+                        rate_limiter=getattr(self, "_peer_rate_limiter", None),
+                        reassembler=getattr(self, "_reassembler", None),
+                        deduper=self._msg_deduper,
+                    ),  # type: ignore[return-value]
                     local_addr=(self.local_node.host, port_to_try),
                 )
                 self._udp_port = port_to_try
@@ -152,6 +181,20 @@ class GossipEngine:
         envelope = {"body": body, "sig": self._sign(body_json)}
         return json.dumps(envelope, separators=(",", ":")).encode("utf-8")
 
+    def _sendto_fragmented(self, addr: tuple[str, int], data: bytes, msg_id: str) -> None:
+        """Send ``data`` to ``addr``, fragmenting if it exceeds the MTU."""
+        if self._transport is None:
+            return
+        chunks = self._fragmenter.maybe_split(data, msg_id)
+        if len(chunks) > 1:
+            self.fragmented_envelopes_total += 1
+            self.fragmented_fragments_total += len(chunks)
+        for chunk in chunks:
+            try:
+                self._transport.sendto(chunk, addr)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Fragmented send to %s failed: %s", addr, exc)
+
     async def _send_reliable(
         self,
         peer: MeshNode,
@@ -182,7 +225,7 @@ class GossipEngine:
                     peer_port = (
                         peer.gossip_port if getattr(peer, "gossip_port", 0) else (peer.port + 1000)
                     )
-                    self._transport.sendto(data, (peer.host, peer_port))
+                    self._sendto_fragmented((peer.host, peer_port), data, msg_id)
                     timeout = self._retry_interval_seconds(attempt)
                     ack_payload = await asyncio.wait_for(asyncio.shield(future), timeout=timeout)
                     with self._mesh_lock:
@@ -229,10 +272,9 @@ class GossipEngine:
                 stats.outbound_throughput += 1
                 self._total_sent += 1
             peer_port = peer.gossip_port if getattr(peer, "gossip_port", 0) else (peer.port + 1000)
-            self._transport.sendto(
-                self._make_envelope(message_type, payload),
-                (peer.host, peer_port),
-            )
+            data = self._make_envelope(message_type, payload)
+            msg_id = f"{self.local_node.id}-{uuid.uuid4().hex}"
+            self._sendto_fragmented((peer.host, peer_port), data, msg_id)
         except Exception as exc:
             logger.debug("Best-effort mesh send to %s failed: %s", peer.id, exc)
 
@@ -245,7 +287,8 @@ class GossipEngine:
         if payload:
             body_payload.update(payload)
         try:
-            self._transport.sendto(self._make_envelope("ack", body_payload), addr)
+            data = self._make_envelope("ack", body_payload)
+            self._sendto_fragmented(addr, data, f"ack-{ack_for}")
         except Exception as exc:
             logger.debug("Mesh ack send failed: %s", exc)
 
@@ -484,6 +527,59 @@ class GossipEngine:
             self.leader_id = sorted(candidates)[0] if candidates else self.local_node.id
         return self.leader_id
 
+    def register_discovered_peer(self, entry: dict[str, Any]) -> MeshNode | None:
+        """Add or update a peer discovered via out-of-band channels (e.g. mDNS).
+
+        ``entry`` is the dict produced by ``WorkerDiscovery``/``WorkerListener``
+        and may include the new manifest fields (``capabilities``, ``region``,
+        ``zone``, ``bandwidth_mbps``, ``capacity_weight``, ``version_vector``).
+        Unknown keys are ignored and missing ones fall back to the
+        ``MeshNode`` defaults so we remain backwards-compatible.
+        """
+        node_id = entry.get("node_id") or entry.get("name")
+        if not node_id or node_id == self.local_node.id:
+            return None
+        addresses = entry.get("addresses") or []
+        host = addresses[0] if addresses else entry.get("host", "127.0.0.1")
+        try:
+            port = int(entry.get("port", self.local_node.port))
+        except (TypeError, ValueError):
+            port = self.local_node.port
+        # mDNS doesn't carry a real gossip port; assume the standard
+        # ``port + 1000`` convention used by the rest of the engine.
+        gossip_port = port + 1000
+        version_vector_raw = entry.get("version_vector")
+        version_vector: dict[str, int] = {}
+        if isinstance(version_vector_raw, list):
+            for token in version_vector_raw:
+                if "=" in token:
+                    k, v = token.split("=", 1)
+                    try:
+                        version_vector[k] = int(v)
+                    except ValueError:
+                        continue
+        elif isinstance(version_vector_raw, dict):
+            version_vector = {str(k): int(v) for k, v in version_vector_raw.items()}
+        node = MeshNode(
+            id=node_id,
+            host=str(host),
+            port=port,
+            status="alive",
+            gossip_port=gossip_port,
+            capabilities=list(entry.get("capabilities") or []),
+            region=str(entry.get("region", "") or ""),
+            zone=str(entry.get("zone", "") or ""),
+            bandwidth_mbps=int(entry.get("bandwidth_mbps", 0) or 0),
+            capacity_weight=float(entry.get("capacity_weight", 1.0) or 1.0),
+            version_vector=MappingProxyType(version_vector) if version_vector else MappingProxyType({}),
+            last_seen=time.time(),
+        )
+        with self._mesh_lock:
+            self.peers[node_id] = node
+            self._dead_nodes.pop(node_id, None)
+        self.elect_leader()
+        return node
+
     def mesh_nodes(self, *, include_dead: bool = True) -> list[MeshNode]:
         nodes = [self.local_node, *self.peers.values()]
         if include_dead:
@@ -569,4 +665,24 @@ class GossipEngine:
             "heartbeat_misses_total": heartbeat_misses_total,
             "partition_signal": partition_signal,
             "split_brain_signal": split_brain_signal,
+            "hardening": {
+                "fragmented_envelopes_total": self.fragmented_envelopes_total,
+                "fragmented_fragments_total": self.fragmented_fragments_total,
+                "deduper": {
+                    "admitted_total": self._msg_deduper.admitted_total,
+                    "duplicates_total": self._msg_deduper.duplicates_total,
+                    "window": self._msg_deduper._window,
+                },
+                "rate_limiter": {
+                    "allowed_total": self._peer_rate_limiter.allowed_packets_total,
+                    "dropped_total": self._peer_rate_limiter.dropped_packets_total,
+                    "rate_pps": self._peer_rate_limiter._rate,
+                    "burst": self._peer_rate_limiter._burst,
+                },
+                "reassembler": {
+                    "completed_total": self._reassembler.reassembly_completed_total,
+                    "timeouts_total": self._reassembler.reassembly_timeouts_total,
+                    "evicted_total": self._reassembler.reassembly_evicted_total,
+                },
+            },
         }

@@ -118,7 +118,7 @@ async def execute_remaining_stages(
     function — callers can still inspect it for telemetry if they
     wish.
     """
-    graph = build_pipeline_graph(stage_methods)
+    graph = build_pipeline_graph(stage_methods, tool_status=getattr(config, "tool_status", None))
     logger.info(
         "Neural-Mesh ActorScheduler: greedy readiness loop "
         "(%d nodes, %d remaining, %d pre-completed)",

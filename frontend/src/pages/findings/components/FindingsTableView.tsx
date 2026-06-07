@@ -3,7 +3,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { CopyButton } from '@/components/CopyButton';
 import { formatFindingDate } from '@/lib/utils';
 
-type SortKey = 'severity' | 'type' | 'target' | 'status' | 'date';
+type SortKey = 'severity' | 'type' | 'target' | 'status' | 'date' | 'bounty_value';
 type SortDir = 'asc' | 'desc';
 
 function signalQualityFor(finding: Finding) {
@@ -128,6 +128,17 @@ export function FindingsTableView({
                 </button>
               </th>
               <th scope="col">
+                <button
+                  className="sort-btn bounty-sort-btn"
+                  onClick={() => handleSort('bounty_value')}
+                  aria-label={`Sort by bounty value, currently ${sortDir}`}
+                  title="Operator-estimated payout — sort to surface highest-impact submissions first"
+                >
+                  Bounty
+                  {sortKey === 'bounty_value' && <span className="sort-indicator">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                </button>
+              </th>
+              <th scope="col">
                 <button className="sort-btn" onClick={() => handleSort('type')} aria-label={`Sort by type, currently ${sortDir}`}>
                   Type
                   {sortKey === 'type' && <span className="sort-indicator">{sortDir === 'asc' ? '↑' : '↓'}</span>}
@@ -189,6 +200,22 @@ export function FindingsTableView({
                     <span className={`severity-badge sev-${finding.severity}`}>
                       {finding.severity}
                     </span>
+                  </td>
+                  <td className="finding-bounty">
+                    {typeof finding.bounty_value === 'number' && finding.bounty_value > 0 ? (
+                      <span
+                        className="bounty-pill"
+                        data-testid="bounty-value"
+                        title={`${finding.bounty_source ? `Source: ${finding.bounty_source}` : 'Operator-estimated payout'}`}
+                      >
+                        ${finding.bounty_value.toLocaleString()}
+                        {finding.bounty_currency && finding.bounty_currency !== 'USD' && (
+                          <span className="bounty-currency">{finding.bounty_currency}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="bounty-empty" aria-label="No bounty estimate">—</span>
+                    )}
                   </td>
                   <td className="finding-type">
                     {isFP ? <s>{finding.type || '—'}</s> : (finding.type || '—')}

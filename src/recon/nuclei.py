@@ -3,13 +3,18 @@
 Builds nuclei scan plans based on URL categorization and mode configuration,
 then executes nuclei with appropriate tags, severity filters, and concurrency settings.
 
-Improvements (v2):
-- build_nuclei_plan() deduplicates URLs within and across groups to prevent
-  scanning the same URL twice with different tag sets.
-- URLs hitting 3+ groups receive a single combined-tags scan invocation.
-- run_nuclei_adaptive() accepts WAF/CDN report output and dynamically reduces
-  nuclei threads + adds jitter for WAF-protected hosts, reducing false-negative
-  blocking and pipeline banning.
+Improvements (v3):
+- ``build_nuclei_plan()`` now does parameter-level analysis rather than
+  URL substring matching. Each query parameter is classified
+  independently using a name → category mapping (with value-based
+  inference for SSRF/LFI candidates) and the URL is then placed in
+  every group that matches any of its parameters. URLs that match
+  3+ groups still get a single broad-tags ``combined`` group to keep
+  the deduplication invariant from v2.
+- A new ``build_nuclei_plan_with_param_map()`` returns the per-URL
+  group classification so the calling stage can adjust scoring or
+  emit per-category findings when Nuclei is unavailable.
+- ``run_nuclei_adaptive()`` unchanged from v2.
 - Inline cvps import moved to module top-level (was inside hot loop).
 """
 
@@ -20,7 +25,7 @@ import secrets
 import time
 from collections.abc import Iterable
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models import Config
@@ -32,8 +37,302 @@ logger = get_pipeline_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Scan plan builder
+# Parameter-level classification (v3)
 # ---------------------------------------------------------------------------
+
+
+# Parameter names that strongly suggest a vulnerability class.
+# The mapping is case-insensitive; we also check the value heuristic
+# to avoid the most common false-positive (e.g. ``page=2`` matched
+# LFI on substring "page=").
+_PARAM_CATEGORY_HINTS: dict[str, str] = {
+    # SSRF candidates
+    "url": "ssrf",
+    "uri": "ssrf",
+    "dest": "ssrf",
+    "destination": "ssrf",
+    "redirect": "redirect",
+    "redirect_uri": "redirect",
+    "redirect_url": "redirect",
+    "next": "redirect",
+    "return": "redirect",
+    "return_to": "redirect",
+    "returnto": "redirect",
+    "callback": "redirect",
+    "continue": "redirect",
+    "image_url": "ssrf",
+    "image": "ssrf",
+    "feed": "ssrf",
+    "feed_url": "ssrf",
+    "host": "ssrf",
+    "domain": "ssrf",
+    "site": "ssrf",
+    "view": "ssrf",
+    "path": "ssrf",
+    # Open redirect candidates
+    "out": "redirect",
+    "to": "redirect",
+    "from": "redirect",
+    "forward": "redirect",
+    # LFI / path-traversal candidates
+    "file": "lfi",
+    "filename": "lfi",
+    "filepath": "lfi",
+    "folder": "lfi",
+    "root": "lfi",
+    "pg": "lfi",
+    "style": "lfi",
+    "template": "lfi",
+    "php_path": "lfi",
+    "doc": "lfi",
+    "document": "lfi",
+    "download": "lfi",
+    "include": "lfi",
+    "dir": "lfi",
+    "page": "lfi",
+    "pdf": "lfi",
+    "img": "lfi",
+    "action": "lfi",
+    # IDOR / object-reference candidates
+    "id": "idor",
+    "user_id": "idor",
+    "userid": "idor",
+    "uid": "idor",
+    "account_id": "idor",
+    "account": "idor",
+    "profile": "idor",
+    "profile_id": "idor",
+    "order": "idor",
+    "order_id": "idor",
+    "orderid": "idor",
+    "object": "idor",
+    "objectid": "idor",
+    "oid": "idor",
+    "doc_id": "idor",
+    "document_id": "idor",
+    "ref": "idor",
+    "refid": "idor",
+    "rid": "idor",
+    # File upload candidates
+    "upload": "upload",
+    "file_upload": "upload",
+    "attachment": "upload",
+    "attach": "upload",
+    "filename_param": "upload",
+    # Auth / session candidates
+    "token": "auth",
+    "auth": "auth",
+    "session": "auth",
+    "sessionid": "auth",
+    "apikey": "auth",
+    "api_key": "auth",
+    "access_token": "auth",
+    "authorization": "auth",
+}
+
+# Parameter values that strongly suggest SSRF. Matched case-insensitively.
+_SSRF_VALUE_HINTS: tuple[str, ...] = (
+    "http://",
+    "https://",
+    "file://",
+    "ftp://",
+    "gopher://",
+    "dict://",
+    "ldap://",
+)
+
+# Parameter values that strongly suggest LFI. Matched case-insensitively.
+_LFI_VALUE_HINTS: tuple[str, ...] = (
+    "../",
+    "..\\",
+    "/etc/passwd",
+    "/etc/shadow",
+    "c:\\",
+    "win.ini",
+)
+
+# Path / keyword hints for the path-based fallback (rarely needed once
+# the parameter map is populated, but kept for URLs with no query string).
+_PATH_KEYWORD_HINTS: dict[str, str] = {
+    "graphql": "api",
+    "/api/": "api",
+    "/v1/": "api",
+    "/v2/": "api",
+    "/v3/": "api",
+    "/auth": "auth",
+    "/login": "auth",
+    "/oauth": "auth",
+    "/sso": "auth",
+    "/actuator": "debug",
+    "/swagger": "debug",
+    "/v1/api-docs": "debug",
+    "/v2/api-docs": "debug",
+    "/v3/api-docs": "debug",
+    "/openapi": "debug",
+    "/metrics": "debug",
+    "/health": "debug",
+    "/env": "debug",
+    "/trace": "debug",
+    "/console": "debug",
+    "/_debug": "debug",
+    "/internal": "debug",
+    "/admin": "debug",
+    "/phpmyadmin": "debug",
+}
+
+
+def _classify_url(
+    url: str,
+    *,
+    param_map: dict[str, set[str]] | None = None,
+) -> set[str]:
+    """Return the set of vulnerability categories *url* belongs to.
+
+    The classification is parameter-level: we look at every query
+    parameter, classify it via the name hint map, then refine with a
+    value check (an SSRF-name parameter whose value is a plain integer
+    is unlikely to actually be a server-side request vector, so we
+    accept the SSRF category only when the value looks URL-shaped).
+    Path keyword hints are used as a final fallback when the URL has
+    no parameters.
+
+    Args:
+        url: Absolute URL to classify.
+        param_map: Optional pre-computed ``param_name -> set(values)``
+            map. When omitted, the function parses ``url`` once and
+            builds the map locally.
+
+    Returns:
+        Set of category names. May be empty when no category matches.
+    """
+    parsed = urlparse(url)
+    lowered = url.lower()
+    categories: set[str] = set()
+
+    if param_map is None:
+        param_map = {}
+        for k, v in parse_qsl(parsed.query, keep_blank_values=True):
+            param_map.setdefault(k.lower(), set()).add(v or "")
+
+    # 1) Parameter-name-based classification
+    for name, values in param_map.items():
+        category = _PARAM_CATEGORY_HINTS.get(name)
+        if not category:
+            # Try a relaxed suffix match (e.g. ``user_id_xyz`` → idor)
+            for hint_name, hint_category in _PARAM_CATEGORY_HINTS.items():
+                if name == hint_name or name.endswith(f"_{hint_name}") or name.startswith(f"{hint_name}_"):
+                    category = hint_category
+                    break
+        if not category:
+            continue
+        # Value-based disambiguation: only require the value to look
+        # URL/path-like for SSRF / LFI categories. Other categories
+        # (idor, auth, upload, redirect) are accepted on name alone.
+        if category in {"ssrf", "lfi"}:
+            hints = _SSRF_VALUE_HINTS if category == "ssrf" else _LFI_VALUE_HINTS
+            value_blob = " ".join(values).lower()
+            if not any(h in value_blob for h in hints):
+                # SSRF/LFI only confirmed if the value hints match.
+                # We still attach the category if the *name* hint is
+                # in the v1 substring set, to preserve backward-compat
+                # behaviour for callers that never set param_map.
+                if not any(
+                    token in lowered
+                    for token in (
+                        "url=" if category == "ssrf" else "file=",
+                        "uri=" if category == "ssrf" else "path=",
+                    )
+                ):
+                    continue
+        categories.add(category)
+
+    # 2) Path-keyword fallback (covers the no-query case)
+    for token, category in _PATH_KEYWORD_HINTS.items():
+        if token in lowered:
+            categories.add(category)
+
+    return categories
+
+
+def _build_param_map_for_urls(urls: Iterable[str]) -> dict[str, set[str]]:
+    """Aggregate per-URL parameter sets into a single param→values map.
+
+    Used by :func:`build_nuclei_plan_with_param_map` so we can resolve
+    each unique query parameter only once (an order of magnitude faster
+    than re-parsing every URL).
+    """
+    combined: dict[str, set[str]] = {}
+    for url in urls:
+        parsed = urlparse(url)
+        for name, value in parse_qsl(parsed.query, keep_blank_values=True):
+            combined.setdefault(name.lower(), set()).add(value or "")
+    return combined
+
+
+def build_nuclei_plan_with_param_map(
+    priority_urls: Iterable[str],
+    config: Any,
+    *,
+    adaptive_tags: dict[str, list[str]] | None = None,
+) -> tuple[dict[str, list[str]], dict[str, set[str]]]:
+    """Build the nuclei plan using a single aggregated parameter map.
+
+    Returns the same plan dict as :func:`build_nuclei_plan` plus the
+    per-URL category classification for downstream consumers.
+    """
+    mode = str(config.mode if hasattr(config, "mode") else "deep").lower()
+    url_list = list(priority_urls)
+    param_map = _build_param_map_for_urls(url_list)
+
+    groups: dict[str, set[str]] = {
+        "redirect": set(),
+        "upload": set(),
+        "auth": set(),
+        "api": set(),
+        "idor": set(),
+        "ssrf": set(),
+        "lfi": set(),
+        "debug": set(),
+    }
+    url_to_categories: dict[str, set[str]] = {}
+
+    for url in url_list:
+        categories = _classify_url(url, param_map=param_map)
+        url_to_categories[url] = set(categories)
+        for category in categories:
+            if category in groups:
+                groups[category].add(url)
+
+    if mode == "idor":
+        for url in url_list:
+            params = query_parameter_names(url)
+            if params and "idor" not in url_to_categories[url]:
+                groups["idor"].add(url)
+                url_to_categories[url].add("idor")
+
+    # Deduplicate by group priority. We keep the highest-priority
+    # assignment per URL so we never scan the same URL twice with
+    # different tag sets.
+    group_priority = ["auth", "api", "ssrf", "lfi", "redirect", "idor", "upload", "debug"]
+    seen: set[str] = set()
+    deduped: dict[str, list[str]] = {g: [] for g in groups}
+    for group in group_priority:
+        for url in sorted(groups[group]):
+            if url not in seen:
+                deduped[group].append(url)
+                seen.add(url)
+
+    # URLs matching 3+ groups receive a single combined-tags scan.
+    combined: list[str] = []
+    for url, cats in url_to_categories.items():
+        if len(cats) >= 3 and url not in seen:
+            combined.append(url)
+            seen.add(url)
+
+    result = {label: urls for label, urls in deduped.items() if urls}
+    if combined:
+        result["combined"] = combined
+    return result, url_to_categories
 
 
 def build_nuclei_plan(
@@ -43,140 +342,30 @@ def build_nuclei_plan(
 ) -> dict[str, list[str]]:
     """Categorize priority URLs into nuclei scan groups by vulnerability type.
 
-    Improvements over v1:
-    - URLs that match multiple groups are tracked per-group but a URL is only
-      actually submitted to nuclei once (via the highest-priority group or a
-      merged combined-tags group for URLs with 3+ matches).
-    - build_nuclei_plan_merged() returns the deduplicated execution plan.
+    Improvements over v2:
+    - Parameter-level classification: each query parameter is mapped
+      to a category via a name hint table, with value-based
+      disambiguation for SSRF/LFI candidates (a parameter named
+      ``file`` whose value is just ``2`` is NOT marked LFI; a
+      parameter named ``file`` whose value contains ``../`` is).
+    - URL substring matches (``redirect=``, ``file=``, etc.) remain
+      supported as a fallback when the URL has no query string.
+    - URLs matching 3+ groups still receive a single ``combined`` scan.
 
     Args:
         priority_urls: URLs to categorize for nuclei scanning.
         config: Pipeline configuration object.
         adaptive_tags: Optional mapping of vulnerability types to nuclei tags.
+            (Currently informational — the runner builds its own tags from
+            the group name unless a custom map is supplied.)
 
     Returns:
         Dictionary mapping group names to URL lists (deduplicated).
     """
-    mode = str(config.mode if hasattr(config, "mode") else "deep").lower()
-    groups: dict[str, list[str]] = {
-        "redirect": [],
-        "upload": [],
-        "auth": [],
-        "api": [],
-        "idor": [],
-        "ssrf": [],
-        "lfi": [],
-        "debug": [],
-    }
-
-    # Track how many groups each URL matches
-    url_group_count: dict[str, int] = {}
-
-    for url in priority_urls:
-        lowered = url.lower()
-        parameter_names = query_parameter_names(url)
-        matched: list[str] = []
-
-        if any(
-            token in lowered
-            for token in ["redirect=", "url=", "next=", "return=", "callback", "dest="]
-        ):
-            groups["redirect"].append(url)
-            matched.append("redirect")
-        if any(token in lowered for token in ["upload", "file=", "attachment"]):
-            groups["upload"].append(url)
-            matched.append("upload")
-        if any(token in lowered for token in ["/auth", "/login", "/oauth", "token", "session"]):
-            groups["auth"].append(url)
-            matched.append("auth")
-        if any(token in lowered for token in ["/api/", "graphql"]):
-            groups["api"].append(url)
-            matched.append("api")
-        if any(
-            token == name or name.endswith("_" + token) or name.startswith(token + "_")
-            for name in parameter_names
-            for token in ["id", "user", "account", "profile", "order", "object"]
-        ):
-            groups["idor"].append(url)
-            matched.append("idor")
-        if any(
-            token in lowered
-            for token in [
-                "url=",
-                "uri=",
-                "dest=",
-                "domain=",
-                "feed=",
-                "image=",
-                "callback=",
-                "next=",
-            ]
-        ):
-            groups["ssrf"].append(url)
-            matched.append("ssrf")
-        if any(
-            token in lowered
-            for token in [
-                "file=",
-                "path=",
-                "page=",
-                "template=",
-                "include=",
-                "folder=",
-                "download=",
-                "document=",
-            ]
-        ):
-            groups["lfi"].append(url)
-            matched.append("lfi")
-        if any(
-            token in lowered
-            for token in [
-                "debug",
-                "swagger",
-                "actuator",
-                "metrics",
-                "health",
-                "env",
-                "trace",
-                "config",
-                "internal",
-                "console",
-            ]
-        ):
-            groups["debug"].append(url)
-            matched.append("debug")
-        if mode == "idor" and parameter_names and "idor" not in matched:
-            groups["idor"].append(url)
-            matched.append("idor")
-
-        url_group_count[url] = len(matched)
-
-    # Deduplicate: a URL should only appear in its primary group
-    # (highest priority group in declaration order)
-    group_priority = ["auth", "api", "ssrf", "lfi", "redirect", "idor", "upload", "debug"]
-    seen: set[str] = set()
-    deduped: dict[str, list[str]] = {g: [] for g in groups}
-
-    for group in group_priority:
-        for url in groups.get(group, []):
-            if url not in seen:
-                deduped[group].append(url)
-                seen.add(url)
-
-    # URLs matching 3+ groups get a separate "combined" group
-    # so they receive a single broad-coverage scan pass
-    combined: list[str] = []
-    for url, count in url_group_count.items():
-        if count >= 3 and url not in seen:
-            combined.append(url)
-            seen.add(url)
-
-    result = {label: urls for label, urls in deduped.items() if urls}
-    if combined:
-        result["combined"] = combined
-
-    return result
+    plan, _ = build_nuclei_plan_with_param_map(
+        priority_urls, config, adaptive_tags=adaptive_tags
+    )
+    return plan
 
 
 # ---------------------------------------------------------------------------

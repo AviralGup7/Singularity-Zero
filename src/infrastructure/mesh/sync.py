@@ -6,8 +6,12 @@ Provides generic Redis Pub/Sub capabilities for cross-node state synchronization
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import time
+import uuid
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -15,6 +19,22 @@ from typing import Any
 import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
+
+
+# Bump when the wire format changes in a breaking way.
+MESH_SYNC_SCHEMA_VERSION = 1
+# Receivers will accept payloads with schema in [MIN_ACCEPTED, MAX_ACCEPTED].
+# Anything outside that window is dropped with a metric increment.
+MESH_SYNC_MIN_ACCEPTED_SCHEMA = 1
+MESH_SYNC_MAX_ACCEPTED_SCHEMA = 1
+# Idempotency window: number of recent message keys remembered per channel.
+DEFAULT_IDEMPOTENCY_CACHE = 4096
+
+
+def _stable_hash(payload: dict[str, Any]) -> str:
+    """Deterministic SHA-256 hash for an idempotency / replay check."""
+    encoded = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -28,6 +48,9 @@ class MeshSyncSnapshot:
     messages_received_total: int
     publish_failures_total: int
     listen_failures_total: int
+    duplicates_dropped_total: int
+    schema_rejected_total: int
+    schema_version: int
     last_error: str = ""
 
     def as_dict(self) -> dict[str, Any]:
@@ -37,13 +60,40 @@ class MeshSyncSnapshot:
 class MeshSync:
     """
     Redis Pub/Sub synchronization client.
-    Enables nodes to broadcast and receive state updates (e.g., FP patterns,
-    mesh-wide config changes).
+
+    The wire format is a schema-versioned envelope::
+
+        {
+          "schema": 1,
+          "msg_id": "<sender>-<uuid4>",
+          "idempotency_key": "<sha256>",
+          "sent_at": 1717000000.123,
+          "sender": "<node-id-or-empty>",
+          "payload": { ... caller's dict ... }
+        }
+
+    Receivers:
+        * Drop messages whose ``schema`` is outside
+          ``[MESH_SYNC_MIN_ACCEPTED_SCHEMA, MESH_SYNC_MAX_ACCEPTED_SCHEMA]``.
+        * Drop messages whose ``idempotency_key`` has been seen within
+          the rolling ``idempotency_cache_size`` window.
+
+    Older un-versioned payloads (no ``schema`` field) are accepted and
+    treated as schema 0 so MeshSync stays backwards compatible during a
+    rolling upgrade; they are still de-duplicated using a content hash.
     """
 
-    def __init__(self, redis_url: str, channel: str):
+    def __init__(
+        self,
+        redis_url: str,
+        channel: str,
+        *,
+        sender_id: str | None = None,
+        idempotency_cache_size: int = DEFAULT_IDEMPOTENCY_CACHE,
+    ):
         self.redis_url = redis_url
         self.channel = channel
+        self.sender_id = sender_id or ""
         self._client = redis.from_url(redis_url, decode_responses=True)
         self._pubsub = self._client.pubsub()
         self._running = False
@@ -52,7 +102,11 @@ class MeshSync:
         self._messages_received_total = 0
         self._publish_failures_total = 0
         self._listen_failures_total = 0
+        self._duplicates_dropped_total = 0
+        self._schema_rejected_total = 0
         self._last_error = ""
+        self._idempotency_cache: OrderedDict[str, float] = OrderedDict()
+        self._idempotency_cache_size = max(64, int(idempotency_cache_size))
 
     @property
     def channel_scoped(self) -> str:
@@ -63,10 +117,112 @@ class MeshSync:
             return f"{tenant_id}:{self.channel}"
         return self.channel
 
-    async def publish(self, message: dict[str, Any]) -> None:
-        """Broadcast a message to the mesh."""
+    def _build_envelope(self, message: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """Wrap a caller payload in the versioned envelope.
+
+        Returns ``(envelope, idempotency_key)``.
+        """
+        if "idempotency_key" in message and isinstance(message["idempotency_key"], str):
+            idem_key = message["idempotency_key"]
+            payload = {k: v for k, v in message.items() if k != "idempotency_key"}
+        else:
+            payload = message
+            idem_key = _stable_hash(payload)
+        envelope = {
+            "schema": MESH_SYNC_SCHEMA_VERSION,
+            "msg_id": f"{self.sender_id or 'mesh'}-{uuid.uuid4().hex}",
+            "idempotency_key": idem_key,
+            "sent_at": time.time(),
+            "sender": self.sender_id,
+            "payload": payload,
+        }
+        return envelope, idem_key
+
+    def _seen_idempotency_key(self, key: str) -> bool:
+        """Return ``True`` if ``key`` was processed recently; record otherwise."""
+        if not key:
+            return False
+        if key in self._idempotency_cache:
+            # Refresh recency.
+            self._idempotency_cache.move_to_end(key)
+            return True
+        self._idempotency_cache[key] = time.time()
+        while len(self._idempotency_cache) > self._idempotency_cache_size:
+            self._idempotency_cache.popitem(last=False)
+        return False
+
+    def _extract_payload(self, raw: Any) -> dict[str, Any] | None:
+        """Decode a wire message and validate its schema/idempotency.
+
+        Returns the caller-facing payload dict, or ``None`` if the
+        message should be dropped (unknown schema, duplicate, malformed).
+        """
+        if not isinstance(raw, dict):
+            return None
+
+        # Backwards-compat: legacy publishers emit the bare payload (no
+        # "schema" field). Treat them as schema=0 and de-duplicate using
+        # a content hash so they participate in the idempotency window.
+        if "schema" not in raw:
+            payload = raw
+            idem_key = _stable_hash(payload)
+            if self._seen_idempotency_key(idem_key):
+                self._duplicates_dropped_total += 1
+                _inc_metric(
+                    "mesh_sync_duplicates_dropped_total",
+                    "Total Redis mesh sync duplicate messages dropped",
+                )
+                return None
+            return payload
+
+        schema = raw.get("schema")
         try:
-            await self._client.publish(self.channel_scoped, json.dumps(message))
+            schema_int = int(schema)
+        except (TypeError, ValueError):
+            schema_int = -1
+        if not (
+            MESH_SYNC_MIN_ACCEPTED_SCHEMA <= schema_int <= MESH_SYNC_MAX_ACCEPTED_SCHEMA
+        ):
+            self._schema_rejected_total += 1
+            _inc_metric(
+                "mesh_sync_schema_rejected_total",
+                "Total Redis mesh sync messages dropped due to unsupported schema",
+            )
+            logger.debug(
+                "MeshSync: dropping payload with unsupported schema=%r on %s",
+                schema,
+                self.channel_scoped,
+            )
+            return None
+
+        payload = raw.get("payload")
+        if not isinstance(payload, dict):
+            return None
+
+        idem_key = raw.get("idempotency_key")
+        if not isinstance(idem_key, str) or not idem_key:
+            idem_key = _stable_hash(payload)
+        if self._seen_idempotency_key(idem_key):
+            self._duplicates_dropped_total += 1
+            _inc_metric(
+                "mesh_sync_duplicates_dropped_total",
+                "Total Redis mesh sync duplicate messages dropped",
+            )
+            return None
+
+        return payload
+
+    async def publish(self, message: dict[str, Any]) -> None:
+        """Broadcast a message to the mesh.
+
+        ``message`` may include an explicit ``idempotency_key`` string;
+        otherwise one is derived deterministically from the payload
+        content so repeated publishes of the same logical message are
+        suppressed by every receiver's de-dup window.
+        """
+        envelope, _ = self._build_envelope(message)
+        try:
+            await self._client.publish(self.channel_scoped, json.dumps(envelope))
             self._messages_published_total += 1
             _inc_metric(
                 "mesh_sync_messages_published_total",
@@ -102,13 +258,30 @@ class MeshSync:
                     ignore_subscribe_messages=True, timeout=1.0
                 )
                 if message and message["type"] == "message":
-                    data = json.loads(message["data"])
+                    try:
+                        raw = json.loads(message["data"])
+                    except (ValueError, TypeError) as decode_exc:
+                        self._listen_failures_total += 1
+                        self._last_error = str(decode_exc)
+                        _inc_metric(
+                            "mesh_sync_listen_failures_total",
+                            "Total Redis mesh sync listen failures",
+                        )
+                        logger.debug(
+                            "MeshSync: malformed payload on %s: %s",
+                            self.channel_scoped,
+                            decode_exc,
+                        )
+                        continue
+                    payload = self._extract_payload(raw)
+                    if payload is None:
+                        continue
                     self._messages_received_total += 1
                     _inc_metric(
                         "mesh_sync_messages_received_total",
                         "Total Redis mesh sync messages received",
                     )
-                    await callback(data)
+                    await callback(payload)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -131,6 +304,9 @@ class MeshSync:
             messages_received_total=self._messages_received_total,
             publish_failures_total=self._publish_failures_total,
             listen_failures_total=self._listen_failures_total,
+            duplicates_dropped_total=self._duplicates_dropped_total,
+            schema_rejected_total=self._schema_rejected_total,
+            schema_version=MESH_SYNC_SCHEMA_VERSION,
             last_error=self._last_error,
         )
         _set_metric(
@@ -142,6 +318,16 @@ class MeshSync:
             "mesh_sync_listen_failures",
             snapshot.listen_failures_total,
             "Current Redis mesh sync listen failures",
+        )
+        _set_metric(
+            "mesh_sync_duplicates_dropped",
+            snapshot.duplicates_dropped_total,
+            "Current Redis mesh sync duplicates dropped",
+        )
+        _set_metric(
+            "mesh_sync_schema_rejected",
+            snapshot.schema_rejected_total,
+            "Current Redis mesh sync schema rejections",
         )
         return snapshot.as_dict()
 
@@ -182,3 +368,12 @@ def _set_metric(name: str, value: float | int | bool, description: str) -> None:
         get_metrics().gauge(name, description).set(float(value))
     except Exception:
         logger.debug("MeshSync metric gauge skipped for %s", name, exc_info=True)
+
+
+__all__ = [
+    "MESH_SYNC_SCHEMA_VERSION",
+    "MESH_SYNC_MIN_ACCEPTED_SCHEMA",
+    "MESH_SYNC_MAX_ACCEPTED_SCHEMA",
+    "MeshSync",
+    "MeshSyncSnapshot",
+]

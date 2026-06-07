@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, X, ChevronDown } from 'lucide-react';
@@ -24,6 +24,7 @@ import { GlassCard, GlowProgress } from '@/components/ui';
 import { InfoItem, formatDurationLabel } from '@/components/jobs/JobInfoItem';
 import { useJobDetails, useJobStageTheater, useJobThroughput } from '@/hooks/useJobDetails';
 import { useJobRemediation, useJobTracePanel } from '@/hooks/useJobTracePanel';
+import { ReportFab } from '@/components/report/ReportFab';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -44,6 +45,14 @@ export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [warningsExpanded, setWarningsExpanded] = useState(true);
   const [logsExpanded, setLogsExpanded] = useState(true);
+
+  // Capture the export timestamp once at mount via an effect so render output
+  // stays stable. Empty string is fine for the filename before mount completes.
+  const [exportStamp, setExportStamp] = useState<string>('');
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExportStamp(String(Date.now()));
+  }, []);
 
   const navigate = useNavigate();
   const handleRestarted = useCallback((newJobId: string) => {
@@ -596,6 +605,15 @@ export function JobDetailPage() {
             </motion.div>
           </div>
         )}
+
+        {/* One-click report FAB (P2-5) — surfaces all export strategies and the
+            signed compliance PDF directly from the job detail page. */}
+        <ReportFab
+          findings={job.streaming_findings ?? []}
+          filenameBase={`job-${jobId}-${exportStamp}`}
+          targetName={job.target_name}
+          context={{ target: job.target_name, jobId }}
+        />
       </motion.div>
     </VisualProvider>
   );

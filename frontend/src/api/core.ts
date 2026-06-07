@@ -5,6 +5,7 @@ import { apiCache } from './cache';
 import { dispatchToast } from '../lib/toastDispatcher';
 import { captureException } from '../utils/errorTracker';
 import { withRetry } from './retry';
+import { getStreamToken } from './streamAuth';
 
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
@@ -47,7 +48,7 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = sessionStorage.getItem('auth_token');
+    const token = getStreamToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

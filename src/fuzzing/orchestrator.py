@@ -15,8 +15,45 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import httpx
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
+from src.core.models.entities import SEVERITY_LEVELS
 from src.core.mutation_engine import detect_parameter_type
 from src.core.utils.url_validation import is_safe_url_with_dns_check
+from src.fuzzing.stop_conditions import (
+    StopCondition,
+    StopOnFirstFinding,
+    StopOnN,
+    StopOnPattern,
+    StopOnSeverity,
+)
+
+try:
+    from src.fuzzing.h2_fuzzer import run_h2_fuzzing_campaign
+except ImportError:
+    run_h2_fuzzing_campaign = None  # type: ignore[misc,assignment]
+try:
+    from src.fuzzing.quic_fuzzer import run_quic_fuzzing_campaign
+except ImportError:
+    run_quic_fuzzing_campaign = None  # type: ignore[misc,assignment]
+from src.fuzzing.graphql_fuzzer import run_graphql_fuzzing_campaign
+
+try:
+    from src.core.session import Session
+except ImportError:
+    Session = Any  # type: ignore[misc,assignment]
+
+try:
+    from src.fuzzing.stateful_fuzzer import run_stateful_fuzzing_campaign
+except ImportError:
+    run_stateful_fuzzing_campaign = None  # type: ignore[misc,assignment]
+try:
+    from src.fuzzing.differential_fuzzer import run_differential_fuzzing_campaign
+except ImportError:
+    run_differential_fuzzing_campaign = None  # type: ignore[misc,assignment]
+try:
+    from src.fuzzing.coverage_guided import CorpusManager, CoverageTracker
+except ImportError:
+    CorpusManager = Any  # type: ignore[misc,assignment]
+    CoverageTracker = Any  # type: ignore[misc,assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -39,22 +76,17 @@ class FIFODict(dict):
 
 
 class FuzzingRequestSender:
-    """Coordinates HTTP request execution and client validation for fuzzer campaigns."""
-
     def __init__(self, timeout_seconds: float = 5.0) -> None:
         self.timeout_seconds = timeout_seconds
 
     async def get_url(
         self, client: httpx.AsyncClient, url: str, timeout_seconds: float | None = None
     ) -> httpx.Response:
-        """Execute a GET request with per-request timeout enforcement."""
         t = timeout_seconds if timeout_seconds is not None else self.timeout_seconds
         return await client.get(url, timeout=t)
 
 
 class FuzzingFeedbackTracker:
-    """Tracks coverage path feedback and structured campaign execution metrics."""
-
     def __init__(self) -> None:
         self.metrics: dict[str, int] = {
             "total_requests_sent": 0,
@@ -62,31 +94,39 @@ class FuzzingFeedbackTracker:
             "anomalies_detected": 0,
         }
 
+        self._covered_paths: set[str] = set()
+
     def record_request(self) -> None:
-        """Increment the total requests sent counter."""
         self.metrics["total_requests_sent"] += 1
 
     def record_payload(self) -> None:
-        """Increment the payloads tried counter."""
         self.metrics["payloads_tried"] += 1
 
     def record_anomaly(self) -> None:
-        """Increment the anomalies/findings detected counter."""
         self.metrics["anomalies_detected"] += 1
+
+    def record_covered_path(self, signature: str) -> None:
+        self.metrics["covered_paths"] = self.metrics.get("covered_paths", 0) + 1
+        self._covered_paths.add(signature)
+
+    def get_coverage_count(self) -> int:
+        return len(self._covered_paths)
 
 
 class FuzzingOrchestrator:
-    """Orchestrates coverage-guided and grammar-based fuzzing campaigns across target endpoints."""
-
-    def __init__(self, target_endpoints: list[str]) -> None:
+    def __init__(
+        self,
+        target_endpoints: list[str],
+        stop_condition: StopCondition | None = None,
+    ) -> None:
         self.target_endpoints = target_endpoints
         self._coverage_feedback = FIFODict(max_size=500)
         self._mutation_history = FIFODict(max_size=500)
         self.request_sender = FuzzingRequestSender()
         self.feedback_tracker = FuzzingFeedbackTracker()
+        self.stop_condition = stop_condition if stop_condition is not None else StopOnFirstFinding()
 
     def bit_flip(self, data: str) -> str:
-        """Apply bit-flipping mutation strategy to a string payload."""
         if not data:
             return "A"
         byte_arr = bytearray(data.encode("utf-8", errors="ignore"))
@@ -97,7 +137,6 @@ class FuzzingOrchestrator:
         return byte_arr.decode("utf-8", errors="ignore")
 
     def boundary_values(self, param_type: str) -> list[str]:
-        """Generate high-fidelity boundary values based on parameter type classification."""
         if param_type == "numeric":
             return ["0", "-1", "2147483647", "-2147483648", "9223372036854775807", "4294967295"]
         if param_type == "id":
@@ -107,7 +146,6 @@ class FuzzingOrchestrator:
         return ["A" * 10000, "", " ", "null", "undefined"]
 
     def dictionary_attack(self) -> list[str]:
-        """Return classic injection and structural bypass payload templates in randomized order."""
         payloads = [
             "' OR '1'='1",
             '" OR "1"="1',
@@ -123,11 +161,9 @@ class FuzzingOrchestrator:
         return secrets.SystemRandom().sample(payloads, len(payloads))
 
     def grammar_mutate(self, base_grammar: dict[str, list[str]]) -> dict[str, list[str]]:
-        """Apply grammar-based expansion mutations on structural parameter templates."""
         mutated = {}
         for key, values in base_grammar.items():
             new_vals = list(values)
-            # Add bit-flipped and dictionary variations to expand grammar coverage
             if isinstance(values, list) and len(values) > 0:
                 choice = secrets.choice(values)
                 new_vals.append(self.bit_flip(choice))
@@ -138,23 +174,13 @@ class FuzzingOrchestrator:
         return mutated
 
     def record_feedback(self, endpoint: str, status_code: int, response_len: int) -> bool:
-        """Record response feedback to guide future fuzzing paths.
-
-        If a new, distinct signature (status code + response length band) is observed,
-        it registers as a 'coverage increase' and returns True to prioritize this path.
-        """
-        # Group lengths into bands of 100 bytes to smooth out dynamic content variance
         len_band = response_len // 100
         signature = f"{status_code}:{len_band}"
-
         self._coverage_feedback.setdefault(endpoint, set())
         history = self._coverage_feedback[endpoint]
-
         if signature not in history:
             history.add(signature)
-            logger.info(
-                "Fuzzer: Discovered new coverage feedback path on %s: %s", endpoint, signature
-            )
+            logger.info("Fuzzer: Discovered new coverage feedback path on %s: %s", endpoint, signature)
             return True
         return False
 
@@ -167,28 +193,13 @@ class FuzzingOrchestrator:
         *,
         max_payloads: int = 15,
     ) -> list[dict[str, Any]]:
-        """Orchestrate mutation sequences combining multiple fuzzer strategies.
-
-        Args:
-            endpoint: Target endpoint path.
-            param_name: Parameter being fuzzed.
-            base_value: Original starting value.
-            param_type: Classified parameter type.
-            max_payloads: Maximum count of payloads.
-
-        Returns:
-            List of generated fuzzer mutation payload dictionaries.
-        """
         payloads: list[dict[str, Any]] = []
-
-        # 1. Grammar-Guided AST Mutations (for JSON)
         if param_type == "json":
             try:
                 if not hasattr(self, "_ast_mutator"):
                     from src.fuzzing.ast_mutator import JSONASTMutator
 
                     self._ast_mutator = JSONASTMutator()
-
                 for v in self._ast_mutator.mutate(base_value):
                     payloads.append(
                         {
@@ -200,8 +211,6 @@ class FuzzingOrchestrator:
                     )
             except Exception as e:
                 logger.warning("Fuzzer: AST mutation unavailable: %s", e)
-
-        # 2. Base Boundary values
         for v in self.boundary_values(param_type):
             payloads.append(
                 {
@@ -211,8 +220,6 @@ class FuzzingOrchestrator:
                     "reason": f"fuzz_boundary_{param_type}",
                 }
             )
-
-        # 3. Dictionary injections
         for v in self.dictionary_attack():
             payloads.append(
                 {
@@ -222,8 +229,6 @@ class FuzzingOrchestrator:
                     "reason": "fuzz_injection_bypass",
                 }
             )
-
-        # 4. Bit flipped variants
         payloads.append(
             {
                 "parameter": param_name,
@@ -232,8 +237,6 @@ class FuzzingOrchestrator:
                 "reason": "fuzz_bit_mutation",
             }
         )
-
-        # Deduplicate and limit payloads
         seen = set()
         unique_payloads = []
         for p in payloads:
@@ -243,8 +246,32 @@ class FuzzingOrchestrator:
                 unique_payloads.append(p)
                 if len(unique_payloads) >= max_payloads:
                     break
-
         return unique_payloads
+
+    def _handle_stop_condition(
+        self,
+        finding: dict[str, Any],
+        findings: list[dict[str, Any]],
+        stop_container: list[bool],
+    ) -> None:
+        if self.stop_condition and self.stop_condition(finding, findings):
+            stop_container[0] = True
+            findings.append(
+                {
+                    "url": finding["url"],
+                    "endpoint_key": finding["endpoint_key"],
+                    "endpoint_base_key": finding["endpoint_base_key"],
+                    "endpoint_type": finding["endpoint_type"],
+                    "issues": ["fuzzing_campaign_stopped_by_policy"],
+                    "probe_type": "fuzzing_campaign",
+                    "severity": "info",
+                    "confidence": 1.0,
+                    "evidence": {
+                        "reason": "Stop condition triggered",
+                        "findings_count": len(findings),
+                    },
+                }
+            )
 
     async def run_fuzzing_campaign(
         self,
@@ -253,55 +280,64 @@ class FuzzingOrchestrator:
         *,
         max_payloads: int = 15,
         timeout_seconds: float = 5.0,
+        session: Session | None = None,
     ) -> list[dict[str, Any]]:
-        """Run an active fuzzing campaign on the target URL with mutation feedback loops.
-
-        Mutates query parameters and sends HTTP requests. Evaluates status code
-        and response size feedback to find anomalies and coverage increases.
-        """
         findings: list[dict[str, Any]] = []
-        parsed = urlparse(url)
-        query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
-        if not query_pairs:
-            return findings
 
-        # SSRF protection: validate URL before any HTTP request
-        if not is_safe_url_with_dns_check(url):
-            logger.warning("Fuzzer: URL failed SSRF safety check, skipping: %s", url)
-            return findings
-
-        # Compiled error matching regex
-        error_re = re.compile(
-            r"(?i)(?:sql\s*syntax|mysql_fetch|pg_query|ociexecute|ora-|traceback|stack\s*trace|"
-            r"exception|syntax\s*error|unexpected\s+token|unterminated|string\s+literal|"
-            r"unclosed\s+quotation|invalid\s+column|invalid\s+object|invalid\s+table|"
-            r"division\s+by\s+zero|out\s+of\s+range|constraint\s+violation|duplicate\s+key)"
-        )
+        active_session = session if session is not None else getattr(self, "session", None)
 
         close_client = False
         if client is None:
-            # Security Fix: Re-enabled SSL verification (verify=True)
             client = httpx.AsyncClient(timeout=timeout_seconds, verify=True)
             close_client = True
+
+        parsed = urlparse(url)
+        query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        if not query_pairs:
+            if close_client:
+                await client.aclose()
+            return findings
+
+        if not is_safe_url_with_dns_check(url):
+            logger.warning("Fuzzer: URL %s is not safe, skipping fuzzing campaign", url)
+            if close_client:
+                await client.aclose()
+            return findings
+
+        error_re = re.compile(
+            r"(?i)(?:sql\s*syntax|mysql_fetch|pg_query|ociexecute|ora-|traceback|stack\s*trace|"
+            r"exception|syntax\s*error|unexpected\s+token|unterminated|string\s+literal|"
+            r"unclosed\s+quotation|invalid\s*column|invalid\s*object|invalid\s*table|"
+            r"division\s+by\s+zero|out\s+of\s+range|constraint\s+violation|duplicate\s*key)"
+        )
 
         endpoint_key = endpoint_signature(url)
 
         try:
-            # 1. Capture base line response
             try:
-                base_resp = await self.request_sender.get_url(client, url, timeout_seconds)
+                if active_session is not None:
+                    base_req = active_session.attach(
+                        {"method": "GET", "url": url, "timeout_seconds": int(timeout_seconds)}
+                    )
+                    base_resp = await client.get(
+                        base_req.get("url", url),
+                        headers=base_req.get("headers", {}),
+                        timeout=timeout_seconds,
+                    )
+                else:
+                    base_resp = await self.request_sender.get_url(client, url, timeout_seconds)
                 self.feedback_tracker.record_request()
                 base_status = base_resp.status_code
                 base_len = len(base_resp.text)
             except Exception as e:
                 logger.warning("Fuzzer base request failed for %s: %s", url, e)
+                if close_client:
+                    await client.aclose()
                 return findings
 
-            # Establish base coverage
             self.record_feedback(url, base_status, base_len)
 
-            # 2. Iterate and mutate each parameter
-            stop_campaign = False
+            stop_container = [False]
             tasks_to_run = []
             for idx, (param_name, param_value) in enumerate(query_pairs):
                 param_type = detect_parameter_type(param_name, param_value)
@@ -320,27 +356,21 @@ class FuzzingOrchestrator:
             async def evaluate_variant(
                 idx: int, param_name: str, payload_dict: dict[str, Any]
             ) -> None:
-                nonlocal stop_campaign
-                if stop_campaign:
+                if stop_container[0]:
                     return
-
                 variant_val = payload_dict["variant"]
                 strategy = payload_dict["strategy"]
-
-                # Construct mutated query string
                 mutated_pairs = list(query_pairs)
                 mutated_pairs[idx] = (param_name, variant_val)
                 mutated_query = urlencode(mutated_pairs, doseq=True)
                 mutated_url = urlunparse(parsed._replace(query=mutated_query))
-
                 if not is_safe_url_with_dns_check(mutated_url):
                     logger.warning(
                         "Fuzzer: Mutated URL failed SSRF check, skipping: %s", mutated_url
                     )
                     return
-
                 async with sem:
-                    if stop_campaign:
+                    if stop_container[0]:
                         return
                     try:
                         self.feedback_tracker.record_payload()
@@ -354,12 +384,7 @@ class FuzzingOrchestrator:
                     except Exception as e:
                         logger.debug("Fuzzer request failed for %s: %s", mutated_url, e)
                         return
-
-                # Record status code + size band feedback
                 self.record_feedback(url, status, resp_len)
-
-                # Look for security issues/anomalies:
-                # Case A: SQL/Execution Error leak in body (scanning up to 50000 chars)
                 error_match = error_re.search(body[:50000])
                 if error_match:
                     self.feedback_tracker.record_anomaly()
@@ -384,10 +409,9 @@ class FuzzingOrchestrator:
                         }
                     )
                     logger.info("Fuzzer: Detected vulnerability on %s: Error Leak!", url)
-                    stop_campaign = True
+                    self._handle_stop_condition(findings[-1], findings, stop_container)
+                    stop_container[0] = True
                     return
-
-                # Case B: Significant status boundary drift (e.g. bypass validation)
                 elif base_status in {400, 401, 403} and status in {200, 201}:
                     self.feedback_tracker.record_anomaly()
                     findings.append(
@@ -411,10 +435,9 @@ class FuzzingOrchestrator:
                         }
                     )
                     logger.info("Fuzzer: Detected vulnerability on %s: Structural Bypass!", url)
-                    stop_campaign = True
+                    self._handle_stop_condition(findings[-1], findings, stop_container)
+                    stop_container[0] = True
                     return
-
-                # Case C: Status code 500 crash anomaly
                 elif status >= 500 and base_status < 500:
                     self.feedback_tracker.record_anomaly()
                     findings.append(
@@ -437,7 +460,8 @@ class FuzzingOrchestrator:
                         }
                     )
                     logger.info("Fuzzer: Detected anomaly on %s: Server crash (500)!", url)
-                    stop_campaign = True
+                    self._handle_stop_condition(findings[-1], findings, stop_container)
+                    stop_container[0] = True
                     return
 
             if tasks_to_run:

@@ -33,10 +33,16 @@ class NeuralMeshBalancer:
         else:
             stats["f"] += 1
 
-    def calculate_node_suitability(self, node_data: dict[str, Any], bid: float) -> float:
+    def calculate_node_suitability(
+        self,
+        node_data: dict[str, Any],
+        bid: float,
+        local_region: str | None = None,
+    ) -> float:
         """
         Compute suitability index (0.0 - 1.0).
-        Considers Bid, Resource Headroom, Reputation, and Efficiency.
+        Considers Bid, Resource Headroom, Reputation, Efficiency, and topology
+        (region / capacity).
         """
         node_id = node_data["id"]
         stats = self._reputation.get(
@@ -56,7 +62,19 @@ class NeuralMeshBalancer:
         # Normalize RAM (assume 2GB is 'comfortable' for a worker)
         ram_score = min(1.0, ram_mb / 2048.0)
 
-        resource_score = (cpu_score * 0.6) + (ram_score * 0.4)
+        # Capacity weight rewards nodes the operator has marked as high-spec.
+        capacity_weight = float(node_data.get("capacity_weight", 1.0) or 1.0)
+        capacity_boost = max(0.5, min(2.0, capacity_weight)) / 2.0
+        bandwidth = float(node_data.get("bandwidth_mbps", 0.0) or 0.0)
+        # Treat 1 Gbps as 'comfortable'; everything below tapers linearly.
+        bandwidth_score = 1.0 if bandwidth <= 0.0 else min(1.0, bandwidth / 1000.0)
+
+        resource_score = (
+            (cpu_score * 0.45)
+            + (ram_score * 0.3)
+            + (capacity_boost * 0.15)
+            + (bandwidth_score * 0.1)
+        )
 
         # 2. Reputation Factor (Reliability) - 25% weight
         total_tasks = stats["s"] + stats["f"]
@@ -73,22 +91,36 @@ class NeuralMeshBalancer:
         factors = np.array([bid, resource_score, reliability, efficiency])
         weights = np.array([0.3, 0.3, 0.25, 0.15])
 
-        suitability = np.dot(factors, weights)
+        suitability = float(np.dot(factors, weights))
+
+        # Geographic affinity: 15% penalty for cross-region traffic to keep
+        # heavy chatter regional unless no in-region peer is available.
+        node_region = str(node_data.get("region", "") or "").strip().lower()
+        local_region_norm = (local_region or "").strip().lower()
+        if local_region_norm and node_region and node_region != local_region_norm:
+            suitability *= 0.85
 
         # Log deep metrics for observability
         logger.debug(
-            "Node suitability [%s]: bid=%.2f, res=%.2f, rel=%.2f, eff=%.2f -> total=%.4f",
+            "Node suitability [%s]: bid=%.2f, res=%.2f, rel=%.2f, eff=%.2f, "
+            "region=%s -> total=%.4f",
             node_id,
             bid,
             resource_score,
             reliability,
             efficiency,
+            node_region or "-",
             suitability,
         )
 
         return round(float(suitability), 4)
 
-    def select_best_worker(self, nodes: list[dict[str, Any]], bids: dict[str, float]) -> str | None:
+    def select_best_worker(
+        self,
+        nodes: list[dict[str, Any]],
+        bids: dict[str, float],
+        local_region: str | None = None,
+    ) -> str | None:
         """Choose the optimal worker from a pool of bidding nodes."""
         if not nodes or not bids:
             return None
@@ -96,7 +128,7 @@ class NeuralMeshBalancer:
         rankings = []
         for node in nodes:
             bid = bids.get(node["id"], 0.0)
-            score = self.calculate_node_suitability(node, bid)
+            score = self.calculate_node_suitability(node, bid, local_region=local_region)
             rankings.append((node["id"], score))
 
         # Sort by suitability score descending
@@ -122,13 +154,29 @@ class NeuralMeshBalancer:
 
         # In a real mesh, we would broadcast a 'bid' request.
         # Here we simulate the bidding by calculating it on the fly for each node
-        # using the same logic the nodes themselves would use.
+        # using the same logic the nodes themselves would use, but feeding
+        # each remote node its own capability manifest rather than the
+        # local bidder's view.
         from src.infrastructure.mesh.bidder import MeshBidder
 
+        local_node = getattr(gossip, "local_node", None)
+        local_region = getattr(local_node, "region", "") or "" if local_node else ""
         bids: dict[str, float] = {}
         for node in nodes:
-            bidder = MeshBidder(node["id"])
-            # Use the node's gossiped metrics to estimate what its bid would be.
-            bids[node["id"]] = bidder.calculate_bid(task_metadata, metrics=node)
+            remote_caps = node.get("capabilities") or []
+            bidder = MeshBidder(
+                node["id"],
+                local_capabilities=remote_caps,
+                local_region=local_region,
+            )
+            bids[node["id"]] = bidder.calculate_bid(
+                task_metadata,
+                metrics=node,
+                local_capabilities=remote_caps,
+                peer_region=str(node.get("region", "") or "") or None,
+                peer_bandwidth_mbps=(
+                    int(node.get("bandwidth_mbps", 0) or 0) or None
+                ),
+            )
 
-        return self.select_best_worker(nodes, bids)
+        return self.select_best_worker(nodes, bids, local_region=local_region)

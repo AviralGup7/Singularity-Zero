@@ -400,6 +400,14 @@ async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
     analysis = dict(runtime.get("analysis", {}) or {})
 
     try:
+        origin_hosts: set[str] = set()
+        for entry in state.get("origin_candidates", []) or []:
+            if isinstance(entry, str) and entry.strip():
+                origin_hosts.add(entry.strip().lower().rstrip("."))
+        for entry in state.get("origin_ips", []) or []:
+            if isinstance(entry, str) and entry.strip():
+                origin_hosts.add(entry.strip().lower().rstrip("."))
+
         ranked_priority_urls = await asyncio.to_thread(
             rank_urls,
             urls,
@@ -409,6 +417,7 @@ async def run_priority_ranking_stage(stage_input: StageInput) -> StageOutput:
             target_profile,
             cast(Any, history_feedback),
             waf_findings,
+            origin_hosts or None,
         )
         priority_urls = [item.get("url", "") for item in ranked_priority_urls if item.get("url")]
         selected_priority_items, selection_meta = await asyncio.to_thread(
@@ -512,6 +521,107 @@ async def run_waf_detection_service(
             error=str(exc),
             state_delta={},
         )
+
+
+@beartype
+async def run_origin_discovery_service(
+    stage_input: StageInput,
+    *,
+    timeout: float = 5.0,
+    max_domains: int = 25,
+) -> StageOutput:
+    """Pure service implementation for CDN origin discovery.
+
+    Reads the WAF detection findings from state (produced by
+    :func:`run_waf_detection_service`) and runs
+    :mod:`src.recon.origin_discovery` against the unique root domains
+    that were flagged as CDN-protected. The discovered candidate
+    hostnames and IPs are written back to ``state_delta`` under
+    ``origin_candidates`` (list of hostnames) and ``origin_ips`` (list
+    of IP literals). The priority-ranking stage reads these and uses
+    them to inject origin-bypass URLs into its pool.
+
+    The stage is best-effort: any source failure (DNS, SecurityTrails
+    HTTP, etc.) is logged at debug and the stage still completes with
+    whatever data the surviving sources produced. If the engagement
+    has no WAF findings the stage is skipped.
+
+    Args:
+        stage_input: Pipeline stage input.
+        timeout: Per-DNS-query timeout in seconds.
+        max_domains: Safety cap on the number of unique CDN-protected
+            root domains to process.
+
+    Returns:
+        StageOutput with ``origin_candidates`` and ``origin_ips`` in
+        ``state_delta``, or SKIPPED when there is nothing to do.
+    """
+    from src.recon.origin_discovery import discover_origins_for_findings
+
+    started = time.monotonic()
+    state = _state(stage_input)
+
+    waf_findings = list(state.get("waf_findings", []) or [])
+    if not waf_findings:
+        return StageOutput(
+            stage_name=stage_input.stage_name,
+            outcome=StageOutcome.SKIPPED,
+            duration_seconds=0.0,
+            metrics={"status": "skipped", "reason": "no_waf_findings"},
+            state_delta={},
+        )
+
+    try:
+        results = await asyncio.to_thread(
+            discover_origins_for_findings,
+            waf_findings,
+            timeout=timeout,
+            max_domains=max_domains,
+        )
+    except Exception as exc:
+        logger.error("Origin discovery service failed: %s", exc)
+        return StageOutput(
+            stage_name=stage_input.stage_name,
+            outcome=StageOutcome.FAILED,
+            duration_seconds=time.monotonic() - started,
+            error=str(exc),
+            state_delta={},
+        )
+
+    candidate_hosts: set[str] = set()
+    candidate_ips: set[str] = set()
+    per_domain_reports: list[dict[str, Any]] = []
+    for root, discovery in results.items():
+        candidate_hosts.update(discovery.candidate_hosts)
+        candidate_ips.update(discovery.candidate_ips)
+        per_domain_reports.append(
+            {
+                **discovery.to_dict(),
+                "cdn_provider": "",
+            }
+        )
+
+    duration = round(time.monotonic() - started, 2)
+    return StageOutput(
+        stage_name=stage_input.stage_name,
+        outcome=StageOutcome.COMPLETED,
+        duration_seconds=duration,
+        metrics={
+            "status": "ok",
+            "domains_processed": len(results),
+            "candidate_hosts": len(candidate_hosts),
+            "candidate_ips": len(candidate_ips),
+        },
+        state_delta={
+            "origin_candidates": sorted(candidate_hosts),
+            "origin_ips": sorted(candidate_ips),
+            "origin_discovery_report": {
+                "domains": per_domain_reports,
+                "total_candidate_hosts": len(candidate_hosts),
+                "total_candidate_ips": len(candidate_ips),
+            },
+        },
+    )
 
 
 def _state(stage_input: StageInput) -> dict[str, Any]:

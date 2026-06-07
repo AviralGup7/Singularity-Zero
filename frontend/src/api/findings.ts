@@ -31,6 +31,11 @@ export async function getFindingRemediation(
   });
 }
 
+export async function getFindingById(findingId: string, signal?: AbortSignal): Promise<Finding> {
+  const { data } = await apiClient.get<Finding>(`/api/findings/${findingId}`, { signal });
+  return data;
+}
+
 export async function deleteFinding(id: string, signal?: AbortSignal): Promise<void> {
   await apiClient.delete(`/api/findings/${id}`, { signal });
   apiCache.invalidatePrefix('/api/findings');

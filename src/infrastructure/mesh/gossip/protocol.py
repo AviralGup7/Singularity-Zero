@@ -4,6 +4,15 @@ Low-level UDP packet handler / protocol adapter for the gossip mesh.
 GossipProtocol is an asyncio.DatagramProtocol subclass that authenticates
 incoming packets, floods received node updates into the engine, and
 dispatches typed messages to the appropriate engine callback.
+
+Hardening (DoS protection):
+
+* Per-peer token-bucket rate limiter (``PeerRateLimiter``) drops
+  packets from peers that exceed a configurable pps budget.
+* ``MessageDeduper`` discards replays by ``msg_id``.
+* ``Reassembler`` joins fragmented envelopes before they hit the
+  authentication step, so the signature is verified on the
+  reconstructed payload.
 """
 
 from __future__ import annotations
@@ -13,6 +22,11 @@ import json
 import logging
 from typing import Any
 
+from src.infrastructure.mesh.gossip.fragmentation import (
+    MessageDeduper,
+    PeerRateLimiter,
+    Reassembler,
+)
 from src.infrastructure.mesh.gossip.serializer import canonical_json, verify
 
 logger = logging.getLogger(__name__)
@@ -21,10 +35,33 @@ logger = logging.getLogger(__name__)
 class GossipProtocol:
     """Low-level UDP packet handler with HMAC verification."""
 
-    def __init__(self, engine: Any, *, secret: bytes):
+    def __init__(
+        self,
+        engine: Any,
+        *,
+        secret: bytes,
+        rate_limiter: PeerRateLimiter | None = None,
+        reassembler: Reassembler | None = None,
+        deduper: MessageDeduper | None = None,
+    ) -> None:
         self.engine = engine
         self._secret = secret
         self.transport: asyncio.BaseTransport | None = None
+        self._rate_limiter = rate_limiter or PeerRateLimiter()
+        self._reassembler = reassembler or Reassembler()
+        self._deduper = deduper or MessageDeduper()
+
+    @property
+    def rate_limiter(self) -> PeerRateLimiter:
+        return self._rate_limiter
+
+    @property
+    def reassembler(self) -> Reassembler:
+        return self._reassembler
+
+    @property
+    def deduper(self) -> MessageDeduper:
+        return self._deduper
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport
@@ -32,8 +69,44 @@ class GossipProtocol:
     def datagram_received(
         self, data: bytes, addr: tuple[str, int]
     ) -> None:  # addr: tuple[str, int]
+        peer_key = f"{addr[0]}:{addr[1]}"
+        if not self._rate_limiter.allow(peer_key):
+            try:
+                _inc_metric(
+                    "dropped_gossip_packets_rate_total",
+                    "Total gossip packets dropped due to per-peer rate limit",
+                )
+            except (OSError, ValueError, TypeError, AttributeError):
+                pass
+            return
+
         try:
             envelope = json.loads(data.decode("utf-8"))
+        except Exception as exc:
+            logger.warning("Dropped malformed gossip packet from %s: %s", addr, exc)
+            try:
+                _inc_metric(
+                    "dropped_gossip_packets_total",
+                    "Total dropped gossip packets due to format errors",
+                )
+            except (OSError, ValueError, TypeError, AttributeError) as metric_exc:
+                logger.debug("Gossip metric increment failed: %s", metric_exc)
+            return
+
+        # Fragmented envelopes must be reassembled *before* signature
+        # verification because the signature covers the original
+        # envelope bytes, not the fragment wrapper.
+        if isinstance(envelope, dict) and envelope.get("kind") == "fragment":
+            raw = self._reassembler.ingest(envelope)
+            if raw is None:
+                return  # waiting on more fragments
+            try:
+                envelope = json.loads(raw.decode("utf-8"))
+            except Exception as exc:
+                logger.warning("Dropped reassembled envelope from %s: %s", addr, exc)
+                return
+
+        try:
             body = envelope["body"]
             if not verify(self._secret, canonical_json(body), envelope["sig"]):
                 logger.warning("Dropped unauthorized gossip packet from %s", addr)
@@ -47,6 +120,17 @@ class GossipProtocol:
                 )
             except (OSError, ValueError, TypeError, AttributeError) as metric_exc:
                 logger.debug("Gossip metric increment failed: %s", metric_exc)
+            return
+
+        msg_id = str(body.get("msg_id", ""))
+        if msg_id and not self._deduper.seen(msg_id):
+            try:
+                _inc_metric(
+                    "dropped_gossip_packets_duplicate_total",
+                    "Total gossip packets dropped as duplicate msg_id",
+                )
+            except (OSError, ValueError, TypeError, AttributeError):
+                pass
             return
 
         try:

@@ -7,6 +7,11 @@ VALIDATOR_ORDER: tuple[str, ...] = (
     "xss",
     "ssti",
     "file_upload",
+    "cors",
+    "graphql_abuse",
+    "jwt_weakness",
+    "race_condition",
+    "cache_poisoning",
 )
 
 VALIDATOR_RESULT_KEYS: dict[str, str] = {
@@ -18,4 +23,9 @@ VALIDATOR_RESULT_KEYS: dict[str, str] = {
     "xss": "xss_validation",
     "ssti": "ssti_validation",
     "file_upload": "file_upload_validation",
+    "cors": "cors_validation",
+    "graphql_abuse": "graphql_validation",
+    "jwt_weakness": "jwt_validation",
+    "race_condition": "race_condition_validation",
+    "cache_poisoning": "cache_poisoning_validation",
 }

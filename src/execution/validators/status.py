@@ -5,3 +5,4 @@ class ValidationStatus(StrEnum):
     CONFIRMED = "CONFIRMED"
     FAILED = "FAILED"
     INCONCLUSIVE = "INCONCLUSIVE"
+    HEURISTIC = "HEURISTIC"

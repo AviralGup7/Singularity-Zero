@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import threading
 from collections.abc import Callable, Coroutine
 from typing import Any
 
@@ -18,18 +19,27 @@ from src.pipeline.parallel_analysis.result_merging import (
 logger = get_pipeline_logger(__name__)
 
 
+_WORKER_LOOP_LOCAL: threading.local = threading.local()
+
+
+def _get_worker_event_loop() -> asyncio.AbstractEventLoop:
+    """Return a persistent event loop for the current worker thread."""
+    loop = getattr(_WORKER_LOOP_LOCAL, "loop", None)
+    if loop is None or loop.is_closed():
+        loop = asyncio.new_event_loop()
+        _WORKER_LOOP_LOCAL.loop = loop
+    return loop
+
+
 def _run_coro_in_new_loop(
     coro: Coroutine[Any, Any, Any],
     timeout: int,
 ) -> Any:
-    loop = asyncio.new_event_loop()
+    loop = _get_worker_event_loop()
     try:
         return loop.run_until_complete(asyncio.wait_for(coro, timeout=timeout))
-    finally:
-        try:
-            loop.close()
-        except Exception:
-            pass
+    except Exception:
+        return None
 
 
 def _run_parallel_analyzers_in_thread_pool(

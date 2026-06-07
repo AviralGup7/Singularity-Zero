@@ -13,6 +13,7 @@ import { useCommandPaletteItems, getAllItems } from '../../hooks/useCommandPalet
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useMotionPolicy } from '../../hooks/useMotionPolicy';
 import { useDebouncedPersist } from '../../hooks/useDebouncedPersist';
+import { useDisplayStore } from '@/stores/displayStore';
 import type { Notification } from '../NotificationCenter';
 import type { SearchableItem } from '../CommandPalette';
 
@@ -41,6 +42,7 @@ function useNavSections(): NavSection[] {
         { path: '/remediation-planner', label: 'Remediation Planner', icon: 'checkCircle' },
         { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
         { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
+        { path: '/scan-diff', label: 'Scan Diff', icon: 'activity' },
         { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
         { path: '/learning', label: 'Autonomous Learning', icon: 'zap' },
         { path: '/evasion', label: 'Evasion Metrics', icon: 'shield' },
@@ -146,9 +148,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [notifications, setNotifications] = useState<Notification[]>(loadNotifications);
    
   const [sidebarOpen, setSidebarOpen] = useState(false);
-   
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-   
+
+  const sidebarCollapsed = useDisplayStore((state) => state.sidebarCollapsed);
+  const toggleSidebarCollapsed = useDisplayStore((state) => state.toggleSidebarCollapsed);
+
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const sidebarRef = useRef<HTMLElement>(null);
    
@@ -253,7 +256,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       navigate('/settings');
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
       e.preventDefault();
-      setSidebarCollapsed(prev => !prev);
+      toggleSidebarCollapsed();
     } else if (e.key === '5') {
       e.preventDefault();
       navigate('/pipeline');
@@ -266,7 +269,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       if (sidebarOpen) setSidebarOpen(false);
     }
    
-  }, [navigate, sidebarOpen, theme.mode, themeUpdater]);
+  }, [navigate, sidebarOpen, theme.mode, themeUpdater, toggleSidebarCollapsed]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -350,7 +353,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <button
             type="button"
             className="sidebar-collapse-btn"
-            onClick={() => setSidebarCollapsed(prev => !prev)}
+            onClick={() => toggleSidebarCollapsed()}
             title="Toggle sidebar (Ctrl+B)"
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >

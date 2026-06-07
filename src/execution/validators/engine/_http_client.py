@@ -5,6 +5,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 from src.pipeline.retry import RetryPolicy
 
@@ -15,12 +16,42 @@ from src.pipeline.retry import RetryPolicy
 # occur if we imported ``src.analysis.passive.runtime`` at module load.
 fetch_response = None  # type: ignore[assignment]
 
+# Headers whose values must be included in the cache key (R-fix) to
+# prevent the same URL with different credentials from being shared
+# across probes.
+_AUTH_HEADERS: frozenset[str] = frozenset(
+    {"authorization", "cookie", "x-api-key", "x-auth-token", "proxy-authorization"}
+)
+
 
 @dataclass(frozen=True)
 class ValidationHttpConfig:
     timeout_seconds: int
     max_response_bytes: int
     retry_policy: RetryPolicy
+
+
+def _cache_key_for(
+    method: str, url: str, headers: dict[str, str] | None, body: Any
+) -> str:
+    """Return a stable cache key for an HTTP probe.
+
+    Includes normalized ``Authorization``/``Cookie`` (Bug G fix) and a
+    short fingerprint of the body so different credentials or bodies do
+    not share cached responses.
+    """
+    normalized: list[tuple[str, str]] = []
+    for key, value in sorted((headers or {}).items(), key=lambda item: item[0].lower()):
+        if key.lower() in _AUTH_HEADERS:
+            normalized.append((key.lower(), str(value)))
+    if body is None:
+        body_fp = ""
+    elif isinstance(body, (bytes, bytearray)):
+        body_fp = f"bytes:{len(body)}"
+    else:
+        body_str = str(body)
+        body_fp = f"str:{len(body_str)}:{body_str[:64]}"
+    return f"{method.upper()}:{url}:{normalized}:{body_fp}"
 
 
 class ValidationHttpClient:
@@ -49,19 +80,32 @@ class ValidationHttpClient:
                 self._response_cache.popitem(last=False)
 
     def request(
-        self, url: str, *, method: str = "GET", headers: dict[str, str] | None = None
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body: str | bytes | None = None,
+        return_body: bool = False,
     ) -> dict[str, Any]:
-        # Use the module-level ``fetch_response`` symbol (or one injected
-        # via ``patch.object(..., "fetch_response", ...)``) rather than
-        # re-importing inside the method. The module-level symbol is
-        # resolved lazily through the helper below, which avoids a
-        # circular import chain while still letting tests patch the
-        # attribute on this module.
+        """Perform an HTTP request via the shared fetch client.
+
+        Args:
+            url: Target URL.
+            method: HTTP method.
+            headers: Optional request headers.
+            body: Optional request body (str or bytes).
+            return_body: When True, include the response body in the
+                returned dict (used by race/cache/JWT probes).
+        """
         fetch_response = _resolve_fetch_response()
 
-        cache_key = f"{method}:{url}:{sorted((headers or {}).items())}"
+        cache_key = _cache_key_for(method, url, headers, body)
         cached = self._cache_get(cache_key)
         if cached is not None:
+            if return_body and "body" not in cached:
+                cached = dict(cached)
+                cached["body"] = str(cached.get("body_text", "") or "")
             return cached
 
         started = time.monotonic()
@@ -74,6 +118,7 @@ class ValidationHttpClient:
                     self.config.max_response_bytes,
                     method=method,
                     extra_headers=headers,
+                    body=body,
                 )
             except Exception as exc:
                 record = None
@@ -83,6 +128,7 @@ class ValidationHttpClient:
                     status_code = int(record.get("status_code") or 0)
                     retryable = status_code == 429 or 500 <= status_code < 600
                     if not retryable:
+                        body_text = str(record.get("body_text", "") or "")
                         result = {
                             "ok": True,
                             "requested_url": record.get("requested_url", url),
@@ -94,6 +140,8 @@ class ValidationHttpClient:
                             "timeout_seconds": self.config.timeout_seconds,
                             "latency_seconds": round(time.monotonic() - started, 3),
                             "error": "",
+                            "headers": dict(record.get("headers") or {}),
+                            "body": body_text if return_body else "",
                         }
                         self._cache_set(cache_key, result)
                         return result
@@ -116,9 +164,108 @@ class ValidationHttpClient:
             "timeout_seconds": self.config.timeout_seconds,
             "latency_seconds": round(time.monotonic() - started, 3),
             "error": last_error,
+            "headers": {},
+            "body": "" if return_body else "",
         }
         self._cache_set(cache_key, result)
         return result
+
+    # R7 probe helpers ---------------------------------------------------
+    def jwt_probe(self, token: str, target_url: str) -> dict[str, Any]:
+        """Send a JWT candidate to ``target_url`` and return a probe dict."""
+        if not target_url:
+            return {"status_code": 0, "body": "", "headers": {}}
+        parsed = urlparse(target_url)
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+        response = self.request(
+            target_url,
+            method="GET",
+            headers=headers,
+            return_body=True,
+        )
+        return {
+            "status_code": response.get("status_code", 0),
+            "body": response.get("body", ""),
+            "headers": response.get("headers", {}) or {},
+            "scheme": parsed.scheme,
+        }
+
+    def graphql_probe(self, endpoint: str, query: str) -> dict[str, Any]:
+        """POST a GraphQL query and return the response."""
+        body = str(query or "")
+        response = self.request(
+            endpoint,
+            method="POST",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            body=body,
+            return_body=True,
+        )
+        return {
+            "status_code": response.get("status_code", 0),
+            "body": response.get("body", ""),
+            "headers": response.get("headers", {}) or {},
+        }
+
+    def cache_poison_probe(
+        self, target_url: str, unkeyed_header: str
+    ) -> dict[str, Any]:
+        """Send a cache poisoning probe (R7) and return both responses."""
+        import uuid
+
+        token = f"cacheprobe-{uuid.uuid4().hex[:16]}"
+        probe = self.request(
+            target_url,
+            method="GET",
+            headers={unkeyed_header: token},
+            return_body=True,
+        )
+        followup = self.request(target_url, method="GET", return_body=True)
+        return {
+            "probe_response": {
+                "status_code": probe.get("status_code", 0),
+                "headers": probe.get("headers", {}) or {},
+                "body": probe.get("body", ""),
+                "probe_token": token,
+            },
+            "followup_response": {
+                "status_code": followup.get("status_code", 0),
+                "headers": followup.get("headers", {}) or {},
+                "body": followup.get("body", ""),
+            },
+        }
+
+    def race_probe(
+        self, target_url: str, *, concurrency: int = 5
+    ) -> list[dict[str, Any]]:
+        """Send ``concurrency`` concurrent requests to ``target_url``."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        responses: list[dict[str, Any]] = []
+
+        def _single() -> dict[str, Any]:
+            response = self.request(target_url, method="GET", return_body=True)
+            return {
+                "status_code": response.get("status_code", 0),
+                "body": response.get("body", ""),
+                "headers": response.get("headers", {}) or {},
+            }
+
+        if concurrency <= 0:
+            return responses
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = [executor.submit(_single) for _ in range(concurrency)]
+            for future in futures:
+                try:
+                    responses.append(future.result(timeout=30) or {})
+                except Exception:  # noqa: BLE001
+                    responses.append({"status_code": 0, "body": "", "headers": {}})
+        return responses
 
 
 def _resolve_fetch_response() -> Any:

@@ -16,7 +16,7 @@ export async function getDashboardStats(signal?: AbortSignal, ttl?: number): Pro
 export { getTargets, getDefaults, deleteTarget, compareTargets } from './targets';
 export { getJobs, getJob, getJobLogs, getJobTraceLink, getJobRemediation, startJob, stopJob, restartJob, getHistoricalDurations } from './jobs';
 export type { StartJobPayload, HistoricalDurationEntry } from './jobs';
-export { getFindingsSummary, getFindings, getFindingRemediation, deleteFinding, updateFinding, bulkUpdateFindings } from './findings';
+export { getFindingsSummary, getFindings, getFindingById, getFindingRemediation, deleteFinding, updateFinding, bulkUpdateFindings } from './findings';
 export {
   getRegistry, getModuleRegistry, getAnalysisRegistry, getModeRegistry, getDynamicPluginCatalog,
 } from './registry';
@@ -32,6 +32,9 @@ export { getReadiness, getLiveness } from './health';
 export { getNotes, createNote, updateNote, deleteNote } from './notes';
 export type { Note, NoteListResponse, NoteCreateRequest, NoteUpdateRequest } from '@/types/extended';
 export { getCacheStats, triggerCacheCleanup, invalidateCacheNamespace, reconcileBloomFilter } from './cacheMgmt';
+export { importSemgrepReport } from './imports';
+export { getStreamToken, getStreamSubprotocols, appendStreamToken, AUTH_TOKEN_KEY } from './streamAuth';
+export { pingLivenessForTimeSync, getMeshHealth, electMeshLeader, forceMeshReconcile } from './health';
 export type { CacheStats, CacheCleanupResponse } from '@/types/extended';
 export { getTargetRiskScore, getTargetHistoricalScores, getTargetTimeline, getJobTimeline } from './analysis';
 export type { RiskScore, HistoricalScoreResponse, TimelineResponse, TimelineEntry } from '@/types/extended';

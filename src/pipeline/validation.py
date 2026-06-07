@@ -7,6 +7,7 @@ on system resources and artifact integrity mid-run.
 import ipaddress
 import json
 import os
+import re
 import shutil
 import socket
 from pathlib import Path
@@ -179,12 +180,70 @@ def validate_scope_threat_intel(entry: str) -> tuple[bool, str]:
     return True, ""
 
 
+def validate_scope_max_prefix(entry: str, max_prefix_v4: int = 24, max_prefix_v6: int = 64) -> tuple[bool, str]:
+    """Reject overly-broad CIDR blocks (e.g. /0, /16)."""
+    clean_entry = entry.strip()
+    if "/" not in clean_entry:
+        return True, ""
+    try:
+        net = ipaddress.ip_network(clean_entry, strict=False)
+    except Exception:
+        return False, f"Invalid CIDR: '{entry}'"
+    if isinstance(net, ipaddress.IPv4Network):
+        prefix = net.prefixlen
+        if prefix > max_prefix_v4:
+            return True, ""
+        if prefix < max_prefix_v4:
+            return False, f"Scope CIDR '{entry}' is too broad (/{prefix}, max /{max_prefix_v4} for IPv4)"
+    else:
+        prefix = net.prefixlen
+        if prefix > max_prefix_v6:
+            return True, ""
+        if prefix < max_prefix_v6:
+            return False, f"Scope CIDR '{entry}' is too broad (/{prefix}, max /{max_prefix_v6} for IPv6)"
+    return True, ""
+
+
 SCOPE_VALIDATORS = [
     validate_scope_syntax,
     validate_scope_disallowed_tlds,
     validate_scope_rfc1918,
     validate_scope_threat_intel,
+    validate_scope_max_prefix,
 ]
+
+
+def _version_satisfies(version: str, spec: str) -> bool:
+    """Check if a version string satisfies a PEP 440-style spec like >=2.0.0."""
+    version = version.strip()
+    m = re.match(r"^(>=|<=|==|!=|~=|>|<)(.+)$", spec.strip())
+    if not m:
+        return True
+    op, required = m.group(1), m.group(2).strip()
+    try:
+        v_parts = [int(x) for x in version.split(".")[:3]]
+        r_parts = [int(x) for x in required.split(".")[:3]]
+        while len(v_parts) < len(r_parts):
+            v_parts.append(0)
+        while len(r_parts) < len(v_parts):
+            r_parts.append(0)
+        if op == ">=":
+            return v_parts >= r_parts
+        if op == ">":
+            return v_parts > r_parts
+        if op == "<=":
+            return v_parts <= r_parts
+        if op == "<":
+            return v_parts < r_parts
+        if op == "==":
+            return v_parts == r_parts
+        if op == "!=":
+            return v_parts != r_parts
+        if op == "~=":
+            return v_parts[:2] == r_parts[:2] and v_parts >= r_parts
+    except (ValueError, TypeError):
+        pass
+    return True
 
 
 def validate_config(
@@ -371,6 +430,45 @@ def validate_config(
         }
     )
     if not disk_ok:
+        all_ok = False
+
+    # Check 6: Tool version requirements
+    version_errors: list[str] = []
+    version_ok = True
+    for tool_name, manifest_entry in getattr(
+        getattr(config, "tools_manifest", None), "__dict__", {}
+    ).items() if hasattr(getattr(config, "tools_manifest", None), "__dict__") else []:
+        pass  # config-driven version checks via tools_capabilities
+
+    try:
+        from src.pipeline.tools_capabilities import CAPABILITY_REGISTRY
+        for cap_name in CAPABILITY_REGISTRY.list_capabilities():
+            manifest = CAPABILITY_REGISTRY.get_manifest(cap_name)
+            for tool_req, version_spec in (manifest.version_requirements or {}).items():
+                if tool_available(tool_req):
+                    actual_version = get_tool_version(tool_req)
+                    if actual_version and not _version_satisfies(actual_version, version_spec):
+                        version_errors.append(
+                            f"{tool_req} installed as '{actual_version}' but {version_spec} required"
+                        )
+    except Exception:
+        pass
+
+    if version_errors:
+        version_ok = False
+    report["checks"].append(
+        {
+            "name": "tool_versions",
+            "passed": version_ok,
+            "details": (
+                "All tool versions satisfy requirements"
+                if version_ok
+                else f"Version mismatches: {'; '.join(version_errors)}"
+            ),
+            "errors": version_errors,
+        }
+    )
+    if not version_ok:
         all_ok = False
 
     report["summary"] = {

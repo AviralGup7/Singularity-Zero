@@ -31,6 +31,17 @@ Example ``policy.toml``::
     # ``RECON_DEGRADED`` warning is emitted and the run is downgraded
     # to ``partial`` (exit 4) instead of ``infra_failure`` (exit 3).
     degraded_stages = ["subdomains", "urls"]
+
+    [ci]
+    # Pre-policy filter: any finding whose URL or category matches an
+    # exclude_* entry is removed before severity counts are computed.
+    # Distinct from ``on_findings.exclude_categories`` (which only
+    # covers the existing category list) because ``ci`` supports full
+    # URL regexes, methods, and header fields via the
+    # :class:`AutoFilterEngine` from :mod:`src.core.auto_filters`.
+    exclude_regex_urls = [".*\\\\.example\\\\.com/.*", ".*\\\\.test\\\\.local/.*"]
+    exclude_methods = ["OPTIONS"]
+    exclude_categories = ["health_check"]
 """
 
 from __future__ import annotations
@@ -153,12 +164,45 @@ class PolicyOnFailure:
 
 
 @dataclass(frozen=True)
+class CIRule:
+    """``[ci]`` block — pre-policy filter rules applied to every finding.
+
+    Distinct from :attr:`FindingsRule.exclude_categories` because the
+    CI block supports a richer grammar: URL regexes, HTTP methods,
+    categories, status codes, and body/header substrings.  Rules are
+    evaluated by an :class:`src.core.auto_filters.AutoFilterEngine`
+    configured with AND logic so all ``exclude_*`` rules must match
+    for a finding to be filtered out.
+    """
+
+    exclude_regex_urls: tuple[str, ...] = ()
+    exclude_methods: tuple[str, ...] = ()
+    exclude_categories: tuple[str, ...] = ()
+    exclude_status: tuple[str, ...] = ()
+    exclude_body_contains: tuple[str, ...] = ()
+    exclude_header_contains: tuple[str, ...] = ()
+
+    def is_empty(self) -> bool:
+        return not any(
+            (
+                self.exclude_regex_urls,
+                self.exclude_methods,
+                self.exclude_categories,
+                self.exclude_status,
+                self.exclude_body_contains,
+                self.exclude_header_contains,
+            )
+        )
+
+
+@dataclass(frozen=True)
 class ExitConditionPolicy:
     """Top-level policy document."""
 
     findings: FindingsRule = field(default_factory=FindingsRule)
     infra: InfraRule = field(default_factory=InfraRule)
     on_failure: PolicyOnFailure = field(default_factory=PolicyOnFailure)
+    ci: CIRule = field(default_factory=CIRule)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -178,6 +222,14 @@ class ExitConditionPolicy:
             "on_failure": {
                 "retryable_only": self.on_failure.retryable_only,
                 "treat_partial_as": self.on_failure.treat_partial_as,
+            },
+            "ci": {
+                "exclude_regex_urls": list(self.ci.exclude_regex_urls),
+                "exclude_methods": list(self.ci.exclude_methods),
+                "exclude_categories": list(self.ci.exclude_categories),
+                "exclude_status": list(self.ci.exclude_status),
+                "exclude_body_contains": list(self.ci.exclude_body_contains),
+                "exclude_header_contains": list(self.ci.exclude_header_contains),
             },
         }
 
@@ -250,6 +302,27 @@ def _as_str_set(value: Any, *, field_name: str) -> frozenset[str]:
     return frozenset(out)
 
 
+def _as_str_tuple(value: Any, *, field_name: str) -> tuple[str, ...]:
+    """Like :func:`_as_str_set` but preserves order and duplicates.
+
+    Order matters for the ``[ci]`` block because operators may rely on
+    rule evaluation sequence when extending the AutoFilterEngine with
+    a custom rule set.
+    """
+    if not isinstance(value, (list, tuple)):
+        raise PolicyLoadError(
+            f"Policy field '{field_name}' must be a list of strings, got {type(value).__name__}"
+        )
+    out: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise PolicyLoadError(
+                f"Policy field '{field_name}' entries must be strings, got {type(item).__name__}"
+            )
+        out.append(item)
+    return tuple(out)
+
+
 def _from_mapping(data: Mapping[str, Any]) -> ExitConditionPolicy:
     if not isinstance(data, Mapping):
         raise PolicyLoadError(
@@ -309,7 +382,31 @@ def _from_mapping(data: Mapping[str, Any]) -> ExitConditionPolicy:
             f"on_failure.treat_partial_as must be 0, 2 or 4 (got {on_failure.treat_partial_as})"
         )
 
-    return ExitConditionPolicy(findings=findings, infra=infra, on_failure=on_failure)
+    ci_block = data.get("ci", {}) or {}
+    if not isinstance(ci_block, Mapping):
+        raise PolicyLoadError("'ci' must be a table")
+    ci = CIRule(
+        exclude_regex_urls=_as_str_tuple(
+            ci_block.get("exclude_regex_urls", []), field_name="exclude_regex_urls"
+        ),
+        exclude_methods=_as_str_tuple(
+            ci_block.get("exclude_methods", []), field_name="exclude_methods"
+        ),
+        exclude_categories=_as_str_tuple(
+            ci_block.get("exclude_categories", []), field_name="exclude_categories"
+        ),
+        exclude_status=_as_str_tuple(
+            ci_block.get("exclude_status", []), field_name="exclude_status"
+        ),
+        exclude_body_contains=_as_str_tuple(
+            ci_block.get("exclude_body_contains", []), field_name="exclude_body_contains"
+        ),
+        exclude_header_contains=_as_str_tuple(
+            ci_block.get("exclude_header_contains", []), field_name="exclude_header_contains"
+        ),
+    )
+
+    return ExitConditionPolicy(findings=findings, infra=infra, on_failure=on_failure, ci=ci)
 
 
 def _is_false_positive(finding: Mapping[str, Any]) -> bool:
@@ -319,6 +416,88 @@ def _is_false_positive(finding: Mapping[str, Any]) -> bool:
         return True
     decision = finding.get("ai_triage_decision")
     return isinstance(decision, str) and decision.upper() == "FP"
+
+
+def _ci_filter_engine(ci: CIRule) -> Any | None:
+    """Build an :class:`AutoFilterEngine` from a :class:`CIRule`.
+
+    Returns ``None`` when the rule block is empty so callers can skip
+    the filter pass.  All rules are ``inverse=True`` so a finding
+    matches (is removed) when it satisfies any exclude condition.
+    """
+    if ci.is_empty():
+        return None
+    from src.core.auto_filters import AutoFilterEngine, FilterRule
+
+    engine = AutoFilterEngine()
+    engine.set_logic("AND")
+    for pattern in ci.exclude_regex_urls:
+        engine.add_rule(
+            FilterRule(
+                name=f"ci_exclude_regex_url:{pattern}",
+                field="url",
+                match_type="regex",
+                value=pattern,
+                inverse=True,
+            )
+        )
+    for method in ci.exclude_methods:
+        engine.add_rule(
+            FilterRule(
+                name=f"ci_exclude_method:{method}",
+                field="method",
+                match_type="equals",
+                value=method,
+                inverse=True,
+            )
+        )
+    for status in ci.exclude_status:
+        engine.add_rule(
+            FilterRule(
+                name=f"ci_exclude_status:{status}",
+                field="status",
+                match_type="equals",
+                value=status,
+                inverse=True,
+            )
+        )
+    for needle in ci.exclude_body_contains:
+        engine.add_rule(
+            FilterRule(
+                name=f"ci_exclude_body_contains:{needle}",
+                field="body",
+                match_type="contains",
+                value=needle,
+                inverse=True,
+            )
+        )
+    for needle in ci.exclude_header_contains:
+        engine.add_rule(
+            FilterRule(
+                name=f"ci_exclude_header_contains:{needle}",
+                field="headers",
+                match_type="contains",
+                value=needle,
+                inverse=True,
+            )
+        )
+    return engine
+
+
+def _ci_filter_findings(
+    findings: Sequence[Mapping[str, Any]], ci: CIRule
+) -> list[Mapping[str, Any]]:
+    engine = _ci_filter_engine(ci)
+    if engine is None:
+        return list(findings)
+
+    kept: list[Mapping[str, Any]] = []
+    for f in findings:
+        category = str(f.get("category", "")).lower()
+        if category in {c.lower() for c in ci.exclude_categories}:
+            continue
+        kept.append(f)
+    return engine.filter_items(kept)
 
 
 def _count_findings(
@@ -430,8 +609,9 @@ def evaluate_policy(
             degraded_stages=tuple(degraded_salvaged),
         )
 
+    filtered_findings = _ci_filter_findings(findings, policy.ci)
     counts = _count_findings(
-        findings,
+        filtered_findings,
         allow_false_positive=policy.findings.allow_false_positive,
         exclude_categories=policy.findings.exclude_categories,
     )

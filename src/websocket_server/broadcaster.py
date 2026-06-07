@@ -24,8 +24,15 @@ from src.infrastructure.queue.redis_config import (
     REDIS_TIMEOUT_SECONDS,
 )
 from src.websocket_server.manager import ConnectionManager
-from src.websocket_server.metrics import WS_LATENCY, WS_MESSAGES, WS_REDIS_FANOUT
-from src.websocket_server.protocol import BaseMessage
+from src.websocket_server.metrics import (
+    WS_AUTHZ_REJECTIONS,
+    WS_BACKPRESSURE_EVENTS,
+    WS_DROPPED_MESSAGES,
+    WS_LATENCY,
+    WS_MESSAGES,
+    WS_REDIS_FANOUT,
+)
+from src.websocket_server.protocol import BackpressureMessage, BaseMessage
 
 # Fix #362: use project-wide structured logger
 logger = get_pipeline_logger(__name__)
@@ -160,6 +167,11 @@ class Broadcaster:
         self._seen_ids_lock = threading.Lock()
         self._broadcast_count: int = 0
         self._drop_count: int = 0
+        # Per-scope drop counters keyed by (scope, target). Lets us compute
+        # per-channel drop rates for alerting instead of a single monotonic
+        # global count.
+        self._scope_drop_counts: dict[tuple[str, str], int] = {}
+        self._scope_drop_lock = threading.Lock()
         self._lock = asyncio.Lock()
         self._redis_url = redis_url
         self._redis_channel = redis_channel
@@ -510,7 +522,7 @@ class Broadcaster:
                 await asyncio.sleep(0)  # yield control to event loop to prevent UI lag
             if info.connection_id in exclude or info.closed:
                 continue
-            if await self._enqueue(info, message):
+            if await self._enqueue(info, message, scope=scope, target=target):
                 sent += 1
 
         if sent > 0:
@@ -523,13 +535,19 @@ class Broadcaster:
         info = await self.manager.get_connection(connection_id)
         if info is None or info.closed:
             return False
-        sent = await self._enqueue(info, message)
+        sent = await self._enqueue(info, message, scope="connection", target=connection_id)
         if sent:
             async with self._lock:
                 self._broadcast_count += 1
         return sent
 
-    async def _enqueue(self, info: Any, message: BaseMessage) -> bool:
+    async def _enqueue(
+        self,
+        info: Any,
+        message: BaseMessage,
+        scope: str = "group",
+        target: str = "",
+    ) -> bool:
         """Add a message to a connection's outbound queue."""
         json_data = message.to_json()
         try:
@@ -537,7 +555,7 @@ class Broadcaster:
             return True
         except asyncio.QueueFull:
             # Fix #366: handle backpressure by dropping messages if configured
-            await self._handle_backpressure(info, json_data)
+            await self._handle_backpressure(info, json_data, scope=scope, target=target)
             return True  # 'sent' in the sense it was handled by backpressure
         except Exception as exc:
             logger.error("Failed to enqueue message for %s: %s", info.connection_id, exc)
@@ -625,33 +643,70 @@ class Broadcaster:
         self,
         info: Any,
         json_data: str,
+        scope: str = "group",
+        target: str = "",
     ) -> None:
         """Handle backpressure when a connection's message queue is full.
 
-        If backpressure_drop_oldest is enabled, drains half the queue to
-        make room for new messages. Otherwise, the message is silently dropped.
+        If ``backpressure_drop_oldest`` is enabled, drains a fraction of
+        the queue to make room for new messages. Otherwise the message
+        is silently dropped.
+
+        In either case a :class:`BackpressureMessage` is emitted to the
+        affected client so it can implement adaptive throttling, and
+        the per-channel drop counter is incremented for Prometheus
+        alerting.
 
         Args:
             info: ConnectionInfo with the full queue.
             json_data: JSON message to enqueue.
+            scope: Broadcast scope that triggered the drop.
+            target: Channel/user/connection target of the original message.
         """
         self._drop_count += 1
+        with self._scope_drop_lock:
+            self._scope_drop_counts[(scope, target)] = (
+                self._scope_drop_counts.get((scope, target), 0) + 1
+            )
+
+        # Per-scope, per-user, per-job drop counter for Prometheus.
+        # ``job_id`` is derived from the target when the scope is "group"
+        # and the target looks like "job:<id>".
+        job_id_label = ""
+        if scope == "group" and target.startswith("job:"):
+            job_id_label = target[len("job:") :]
+        try:
+            WS_DROPPED_MESSAGES.labels(
+                scope=scope, job_id=job_id_label or "-", user_id=info.user_id or "-"
+            ).inc()
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Determine how many messages we are about to drop.
+        watermark = info.message_queue.maxsize
+        drain_count = 0
+        if self.backpressure_drop_oldest:
+            drain_count = max(1, int(watermark * self.backpressure_drain_fraction))
+
         logger.warning(
-            "Message queue full for connection %s (dropped=%d)",
+            "Message queue full for connection %s (scope=%s target=%s dropped=%d watermark=%d)",
             info.connection_id,
-            self._drop_count,
+            scope,
+            target,
+            drain_count or 1,
+            watermark,
         )
 
-        if self.backpressure_drop_oldest:
-            drain_count = max(1, int(info.message_queue.maxsize * self.backpressure_drain_fraction))
+        recovered = False
+        if drain_count > 0:
             for _ in range(drain_count):
                 try:
                     info.message_queue.get_nowait()
                 except asyncio.QueueEmpty:
                     break
-
             try:
                 await info.message_queue.put(json_data)
+                recovered = True
                 logger.info(
                     "Recovered from backpressure for connection %s",
                     info.connection_id,
@@ -661,6 +716,39 @@ class Broadcaster:
                     "Failed to recover from backpressure for connection %s",
                     info.connection_id,
                 )
+
+        # Notify the client so it can adapt. We always emit this — even
+        # when the message was eventually queued — so silent data loss
+        # becomes observable.
+        queue_depth = info.message_queue.qsize()
+        try:
+            bp = BackpressureMessage(
+                scope=scope,
+                target=target,
+                dropped=max(drain_count, 1) if not recovered else drain_count,
+                queue_depth=queue_depth,
+                watermark=watermark,
+                connection_id=info.connection_id,
+            )
+            try:
+                info.message_queue.put_nowait(bp.to_json())
+            except asyncio.QueueFull:
+                # If even the backpressure notification cannot be queued,
+                # attempt to evict a single message and retry once.
+                try:
+                    info.message_queue.get_nowait()
+                    info.message_queue.put_nowait(bp.to_json())
+                except Exception:  # noqa: BLE001
+                    logger.debug(
+                        "Failed to enqueue backpressure notification for %s",
+                        info.connection_id,
+                    )
+            try:
+                WS_BACKPRESSURE_EVENTS.labels(scope=scope).inc()
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Backpressure notification construction failed: %s", exc)
 
     async def start_message_dispatch(
         self,
@@ -734,9 +822,15 @@ class Broadcaster:
         """
         with self._seen_ids_lock:
             dedup_size = len(self._seen_ids)
+        with self._scope_drop_lock:
+            scope_drops = {
+                f"{scope}:{target}": count
+                for (scope, target), count in self._scope_drop_counts.items()
+            }
         return {
             "broadcast_count": self._broadcast_count,
             "drop_count": self._drop_count,
+            "scope_drop_counts": scope_drops,
             "dedup_window_size": dedup_size,
             "redis_enabled": self._redis_enabled,
             "redis_channel": self._redis_channel,

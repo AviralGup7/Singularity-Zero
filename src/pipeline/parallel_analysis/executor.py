@@ -17,6 +17,12 @@ from src.pipeline.parallel_analysis.result_merging import (
 
 logger = get_pipeline_logger(__name__)
 
+# Streaming context protocol:
+#   context.iter_live_hosts()   -> AsyncIterator[str]
+#   context.iter_urls()         -> AsyncIterator[str]
+#   context.iter_subdomains()   -> AsyncIterator[str]
+# Analyzers should prefer streaming over copying full sets.
+
 
 async def _run_single_analyzer(
     name: str,
@@ -75,9 +81,13 @@ async def _run_layer_with_work_stealing(
     if not layer_names:
         return {}
 
-    queue: asyncio.Queue[str] = asyncio.Queue()
+    _BOUNDED_QUEUE_MAX = 512
+    queue: asyncio.Queue[str] = asyncio.Queue(maxsize=_BOUNDED_QUEUE_MAX)
     for name in layer_names:
-        queue.put_nowait(name)
+        try:
+            queue.put_nowait(name)
+        except asyncio.QueueFull:
+            await queue.put(name)
 
     bounded_slot = asyncio.BoundedSemaphore(pool_size)
     results: dict[str, AnalyzerResult] = {}
@@ -186,4 +196,12 @@ async def run_parallel_analyzers(
                 sorted(scheduled),
             )
 
-    return ParallelAnalysisOutcome(results=all_results, layer_results=layer_results)
+    outcome = ParallelAnalysisOutcome(results=all_results, layer_results=layer_results)
+    if duration_cache is not None and outcome.results:
+        try:
+            from src.pipeline.unified_cache import get_unified_cache
+            uc = get_unified_cache()
+            duration_cache.save(uc)
+        except Exception:
+            pass
+    return outcome

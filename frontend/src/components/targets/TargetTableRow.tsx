@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { Target } from '@/types/api';
+import { ScopeComplianceBadge } from '@/components/scope/ScopeComplianceBadge';
+import { getCompliancePdfHeaders, getCompliancePdfUrl } from '@/api/reports';
 
 interface TargetTableRowProps {
   target: Target;
@@ -30,8 +32,11 @@ export function TargetTableRow({
         />
       </td>
       <td className="target-name-cell">
-        <span className="target-name">{target.name || '—'}</span>
-        {(target.new_findings || 0) > 0 && <span className="new-badge">+{target.new_findings} new</span>}
+        <div className="flex items-center gap-2">
+          <span className="target-name">{target.name || '—'}</span>
+          <ScopeComplianceBadge asset={target.name || ''} iconOnly />
+          {(target.new_findings || 0) > 0 && <span className="new-badge">+{target.new_findings} new</span>}
+        </div>
       </td>
       <td>{target.latest_run || '—'}</td>
       <td className="findings-cell">
@@ -63,12 +68,7 @@ export function TargetTableRow({
               title="Download SOC 2 / PCI-DSS Attestation"
               onClick={async () => {
                 try {
-                  const token = sessionStorage.getItem('auth_token');
-                  const headers: Record<string, string> = {};
-                  if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                  }
-                  const response = await fetch(`/api/reports/compliance/pdf?target=${encodeURIComponent(target.name!)}`, { headers });
+                  const response = await fetch(getCompliancePdfUrl(target.name!), { headers: getCompliancePdfHeaders() });
                   if (!response.ok) {
                     throw new Error('Compliance download failed');
                   }

@@ -300,4 +300,21 @@ export const AppSettingsSchema = z.object({
     burstSize: 20,
     backoffMultiplier: 2,
   }),
+  /**
+   * Persisted UI state for the Security Cockpit page that should survive a
+   * page reload. The collapse-state of the *global* sidebar lives in
+   * `displayStore` (see R3) because the sidebar is part of the AppLayout,
+   * not the cockpit. This block only covers cockpit-local UI: which side
+   * tab is active, whether the scan control deck is open, and the last
+   * selected scan mode.
+   */
+  cockpitLayout: z.object({
+    sidebarTab: z.enum(['intel', 'chains', 'forensics']).default('intel'),
+    deckOpen: z.boolean().default(true),
+    scanMode: z.enum(['safe', 'aggressive']).default('safe'),
+  }).default({
+    sidebarTab: 'intel',
+    deckOpen: true,
+    scanMode: 'safe',
+  }),
 });

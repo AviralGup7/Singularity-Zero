@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 from src.analysis.helpers import classify_endpoint, endpoint_signature, is_noise_url
 from src.core.mutation_engine import generate_payloads_for_parameter
+from src.fuzzing.generators.graphql_payloads import generate_graphql_introspection_payloads
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +209,7 @@ def generate_body_payloads(
 
         sample_values = {"integer": "0", "float": "0.0", "string": "", "boolean": "true"}
         generated: list[dict[str, Any]] = []
+        has_query_field = any(field_name == "query" and field_type == "string" for field_name, field_type in body_fields)
         for field_name, field_type in body_fields[:max_fields_per_endpoint]:
             sample = sample_values.get(field_type, "")
             payloads = generate_payloads_for_parameter(field_name, sample)
@@ -237,6 +239,10 @@ def generate_body_payloads(
             if len(generated) >= max_fields_per_endpoint * 5:
                 break
 
+        if has_query_field:
+            for extra in generate_graphql_introspection_payloads(url):
+                generated.append(extra)
+
         if generated:
             suggestions.append(
                 {
@@ -254,6 +260,9 @@ def _infer_body_fields_from_url(url: str) -> list[tuple[str, str]]:
     parsed = urlparse(url)
     path = parsed.path.lower()
     fields: list[tuple[str, str]] = []
+
+    if "/graphql" in path:
+        return [("query", "string"), ("operationName", "string"), ("variables", "json")]
 
     # Common API field patterns based on URL path
     if "/user" in path or "/profile" in path:

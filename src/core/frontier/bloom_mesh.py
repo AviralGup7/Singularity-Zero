@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
+import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
@@ -27,6 +30,14 @@ DEFAULT_SYNC_INTERVAL_SECONDS = 15.0
 REDIS_MAX_FAILURES = 3
 INTERVAL_PARSE_ERRORS = (TypeError, ValueError)
 SNAPSHOT_VALIDATION_ERRORS = (KeyError, TypeError, ValueError)
+# Bump when the on-wire snapshot format is breaking; ``_encode_snapshot``
+# always emits ``BLOOM_SNAPSHOT_SCHEMA`` and ``apply_snapshot`` drops
+# payloads outside ``[BLOOM_SNAPSHOT_MIN_ACCEPTED, BLOOM_SNAPSHOT_MAX_ACCEPTED]``
+# so a rolling upgrade can never poison receivers with an unknown shape.
+BLOOM_SNAPSHOT_SCHEMA = 1
+BLOOM_SNAPSHOT_MIN_ACCEPTED = 1
+BLOOM_SNAPSHOT_MAX_ACCEPTED = 1
+BLOOM_SNAPSHOT_IDEMPOTENCY_CACHE = 2048
 
 
 @dataclass
@@ -76,6 +87,11 @@ class NeuralBloomMesh:
         self._sync_lock = asyncio.Lock()
         self._redis_failures = 0
         self._redis_degraded_until = 0.0
+        self._snapshot_schema_rejected_total = 0
+        self._snapshot_duplicates_dropped_total = 0
+        self._idempotency_cache: OrderedDict[str, float] = OrderedDict()
+        self._idempotency_lock = threading.RLock()
+        self._idempotency_max = BLOOM_SNAPSHOT_IDEMPOTENCY_CACHE
 
     @staticmethod
     def _resolve_sync_interval(sync_interval_seconds: float | None) -> float:
@@ -253,7 +269,14 @@ class NeuralBloomMesh:
         return True
 
     async def apply_snapshot(self, payload: bytes) -> bool:
-        """Apply a remote snapshot when its vector clock is newer."""
+        """Apply a remote snapshot when its vector clock is newer.
+
+        Snapshots are rejected up-front if their ``schema`` field falls
+        outside ``[BLOOM_SNAPSHOT_MIN_ACCEPTED, BLOOM_SNAPSHOT_MAX_ACCEPTED]``
+        and a content-hash idempotency window suppresses identical
+        re-broadcasts (which can otherwise re-trigger expensive bitwise
+        merges).
+        """
         try:
             data = msgspec.msgpack.decode(payload)
             if not isinstance(data, dict):
@@ -265,6 +288,35 @@ class NeuralBloomMesh:
                 "Total Bloom mesh snapshot apply failures",
             )
             logger.warning("Ignoring malformed Bloom snapshot: %s", exc)
+            return False
+
+        schema_raw = data.get("schema")
+        try:
+            schema_int = int(schema_raw)
+        except (TypeError, ValueError):
+            schema_int = -1
+        if not (
+            BLOOM_SNAPSHOT_MIN_ACCEPTED <= schema_int <= BLOOM_SNAPSHOT_MAX_ACCEPTED
+        ):
+            self._snapshot_schema_rejected_total += 1
+            _inc_metric(
+                "bloom_mesh_snapshot_schema_rejected_total",
+                "Total Bloom mesh snapshots rejected for unsupported schema",
+            )
+            logger.warning(
+                "Ignoring Bloom snapshot with unsupported schema=%r", schema_raw
+            )
+            return False
+
+        # Idempotency: drop replays of the same on-wire payload (e.g.
+        # the publisher fan-out or a Redis-cluster echo).
+        idem_key = hashlib.sha256(payload).hexdigest()
+        if self._observe_idempotency(idem_key):
+            self._snapshot_duplicates_dropped_total += 1
+            _inc_metric(
+                "bloom_mesh_snapshot_duplicates_dropped_total",
+                "Total Bloom mesh snapshot replays dropped",
+            )
             return False
 
         async with self._sync_lock:
@@ -460,6 +512,17 @@ class NeuralBloomMesh:
                         await pubsub.aclose()
                     except Exception as exc:
                         logger.debug("Bloom mesh pubsub close failed: %s", exc)
+
+    def _observe_idempotency(self, key: str) -> bool:
+        """Return ``True`` if the snapshot ``key`` was already seen recently."""
+        with self._idempotency_lock:
+            seen = key in self._idempotency_cache
+            self._idempotency_cache[key] = time.time()
+            if not seen and len(self._idempotency_cache) > self._idempotency_max:
+                # Evict the oldest entry.
+                oldest_key = next(iter(self._idempotency_cache))
+                self._idempotency_cache.pop(oldest_key, None)
+            return seen
 
     def _record_saturation(self) -> None:
         stats = self.filter.get_stats()

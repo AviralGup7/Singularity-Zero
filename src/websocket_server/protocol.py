@@ -41,6 +41,7 @@ class MessageType(StrEnum):
     SUBSCRIBE = "subscribe"
     UNSUBSCRIBE = "unsubscribe"
     TELEMETRY = "telemetry"
+    BACKPRESSURE = "backpressure"
 
 
 class BaseMessage(BaseModel):
@@ -275,14 +276,38 @@ class SubscribeMessage(BaseMessage):
 class UnsubscribeMessage(BaseMessage):
     """Request to unsubscribe from a channel.
 
-    Clients send this to stop receiving messages for a channel.
-
     Attributes:
         channel: Channel to unsubscribe from.
     """
 
     type: MessageType = MessageType.UNSUBSCRIBE
     channel: str = Field(..., min_length=1)
+
+
+class BackpressureMessage(BaseMessage):
+    """Server-to-client backpressure notification.
+
+    Emitted when the server drops messages from a connection's outbound
+    queue because the consumer is too slow. Carries the number of dropped
+    messages, the current queue depth and the configured watermark so
+    clients can implement adaptive throttling instead of guessing.
+
+    Attributes:
+        scope: Broadcast scope that triggered the drop (group/user/all).
+        target: Channel/user/connection target of the original message.
+        dropped: Number of messages dropped during this backpressure event.
+        queue_depth: Number of messages still buffered for the connection.
+        watermark: Configured maximum queue size for the connection.
+        connection_id: Server-side connection identifier of the recipient.
+    """
+
+    type: MessageType = MessageType.BACKPRESSURE
+    scope: str = Field(default="group")
+    target: str = Field(default="")
+    dropped: int = Field(default=0, ge=0)
+    queue_depth: int = Field(default=0, ge=0)
+    watermark: int = Field(default=0, ge=0)
+    connection_id: str = Field(default="")
 
 
 Message = (
@@ -295,6 +320,7 @@ Message = (
     | SubscribeMessage
     | UnsubscribeMessage
     | TelemetryMessage
+    | BackpressureMessage
 )
 
 _MESSAGE_TYPE_MAP: dict[str, type[BaseMessage]] = {
@@ -307,4 +333,5 @@ _MESSAGE_TYPE_MAP: dict[str, type[BaseMessage]] = {
     "subscribe": SubscribeMessage,
     "unsubscribe": UnsubscribeMessage,
     "telemetry": TelemetryMessage,
+    "backpressure": BackpressureMessage,
 }

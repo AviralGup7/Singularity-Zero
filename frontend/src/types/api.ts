@@ -173,6 +173,7 @@ export interface Job {
   stdout_href?: string;
   stderr_href?: string;
   target_href?: string;
+  streaming_findings?: Finding[];
 }
 
 export interface PluginProgressEntry {
@@ -394,6 +395,26 @@ export interface Finding {
   fpJustification?: string;
   kanbanStatus?: 'new' | 'in-progress' | 'resolved';
   _deleted?: boolean;
+
+  // Operator-economics fields
+  /**
+   * Operator-estimated or platform-quoted bounty value in USD. When present,
+   * sorting by `bounty_value` surfaces the highest-impact submissions first;
+   * the worker and table both treat missing values as 0.
+   */
+  bounty_value?: number;
+  bounty_currency?: string;
+  bounty_source?: 'hackerone' | 'bugcrowd' | 'intigriti' | 'manual' | 'estimate';
+  /**
+   * True when the finding has already been submitted to a bug-bounty platform
+   * or filed as a duplicate; used by the run-diff view to suppress noise.
+   */
+  already_reported?: boolean;
+  /**
+   * Raw scope text (asset pattern, wildcard) the finding falls under.
+   * Powers the scope-compliance badge on target cards.
+   */
+  scope_match?: string;
 }
 
 export interface TargetSummary {

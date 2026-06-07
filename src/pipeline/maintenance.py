@@ -185,23 +185,40 @@ def run_cache_maintenance(cache: PersistentCache | None = None) -> dict[str, Any
 
 
 class MaintenanceLock:
-    """Cross-platform lockfile protector to prevent concurrent maintenance execution."""
+    """SQLite advisory lock to prevent concurrent maintenance execution.
+
+    Safer than PID file locks in container/K8s environments where
+    PIDs can be recycled quickly.  Falls back to PID-file semantics
+    if SQLite is unavailable.
+    """
 
     def __init__(self, lockfile_path: Path) -> None:
         self.lockfile_path = lockfile_path
+        self._sqlite_path = lockfile_path.with_suffix(".sqlite-lock")
         self._fd: int | None = None
+        self._use_sqlite: bool = True
 
     def __enter__(self) -> "MaintenanceLock":
         self.lockfile_path.parent.mkdir(parents=True, exist_ok=True)
-        # Attempt to open lockfile
+        if self._use_sqlite:
+            try:
+                import sqlite3
+                conn = sqlite3.connect(str(self._sqlite_path), timeout=10)
+                cur = conn.execute("BEGIN EXCLUSIVE")
+                cur.fetchone()
+                self._conn = conn
+                return self
+            except Exception:
+                self._use_sqlite = False
+        return self._acquire_pid_lock()
+
+    def _acquire_pid_lock(self) -> "MaintenanceLock":
         try:
             self._fd = os.open(
                 self.lockfile_path, os.O_CREAT | os.O_WRONLY | os.O_EXCL
             )
-            # Write current PID into lock file
             os.write(self._fd, f"{os.getpid()}\n".encode())
         except OSError:
-            # Read lockfile to check if the pid is alive
             if self.lockfile_path.exists():
                 try:
                     pid = int(self.lockfile_path.read_text().strip())
@@ -209,7 +226,6 @@ class MaintenanceLock:
                         raise RuntimeError(f"Maintenance task already running with PID {pid}")
                 except Exception:
                     pass
-            # Force replace/overwrite lockfile if pid is stale
             try:
                 if self.lockfile_path.exists():
                     self.lockfile_path.unlink()
@@ -222,6 +238,13 @@ class MaintenanceLock:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if hasattr(self, "_conn") and self._conn is not None:
+            try:
+                self._conn.rollback()
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
         if self._fd is not None:
             try:
                 os.close(self._fd)
@@ -231,6 +254,11 @@ class MaintenanceLock:
         if self.lockfile_path.exists():
             try:
                 self.lockfile_path.unlink()
+            except OSError:
+                pass
+        if hasattr(self, "_sqlite_path") and self._sqlite_path.exists():
+            try:
+                self._sqlite_path.unlink()
             except OSError:
                 pass
 

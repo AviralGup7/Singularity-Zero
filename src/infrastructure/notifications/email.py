@@ -1,8 +1,12 @@
 import asyncio
 import logging
+import mimetypes
 import smtplib
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
+from typing import Any
 
 from pydantic import EmailStr, Field
 
@@ -27,6 +31,7 @@ class EmailConfig(NotificationConfig):
     cc_addresses: list[EmailStr] = Field(default_factory=list)
     subject_prefix: str = Field(default="[Cyber Security Pipeline]")
     smtp_timeout_seconds: float = Field(default=30.0, gt=0)
+    max_attachment_bytes: int = Field(default=25 * 1024 * 1024, gt=0)
 
 
 class EmailNotifier(BaseNotifier):
@@ -35,7 +40,12 @@ class EmailNotifier(BaseNotifier):
         self._email_config = config
 
     async def _do_send(self, payload: NotificationPayload) -> NotificationResult:
-        msg = MIMEMultipart("alternative")
+        attachment_paths = self._resolve_attachments(payload)
+        msg: MIMEMultipart
+        if attachment_paths:
+            msg = MIMEMultipart("mixed")
+        else:
+            msg = MIMEMultipart("alternative")
         msg["Subject"] = self._build_subject(payload)
         msg["From"] = self._email_config.from_address
         msg["To"] = ", ".join(self._email_config.to_addresses)
@@ -51,10 +61,25 @@ class EmailNotifier(BaseNotifier):
         plain_text = self._build_plain_text(payload)
         html_body = self._build_html(payload)
 
-        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
+        if attachment_paths:
+            body = MIMEMultipart("alternative")
+            body.attach(MIMEText(plain_text, "plain", "utf-8"))
+            body.attach(MIMEText(html_body, "html", "utf-8"))
+            msg.attach(body)
+        else:
+            msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        for attachment_path in attachment_paths:
+            attachment = self._build_attachment(attachment_path)
+            if attachment is not None:
+                msg.attach(attachment)
 
         all_recipients = self._email_config.to_addresses + self._email_config.cc_addresses
+
+        response_data: dict[str, Any] = {"recipients": all_recipients}
+        if attachment_paths:
+            response_data["attachments"] = [str(p) for p in attachment_paths]
 
         def _send() -> None:
             server: smtplib.SMTP | None = None
@@ -96,7 +121,7 @@ class EmailNotifier(BaseNotifier):
             channel=self._channel_name,
             event=payload.event.value,
             priority=payload.priority.value,
-            response_data={"recipients": all_recipients},
+            response_data=response_data,
         )
 
     def _build_subject(self, payload: NotificationPayload) -> str:
@@ -206,6 +231,69 @@ class EmailNotifier(BaseNotifier):
             "high": "1",
             "critical": "1",
         }.get(payload.priority.value, "3")
+
+    def _resolve_attachments(
+        self, payload: NotificationPayload
+    ) -> list[Path]:
+        """Return the attachment paths declared in ``payload.metadata``.
+
+        Supported keys (in priority order):
+
+        * ``attachments`` — list of string paths
+        * ``attachment``   — single string path
+
+        Paths that do not exist or exceed :attr:`max_attachment_bytes`
+        are silently dropped and logged — the email still goes out with
+        whatever attachments did pass validation.
+        """
+        metadata = payload.metadata or {}
+        candidates: list[Any] = []
+        if isinstance(metadata, dict):
+            if isinstance(metadata.get("attachments"), (list, tuple)):
+                candidates.extend(metadata["attachments"])
+            elif isinstance(metadata.get("attachment"), str):
+                candidates.append(metadata["attachment"])
+        paths: list[Path] = []
+        for raw in candidates:
+            if not raw:
+                continue
+            path = Path(str(raw))
+            if not path.is_file():
+                logger.debug("Attachment dropped (missing): %s", path)
+                continue
+            try:
+                size = path.stat().st_size
+            except OSError as exc:
+                logger.debug("Attachment dropped (stat failed): %s (%s)", path, exc)
+                continue
+            if size > self._email_config.max_attachment_bytes:
+                logger.warning(
+                    "Attachment dropped (exceeds %d bytes): %s",
+                    self._email_config.max_attachment_bytes,
+                    path,
+                )
+                continue
+            paths.append(path)
+        return paths
+
+    def _build_attachment(self, path: Path) -> MIMEApplication | None:
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            logger.warning("Attachment read failed for %s: %s", path, exc)
+            return None
+        mime_type, _ = mimetypes.guess_type(path.name)
+        if mime_type:
+            maintype, subtype = mime_type.split("/", 1)
+        else:
+            maintype, subtype = "application", "octet-stream"
+        attachment = MIMEApplication(data, _subtype=subtype)
+        attachment.add_header(
+            "Content-Disposition",
+            "attachment",
+            filename=path.name,
+        )
+        return attachment
 
     async def close(self) -> None:
         pass

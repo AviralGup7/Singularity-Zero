@@ -35,6 +35,13 @@ from ._validators import (
     TokenReuseValidator,
     XssValidator,
 )
+from ._validators_extra import (
+    CachePoisoningValidator,
+    CorsValidator,
+    GraphqlValidator,
+    JwtValidator,
+    RaceConditionValidator,
+)
 
 __all__ = [
     "ValidationHttpConfig",
@@ -49,6 +56,11 @@ __all__ = [
     "XssValidator",
     "SstiValidator",
     "FileUploadValidator",
+    "CorsValidator",
+    "JwtValidator",
+    "CachePoisoningValidator",
+    "GraphqlValidator",
+    "RaceConditionValidator",
     "build_validator_registry",
     "run_blackbox_validation_engine",
     "build_token_replay_summary",

@@ -12,6 +12,7 @@ import shutil
 import signal
 import stat
 import tempfile
+import time
 import traceback
 from pathlib import Path
 
@@ -121,6 +122,10 @@ def _preflight_checks(args: argparse.Namespace) -> bool:
         from src.pipeline.validation import format_validation_report, validate_config
 
         config = load_config(config_path)
+        resume_from = getattr(args, "resume_from", None)
+        if resume_from:
+            if not hasattr(config, "_resume_from"):
+                config._resume_from = resume_from
         with open(scope_path) as f:
             scope_entries = [line.strip() for line in f if line.strip()]
 
@@ -246,6 +251,14 @@ def main(argv: list[str] | None = None) -> int:
         # in dev and raises in production / CI.
         validate_or_raise()
         args = parse_args(argv)
+        resume_from = getattr(args, "resume_from", None)
+        if resume_from:
+            if hasattr(args, "_loaded_config"):
+                args._loaded_config._resume_from = resume_from
+            else:
+                import types
+
+                args._resume_from = resume_from
         if getattr(args, "validate_config", False):
             from src.core.config import load_config
             from src.pipeline.validation import format_validation_report, validate_config
@@ -270,7 +283,14 @@ def main(argv: list[str] | None = None) -> int:
                 except NotImplementedError:
                     signal.signal(sig, handle_signal)
 
+            _pipeline_started_at = time.time()
+
             async def _run_with_shutdown_check() -> int:
+                from src.pipeline.runner_support import check_max_duration
+
+                if check_max_duration(args, _pipeline_started_at):
+                    emit_warning("Max-duration budget exhausted before stage execution.")
+                    return 4
                 try:
                     return await PipelineOrchestrator().run(args)
                 finally:

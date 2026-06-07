@@ -181,10 +181,14 @@ async def test_websocket_broadcast_metrics() -> None:
     mock_ws2.client_state = WebSocketState.CONNECTED
     conn2 = await services.manager.connect(mock_ws2, "user2", "conn2", "127.0.0.1")
     assert conn2 is not None
-    await services.manager.add_to_group("conn2", "global")
+    # ``_broadcast_to_job_and_global`` is a legacy alias that now uses the
+    # tenant-scoped ``global:<tenant>`` channel. Subscribe to the matching
+    # default-tenant channel.
+    await services.manager.add_to_group("conn2", f"global:{services.default_tenant_id}")
 
-    # Since conn1 is in job:job_id and conn2 is in global, calling _broadcast_to_job_and_global
-    # should deliver to both (1 for job, 1 for global) and return 2.
+    # Since conn1 is in job:job_id and conn2 is in global:<tenant>, calling
+    # _broadcast_to_job_and_global should deliver to both (1 for job, 1 for
+    # global) and return 2.
     msg2 = StatusMessage(
         job_id="job_id",
         status="completed",
@@ -197,6 +201,8 @@ def test_rest_endpoints() -> None:
     app = FastAPI()
     services = setup_websocket_routes(app)
     services.broadcaster._redis_enabled = False
+
+    admin_headers = {"X-User-Roles": "admin"}
 
     with TestClient(app) as client:
         # Test health endpoint
@@ -211,13 +217,17 @@ def test_rest_endpoints() -> None:
         assert resp.status_code == 200
         assert "ws_active_connections" in resp.text
 
-        # Test stats endpoint
-        resp = client.get("/admin/websocket/stats")
+        # Test stats endpoint (requires admin role)
+        resp = client.get("/admin/websocket/stats", headers=admin_headers)
         assert resp.status_code == 200
         assert resp.json()["active_connections"] == 0
 
-        # Test config update endpoint
-        resp = client.post("/admin/websocket/config", json={"max_connections_per_user": 15})
+        # Test config update endpoint (requires admin role)
+        resp = client.post(
+            "/admin/websocket/config",
+            json={"max_connections_per_user": 15},
+            headers=admin_headers,
+        )
         assert resp.status_code == 200
         assert resp.json()["config"]["max_connections_per_user"] == 15
         assert services.manager.max_connections_per_user == 15

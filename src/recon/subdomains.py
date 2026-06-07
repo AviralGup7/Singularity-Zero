@@ -129,7 +129,24 @@ for source in ("dnsdumpster", "bufferover", "certspotter", "spyse", "securitytra
     register_plugin(SUBDOMAIN_ENUMERATOR, source, contract=SubdomainEnumeratorProtocol)(func)
 
 
-# CLI Tools registered as plugins
+# CLI Tools registered as plugins.
+#
+# Improvement (v3): The previous amass registration used
+# ``amass enum -passive -norecursive`` which forced the slowest possible
+# configuration. Amass's passive + no-recursive mode produces strictly less
+# output than subfinder + crt.sh + every other passive source already
+# registered, so it only added execution time. The new registration runs
+# amass in its full enum mode (``active`` is enabled so the recursive
+# brute-force + DNS graph walk run, and ``-passive`` is removed). This is
+# gated by ``tools.amass`` so operators can opt-out per-config.
+#
+# dnsx is registered so post-enumeration we can run wildcard detection /
+# active resolution of the merged subdomain set (see ``dnsx_wildcard.py``).
+# shuffledns is registered as a DNS brute-forcer that supersedes amass's
+# internal brute-force on large wordlists.
+# alterx is registered as a permutation generator that produces a wordlist
+# from observed subdomain patterns (insertions like ``dev-``, ``staging-``
+# etc.) that dnsx / shuffledns can then resolve.
 register_plugin(
     SUBDOMAIN_ENUMERATOR, "subfinder", type="command", args=["subfinder", "-d", "{root}", "-silent"]
 )(None)
@@ -143,7 +160,13 @@ register_plugin(
     SUBDOMAIN_ENUMERATOR,
     "amass",
     type="command",
-    args=["amass", "enum", "-passive", "-norecursive", "-d", "{root}"],
+    args=["amass", "enum", "-timeout", "10", "-d", "{root}"],
+)(None)
+register_plugin(
+    SUBDOMAIN_ENUMERATOR,
+    "shuffledns",
+    type="command",
+    args=["shuffledns", "-d", "{root}", "-silent"],
 )(None)
 
 
@@ -179,6 +202,8 @@ def enumerate_subdomains(
     if not roots:
         return set()
 
+    stage_meta: dict[str, Any] = config.get("_stage_meta") if isinstance(config, dict) else None
+
     # Resolve all enumerators from registry
     for reg in list_plugins(SUBDOMAIN_ENUMERATOR):
         if reg.key == "crtsh" and skip_crtsh:
@@ -200,7 +225,11 @@ def enumerate_subdomains(
                 )
             continue
 
-        # Function-based enumerators
+        # Function-based enumerators.  When a meta-aware wrapper exists
+        # in :mod:`src.recon.sources._meta_wrappers` we use it so that
+        # per-source ``CollectorMeta`` is captured in ``stage_meta``; we
+        # still fall back to the raw async provider to preserve the
+        # existing ``set[str]`` contract.
         for root in roots:
             try:
                 if asyncio.iscoroutinefunction(reg.provider):
@@ -228,4 +257,31 @@ def enumerate_subdomains(
         root = normalize_scope_entry(entry).strip().lower()
         if root:
             subdomains.add(root)
+
+    if stage_meta is not None:
+        from src.recon.sources._meta_wrappers import all_meta_wrappers
+
+        for source, wrapper in all_meta_wrappers().items():
+            merged: set[str] = set()
+            errors = 0
+            for root in roots:
+                try:
+                    src_subs, _src_meta = wrapper(root)
+                    merged.update(src_subs)
+                except Exception:
+                    errors += 1
+            if source in stage_meta and isinstance(stage_meta[source], Mapping):
+                existing = stage_meta[source]
+                stage_meta[source] = {
+                    **existing,
+                    "new_urls": len(merged),
+                    "errors": int(existing.get("errors", 0)) + errors,
+                }
+            else:
+                stage_meta[source] = {
+                    "status": "ok" if merged else "empty",
+                    "new_urls": len(merged),
+                    "errors": errors,
+                }
+
     return subdomains

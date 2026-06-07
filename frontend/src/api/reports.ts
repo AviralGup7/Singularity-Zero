@@ -1,5 +1,6 @@
 import type { DetectionGapResponse, HealthStatus } from '@/types/api';
 import { apiClient, cachedGet } from './core';
+import { getStreamToken } from './streamAuth';
 
 export interface ReportLibraryItem {
   target: string;
@@ -59,9 +60,17 @@ export async function getReportLibrary(signal?: AbortSignal): Promise<ReportLibr
 
 export function getCompliancePdfUrl(target: string): string {
   const params = new URLSearchParams({ target });
-  const token = sessionStorage.getItem('auth_token');
-  if (token) params.set('token', token);
   return `/api/reports/compliance/pdf?${params.toString()}`;
+}
+
+/**
+ * Auth headers required for a `fetch()` to the compliance PDF endpoint.
+ * Returns an empty object when the user is unauthenticated, which will
+ * result in the backend returning 401 (the standard auth flow).
+ */
+export function getCompliancePdfHeaders(): Record<string, string> {
+  const token = getStreamToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export async function exportFindings(options: { format: 'csv' | 'json'; signal?: AbortSignal; target?: string }): Promise<Blob> {

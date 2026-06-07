@@ -25,6 +25,12 @@ from src.recon.js_parsers import (
     _extract_script_urls_from_html,
     _normalized_scope_roots,
 )
+from src.recon.js_parsers_v2 import (
+    extract_endpoints_v2,
+    extract_source_map_url,
+    extract_sources_content,
+    is_source_map_body,
+)
 
 
 def _load_secret_patterns(config_path: str | None = None) -> list[tuple[re.Pattern[str], str]]:
@@ -180,6 +186,10 @@ def _collect_js_discovery_urls(
         if not html:
             return host_discovered, 0, 0, host_secrets
 
+        # v2 endpoint extraction: AST-aware fetch-like calls, htmx /
+        # Alpine / Turbo attributes, WebSocket / socket.io URLs.
+        # Falls back to the regex pipeline below.
+        host_discovered.update(extract_endpoints_v2(html, base_url, scope_roots))
         host_discovered.update(_extract_js_candidate_urls(html, base_url, scope_roots))
         script_urls = sorted(_extract_script_urls_from_html(html, base_url, scope_roots))
         fetched = 0
@@ -188,6 +198,9 @@ def _collect_js_discovery_urls(
             if not js_body:
                 continue
             fetched += 1
+            # v2 (AST-aware) extraction first, then the legacy regex
+            # pipeline as a fallback for things v2 doesn't catch yet.
+            host_discovered.update(extract_endpoints_v2(js_body, js_url, scope_roots))
             host_discovered.update(_extract_js_candidate_urls(js_body, js_url, scope_roots))
 
             # Secret Scanning
@@ -202,11 +215,41 @@ def _collect_js_discovery_urls(
                 )
 
             # Map File Analysis
-            map_url = js_url + ".map"
-            map_body = _fetch_text_content(map_url, timeout_seconds, max_response_bytes)
-            if map_body:
+            # v3: support both ``<file>.js.map`` (legacy) and
+            # ``sourceMappingURL`` declarations inside the bundle.
+            map_urls_to_try: list[str] = [js_url + ".map"]
+            declared_map = extract_source_map_url(js_body)
+            if declared_map:
+                # The map URL may be absolute or relative; resolve
+                # against the JS URL the bundle came from.
+                from urllib.parse import urljoin
+
+                map_urls_to_try.append(urljoin(js_url, declared_map))
+
+            for map_url in dict.fromkeys(map_urls_to_try):
+                map_body = _fetch_text_content(map_url, timeout_seconds, max_response_bytes)
+                if not map_body:
+                    continue
                 host_discovered.add(map_url)
-                host_discovered.update(_extract_js_candidate_urls(map_body, map_url, scope_roots))
+                if is_source_map_body(map_body):
+                    # Real source map — extract sourcesContent and
+                    # run both the v2 and legacy extractors over each
+                    # original source body.
+                    for original_source in extract_sources_content(map_body):
+                        host_discovered.update(
+                            extract_endpoints_v2(original_source, map_url, scope_roots)
+                        )
+                        host_discovered.update(
+                            _extract_js_candidate_urls(original_source, map_url, scope_roots)
+                        )
+                else:
+                    # Map body is not a real source map (legacy fallback)
+                    host_discovered.update(
+                        extract_endpoints_v2(map_body, map_url, scope_roots)
+                    )
+                    host_discovered.update(
+                        _extract_js_candidate_urls(map_body, map_url, scope_roots)
+                    )
                 fetched += 1
 
         host_discovered.update(script_urls[:max_js_files_per_host])

@@ -19,6 +19,71 @@ REDIRECT_CONFIDENCE_CAP = 0.97
 IDOR_CONFIDENCE_BASE = 0.46
 IDOR_CONFIDENCE_CAP = 0.96
 
+# Bounded confidence model (R3). The validator-specific *_CONFIDENCE_BASE/CAP
+# constants above are kept as the historical defaults; new code should
+# resolve a per-validator ``ScoringConfig`` via
+# ``src.execution.validators.config`` and use ``bounded_confidence``.
+DEFAULT_MAX_TOTAL_BONUS = 0.35
+DEFAULT_MAX_TOTAL_PENALTY = 0.30
+
+
+def bounded_confidence(
+    *,
+    base: float,
+    score: int = 0,
+    signal_weights: list[int] | tuple[int, ...] | None = None,
+    bonuses: list[float] | tuple[float, ...] | None = None,
+    cap: float,
+    floor: float = 0.0,
+    max_total_bonus: float = DEFAULT_MAX_TOTAL_BONUS,
+    max_total_penalty: float = DEFAULT_MAX_TOTAL_PENALTY,
+    score_weight: float = 0.025,
+    signal_weight: float = 0.015,
+    score_cap_units: int = 10,
+    signal_cap_units: int = 10,
+) -> float:
+    """Capped-additive bounded confidence helper used by all validators (R3/R8).
+
+    Bonuses are summed and capped at ``max_total_bonus`` and penalties are
+    clamped to ``-max_total_penalty`` so additive scoring cannot compound
+    past safe ceilings. Both the per-unit score weight and per-unit signal
+    weight are independently capped (``score_cap_units``,
+    ``signal_cap_units``) so high raw scores cannot dominate the final
+    confidence.
+    """
+    score_units = min(max(int(score or 0), 0), score_cap_units)
+    signal_sum = min(sum(signal_weights or ()), signal_cap_units)
+    positive_bonuses = [value for value in (bonuses or []) if value > 0]
+    negative_bonuses = [value for value in (bonuses or []) if value < 0]
+    bonus_total = min(sum(positive_bonuses), max_total_bonus)
+    penalty_total = max(sum(negative_bonuses), -abs(max_total_penalty))
+    confidence = (
+        float(base)
+        + score_units * score_weight
+        + signal_sum * signal_weight
+        + bonus_total
+        + penalty_total
+    )
+    return round(max(min(confidence, cap), floor), 2)
+
+
+def score_with_bounded(
+    *,
+    base: float,
+    cap: float,
+    score: int = 0,
+    bonuses: list[float] | None = None,
+    signal_weights: list[int] | None = None,
+) -> float:
+    """Backward-compatible wrapper mirroring the historical scoring inputs."""
+    return bounded_confidence(
+        base=base,
+        cap=cap,
+        score=score,
+        bonuses=bonuses,
+        signal_weights=signal_weights,
+    )
+
 
 def map_validation_status(item: dict[str, Any]) -> ValidationStatus:
     """Map a raw status string from validation results to a ValidationStatus enum.

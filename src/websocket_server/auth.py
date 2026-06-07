@@ -64,6 +64,7 @@ async def authenticate_websocket(
     api_keys: dict[str, str] | None = None,
     required_roles: set[str] | None = None,
     allowed_origins: set[str] | None = None,
+    require_tls: bool | None = None,
 ) -> AuthCredentials:
     """Authenticate a WebSocket connection.
 
@@ -78,6 +79,12 @@ async def authenticate_websocket(
         api_keys: Dict mapping API key strings to user IDs. If None, API key auth is skipped.
         required_roles: If set, the authenticated user must have at least one of these roles.
         allowed_origins: Set of allowed origin URIs to mitigate CSWSH.
+        require_tls: When truthy (or when ``WS_REQUIRE_TLS=1`` is set in
+            the environment), the request is required to look like it
+            arrived over TLS — either by being a ``wss://`` upgrade or
+            by carrying an ``X-Forwarded-Proto: https`` header from a
+            trusted reverse proxy. ``ws://`` upgrades without the
+            forwarded header are rejected with status code ``4003``.
 
     Returns:
         AuthCredentials if authentication succeeds.
@@ -111,6 +118,37 @@ async def authenticate_websocket(
             raise AuthenticationError(
                 code="auth_invalid_origin",
                 detail="Origin not allowed or missing",
+                status_code=4003,
+            )
+
+    # SEC-TLS: Enforce that production upgrades arrive over TLS. Browsers
+    # always present ``wss://`` upgrades as scheme "wss", and a properly
+    # configured reverse proxy sets ``X-Forwarded-Proto: https``. A bare
+    # ``ws://`` upgrade in production implies the connection is
+    # interceptable in cleartext.
+    tls_required_env = os.environ.get("WS_REQUIRE_TLS", "")
+    if require_tls is None:
+        require_tls = tls_required_env.lower() in {"1", "true", "yes", "on"}
+
+    if require_tls and is_production:
+        forwarded_proto = (websocket.headers.get("x-forwarded-proto") or "").strip().lower()
+        # ``websocket.url.scheme`` is "ws" or "wss".
+        try:
+            scheme = (websocket.url.scheme or "").lower()
+        except Exception:  # noqa: BLE001
+            scheme = ""
+        is_secure = scheme == "wss" or forwarded_proto == "https"
+        if not is_secure:
+            logger.warning(
+                "WebSocket upgrade rejected: insecure transport "
+                "(scheme=%s forwarded_proto=%s)",
+                scheme,
+                forwarded_proto,
+            )
+            raise AuthenticationError(
+                code="auth_tls_required",
+                detail="WebSocket upgrades must use wss:// (or be "
+                "terminated by a trusted TLS proxy in production).",
                 status_code=4003,
             )
 

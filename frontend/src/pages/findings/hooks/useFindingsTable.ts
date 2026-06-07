@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import type { Finding } from '../../../types/api';
 
-type SortKey = 'severity' | 'type' | 'target' | 'status' | 'date';
+type SortKey = 'severity' | 'bounty_value' | 'type' | 'target' | 'status' | 'date';
 type SortDir = 'asc' | 'desc';
 type SeverityFilter = 'all' | 'critical' | 'high' | 'medium' | 'low' | 'info';
 type StatusFilter = 'all' | 'open' | 'closed' | 'accepted';
@@ -105,8 +105,13 @@ export function useFindingsTable({ findings }: UseFindingsTableInput) {
     if (targetFilter) result = result.filter(f => f.target?.toLowerCase().includes(targetFilter.toLowerCase()));
     result.sort((a, b) => {
       let cmp = 0;
-   
+
       if (sortKey === 'severity') cmp = (SEVERITY_ORDER.get(a.severity) ?? 5) - (SEVERITY_ORDER.get(b.severity) ?? 5);
+      else if (sortKey === 'bounty_value') {
+        const av = typeof a.bounty_value === 'number' ? a.bounty_value : 0;
+        const bv = typeof b.bounty_value === 'number' ? b.bounty_value : 0;
+        cmp = av - bv;
+      }
       else if (sortKey === 'type') cmp = (a.type || '').localeCompare(b.type || '');
       else if (sortKey === 'target') cmp = (a.target || '').localeCompare(b.target || '');
       else if (sortKey === 'status') cmp = (a.status || '').localeCompare(b.status || '');

@@ -4,10 +4,13 @@ Tests whether tokens can be replayed across sessions, endpoints, or identity
 boundaries. Validates token expiration, scope enforcement, and replay protection.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 
 from src.core.models import ValidationResult
+from src.execution.validators.config.replay_safety import ReplaySafetyConfig
 from src.execution.validators.validators.shared import to_validation_result
 from src.execution.validators.validators.token import analyze_token_exposures
 
@@ -109,6 +112,11 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
     Tests whether tokens can be replayed across sessions or endpoints,
     and assesses the risk based on token type and replay success.
 
+    R6: token replay is gated by ``ReplaySafetyConfig`` and the engagement
+    must opt in via ``authorized_replay`` before any live replay is
+    performed. Replay is also skipped for high-blast-radius locations
+    (``response_body``/``referer_risk``) and capped per token.
+
     Args:
         target: Target dict with url and metadata.
         context: Validation context with analysis_results and http_client.
@@ -130,6 +138,12 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
             category="token_reuse",
         )
 
+    # R6: Resolve the replay safety config. Caller may inject one via
+    # ``context["replay_safety"]``; otherwise default to a deny-by-default
+    # policy.
+    replay_safety = _resolve_replay_safety(context)
+    per_host_attempts: dict[str, int] = {}
+
     findings: list[dict[str, Any]] = []
     for token_target in top_targets[:5]:  # Test top 5 tokens
         token_value = str(token_target.get("token_value", ""))
@@ -139,9 +153,32 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
 
         # Test replay on the original endpoint
         original_url = str(token_target.get("url", target.get("url", "")))
-        replay_result = _replay_token_on_endpoint(
-            token_value, token_location, original_url, http_client
+
+        # R6: skip replay for unsafe locations unless authorized.
+        location_allowed = _location_allowed_for_replay(
+            token_location, replay_safety
         )
+        host_attempts = per_host_attempts.get(_host_of(original_url), 0)
+        within_cap = host_attempts < replay_safety.max_replay_attempts_per_host
+        can_replay = bool(
+            replay_safety.authorized_replay
+            and location_allowed
+            and within_cap
+            and host_attempts < replay_safety.max_replay_attempts_per_token
+        )
+        if can_replay:
+            replay_result = _replay_token_on_endpoint(
+                token_value, token_location, original_url, http_client
+            )
+            per_host_attempts[_host_of(original_url)] = host_attempts + 1
+        else:
+            replay_result = {
+                "status": "skipped",
+                "reason": "replay_safety_block" if not replay_safety.authorized_replay
+                else "unsafe_location_or_cap_reached",
+                "token_accepted": False,
+                "token_rejected": False,
+            }
 
         # Test replay on a different endpoint (cross-endpoint replay)
         other_urls = [
@@ -149,9 +186,26 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
         ]
         cross_endpoint_results = []
         for other_url in other_urls[:2]:  # Test on 2 other endpoints
-            cross_result = _replay_token_on_endpoint(
-                token_value, token_location, other_url, http_client
+            host_attempts = per_host_attempts.get(_host_of(other_url), 0)
+            within_cap = host_attempts < replay_safety.max_replay_attempts_per_host
+            can_replay_x = bool(
+                can_replay  # only if original replay was allowed
+                and within_cap
+                and host_attempts < replay_safety.max_replay_attempts_per_token
             )
+            if can_replay_x:
+                cross_result = _replay_token_on_endpoint(
+                    token_value, token_location, other_url, http_client
+                )
+                per_host_attempts[_host_of(other_url)] = host_attempts + 1
+            else:
+                cross_result = {
+                    "status": "skipped",
+                    "reason": "replay_safety_block" if not replay_safety.authorized_replay
+                    else "unsafe_location_or_cap_reached",
+                    "token_accepted": False,
+                    "token_rejected": False,
+                }
             cross_endpoint_results.append(cross_result)
 
         # Calculate confidence based on token type and replay results
@@ -174,7 +228,9 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
         if cross_endpoint_accepted:
             base_confidence += 0.15  # Very high risk if token works across endpoints
 
-        confidence = round(min(max(base_confidence, 0.10), 0.98), 2)
+        # R6: apply token_location severity multiplier.
+        location_multiplier = replay_safety.severity_for(token_location)
+        confidence = round(min(max(base_confidence, 0.10), 0.98) * location_multiplier, 2)
 
         # Determine severity
         if cross_endpoint_accepted or (
@@ -200,6 +256,13 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
                 "validation_state": "active_tested"
                 if replay_result.get("status") == "tested"
                 else "passive_only",
+                "replay_safety": {
+                    "authorized": replay_safety.authorized_replay,
+                    "location_allowed": location_allowed,
+                    "within_cap": within_cap,
+                    "host_attempts": per_host_attempts.get(_host_of(original_url), 0),
+                    "location_multiplier": location_multiplier,
+                },
                 "edge_case_notes": _build_token_replay_notes(
                     token_type, replay_result, cross_endpoint_results
                 ),
@@ -220,9 +283,37 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
         if isinstance(cross_results_list, list)
         else False,
         "masked_token": top_finding.get("masked_token", ""),
+        "replay_safety": top_finding.get("replay_safety", {}),
     }
 
     return to_validation_result(top_finding, validator="token_reuse", category="token_reuse")
+
+
+def _resolve_replay_safety(context: dict[str, Any]) -> ReplaySafetyConfig:
+    """Resolve a ReplaySafetyConfig from the validation context."""
+    raw = context.get("replay_safety") if isinstance(context, dict) else None
+    if isinstance(raw, ReplaySafetyConfig):
+        return raw
+    return ReplaySafetyConfig()
+
+
+def _location_allowed_for_replay(
+    token_location: str, replay_safety: ReplaySafetyConfig
+) -> bool:
+    """Return whether the given location is safe for active replay."""
+    loc = (token_location or "unknown").strip().lower()
+    skip = {value.lower() for value in (replay_safety.skip_replay_for or ())}
+    return loc not in skip
+
+
+def _host_of(url: str) -> str:
+    """Return the hostname of ``url`` (lowercased) for per-host caps."""
+    from urllib.parse import urlparse
+
+    try:
+        return (urlparse(url or "").hostname or "").lower()
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def _build_token_replay_notes(
