@@ -78,6 +78,10 @@ def projectdiscovery_httpx_available() -> bool:
     return _DEFAULT_TOOL_SERVICE.projectdiscovery_httpx_available()
 
 
+def get_tool_version(name: str) -> str | None:
+    return _DEFAULT_TOOL_SERVICE.get_tool_version(name)
+
+
 def configure_breaker(
     tool_name: str,
     config: CircuitBreakerConfig,
@@ -145,6 +149,7 @@ __all__ = [
     "force_open_breaker",
     "known_tool_names",
     "projectdiscovery_httpx_available",
+    "get_tool_version",
     "reset_breaker",
     "resolve_command",
     "resolve_tool_path",

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { exportFindings } from '../../api/client';
+import { exportFindings, getFindingById } from '../../api/client';
 import { useApi } from '../../hooks/useApi';
 import { useProcessedFindings } from '../../hooks/useProcessedFindings';
 import { VirtualizedFindingsList } from '../../components/VirtualizedFindingsList';
@@ -10,6 +10,7 @@ import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
 import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
+import { ReportFab } from '../../components/report/ReportFab';
 
 export function FindingsPage() {
   const toast = useToast();
@@ -22,12 +23,20 @@ export function FindingsPage() {
 
    
   const [searchQuery, setSearchQuery] = useState('');
-   
+
+  // Capture the export timestamp once at mount via an effect so render output
+  // stays stable. Empty string is fine for the filename before mount completes.
+  const [exportStamp, setExportStamp] = useState<string>('');
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExportStamp(String(Date.now()));
+  }, []);
+
   const [severityFilter, setSeverityFilter] = useState<string[]>([]);
-   
-  const [sortKey] = useState<keyof Finding>('severity');
-   
-  const [sortDir] = useState<'asc' | 'desc'>('desc');
+
+  const [sortKey, setSortKey] = useState<keyof Finding | 'bounty_value'>('severity');
+
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
    
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
    
@@ -54,14 +63,13 @@ export function FindingsPage() {
         setDetailFinding(existing);
       } else {
         // Fetch from the new singular endpoint
-        import('../../api/client').then(async ({ apiClient }) => {
-          try {
-            const { data: finding } = await apiClient.get<Finding>(`/api/findings/${fid}`);
+        getFindingById(fid)
+          .then((finding) => {
             if (mounted) setDetailFinding(finding);
-          } catch {
+          })
+          .catch(() => {
             console.error('Failed to deep-link to finding:', fid);
-          }
-        });
+          });
       }
     }
 
@@ -95,8 +103,19 @@ export function FindingsPage() {
     } catch {
       toast.error('Export sequence failed');
     }
-   
+
   }, [toast]);
+
+  const handleSortToggle = useCallback((key: keyof Finding | 'bounty_value') => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      setSortDir('desc');
+      return key;
+    });
+  }, []);
 
   if (loading && !findingsData) return (
     <div className="p-10 space-y-4">
@@ -123,6 +142,28 @@ export function FindingsPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <div className="flex items-center bg-zinc-900/50 p-1 rounded-lg border border-white/5">
+             <button
+               type="button"
+               onClick={() => handleSortToggle('severity')}
+               className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${sortKey === 'severity' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
+               aria-pressed={sortKey === 'severity'}
+               title="Sort by severity"
+             >
+               Severity
+               {sortKey === 'severity' && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+             </button>
+             <button
+               type="button"
+               onClick={() => handleSortToggle('bounty_value')}
+               className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${sortKey === 'bounty_value' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
+               aria-pressed={sortKey === 'bounty_value'}
+               title="Sort by bounty value (operator-estimated payout)"
+             >
+               Bounty
+               {sortKey === 'bounty_value' && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+             </button>
+          </div>
           <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5">
              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}>
                 <LayoutGrid size={16} />
@@ -197,6 +238,13 @@ export function FindingsPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* ── One-click Report FAB (P2-5) ─────────────────────────────── */}
+      <ReportFab
+        findings={findings}
+        filenameBase={`findings-${exportStamp}`}
+        context={{}}
+      />
     </div>
   );
 }

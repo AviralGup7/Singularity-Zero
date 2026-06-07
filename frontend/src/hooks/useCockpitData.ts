@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { CockpitNode, CockpitEdge, ForensicExchange } from '@/api/cockpit';
 import { cockpitApi } from '@/api/cockpit';
-import { getNotes, createNote } from '@/api/notes';
+import { getNotes } from '@/api/notes';
 import type { Note } from '@/api/notes';
 import type { AttackChain, Job, MeshHealth, MigrationEvent } from '@/types/api';
+import { useMountedRef } from './realtime/shared';
 
 interface UseCockpitDataOptions {
   target: string;
@@ -24,6 +25,13 @@ export function useCockpitData({
   const [exchanges, setExchanges] = useState<ForensicExchange[]>([]);
   const [meshHealth, setMeshHealth] = useState<MeshHealth | null>(null);
   const [migrations, setMigrations] = useState<MigrationEvent[]>([]);
+
+  // R6: use the shared mounted-ref so every async callback (EventSource
+  // messages, fetch responses, polling intervals) can guard against
+  // setState-after-unmount. Previously the raw `EventSource` handler had
+  // no such guard — the most likely memory-leak / setState-on-unmounted
+  // path in the codebase.
+  const { mountedRef } = useMountedRef();
 
   const applyGraph = useCallback((data: { nodes: CockpitNode[]; edges: CockpitEdge[] }) => {
     setNodes(data.nodes);
@@ -60,6 +68,12 @@ export function useCockpitData({
     if (!target) return;
     const stream = new EventSource(cockpitApi.graphStreamUrl(target, run, jobId));
     const handleSnapshot = (event: MessageEvent) => {
+      if (!mountedRef.current) {
+        // Component unmounted between event dispatch and handler invocation.
+        // Close the stream immediately so the runtime doesn't keep dispatching.
+        stream.close();
+        return;
+      }
       try {
         const parsed = JSON.parse(event.data) as {
           data?: { nodes: CockpitNode[]; edges: CockpitEdge[] };
@@ -78,20 +92,24 @@ export function useCockpitData({
       stream.removeEventListener('graph_snapshot', handleSnapshot);
       stream.close();
     };
-  }, [target, run, jobId, applyGraph]);
+  }, [target, run, jobId, applyGraph, mountedRef]);
 
   useEffect(() => {
     if (!target) return;
     const controller = new AbortController();
     getNotes(target)
-      .then((res) => setNotes(res.notes))
+      .then((res) => {
+        if (mountedRef.current) setNotes(res.notes);
+      })
       .catch((err) => console.error('API Error:', err));
     cockpitApi
       .listExchanges(target)
-      .then((res) => setExchanges(res.data.exchanges))
+      .then((res) => {
+        if (mountedRef.current) setExchanges(res.data.exchanges);
+      })
       .catch((err) => console.error('API Error:', err));
     return () => controller.abort();
-  }, [target]);
+  }, [target, mountedRef]);
 
   const handleMeshHealth = useCallback((data: unknown) => {
     setMeshHealth(data as MeshHealth);

@@ -59,3 +59,21 @@ WS_HEARTBEATS = _safe_metric(Counter, "ws_heartbeat_timeouts_total", "WebSocket 
 WS_REDIS_FANOUT = _safe_metric(
     Counter, "ws_redis_fanout_total", "WebSocket Redis fanout messages", ["direction"]
 )
+WS_DROPPED_MESSAGES = _safe_metric(
+    Counter,
+    "ws_dropped_messages_total",
+    "WebSocket messages dropped due to backpressure",
+    ["scope", "job_id", "user_id"],
+)
+WS_BACKPRESSURE_EVENTS = _safe_metric(
+    Counter,
+    "ws_backpressure_events_total",
+    "WebSocket backpressure events emitted to clients",
+    ["scope"],
+)
+WS_AUTHZ_REJECTIONS = _safe_metric(
+    Counter,
+    "ws_authz_rejections_total",
+    "WebSocket subscription authorization rejections",
+    ["reason", "channel"],
+)

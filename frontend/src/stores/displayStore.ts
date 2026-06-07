@@ -15,6 +15,28 @@ const defaultDisplay: DisplayState = {
   constrainedDevice: false,
 };
 
+const SIDEBAR_STORAGE_KEY = 'cyber-pipeline-sidebar';
+const defaultSidebar = { collapsed: false };
+
+function getInitialSidebar(): { collapsed: boolean } {
+  const stored = safeStorage.get(SIDEBAR_STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (typeof parsed === 'object' && parsed !== null && typeof parsed.collapsed === 'boolean') {
+        return { collapsed: parsed.collapsed };
+      }
+    } catch {
+      /* ignore corrupt storage */
+    }
+  }
+  return defaultSidebar;
+}
+
+const persistSidebar = (state: { collapsed: boolean }) => {
+  safeStorage.set(SIDEBAR_STORAGE_KEY, JSON.stringify(state));
+};
+
 function detectSystemReducedMotion(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return false;
@@ -74,10 +96,22 @@ const applyDisplaySideEffects = (display: DisplayState) => {
 export interface DisplayStore {
   display: DisplayState;
   updater: DisplayUpdater;
+  /**
+   * Layout-level UI state that is persisted across reloads but is *not*
+   * part of the `DisplayState` (which is bound to the legacy DisplayContext
+   * contract for theme/density/accessibility prefs). The sidebar collapse
+   * state belongs here because it is a layout preference that should
+   * survive a page reload — fixing the R3 gap where AppLayout used
+   * `useState(false)` and reset on every navigation.
+   */
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebarCollapsed: () => void;
 }
 
-export const useDisplayStore = create<DisplayStore>((set) => {
+export const useDisplayStore = create<DisplayStore>((set, get) => {
   const initialDisplay = getInitialDisplay();
+  const initialSidebar = getInitialSidebar();
 
   // Apply initial side effects on load
   applyDisplaySideEffects(initialDisplay);
@@ -102,6 +136,16 @@ export const useDisplayStore = create<DisplayStore>((set) => {
       setHighContrast: (highContrast: boolean) => updateDisplay({ highContrast }),
       setFocusIndicators: (focusIndicators: boolean) => updateDisplay({ focusIndicators }),
       setScreenReaderOptimizations: (screenReaderOptimizations: boolean) => updateDisplay({ screenReaderOptimizations }),
+    },
+    sidebarCollapsed: initialSidebar.collapsed,
+    setSidebarCollapsed: (collapsed: boolean) => {
+      persistSidebar({ collapsed });
+      set({ sidebarCollapsed: collapsed });
+    },
+    toggleSidebarCollapsed: () => {
+      const next = !get().sidebarCollapsed;
+      persistSidebar({ collapsed: next });
+      set({ sidebarCollapsed: next });
     },
   };
 });

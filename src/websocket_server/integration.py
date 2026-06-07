@@ -22,9 +22,9 @@ from fastapi import FastAPI
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from starlette.websockets import WebSocket
 
 from src.core.logging.trace_logging import get_pipeline_logger
@@ -42,6 +42,43 @@ from src.websocket_server.reconnect import ReconnectionManager
 logger = get_pipeline_logger(__name__)
 
 
+# A simple callable that, given a job id, returns the tenant that owns it.
+# Deployments can plug in a richer implementation (e.g. backed by the job
+# state store) without having to subclass WSServices.
+JobTenantResolver = Callable[[str], str | None]
+
+
+def _default_job_tenant_resolver(job_id: str) -> str | None:
+    """Best-effort default job-to-tenant resolver.
+
+    Tries to look the job up in ``src.dashboard.job_state`` if it is
+    available. Returns ``None`` (meaning "no tenant scoping") when the
+    job is unknown or the dashboard module is not importable — this
+    preserves backward-compatible behaviour for deployments that do not
+    yet have multi-tenant job metadata.
+    """
+    try:
+        from src.dashboard import job_state as dashboard_job_state
+    except Exception:  # noqa: BLE001
+        return None
+    get_job = getattr(dashboard_job_state, "get_job", None)
+    if not callable(get_job):
+        return None
+    try:
+        job = get_job(job_id)
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(job, dict):
+        return None
+    tenant = job.get("tenant_id") or job.get("tenant")
+    if isinstance(tenant, str) and tenant:
+        return tenant
+    owner = job.get("owner_id") or job.get("user_id")
+    if isinstance(owner, str) and owner:
+        return owner
+    return None
+
+
 @dataclass
 class WSServices:
     """Convenience access to all WebSocket infrastructure components.
@@ -52,6 +89,14 @@ class WSServices:
         heartbeat: Heartbeat monitor for client liveness.
         reconnect: Reconnection manager for session resume.
         handler: Central WebSocket endpoint handler.
+        job_tenant_resolver: Callable mapping ``job_id`` to a tenant id,
+            used to namespace the previously global ``global`` /
+            ``dashboard`` channels into ``global:<tenant>`` and
+            ``dashboard:<tenant>`` to prevent cross-tenant leakage.
+        default_tenant_id: Tenant id used as a fallback when the
+            resolver returns ``None``. Set to ``"default"`` so
+            deployments that have not yet enabled multi-tenant
+            job metadata still see a single, predictable channel.
         _cleanup_task: Background task for periodic stale connection cleanup.
     """
 
@@ -60,7 +105,22 @@ class WSServices:
     heartbeat: HeartbeatMonitor
     reconnect: ReconnectionManager
     handler: WebSocketHandler
+    job_tenant_resolver: JobTenantResolver = field(
+        default=_default_job_tenant_resolver, repr=False
+    )
+    default_tenant_id: str = "default"
     _cleanup_task: asyncio.Task[None] | None = field(default=None, repr=False)
+
+    def _tenant_for_job(self, job_id: str) -> str:
+        """Resolve a tenant id for ``job_id`` with a safe fallback."""
+        try:
+            resolved = self.job_tenant_resolver(job_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Job tenant resolver failed for %s: %s", job_id, exc)
+            resolved = None
+        if isinstance(resolved, str) and resolved:
+            return resolved
+        return self.default_tenant_id
 
     def broadcast_progress(
         self,
@@ -72,10 +132,12 @@ class WSServices:
         total: int | None = None,
         message: str = "",
         target: str = "",
+        tenant_id: str | None = None,
     ) -> asyncio.Task[int]:
         """Broadcast a scan progress update to subscribed clients.
 
-        Sends to both the job-specific channel and the global channel.
+        Sends to both the job-specific channel and the tenant-scoped
+        global channel (``global:<tenant>``).
 
         Args:
             job_id: Job identifier.
@@ -86,6 +148,9 @@ class WSServices:
             total: Total items in current stage.
             message: Optional status message.
             target: Target URL or hostname.
+            tenant_id: Optional explicit tenant id. When ``None`` the
+                configured job tenant resolver is used (falls back to
+                ``default_tenant_id``).
 
         Returns:
             Task resolving to the number of connections that received the message.
@@ -100,8 +165,9 @@ class WSServices:
             message=message,
             target=target,
         )
+        tenant = tenant_id or self._tenant_for_job(job_id)
         return asyncio.create_task(
-            self._broadcast_to_job_and_global(msg, job_id),
+            self._broadcast_to_job_and_tenant(msg, job_id, tenant),
             name=f"ws-progress-{job_id}",
         )
 
@@ -112,8 +178,20 @@ class WSServices:
         l2_norm: float,
         action_distribution: list[float],
         metadata: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
     ) -> asyncio.Task[int]:
-        """Broadcast DRL Policy Telemetry."""
+        """Broadcast DRL Policy Telemetry.
+
+        Args:
+            model_id: Identifier of the DRL model.
+            weight_drift: Synaptic weight drift metric.
+            l2_norm: L2 norm drift metric.
+            action_distribution: Active action distribution.
+            metadata: Optional additional context.
+            tenant_id: Optional explicit tenant id. Defaults to
+                ``default_tenant_id`` because telemetry is a global
+                channel concept rather than a per-job one.
+        """
         from src.websocket_server.protocol import TelemetryMessage
 
         msg = TelemetryMessage(
@@ -123,8 +201,9 @@ class WSServices:
             action_distribution=action_distribution,
             metadata=metadata or {},
         )
+        tenant = tenant_id or self.default_tenant_id
         return asyncio.create_task(
-            self.broadcaster.broadcast_to_group("global", msg),
+            self.broadcaster.broadcast_to_group(f"global:{tenant}", msg),
             name=f"ws-telemetry-{model_id}",
         )
 
@@ -139,10 +218,12 @@ class WSServices:
         error: str | None = None,
         target: str = "",
         metadata: dict[str, Any] | None = None,
+        tenant_id: str | None = None,
     ) -> asyncio.Task[int]:
         """Broadcast a job status change to subscribed clients.
 
-        Sends to both the job-specific channel and the global channel.
+        Sends to both the job-specific channel and the tenant-scoped
+        global channel.
 
         Args:
             job_id: Job identifier.
@@ -154,6 +235,7 @@ class WSServices:
             error: Error message if the job failed.
             target: Target URL or hostname.
             metadata: Additional context.
+            tenant_id: Optional explicit tenant id.
 
         Returns:
             Task resolving to the number of connections that received the message.
@@ -169,8 +251,9 @@ class WSServices:
             target=target,
             metadata=metadata or {},
         )
+        tenant = tenant_id or self._tenant_for_job(job_id)
         return asyncio.create_task(
-            self._broadcast_to_job_and_global(msg, job_id),
+            self._broadcast_to_job_and_tenant(msg, job_id, tenant),
             name=f"ws-status-{job_id}",
         )
 
@@ -180,6 +263,7 @@ class WSServices:
         line: str,
         source: str = "stdout",
         level: str = "info",
+        tenant_id: str | None = None,
     ) -> asyncio.Task[int]:
         """Broadcast a log line to clients subscribed to the job's log channel.
 
@@ -188,6 +272,10 @@ class WSServices:
             line: Log line content.
             source: Log source ('stdout' or 'stderr').
             level: Log level ('info', 'warning', 'error').
+            tenant_id: Optional explicit tenant id. When supplied, the
+                log is also published to ``logs:<job_id>`` subscribers
+                and the tenant-scoped global channel. Otherwise, only
+                the ``logs:<job_id>`` channel is used.
 
         Returns:
             Task resolving to the number of connections that received the message.
@@ -198,28 +286,58 @@ class WSServices:
             source=source,
             level=level,
         )
-        return asyncio.create_task(
-            self.broadcaster.broadcast_to_group(f"logs:{job_id}", msg),
-            name=f"ws-log-{job_id}",
+        if tenant_id is None:
+            return asyncio.create_task(
+                self.broadcaster.broadcast_to_group(f"logs:{job_id}", msg),
+                name=f"ws-log-{job_id}",
+            )
+        tenant = tenant_id or self._tenant_for_job(job_id)
+
+        async def _fanout() -> int:
+            logs_sent = await self.broadcaster.broadcast_to_group(
+                f"logs:{job_id}", msg
+            )
+            global_sent = await self.broadcaster.broadcast_to_group(
+                f"global:{tenant}", msg
+            )
+            return logs_sent + global_sent
+
+        return asyncio.create_task(_fanout(), name=f"ws-log-{job_id}")
+
+    async def _broadcast_to_job_and_tenant(
+        self,
+        message: Any,
+        job_id: str,
+        tenant_id: str,
+    ) -> int:
+        """Broadcast to both a job-specific channel and a tenant-scoped global channel.
+
+        Args:
+            message: Message to broadcast.
+            job_id: Job identifier for the job-specific channel.
+            tenant_id: Tenant identifier for the global channel.
+
+        Returns:
+            Total number of connections that received the message.
+        """
+        job_sent = await self.broadcaster.broadcast_to_group(f"job:{job_id}", message)
+        global_sent = await self.broadcaster.broadcast_to_group(
+            f"global:{tenant_id}", message
         )
+        return job_sent + global_sent
 
     async def _broadcast_to_job_and_global(
         self,
         message: Any,
         job_id: str,
     ) -> int:
-        """Broadcast to both a job-specific channel and the global channel.
-
-        Args:
-            message: Message to broadcast.
-            job_id: Job identifier for the job-specific channel.
-
-        Returns:
-            Total number of connections that received the message.
-        """
-        job_sent = await self.broadcaster.broadcast_to_group(f"job:{job_id}", message)
-        global_sent = await self.broadcaster.broadcast_to_group("global", message, exclude=set())
-        return job_sent + global_sent
+        """Backward-compatible alias for tests/callers that still use the
+        un-namespaced global channel. Internally uses
+        ``default_tenant_id`` so behaviour is preserved for legacy
+        single-tenant deployments."""
+        return await self._broadcast_to_job_and_tenant(
+            message, job_id, self.default_tenant_id
+        )
 
     async def start_cleanup_loop(self, interval: float = 60.0) -> None:
         """Start a background task that periodically cleans up stale connections.
@@ -271,6 +389,9 @@ def setup_websocket_routes(
     jwt_secret: str | None = None,
     api_keys: dict[str, str] | None = None,
     required_roles: set[str] | None = None,
+    admin_required_roles: set[str] | None = None,
+    admin_role_resolver: Callable[[Any], set[str] | None] | None = None,
+    admin_audit_logger: Callable[[str, str, dict[str, Any]], None] | None = None,
     max_connections_per_user: int = 10,
     max_connections_per_ip: int = 20,
     heartbeat_interval: float = 30.0,
@@ -281,6 +402,9 @@ def setup_websocket_routes(
     redis_channel: str = "ws:broadcasts",
     allowed_origins: set[str] | None = None,
     compression_options: dict[str, Any] | None = None,
+    default_tenant_id: str = "default",
+    job_tenant_resolver: JobTenantResolver | None = None,
+    require_tls: bool | None = None,
 ) -> WSServices:
     """Set up WebSocket routes on a FastAPI application.
 
@@ -295,6 +419,22 @@ def setup_websocket_routes(
         jwt_secret: Secret key for JWT validation. If None, JWT auth is skipped.
         api_keys: Dict mapping API key strings to user IDs.
         required_roles: Roles required for WebSocket access.
+        admin_required_roles: Roles required to call ``/admin/websocket/*``
+            HTTP routes. Defaults to ``{"admin"}`` when ``None`` is
+            passed *and* an admin resolver/auditor is configured; when
+            the parameter is the empty set, admin auth is disabled
+            (intentionally opt-out for local dev).
+        admin_role_resolver: Optional callable that returns the set of
+            roles for the current HTTP request. Receives the FastAPI
+            ``Request`` and should return a ``set[str]`` (or ``None``
+            when no roles are available). When ``None``, the admin
+            routes are still protected by default and use the
+            ``X-User-Roles`` header as a development convenience.
+        admin_audit_logger: Optional callable invoked with
+            ``(action, actor, details)`` for every admin route hit.
+            Defaults to a structured ``logger.warning`` call so
+            invocations of destructive admin endpoints always leave a
+            trail.
         max_connections_per_user: Max concurrent connections per user.
         max_connections_per_ip: Max concurrent connections per IP.
         heartbeat_interval: Seconds between heartbeat pings.
@@ -303,6 +443,14 @@ def setup_websocket_routes(
         cleanup_interval: Seconds between stale connection cleanup runs.
         allowed_origins: Set of allowed origin URIs to mitigate CSWSH.
         compression_options: Optional compression options (e.g. permessage-deflate).
+        default_tenant_id: Tenant id used for the previously-global
+            ``global`` and ``dashboard`` channels. Channels become
+            ``global:<tenant>`` and ``dashboard:<tenant>`` so a single
+            ``global`` channel no longer leaks across tenants.
+        job_tenant_resolver: Callable mapping ``job_id`` to a tenant id.
+        require_tls: When truthy, the WebSocket upgrade must arrive
+            over ``wss://`` (or via a TLS-terminating proxy that sets
+            ``X-Forwarded-Proto: https``) in production.
 
     Returns:
         WSServices instance for emitting events programmatically.
@@ -338,6 +486,7 @@ def setup_websocket_routes(
         api_keys=api_keys,
         required_roles=required_roles,
         allowed_origins=allowed_origins,
+        require_tls=require_tls,
     )
     handler.compression_options = compression_options
 
@@ -347,6 +496,8 @@ def setup_websocket_routes(
         heartbeat=heartbeat,
         reconnect=reconnect,
         handler=handler,
+        job_tenant_resolver=job_tenant_resolver or _default_job_tenant_resolver,
+        default_tenant_id=default_tenant_id,
     )
 
     @app.websocket("/ws/scan-progress")
@@ -395,8 +546,78 @@ def setup_websocket_routes(
 
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
+    # ------------------------------------------------------------------
+    # Admin route protection & audit logging
+    # ------------------------------------------------------------------
+    effective_admin_roles = (
+        admin_required_roles
+        if admin_required_roles is not None
+        else {"admin"}
+    )
+
+    def _resolve_admin_roles(request: Any) -> set[str]:
+        """Resolve the roles for a request hitting an admin endpoint."""
+        if admin_role_resolver is not None:
+            try:
+                roles = admin_role_resolver(request)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("admin_role_resolver raised: %s", exc)
+                roles = None
+            if roles is not None:
+                return {str(r) for r in roles}
+        # Development fallback: read from X-User-Roles header.
+        header = request.headers.get("x-user-roles") or ""
+        return {part.strip() for part in header.split(",") if part.strip()}
+
+    def _audit_admin(action: str, request: Any, details: dict[str, Any]) -> None:
+        actor = "unknown"
+        if request is not None:
+            client = getattr(request, "client", None)
+            actor = (
+                f"{getattr(request, 'headers', {}).get('x-user-id', 'unknown')}"
+                f"@{client.host if client else 'unknown'}"
+            )
+        if admin_audit_logger is not None:
+            try:
+                admin_audit_logger(action, actor, details)
+                return
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("admin_audit_logger raised: %s", exc)
+        # Default audit sink: structured warning so it always shows up in
+        # centralized log aggregation.
+        logger.warning(
+            "admin_action action=%s actor=%s details=%s",
+            action,
+            actor,
+            details,
+        )
+
+    def _require_admin(request: Any, action: str) -> None:
+        from fastapi import HTTPException
+
+        if not effective_admin_roles:
+            # Opt-out: no admin roles required. Still emit an audit entry.
+            _audit_admin(action, request, {"auth": "disabled"})
+            return
+        roles = _resolve_admin_roles(request)
+        if not roles.intersection(effective_admin_roles):
+            _audit_admin(
+                action,
+                request,
+                {"auth": "denied", "roles": sorted(roles)},
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Admin privileges required for this endpoint. "
+                    f"Required roles: {sorted(effective_admin_roles)}"
+                ),
+            )
+        _audit_admin(action, request, {"auth": "ok", "roles": sorted(roles)})
+
     @app.get("/admin/websocket/connections")
-    async def admin_list_connections() -> list[dict[str, Any]]:
+    async def admin_list_connections(request: Request) -> list[dict[str, Any]]:
+        _require_admin(request, "admin_list_connections")
         conns = await manager.get_all_connections()
         return [
             {
@@ -411,9 +632,11 @@ def setup_websocket_routes(
         ]
 
     @app.delete("/admin/websocket/connections/{connection_id}")
-    async def admin_disconnect(connection_id: str) -> dict[str, Any]:
+    async def admin_disconnect(request: Request, connection_id: str) -> dict[str, Any]:
         from fastapi import HTTPException
         from starlette.websockets import WebSocketState
+
+        _require_admin(request, "admin_disconnect")
 
         conn = await manager.get_connection(connection_id)
         if conn is None:
@@ -427,10 +650,12 @@ def setup_websocket_routes(
         return {"status": "disconnected", "connection_id": connection_id}
 
     @app.post("/admin/websocket/broadcast")
-    async def admin_broadcast(payload: dict[str, Any]) -> dict[str, Any]:
+    async def admin_broadcast(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
         from fastapi import HTTPException
 
         from src.websocket_server.protocol import StatusMessage
+
+        _require_admin(request, "admin_broadcast")
 
         channel = payload.get("channel")
         message_text = payload.get("message")
@@ -443,14 +668,16 @@ def setup_websocket_routes(
         return {"status": "broadcasted", "channel": channel, "connections_reached": sent}
 
     @app.get("/admin/websocket/stats")
-    async def admin_stats() -> dict[str, Any]:
+    async def admin_stats(request: Request) -> dict[str, Any]:
+        _require_admin(request, "admin_stats")
         stats = broadcaster.get_stats()
         active_count = await manager.get_active_count()
         stats["active_connections"] = active_count
         return stats
 
     @app.post("/admin/websocket/config")
-    async def admin_config(payload: dict[str, Any]) -> dict[str, Any]:
+    async def admin_config(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
+        _require_admin(request, "admin_config")
         if "max_connections_per_user" in payload:
             manager.max_connections_per_user = int(payload["max_connections_per_user"])
         if "max_connections_per_ip" in payload:

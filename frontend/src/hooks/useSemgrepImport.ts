@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { apiClient } from '@/api/client';
+import { useState, useCallback } from 'react';
+import { importSemgrepReport } from '@/api/imports';
 
 export function useSemgrepImport() {
   const [showImportModal, setShowImportModal] = useState(false);
@@ -25,8 +25,9 @@ export function useSemgrepImport() {
       formData.append('file', importFile);
 
       try {
-        await apiClient.post(`/api/imports/semgrep?target_name=${encodeURIComponent(importTargetName.trim())}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+        await importSemgrepReport({
+          targetName: importTargetName,
+          file: importFile,
         });
         onSuccess();
         setShowImportModal(false);

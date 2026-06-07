@@ -51,6 +51,12 @@ class SsrfValidator(BaseValidator):
         items = validate_ssrf_candidates(context.analysis_results, context.callback_context)
         findings: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
+        calibration = getattr(
+            getattr(context, "validation_config", None), "calibration", None
+        )
+        ssrf_active_enabled = bool(
+            calibration is None or getattr(calibration, "ssrf_active_probe_enabled", True)
+        )
         for item in items[: context.per_validator_limit]:
             finding = self._base_finding(
                 url=str(item.get("url", "")),
@@ -68,13 +74,82 @@ class SsrfValidator(BaseValidator):
                 mark_out_of_scope(finding)
                 findings.append(finding)
                 continue
-            if context.active_probe_enabled and finding["validation_state"] == "active_ready":
-                probe = context.http_client.request(finding["url"])
-                error = apply_probe_result(finding=finding, probe=probe)
-                if error:
-                    errors.append(error)
+            if (
+                context.active_probe_enabled
+                and ssrf_active_enabled
+                and finding["validation_state"] == "active_ready"
+            ):
+                # R4: send an active probe that substitutes a controlled
+                # callback host into the SSRF-vulnerable parameter(s) so
+                # the validator can observe an out-of-band connection.
+                probe_url, probe_error = self._build_callback_probe(
+                    finding, context
+                )
+                if probe_error:
+                    finding["status"] = "error"
+                    finding["error"] = probe_error
+                elif probe_url:
+                    probe = context.http_client.request(
+                        probe_url, method="GET"
+                    )
+                    error = apply_probe_result(finding=finding, probe=probe)
+                    if error:
+                        errors.append(error)
+                    finding["evidence"]["active_probe_url"] = probe_url
+                    if probe.get("ok"):
+                        finding["signals"] = list(finding.get("signals", [])) + [
+                            "active_probe_sent"
+                        ]
             findings.append(finding)
         return findings, errors
+
+    @staticmethod
+    def _build_callback_probe(
+        finding: dict[str, Any], context: ValidationContext
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Build an active SSRF probe URL using the callback context.
+
+        Returns ``(url, error)``. ``url`` is empty when no probe could be
+        built; ``error`` is set when the callback context is unusable.
+        """
+        from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+        url = str(finding.get("url", "") or "")
+        if not url:
+            return "", {"code": "ssrf_probe_no_url", "message": "missing url"}
+        callback_context = context.callback_context or {}
+        host = str(
+            callback_context.get("host")
+            or callback_context.get("callback_host")
+            or callback_context.get("host_alias")
+            or ""
+        ).strip()
+        probe_token = str(
+            callback_context.get("probe_token")
+            or callback_context.get("token")
+            or ""
+        ).strip()
+        if not host:
+            return "", {
+                "code": "ssrf_probe_no_callback_host",
+                "message": "callback_context.host is required for active SSRF probe",
+            }
+        parameters = finding.get("evidence", {}).get("parameters", []) or []
+        parsed = urlparse(url)
+        query = list(parse_qsl(parsed.query, keep_blank_values=True))
+        if not query or not parameters:
+            return url, None
+        # Replace the first SSRF-vulnerable parameter with the callback host.
+        target_param = str(parameters[0])
+        token_suffix = f"/{probe_token}" if probe_token else ""
+        for index, (key, _value) in enumerate(query):
+            if key.lower() == target_param.lower():
+                query[index] = (key, f"http://{host}{token_suffix}")
+                break
+        else:
+            query.append((target_param, f"http://{host}{token_suffix}"))
+        new_query = urlencode(query, doseq=True)
+        return urlunparse(parsed._replace(query=new_query)), None
 
 
 @register_plugin(VALIDATOR, "token_reuse")

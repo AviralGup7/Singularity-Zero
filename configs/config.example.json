@@ -406,6 +406,48 @@
       "selector": {
         "planner_enabled": true,
         "max_plans": 8
+      },
+      "scoring": {
+        "ssrf": { "base": 0.44, "cap": 0.97, "max_total_bonus": 0.40 },
+        "xss": { "base": 0.50, "cap": 0.94, "max_total_bonus": 0.35, "min_independent_signals": 2 },
+        "ssti": { "base": 0.45, "cap": 0.90, "max_total_bonus": 0.35, "min_independent_signals": 2 },
+        "cors": { "base": 0.45, "cap": 0.93 },
+        "jwt_weakness": { "base": 0.45, "cap": 0.95 },
+        "cache_poisoning": { "base": 0.45, "cap": 0.92 },
+        "graphql_abuse": { "base": 0.45, "cap": 0.92 },
+        "race_condition": { "base": 0.45, "cap": 0.92 }
+      },
+      "calibration": {
+        "min_independent_signals": 1,
+        "ssrf_active_probe_enabled": true,
+        "xss_baseline_required": true,
+        "ssti_baseline_required": true,
+        "token_replay_block_by_default": true,
+        "max_concurrent_race_workers": 5,
+        "cache_poisoning_unkeyed_headers": [
+          "X-Forwarded-Host",
+          "X-Original-URL",
+          "X-Host",
+          "X-Forwarded-Scheme"
+        ],
+        "jwt_test_secrets": [
+          "secret",
+          "password",
+          "changeme",
+          "admin",
+          "1234567890",
+          "supersecret"
+        ]
+      },
+      "token_replay_safety": {
+        "authorized_replay": false,
+        "max_replay_attempts_per_token": 3,
+        "max_replay_attempts_per_host": 5
+      },
+      "scope": {
+        "block_active_when_unscoped": true,
+        "log_warning_when_unscoped": true,
+        "treat_unscoped_as_out_of_scope": true
       }
     },
     "callback": {

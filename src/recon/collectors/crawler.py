@@ -3,14 +3,26 @@
 This crawler is intentionally small and deterministic: it performs a
 breadth-first crawl per-host up to a page limit, extracts links and
 script references, and optionally fetches JS files to extract endpoint
-candidates. It returns a set of normalized URLs and a metadata dict.
+candidates.
+
+Public API
+==========
+
+- :func:`crawl_hosts` is the legacy entry point used throughout the
+  pipeline. It returns ``(set[str], dict)`` where the dict is dict-shaped
+  metadata (``status``/``new_urls``/``duration_seconds``) so existing
+  callers and tests keep working unchanged.
+- :func:`collect_for_hosts` and :func:`iter_for_hosts` are the new
+  typed entry points that mirror the other collectors' contracts. They
+  return / yield a :class:`CollectorMeta` (dict-compatible) so the
+  streaming aggregator can consume them uniformly.
 """
 
 from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, cast
 from urllib.parse import urljoin, urlparse
@@ -20,6 +32,7 @@ from bs4 import BeautifulSoup
 
 from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
+from src.recon.collectors.types import CollectorMeta, CollectorStatus
 from src.recon.common import normalize_scope_entry, normalize_url
 from src.recon.js_parsers import _JS_ENDPOINT_RE
 
@@ -95,7 +108,6 @@ def _extract_links_from_html(html: str, base_url: str, scope_roots: set[str]) ->
         if absolute and _is_in_scope_url(absolute, scope_roots):
             urls.add(absolute)
 
-    # script src attributes
     for tag in soup.find_all("script", src=True):
         src = cast(Any, tag.get("src")) or ""
         absolute = _candidate_to_absolute_url(src, base_url)
@@ -118,6 +130,13 @@ def _extract_js_candidates_from_text(text: str, base_url: str, scope_roots: set[
 
 
 def _fetch_text(url: str, timeout_seconds: int) -> str:
+    """Fetch a URL and return its body text, or ``""`` on any failure.
+
+    This is intentionally a *thin* wrapper around :func:`requests.get`
+    because the project's test suite monkeypatches ``requests.get`` with
+    fake functions that accept a narrow set of kwargs. Adding a session
+    abstraction here would break those tests.
+    """
     try:
         resp = requests.get(
             url,
@@ -137,28 +156,25 @@ def _fetch_text(url: str, timeout_seconds: int) -> str:
 
 
 def _crawl_single_host(
-    base_url: str, timeout_seconds: int, max_pages: int, js_discovery: bool, scope_roots: set[str]
-) -> tuple[set[str], dict[str, Any]]:
+    base_url: str,
+    timeout_seconds: int,
+    max_pages: int,
+    js_discovery: bool,
+    scope_roots: set[str],
+) -> tuple[set[str], CollectorMeta]:
     """Crawl a single host using breadth-first search up to max_pages.
 
     Algorithm:
         1. Seed queue with base_url (https:// prefix added if missing).
         2. Pop URL from queue, skip if already visited.
-        3. Fetch page text, extract links via _extract_links_from_html.
+        3. Fetch page text, extract links via ``_extract_links_from_html``.
         4. Add new links to queue (BFS continues).
         5. Extract script URLs, optionally fetch JS content for endpoint discovery.
         6. Track pages_fetched, scripts_found, errors, and total discovered URLs.
         7. Stop when queue empty or max_pages reached.
 
-    Args:
-        base_url: Host to crawl (with or without scheme).
-        timeout_seconds: Per-page fetch timeout.
-        max_pages: Maximum pages to fetch per host.
-        js_discovery: Whether to fetch and parse JS files for endpoints.
-        scope_roots: Set of allowed host roots for filtering.
-
     Returns:
-        Tuple of (discovered_urls_set, metadata_dict).
+        Tuple of (discovered_urls_set, :class:`CollectorMeta`).
     """
     discovered: set[str] = set()
     queued: list[str] = []
@@ -166,8 +182,8 @@ def _crawl_single_host(
     pages_fetched = 0
     scripts_found = 0
     errors = 0
+    host_start = time.monotonic()
 
-    # seed queue with base_url
     seed = base_url if base_url.startswith(("http://", "https://")) else f"https://{base_url}"
     queued.append(seed)
 
@@ -188,14 +204,11 @@ def _crawl_single_host(
         links = _extract_links_from_html(text, url, scope_roots)
         before = len(discovered)
         discovered.update(links)
-        # queue new links for crawling (simple BFS)
         for link in sorted(links):
             if link not in visited and len(queued) + pages_fetched < max_pages:
                 queued.append(link)
 
-        # extract script urls and optionally fetch JS
-        script_urls = set()
-        tag = None
+        script_urls: set[str] = set()
         try:
             soup = BeautifulSoup(text or "", "html.parser")
             for tag in soup.find_all("script", src=True):
@@ -204,7 +217,7 @@ def _crawl_single_host(
                 if abs_src and _is_in_scope_url(abs_src, scope_roots):
                     script_urls.add(abs_src)
         except Exception as e:
-            logger.debug("Failed to parse script tags for %s (tag=%s): %s", url, tag, e)
+            logger.debug("Failed to parse script tags for %s: %s", url, e)
 
         scripts_found += len(script_urls)
         discovered.update(script_urls)
@@ -221,15 +234,163 @@ def _crawl_single_host(
         if delta > 0:
             collector_metrics.increment_urls("crawler", delta)
 
-    meta = {
-        "status": "ok" if discovered else "empty",
-        "duration_seconds": round(0.0, 1),
-        "new_urls": len(discovered),
-        "pages_fetched": pages_fetched,
-        "scripts_found": scripts_found,
-        "errors": errors,
-    }
+    duration = round(time.monotonic() - host_start, 1)
+    status = (
+        CollectorStatus.OK
+        if discovered
+        else (CollectorStatus.ERROR if errors else CollectorStatus.EMPTY)
+    )
+    meta = CollectorMeta(
+        status=status,
+        duration_seconds=duration,
+        new_urls=len(discovered),
+        errors=errors,
+        hosts_scanned=1,
+        provider_name="crawler",
+        extras={
+            "pages_fetched": pages_fetched,
+            "scripts_found": scripts_found,
+        },
+    )
     return discovered, meta
+
+
+def iter_for_hosts(
+    live_hosts: Iterable[str],
+    scope_entries: Iterable[str] | None = None,
+    *,
+    timeout_seconds: int = 8,
+    max_pages_per_host: int = 12,
+    workers: int = 6,
+    js_discovery: bool = False,
+    progress_callback: Any | None = None,
+) -> Generator[tuple[str, set[str], CollectorMeta], None, CollectorMeta]:
+    """Yield per-host ``(host, urls, host_meta)`` triples as each completes.
+
+    The generator's :class:`StopIteration` value holds the aggregate
+    :class:`CollectorMeta` covering every host in ``live_hosts``.
+    """
+    start = time.monotonic()
+    hosts = [h for h in (live_hosts or []) if h]
+    if not hosts:
+        return CollectorMeta(
+            status=CollectorStatus.EMPTY,
+            duration_seconds=0.0,
+            new_urls=0,
+            hosts_scanned=0,
+            provider_name="crawler",
+        )
+
+    scope_roots = _normalized_scope_roots(scope_entries or [])
+
+    emit_collection_progress(progress_callback, f"Crawler: scanning {len(hosts)} hosts", 60)
+
+    total_new = 0
+    total_errors = 0
+    total_pages = 0
+    total_scripts = 0
+
+    with ThreadPoolExecutor(max_workers=min(workers, len(hosts))) as executor:
+        futures = {
+            executor.submit(
+                _crawl_single_host,
+                host,
+                timeout_seconds,
+                max_pages_per_host,
+                js_discovery,
+                scope_roots,
+            ): host
+            for host in hosts
+        }
+        for idx, future in enumerate(futures, start=1):
+            host = futures[future]
+            try:
+                host_urls, host_meta = future.result()
+            except Exception:
+                host_urls = set()
+                host_meta = CollectorMeta(
+                    status=CollectorStatus.ERROR,
+                    new_urls=0,
+                    errors=1,
+                    hosts_scanned=1,
+                    provider_name="crawler",
+                )
+
+            total_new += len(host_urls)
+            total_errors += host_meta.errors
+            total_pages += int(host_meta.extras.get("pages_fetched", 0))
+            total_scripts += int(host_meta.extras.get("scripts_found", 0))
+
+            emit_collection_progress(
+                progress_callback,
+                f"crawler host {idx}/{len(hosts)}: +{len(host_urls)} urls, total {total_new}",
+                60 + int((idx / len(hosts)) * 8),
+                processed=idx,
+                total=len(hosts),
+            )
+            yield host, host_urls, host_meta
+
+    duration = round(time.monotonic() - start, 1)
+    collector_metrics.observe_duration("crawler", duration)
+    return CollectorMeta(
+        status=CollectorStatus.OK if total_new else CollectorStatus.EMPTY,
+        duration_seconds=duration,
+        new_urls=total_new,
+        errors=total_errors,
+        hosts_scanned=len(hosts),
+        provider_name="crawler",
+        extras={
+            "pages_fetched": total_pages,
+            "scripts_found": total_scripts,
+        },
+    )
+
+
+def collect_for_hosts(
+    live_hosts: Iterable[str],
+    scope_entries: Iterable[str] | None = None,
+    timeout_seconds: int = 8,
+    max_pages_per_host: int = 12,
+    workers: int = 6,
+    js_discovery: bool = False,
+    progress_callback: Any | None = None,
+    *,
+    per_host_limit: int | None = None,
+    max_workers: int | None = None,
+) -> tuple[set[str], CollectorMeta]:
+    """Collect URLs from a set of live hosts using BFS crawling.
+
+    Accepts the standard aggregator kwargs (``per_host_limit``,
+    ``max_workers``) as well as the BFS-specific ones
+    (``max_pages_per_host``, ``workers``).  The aggregator wires
+    ``per_host_limit`` (from ``filters.crawler_max_pages_per_host``) and
+    ``max_workers`` (from ``filters.crawler_workers``), so we translate
+    them to the BFS internals here.
+    """
+    if per_host_limit is not None:
+        max_pages_per_host = per_host_limit
+    if max_workers is not None:
+        workers = max_workers
+
+    discovered: set[str] = set()
+    aggregate_meta: CollectorMeta
+    gen = iter_for_hosts(
+        live_hosts,
+        scope_entries=scope_entries,
+        timeout_seconds=timeout_seconds,
+        max_pages_per_host=max_pages_per_host,
+        workers=workers,
+        js_discovery=js_discovery,
+        progress_callback=progress_callback,
+    )
+    try:
+        while True:
+            _host, host_urls, _host_meta = next(gen)
+            discovered.update(host_urls)
+    except StopIteration as stop:
+        aggregate_meta = stop.value  # type: ignore[assignment]
+
+    return discovered, aggregate_meta
 
 
 def crawl_hosts(
@@ -241,52 +402,22 @@ def crawl_hosts(
     js_discovery: bool = False,
     progress_callback: Any | None = None,
 ) -> tuple[set[str], dict[str, Any]]:
-    start = time.monotonic()
-    hosts = [h for h in (live_hosts or []) if h]
-    if not hosts:
-        return set(), {"status": "empty", "duration_seconds": 0.0, "new_urls": 0}
+    """Legacy crawler entry point used by the pipeline and existing tests.
 
-    scope_roots = _normalized_scope_roots(scope_entries or [])
-    discovered: set[str] = set()
-    aggregate_meta = {}
+    Internally delegates to :func:`collect_for_hosts` and projects the
+    :class:`CollectorMeta` back to the dict shape historically
+    expected by callers (``status``/``new_urls``/``duration_seconds``).
+    """
+    urls, meta = collect_for_hosts(
+        live_hosts,
+        scope_entries=scope_entries,
+        timeout_seconds=timeout_seconds,
+        max_pages_per_host=max_pages_per_host,
+        workers=workers,
+        js_discovery=js_discovery,
+        progress_callback=progress_callback,
+    )
+    return urls, meta.to_dict()
 
-    emit_collection_progress(progress_callback, f"Crawler: scanning {len(hosts)} hosts", 60)
 
-    with ThreadPoolExecutor(max_workers=min(workers, len(hosts))) as executor:
-        futures = [
-            executor.submit(
-                _crawl_single_host,
-                host,
-                timeout_seconds,
-                max_pages_per_host,
-                js_discovery,
-                scope_roots,
-            )
-            for host in hosts
-        ]
-        for idx, future in enumerate(futures, start=1):
-            try:
-                host_urls, meta = future.result()
-            except Exception:
-                host_urls, meta = (
-                    set(),
-                    {"status": "error", "duration_seconds": 0.0, "new_urls": 0, "errors": 1},
-                )
-            before = len(discovered)
-            discovered.update(host_urls)
-            aggregate_meta[f"host_{idx}"] = meta
-            emit_collection_progress(
-                progress_callback,
-                f"crawler host {idx}/{len(hosts)}: +{len(discovered) - before} urls, total {len(discovered)}",
-                60 + int((idx / len(hosts)) * 8),
-                processed=idx,
-                total=len(hosts),
-            )
-
-    duration = round(time.monotonic() - start, 1)
-    collector_metrics.observe_duration("crawler", duration)
-    return discovered, {
-        "status": "ok" if discovered else "empty",
-        "duration_seconds": duration,
-        "new_urls": len(discovered),
-    }
+__all__ = ["crawl_hosts", "collect_for_hosts", "iter_for_hosts"]

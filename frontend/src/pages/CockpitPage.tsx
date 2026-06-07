@@ -20,6 +20,8 @@ import { ForensicExchangeItem } from '@/components/cockpit/ForensicExchangeItem'
 import { ForensicExchangeDetail } from '@/components/cockpit/ForensicExchangeDetail';
 import { IntelSidebar } from '@/components/cockpit/IntelSidebar';
 import { GraphLegend } from '@/components/cockpit/GraphLegend';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { ScopeWarningBanner } from '@/components/scope/ScopeComplianceBadge';
 
 interface MigrationEvent {
   id: string;
@@ -49,12 +51,30 @@ export function CockpitPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<'intel' | 'chains' | 'forensics'>('intel');
   const [selectedExchange, setSelectedExchange] = useState<ForensicExchange | null>(null);
   const [probing, setProbing] = useState(false);
   const [newNote, setNewNote] = useState('');
-  const [isDeckOpen, setIsDeckOpen] = useState(true);
-  const [scanMode, setScanMode] = useState<'safe' | 'aggressive'>('safe');
+
+  // R3: Persist cockpit-side UI state via settingsStore. The active side tab,
+  // scan control deck open/closed, and selected scan mode all now survive a
+  // page reload (and the `updater.updateSection('cockpitLayout', ...)` call
+  // is debounced + Zod-validated, same path as every other setting).
+  const cockpitLayout = useSettingsStore((state) => state.settings.cockpitLayout);
+  const updateCockpitLayout = useSettingsStore((state) => state.updater.updateSection);
+  const setSidebarTab = useCallback(
+    (tab: 'intel' | 'chains' | 'forensics') => updateCockpitLayout('cockpitLayout', { sidebarTab: tab }),
+    [updateCockpitLayout]
+  );
+  const setIsDeckOpen = useCallback(
+    (open: boolean) => updateCockpitLayout('cockpitLayout', { deckOpen: open }),
+    [updateCockpitLayout]
+  );
+  const setScanMode = useCallback(
+    (mode: 'safe' | 'aggressive') => updateCockpitLayout('cockpitLayout', { scanMode: mode }),
+    [updateCockpitLayout]
+  );
+  const { sidebarTab, deckOpen: isDeckOpen, scanMode } = cockpitLayout;
+
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModules, setSelectedModules] = useState<string[]>([
     'subdomain_enum',
@@ -66,6 +86,15 @@ export function CockpitPage() {
   const [stoppingScan, setStoppingScan] = useState(false);
   const [restartingScan, setRestartingScan] = useState(false);
   const [inputTarget, setInputTarget] = useState(target);
+
+  // High-level scan tuning knobs (P1-3). These were previously buried in the
+  // 4-step wizard. For 12-hour scans operators MUST be able to see and tune
+  // depth, rate and concurrency before launching; the cockpit is the surface
+  // they look at for the entire duration of a run.
+  const [scanDepth, setScanDepth] = useState<number>(3);
+  const [scanConcurrency, setScanConcurrency] = useState<number>(10);
+  const [scanRateLimit, setScanRateLimit] = useState<number>(50);
+  const [excludedPaths, setExcludedPaths] = useState<string>('');
 
   const { nodes, edges, chains, loading, applyGraph, notes, setNotes, exchanges, setExchanges, meshHealth, setMeshHealth, migrations, setMigrations, handleMeshHealth, handleMigrationEvent } =
     useCockpitData({ target, run, jobId });
@@ -191,6 +220,10 @@ export function CockpitPage() {
         base_url: inputTarget,
         mode: scanMode,
         modules: selectedModules,
+        depth: scanDepth,
+        concurrency: scanConcurrency,
+        rate_limit_rps: scanRateLimit,
+        excluded_paths: excludedPaths.trim() || undefined,
       });
       setActiveJobId(newJob.id);
       const params = new URLSearchParams(window.location.search);
@@ -289,7 +322,17 @@ export function CockpitPage() {
           inputTarget={inputTarget}
           setInputTarget={setInputTarget}
           onClearScan={handleClearScan}
+          scanDepth={scanDepth}
+          setScanDepth={setScanDepth}
+          scanConcurrency={scanConcurrency}
+          setScanConcurrency={setScanConcurrency}
+          scanRateLimit={scanRateLimit}
+          setScanRateLimit={setScanRateLimit}
+          excludedPaths={excludedPaths}
+          setExcludedPaths={setExcludedPaths}
         />
+
+        <ScopeWarningBanner asset={inputTarget || target} />
 
         <AnimatePresence>
           {hoveredNode && !sidebarOpen && (

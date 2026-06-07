@@ -1,4 +1,4 @@
-import { apiClient } from '@/api/client';
+import { pingLivenessForTimeSync } from '@/api/health';
 
 let serverTimeOffset = 0; // offset in milliseconds: serverTime - clientTime
 
@@ -15,12 +15,11 @@ export async function synchronizeTime(): Promise<number> {
 
   try {
     const startTime = Date.now();
-    const response = await apiClient.get<{ status: string; timestamp: string }>('/api/health/live');
+    const { timestamp } = await pingLivenessForTimeSync();
     const endTime = Date.now();
 
-    const serverTimestampStr = response.data?.timestamp;
-    if (serverTimestampStr) {
-      const serverTime = new Date(serverTimestampStr).getTime();
+    if (timestamp) {
+      const serverTime = new Date(timestamp).getTime();
       const latency = (endTime - startTime) / 2;
       serverTimeOffset = (serverTime + latency) - endTime;
 

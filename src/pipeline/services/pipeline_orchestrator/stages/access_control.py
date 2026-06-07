@@ -217,6 +217,23 @@ async def run_access_control_testing(
 
         state_delta["reportable_findings"] = findings
 
+        # Emit structured remediation candidates for high-confidence
+        # access-control findings.  Downstream consumers (WAF virtual
+        # patch enforcer, ticket creators, IAM policy updaters) can
+        # consume the machine-readable list without re-parsing the
+        # original finding.
+        try:
+            from src.analysis.automation.remediation_candidates import (
+                attach_remediation_candidates_to_delta,
+            )
+
+            candidates = attach_remediation_candidates_to_delta(state_delta, findings)
+            state_delta["module_metrics"].setdefault("access_control", {})[
+                "remediation_candidates_emitted"
+            ] = len(candidates)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to emit remediation candidates: %s", exc)
+
         if not findings:
             logger.info("Access control: No authorization bypasses detected")
             state_delta["module_metrics"]["access_control"] = {

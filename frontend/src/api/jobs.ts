@@ -50,6 +50,17 @@ export interface StartJobPayload {
   modules?: string[];
   runtime_overrides?: Record<string, string>;
   execution_options?: Record<string, boolean>;
+  /**
+   * High-level scan tuning knobs surfaced in the cockpit (P1-3) so operators
+   * do not need to open the 4-step wizard to tune a 12-hour scan. Values are
+   * forwarded to the runtime as `runtime_overrides` so the backend picks
+   * them up uniformly with the wizard's hidden step-3 inputs.
+   */
+  depth?: number;
+  concurrency?: number;
+  rate_limit_rps?: number;
+  /** Newline-separated regex/path patterns the scan will skip. */
+  excluded_paths?: string;
 }
 
 export async function startJob(payload: StartJobPayload, signal?: AbortSignal): Promise<Job> {

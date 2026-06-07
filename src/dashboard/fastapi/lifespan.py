@@ -11,20 +11,26 @@ from typing import Any
 
 from fastapi import FastAPI
 
+from src.core.contracts.health import HealthMetric, HealthStatus
 from src.core.events import get_event_bus
 from src.core.frontier.bloom_mesh import ReconcileBloom
 from src.core.security.secret_validator import validate_or_raise
 from src.dashboard.fastapi.collaboration import TriageCollaborationService
 from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.feature_flags import FeatureFlags
-from src.dashboard.fastapi.mesh_setup import init_bloom_filter, init_bloom_mesh
+from src.dashboard.fastapi.mesh_setup import (
+    create_worker_discovery,
+    init_bloom_filter,
+    init_bloom_mesh,
+)
 from src.dashboard.fastapi.self_healing_setup import setup_self_healing_controller
 from src.dashboard.fastapi.spa import setup_mimetypes
 from src.dashboard.fastapi.ws_setup import setup_websocket
+from src.infrastructure.mesh.consensus import MeshConsensus
 from src.infrastructure.mesh.gossip import GossipEngine, MeshNode
+from src.infrastructure.mesh.manifest import discover_manifest
 from src.infrastructure.mesh.sharding import MeshShardManager
 from src.infrastructure.observability.health_subscriber import register_health_subscriber
-from src.core.contracts.health import HealthMetric, HealthStatus
 from src.pipeline.self_healing import (
     CorrectionEvent,
     CorrectiveAction,
@@ -131,6 +137,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     if psutil:
         psutil.cpu_percent(interval=None)
 
+    manifest = discover_manifest()
     local_node = MeshNode(
         id=node_id,
         host=os.getenv("MESH_BIND_INTERFACE", config.host),
@@ -140,6 +147,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         ram_available_mb=psutil.virtual_memory().available / 1024 / 1024 if psutil else 0.0,
         active_jobs=0,
         last_seen=time.time(),
+        capabilities=list(manifest.capabilities),
+        region=manifest.region,
+        zone=manifest.zone,
+        bandwidth_mbps=manifest.bandwidth_mbps,
+        capacity_weight=manifest.capacity_weight,
+        version_vector={node_id: 1},
     )
 
     import secrets
@@ -177,8 +190,42 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     else:
         app.state.gossip = gossip_engine
 
+    consensus = MeshConsensus(gossip_engine, redis_url=config.redis_url)
+    app.state.mesh_consensus = consensus
+    app.state.mesh_consensus_task = asyncio.create_task(
+        consensus.run_maintenance(), name="mesh-consensus"
+    )
+
+    # ------------------------------------------------------------------
+    # Optional mDNS worker discovery
+    # ------------------------------------------------------------------
+    app.state.worker_discovery = None
+    try:
+        discovery = create_worker_discovery(local_node, secret=mesh_secret, enable=True)
+        if discovery is not None:
+
+            def _on_discovery_change(action: str, payload: Any) -> None:
+                if action != "add":
+                    return
+                if not isinstance(payload, dict):
+                    return
+                try:
+                    gossip_engine.register_discovered_peer(payload)
+                except Exception:  # noqa: BLE001 - never let a callback kill the loop
+                    logger.exception("Failed to register mDNS-discovered peer")
+
+            discovery._on_change = _on_discovery_change
+            if discovery.register() and discovery.start_discovery():
+                app.state.worker_discovery = discovery
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("mDNS discovery bootstrap failed; continuing without it: %s", exc)
+
     shard_manager = MeshShardManager()
-    shard_manager.add_node(node_id)
+    shard_manager.add_node(
+        node_id,
+        weight=manifest.capacity_weight,
+        region=manifest.region,
+    )
     app.state.sharding = shard_manager
 
     bloom_filter = init_bloom_filter()
@@ -428,6 +475,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     if getattr(app.state, "gossip", None) is not None:
         await app.state.gossip.stop()
+
+    if hasattr(app.state, "mesh_consensus"):
+        app.state.mesh_consensus.stop()
+    if hasattr(app.state, "mesh_consensus_task"):
+        app.state.mesh_consensus_task.cancel()
+        try:
+            await app.state.mesh_consensus_task
+        except asyncio.CancelledError:
+            pass
+
+    discovery = getattr(app.state, "worker_discovery", None)
+    if discovery is not None:
+        try:
+            discovery.shutdown()
+        except Exception:  # noqa: BLE001 - shutdown must not raise
+            logger.exception("mDNS discovery shutdown raised")
 
     if hasattr(app.state, "cache_analytics_task"):
         app.state.cache_analytics_task.cancel()

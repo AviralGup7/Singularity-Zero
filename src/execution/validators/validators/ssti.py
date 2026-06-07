@@ -4,6 +4,7 @@ Validates SSTI candidates by analyzing passive detection results, performing
 active template injection tests, and verifying template engine behavior.
 """
 
+import logging
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -16,6 +17,8 @@ from src.analysis.helpers import (
 )
 from src.core.models import ValidationResult
 from src.execution.validators.validators.shared import to_validation_result
+
+logger = logging.getLogger(__name__)
 
 # Template engine detection patterns
 TEMPLATE_ENGINES = {
@@ -201,6 +204,7 @@ def _active_ssti_test(target_url: str, http_client: Any) -> dict[str, Any]:
     template_errors: list[str] = []
     code_execution_indicators: list[str] = []
     engines_detected: list[str] = []
+    baseline_signals: list[str] = []
 
     if not query_params:
         return {
@@ -211,6 +215,35 @@ def _active_ssti_test(target_url: str, http_client: Any) -> dict[str, Any]:
 
     for param_name in list(query_params.keys())[:3]:
         original_value = query_params[param_name]
+
+        # R5 baseline: send a non-template control payload first to learn
+        # whether the endpoint naturally contains the math evaluation
+        # strings (e.g. price=49, status=49). If the baseline response
+        # also contains "49" / "343" etc., the SSTI math result is a
+        # false positive and must be downgraded.
+        baseline_payload = "sstibaselinetoken12345"
+        baseline_params = dict(query_params)
+        baseline_params[param_name] = baseline_payload
+        baseline_url = urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                urlencode(baseline_params),
+                parsed.fragment,
+            )
+        )
+        try:
+            baseline_response = http_client.request(baseline_url)
+            baseline_body = str(baseline_response.get("body", ""))
+            if any(
+                re.search(pattern, baseline_body)
+                for pattern, _ in MATH_EVALUATION_PATTERNS
+            ):
+                baseline_signals.append("baseline_math_indicators_present")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("SSTI baseline request failed for %s: %s", target_url, exc)
 
         for engine, payloads in SSTI_PAYLOADS.items():
             for payload, expected_indicator in payloads[:3]:
@@ -291,8 +324,16 @@ def _active_ssti_test(target_url: str, http_client: Any) -> dict[str, Any]:
     unique_errors = sorted(set(template_errors))
     unique_engines = sorted(set(engines_detected))
 
-    if unique_math:
+    # R5: when the baseline response also contains math evaluation
+    # indicators, the "confirmed" result is a false positive. Downgrade
+    # to "potential" so downstream consumers don't treat it as a
+    # confirmed SSTI.
+    baseline_downgrade = "baseline_math_indicators_present" in baseline_signals
+
+    if unique_math and not baseline_downgrade:
         status = "confirmed"
+    elif unique_math and baseline_downgrade:
+        status = "potential"
     elif unique_errors:
         status = "potential"
     else:
@@ -309,6 +350,7 @@ def _active_ssti_test(target_url: str, http_client: Any) -> dict[str, Any]:
         "evaluations_count": len(unique_math),
         "errors_count": len(unique_errors),
         "payloads_tested": len(test_results),
+        "baseline_signals": sorted(set(baseline_signals)),
     }
 
 

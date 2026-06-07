@@ -112,3 +112,39 @@
 .form-checkbox:focus-visible {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
+
+/* Cockpit scan-tuning slider (P1-3) */
+.cockpit-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+  cursor: pointer;
+}
+
+.cockpit-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #000;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: transform 120ms ease;
+}
+
+.cockpit-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.cockpit-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #000;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
+}

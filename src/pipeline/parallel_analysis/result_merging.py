@@ -164,6 +164,26 @@ class AnalyzerDurationCache:
     def snapshot(self) -> dict[str, float]:
         return {name: self.estimate(name) for name in list(self._samples.keys())}
 
+    def save(self, cache: Any, namespace: str = "analysis:duration_histogram") -> None:
+        try:
+            snapshot = self.snapshot()
+            cache.set(f"{namespace}:{id(self)}", snapshot, ttl=86400 * 30)
+        except Exception:
+            pass
+
+    @classmethod
+    def load(cls, cache: Any, namespace: str = "analysis:duration_histogram", key_id: int | None = None) -> AnalyzerDurationCache:
+        inst = cls()
+        if key_id is not None:
+            try:
+                snapshot = cache.get(f"{namespace}:{key_id}")
+                if isinstance(snapshot, dict):
+                    for name, dur in snapshot.items():
+                        inst.record(name, dur)
+            except Exception:
+                pass
+        return inst
+
 
 @dataclass
 class DependencyGraph:

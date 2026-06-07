@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import secrets as random
 import time
 from dataclasses import dataclass, field
@@ -13,6 +14,47 @@ from src.core.logging.trace_logging import get_pipeline_logger
 _SYSTEM_RANDOM = random.SystemRandom()
 
 T = TypeVar("T")
+
+_RETRY_AFTER_RE = re.compile(r"[Rr]etry-[Aa]fter:\s*(\d+)", re.IGNORECASE)
+_HTTP_429_RE = re.compile(r"429|rate.?limit|too.?many.?requests", re.IGNORECASE)
+
+
+def parse_retry_after(stderr_text: str) -> int | None:
+    """Extract Retry-After seconds from tool stderr/stdout text. Returns None if absent."""
+    if not stderr_text:
+        return None
+    m = _RETRY_AFTER_RE.search(stderr_text)
+    if m:
+        try:
+            return max(1, int(m.group(1)))
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def detect_rate_limit(stderr_text: str) -> bool:
+    """Return True if stderr indicates a rate-limit / 429 response."""
+    if not stderr_text:
+        return False
+    return bool(_HTTP_429_RE.search(stderr_text))
+
+
+class RetryAfterAwareMixin:
+    """Mixin to override backoff when a tool signals Retry-After."""
+
+    @staticmethod
+    def delay_for_attempt_with_retry_after(
+        base_policy: Any,
+        attempt_number: int,
+        stderr_text: str = "",
+    ) -> float:
+        retry_after = parse_retry_after(stderr_text)
+        if retry_after is not None:
+            return float(retry_after)
+        return base_policy.delay_for_attempt(attempt_number)
+
+
+logger = get_pipeline_logger(__name__)
 
 
 @dataclass
@@ -76,9 +118,6 @@ class AdaptiveBackoffHeuristic:
             step_down_factor=self.step_down_factor,
             dampening=self.dampening,
         )
-
-
-logger = get_pipeline_logger(__name__)
 
 
 def is_retryable(exc: BaseException, policy: Any) -> bool:

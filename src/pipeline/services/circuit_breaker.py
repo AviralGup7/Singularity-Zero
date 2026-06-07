@@ -54,6 +54,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
+from src.pipeline.unified_cache import CachePriority
 
 logger = get_pipeline_logger(__name__)
 
@@ -422,6 +423,50 @@ class CircuitBreakerConfig:
                 settings.get("circuit_breaker_force_open_reason", base.force_open_reason)
             ),
         )
+
+
+_CB_PERSISTENCE_PREFIX = "cb_state:"
+
+
+def persist_breaker_state(cache: Any, tool_name: str, breaker: CircuitBreaker) -> None:
+    """Persist a circuit breaker's serializable state to unified cache."""
+    try:
+        cache.set(
+            f"{_CB_PERSISTENCE_PREFIX}{tool_name}",
+            breaker.stats().as_dict(),
+            ttl=86400 * 30,
+            priority=CachePriority.CRITICAL,
+        )
+    except Exception:
+        pass
+
+
+def load_breaker_state(cache: Any, tool_name: str) -> dict[str, Any] | None:
+    """Load persisted circuit breaker state. Returns None if absent."""
+    try:
+        return cache.get(f"{_CB_PERSISTENCE_PREFIX}{tool_name}")
+    except Exception:
+        return None
+
+
+def persist_all_breakers(cache: Any, breakers: dict[str, CircuitBreaker]) -> None:
+    for name, breaker in breakers.items():
+        persist_breaker_state(cache, name, breaker)
+
+
+def load_all_breakers(cache: Any) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    try:
+        prefix = _CB_PERSISTENCE_PREFIX
+        keys = cache.keys_with_prefix(prefix)
+        for key in keys:
+            name = key[len(prefix):]
+            state = cache.get(key)
+            if isinstance(state, dict):
+                result[name] = state
+    except Exception:
+        pass
+    return result
 
 
 __all__ = [

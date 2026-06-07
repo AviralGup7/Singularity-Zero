@@ -12,8 +12,11 @@ returns an immutable, cycle-checked :class:`Graph`.
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from ._graph_dsl import (
     All,
@@ -196,6 +199,7 @@ _BASE_NODES: tuple[StageNode, ...] = (
 
 def build_pipeline_graph(
     stage_methods: Mapping[str, Any] | None = None,
+    tool_status: dict[str, bool] | None = None,
 ) -> Graph:
     """Construct the executable pipeline graph.
 
@@ -206,6 +210,21 @@ def build_pipeline_graph(
     startup method from being blocked on a phantom dependency.
     """
     nodes: list[StageNode] = list(_BASE_NODES)
+    if tool_status:
+        _TOOL_NODE_MAP: dict[str, str] = {
+            "nuclei": "nuclei",
+            "semgrep": "semgrep",
+        }
+        available_set = {name for name, avail in tool_status.items() if avail}
+        for node in list(nodes):
+            required_tool = _TOOL_NODE_MAP.get(node.name)
+            if required_tool and required_tool not in available_set:
+                nodes = [n for n in nodes if n.name != node.name]
+                logger.info(
+                    "graph_builder: pruning stage '%s' — required tool '%s' not available",
+                    node.name,
+                    required_tool,
+                )
     if stage_methods is not None and "startup" in stage_methods:
         nodes.insert(
             0,

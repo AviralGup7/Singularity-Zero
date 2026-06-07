@@ -271,6 +271,7 @@ def rank_urls(
     profile: dict[str, int | bool] | None = None,
     history_feedback: HistoryFeedback | None = None,
     waf_findings: list[dict[str, Any]] | None = None,
+    origin_hosts: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Rank URLs by composite security-relevant score with WAF-aware penalties.
 
@@ -282,6 +283,10 @@ def rank_urls(
        - Build flow graph to detect auth flows and endpoint relationships.
        - Set up keyword weights, custom priority keywords, ignored extensions.
        - Identify CDN-protected targets from WAF findings.
+       - Inject origin-bypass hosts (``origin.``, ``direct.``, MX/NS
+         hosts discovered by :mod:`src.recon.origin_discovery`) as
+         additional URLs and tag them with the ``origin_bypass`` signal
+         so they survive the parameter-only and CDN-penalty filters.
     2. Per-URL Scoring (score_url_precomputed):
        - Keyword match scoring from scoring["weights"]
        - Parameter presence bonus + parameter_weight per parameter name
@@ -292,6 +297,7 @@ def rank_urls(
        - Auth flow endpoint +3, auth flow with sensitive params +4
        - Low-value endpoint penalty -4
        - No meaningful parameters penalty -6
+       - Origin-bypass base bonus +5 for CDN-bypassed hosts.
     3. Flow Score (flow_score_precomputed):
        - /access +2, /auth or /login +4, /oauth +5
        - Sensitive redirect params (next, redirect, state, callback) +5
@@ -301,12 +307,18 @@ def rank_urls(
        + trust_boundary_score + history_bonus + correlation_boost.
     5. Signal Correlation Boost: +6 if signal_count >= 2, +10 if >= 3,
        +10 for cross-host trust boundary, +5 for restricted-path.
+       Origin-bypass URLs get an additional +3 correlation boost
+       because being a discovered origin is itself a strong signal.
     6. WAF/CDN Penalty: -8 if high-confidence CDN and no parameters.
+       Suppressed for URLs that carry the ``origin_bypass`` signal —
+       those URLs are not the CDN edge, they are the origin.
     7. Filtering & Selection:
        - Skip URLs with ignored extensions, noise URLs, duplicate canonical keys.
        - Compute composite_score, skip if <= 0.
        - Normalize scores to 0-100 range.
        - Strict tier: requires params OR signal_count>=2 OR cross-host OR score>=22.
+         URLs with the ``origin_bypass`` signal always pass the strict
+         tier (origin discovery is a strong enough qualifier).
        - Relaxed tier: if strict < 60% of limit, add highest-scoring URLs
          with score >= 14 to fill to minimum_keep (60% of limit).
        - Sort by: decision_override (HIGH first), signal_count desc, score desc,
@@ -321,6 +333,13 @@ def rank_urls(
         profile: Optional target profile dict for context scoring.
         history_feedback: Optional HistoryFeedback for past-run bonuses.
         waf_findings: Optional WAF findings for CDN penalty integration.
+        origin_hosts: Optional set of hostnames (e.g. ``origin.example.com``,
+            ``direct.example.com``, ``mail.example.com``) that have
+            been discovered as likely origin endpoints. They are
+            injected as ``https://<host>`` URLs into the ranking pool
+            (if not already present) and tagged with the
+            ``origin_bypass`` signal so they survive the CDN penalty
+            and the parameter-only filter.
 
     Returns:
         List of dicts with url, score components, signals, trust_boundary,
@@ -349,6 +368,26 @@ def rank_urls(
             )
         }
 
+    # Origin-bypass host injection. Each discovered host becomes an
+    # ``https://<host>`` candidate that the rest of the ranking
+    # pipeline treats as a high-priority target. The set is normalised
+    # once and used both to inject URLs and to detect origin-bypass
+    # matches in the per-URL loop below.
+    origin_host_set: set[str] = set()
+    if origin_hosts:
+        for host in origin_hosts:
+            if not isinstance(host, str):
+                continue
+            cleaned = host.strip().lower().rstrip(".")
+            if cleaned:
+                origin_host_set.add(cleaned)
+        existing_hosts = {
+            (urlparse(u).hostname or "").lower() for u in url_list
+        }
+        for host in origin_host_set:
+            if host and host not in existing_hosts:
+                url_list.append(f"https://{host}")
+
     flow_graph = build_flow_graph(url_list)
     flow_map: dict[str, dict[str, Any]] = cast(
         dict[str, dict[str, Any]], flow_graph.get("per_url", {})
@@ -367,11 +406,18 @@ def rank_urls(
             continue
         seen_canonical.add(canonical_key)
 
+        url_host = (urlparse(url).hostname or "").lower()
+        is_origin_bypass = bool(url_host) and url_host in origin_host_set
+
         parameter_names = query_parameter_names(url)
         has_meaningful_params = bool(parameter_names)
         endpoint_type = classify_endpoint(url)
         is_auth_flow = is_auth_flow_endpoint(url)
         signals = derive_url_signals(url)
+        if is_origin_bypass:
+            # Origin-bypass hosts are valuable even when parameter-less
+            # because they expose the CDN-bypassed attack surface.
+            signals.add("origin_bypass")
         if not parameter_names and not signals:
             continue
 
@@ -389,6 +435,11 @@ def rank_urls(
             custom_keyword_bonus=custom_keyword_bonus,
             scoring=scoring,
         )
+        if is_origin_bypass:
+            # Offset the no-meaningful-parameters penalty (-6) and the
+            # low-value-endpoint penalty that may also bite, so origin
+            # hosts always survive the composite-score filter.
+            score += 5
         flow = flow_score_precomputed(lowered, parameter_names, is_auth_flow)
         parameter_sensitivity = sum(parameter_weight(name) for name in parameter_names)
         trust_boundary = detect_trust_boundary(url)
@@ -407,6 +458,12 @@ def rank_urls(
             correlation_boost += 10
         elif trust_boundary.get("level") == "restricted-path":
             correlation_boost += 5
+        if is_origin_bypass:
+            # Being a confirmed origin host is itself a correlation
+            # signal that warrants an extra boost on top of the base
+            # +5 — origin discovery often correlates with deeper
+            # infrastructure exposure.
+            correlation_boost += 3
 
         # Integrate CVPS (Contextual Vulnerability Priority Scoring)
         parsed_port = urlparse(url).port or 443
@@ -422,8 +479,11 @@ def rank_urls(
             + cvps_boost
         )
 
-        # Apply CDN/Static penalty
-        if url in cdn_protected_urls and not parameter_names:
+        # Apply CDN/Static penalty — but only to URLs that are not
+        # already flagged as origin-bypass. An origin-bypass host is
+        # by definition not the CDN edge, so the penalty is wrong for
+        # it (we'd be hiding the most interesting target).
+        if url in cdn_protected_urls and not parameter_names and not is_origin_bypass:
             # High confidence CDN + no parameters = likely static asset or highly cached edge
             composite_score -= 8
             signals.add("cdn_protected")
@@ -470,6 +530,7 @@ def rank_urls(
         or item.get("signal_count", 0) >= 2
         or item.get("trust_boundary") == "cross-host"
         or float(item.get("score", 0)) >= 22
+        or "origin_bypass" in item.get("signals", [])
     ]
 
     minimum_keep = max(12, int(limit * 0.6))
@@ -496,9 +557,18 @@ def rank_urls(
 
 
 def prioritize_urls(
-    urls: Iterable[str], filters: dict[str, Any], scoring: dict[str, Any], mode: str
+    urls: Iterable[str],
+    filters: dict[str, Any],
+    scoring: dict[str, Any],
+    mode: str,
+    origin_hosts: set[str] | None = None,
 ) -> list[str]:
-    return [item["url"] for item in rank_urls(urls, filters, scoring, mode)]
+    return [
+        item["url"]
+        for item in rank_urls(
+            urls, filters, scoring, mode, origin_hosts=origin_hosts
+        )
+    ]
 
 
 # Aggregate risk score thresholds for labeling

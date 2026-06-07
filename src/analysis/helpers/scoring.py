@@ -107,6 +107,10 @@ def signal_weight(signal: str) -> int:
 _CONFIDENCE_SCORE_WEIGHT = 0.025
 _CONFIDENCE_SIGNAL_WEIGHT = 0.015
 _CONFIDENCE_CAP = 0.96
+# Maximum total positive contribution that bonuses can add (R3/R8).
+_CONFIDENCE_MAX_TOTAL_BONUS = 0.35
+# Maximum total negative contribution (penalties).
+_CONFIDENCE_MAX_TOTAL_PENALTY = 0.30
 
 
 def normalized_confidence(
@@ -117,14 +121,54 @@ def normalized_confidence(
     bonuses: list[float] | tuple[float, ...] | None = None,
     cap: float = _CONFIDENCE_CAP,
 ) -> float:
+    """Compute a bounded, capped-additive confidence score (R3).
+
+    Bonuses are summed and capped at ``_CONFIDENCE_MAX_TOTAL_BONUS`` and
+    penalties are clamped to ``-_CONFIDENCE_MAX_TOTAL_PENALTY`` so that
+    additive scoring cannot compound past safe ceilings.
+    """
     signal_values = [signal_weight(signal) for signal in (signals or [])]
+    positive_bonuses = [value for value in (bonuses or []) if value > 0]
+    negative_bonuses = [value for value in (bonuses or []) if value < 0]
+    bonus_total = min(sum(positive_bonuses), _CONFIDENCE_MAX_TOTAL_BONUS)
+    penalty_total = max(sum(negative_bonuses), -abs(_CONFIDENCE_MAX_TOTAL_PENALTY))
     confidence = (
         base
         + min(score, 10) * _CONFIDENCE_SCORE_WEIGHT
         + min(sum(signal_values), 10) * _CONFIDENCE_SIGNAL_WEIGHT
-        + sum(bonuses or [])
+        + bonus_total
+        + penalty_total
     )
-    return round(min(confidence, cap), 2)
+    return round(min(max(confidence, 0.0), cap), 2)
+
+
+# Re-export the bounded helper from the validator config layer so callers
+# that import from src.analysis.helpers.scoring (R3, R8) get a uniform
+# surface.
+def apply_bounded_confidence(
+    *,
+    base: float,
+    score: int = 0,
+    signals: list[str] | tuple[str, ...] | set[str] | None = None,
+    bonuses: list[float] | tuple[float, ...] | None = None,
+    cap: float = _CONFIDENCE_CAP,
+    max_total_bonus: float = _CONFIDENCE_MAX_TOTAL_BONUS,
+    max_total_penalty: float = _CONFIDENCE_MAX_TOTAL_PENALTY,
+) -> float:
+    """Bounded confidence helper exposing tunables for downstream callers."""
+    signal_values = [signal_weight(signal) for signal in (signals or [])]
+    positive_bonuses = [value for value in (bonuses or []) if value > 0]
+    negative_bonuses = [value for value in (bonuses or []) if value < 0]
+    bonus_total = min(sum(positive_bonuses), max_total_bonus)
+    penalty_total = max(sum(negative_bonuses), -abs(max_total_penalty))
+    confidence = (
+        base
+        + min(score, 10) * _CONFIDENCE_SCORE_WEIGHT
+        + min(sum(signal_values), 10) * _CONFIDENCE_SIGNAL_WEIGHT
+        + bonus_total
+        + penalty_total
+    )
+    return round(min(max(confidence, 0.0), cap), 2)
 
 
 def token_shape(value: str) -> str:

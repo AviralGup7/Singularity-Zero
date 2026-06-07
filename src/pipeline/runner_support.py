@@ -52,6 +52,16 @@ def emit_url_progress(message: str, percent: int, **fields: object) -> None:
     emit_progress("urls", message, percent, **fields)
 
 
+def check_max_duration(args: argparse.Namespace, started_at: float) -> bool:
+    """Return True if the max-duration budget is exhausted."""
+    max_dur = getattr(args, "max_duration_seconds", None)
+    if max_dur is None:
+        return False
+    import time
+
+    return (time.time() - started_at) >= max_dur
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Target-specific recon pipeline")
     parser.add_argument("--config", required=True, help="Path to config JSON")
@@ -111,7 +121,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="legacy_exit_codes",
         help="Collapse the 2/3/4 taxonomy back to a single 1 (pre-CI behaviour).",
     )
+    parser.add_argument(
+        "--resume-from",
+        default=None,
+        dest="resume_from",
+        help="Checkpoint run ID to resume from (skips completed stages).",
+    )
+    parser.add_argument(
+        "--max-duration",
+        type=int,
+        default=None,
+        dest="max_duration_seconds",
+        help="Maximum pipeline wall-clock duration in seconds. Exits with code 3 when exceeded.",
+    )
     return parser.parse_args(argv)
+
 
 
 def build_tool_status(browser_paths: list[str]) -> dict[str, bool]:

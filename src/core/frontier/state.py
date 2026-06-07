@@ -131,6 +131,15 @@ class VectorClock:
                 at_least_one_greater = True
         return at_least_one_greater
 
+    def is_concurrent_with(self, other: VectorClock) -> bool:
+        """Return ``True`` when neither clock dominates the other.
+
+        Concurrent clocks indicate a partition: each side has seen
+        events the other hasn't, so a merge is required instead of a
+        last-writer-wins replacement.
+        """
+        return not self.is_later_than(other) and not other.is_later_than(self)
+
     def to_dict(self) -> dict[str, int]:
         return dict(self.versions)
 

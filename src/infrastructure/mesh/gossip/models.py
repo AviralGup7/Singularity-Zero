@@ -7,7 +7,20 @@ from typing import Any
 
 @dataclass
 class MeshNode:
-    """Metadata for a node in the gossip mesh."""
+    """Metadata for a node in the gossip mesh.
+
+    The capability manifest (``capabilities``) plus the geographic /
+    capacity hints (``region``, ``zone``, ``bandwidth_mbps``,
+    ``capacity_weight``) are gossiped alongside the live telemetry so
+    the bidder, balancer, and sharder can make informed routing
+    decisions instead of relying on hard-coded local assumptions.
+
+    ``version_vector`` carries this node's view of the cluster
+    causality for partition-tolerant reconciliation (see
+    ``gossip/reconciler.py``). It maps ``node_id -> monotonic counter``
+    and is bumped every time the node mutates its own status, telemetry,
+    or capabilities.
+    """
 
     id: str
     host: str
@@ -18,6 +31,12 @@ class MeshNode:
     active_jobs: int = 0
     last_seen: float = field(default_factory=time.time)
     gossip_port: int = 0
+    capabilities: list[str] = field(default_factory=list)
+    region: str = ""
+    zone: str = ""
+    bandwidth_mbps: float = 0.0
+    capacity_weight: float = 1.0
+    version_vector: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass

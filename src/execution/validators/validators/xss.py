@@ -220,6 +220,7 @@ def _active_xss_test(target_url: str, http_client: Any) -> dict[str, Any]:
     contexts_found: list[str] = []
     waf_bypasses: list[str] = []
     dom_indicators: list[str] = []
+    baseline_signals: list[str] = []
 
     if not query_params:
         return {
@@ -228,8 +229,33 @@ def _active_xss_test(target_url: str, http_client: Any) -> dict[str, Any]:
             "url": target_url,
         }
 
+    # R5 baseline: send a non-XSS control payload first to learn whether
+    # the endpoint reflects arbitrary user input. If a benign payload is
+    # also reflected, the XSS reflection of ``<script>`` etc. is likely
+    # just normal reflection and does NOT count as XSS evidence.
     for param_name in list(query_params.keys())[:3]:
         original_value = query_params[param_name]
+
+        baseline_payload = "xssbaselinetoken987654"
+        baseline_params = dict(query_params)
+        baseline_params[param_name] = baseline_payload
+        baseline_url = urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                urlencode(baseline_params),
+                parsed.fragment,
+            )
+        )
+        try:
+            baseline_response = http_client.request(baseline_url)
+            baseline_body = str(baseline_response.get("body", ""))
+            if baseline_payload in baseline_body:
+                baseline_signals.append("baseline_reflection_present")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("XSS baseline request failed for %s: %s", target_url, exc)
 
         for payload in REFLECTED_XSS_PAYLOADS[:8]:
             test_params = dict(query_params)
@@ -252,7 +278,9 @@ def _active_xss_test(target_url: str, http_client: Any) -> dict[str, Any]:
                 body = str(response.get("body", ""))
 
                 context = _detect_xss_context(body, payload)
-                if context != "none":
+                # R5: require payload marker reflected only in attack
+                # response, not in baseline.
+                if context != "none" and "baseline_reflection_present" not in baseline_signals:
                     reflected_payloads.append(payload)
                     contexts_found.append(context)
                     test_results.append(
@@ -321,7 +349,12 @@ def _active_xss_test(target_url: str, http_client: Any) -> dict[str, Any]:
     reflected_count = len(reflected_payloads)
     bypass_count = len(waf_bypasses)
 
-    if reflected_count > 0:
+    # R5: when the baseline reflection test showed the endpoint
+    # reflects arbitrary input, we downgrade "confirmed" to "potential"
+    # because we cannot distinguish XSS from ordinary reflection.
+    baseline_downgrade = "baseline_reflection_present" in baseline_signals
+
+    if reflected_count > 0 and not baseline_downgrade:
         status = (
             "confirmed"
             if any(
@@ -329,6 +362,8 @@ def _active_xss_test(target_url: str, http_client: Any) -> dict[str, Any]:
             )
             else "potential"
         )
+    elif reflected_count > 0 and baseline_downgrade:
+        status = "potential"
     elif bypass_count > 0:
         status = "potential"
     else:
@@ -345,6 +380,7 @@ def _active_xss_test(target_url: str, http_client: Any) -> dict[str, Any]:
         "reflected_count": reflected_count,
         "bypass_count": bypass_count,
         "payloads_tested": len(test_results),
+        "baseline_signals": baseline_signals,
     }
 
 

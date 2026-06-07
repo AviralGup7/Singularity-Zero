@@ -148,6 +148,41 @@ class StageInput:
 
 
 @dataclass(frozen=True, slots=True)
+class StageInputView:
+    """Immutable, copy-on-write snapshot of pipeline state for a single stage.
+
+    A stage receives a ``StageInputView`` rather than a mutable
+    ``PipelineContext``.  Writes must be captured in a ``StageOutput``
+    delta; the orchestrator merges explicitly.  This prevents accidental
+    in-place mutation corrupting downstream stages.
+    """
+
+    stage_name: str
+    state_snapshot: Mapping[str, Any]
+    scope_entries: tuple[str, ...]
+    previous_deltas: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
+    contract_version: str = RUNTIME_CONTRACT_VERSION
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "state_snapshot",
+            ThawingMapping(_freeze_value(dict(self.state_snapshot or {}))),
+        )
+        object.__setattr__(
+            self,
+            "previous_deltas",
+            tuple(ThawingMapping(_freeze_value(d)) for d in (self.previous_deltas or ())),
+        )
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.state_snapshot.get(key, default)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.state_snapshot
+
+
+@dataclass(frozen=True, slots=True)
 class StageOutput:
     """Immutable stage completion contract produced by orchestrator state merge."""
 
@@ -160,6 +195,7 @@ class StageOutput:
     metrics: Mapping[str, Any] = field(default_factory=dict)
     artifacts: Mapping[str, Any] = field(default_factory=dict)
     state_delta: Mapping[str, Any] = field(default_factory=dict)
+    findings: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
     contract_version: str = RUNTIME_CONTRACT_VERSION
 
     def __post_init__(self) -> None:
@@ -168,6 +204,7 @@ class StageOutput:
         object.__setattr__(self, "metrics", _freeze_value(dict(self.metrics or {})))
         object.__setattr__(self, "artifacts", _freeze_value(dict(self.artifacts or {})))
         object.__setattr__(self, "state_delta", _freeze_value(dict(self.state_delta or {})))
+        object.__setattr__(self, "findings", tuple(_freeze_value(dict(f or {})) for f in (self.findings or ())))
 
     @classmethod
     def from_stage_state(
@@ -187,6 +224,7 @@ class StageOutput:
         else:
             outcome = StageOutcome.COMPLETED
         metric_data = dict(metrics or {})
+        findings_list = (state_delta or {}).get("reportable_findings", []) or []
         return cls(
             stage_name=stage_name,
             outcome=outcome,
@@ -197,6 +235,7 @@ class StageOutput:
             metrics=metric_data,
             artifacts=dict(artifacts or {}),
             state_delta=dict(state_delta or {}),
+            findings=tuple(findings_list),
         )
 
     def to_dict(self) -> dict[str, Any]:

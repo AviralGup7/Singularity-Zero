@@ -27,12 +27,16 @@ from src.core.logging.pipeline_logging import emit_retry_warning, emit_warning
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.utils.stderr_classification import StderrClassification, classify_stderr_lines
 from src.pipeline.retry import RetryPolicy, retry_ready, sleep_before_retry
+from src.pipeline.retry.strategies import detect_rate_limit, parse_retry_after
+from src.pipeline.waf_profile import WafTuningProfile
 
 from .circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitBreakerStats,
     ProbeCallback,
+    load_all_breakers,
+    persist_all_breakers,
 )
 
 logger = get_pipeline_logger(__name__)
@@ -481,6 +485,38 @@ class ToolExecutionService:
             for tool_name, breaker in self._circuit_breakers.items()
         }
 
+    def persist_breaker_states(self, cache: Any) -> None:
+        persist_all_breakers(cache, self._circuit_breakers)
+
+    def restore_breaker_states(self, cache: Any) -> None:
+        restored = load_all_breakers(cache)
+        for name, state_dict in restored.items():
+            if name not in self._circuit_breakers:
+                config = CircuitBreakerConfig(
+                    failure_threshold=int(state_dict.get("failure_threshold", 5)),
+                    recovery_timeout=float(state_dict.get("recovery_timeout", 60.0)),
+                )
+                breaker = CircuitBreaker(
+                    name=name,
+                    failure_threshold=config.failure_threshold,
+                    recovery_timeout=config.recovery_timeout,
+                )
+                if state_dict.get("forced_open") and state_dict.get("force_open_until", 0) > time.time():
+                    remaining = state_dict["force_open_until"] - time.time()
+                    breaker.force_open(
+                        reason=str(state_dict.get("force_open_reason", "recovered")),
+                        duration_seconds=remaining,
+                    )
+                self._circuit_breakers[name] = breaker
+            else:
+                existing = self._circuit_breakers[name]
+                if state_dict.get("forced_open") and state_dict.get("force_open_until", 0) > time.time():
+                    remaining = state_dict["force_open_until"] - time.time()
+                    existing.force_open(
+                        reason=str(state_dict.get("force_open_reason", "recovered")),
+                        duration_seconds=remaining,
+                    )
+
     def known_tool_names(self) -> list[str]:
         return sorted(self._circuit_breakers.keys())
 
@@ -570,6 +606,7 @@ class ToolExecutionService:
         timeout: int | None = None,
         stdin_text: str | None = None,
         retry_policy: RetryPolicy | None = None,
+        waf_profile: WafTuningProfile | None = None,
     ) -> str:
         sanitized = self.sanitize_tool_arguments(command)
         tool_name = sanitized[0] if sanitized else "unknown"
@@ -601,11 +638,13 @@ class ToolExecutionService:
             except subprocess.TimeoutExpired as exc:
                 breaker.record_failure()
                 last_error = exc
-                if not policy.retry_on_timeout or not self._prepare_retry(
+                if not policy.retry_on_timeout or not self._prepare_retry_with_stderr(
                     resolved_command,
                     attempt,
                     f"timed out after {timeout_effective} seconds",
                     policy,
+                    stderr_text=self._coerce_output_text(exc.stderr),
+                    waf_profile=waf_profile,
                 ):
                     raise
                 continue
@@ -618,11 +657,13 @@ class ToolExecutionService:
 
             error = ToolExecutionError(resolved_command, process.returncode, process.stderr)
             last_error = error
-            if not policy.retry_on_error or not self._prepare_retry(
+            if not policy.retry_on_error or not self._prepare_retry_with_stderr(
                 resolved_command,
                 attempt,
                 f"failed with exit code {process.returncode}",
                 policy,
+                stderr_text=process.stderr,
+                waf_profile=waf_profile,
             ):
                 raise error
 
@@ -636,6 +677,7 @@ class ToolExecutionService:
         timeout: int | None = None,
         stdin_text: str | None = None,
         retry_policy: RetryPolicy | None = None,
+        waf_profile: WafTuningProfile | None = None,
     ) -> ToolExecutionOutcome:
         sanitized = self.sanitize_tool_arguments(command)
         tool_name = sanitized[0] if sanitized else "unknown"
@@ -704,11 +746,13 @@ class ToolExecutionService:
                     duration_seconds=time.monotonic() - started,
                     circuit_breaker_state=breaker.state,
                 )
-                if not policy.retry_on_timeout or not self._prepare_retry(
+                if not policy.retry_on_timeout or not self._prepare_retry_with_stderr(
                     resolved_command,
                     attempt,
                     f"timed out after {effective_timeout_seconds} seconds",
                     policy,
+                    stderr_text=timeout_stderr,
+                    waf_profile=waf_profile,
                 ):
                     return last_outcome
                 continue
@@ -792,11 +836,13 @@ class ToolExecutionService:
                 duration_seconds=time.monotonic() - started,
                 circuit_breaker_state=breaker.state,
             )
-            if not policy.retry_on_error or not self._prepare_retry(
+            if not policy.retry_on_error or not self._prepare_retry_with_stderr(
                 resolved_command,
                 attempt,
                 f"failed with exit code {process.returncode}",
                 policy,
+                stderr_text=process.stderr,
+                waf_profile=waf_profile,
             ):
                 return last_outcome
 
@@ -808,12 +854,14 @@ class ToolExecutionService:
         timeout: int | None = None,
         stdin_text: str | None = None,
         retry_policy: RetryPolicy | None = None,
+        waf_profile: WafTuningProfile | None = None,
     ) -> str:
         outcome = self.execute_command(
             command,
             timeout=timeout,
             stdin_text=stdin_text,
             retry_policy=retry_policy,
+            waf_profile=waf_profile,
         )
         emitted = False
         for message in outcome.warning_messages:
@@ -850,6 +898,70 @@ class ToolExecutionService:
 
         combined = f"{output.stdout}\n{output.stderr}".lower()
         return "projectdiscovery" in combined or "-json" in combined
+
+    def get_tool_version(self, name: str) -> str | None:
+        """Return the version string of an external tool, if detectable."""
+        path = self.resolve_tool_path(name)
+        if not path:
+            return None
+        for flag in ("-version", "--version", "-v"):
+            try:
+                proc = subprocess.run(
+                    [path, flag],
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore",
+                    capture_output=True,
+                    timeout=8,
+                    check=False,
+                    env=self.command_env(),
+                )
+                output = (proc.stdout or proc.stderr or "").strip()
+                if output:
+                    return output.splitlines()[0][:256]
+            except Exception:
+                continue
+        return None
+
+    def _compute_retry_delay(
+        self,
+        policy: Any,
+        attempt_number: int,
+        stderr_text: str = "",
+        waf_profile: WafTuningProfile | None = None,
+    ) -> float:
+        """Return backoff delay, honouring Retry-After when present."""
+        retry_after = parse_retry_after(stderr_text)
+        if retry_after is not None:
+            return float(retry_after)
+        base = policy.delay_for_attempt(attempt_number)
+        if waf_profile is not None and detect_rate_limit(stderr_text):
+            return max(base, waf_profile.recovery_timeout_seconds)
+        return base
+
+    def _prepare_retry_with_stderr(
+        self,
+        command: list[str],
+        attempt: int,
+        reason: str,
+        policy: Any,
+        stderr_text: str = "",
+        waf_profile: WafTuningProfile | None = None,
+    ) -> bool:
+        from src.pipeline.retry import retry_ready, sleep_before_retry
+        from src.core.logging.pipeline_logging import emit_retry_warning
+        if not retry_ready(policy, attempt):
+            return False
+        delay = self._compute_retry_delay(policy, attempt + 1, stderr_text, waf_profile)
+        emit_retry_warning(
+            "command " + self._redact_command_for_logging(command),
+            reason=reason,
+            attempt=attempt,
+            max_attempts=policy.max_attempts,
+            delay=delay,
+        )
+        sleep_before_retry(policy, attempt)
+        return True
 
     @classmethod
     def _prepare_retry(

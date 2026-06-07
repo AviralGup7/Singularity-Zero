@@ -1,9 +1,14 @@
 """Validation engine runner and registry builder."""
 
+import logging
 from typing import Any
 
 from src.core.contracts.pipeline import TIMEOUT_DEFAULTS, VALIDATION_RUNTIME_SCHEMA_VERSION
 from src.core.plugins import list_plugins
+from src.execution.validators.config import (
+    load_validation_config,
+    replay_safety_from_settings,
+)
 from src.execution.validators.engine_helpers import collect_scope_hosts
 from src.execution.validators.registry import VALIDATOR_RESULT_KEYS
 from src.execution.validators.strategy import ValidationStrategySpec
@@ -11,6 +16,8 @@ from src.pipeline.retry import RetryPolicy
 
 from ._base import BaseValidator, ValidationContext
 from ._http_client import ValidationHttpClient, ValidationHttpConfig
+
+logger = logging.getLogger(__name__)
 
 RUNTIME_SCHEMA_VERSION = VALIDATION_RUNTIME_SCHEMA_VERSION
 
@@ -36,9 +43,33 @@ class DynamicValidationStrategy(BaseValidator):
         for url in context.runtime_inputs.get("urls", []):
             urls.add(url)
 
+        # R2: Scope guard. Refuse to evaluate URLs that are explicitly
+        # out of scope, and short-circuit when no scope is configured and
+        # the engagement policy demands it.
+        if not context.scope_hosts and bool(
+            getattr(context.scope_policy, "block_active_when_unscoped", True)
+        ):
+            logger.warning(
+                "DynamicValidationStrategy(%s) skipping: no scope_hosts configured.",
+                self.name,
+            )
+            return [], []
+
         findings = []
         errors = []
         for url in sorted(urls)[: context.per_validator_limit]:
+            in_scope, scope_reason = self._resolve_scope(url, context)
+            if not in_scope:
+                finding = self._base_finding(
+                    url=url,
+                    context=context,
+                    confidence=0.0,
+                    validation_state="out_of_scope",
+                    signals=["scope_filtered"],
+                )
+                finding["scope_reason"] = scope_reason
+                findings.append(finding)
+                continue
             payload = {
                 "target": {"url": url},
                 "active_probe_enabled": context.active_probe_enabled,
@@ -85,10 +116,21 @@ class DynamicValidationStrategy(BaseValidator):
                 )
         return findings, errors
 
+    @staticmethod
+    def _resolve_scope(url: str, context: ValidationContext) -> tuple[bool, str]:
+        """R2: scope guard helper."""
+        from src.execution.validators.engine_helpers import scope_check
+
+        in_scope, reason = scope_check(url, context.scope_hosts)
+        if not context.scope_hosts:
+            if bool(getattr(context.scope_policy, "treat_unscoped_as_out_of_scope", True)):
+                return False, "scope_unavailable"
+            return True, "scope_unavailable"
+        return in_scope, reason
+
 
 def build_validator_registry() -> dict[str, ValidationStrategySpec]:
     """Build the validator registry mapping names to strategy specs."""
-    # Only include keys that are actual validators, excluding support functions and stage runners
     registrations = [
         reg
         for reg in list_plugins("validator")
@@ -164,6 +206,17 @@ def run_blackbox_validation_engine(
         )
     )
     scope_hosts = collect_scope_hosts(analysis_results, ranked_priority_urls, runtime_inputs)
+
+    # R8: load the unified validation config (scoring/calibration/replay/scope)
+    validation_config = load_validation_config(settings)
+    replay_safety = replay_safety_from_settings(settings)
+
+    if not scope_hosts and validation_config.scope_policy.log_warning_when_unscoped:
+        logger.warning(
+            "Validation engine started with empty scope_hosts; active probing "
+            "will be skipped per scope policy."
+        )
+
     context = ValidationContext(
         analysis_results=analysis_results,
         ranked_priority_urls=ranked_priority_urls,
@@ -178,6 +231,23 @@ def run_blackbox_validation_engine(
             engine_settings.get("selector", {})
             if isinstance(engine_settings.get("selector", {}), dict)
             else {}
+        ),
+        validation_config=validation_config,
+        scope_policy=validation_config.scope_policy,
+        replay_safety=replay_safety,
+        cors_probe_origin=str(
+            engine_settings.get("cors_probe_origin", "")
+        ),
+        jwt_candidates=list(runtime_inputs.get("jwt_candidates", []) or []),
+        jwt_test_secrets=tuple(
+            validation_config.calibration.jwt_test_signatures
+        ),
+        cache_poisoning_unkeyed_headers=tuple(
+            validation_config.calibration.cache_poisoning_unkeyed_headers
+        ),
+        graphql_endpoints=list(runtime_inputs.get("graphql_endpoints", []) or []),
+        race_concurrency=int(
+            validation_config.calibration.max_concurrent_race_workers
         ),
     )
 
@@ -243,6 +313,8 @@ def run_blackbox_validation_engine(
             "requested_validators": requested_validators,
             "enabled_validators": [spec.name for spec in validator_specs],
             "available_validators": sorted(registry),
+            "validation_scoring_keys": sorted(validation_config.scoring),
+            "replay_authorized": replay_safety.authorized_replay,
         },
     }
 

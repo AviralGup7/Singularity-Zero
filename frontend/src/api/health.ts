@@ -1,6 +1,6 @@
 import type { ReadinessResponse } from '@/types/extended';
 import type { MeshHealth } from '@/types/api';
-import { cachedGet, cachedPost } from './core';
+import { apiClient, cachedGet, cachedPost } from './core';
 
 export async function getReadiness(signal?: AbortSignal): Promise<ReadinessResponse> {
   return cachedGet<ReadinessResponse>('/api/health/ready', { signal, bypassCache: true });
@@ -8,6 +8,18 @@ export async function getReadiness(signal?: AbortSignal): Promise<ReadinessRespo
 
 export async function getLiveness(signal?: AbortSignal): Promise<{ status: string; timestamp: string }> {
   return cachedGet<{ status: string; timestamp: string }>('/api/health/live', { signal, bypassCache: true });
+}
+
+/**
+ * Pings the backend liveness endpoint and returns the server-stamped time
+ * so callers can compute client ↔ server clock skew.
+ *
+ * Uses the raw `apiClient` (not the cached wrapper) because we always want
+ * a fresh timestamp and the request is trivially cheap.
+ */
+export async function pingLivenessForTimeSync(): Promise<{ timestamp: string | null }> {
+  const { data } = await apiClient.get<{ status: string; timestamp: string }>('/api/health/live');
+  return { timestamp: data?.timestamp ?? null };
 }
 
 export async function getMeshHealth(signal?: AbortSignal): Promise<MeshHealth> {

@@ -11,6 +11,7 @@ SCANNER = "scanner"
 VALIDATOR = "validator"
 EXPORTER = "exporter"
 ENRICHMENT_PROVIDER = "enrichment_provider"
+TICKET_CREATOR = "ticket_creator"
 
 import time
 
@@ -44,6 +45,9 @@ def _register_defaults() -> None:
     from src.pipeline.services.pipeline_orchestrator.stages.enrichment import (
         run_post_analysis_enrichments,
     )
+    from src.pipeline.services.pipeline_orchestrator.stages.finding_revalidation import (
+        run_finding_revalidation,
+    )
     from src.pipeline.services.pipeline_orchestrator.stages.git_diff_crawl import (
         run_git_diff_crawl,
     )
@@ -54,6 +58,9 @@ def _register_defaults() -> None:
         run_priority_ranking,
         run_subdomain_enumeration,
         run_url_collection,
+    )
+    from src.pipeline.services.pipeline_orchestrator.stages.report_distribution import (
+        run_report_distribution,
     )
     from src.pipeline.services.pipeline_orchestrator.stages.reporting import run_reporting
     from src.pipeline.services.pipeline_orchestrator.stages.sarif_export import run_sarif_export
@@ -75,11 +82,25 @@ def _register_defaults() -> None:
 
     register_plugin(VALIDATOR, "access_control")(run_access_control_testing)
     register_plugin(VALIDATOR, "validation")(run_validation)
+    register_plugin(VALIDATOR, "finding_revalidation")(run_finding_revalidation)
 
     register_plugin(ENRICHMENT_PROVIDER, "intelligence")(run_post_analysis_enrichments)
     register_plugin(ENRICHMENT_PROVIDER, "threat_modeling")(run_threat_modeling)
     register_plugin(EXPORTER, "reporting")(run_reporting)
     register_plugin(EXPORTER, "sarif_export")(run_sarif_export)
+    register_plugin(EXPORTER, "report_distribution")(run_report_distribution)
+
+    from src.analysis.automation.ticket_creators import (
+        BugcrowdTicketCreator,
+        HackerOneTicketCreator,
+        JiraTicketCreator,
+        register_default_ticket_creators,
+    )
+
+    register_default_ticket_creators()
+    register_plugin(TICKET_CREATOR, "hackerone_class")(HackerOneTicketCreator)
+    register_plugin(TICKET_CREATOR, "bugcrowd_class")(BugcrowdTicketCreator)
+    register_plugin(TICKET_CREATOR, "jira_class")(JiraTicketCreator)
 
 
     # Trigger internal plugin registrations via module imports
@@ -100,7 +121,7 @@ def resolve_stage_runner(stage_name: str) -> Callable[..., Any]:
     _register_defaults()
     _throttled_refresh()
     normalized = stage_name.strip().lower()
-    for kind in (RECON_PROVIDER, SCANNER, VALIDATOR, ENRICHMENT_PROVIDER, EXPORTER):
+    for kind in (RECON_PROVIDER, SCANNER, VALIDATOR, ENRICHMENT_PROVIDER, EXPORTER, TICKET_CREATOR):
         try:
             return cast(Callable[..., Any], resolve_plugin(kind, normalized))
         except KeyError:
@@ -117,4 +138,5 @@ def list_registered_stage_runners() -> dict[str, tuple[str, ...]]:
         VALIDATOR: tuple(reg.key for reg in list_plugins(VALIDATOR)),
         ENRICHMENT_PROVIDER: tuple(reg.key for reg in list_plugins(ENRICHMENT_PROVIDER)),
         EXPORTER: tuple(reg.key for reg in list_plugins(EXPORTER)),
+        TICKET_CREATOR: tuple(reg.key for reg in list_plugins(TICKET_CREATOR)),
     }

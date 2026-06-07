@@ -7,6 +7,41 @@ function metadataText(metadata: CockpitNode['metadata'], key: string): string {
   return String(value);
 }
 
+interface SliderRowProps {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  min: number;
+  max: number;
+  step: number;
+  suffix?: string;
+  hint?: string;
+}
+
+function SliderRow({ label, value, onChange, min, max, step, suffix, hint }: SliderRowProps) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-muted">
+        <span>{label}</span>
+        <span className="font-bold text-accent">
+          {value} {suffix ?? ''}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="cockpit-slider w-full"
+        aria-label={label}
+      />
+      {hint && <p className="font-mono text-[8px] leading-snug text-muted/70">{hint}</p>}
+    </div>
+  );
+}
+
 interface ScanControlDeckProps {
   activeJob: { status?: string; stage_label?: string; progress_percent?: number; base_url?: string; status_message?: string } | null;
   activeJobId: string | undefined;
@@ -27,6 +62,14 @@ interface ScanControlDeckProps {
   inputTarget: string;
   setInputTarget: (target: string) => void;
   onClearScan: () => void;
+  scanDepth: number;
+  setScanDepth: (n: number) => void;
+  scanConcurrency: number;
+  setScanConcurrency: (n: number) => void;
+  scanRateLimit: number;
+  setScanRateLimit: (n: number) => void;
+  excludedPaths: string;
+  setExcludedPaths: (s: string) => void;
 }
 
 export function ScanControlDeck({
@@ -49,6 +92,14 @@ export function ScanControlDeck({
   inputTarget,
   setInputTarget,
   onClearScan,
+  scanDepth,
+  setScanDepth,
+  scanConcurrency,
+  setScanConcurrency,
+  scanRateLimit,
+  setScanRateLimit,
+  excludedPaths,
+  setExcludedPaths,
 }: ScanControlDeckProps) {
   const modules = [
     { id: 'subdomain_enum', label: 'Subdomain Recon' },
@@ -173,12 +224,68 @@ export function ScanControlDeck({
               </div>
 
               <div className="space-y-2 border-t border-white/5 pt-3">
+                <div className="font-mono text-[9px] uppercase tracking-widest text-muted">
+                  Scan Tuning
+                </div>
+                <div className="space-y-3 rounded border border-white/5 bg-black/40 p-2.5 animate-fadeIn">
+                  <SliderRow
+                    label="Crawl Depth"
+                    min={1}
+                    max={8}
+                    step={1}
+                    value={scanDepth}
+                    onChange={setScanDepth}
+                    suffix={`level${scanDepth === 1 ? '' : 's'}`}
+                    hint="How deep the crawler follows links before stopping"
+                  />
+                  <SliderRow
+                    label="Concurrency"
+                    min={1}
+                    max={64}
+                    step={1}
+                    value={scanConcurrency}
+                    onChange={setScanConcurrency}
+                    suffix="workers"
+                    hint="Parallel in-flight requests (raise carefully, may trigger WAFs)"
+                  />
+                  <SliderRow
+                    label="Rate Limit"
+                    min={1}
+                    max={500}
+                    step={1}
+                    value={scanRateLimit}
+                    onChange={setScanRateLimit}
+                    suffix="req/s"
+                    hint="Requests per second cap — tune to match program policy"
+                  />
+                  <div className="space-y-1">
+                    <label className="block">
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted">
+                        Excluded paths
+                      </span>
+                      <textarea
+                        value={excludedPaths}
+                        onChange={(e) => setExcludedPaths(e.target.value)}
+                        rows={2}
+                        placeholder="/logout, /signout, .*\\.gif$"
+                        className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1 font-mono text-[10px] text-text placeholder-white/20 outline-none focus:border-accent/40"
+                      />
+                    </label>
+                    <p className="font-mono text-[8px] leading-snug text-muted/70">
+                      One regex per line. Prevents scanners from logging you out, hitting
+                      heavy endpoints, or visiting CDNs.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 border-t border-white/5 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
                   className="flex w-full items-center justify-between font-mono text-[9px] uppercase tracking-wider text-muted hover:text-accent transition-colors"
                 >
-                  <span>{showAdvanced ? '— Hide Advanced Options' : '— Show Advanced Options'}</span>
+                  <span>{showAdvanced ? '— Hide Modules' : '— Show Modules'}</span>
                 </button>
 
                 {showAdvanced && (

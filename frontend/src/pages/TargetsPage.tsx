@@ -1,10 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Pagination } from '@/components/ui/Pagination';
 import { useApi } from '@/hooks/useApi';
 import { useDebouncedFilter } from '@/hooks/useDebouncedFilter';
 import { UrlCollectionSystem } from '@/components/UrlCollectionSystem';
-import { Target as TargetIcon, ChevronDown, AlertTriangle, X, Upload } from 'lucide-react';
+import { Target as TargetIcon, ChevronDown, AlertTriangle, X, Upload, ShieldCheck } from 'lucide-react';
 import { PageHeader, GlassCard, AnimatedCounter } from '@/components/ui';
 import { TargetsResponse, useTargetsKPIs, PAGE_SIZE } from '@/hooks/useTargetsKPIs';
 import { useTargetPagination } from '@/hooks/useTargetPagination';
@@ -16,6 +17,8 @@ import { ScanProgressPanel } from '@/components/targets/ScanProgressPanel';
 import { TargetTableRow } from '@/components/targets/TargetTableRow';
 import { ImportModal } from '@/components/targets/ImportModal';
 import { useSemgrepImport } from '@/hooks/useSemgrepImport';
+import { ScopeImportModal } from '@/components/scope/ScopeImportModal';
+import { useScopeStore } from '@/stores/scopeStore';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -25,11 +28,14 @@ export function TargetsPage() {
   const { filters, setFilters, showFilters, setShowFilters, toggleSeverity, clearAllFilters, activeFilterChips } =
     useTargetFilters();
   const { filter, setFilter, debouncedFilter } = useDebouncedFilter();
-  const { currentPage: pagingCurrentPage, setCurrentPage: setPagingCurrentPage, paginated: paging } = useTargetPagination(0, PAGE_SIZE);
   const { isScanning, progressList, selectedTargets, toggleTargetSelection, selectAllOnPage, clearSelection, handleBulkRescan, allOnPageSelected } =
     useScanProgress();
   const { importTargetName, setImportTargetName, importFile, handleFileChange, executeImport, resetImport, isImporting } =
     useSemgrepImport();
+
+  const [scopeModalOpen, setScopeModalOpen] = useState(false);
+  const scopeImported = useScopeStore((s) => Boolean(s.parsed));
+  const scopeProgram = useScopeStore((s) => s.programHandle);
 
   const filtered = useFilteredTargets(data?.targets ?? [], filters, debouncedFilter);
   const { currentPage: pagingCurrentPage, setCurrentPage: setPagingCurrentPage, paginated: paging } = useTargetPagination(filtered.length, PAGE_SIZE);
@@ -43,6 +49,16 @@ export function TargetsPage() {
         subtitle="Manage scan targets and view results"
         actions={
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setScopeModalOpen(true)}
+              className={`btn btn-sm ${scopeImported ? 'btn-accent-outline' : 'btn-secondary'} flex items-center gap-1.5`}
+              data-testid="import-scope-btn"
+              title={scopeImported ? `Scope loaded for ${scopeProgram || 'program'}` : 'Import program scope (HackerOne, Bugcrowd, Intigriti)'}
+            >
+              <ShieldCheck size={14} />
+              <span>{scopeImported ? 'Scope Loaded' : 'Import Scope'}</span>
+            </button>
             <label className="btn btn-sm btn-secondary cursor-pointer flex items-center gap-1.5">
               <Upload size={14} />
               <span>Import Semgrep</span>
@@ -238,6 +254,10 @@ export function TargetsPage() {
         onClose={resetImport}
         onConfirm={() => executeImport(refetch)}
         isImporting={isImporting}
+      />
+      <ScopeImportModal
+        open={scopeModalOpen}
+        onClose={() => setScopeModalOpen(false)}
       />
     </div>
   );
