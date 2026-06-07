@@ -1,3 +1,22 @@
+"""Plugin registration hot-path for the Neural-Mesh pipeline orchestrator.
+
+The legacy plugin catalog mirrors the built-in tool runners behind the
+``kind / name`` tuple key used by :func:`resolve_stage_runner`.  The
+same catalog now bridges to the new
+:class:`~src.pipeline.stage_registry.StageRegistry`: after the
+default runners are registered every :class:`~src.pipeline.stage_registry.StageNodeDefinition`
+known to the global registry is made visible through
+:func:`list_registered_stage_definitions` and
+:func:`resolve_stage_definition`.
+
+External modules don't need to call ``register_stage_definition``
+explicitly at runtime — ``_register_defaults`` already imports the
+built-in stages and then refreshes the dynamic plugin loader.  Third-
+party plugins that need to insert new graph nodes should call
+:func:`src.pipeline.stage_registry.register_stage_definition` at
+import time, before the first call to
+:func:`~pipeline.services.pipeline_orchestrator.graph_builder.build_pipeline_graph`.
+"""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -5,6 +24,12 @@ from typing import Any, cast
 
 from src.core.plugins import list_plugins, register_plugin, resolve_plugin
 from src.core.plugins.loader import refresh_dynamic_plugins
+from src.pipeline.stage_registry import (
+    StageNodeDefinition,
+    _global_stage_registry,
+    list_registered_stage_definitions,
+    resolve_stage_definition as _resolve_stage_definition,
+)
 
 RECON_PROVIDER = "recon_provider"
 SCANNER = "scanner"
@@ -12,6 +37,7 @@ VALIDATOR = "validator"
 EXPORTER = "exporter"
 ENRICHMENT_PROVIDER = "enrichment_provider"
 TICKET_CREATOR = "ticket_creator"
+BUG_BOUNTY = "bug_bounty"
 
 import time
 
@@ -26,6 +52,10 @@ def _throttled_refresh() -> None:
     if now - _LAST_REFRESH_TIME >= REFRESH_THROTTLE_SECONDS:
         refresh_dynamic_plugins()
         _LAST_REFRESH_TIME = now
+
+
+def register_stage_definitions() -> None:
+    _throttled_refresh()
 
 
 def _register_defaults() -> None:
@@ -66,6 +96,12 @@ def _register_defaults() -> None:
     from src.pipeline.services.pipeline_orchestrator.stages.sarif_export import run_sarif_export
     from src.pipeline.services.pipeline_orchestrator.stages.semgrep import run_semgrep_stage
     from src.pipeline.services.pipeline_orchestrator.stages.validation import run_validation
+    from src.pipeline.services.pipeline_orchestrator.stages.sca_scan import run_sca_scan_stage
+    from src.pipeline.services.pipeline_orchestrator.stages.container_scan import run_container_scan_stage
+    from src.pipeline.services.pipeline_orchestrator.stages.iac_scan import run_iac_scan_stage
+    from src.pipeline.services.pipeline_orchestrator.stages.sbom_generate import run_sbom_generate_stage
+    from src.pipeline.services.pipeline_orchestrator.stages.sbom_diff import run_sbom_diff_stage
+    from src.pipeline.services.pipeline_orchestrator.stages.git_secret_scan import run_git_secret_scan_stage
 
     register_plugin(RECON_PROVIDER, "subdomains")(run_subdomain_enumeration)
     register_plugin(RECON_PROVIDER, "live_hosts")(run_live_hosts)
@@ -79,6 +115,12 @@ def _register_defaults() -> None:
     register_plugin(SCANNER, "active_scan")(run_active_scanning)
     register_plugin(SCANNER, "nuclei")(run_nuclei_stage)
     register_plugin(SCANNER, "semgrep")(run_semgrep_stage)
+    register_plugin(SCANNER, "sca_scan")(run_sca_scan_stage)
+    register_plugin(SCANNER, "container_scan")(run_container_scan_stage)
+    register_plugin(SCANNER, "iac_scan")(run_iac_scan_stage)
+    register_plugin(SCANNER, "sbom_generate")(run_sbom_generate_stage)
+    register_plugin(SCANNER, "sbom_diff")(run_sbom_diff_stage)
+    register_plugin(SCANNER, "git_secret_scan")(run_git_secret_scan_stage)
 
     register_plugin(VALIDATOR, "access_control")(run_access_control_testing)
     register_plugin(VALIDATOR, "validation")(run_validation)
@@ -102,8 +144,6 @@ def _register_defaults() -> None:
     register_plugin(TICKET_CREATOR, "bugcrowd_class")(BugcrowdTicketCreator)
     register_plugin(TICKET_CREATOR, "jira_class")(JiraTicketCreator)
 
-
-    # Trigger internal plugin registrations via module imports
     import src.analysis.behavior.api_security  # noqa: F401
     import src.analysis.behavior.dns_security  # noqa: F401
     import src.analysis.intelligence.aggregator  # noqa: F401
@@ -113,7 +153,7 @@ def _register_defaults() -> None:
     import src.recon.urls  # noqa: F401
     import src.reporting.pipeline  # noqa: F401
 
-    _throttled_refresh()
+    register_stage_definitions()
     _DEFAULTS_REGISTERED = True
 
 
@@ -121,7 +161,7 @@ def resolve_stage_runner(stage_name: str) -> Callable[..., Any]:
     _register_defaults()
     _throttled_refresh()
     normalized = stage_name.strip().lower()
-    for kind in (RECON_PROVIDER, SCANNER, VALIDATOR, ENRICHMENT_PROVIDER, EXPORTER, TICKET_CREATOR):
+    for kind in (RECON_PROVIDER, SCANNER, VALIDATOR, ENRICHMENT_PROVIDER, EXPORTER, BUG_BOUNTY, TICKET_CREATOR):
         try:
             return cast(Callable[..., Any], resolve_plugin(kind, normalized))
         except KeyError:
@@ -140,3 +180,11 @@ def list_registered_stage_runners() -> dict[str, tuple[str, ...]]:
         EXPORTER: tuple(reg.key for reg in list_plugins(EXPORTER)),
         TICKET_CREATOR: tuple(reg.key for reg in list_plugins(TICKET_CREATOR)),
     }
+
+
+def list_registered_stage_definitions() -> list[StageNodeDefinition]:
+    return list(_global_stage_registry.get_all())
+
+
+def resolve_stage_definition(name: str) -> StageNodeDefinition | None:
+    return _resolve_stage_definition(name)

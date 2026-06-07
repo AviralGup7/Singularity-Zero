@@ -153,6 +153,59 @@ def execute_pipeline(args: argparse.Namespace) -> int:
     return PipelineOrchestrator().run_sync(args)
 
 
+async def _run_continuous(args: argparse.Namespace) -> int:
+    """Run continuous monitoring mode."""
+    import os
+
+    from src.core.checkpoint import create_checkpoint_manager, generate_run_id
+    from src.core.monitoring.asset_inventory import AssetInventoryManager
+    from src.core.monitoring.continuous_scan import ContinuousScanMode
+    from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
+
+    config_path = Path(args.config).resolve()
+    from src.core.config import load_config
+    config = load_config(config_path)
+    output_dir = Path(config.output_dir)
+    target_name = str(getattr(config, "target_name", "continuous") or "continuous")
+
+    continuous_run_id = generate_run_id()
+    checkpoint_mgr = create_checkpoint_manager(
+        output_dir,
+        target_name,
+        run_id=continuous_run_id,
+        storage_config=getattr(config, "storage", None),
+    )
+
+    inventory_config: dict[str, Any] = {
+        "cloud_providers": os.getenv("CLOUD_PROVIDERS", ""),
+        "aws_region": os.getenv("AWS_REGION", ""),
+        "gcp_project": os.getenv("GCP_PROJECT", ""),
+        "azure_subscription": os.getenv("AZURE_SUBSCRIPTION_ID", ""),
+    }
+    inventory_mgr = AssetInventoryManager(inventory_config)
+
+    continuous_mode = ContinuousScanMode(
+        orchestrator=PipelineOrchestrator(),
+        inventory_mgr=inventory_mgr,
+        checkpoint_mgr=checkpoint_mgr,
+    )
+
+    interval = int(getattr(args, "monitor_interval", 3600) or 3600)
+    asset_diff_only = bool(getattr(args, "asset_diff_only", False))
+
+    try:
+        await continuous_mode.run_continuous(
+            interval_seconds=interval,
+            output_dir=output_dir,
+            target_name=target_name,
+            asset_diff_only=asset_diff_only,
+            config_path=config_path,
+        )
+    except asyncio.CancelledError:
+        pass
+    return 0
+
+
 async def _run_replay(args: argparse.Namespace) -> int:
     """Handle --replay: unpack artifact pack and run pipeline with verification."""
     from src.core.logging.pipeline_logging import emit_info, emit_warning
@@ -273,7 +326,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if all_ok else 1
 
         if not _preflight_checks(args):
-            return 1
+            if not getattr(args, "continuous", False):
+                return 1
 
         loop = asyncio.new_event_loop()
         try:
@@ -284,6 +338,9 @@ def main(argv: list[str] | None = None) -> int:
                     signal.signal(sig, handle_signal)
 
             _pipeline_started_at = time.time()
+
+            if getattr(args, "continuous", False):
+                return loop.run_until_complete(_run_continuous(args))
 
             async def _run_with_shutdown_check() -> int:
                 from src.pipeline.runner_support import check_max_duration
@@ -301,6 +358,35 @@ def main(argv: list[str] | None = None) -> int:
 
             if getattr(args, "replay_archive", None):
                 return loop.run_until_complete(_run_replay(args))
+
+            replay_stage = getattr(args, "replay_stage", None)
+            replay_run_id = getattr(args, "replay_run_id", None)
+            replay_traces = getattr(args, "replay_traces_run_id", None)
+            if replay_stage and replay_run_id:
+                from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
+
+                logger.info("Replaying stage %s from run %s", replay_stage, replay_run_id)
+                orchestrator = PipelineOrchestrator()
+                outcome = loop.run_until_complete(
+                    orchestrator._replay_single_stage(
+                        replay_run_id,
+                        replay_stage,
+                        trace_dir=getattr(args, "trace_dir", ".ai/traces"),
+                    )
+                )
+                return 0 if outcome is not None else 1
+            if replay_traces:
+                from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
+
+                logger.info("Replaying all traced stages from run %s", replay_traces)
+                orchestrator = PipelineOrchestrator()
+                outcomes = loop.run_until_complete(
+                    orchestrator._replay_traces(
+                        replay_traces,
+                        trace_dir=getattr(args, "trace_dir", ".ai/traces"),
+                    )
+                )
+                return 0 if outcomes else 1
 
             return loop.run_until_complete(_run_with_shutdown_check())
         finally:

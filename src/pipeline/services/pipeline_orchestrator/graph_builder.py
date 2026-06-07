@@ -1,6 +1,6 @@
 """Pipeline graph builder.
 
-Single source of truth for the executable pipeline DAG.  Replaces
+Single source of truth for the executable pipeline DAG. Replaces
 ``STAGE_DEPS`` + ``PARALLEL_STAGE_GROUPS`` + ``_check_parallel_consistency()``
 with one declarative :class:`Graph` whose nodes carry their
 dependencies, conditional gates, priority weights, timeouts, and
@@ -12,12 +12,20 @@ returns an immutable, cycle-checked :class:`Graph`.
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
+from src.pipeline.stage_registry import (
+    StageNodeDefinition,
+    _global_stage_registry,
+    _make_stage_node,
+)
 from ._graph_dsl import (
     All,
     FlagSet,
@@ -56,13 +64,6 @@ _BASE_NODES: tuple[StageNode, ...] = (
         needs=(),
         weight=10,
         timeout=600,
-        # ``subdomains`` is no longer critical: when active subdomain
-        # enumeration fails the pipeline can still proceed in degraded
-        # mode if a downstream stage (``urls``) surfaces actionable
-        # targets via certificate transparency or historical data.
-        # The ``RECON_DEGRADED`` warning is emitted from
-        # ``resolve_pipeline_exit_code`` and the run is downgraded to
-        # ``partial`` (exit 4) instead of ``infra_failure`` (exit 3).
         critical=False,
     ),
     StageNode(
@@ -70,9 +71,6 @@ _BASE_NODES: tuple[StageNode, ...] = (
         needs=("subdomains",),
         weight=15,
         timeout=900,
-        # ``live_hosts`` is the only truly fatal recon stage: it gates
-        # every active scanner via ``OutputNonEmpty("live_hosts")`` and
-        # without it there is nothing to probe.
         critical=True,
     ),
     StageNode(
@@ -86,11 +84,6 @@ _BASE_NODES: tuple[StageNode, ...] = (
         needs=("live_hosts",),
         weight=15,
         timeout=900,
-        # ``urls`` is no longer critical: when URL collection fails the
-        # pipeline can still complete passively if ``subdomains``
-        # produced a non-empty set, or it can fall back to live-host
-        # probing directly.  See ``RECON_DEGRADED`` handling in
-        # ``resolve_pipeline_exit_code``.
         critical=False,
     ),
     StageNode(
@@ -196,28 +189,109 @@ _BASE_NODES: tuple[StageNode, ...] = (
 )
 
 
+def _load_capability_profile(profile_name: str) -> dict[str, Any] | None:
+    """Load a named pipeline profile from .ai/capability_manifest.json if present."""
+    manifest_path = Path(".ai/capability_manifest.json")
+    if not manifest_path.exists():
+        return None
+    try:
+        text = manifest_path.read_text(encoding="utf-8")
+        manifest = json.loads(text)
+        profiles = manifest.get("pipeline_profiles", {})
+        return profiles.get(profile_name)
+    except Exception as exc:
+        logger.debug("Failed to load capability profile %r: %s", profile_name, exc)
+        return None
+
+
+def _apply_profile_to_definition(
+    defn: StageNodeDefinition,
+    profile: dict[str, Any],
+) -> StageNodeDefinition:
+    """Apply profile settings to a stage definition."""
+    stage_profile = profile.get(defn.name)
+    if not isinstance(stage_profile, dict):
+        return defn
+
+    # Merge with base definition (overrides take precedence)
+    merged = StageNodeDefinition(
+        name=defn.name,
+        needs=list(defn.needs),
+        weight=stage_profile.get("weight", defn.weight),
+        timeout_seconds=stage_profile.get("timeout_seconds", defn.timeout_seconds),
+        critical=stage_profile.get("critical", defn.critical),
+        when=defn.when,
+        runner_name=defn.runner_name,
+        produces=list(defn.produces),
+        group=defn.group,
+    )
+
+    # Apply 'enabled' as a FlagSet condition
+    enabled = stage_profile.get("enabled")
+    if enabled is False:
+        flag = FlagSet(flag=f"{defn.name}_enabled")
+        if merged.when is None:
+            merged = StageNodeDefinition(
+                name=merged.name,
+                needs=merged.needs,
+                weight=merged.weight,
+                timeout_seconds=merged.timeout_seconds,
+                critical=merged.critical,
+                when=flag,
+                runner_name=merged.runner_name,
+                produces=merged.produces,
+                group=merged.group,
+            )
+        else:
+            combined = All(conditions=(merged.when, flag))
+            merged = StageNodeDefinition(
+                name=merged.name,
+                needs=merged.needs,
+                weight=merged.weight,
+                timeout_seconds=merged.timeout_seconds,
+                critical=merged.critical,
+                when=combined,
+                runner_name=merged.runner_name,
+                produces=merged.produces,
+                group=merged.group,
+            )
+
+    return merged
+
 
 def build_pipeline_graph(
+    registered_stages: list[StageNodeDefinition] | None = None,
+    profile: dict[str, Any] | None = None,
     stage_methods: Mapping[str, Any] | None = None,
     tool_status: dict[str, bool] | None = None,
 ) -> Graph:
-    """Construct the executable pipeline graph.
+    from src.pipeline.stage_registry import _register_builtin_stages
 
-    The optional ``stage_methods`` mapping lets the builder mirror the
-    legacy behaviour: ``startup`` is injected as a node and added to
-    ``subdomains.needs`` *only* when a startup method is actually
-    registered.  This keeps checkpoint-compat runs that have no
-    startup method from being blocked on a phantom dependency.
-    """
-    nodes: list[StageNode] = list(_BASE_NODES)
+    _register_builtin_stages()
+    # Load registered stages if not provided explicitly
+    if registered_stages is None:
+        registered_stages = _global_stage_registry.get_all()
+
+    # Start with built-in nodes
+    nodes_by_name: dict[str, StageNode] = {n.name: n for n in _BASE_NODES}
+
+    # Merge plugin stages (plugin nodes override built-in nodes with same name)
+    for defn in registered_stages:
+        # Apply profile if provided
+        effective_defn = defn
+        if profile is not None:
+            effective_defn = _apply_profile_to_definition(defn, profile)
+
+        stage_node = _make_stage_node(effective_defn)
+        nodes_by_name[stage_node.name] = stage_node
+
+    nodes = list(nodes_by_name.values())
+
+    # Prune unavailable tools
     if tool_status:
-        _TOOL_NODE_MAP: dict[str, str] = {
-            "nuclei": "nuclei",
-            "semgrep": "semgrep",
-        }
         available_set = {name for name, avail in tool_status.items() if avail}
         for node in list(nodes):
-            required_tool = _TOOL_NODE_MAP.get(node.name)
+            required_tool = {"nuclei": "nuclei", "semgrep": "semgrep"}.get(node.name)
             if required_tool and required_tool not in available_set:
                 nodes = [n for n in nodes if n.name != node.name]
                 logger.info(
@@ -225,6 +299,8 @@ def build_pipeline_graph(
                     node.name,
                     required_tool,
                 )
+
+    # Startup injection
     if stage_methods is not None and "startup" in stage_methods:
         nodes.insert(
             0,
@@ -246,4 +322,12 @@ def build_pipeline_graph(
                     critical=node.critical,
                 )
                 break
+
     return Graph(nodes=tuple(nodes))
+
+
+def register_plugin_stages() -> None:
+    """Register plugin stages at import time. Plugins may call this to
+    inject their stage definitions into the global registry."""
+    logger.debug("register_plugin_stages called; global registry contains %d entries",
+                 len(_global_stage_registry.get_all()))

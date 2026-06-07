@@ -1,40 +1,91 @@
 {
-  "version": "1.0",
-  "resource_prediction": {
-    "ram_usage_mb": {
-      "base": 1024,
-      "growth_per_target": 2,
-      "growth_per_url": 0.01,
-      "max_limit": 32768,
-      "formula": "1024 + (target_count * 2) + (url_count * 0.01)"
+  "version": "2.0",
+  "description": "Per-tool memory profile model for accurate resource prediction",
+  "tool_profiles": {
+    "nuclei": {
+      "base_ram_mb": 2048,
+      "per_template_mb": 0.5,
+      "max_templates_default": 5000,
+      "notes": "nuclei loads full template set into memory"
     },
-    "cpu_usage": {
-      "base_cores": 2,
-      "parallel_scaling": 0.8,
-      "formula": "min(system_cores, 2 + (concurrent_tasks * 0.8))"
+    "httpx": {
+      "base_ram_mb": 256,
+      "per_1000_urls_mb": 64,
+      "notes": "concurrent connection pool memory"
     },
-    "disk_usage_mb": {
-      "base": 500,
-      "per_scan_artifact": 50,
-      "formula": "500 + (completed_scans * 50)"
+    "katana": {
+      "base_ram_mb": 512,
+      "crawl_depth_multiplier": 1.5,
+      "notes": "depth crawls hold concurrent connection state"
+    },
+    "semgrep": {
+      "base_ram_mb": 1024,
+      "per_rule_set_mb": 128,
+      "max_rule_sets": 4,
+      "notes": "memory scales with loaded rule sets"
+    },
+    "subfinder": {
+      "base_ram_mb": 128,
+      "notes": "passive subdomain enumeration, low memory"
+    },
+    "naabu": {
+      "base_ram_mb": 256,
+      "per_10000_ports_mb": 64,
+      "notes": "port scan state memory"
+    },
+    "default": {
+      "base_ram_mb": 128,
+      "notes": "fallback for unlisted tools"
     }
+  },
+  "concurrent_tool_memory_multiplier": 1.4,
+  "oom_guard": {
+    "enabled": true,
+    "reserve_ram_mb": 2048,
+    "kill_ram_mb": 0.90,
+    "action_on_oom": "skip_stage",
+    "check_interval_seconds": 30
   },
   "stage_baselines": {
-    "subdomains": { "avg_duration_sec": 120, "complexity": "linear" },
-    "live_hosts": { "avg_duration_sec": 300, "complexity": "linear" },
-    "urls": { "avg_duration_sec": 450, "complexity": "linear" },
-    "active_scan": { "avg_duration_sec": 600, "complexity": "exponential" }
-  },
-  "bottleneck_indicators": [
-    {
-      "metric": "stage_duration",
-      "threshold_ratio": 2.0,
-      "action": "increase_concurrency"
+    "active_scan": {
+      "complexity": "O(n * log(n))",
+      "concurrency_cap": 50,
+      "notes": "Cap concurrent active scan workers at 50"
     },
-    {
-      "metric": "memory_usage",
-      "threshold_percent": 85,
-      "action": "enable_streaming_storage"
+    "subdomains": {
+      "complexity": "linear",
+      "concurrency_cap": 10
+    },
+    "urls": {
+      "complexity": "linear",
+      "concurrency_cap": 10
     }
-  ]
+  },
+  "stage_tools": {
+    "active_scan": ["nuclei", "httpx", "katana", "naabu"],
+    "active_scan_adaptive": ["nuclei", "httpx", "katana", "naabu"],
+    "subdomains": ["subfinder"],
+    "urls": ["katana", "httpx"],
+    "semgrep": ["semgrep"],
+    "iac_scan": ["semgrep"],
+    "sca_scan": ["default"],
+    "container_scan": ["default"],
+    "git_diff_crawl": ["katana"],
+    "probe_runners": ["nuclei"],
+    "probe_suites": ["nuclei"],
+    "access_control": ["nuclei", "httpx"],
+    "validation": ["httpx"],
+    "finding_revalidation": ["httpx"],
+    "waf": ["httpx"],
+    "git_secret_scan": ["default"],
+    "sbom_generate": ["default"],
+    "sbom_diff": ["default"],
+    "reporting": ["default"],
+    "report_distribution": ["default"],
+    "sarif_export": ["default"],
+    "threat_modeling": ["default"],
+    "adaptive_extra": ["default"],
+    "subdomain_takeover": ["subfinder"]
+  },
+  "ram_formula": "sum(tool_profile[i].base_ram + tool_profile[i].variable_ram_for(targets)) * concurrent_tool_memory_multiplier + reserve_ram"
 }

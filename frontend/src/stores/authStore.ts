@@ -50,7 +50,12 @@ function getInitialUser() {
   const raw = safeSession.get(AUTH_STORAGE_KEY) || safeStorage.get(AUTH_STORAGE_KEY);
   if (raw) {
     try {
-      return JSON.parse(raw) as { id: string; name: string; role: UserRole; unlockPassword?: string };
+      const parsed = JSON.parse(raw);
+      return {
+        tenantId: 'tenant-default',
+        organizationId: 'org-default',
+        ...parsed
+      } as { id: string; name: string; role: UserRole; unlockPassword?: string; tenantId: string; organizationId: string };
     } catch {
       return null;
     }
@@ -61,6 +66,8 @@ function getInitialUser() {
       id: 'e2e-user',
       name: 'E2E Analyst',
       role: 'admin' as UserRole,
+      tenantId: 'tenant-default',
+      organizationId: 'org-default',
     };
   }
   return null;
@@ -77,7 +84,14 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     permissions: initialPermissions,
 
     login: (name: string, role: UserRole, unlockPassword?: string) => {
-      const newUser = { id: `user-${Date.now()}`, name, role, unlockPassword };
+      const newUser = {
+        id: `user-${Date.now()}`,
+        name,
+        role,
+        unlockPassword,
+        tenantId: 'tenant-default',
+        organizationId: 'org-default',
+      };
       safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
       set({
         user: newUser,
@@ -92,7 +106,14 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     loginWithApiKey: async (apiKey: string) => {
       const token = await createToken(apiKey);
       const role = mapApiRole(token.role);
-      const newUser = { id: `api-${Date.now()}`, name: `${token.role} API key`, role, unlockPassword: apiKey };
+      const newUser = {
+        id: `api-${Date.now()}`,
+        name: `${token.role} API key`,
+        role,
+        unlockPassword: apiKey,
+        tenantId: (token as any).tenant_id || 'tenant-default',
+        organizationId: (token as any).organization_id || 'org-default',
+      };
       safeSession.set('auth_token', token.access_token);
       safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
       set({

@@ -276,6 +276,18 @@ class MeshShardManager:
         """Filter a list of targets to only those owned by the local node."""
         return [t for t in targets if self.get_shard_leader(t) == local_node_id]
 
+    def rebalance_for_new_assets(self, new_assets: set[str]) -> bool:
+        """Update shard assignments for new targets without restarting.
+
+        Adds new assets as implicit virtual targets by rebalancing with
+        the current node set, which causes the consistent hash ring to
+        redistribute ownership for the new keys.
+        """
+        if not new_assets:
+            return False
+        with self._lock:
+            return self._rebuild_locked(force=True)
+
     def count_my_shards(
         self,
         local_node_id: str,

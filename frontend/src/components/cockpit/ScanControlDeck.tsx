@@ -383,7 +383,7 @@ export function ScanControlDeck({
                   <button
                     type="button"
                     onClick={handleStopScan}
-                    disabled={stoppingScan || !['running', 'pending'].includes(activeJob.status)}
+                    disabled={stoppingScan || !activeJob.status || !['running', 'pending'].includes(activeJob.status)}
                     className="flex items-center justify-center gap-1.5 rounded border border-rose-500/20 bg-rose-950/20 py-2 text-[9px] font-bold uppercase tracking-wider text-rose-400 transition-all hover:bg-rose-900/30 disabled:opacity-40"
                   >
                     <span className="icon-x" aria-hidden="true" />

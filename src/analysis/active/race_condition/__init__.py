@@ -6,6 +6,14 @@ processing, TOCTOU flaws, and state transition anomalies.
 
 This package modularizes the race condition probe into separate files
 for better maintainability and AI-agent editability.
+
+Part A additions:
+- ``RaceCoordinator`` (single-host asyncio + distributed worker fan-out)
+- ``sync_workers`` / ``select_synchronized_workers`` (UDP timestamp sync)
+- ``measure_from_response_date_header`` (server-side timing baseline)
+
+Part B additions:
+- ``ActorRaceTester`` (multi-actor race, state comparison, double-submit)
 """
 
 from typing import Any
@@ -14,6 +22,9 @@ from src.analysis.helpers import endpoint_signature
 
 from ._constants import RACE_PROBE_SPEC
 from .race_condition_helpers import (
+    ActorRaceTester,
+    RaceCoordinator,
+    RaceResponse,
     build_finding,
     calculate_confidence,
     calculate_severity,
@@ -26,18 +37,38 @@ from .race_condition_helpers import (
     extract_json_value,
     is_race_prone_endpoint,
     make_concurrent_requests,
+    measure_from_response_date_header,
+    select_synchronized_workers,
+    sync_workers,
 )
 
-__all__ = ["race_condition_probe", "RACE_PROBE_SPEC"]
+__all__ = [
+    "race_condition_probe",
+    "RACE_PROBE_SPEC",
+    "RaceResponse",
+    "RaceCoordinator",
+    "ActorRaceTester",
+    "make_concurrent_requests",
+    "measure_from_response_date_header",
+    "sync_workers",
+    "select_synchronized_workers",
+]
 
 
 def race_condition_probe(
     priority_urls: list[str],
-    response_cache: Any,
+    response_cache: Any | None = None,
     limit: int = 12,
     concurrent_requests: int = 10,
 ) -> list[dict[str, Any]]:
-    """Detect race condition vulnerabilities via concurrent request analysis."""
+    """Detect race condition vulnerabilities via concurrent request analysis.
+
+    Uses the new asyncio race path so that requests fire with near-simultaneous
+    dispatch and ``time.perf_counter_ns`` inter-arrival jitter is recorded.
+    Falls back to an empty results list when ``response_cache`` is ``None``
+    and a caller-supplied ``None`` is explicitly passed — mirroring the
+    existing caller contract that lets ``response_cache`` remain optional.
+    """
     findings: list[dict[str, Any]] = []
     seen_endpoints: set[str] = set()
 
@@ -45,7 +76,9 @@ def race_condition_probe(
         if len(findings) >= limit:
             break
 
-        url = str(url_entry.get("url", "") if isinstance(url_entry, dict) else url_entry).strip()
+        url = (
+            str(url_entry.get("url", "") if isinstance(url_entry, dict) else url_entry).strip()
+        )
         if not url:
             continue
 
@@ -62,7 +95,11 @@ def race_condition_probe(
         issues: list[str] = []
         evidence: list[dict[str, Any]] = []
 
-        responses = make_concurrent_requests(response_cache, url, count=concurrent_requests)
+        responses = make_concurrent_requests(
+            response_cache,
+            url,
+            count=concurrent_requests,
+        )
         if not responses:
             continue
 
@@ -92,20 +129,27 @@ def race_condition_probe(
             evidence.extend(timing)
 
         if race_category == "auth_flow":
-            auth_success = sum(1 for r in responses if 200 <= int(r.get("status_code") or 0) < 300)
+            auth_success = sum(
+                1
+                for r in responses
+                if 200 <= int(r.get("status_code") or 0) < 300
+            )
             if auth_success > 1:
                 issues.append("auth_race_condition")
                 evidence.append(
                     {
                         "type": "auth_race_condition",
                         "concurrent_successes": auth_success,
-                        "description": "Multiple concurrent authentication attempts succeeded",
+                        "description": (
+                            "Multiple concurrent authentication attempts succeeded"
+                        ),
                     }
                 )
 
         if race_category == "state_transition":
             statuses = {
-                extract_json_value(str(r.get("body_text", "")), "status") for r in responses
+                extract_json_value(str(r.get("body_text", "") or ""), "status")
+                for r in responses
             }
             statuses.discard(None)
             if len(statuses) > 1:
@@ -114,19 +158,27 @@ def race_condition_probe(
                     {
                         "type": "state_transition_race",
                         "observed_statuses": sorted(str(s) for s in statuses),
-                        "description": "Concurrent requests resulted in different state transitions",
+                        "description": (
+                            "Concurrent requests resulted in different state transitions"
+                        ),
                     }
                 )
 
         if race_category == "resource_allocation":
-            success_count = sum(1 for r in responses if 200 <= int(r.get("status_code") or 0) < 300)
+            success_count = sum(
+                1
+                for r in responses
+                if 200 <= int(r.get("status_code") or 0) < 300
+            )
             if success_count > 1:
                 issues.append("resource_allocation_race")
                 evidence.append(
                     {
                         "type": "resource_allocation_race",
                         "concurrent_allocations": success_count,
-                        "description": "Multiple concurrent resource allocations succeeded",
+                        "description": (
+                            "Multiple concurrent resource allocations succeeded"
+                        ),
                     }
                 )
 
@@ -136,9 +188,15 @@ def race_condition_probe(
         confidence = calculate_confidence(issues)
         severity = calculate_severity(issues)
 
-        findings.append(build_finding(url, race_type, issues, evidence, confidence, severity))
+        findings.append(
+            build_finding(url, race_type, issues, evidence, confidence, severity)
+        )
 
     findings.sort(
-        key=lambda item: (-item.get("score", 0), -item.get("confidence", 0), item.get("url", ""))
+        key=lambda item: (
+            -item.get("score", 0),
+            -item.get("confidence", 0),
+            item.get("url", ""),
+        )
     )
     return findings[:limit]

@@ -86,8 +86,20 @@ class XGBoostSeverityPipeline:
 
         return np.hstack([numeric, sparse_tokens])
 
-    def fit(self, findings: list[dict[str, Any]], labels: list[float]) -> bool:
-        """Fit the classifier model using validated historical security outcomes."""
+    def fit(
+        self,
+        findings: list[dict[str, Any]],
+        labels: list[float],
+        sample_weights: list[float] | None = None,
+    ) -> bool:
+        """Fit the classifier model using validated historical security outcomes.
+
+        ``sample_weights`` lets the caller up-weight analyst-labelled
+        examples relative to automated ones so the trained model is
+        more representative of human-reviewed ground truth. The
+        argument is optional and falls back to uniform weights when
+        omitted.
+        """
         if not HAS_ML_LIBS or self.model is None or not findings:
             return False
 
@@ -96,13 +108,36 @@ class XGBoostSeverityPipeline:
             x = self._vectorize(vectors)
             y = np.array(labels, dtype=np.float32)
 
-            # Fit the underlying estimator
+            if sample_weights is None:
+                weights = np.ones(len(labels), dtype=np.float32)
+            else:
+                weights = np.array(sample_weights, dtype=np.float32)
+                if len(weights) != len(labels):
+                    raise ValueError(
+                        "sample_weights length must match labels length"
+                    )
+
+            fit_kwargs: dict[str, Any] = {}
+            try:
+                # scikit-learn / xgboost both accept ``sample_weight``.
+                fit_kwargs["sample_weight"] = weights
+            except Exception:  # noqa: BLE001
+                pass
+
             if hasattr(self.model, "fit"):
-                self.model.fit(x, y)
+                try:
+                    self.model.fit(x, y, **fit_kwargs)
+                except TypeError:
+                    # Some estimators don't accept sample_weight
+                    # (e.g. when running on a stripped-down build).
+                    # Fall back to an unweighted fit so the model is
+                    # still updated.
+                    self.model.fit(x, y)
                 self.is_trained = True
                 logger.info(
-                    "XGBoostSeverityPipeline: Successfully fitted model on %d samples.",
+                    "XGBoostSeverityPipeline: Successfully fitted model on %d samples (weighted=%s).",
                     len(findings),
+                    sample_weights is not None,
                 )
                 return True
         except Exception as e:

@@ -223,6 +223,7 @@ class CalibratedSeverityModel:
         self.category_rates: dict[str, tuple[int, int]] = {}
         self.plugin_rates: dict[str, tuple[int, int]] = {}
         self.param_rates: dict[str, tuple[int, int]] = {}
+        self.asset_type_rates: dict[str, tuple[int, int]] = {}
 
         # Use a process-wide singleton registry. Previously each
         # ``CalibratedSeverityModel`` instance and ``ActiveLearningController``
@@ -281,6 +282,32 @@ class CalibratedSeverityModel:
         )
         features = _feature_vector(finding)
 
+        # ----------------------------------------------------------------
+        # Modern risk blend.
+        #
+        # The legacy blend (above) answers "how dangerous is the bug?". The
+        # modern risk score answers "how dangerous is *this bug on this
+        # asset with these controls and threat intel*" by combining the
+        # calibrated model TP probability with the new multi-dimensional
+        # context. ``modern_risk_score`` is exposed as a 0-100 number and
+        # ``csi_value`` retains the legacy 0-10 number for dashboards.
+        # ----------------------------------------------------------------
+        modern_risk_score: float | None = None
+        modern_components: dict[str, float] = {}
+        modern_weights: dict[str, float] = {}
+        try:
+            from src.intelligence.risk.modern_risk import get_default_modern_risk_calculator
+
+            modern = get_default_modern_risk_calculator().for_finding(
+                finding,
+                host_or_url=str(finding.get("url") or finding.get("host") or ""),
+            )
+            modern_risk_score = modern.modern_risk_score
+            modern_components = modern.components
+            modern_weights = modern.weights
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Modern risk blend unavailable: %s", exc)
+
         prediction = SeverityPrediction(
             score=score,
             severity=severity,
@@ -292,6 +319,16 @@ class CalibratedSeverityModel:
             calibration=calibration,
             top_features=self._top_features(features),
         )
+
+        # Stash the modern blend on the prediction instance for downstream
+        # readers (e.g. ``risk_score_engine``). ``as_metadata`` is the public
+        # export so we extend the dict rather than mutate the dataclass.
+        # The dataclass is frozen, so we use ``object.__setattr__`` to
+        # bypass the frozen check for these private attributes.
+        if modern_risk_score is not None:
+            object.__setattr__(prediction, "_modern_risk_score", modern_risk_score)
+            object.__setattr__(prediction, "_modern_risk_components", modern_components)
+            object.__setattr__(prediction, "_modern_risk_weights", modern_weights)
 
         latency = time.time() - start_time
         try:
@@ -323,7 +360,7 @@ class CalibratedSeverityModel:
 
         prediction = self.predict(finding)
         metadata = prediction.as_metadata()
-        return {
+        enriched: dict[str, Any] = {
             **finding,
             "severity": prediction.severity,
             "severity_score": prediction.score,
@@ -333,6 +370,18 @@ class CalibratedSeverityModel:
             "false_positive_probability": prediction.false_positive_probability,
             "severity_model": metadata,
         }
+        # Surface the modern risk blend alongside the legacy score.
+        modern_risk = getattr(prediction, "_modern_risk_score", None)
+        if modern_risk is not None:
+            enriched["modern_risk_score"] = modern_risk
+            enriched["csi_value"] = prediction.score
+            modern_components = getattr(prediction, "_modern_risk_components", None) or {}
+            modern_weights = getattr(prediction, "_modern_risk_weights", None) or {}
+            if modern_components:
+                enriched["modern_risk_components"] = modern_components
+            if modern_weights:
+                enriched["modern_risk_weights"] = modern_weights
+        return enriched
 
     def enrich_findings(self, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [self.enrich_finding(finding) for finding in findings]
@@ -457,6 +506,14 @@ class CalibratedSeverityModel:
                 continue
             label = 1.0 if was_tp else 0.0
             weight = max(0.2, _numeric(item.get("feedback_weight"), 1.0))
+            # ``override_source`` distinguishes analyst triage from
+            # automated lifecycle transitions. Analyst overrides get a
+            # higher weight so the model better tracks ground-truth.
+            override_source = str(item.get("override_source") or "automated").strip().lower()
+            if override_source in {"analyst_triage", "red_team_manual"}:
+                weight = max(weight, 2.0)
+            elif override_source in {"automated"}:
+                weight = min(weight, 0.9)
             finding = {
                 "category": category,
                 "severity": item.get("finding_severity"),
@@ -469,10 +526,16 @@ class CalibratedSeverityModel:
                 "url": item.get("target_endpoint"),
                 "host": item.get("target_host"),
                 "response_delta_score": item.get("response_delta_score"),
+                # Per-asset-type calibration: the training example now
+                # carries the asset type so downstream models can
+                # condition on it. ``asset_type`` defaults to "unknown"
+                # for older rows.
+                "asset_type": _normalise_token(item.get("asset_type") or "unknown"),
             }
             self._record_rate(self.category_rates, category, label)
             self._record_rate(self.plugin_rates, f"{category}|{plugin}", label)
             self._record_rate(self.param_rates, parameter_type, label)
+            self._record_rate(self.asset_type_rates, finding["asset_type"], label)
             examples.append(_TrainingExample(finding=finding, label=label, weight=weight))
         return examples
 
@@ -510,12 +573,14 @@ class CalibratedSeverityModel:
         category = _normalise_token(finding.get("category") or finding.get("finding_category"))
         plugin = _normalise_token(finding.get("plugin_name") or finding.get("module"))
         parameter_type = _normalise_token(finding.get("parameter_type"))
+        asset_type = _normalise_token(finding.get("asset_type") or "unknown")
         rates = [
             self._smoothed_rate(self.category_rates.get(category, (0, 0)), strength=0.36),
             self._smoothed_rate(
                 self.plugin_rates.get(f"{category}|{plugin}", (0, 0)), strength=0.42
             ),
             self._smoothed_rate(self.param_rates.get(parameter_type, (0, 0)), strength=0.22),
+            self._smoothed_rate(self.asset_type_rates.get(asset_type, (0, 0)), strength=0.30),
         ]
         total_support = sum(rate[1] for rate in rates)
         support = _clamp(total_support / 80.0)
@@ -530,6 +595,7 @@ class CalibratedSeverityModel:
             "historical_true_positive_rate": round(historical_tp, 4),
             "historical_false_positive_rate": round(1.0 - historical_tp, 4),
             "support": round(support, 4),
+            "asset_type": asset_type,
         }
 
     def _smoothed_rate(self, counts: tuple[int, int], *, strength: float) -> tuple[float, int]:

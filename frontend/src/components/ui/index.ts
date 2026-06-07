@@ -24,3 +24,16 @@ export { PageHeader, type PageHeaderProps } from './PageHeader';
 // ── Radix-based UI Primitives (ui-shadcn) ──────────────────
 // Import directly: import { Dialog, Sheet, Command } from '@/components/ui-shadcn'
 export * from '../ui-shadcn';
+
+// ── Overhaul Auto-exports ──────────────────────────────────
+export * from './Toast';
+export * from './FormField';
+export * from './CopyButton';
+export * from './AccessibleEmoji';
+export * from './Icon';
+export * from './FocusTrap';
+export * from './PageTransition';
+export * from './RouteFocus';
+export * from './RouteFocusManager';
+export * from './ErrorBoundary';
+export * from './ErrorOverlayView';

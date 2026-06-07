@@ -40,6 +40,42 @@ logger = get_pipeline_logger(__name__)
 #   4  partial          — at least one non-fatal stage failed but the run
 #                          produced a usable report
 #  130 interrupted      — SIGINT / SIGTERM
+def _load_incremental_baseline(checkpoint_mgr: Any) -> list[dict[str, Any]]:
+    """Load reportable_findings from the last successful checkpoint, if available."""
+    if checkpoint_mgr is None:
+        return []
+    try:
+        state = checkpoint_mgr.load()
+        if state is None:
+            return []
+        findings = state.stage_outputs.get("reportable_findings") if hasattr(state, "stage_outputs") and isinstance(state.stage_outputs, dict) else None
+        if not findings:
+            findings = state.context_snapshot.get("result", {}).get("reportable_findings", []) if hasattr(state, "context_snapshot") and isinstance(state.context_snapshot, dict) else []
+        if not isinstance(findings, list):
+            return []
+        return [f for f in findings if isinstance(f, dict)]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _fingerprint_finding(finding: dict[str, Any]) -> str:
+    import hashlib
+    tool = str(finding.get("tool") or finding.get("source") or "unknown").strip().lower()
+    target = str(finding.get("target_url") or finding.get("affected_url") or finding.get("url") or "unknown").strip().lower()
+    vuln_type = str(finding.get("vuln_type") or finding.get("category") or finding.get("title") or "unknown").strip().lower()
+    affected = str(finding.get("affected_url") or finding.get("url") or "unknown").strip().lower()
+    raw = "|".join([tool, target, vuln_type, affected])
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _diff_findings_against_baseline(
+    current_findings: list[dict[str, Any]],
+    baseline_findings: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    baseline_fps = {_fingerprint_finding(f) for f in baseline_findings}
+    return [f for f in current_findings if _fingerprint_finding(f) not in baseline_fps]
+
+
 EXIT_OK = 0
 EXIT_POLICY_VIOLATION = 2
 EXIT_INFRA_FAILURE = 3
@@ -226,10 +262,40 @@ def resolve_pipeline_exit_code(
 
     args = args if args is not None else getattr(orchestrator, "_last_args", None)
     policy = _resolve_policy(args, config) if args is not None else ExitConditionPolicy()
+
+    if args is not None and getattr(args, "ci_fail_on_severity", None):
+        cli_threshold = str(args.ci_fail_on_severity).strip().lower()
+        try:
+            severity_order = ("critical", "high", "medium", "low", "info")
+            idx = severity_order.index(cli_threshold)
+            thresholds_kwargs = {}
+            for i, sev in enumerate(severity_order):
+                thresholds_kwargs[sev] = 0 if i >= idx else 999999
+            policy = ExitConditionPolicy(
+                findings=FindingsRule(thresholds=SeverityThresholds(**thresholds_kwargs)),
+                infra=policy.infra,
+                on_failure=policy.on_failure,
+                ci=policy.ci,
+            )
+        except Exception:  # noqa: BLE001
+            pass
     branch = _resolve_branch(args, config) if args is not None else ""
 
     evaluation: PolicyEvaluation
-    if ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value:
+    findings_for_policy = list(getattr(ctx.result, "reportable_findings", []) or [])
+    if args is not None and getattr(args, "incremental", False):
+        checkpoint_mgr_ref = getattr(orchestrator, "_checkpoint_mgr", None) if orchestrator else None
+        baseline = _load_incremental_baseline(checkpoint_mgr_ref)
+        if baseline:
+            baseline_fps = {_fingerprint_finding(f) for f in baseline}
+            current_total = list(findings_for_policy)
+            findings_for_policy = [f for f in current_total if _fingerprint_finding(f) not in baseline_fps]
+            logger.info(
+                "Incremental mode: diffed %d current findings against %d baseline; %d new findings for policy evaluation.",
+                len(current_total),
+                len(baseline),
+                len(findings_for_policy),
+            )
         metrics = ctx.result.module_metrics.get("recon_validation", {})
         if metrics.get("fatal", True):
             # Degraded-mode escape hatch: if the recon validator
@@ -338,7 +404,7 @@ def resolve_pipeline_exit_code(
 
     evaluation = evaluate_policy(
         policy,
-        findings=list(getattr(ctx.result, "reportable_findings", []) or []),
+        findings=findings_for_policy,
         failed_stages=_failed_stages(ctx),
         branch=branch,
     )

@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  assignFinding,
   getTriageState,
+  lockFinding,
   recordTriageAction,
   triageWebSocketUrl,
+  unlockFinding,
   type AnalystPresence,
   type TriageFindingState,
+  type TriageLockConflict,
 } from '@/api/triage';
 
 export function getTriageAnalyst() {
@@ -37,6 +41,7 @@ export function useTriageCollaboration(runId: string, findingId: string) {
   const [state, setState] = useState<TriageFindingState | null>(null);
   const [presence, setPresence] = useState<AnalystPresence[]>([]);
   const [connected, setConnected] = useState(false);
+  const [lockConflict, setLockConflict] = useState<TriageLockConflict | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -72,6 +77,10 @@ export function useTriageCollaboration(runId: string, findingId: string) {
       }
       if (message.type === 'triage_event' && message.state && message.event?.finding_id === findingId) {
         setState(message.state);
+        setLockConflict(null);
+      }
+      if (message.type === 'triage_lock_conflict' && message.event?.finding_id === findingId) {
+        setLockConflict((message as unknown as { conflict: TriageLockConflict }).conflict);
       }
     };
 
@@ -97,13 +106,66 @@ export function useTriageCollaboration(runId: string, findingId: string) {
     setState(result.state);
   }, [analyst, findingId, runId]);
 
+  const assignToMe = useCallback(async () => {
+    if (!runId || !findingId) return { conflict: undefined as TriageLockConflict | undefined };
+    const result = await assignFinding(
+      runId,
+      findingId,
+      analyst.analyst_id,
+      analyst.analyst_name,
+      analyst,
+    );
+    if (result.state) setState(result.state);
+    if (result.conflict) setLockConflict(result.conflict);
+    return { conflict: result.conflict };
+  }, [analyst, findingId, runId]);
+
+  const assignTo = useCallback(
+    async (analystId: string, analystName: string) => {
+      if (!runId || !findingId) return { conflict: undefined as TriageLockConflict | undefined };
+      const result = await assignFinding(
+        runId,
+        findingId,
+        analystId,
+        analystName,
+        analyst,
+      );
+      if (result.state) setState(result.state);
+      if (result.conflict) setLockConflict(result.conflict);
+      return { conflict: result.conflict };
+    },
+    [analyst, findingId, runId],
+  );
+
+  const lockForMe = useCallback(async () => {
+    if (!runId || !findingId) return { conflict: undefined as TriageLockConflict | undefined };
+    const result = await lockFinding(runId, findingId, analyst);
+    if (result.state) setState(result.state);
+    if (result.conflict) setLockConflict(result.conflict);
+    return { conflict: result.conflict };
+  }, [analyst, findingId, runId]);
+
+  const releaseLock = useCallback(async () => {
+    if (!runId || !findingId) return;
+    const result = await unlockFinding(runId, findingId, analyst);
+    if (result.state) setState(result.state);
+  }, [analyst, findingId, runId]);
+
+  const dismissConflict = useCallback(() => setLockConflict(null), []);
+
   return {
     analyst,
     state,
     setState,
     presence,
     connected,
+    lockConflict,
+    dismissConflict,
     broadcastCursor,
     sendAction,
+    assignToMe,
+    assignTo,
+    lockForMe,
+    releaseLock,
   };
 }

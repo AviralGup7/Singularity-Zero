@@ -92,6 +92,7 @@ async def test_auto_escalate_overdue_alerts() -> None:
             "severity": "critical",
             "title": "Critical RCE",
             "discovered_at": now - (16 * 24 * 60 * 60),
+            "triaged_at": now - (15 * 24 * 60 * 60),
         }
     ]
 

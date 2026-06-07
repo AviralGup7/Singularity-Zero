@@ -9,7 +9,6 @@ interface IntelSidebarProps {
   setNewNote: (note: string) => void;
   onAddNote: () => void;
   onTriggerProbe: () => void;
-  selectedFindingId: string | undefined;
   onDrillToFinding: (findingId: string) => void;
   onDeleteNote: (noteId: string) => void;
   target: string;
@@ -23,7 +22,6 @@ export function IntelSidebar({
   setNewNote,
   onAddNote,
   onTriggerProbe,
-  selectedFindingId,
   onDrillToFinding,
   onDeleteNote,
   target,

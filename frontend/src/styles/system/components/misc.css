@@ -134,6 +134,61 @@
   padding: var(--space-3);
 }
 
+/* ── Stage Delta Badges (JobDetailPage) ───────────────────── */
+.stage-delta-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.stage-delta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.stage-delta-badge--running {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.stage-delta-badge--completed {
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: var(--ok);
+}
+
+.stage-delta-badge--error {
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  color: var(--bad);
+}
+
+.stage-delta-badge-arrow {
+  font-size: 9px;
+  line-height: 1;
+}
+
+.stage-delta-badge-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
 .settings-page .settings-tabs {
   display: flex;
   gap: var(--space-2);

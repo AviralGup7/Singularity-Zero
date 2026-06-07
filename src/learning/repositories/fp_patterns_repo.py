@@ -7,6 +7,23 @@ from typing import Any
 from .base import BaseRepo
 
 
+def _ensure_scope_defaults(row: dict[str, Any]) -> dict[str, Any]:
+    """Fill in ``scope_signature`` / ``is_global`` defaults.
+
+    The two columns were added in the scope-aware FP refactor;
+    older call-sites still pass rows without them. Defaulting here
+    keeps the public API backward-compatible.
+    """
+    if "scope_signature" not in row:
+        row = dict(row)
+        row["scope_signature"] = ""
+    if "is_global" not in row:
+        row = dict(row)
+        # SQLite stores booleans as ints; default to global = True.
+        row["is_global"] = 1
+    return row
+
+
 class FpPatternsRepo(BaseRepo):
     """Repository for fp_patterns table operations."""
 
@@ -18,6 +35,9 @@ class FpPatternsRepo(BaseRepo):
         if "is_active" in row and isinstance(row["is_active"], bool):
             row = dict(row)
             row["is_active"] = self._bool_to_int(row["is_active"])
+        # Default the new scope columns so existing callers (which
+        # were written before the column was added) keep working.
+        row = _ensure_scope_defaults(row)
 
         with self._cursor() as cur:
             cur.execute(
@@ -26,13 +46,14 @@ class FpPatternsRepo(BaseRepo):
                     header_pattern, response_similarity, first_seen, last_seen,
                     occurrence_count, confirmed_fp_count, confirmed_tp_count,
                     fp_probability, confidence, is_active, suppression_action,
-                    created_at, updated_at)
+                    created_at, updated_at, scope_signature, is_global)
                    VALUES (:pattern_id, :category, :status_code_pattern,
                            :body_pattern, :header_pattern, :response_similarity,
                            :first_seen, :last_seen, :occurrence_count,
                            :confirmed_fp_count, :confirmed_tp_count,
                            :fp_probability, :confidence, :is_active,
-                           :suppression_action, :created_at, :updated_at)""",
+                           :suppression_action, :created_at, :updated_at,
+                           :scope_signature, :is_global)""",
                 row,
             )
 
@@ -45,7 +66,7 @@ class FpPatternsRepo(BaseRepo):
             if "is_active" in row and isinstance(row["is_active"], bool):
                 row = dict(row)
                 row["is_active"] = self._bool_to_int(row["is_active"])
-            processed_rows.append(row)
+            processed_rows.append(_ensure_scope_defaults(row))
 
         with self._cursor() as cur:
             cur.executemany(
@@ -54,13 +75,14 @@ class FpPatternsRepo(BaseRepo):
                     header_pattern, response_similarity, first_seen, last_seen,
                     occurrence_count, confirmed_fp_count, confirmed_tp_count,
                     fp_probability, confidence, is_active, suppression_action,
-                    created_at, updated_at)
+                    created_at, updated_at, scope_signature, is_global)
                    VALUES (:pattern_id, :category, :status_code_pattern,
                            :body_pattern, :header_pattern, :response_similarity,
                            :first_seen, :last_seen, :occurrence_count,
                            :confirmed_fp_count, :confirmed_tp_count,
                            :fp_probability, :confidence, :is_active,
-                           :suppression_action, :created_at, :updated_at)""",
+                           :suppression_action, :created_at, :updated_at,
+                           :scope_signature, :is_global)""",
                 processed_rows,
             )
 

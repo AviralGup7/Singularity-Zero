@@ -7,6 +7,7 @@ Tracks baseline metrics across pipeline runs to detect anomalies:
 - Tool reliability rates
 - Response time distributions
 - Severity distribution drift
+- Per-asset-type finding rate and TP/FP rate
 
 Enables the learning system to detect when results are anomalous
 vs. expected based on historical data.
@@ -16,6 +17,7 @@ import hashlib
 import json
 import logging
 import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -46,6 +48,8 @@ class RunBaseline:
     recon_coverage_percent: float
     scan_duration_seconds: float
     findings_per_subdomain: float
+    asset_type_breakdown: dict[str, int] = field(default_factory=dict)
+    asset_type_fp_rate: dict[str, float] = field(default_factory=dict)
     checksum: str = ""
 
     def __post_init__(self) -> None:
@@ -137,11 +141,59 @@ class BaselineTracker:
 
         anomaly_score = min(anomaly_score / max(len(metrics), 1), 1.0)
 
+        # Per-asset-type deltas. Comparing the *current* run's
+        # breakdown to a per-asset-type historical mean lets us
+        # spot asset classes that suddenly drift (e.g. a new
+        # Nuclei template that produces 5x the FPs on legacy PHP
+        # apps).
+        per_asset_anomalies = self._compute_per_asset_anomalies(current, recent)
+        for entry in per_asset_anomalies:
+            anomalies.append(entry)
+            anomaly_score = min(1.0, anomaly_score + 0.15)
+
         return {
             "anomaly_score": round(anomaly_score, 4),
             "anomalies": anomalies,
             "baseline_count": len(recent),
+            "per_asset_anomalies": per_asset_anomalies,
         }
+
+    def _compute_per_asset_anomalies(
+        self, current: RunBaseline, recent: list[RunBaseline]
+    ) -> list[dict[str, Any]]:
+        """Detect asset-type-level deltas vs recent history."""
+        anomalies: list[dict[str, Any]] = []
+        asset_keys = set(current.asset_type_breakdown.keys())
+        for baseline in recent:
+            asset_keys.update(baseline.asset_type_breakdown.keys())
+        for asset_type in asset_keys:
+            current_count = current.asset_type_breakdown.get(asset_type, 0)
+            historical_counts = [
+                b.asset_type_breakdown.get(asset_type, 0) for b in recent
+            ]
+            if not historical_counts:
+                continue
+            mean = sum(historical_counts) / len(historical_counts)
+            std = (
+                sum((v - mean) ** 2 for v in historical_counts) / len(historical_counts)
+            ) ** 0.5
+            if std == 0:
+                z_score = 999.0 if current_count != mean else 0.0
+            else:
+                z_score = abs(current_count - mean) / std
+            if z_score > 2.0:
+                anomalies.append(
+                    {
+                        "metric": f"asset_type:{asset_type}",
+                        "current_value": current_count,
+                        "historical_mean": round(mean, 2),
+                        "historical_std": round(std, 2),
+                        "z_score": round(z_score, 2),
+                        "severity": "high" if z_score > 3.0 else "medium",
+                        "direction": "increased" if current_count > mean else "decreased",
+                    }
+                )
+        return anomalies
 
     def load(self, path: Path) -> None:
         """Load baselines from a JSON file."""
@@ -198,11 +250,27 @@ def compute_baseline_from_run(
     }
     confidence_sum = 0.0
 
+    # Per-asset-type counters. The pipeline already tags each
+    # finding with ``asset_type`` (defaulting to "unknown"). We
+    # aggregate counts and FP rates so the tracker can spot
+    # per-class drift in future runs.
+    asset_type_counts: dict[str, int] = defaultdict(int)
+    asset_type_fp_counts: dict[str, int] = defaultdict(int)
+
     for f in findings:
         sev = str(f.get("severity", "info")).lower()
         if sev in severity_counts:
             severity_counts[sev] += 1
         confidence_sum += float(f.get("confidence", 0))
+        asset_type = str(f.get("asset_type") or "unknown").lower() or "unknown"
+        asset_type_counts[asset_type] += 1
+        if str(f.get("decision", "")).upper() == "FALSE_POSITIVE":
+            asset_type_fp_counts[asset_type] += 1
+
+    asset_type_fp_rate: dict[str, float] = {}
+    for asset_type, count in asset_type_counts.items():
+        fp = asset_type_fp_counts.get(asset_type, 0)
+        asset_type_fp_rate[asset_type] = round(fp / max(count, 1), 4)
 
     avg_confidence = confidence_sum / max(total_findings, 1)
     subdomains = metrics.get("subdomains", {}).get("subdomains_found", 0)
@@ -245,4 +313,6 @@ def compute_baseline_from_run(
         recon_coverage_percent=pipeline_result.get("recon_coverage_percent", 100.0),
         scan_duration_seconds=round(duration, 2),
         findings_per_subdomain=round(findings_per_subdomain, 4),
+        asset_type_breakdown=dict(asset_type_counts),
+        asset_type_fp_rate=asset_type_fp_rate,
     )

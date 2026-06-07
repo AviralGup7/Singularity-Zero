@@ -16,10 +16,40 @@ from .fp_patterns_repo import FpPatternsRepo
 from .graph_repo import GraphRepo
 from .metrics_repo import MetricsRepo
 from .scan_runs_repo import ScanRunsRepo
-from .schema import _SCHEMA_DDL
+from .schema import _SCHEMA_DDL, apply_migrations
 from .thresholds_repo import ThresholdsRepo
 
 logger = logging.getLogger(__name__)
+
+
+def _split_sql_statements(script: str) -> list[str]:
+    """Split a multi-statement SQL script on top-level semicolons.
+
+    ``sqlite3.Connection.executescript`` runs the script in a
+    single implicit transaction, so a single bad statement
+    (e.g. an old index pointing at a column that has been
+    removed) aborts the entire script. The telemetry store
+    wants to be tolerant of legacy databases that may carry
+    such artifacts, so we split and run each statement
+    individually.
+    """
+    statements: list[str] = []
+    buf: list[str] = []
+    for raw_line in script.splitlines():
+        stripped = raw_line.strip()
+        # Skip pure comment / empty lines from the buffer check
+        # but keep them inside the current statement so the
+        # parser sees the same source as ``executescript`` would.
+        buf.append(raw_line)
+        if stripped.endswith(";"):
+            stmt = "\n".join(buf).strip()
+            if stmt:
+                statements.append(stmt)
+            buf = []
+    tail = "\n".join(buf).strip()
+    if tail:
+        statements.append(tail)
+    return statements
 
 _KNOWN_TABLES = {
     "scan_runs",
@@ -36,6 +66,12 @@ _KNOWN_TABLES = {
     "session_states",
     "attack_chains",
     "confidence_models",
+    "assets",
+    "risk_acceptances",
+    "compensating_controls",
+    "sla_events",
+    "threat_intel_cache",
+    "reviewer_actions",
 }
 _KNOWN_TIME_COLUMNS = {"created_at", "updated_at", "timestamp", "last_seen"}
 
@@ -114,11 +150,52 @@ class TelemetryStore:
         self.scan_runs._ensure_connection()
 
     def initialize(self) -> None:
-        """Create all tables and indexes if they don't exist."""
+        """Create all tables and indexes if they don't exist.
+
+        The order matters: column-level migrations are applied
+        *before* the index-creation step, because some of the
+        indexes reference columns that didn't exist on databases
+        created before the modern risk domain. Running the schema
+        script against such a database would otherwise fail on
+        ``CREATE INDEX IF NOT EXISTS idx_findings_asset ON
+        findings(asset_id)`` because the column is missing.
+
+        Brand-new databases: ``CREATE TABLE IF NOT EXISTS`` already
+        produces the modern schema, so the migration step is a
+        no-op. Existing databases: the migration adds the missing
+        columns, then the schema script recreates the indexes that
+        depend on them.
+        """
         if self._initialized:
             return
         conn = self._get_conn()
-        conn.executescript(_SCHEMA_DDL)
+        # 1. Bring tables up to the modern shape (no-op on new DBs).
+        try:
+            added = apply_migrations(conn)
+            if added:
+                logger.info(
+                    "Telemetry store: applied %d column migration(s) at %s",
+                    added,
+                    self.db_path,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Telemetry store: migration step skipped: %s", exc)
+        # 2. Run the full schema script (CREATE TABLE / CREATE INDEX).
+        #    Each statement is wrapped in a try/except so a single
+        #    bad statement (e.g. an old index pointing at a column
+        #    that's been removed) doesn't poison the whole script.
+        for raw_stmt in _split_sql_statements(_SCHEMA_DDL):
+            if not raw_stmt.strip():
+                continue
+            try:
+                conn.execute(raw_stmt)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(
+                    "Telemetry store: skipping schema statement (%s): %s",
+                    exc,
+                    raw_stmt.splitlines()[0][:80],
+                )
+        conn.commit()
         self._initialized = True
         logger.info("Telemetry store initialized at %s", self.db_path)
 

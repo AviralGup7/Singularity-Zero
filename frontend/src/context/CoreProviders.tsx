@@ -10,8 +10,8 @@ import { DisplayProvider } from './DisplayContext';
 import { SettingsProvider } from './SettingsContext';
 import { AuthProvider } from './AuthContext';
 import { VisualProvider } from './VisualContext';
-import { ToastProvider } from '@/components/Toast';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ToastProvider } from '@/components/ui/Toast';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {

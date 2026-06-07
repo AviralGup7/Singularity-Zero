@@ -12,7 +12,7 @@ import {
 import type { DashboardStats as StatsType, Job } from '../types/api';
 import { useApi } from '../hooks/useApi';
 import { DashboardStatsSchema } from '../api/schemas';
-import FindingsOverview from '../components/FindingsOverview';
+import FindingsOverview from '../components/findings/FindingsOverview';
 import { DashboardSkeleton, GlassCard, AnimatedCounter, GlowProgress, PageHeader } from '../components/ui';
 
 const sectionVariants = {

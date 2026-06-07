@@ -1,5 +1,64 @@
-import { useState, useMemo, useCallback } from 'react';
-import type { DetectionGapResponse } from '@/types/api';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import type { DetectionGapResponse, GapAnalysisResult } from '@/types/api';
+import { getGapAnalysis, refreshGapAnalysis, getTargets } from '@/api/client';
+import type { TargetsResponse } from './useTargets';
+
+export type StatusFilter = 'all' | 'complete' | 'partial' | 'missing';
+
+export function useGapAnalysis() {
+  const [selectedTarget, setSelectedTarget] = useState<string>('');
+  const [data, setData] = useState<DetectionGapResponse | null>(null);
+  const [targets, setTargets] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async (targetVal?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const targetsRes = await getTargets();
+      const targetNames = (targetsRes.targets || []).map(t => t.name || '');
+      setTargets(targetNames);
+
+      const targetToFetch = targetVal !== undefined ? targetVal : selectedTarget;
+      const res = await getGapAnalysis(targetToFetch || null);
+      setData(res);
+    } catch (err) {
+      setError('Failed to load gap analysis data');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedTarget]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshGapAnalysis();
+      await loadData();
+    } catch (err) {
+      setError((err as Error).message || 'Failed to refresh');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadData]);
+
+  useEffect(() => {
+    loadData();
+  }, [selectedTarget]);
+
+  return {
+    data,
+    targets,
+    selectedTarget,
+    setSelectedTarget,
+    loading,
+    refreshing,
+    error,
+    loadData,
+    handleRefresh,
+  };
+}
 
 export type SortKey = 'module' | 'coverage_percent' | 'status';
 export type SortDir = 'asc' | 'desc';
@@ -41,7 +100,7 @@ export function useGapAnalysisSorting({ data }: UseGapAnalysisSortingProps) {
 }
 
 interface UseGapAnalysisFilteringProps {
-  filtered: { module: string; category: string; status: string }[];
+  filtered: GapAnalysisResult[];
 }
 
 export function useGapAnalysisFiltering({ filtered }: UseGapAnalysisFilteringProps) {

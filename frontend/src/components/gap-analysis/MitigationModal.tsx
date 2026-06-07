@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 
 const CATEGORY_METADATA: Record<string, { name: string; desc: string; severity: 'critical' | 'high' | 'medium' | 'low'; remediation: string }> = {
   idor: {

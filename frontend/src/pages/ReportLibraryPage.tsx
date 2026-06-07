@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield, Plus } from 'lucide-react';
 
 import { getReportLibrary, type ReportLibraryItem } from '@/api/reports';
 import { ApiError } from '@/api/core';
@@ -58,10 +59,16 @@ export function ReportLibraryPage() {
         title="Report Library"
         subtitle="Signed compliance artefacts"
         actions={
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadReports()}>
-            <RefreshCw size={14} aria-hidden="true" />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <Link to="/reports/builder" className="btn btn-primary btn-sm inline-flex items-center gap-1">
+              <Plus size={14} aria-hidden="true" />
+              Build report
+            </Link>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadReports()}>
+              <RefreshCw size={14} aria-hidden="true" />
+              Refresh
+            </button>
+          </div>
         }
       />
 

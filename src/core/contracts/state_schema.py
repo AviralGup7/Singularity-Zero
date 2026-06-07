@@ -6,12 +6,17 @@ adheres to defined keys and types, preventing state poisoning.
 
 from __future__ import annotations
 
+import logging
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, TypeVar
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,11 +29,37 @@ class StateSchema:
     required: bool = False
 
 
+class Mode(Enum):
+    """Validation mode for the state schema registry.
+
+    STRICT — raise SchemaValidationError on unregistered keys (default).
+    WARN   — log a warning but allow unregistered keys through.
+    OFF    — skip validation entirely.
+    """
+
+    STRICT = "strict"
+    WARN = "warn"
+    OFF = "off"
+
+
 class StateSchemaRegistry:
     """Registry of allowed state_delta keys and their types."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self, *, mode: Mode = Mode.STRICT, validate_on_merge: bool = True
+    ) -> None:
         self._schemas: dict[str, StateSchema] = {}
+        self._mode = mode
+        self.validate_on_merge = validate_on_merge
+
+    @property
+    def mode(self) -> Mode:
+        """Current validation mode."""
+        return self._mode
+
+    @mode.setter
+    def mode(self, value: Mode) -> None:
+        self._mode = value
 
     def register(self, schema: StateSchema) -> None:
         """Register a new allowed state key."""
@@ -38,12 +69,23 @@ class StateSchemaRegistry:
         """Validate a state_delta against registered schemas.
 
         Returns a list of error messages, or an empty list if valid.
+        Respects the current mode:
+          - STRICT: returns errors (caller raises).
+          - WARN:  logs warnings, returns errors for informational use.
+          - OFF:   returns empty list immediately.
         """
+        if self._mode == Mode.OFF:
+            return []
+
         errors: list[str] = []
         for key, value in delta.items():
             schema = self._schemas.get(key)
             if not schema:
-                errors.append(f"Unregistered state_delta key: '{key}'")
+                msg = f"Unregistered state_delta key: '{key}'"
+                if self._mode == Mode.WARN:
+                    logger.warning(msg)
+                else:
+                    errors.append(msg)
                 continue
 
             if not _matches_expected_type(value, schema.expected_type):
@@ -53,14 +95,13 @@ class StateSchemaRegistry:
                     else str(schema.expected_type)
                 )
                 actual_name = type(value).__name__
-                errors.append(
+                type_msg = (
                     f"Type mismatch for key '{key}': expected {expected_name}, got {actual_name}"
                 )
-
-        # Check for missing required keys
-        # Note: state_delta is incremental, so 'required' usually applies to the final merged state,
-        # but here we can use it to enforce that a stage MUST produce certain keys if it's the owner.
-        # For now, we'll keep it simple and only validate what is actually present in the delta.
+                if self._mode == Mode.WARN:
+                    logger.warning(type_msg)
+                else:
+                    errors.append(type_msg)
 
         return errors
 
@@ -82,8 +123,35 @@ def _matches_expected_type(value: Any, expected_type: type[Any] | tuple[type[Any
     return False
 
 
-# Global registry instance
-GLOBAL_STATE_SCHEMA_REGISTRY = StateSchemaRegistry()
+def _resolve_mode_from_env() -> Mode:
+    """Read PIPELINE_STATE_MODE env var and return the corresponding Mode."""
+    raw = os.environ.get("PIPELINE_STATE_MODE", "").strip().lower()
+    if raw in {"off"}:
+        return Mode.OFF
+    if raw in {"warn"}:
+        return Mode.WARN
+    # strict is the default for any unrecognised or missing value
+    return Mode.STRICT
+
+
+def _is_dev_mode() -> bool:
+    """Return True when running in a development environment."""
+    return os.environ.get("PYTHON_ENV", "").strip().lower() in {
+        "development",
+        "dev",
+    }
+
+
+# Global registry instance — mode is configured from PIPELINE_STATE_MODE env var.
+# In dev mode, validation is automatically downgraded from STRICT to WARN.
+_env_mode = _resolve_mode_from_env()
+_dev_mode = _is_dev_mode()
+if _dev_mode and _env_mode == Mode.STRICT:
+    _effective_mode = Mode.WARN
+else:
+    _effective_mode = _env_mode
+
+GLOBAL_STATE_SCHEMA_REGISTRY = StateSchemaRegistry(mode=_effective_mode)
 
 
 def register_state_schema(
@@ -96,6 +164,9 @@ def register_state_schema(
 
 
 # Initial core schema registrations
+# NOTE: "_neural_state" CRDT registration removed — the NeuralState container is
+# managed internally by StageResult / MeshShim and must not leak into the
+# pipeline state_delta.
 register_state_schema("scope_entries", (list, tuple), "Original target scope entries")
 register_state_schema("use_cache", bool, "Whether result caching is enabled")
 register_state_schema("module_metrics", dict, "Per-stage metrics and status info")
@@ -139,9 +210,6 @@ register_state_schema("stage_status", dict, "Per-stage execution status")
 register_state_schema("findings", (list, tuple), "Legacy security findings list")
 register_state_schema("vulnerabilities", (list, tuple), "Validated vulnerability records")
 register_state_schema("artifacts_meta", dict, "Metadata about persisted stage artifacts")
-register_state_schema(
-    "_neural_state", dict, "CRDT state representation for neural-mesh coordination"
-)
 register_state_schema("_wal_id", (int, str), "Write-ahead log ID for stage delta replay")
 register_state_schema("threat_graph", dict, "Threat graph structure representing attack vectors")
 register_state_schema("threat_graph_summary", dict, "Summary of the threat graph metrics")

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { AppSettingsSchema } from '@/api/schemas';
 import { safeStorage } from '@/utils/storage';
 import type { AppSettings, SettingsUpdater } from '@/context/settings-context';
+import { useAuthStore } from './authStore';
 
 const defaultSettings: AppSettings = AppSettingsSchema.parse({});
 
@@ -31,11 +32,16 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
 const STORAGE_KEY = 'cyber-pipeline-settings';
 const DEBOUNCE_MS = 300;
 
+const getScopedStorageKey = () => {
+  const tenantId = useAuthStore.getState().user?.tenantId || 'tenant-default';
+  return `${STORAGE_KEY}:${tenantId}`;
+};
+
 let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 const persistSettingsDebounced = (settings: AppSettings) => {
   if (debounceTimeout) clearTimeout(debounceTimeout);
   debounceTimeout = setTimeout(() => {
-    safeStorage.set(STORAGE_KEY, JSON.stringify(settings));
+    safeStorage.set(getScopedStorageKey(), JSON.stringify(settings));
   }, DEBOUNCE_MS);
 };
 
@@ -47,7 +53,8 @@ const clearSettingsDebounce = () => {
 };
 
 function getInitialSettings(): AppSettings {
-  const stored = safeStorage.get(STORAGE_KEY);
+  const key = getScopedStorageKey();
+  const stored = safeStorage.get(key) || safeStorage.get(STORAGE_KEY);
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
@@ -175,4 +182,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
       clearDebounce: clearSettingsDebounce,
     },
   };
+});
+
+let currentTenantId = useAuthStore.getState().user?.tenantId;
+useAuthStore.subscribe((state) => {
+  const nextTenantId = state.user?.tenantId;
+  if (nextTenantId !== currentTenantId) {
+    currentTenantId = nextTenantId;
+    useSettingsStore.setState({ settings: getInitialSettings() });
+  }
 });

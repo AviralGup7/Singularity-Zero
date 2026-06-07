@@ -5,17 +5,22 @@ import { motion } from 'framer-motion';
 import { APP_VERSION } from '../../config';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
-import { FocusTrap } from '../FocusTrap';
-import { Icon } from '../Icon';
-import { CommandPalette } from '../CommandPalette';
+import { CommandPalette } from './CommandPalette';
 import { emitNotification, emitSearchItems, emitRefresh } from '../../lib/events';
 import { useCommandPaletteItems, getAllItems } from '../../hooks/useCommandPaletteItems';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useMotionPolicy } from '../../hooks/useMotionPolicy';
 import { useDebouncedPersist } from '../../hooks/useDebouncedPersist';
 import { useDisplayStore } from '@/stores/displayStore';
-import type { Notification } from '../NotificationCenter';
-import type { SearchableItem } from '../CommandPalette';
+import type { Notification } from './NotificationCenter';
+import type { SearchableItem } from './CommandPalette';
+import { useToast } from '@/hooks/useToast';
+import { Icon } from '../ui/Icon';
+
+import { Sidebar } from './Sidebar';
+import { Header } from './Header';
+import { Footer } from './Footer';
+import { ShortcutsModal } from './ShortcutsModal';
 
 interface NavSection {
   label: string;
@@ -64,7 +69,6 @@ function useNavSections(): NavSection[] {
         { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
       ],
     },
-   
   ], [t]);
 }
 
@@ -92,7 +96,6 @@ function saveNotifications(notifs: Notification[]) {
   }
 }
 
-   
 function buildDefaultNavItems(sections: NavSection[]): SearchableItem[] {
   return sections.flatMap(section =>
     section.items.map(item => ({
@@ -103,6 +106,93 @@ function buildDefaultNavItems(sections: NavSection[]): SearchableItem[] {
       href: item.path,
     }))
   );
+}
+
+function buildDefaultActionItems(
+  theme: { mode: string },
+  themeUpdater: { setThemeMode: (mode: any) => void },
+  toggleSidebar: () => void,
+  toggleCommandPalette: () => void,
+  navigate: (path: string) => void,
+  toast: ReturnType<typeof useToast>,
+): SearchableItem[] {
+  return [
+    {
+      id: 'action-toggle-theme',
+      type: 'action',
+      title: 'Toggle Theme',
+      subtitle: `Switch to ${theme.mode === 'dark' ? 'light' : 'dark'} mode`,
+      meta: 'Theme',
+      action: () => themeUpdater.setThemeMode(theme.mode === 'dark' ? 'light' : 'dark'),
+    },
+    {
+      id: 'action-refresh',
+      type: 'action',
+      title: 'Force System Resync',
+      subtitle: 'Trigger a full data refresh',
+      meta: 'Data',
+      action: () => {
+        emitRefresh();
+        toast.info('System resync requested');
+      },
+    },
+    {
+      id: 'action-toggle-sidebar',
+      type: 'action',
+      title: 'Toggle Sidebar',
+      subtitle: 'Collapse or expand the navigation sidebar',
+      meta: 'Layout',
+      action: () => toggleSidebar(),
+    },
+    {
+      id: 'action-go-findings',
+      type: 'action',
+      title: 'Go to Findings',
+      subtitle: 'Jump to the findings triage surface',
+      meta: 'Navigate',
+      action: () => navigate('/findings'),
+    },
+    {
+      id: 'action-go-jobs',
+      type: 'action',
+      title: 'Go to Jobs',
+      subtitle: 'Jump to the active scan queue',
+      meta: 'Navigate',
+      action: () => navigate('/jobs'),
+    },
+    {
+      id: 'action-go-targets',
+      type: 'action',
+      title: 'Go to Targets',
+      subtitle: 'Open target management',
+      meta: 'Navigate',
+      action: () => navigate('/targets'),
+    },
+    {
+      id: 'action-go-settings',
+      type: 'action',
+      title: 'Open Settings',
+      subtitle: 'Configure display, motion, and notifications',
+      meta: 'Navigate',
+      action: () => navigate('/settings'),
+    },
+    {
+      id: 'action-go-cockpit',
+      type: 'action',
+      title: 'Open Security Cockpit',
+      subtitle: 'Launch the operations command center',
+      meta: 'Navigate',
+      action: () => navigate('/cockpit'),
+    },
+    {
+      id: 'action-reopen-palette',
+      type: 'action',
+      title: 'Show Keyboard Shortcuts',
+      subtitle: 'Display the in-app shortcut reference',
+      meta: 'Help',
+      action: () => toggleCommandPalette(),
+    },
+  ];
 }
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
@@ -139,26 +229,36 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const { theme, updater: themeUpdater } = useTheme();
   const { user } = useAuth();
+  const toast = useToast();
   const navSections = useNavSections();
    
   const [showShortcuts, setShowShortcuts] = useState(false);
-   
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-   
   const [notifications, setNotifications] = useState<Notification[]>(loadNotifications);
-   
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const sidebarCollapsed = useDisplayStore((state) => state.sidebarCollapsed);
   const toggleSidebarCollapsed = useDisplayStore((state) => state.toggleSidebarCollapsed);
+  const workflowMode = useDisplayStore((state) => state.workflowMode);
 
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const sidebarRef = useRef<HTMLElement>(null);
    
   const defaultNavItems = useMemo(() => buildDefaultNavItems(navSections), [navSections]);
+  const defaultActionItems = useMemo(
+    () => buildDefaultActionItems(
+      theme,
+      themeUpdater,
+      toggleSidebarCollapsed,
+      () => setShowShortcuts(prev => !prev),
+      navigate,
+      toast,
+    ),
+    [theme, themeUpdater, toggleSidebarCollapsed, navigate, toast]
+  );
   const { policy, strategy } = useMotionPolicy('layout');
 
-  useCommandPaletteItems(defaultNavItems);
+  useCommandPaletteItems([...defaultNavItems, ...defaultActionItems]);
 
   const addNotification = useCallback((notif: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
     const id = `notif-${crypto.randomUUID()}`;
@@ -168,12 +268,12 @@ export function AppLayout({ children }: AppLayoutProps) {
     emitNotification({ message: notif.message, type: notif.type });
   }, []);
 
-  useWebSocket({
+  const { connectionState: liveConnectionState } = useWebSocket({
     jobId: undefined,
     enabled: true,
     onMessage: (data: unknown) => {
       try {
-        const msg = data as { type?: string; severity?: string; message?: string; title?: string };
+        const msg = data as { type?: string; severity?: string; message?: string; title?: string; target?: string };
         const notifType: 'error' | 'scan_complete' | 'scan_failed' | 'new_finding' =
           msg.type === 'error' || msg.severity === 'critical' ? 'error'
             : msg.type === 'scan_complete' ? 'scan_complete'
@@ -186,6 +286,18 @@ export function AppLayout({ children }: AppLayoutProps) {
           type: notifType,
           severity: notifType === 'error' || notifType === 'scan_failed' ? 'high' : notifType === 'new_finding' ? 'medium' : 'info',
         });
+        if (notifType === 'new_finding') {
+          if (workflowMode === 'pentest') {
+            const target = msg.target ? ` on ${msg.target}` : '';
+            toast.info(`New finding${target}: ${msg.title || msg.message || 'detected'}`);
+          }
+        } else if (notifType === 'scan_complete') {
+          if (workflowMode === 'pentest') {
+            toast.success(msg.message || msg.title || 'Scan complete');
+          }
+        } else if (notifType === 'error') {
+          toast.error(msg.message || msg.title || 'System error');
+        }
       } catch {
         addNotification({
           title: 'Notification',
@@ -268,13 +380,11 @@ export function AppLayout({ children }: AppLayoutProps) {
       setCommandPaletteOpen(false);
       if (sidebarOpen) setSidebarOpen(false);
     }
-   
   }, [navigate, sidebarOpen, theme.mode, themeUpdater, toggleSidebarCollapsed]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-   
   }, [handleKeyDown]);
 
   useEffect(() => {
@@ -283,7 +393,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       if (mounted) setSidebarOpen(false);
     });
     return () => { mounted = false; };
-   
   }, [location.pathname]);
 
   useEffect(() => {
@@ -299,14 +408,13 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const allCommandItems = useMemo(() => getAllItems(), []);
 
-  const quickActions = [
+  const quickActions = useMemo(() => [
     { label: 'New Scan', path: '/targets', icon: 'plus' },
-  ];
+  ], []);
 
-  const mobilePrimary = navSections
+  const mobilePrimary = useMemo(() => navSections
     .flatMap(section => section.items)
-   
-    .filter(item => ['/', '/targets', '/jobs', '/findings', '/settings'].includes(item.path));
+    .filter(item => ['/', '/targets', '/jobs', '/findings', '/settings'].includes(item.path)), [navSections]);
 
   const motionDuration = strategy.duration || 0.2;
   const isLogin = location.pathname === '/login';
@@ -315,9 +423,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (location.pathname.startsWith('/jobs/')) {
       return { title: 'Job Detail', subtitle: 'Pipeline run telemetry and artifacts' };
     }
-   
     return PAGE_META[location.pathname] ?? PAGE_META['/'];
-   
   }, [location.pathname]);
 
   if (isLogin) {
@@ -328,143 +434,39 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="app-shell app-shell--hud">
       <a href="#main" className="skip-link">Skip to content</a>
 
-      {sidebarOpen && <div className="sidebar-overlay" onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).click()} onClick={() => setSidebarOpen(false)} role="presentation" />}
+      <Sidebar
+        sidebarRef={sidebarRef}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        sidebarCollapsed={sidebarCollapsed}
+        toggleSidebarCollapsed={toggleSidebarCollapsed}
+        policy={policy}
+        motionDuration={motionDuration}
+        navSections={navSections}
+        theme={theme}
+        themeUpdater={themeUpdater}
+      />
 
-      <motion.aside
-        ref={sidebarRef}
-        id="sidebar-nav"
-        className={`sidebar ${sidebarOpen ? 'sidebar--open' : ''} ${sidebarCollapsed ? 'sidebar--collapsed' : ''}`}
-        role="navigation"
-        aria-label="Main navigation"
-        initial={policy.allowFramer ? { x: -30, opacity: 0 } : false}
-        animate={policy.allowFramer ? { x: 0, opacity: 1 } : undefined}
-        transition={{ duration: motionDuration, ease: 'easeOut' }}
-      >
-        <div className="sidebar-header">
-          <button
-            type="button"
-            className="sidebar-brand"
-            onClick={() => navigate('/')}
-            aria-label="Navigate to dashboard"
-          >
-            <Icon name="shield" size={18} className="text-accent" aria-hidden="true" />
-            {!sidebarCollapsed && <span className="sidebar-brand-text">Security Console</span>}
-          </button>
-          <button
-            type="button"
-            className="sidebar-collapse-btn"
-            onClick={() => toggleSidebarCollapsed()}
-            title="Toggle sidebar (Ctrl+B)"
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <Icon name={sidebarCollapsed ? 'chevronRight' : 'chevronLeft'} size={16} aria-hidden="true" />
-          </button>
-        </div>
-
-        <nav className="sidebar-nav" aria-label="Sidebar navigation">
-          {navSections.filter(section => section.label !== 'Hidden').map(section => (
-            <div key={section.label} className="sidebar-section">
-              {!sidebarCollapsed && <div className="sidebar-section-label">{section.label}</div>}
-              {section.items.map(item => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`sidebar-nav-item ${isActive ? 'sidebar-nav-item--active' : ''}`}
-                    aria-current={isActive ? 'page' : undefined}
-                    aria-label={`Navigate to ${item.label}`}
-                    title={item.label}
-                  >
-                    <Icon name={item.icon} size={17} aria-hidden="true" />
-                    {!sidebarCollapsed && <span className="sidebar-nav-label">{item.label}</span>}
-                    {!sidebarCollapsed && (item.count || item.key) && <span className="sidebar-nav-hotkey">{item.count || item.key}</span>}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        <div className="sidebar-footer">
-          <button
-            type="button"
-            className="sidebar-theme-toggle"
-            onClick={() => themeUpdater.setThemeMode(theme.mode === 'dark' ? 'light' : 'dark')}
-            title="Toggle theme"
-            aria-label={`Switch to ${theme.mode === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            <Icon name={theme.mode === 'dark' ? 'moon' : 'sun'} size={16} aria-hidden="true" />
-            {!sidebarCollapsed && <span>{theme.mode === 'dark' ? 'Dark' : 'Light'}</span>}
-          </button>
-        </div>
-      </motion.aside>
-
-      <div className="app-main-wrapper">
-        <motion.header
-          className="app-command-header"
-          role="banner"
-          initial={policy.allowFramer ? { y: -18, opacity: 0 } : false}
-          animate={policy.allowFramer ? { y: 0, opacity: 1 } : undefined}
-          transition={{ duration: motionDuration, ease: 'easeOut' }}
-        >
-          <div className="header-left">
-            <button
-              type="button"
-              className="sidebar-toggle-btn mobile-visible"
-              onClick={() => setSidebarOpen(prev => !prev)}
-              aria-label="Toggle navigation menu"
-              aria-expanded={sidebarOpen}
-              aria-controls="sidebar-nav"
-            >
-              <Icon name="menu" size={20} aria-hidden="true" />
-            </button>
-            <div className="header-title-block">
-              <h1>{pageMeta.title}</h1>
-            </div>
-          </div>
-
-          <div className="header-command-row">
-            <button
-              type="button"
-              className="command-search"
-              onClick={() => setCommandPaletteOpen(true)}
-              aria-label="Open command palette"
-            >
-              <Icon name="search" size={14} aria-hidden="true" />
-              <span>Search or run command...</span>
-              <kbd>⌘ K</kbd>
-            </button>
-            <div className="header-quick-actions" role="navigation" aria-label="Quick actions">
-              {quickActions.map(action => (
-                <Link key={action.path} to={action.path} className="btn btn-primary btn-sm topbar-primary">
-                  <Icon name={action.icon} size={13} aria-hidden="true" />
-                  {action.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="header-right-actions">
-            <div className="header-live-pill">
-              {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) : 'A'}
-            </div>
-          </div>
-        </motion.header>
-
-        {!isOnline && (
-          <div className="status-rail" role="region" aria-label="Live pipeline status">
-            <div className="banner warning" role="alert">
-              You are offline. Data may be stale while reconnection is pending.
-            </div>
-          </div>
-        )}
+      <div className="app-main-wrapper flex flex-col min-h-screen">
+        <Header
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          pageMeta={pageMeta}
+          setCommandPaletteOpen={setCommandPaletteOpen}
+          quickActions={quickActions}
+          workflowMode={workflowMode}
+          liveConnectionState={liveConnectionState}
+          user={user}
+          isOnline={isOnline}
+          policy={policy}
+          motionDuration={motionDuration}
+        />
 
         <motion.main
           id="main"
           role="main"
           tabIndex={-1}
-          className="app-main-content"
+          className="app-main-content flex-1"
           initial={policy.allowFramer ? { opacity: 0, y: strategy.distance } : false}
           animate={policy.allowFramer ? { opacity: 1, y: 0 } : undefined}
           transition={{ duration: motionDuration, ease: 'easeOut' }}
@@ -472,18 +474,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           {children}
         </motion.main>
 
-        <footer className="app-footer" role="contentinfo">
-          <span>v{APP_VERSION}</span>
-          <button 
-            type="button"
-            className={`footer-health hover:text-accent transition-colors ${isOnline ? 'text-ok' : 'text-bad'}`} 
-            onClick={() => emitRefresh()}
-            title="Force Full System Resync"
-          >
-            System Status
-            <i className={`ml-2 inline-block w-2 h-2 rounded-full ${isOnline ? 'bg-ok' : 'bg-bad'}`} aria-hidden="true" />
-          </button>
-        </footer>
+        <Footer
+          appVersion={APP_VERSION}
+          isOnline={isOnline}
+          onRefresh={emitRefresh}
+        />
       </div>
 
       <nav className="mobile-dock" aria-label="Primary sections">
@@ -509,39 +504,10 @@ export function AppLayout({ children }: AppLayoutProps) {
         items={allCommandItems}
       />
 
-      {showShortcuts && (
-        <FocusTrap active={showShortcuts} onDeactivate={() => setShowShortcuts(false)}>
-          <div
-            className="modal-overlay-fixed"
-            role="button"
-            tabIndex={0}
-            aria-label="Close shortcuts modal"
-            onClick={(e) => { if (e.target === e.currentTarget) setShowShortcuts(false); }}
-            onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) setShowShortcuts(false); }}
-          >
-            <div
-              tabIndex={-1}
-              className="card modal-card"
-              role="document"
-            >
-              <h3 id="shortcuts-modal-title" className="mb-16 text-accent">Keyboard Shortcuts</h3>
-              <div className="modal-grid">
-                <div className="shortcut-row"><span>Dashboard</span><kbd className="kbd">1</kbd></div>
-                <div className="shortcut-row"><span>Targets</span><kbd className="kbd">2</kbd></div>
-                <div className="shortcut-row"><span>Jobs</span><kbd className="kbd">3</kbd></div>
-                <div className="shortcut-row"><span>Findings</span><kbd className="kbd">4</kbd></div>
-                <div className="shortcut-row"><span>Pipeline Overview</span><kbd className="kbd">5</kbd></div>
-                <div className="shortcut-row"><span>Force Refresh</span><kbd className="kbd">R</kbd></div>
-                <div className="shortcut-row"><span>Theme Toggle</span><kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">D</kbd></div>
-                <div className="shortcut-row"><span>Settings</span><kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">S</kbd></div>
-                <div className="shortcut-row"><span>Sidebar Toggle</span><kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">B</kbd></div>
-                <div className="shortcut-row"><span>Command Palette</span><kbd className="kbd">Ctrl</kbd>+<kbd className="kbd">K</kbd></div>
-                <div className="shortcut-row"><span>Close Modal</span><kbd className="kbd">Esc</kbd></div>
-              </div>
-            </div>
-          </div>
-        </FocusTrap>
-      )}
+      <ShortcutsModal
+        isOpen={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
     </div>
   );
 }

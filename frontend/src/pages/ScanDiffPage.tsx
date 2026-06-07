@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeftRight, TrendingUp, TrendingDown, DollarSign, Filter } from 'lucide-react';
+import { ArrowLeftRight, TrendingUp, TrendingDown, DollarSign, Filter, Check, X } from 'lucide-react';
 import type { Finding, Target } from '@/types/api';
 import { PageHeader, GlassCard, AnimatedCounter } from '@/components/ui';
 import { useApi } from '@/hooks/useApi';
 import { useTargetFilters, hasActiveFilters } from '@/hooks/useTargetFilters';
 import { useDebouncedFilter } from '@/hooks/useDebouncedFilter';
+import { bulkUpdateFindings } from '@/api/findings';
+import { useToast } from '@/hooks/useToast';
 
 interface DiffBucket {
   newFindings: Finding[];
@@ -67,14 +69,52 @@ export function ScanDiffPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: targetsData } = useApi<{ targets: Target[]; total: number }>('/api/targets');
   const targets = targetsData?.targets ?? [];
+  const toast = useToast();
 
   const [filter, setFilter] = useState<string>(searchParams.get('filter') ?? 'all');
   const [page, setPage] = useState(1);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const initialRunA = searchParams.get('runA') ?? '';
   const initialRunB = searchParams.get('runB') ?? '';
   const [runA, setRunA] = useState<string>(initialRunA);
   const [runB, setRunB] = useState<string>(initialRunB);
+
+  const acceptAllNew = async () => {
+    if (diff.newFindings.length === 0 || bulkBusy) return;
+    const ok = typeof window !== 'undefined'
+      ? window.confirm(`Mark all ${diff.newFindings.length} new finding(s) as "Accepted" (in progress)?`)
+      : true;
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const ids = diff.newFindings.map(f => f.id).filter(Boolean) as string[];
+      await bulkUpdateFindings(ids, { status: 'accepted' });
+      toast.success(`Accepted ${ids.length} new finding(s)`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Bulk accept failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const rejectAllRemoved = async () => {
+    if (diff.removedFindings.length === 0 || bulkBusy) return;
+    const ok = typeof window !== 'undefined'
+      ? window.confirm(`Mark all ${diff.removedFindings.length} removed finding(s) as false-positive (no longer present in latest run)?`)
+      : true;
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const ids = diff.removedFindings.map(f => f.id).filter(Boolean) as string[];
+      await bulkUpdateFindings(ids, { falsePositive: true, fpStatus: 'approved', fpJustification: 'No longer present in latest run' });
+      toast.success(`Dismissed ${ids.length} removed finding(s) as false-positive`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Bulk dismiss failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
@@ -241,7 +281,7 @@ export function ScanDiffPage() {
             </div>
           </GlassCard>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Filter size={14} className="text-muted" />
             {(['all', 'new', 'removed', 'changed', 'bounty_high'] as const).map((f) => (
               <button
@@ -257,6 +297,28 @@ export function ScanDiffPage() {
                 {f === 'bounty_high' ? 'High bounty (≥ $500)' : f}
               </button>
             ))}
+            <div className="ml-auto flex items-center gap-2" role="group" aria-label="Bulk diff actions">
+              <button
+                type="button"
+                onClick={acceptAllNew}
+                disabled={bulkBusy || diff.newFindings.length === 0}
+                className="px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest border border-ok/40 text-ok hover:bg-ok/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                aria-label={`Accept all ${diff.newFindings.length} new finding(s)`}
+                title="Mark all new findings as Accepted (in progress)"
+              >
+                <Check size={12} aria-hidden="true" /> Accept all new ({diff.newFindings.length})
+              </button>
+              <button
+                type="button"
+                onClick={rejectAllRemoved}
+                disabled={bulkBusy || diff.removedFindings.length === 0}
+                className="px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest border border-bad/40 text-bad hover:bg-bad/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                aria-label={`Reject all ${diff.removedFindings.length} removed finding(s)`}
+                title="Mark all removed findings as false-positive (no longer in latest run)"
+              >
+                <X size={12} aria-hidden="true" /> Reject all removed ({diff.removedFindings.length})
+              </button>
+            </div>
           </div>
 
           <GlassCard hoverable={false} padding={false}>

@@ -383,6 +383,8 @@ async def run_reporting(
             "attestation.pdf",
             "report_manifest.json",
             "report_manifest.sig",
+            "tickets.json",
+            "remediation_patches.json",
         ):
             artifact_path = ctx.output_store.run_dir / artifact_name
             if artifact_path.exists():

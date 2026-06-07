@@ -42,6 +42,14 @@ from src.learning.signal_quality import extract_features, ml_pipeline
 
 logger = logging.getLogger(__name__)
 
+# Imported lazily to avoid a circular import with
+# ``src.decision.hunt_budget`` (which itself imports from this module
+# for type-checking only).
+try:
+    from src.decision.hunt_budget import HuntBudgetEnforcer
+except ImportError:  # pragma: no cover - defensive
+    HuntBudgetEnforcer = None  # type: ignore[assignment,misc]
+
 
 # URL pattern correlations: when this pattern is found on one endpoint,
 # boost endpoints matching these patterns.
@@ -267,6 +275,7 @@ class CorrelationPriorityQueue:
         *,
         auto_correlate: bool = True,
         boost_factor: float = 2.0,
+        budget_enforcer: "HuntBudgetEnforcer | None" = None,
     ) -> None:
         self._lock = threading.Lock()
         self._targets: list[ScanTarget] = []  # heap
@@ -277,6 +286,9 @@ class CorrelationPriorityQueue:
         self._pop_count: int = 0
         self._total_findings: int = 0
         self._retraining_failures_count: int = 0
+        self._budget_enforcer: HuntBudgetEnforcer | None = budget_enforcer
+        if self._budget_enforcer is not None:
+            self._budget_enforcer.bind_to_priority_queue(self)
 
         if targets:
             for i, t in enumerate(targets):
@@ -298,6 +310,7 @@ class CorrelationPriorityQueue:
         base_scores: dict[str, float] | None = None,
         auto_correlate: bool = True,
         boost_factor: float = 2.0,
+        budget_enforcer: "HuntBudgetEnforcer | None" = None,
     ) -> CorrelationPriorityQueue:
         """Build a priority queue from a list of URLs.
 
@@ -306,6 +319,8 @@ class CorrelationPriorityQueue:
             base_scores: Optional pre-computed scores per URL.
             auto_correlate: Whether to auto-apply correlation boosting.
             boost_factor: Multiplier for correlation boosts.
+            budget_enforcer: Optional :class:`HuntBudgetEnforcer` that
+                gates ``should_terminate_early`` on time/requests/findings.
         """
         targets = []
         for url in urls:
@@ -315,6 +330,7 @@ class CorrelationPriorityQueue:
             targets=targets,
             auto_correlate=auto_correlate,
             boost_factor=boost_factor,
+            budget_enforcer=budget_enforcer,
         )
 
     # ------------------------------------------------------------------
@@ -608,6 +624,41 @@ class CorrelationPriorityQueue:
                 if unscanned
                 else [],
             }
+
+    def set_budget_enforcer(self, enforcer: "HuntBudgetEnforcer | None") -> None:
+        """Attach (or replace) the budget enforcer that gates ``pop``.
+
+        When an enforcer is attached, ``should_terminate_early`` will
+        short-circuit to ``True`` as soon as any of the configured
+        budget axes (time / requests / findings) is exhausted.
+        """
+        if enforcer is not None and HuntBudgetEnforcer is not None and not isinstance(
+            enforcer, HuntBudgetEnforcer
+        ):
+            raise TypeError(
+                "enforcer must be a HuntBudgetEnforcer instance, got "
+                f"{type(enforcer).__name__}"
+            )
+        previous = self._budget_enforcer
+        self._budget_enforcer = enforcer
+        if enforcer is not None:
+            enforcer.bind_to_priority_queue(self)
+        elif previous is not None and hasattr(previous, "bind_to_priority_queue"):
+            # Rebind with a no-op so the prior wrapper is no longer
+            # pinning the closure of the previous enforcer.
+            try:
+                previous.bind_to_priority_queue(self)
+            except Exception:  # pragma: no cover - defensive
+                pass
+
+    def budget_snapshot(self) -> dict[str, Any] | None:
+        if self._budget_enforcer is None:
+            return None
+        snap = self._budget_enforcer.snapshot()
+        return {
+            "budget": self._budget_enforcer.budget.to_dict(),
+            **snap.to_dict(),
+        }
 
     def trigger_retraining_loop(self) -> None:
         """Trigger incremental training of the ML quality model using queue targets and logs."""

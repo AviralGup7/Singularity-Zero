@@ -1,4 +1,4 @@
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 import type { CockpitNode, CockpitEdge } from '@/api/cockpit';
 
 interface GraphLegendProps {

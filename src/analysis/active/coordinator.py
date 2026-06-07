@@ -45,6 +45,8 @@ from src.analysis.active.injection.xxe import xxe_active_probe
 from src.analysis.active.jwt_attacks import run_jwt_attack_suite
 from src.analysis.active.param_mining import param_mining_probe
 from src.analysis.active.race_condition import race_condition_probe
+from src.analysis.active.saml_attacks import run_saml_attack_suite
+from src.detection.ast import analyze_html_for_prototype_pollution
 from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
 from src.analysis.checks.active.idor_probe import idor_active_probe
 from src.analysis.helpers import (
@@ -86,6 +88,7 @@ __all__ = [
     "race_condition_probe",
     "run_auth_bypass_probes",
     "run_jwt_attack_suite",
+    "run_saml_attack_suite",
     "sqli_safe_probe",
     "ssrf_active_probe",
     "ssti_active_probe",
@@ -378,3 +381,73 @@ WS_SEVERITY = {
     "graphql_ws_unauthenticated_subscription": "high",
     "graphql_ws_csws_origin_bypass": "high",
 }
+
+
+def run_saml_attack_suite(
+    priority_urls: list[dict[str, Any]],
+    response_cache: ResponseCache,
+    credential_vault: CredentialVault,
+    config: dict[str, Any] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Orchestrate SAML active attack probes when SAML assertions are captured."""
+    config = config or {}
+    limit = int(config.get("saml_limit", 12))
+    from src.analysis.active.saml_attacks import (
+        run_assertion_replay,
+        run_signature_strip,
+        run_xsw_attack,
+    )
+
+    saml_replay_results = run_assertion_replay(priority_urls, response_cache, credential_vault, limit=limit)
+    xsw_results = run_xsw_attack(priority_urls, response_cache, credential_vault, limit=limit)
+    strip_results = run_signature_strip(priority_urls, response_cache, credential_vault, limit=limit)
+    return {
+        "saml_assertion_replay": saml_replay_results,
+        "saml_xsw_attack": xsw_results,
+        "saml_signature_strip": strip_results,
+    }
+
+
+def run_prototype_pollution_walker(
+    priority_items: list[dict[str, Any]],
+    response_cache: Any | None = None,
+    *,
+    limit: int = 25,
+) -> list[dict[str, Any]]:
+    """Walk HTML/JSON responses for prototype pollution candidates."""
+    findings: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for item in priority_items:
+        if len(findings) >= limit:
+            break
+        url = str(item.get("url", "")) if isinstance(item, dict) else str(item)
+        url = url.strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+
+        body: str | None = None
+        if response_cache is not None:
+            cached = response_cache.get(url)
+            if cached:
+                body = str(cached.get("body_text", "") or cached.get("body", "") or "")
+
+        if not body:
+            continue
+
+        try:
+            pp_findings = analyze_html_for_prototype_pollution(body, url=url)
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).debug(
+                "prototype_pollution_walker failed for %s: %s", url, exc
+            )
+            continue
+
+        for f in pp_findings:
+            f.setdefault("probe", "prototype_pollution_walker")
+            findings.append(f)
+
+    return findings

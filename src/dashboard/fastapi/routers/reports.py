@@ -4,16 +4,36 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.reporting.compliance_pdf import generate_compliance_pdf
+from src.reporting.platform_clients import (
+    BugcrowdClient,
+    HackerOneClient,
+    IntigritiClient,
+    SubmissionResult,
+    SynackClient,
+    YesWeHackClient,
+    OpenBugBountyClient,
+    GoogleVRPClient,
+    MetaClient,
+    AppleClient,
+    AWSClient,
+    MSRCAgent,
+    MozillaClient,
+    GovDefenseClient,
+)
 from src.reporting.report_artifacts import build_report_library
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/reports")
 
@@ -311,4 +331,179 @@ async def get_sla_trending(
         "open_findings_count": total_open,
         "sla_compliance_rate": compliance_rate,
         "trending": sorted_trend,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Platform submission endpoints (HackerOne / Bugcrowd / Intigriti / Synack / YesWeHack / etc.)
+# ---------------------------------------------------------------------------
+
+
+class SubmitFindingPayload(BaseModel):
+    platform: str = Field(..., pattern=r"^(hackerone|bugcrowd|intigriti|synack|yeswehack|openbugbounty|googlevrp|meta|apple|aws|msrc|mozilla|govdefense)$")
+    draft: bool = True
+    additional_notes: str = ""
+
+
+_PLATFORM_CLIENTS: dict[str, Any] = {}
+_PLATFORM_INIT_ERRORS: dict[str, str] = {}
+
+
+def _get_clients() -> dict[str, Any]:
+    """Lazy-init the platform-client singleton (reads tokens from env)."""
+    if not _PLATFORM_CLIENTS and not _PLATFORM_INIT_ERRORS:
+        factories: dict[str, Any] = {
+            "hackerone": HackerOneClient,
+            "bugcrowd": BugcrowdClient,
+            "intigriti": IntigritiClient,
+            "synack": SynackClient,
+            "yeswehack": YesWeHackClient,
+            "openbugbounty": OpenBugBountyClient,
+            "googlevrp": GoogleVRPClient,
+            "meta": MetaClient,
+            "apple": AppleClient,
+            "aws": AWSClient,
+            "msrc": MSRCAgent,
+            "mozilla": MozillaClient,
+            "govdefense": GovDefenseClient,
+        }
+        for platform, factory in factories.items():
+            try:
+                _PLATFORM_CLIENTS[platform] = factory()
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("%s init failed: %s", factory.__name__, exc)
+                _PLATFORM_INIT_ERRORS[platform] = str(exc)
+                _PLATFORM_CLIENTS[platform] = None
+    return _PLATFORM_CLIENTS
+
+
+@router.get(
+    "/platforms",
+    summary="List configured bug-bounty platform clients",
+)
+async def list_platforms(_auth: Any = Depends(require_auth)) -> dict[str, Any]:
+    """Return a per-platform readiness summary."""
+    clients = _get_clients()
+    out: list[dict[str, Any]] = []
+    platforms = (
+        "hackerone", "bugcrowd", "intigriti", "synack", "yeswehack",
+        "openbugbounty", "googlevrp", "meta", "apple", "aws", "msrc",
+        "mozilla", "govdefense"
+    )
+    for platform in platforms:
+        client = clients.get(platform)
+        if client is None:
+            out.append(
+                {
+                    "platform": platform,
+                    "ready": False,
+                    "configured": False,
+                    "last_error": _PLATFORM_INIT_ERRORS.get(
+                        platform, "init_failed"
+                    ),
+                }
+            )
+            continue
+        ready = bool(getattr(client, "ready", False))
+        out.append(
+            {
+                "platform": platform,
+                "ready": ready,
+                "configured": ready,
+                "last_error": None if ready else "missing_credentials",
+            }
+        )
+    return {"clients": out}
+
+
+def _resolve_run_dir(services: Any, target: str, run_id: str) -> Path | None:
+    output_root: Path = services.query.output_root
+    target_dir = get_safe_target_dir(output_root, target)
+    candidate = (target_dir / run_id).resolve()
+    if not candidate.is_dir():
+        return None
+    if target_dir.resolve() not in candidate.parents and candidate != target_dir:
+        return None
+    return candidate
+
+
+@router.post(
+    "/runs/{run_id}/findings/{finding_id}/submit",
+    summary="Submit a finding to a bug-bounty platform",
+)
+async def submit_finding_to_platform(
+    run_id: str,
+    finding_id: str,
+    payload: SubmitFindingPayload,
+    auth: Any = Depends(require_auth),
+    services: Any = Depends(get_queue_client),
+) -> dict[str, Any]:
+    """Push a finding to one of the supported platforms."""
+    target = (auth or {}).get("target")
+    if not target:
+        raise HTTPException(
+            status_code=400, detail="No target associated with auth context"
+        )
+    run_dir = _resolve_run_dir(services, target, run_id)
+    if run_dir is None:
+        raise HTTPException(status_code=404, detail="Run not found for current tenant")
+
+    findings_path = run_dir / "findings.json"
+    if not findings_path.is_file():
+        raise HTTPException(
+            status_code=404, detail="findings.json not present for this run"
+        )
+
+    try:
+        findings_list = json.loads(findings_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=500, detail=f"findings.json is corrupt: {exc}"
+        ) from exc
+
+    if not isinstance(findings_list, list):
+        raise HTTPException(status_code=500, detail="findings.json is malformed")
+
+    finding: dict[str, Any] | None = next(
+        (
+            f
+            for f in findings_list
+            if isinstance(f, dict) and str(f.get("id")) == finding_id
+        ),
+        None,
+    )
+    if finding is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Finding {finding_id!r} not found in run {run_id!r}",
+        )
+
+    if payload.additional_notes:
+        finding = {**finding, "additional_notes": payload.additional_notes}
+    finding = {**finding, "draft": payload.draft}
+
+    client = _get_clients().get(payload.platform)
+    if client is None or not getattr(client, "ready", False):
+        raise HTTPException(
+            status_code=503,
+            detail=f"Platform client for {payload.platform!r} is not configured",
+        )
+
+    try:
+        result: SubmissionResult = await client.submit(finding)
+    except Exception as exc:
+        logger.exception("Platform submission failed")
+        return {
+            "platform": payload.platform,
+            "submitted": False,
+            "error": str(exc),
+        }
+
+    return {
+        "platform": result.platform,
+        "submitted": bool(getattr(result, "ok", False)),
+        "report_id": getattr(result, "external_id", "") or None,
+        "url": getattr(result, "url", "") or None,
+        "error": getattr(result, "error", "") or None,
+        "status_code": getattr(result, "status_code", 0) or None,
     }

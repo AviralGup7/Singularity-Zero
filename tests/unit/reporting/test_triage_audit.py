@@ -128,3 +128,53 @@ def test_triage_audit_section_with_data(tmp_path):
     assert "Status Update" in html_output_limit_2
     assert "No Payload Text Action" in html_output_limit_2
     assert "Add Analyst Note" not in html_output_limit_2
+
+
+def test_bulk_triage_and_team_metrics(tmp_path):
+    from src.reporting.triage_audit import bulk_triage_findings, calculate_team_triage_metrics
+
+    bulk_triage_findings(
+        tmp_path,
+        finding_ids=["F1", "F2"],
+        status="DEFERRED",
+        analyst_name="Security Lead Alice",
+        role="Lead",
+        reason="Low priority backlog items"
+    )
+
+    events = load_triage_events(tmp_path)
+    assert len(events) == 1
+    assert events[0]["action"] == "bulk_triage"
+    assert events[0]["analyst_name"] == "Security Lead Alice"
+    assert events[0]["analyst_role"] == "Lead"
+
+    findings = [
+        {"id": "F1", "status": "DEFERRED", "assignee": "Security Lead Alice", "discovered_at": 1000, "triaged_at": 1500},
+        {"id": "F2", "status": "DEFERRED", "assignee": "Security Lead Alice", "discovered_at": 1000, "triaged_at": 2500},
+        {"id": "F3", "status": "OPEN", "assignee": None, "discovered_at": 1000},
+    ]
+
+    metrics = calculate_team_triage_metrics(events, findings)
+    assert metrics["backlog_count"] == 1
+    assert metrics["triaged_count"] == 2
+    assert metrics["assigned_count"] == 2
+    assert metrics["avg_triage_hours"] == 0.28  # avg: (500 + 1500)/2 = 1000 seconds = ~0.28 hours
+
+
+def test_triage_queue_exports(tmp_path):
+    from src.reporting.triage_audit import export_triage_queue_csv, export_triage_queue_json
+
+    findings = [
+        {"id": "F1", "title": "SQL Injection", "severity": "CRITICAL", "category": "sqli", "url": "http://a", "status": "OPEN", "assignee": "Bob", "sla_status": "COMPLIANT"},
+    ]
+
+    csv_path = tmp_path / "triage.csv"
+    export_triage_queue_csv(findings, csv_path)
+    assert csv_path.exists()
+    assert "SQL Injection" in csv_path.read_text(encoding="utf-8")
+
+    json_path = tmp_path / "triage.json"
+    export_triage_queue_json(findings, json_path)
+    assert json_path.exists()
+    assert "CRITICAL" in json_path.read_text(encoding="utf-8")
+

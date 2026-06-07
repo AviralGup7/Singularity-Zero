@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { DetectionGapResponse } from '@/types/api';
 
 export function useGapAnalysisSorting() {

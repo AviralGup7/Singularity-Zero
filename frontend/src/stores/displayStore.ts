@@ -16,7 +16,16 @@ const defaultDisplay: DisplayState = {
 };
 
 const SIDEBAR_STORAGE_KEY = 'cyber-pipeline-sidebar';
+const WORKFLOW_MODE_STORAGE_KEY = 'cyber-pipeline-workflow-mode';
 const defaultSidebar = { collapsed: false };
+
+export type WorkflowMode = 'pentest' | 'appsec';
+
+function getInitialWorkflowMode(): WorkflowMode {
+  const stored = safeStorage.get(WORKFLOW_MODE_STORAGE_KEY);
+  if (stored === 'pentest' || stored === 'appsec') return stored;
+  return 'appsec';
+}
 
 function getInitialSidebar(): { collapsed: boolean } {
   const stored = safeStorage.get(SIDEBAR_STORAGE_KEY);
@@ -107,6 +116,13 @@ export interface DisplayStore {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebarCollapsed: () => void;
+  /**
+   * Workflow mode (pentest vs appsec). Used to gate telemetry-heavy
+   * features like live terminal streams, presence indicators, and 3D
+   * views so that AppSec auditors can opt into a quieter surface.
+   */
+  workflowMode: WorkflowMode;
+  setWorkflowMode: (mode: WorkflowMode) => void;
 }
 
 export const useDisplayStore = create<DisplayStore>((set, get) => {
@@ -146,6 +162,11 @@ export const useDisplayStore = create<DisplayStore>((set, get) => {
       const next = !get().sidebarCollapsed;
       persistSidebar({ collapsed: next });
       set({ sidebarCollapsed: next });
+    },
+    workflowMode: getInitialWorkflowMode(),
+    setWorkflowMode: (mode: WorkflowMode) => {
+      safeStorage.set(WORKFLOW_MODE_STORAGE_KEY, mode);
+      set({ workflowMode: mode });
     },
   };
 });

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 export type StatusFilter = 'all' | 'complete' | 'partial' | 'missing';

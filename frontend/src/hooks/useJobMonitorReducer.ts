@@ -183,8 +183,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
     case 'ADD_FINDINGS':
       return {
         ...state,
-   
-        streamingFindings: [...state.streamingFindings, ...action.payload],
+        streamingFindings: action.payload.slice(-5000),
         lastUpdateTs: now,
       };
 

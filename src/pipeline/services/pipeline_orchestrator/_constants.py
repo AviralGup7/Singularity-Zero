@@ -8,8 +8,14 @@ plugins; new code should import ``STAGE_GRAPH`` directly.
 """
 from __future__ import annotations
 
+import json
+import logging
+from pathlib import Path
+from typing import Any
+
 from ._graph_dsl import Graph
-from .graph_builder import build_pipeline_graph
+from .graph_builder import build_pipeline_graph, _load_capability_profile
+from src.pipeline.stage_registry import _global_stage_registry
 
 __all__ = [
     "PIPELINE_STAGES",
@@ -20,6 +26,9 @@ __all__ = [
     "DEFAULT_ITERATION_LIMIT",
     "DEFAULT_TIMEOUT_SECONDS",
 ]
+
+
+logger = logging.getLogger(__name__)
 
 
 PIPELINE_STAGES = {
@@ -112,12 +121,15 @@ DEFAULT_TIMEOUT_SECONDS = 3600
 def _build_default_graph() -> Graph:
     """Construct the canonical pipeline graph.
 
-    The graph is built without a ``stage_methods`` mapping, so the
-    ``startup`` node is not injected.  Callers that need startup
-    injection (e.g. the orchestrator) should call
-    :func:`graph_builder.build_pipeline_graph` directly.
+    The graph is built by merging built-in nodes with any stages
+    registered in the global StageRegistry. Registered nodes take
+    precedence over built-in nodes with the same name.
+
+    Optionally reads ``.ai/capability_manifest.json``
+    ``pipeline_profiles.default`` section to gate stages.
     """
-    return build_pipeline_graph()
+    profile = _load_capability_profile("default")
+    return build_pipeline_graph(profile=profile)
 
 
 STAGE_GRAPH: Graph = _build_default_graph()

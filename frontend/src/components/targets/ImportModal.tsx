@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 
+const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+
 interface ImportModalProps {
   importFile: File | null;
   importTargetName: string;

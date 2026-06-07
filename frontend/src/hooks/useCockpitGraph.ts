@@ -14,10 +14,10 @@ interface GraphUpdateOptions {
 
 export function useCockpitGraph(
   applyGraph: (data: { nodes: CockpitNode[]; edges: CockpitEdge[] }) => void,
-  target: string,
-  run: string | undefined,
-  jobId: string | undefined,
-  activeJobId: string | undefined,
+  _target: string,
+  _run: string | undefined,
+  _jobId: string | undefined,
+  _activeJobId: string | undefined,
   options: GraphUpdateOptions = {}
 ) {
   const debounceMs = options.debounceMs ?? 250;

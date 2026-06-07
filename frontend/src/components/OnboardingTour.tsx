@@ -16,34 +16,41 @@ const TOUR_STEPS: TourStep[] = [
   {
     title: 'Dashboard',
     description: 'Get an overview of your security posture, active jobs, and findings at a glance.',
-   
     target: '[data-tour="dashboard"]',
   },
   {
     title: 'Targets',
     description: 'Manage your scan targets and view findings organized by target.',
-   
     target: '[data-tour="targets"]',
     path: '/targets',
   },
   {
     title: 'Jobs',
     description: 'Monitor running scans, view job details, and manage pipeline execution.',
-   
     target: '[data-tour="jobs"]',
     path: '/jobs',
   },
   {
-    title: 'Findings',
-    description: 'Review, filter, and manage security findings across all targets.',
-   
+    title: 'Findings Triage',
+    description: 'Switch the view mode to Table, then use the bulk action bar to change status, mark false positives, assign, or delete across many findings at once.',
+    target: '[data-tour="findings"]',
+    path: '/findings',
+  },
+  {
+    title: 'Evidence & Chain of Custody',
+    description: 'Open any finding detail, then look for the Evidence tab to inspect the request/response and the chain-of-custody record proving integrity.',
+    target: '[data-tour="findings"]',
+    path: '/findings',
+  },
+  {
+    title: 'Reporting',
+    description: 'Build a structured report from selected findings and export to Markdown, HTML, or JSON. Signed artefacts remain in the Reports library.',
     target: '[data-tour="findings"]',
     path: '/findings',
   },
   {
     title: 'Settings',
     description: 'Customize themes, display options, notifications, and more.',
-   
     target: '[data-tour="settings"]',
     path: '/settings',
   },
@@ -96,12 +103,12 @@ function useOnboardingTour() {
     if (currentStep > 0) {
       setCurrentStep(s => s - 1);
     }
-   
   }, [currentStep]);
 
   return {
     active,
-    step: Reflect.get(TOUR_STEPS, currentStep),
+    // eslint-disable-next-line security/detect-object-injection
+    step: TOUR_STEPS[currentStep],
     currentStep,
     totalSteps: TOUR_STEPS.length,
     next,
@@ -118,28 +125,30 @@ export function OnboardingTour() {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') skip();
     };
+    const handlePopState = () => {
+      skip();
+    };
     window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [active, skip]);
 
   if (!active || !step) return null;
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       className="onboarding-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) skip();
       }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && e.target === e.currentTarget) skip();
-      }}
-      role="button"
-      tabIndex={-1}
-      aria-label="Close tour"
     >
-      <div 
-        className="onboarding-card" 
-        role="dialog" 
+      <div
+        className="onboarding-card"
+        role="dialog"
         aria-modal="true"
         aria-labelledby="tour-title"
         aria-describedby="tour-description"

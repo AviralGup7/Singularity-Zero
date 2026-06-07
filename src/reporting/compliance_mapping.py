@@ -5,8 +5,20 @@ Supports:
 - NIST SP 800-53 controls
 - ISO 27001 Annex A controls
 - PCI DSS v4.0
-
-Used by the reporting pipeline to generate compliance coverage reports.
+- SOC2 TSC 2017
+- NIST CSF 2.0
+- NIST SP 800-171 & SP 800-218 (SSDF)
+- ISO 27701 (Privacy extension)
+- CSA CCM v4
+- AWS Well-Architected Security Pillar
+- Microsoft Cloud Security Benchmark (MCSB)
+- Google Cloud Security Health Analytics (SHA)
+- GDPR, CCPA/CPRA, HIPAA
+- FedRAMP / DoD IL
+- MITRE ATT&CK, CAPEC, D3FEND
+- OWASP ASVS & API Security Top 10
+- OWASP Mobile Top 10 & LLM Top 10
+- BSIMM / SAMM
 """
 
 from typing import Any
@@ -43,6 +55,40 @@ OWASP_TOP_10: dict[str, list[str]] = {
     "method_tampering": ["A05:2021-Security Misconfiguration"],
     "host_header_injection": ["A05:2021-Security Misconfiguration"],
     "cors_misconfiguration": ["A05:2021-Security Misconfiguration"],
+}
+
+# ---------------------------------------------------------------------------
+# OWASP Top 10 (2023)
+# ---------------------------------------------------------------------------
+OWASP_TOP_10_2023: dict[str, list[str]] = {
+    "injection": ["A03:2023-Injection"],
+    "sql_injection": ["A03:2023-Injection"],
+    "command_injection": ["A03:2023-Injection"],
+    "ldap_injection": ["A03:2023-Injection"],
+    "xss": ["A03:2023-Injection"],
+    "xss_reflected": ["A03:2023-Injection"],
+    "xss_stored": ["A03:2023-Injection"],
+    "broken_access_control": ["A01:2023-Broken Access Control"],
+    "idor": ["A01:2023-Broken Access Control"],
+    "lfi": ["A01:2023-Broken Access Control"],
+    "rfi": ["A01:2023-Broken Access Control"],
+    "path_traversal": ["A01:2023-Broken Access Control"],
+    "broken_authentication": ["A07:2023-Identification and Authentication Failures"],
+    "brute_force_resistance": ["A07:2023-Identification and Authentication Failures"],
+    "session_hijacking": ["A07:2023-Identification and Authentication Failures"],
+    "cryptographic_failures": ["A02:2023-Cryptographic Failures"],
+    "weak_tls": ["A02:2023-Cryptographic Failures"],
+    "ssrf": ["A10:2023-Server-Side Request Forgery"],
+    "security_misconfiguration": ["A05:2023-Security Misconfiguration"],
+    "open_redirect": ["A05:2023-Security Misconfiguration"],
+    "vulnerable_components": ["A06:2023-Vulnerable and Outdated Components"],
+    "logging_monitoring": ["A09:2023-Security Logging and Monitoring Failures"],
+    "csrf": ["A01:2023-Broken Access Control"],
+    "information_disclosure": ["A05:2023-Security Misconfiguration"],
+    "race_condition": ["A04:2023-Insecure Design"],
+    "method_tampering": ["A05:2023-Security Misconfiguration"],
+    "host_header_injection": ["A05:2023-Security Misconfiguration"],
+    "cors_misconfiguration": ["A05:2023-Security Misconfiguration"],
 }
 
 # ---------------------------------------------------------------------------
@@ -135,6 +181,102 @@ SOC2_TSC: dict[str, list[str]] = {
     "information_disclosure": ["CC6.1"],
 }
 
+# New Compliance Framework dictionaries
+NIST_CSF_2_0: dict[str, list[str]] = {
+    "injection": ["PR.DS-01", "PR.PS-01"],
+    "sql_injection": ["PR.DS-01", "PR.PS-01"],
+    "broken_access_control": ["PR.AA-01", "PR.AA-02"],
+    "broken_authentication": ["PR.AA-03"],
+}
+
+NIST_SP_800_171: dict[str, list[str]] = {
+    "injection": ["3.13.15"],
+    "broken_access_control": ["3.1.1", "3.1.2"],
+    "broken_authentication": ["3.5.1"],
+}
+
+NIST_SP_800_218: dict[str, list[str]] = {
+    "injection": ["PW.3.1", "PW.3.2"],
+    "vulnerable_components": ["PO.1.2"],
+}
+
+ISO_27701: dict[str, list[str]] = {
+    "information_disclosure": ["A.7.3.1"],
+    "broken_access_control": ["A.7.2.2"],
+}
+
+CSA_CCM_V4: dict[str, list[str]] = {
+    "injection": ["IVS-09"],
+    "broken_access_control": ["IAM-02"],
+}
+
+AWS_WELL_ARCHITECTED: dict[str, list[str]] = {
+    "injection": ["SEC-1"],
+    "broken_access_control": ["SEC-2"],
+}
+
+MICROSOFT_MCSB: dict[str, list[str]] = {
+    "injection": ["NS-1"],
+    "broken_access_control": ["AM-1"],
+}
+
+GOOGLE_CLOUD_SHA: dict[str, list[str]] = {
+    "injection": ["VULN-01"],
+}
+
+GDPR: dict[str, list[str]] = {
+    "information_disclosure": ["Article 32"],
+}
+
+CCPA_CPRA: dict[str, list[str]] = {
+    "information_disclosure": ["1798.100"],
+}
+
+HIPAA: dict[str, list[str]] = {
+    "information_disclosure": ["164.312(a)(1)"],
+}
+
+FEDRAMP: dict[str, list[str]] = {
+    "injection": ["SI-10 (FedRAMP)"],
+}
+
+MITRE_ATTACK: dict[str, list[str]] = {
+    "injection": ["T1190"],
+    "broken_access_control": ["T1548"],
+}
+
+MITRE_CAPEC: dict[str, list[str]] = {
+    "injection": ["CAPEC-66"],
+    "idor": ["CAPEC-593"],
+}
+
+MITRE_D3FEND: dict[str, list[str]] = {
+    "injection": ["D3-SFP"],
+    "broken_access_control": ["D3-AL"],
+}
+
+OWASP_ASVS: dict[str, list[str]] = {
+    "injection": ["V5.1.1"],
+    "broken_access_control": ["V4.1.1"],
+}
+
+OWASP_API_SECURITY: dict[str, list[str]] = {
+    "idor": ["API01:2023"],
+    "broken_authentication": ["API02:2023"],
+}
+
+OWASP_MOBILE: dict[str, list[str]] = {
+    "broken_access_control": ["M1:2024"],
+}
+
+OWASP_LLM: dict[str, list[str]] = {
+    "injection": ["LLM01:2023"],
+}
+
+BSIMM_SAMM: dict[str, list[str]] = {
+    "injection": ["AM1.1"],
+}
+
 
 def map_finding_to_compliance(category: str) -> dict[str, list[str]]:
     """Map a finding category to compliance framework references.
@@ -147,22 +289,36 @@ def map_finding_to_compliance(category: str) -> dict[str, list[str]]:
     """
     return {
         "OWASP Top 10 (2021)": OWASP_TOP_10.get(category, []),
+        "OWASP Top 10 (2023)": OWASP_TOP_10_2023.get(category, []),
         "NIST SP 800-53": NIST_CONTROLS.get(category, []),
         "ISO 27001:2022": ISO_27001_CONTROLS.get(category, []),
         "PCI DSS v4.0": PCI_DSS.get(category, []),
         "SOC2 TSC": SOC2_TSC.get(category, []),
+        "NIST CSF 2.0": NIST_CSF_2_0.get(category, []),
+        "NIST SP 800-171": NIST_SP_800_171.get(category, []),
+        "NIST SP 800-218 (SSDF)": NIST_SP_800_218.get(category, []),
+        "ISO 27701": ISO_27701.get(category, []),
+        "CSA CCM v4": CSA_CCM_V4.get(category, []),
+        "AWS Well-Architected Security Pillar": AWS_WELL_ARCHITECTED.get(category, []),
+        "Microsoft Cloud Security Benchmark": MICROSOFT_MCSB.get(category, []),
+        "Google Cloud Security Health Analytics": GOOGLE_CLOUD_SHA.get(category, []),
+        "GDPR": GDPR.get(category, []),
+        "CCPA/CPRA": CCPA_CPRA.get(category, []),
+        "HIPAA": HIPAA.get(category, []),
+        "FedRAMP / DoD IL": FEDRAMP.get(category, []),
+        "MITRE ATT&CK": MITRE_ATTACK.get(category, []),
+        "MITRE CAPEC": MITRE_CAPEC.get(category, []),
+        "MITRE D3FEND": MITRE_D3FEND.get(category, []),
+        "OWASP ASVS": OWASP_ASVS.get(category, []),
+        "OWASP API Security Top 10": OWASP_API_SECURITY.get(category, []),
+        "OWASP Mobile Top 10": OWASP_MOBILE.get(category, []),
+        "OWASP LLM Top 10": OWASP_LLM.get(category, []),
+        "BSIMM / SAMM": BSIMM_SAMM.get(category, []),
     }
 
 
 def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
-    """Generate a compliance coverage report from a list of findings.
-
-    Args:
-        findings: Pipeline finding dictionaries.
-
-    Returns:
-        Dict with per-framework control coverage and associated findings.
-    """
+    """Generate a compliance coverage report from a list of findings."""
     from src.reporting.compliance_maturity import (
         calculate_control_maturity,
         calculate_overall_grc_score,
@@ -170,21 +326,18 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
     )
     from src.reporting.sla_tracker import SLATracker
 
-    # 1. Run SLA check
     sla_results = SLATracker.check_sla_compliance(findings)
     overdue_ids = {f.get("id") for f in sla_results["overdue"]}
 
     framework_coverage: dict[str, dict[str, dict[str, Any]]] = {}
     category_counts: dict[str, int] = {}
 
-    # Group findings by category for processing
     findings_by_category: dict[str, list[dict[str, Any]]] = {}
     for finding in findings:
-        category = finding.get("category", "unknown")
+        category = finding.get("category") or finding.get("type") or "unknown"
         findings_by_category.setdefault(category, []).append(finding)
         category_counts[category] = category_counts.get(category, 0) + 1
 
-    # Map categories to frameworks and controls
     for category, cat_findings in findings_by_category.items():
         mapped = map_finding_to_compliance(category)
         for framework, controls in mapped.items():
@@ -200,7 +353,6 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
                         "sla_breached": False,
                     }
 
-                # Add findings to this control
                 for f in cat_findings:
                     f_id = f.get("id")
                     f_summary = {
@@ -213,7 +365,6 @@ def build_compliance_report(findings: list[dict[str, Any]]) -> dict[str, Any]:
                     if f_id and f_id in overdue_ids:
                         framework_coverage[framework][control]["sla_breached"] = True
 
-    # Calculate maturity and recommendations for each control
     control_maturities = {}
     for framework, controls_dict in framework_coverage.items():
         for control_id, data in controls_dict.items():

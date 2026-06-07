@@ -8,18 +8,39 @@ In our Python pipeline, this translates to:
 - If the target has a valid IPv4 hostname and is in the pre-computed
   cache → use fast HTTP path (reused connection pool, pre-built request)
 - Otherwise → fall back to full path (DNS resolution, full request build)
+
+When a :class:`ScopeEnforcer` is attached via :meth:`set_scope_enforcer`,
+the dispatcher performs a per-request scope check on every outbound
+URL. Out-of-scope requests are blocked before the connection is opened
+and a ``ScopeViolation`` is raised — this prevents the scanner from
+ever sending a probe to an unintended host.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
+if TYPE_CHECKING:
+    from src.pipeline.scope_enforcer import ScopeEnforcer
+
 logger = logging.getLogger(__name__)
+
+
+class ScopeViolation(RuntimeError):
+    """Raised when the dispatcher is asked to send a probe to an
+    out-of-scope target. The ``url`` attribute carries the offending
+    URL for logging/UI feedback.
+    """
+
+    def __init__(self, url: str, message: str | None = None) -> None:
+        self.url = url
+        super().__init__(message or f"out-of-scope request blocked: {url}")
 
 
 # Response cache for identical probes across targets
@@ -86,6 +107,14 @@ class FastPathDispatcher:
     4. HTTP client connection pool is warm
 
     Otherwise → slow path with full initialization.
+
+    A :class:`ScopeEnforcer` can be attached with
+    :meth:`set_scope_enforcer` to enforce scope on every outbound
+    request. When attached, :meth:`dispatch` raises
+    :class:`ScopeViolation` for out-of-scope URLs *before* any network
+    I/O happens. This is the runtime per-request scope enforcement
+    layer that the pre-flight :class:`ConfigModel` validation cannot
+    provide on its own (scope is only checked at startup there).
     """
 
     def __init__(
@@ -95,6 +124,7 @@ class FastPathDispatcher:
         max_keepalive: int = 50,
         timeout: float = 10.0,
         http2: bool = False,
+        rate_limit_per_second: float | None = None,
     ) -> None:
         self._client_pool: httpx.AsyncClient | None = None
         self._max_connections = max_connections
@@ -102,6 +132,24 @@ class FastPathDispatcher:
         self._timeout = timeout
         self._http2 = http2
         self._stats = FastPathStats()
+        # Per-request scope enforcement. ``None`` means the dispatcher
+        # is in legacy mode and trusts the caller — the orchestrator
+        # wires a real enforcer at startup when scope is configured.
+        self._scope_enforcer: "ScopeEnforcer | None" = None
+        # Tracks how many requests have been blocked for being out of
+        # scope. Useful for the self-healing controller to detect
+        # misconfigured targets without spamming logs.
+        self._scope_violations: int = 0
+        # Tool-level rate limiter. A token-bucket style gate applied
+        # before every request. ``None`` means no rate limit (legacy
+        # behaviour, matches the pre-rate-limiter default).
+        #
+        # The bucket is implemented lazily on first use to keep the
+        # dispatcher's startup path fast and side-effect-free.
+        self._rate_limit_per_second = rate_limit_per_second
+        self._rate_limit_lock: asyncio.Lock | None = None
+        self._rate_limit_tokens: float = 0.0
+        self._rate_limit_last_refill: float = 0.0
 
         # Pre-built standard request components
         self._standard_headers = {
@@ -123,6 +171,111 @@ class FastPathDispatcher:
 
     async def __aexit__(self, *_args: Any) -> None:
         await self.close()
+
+    def set_scope_enforcer(self, enforcer: "ScopeEnforcer | None") -> None:
+        """Attach a :class:`ScopeEnforcer` for per-request scope checks.
+
+        Passing ``None`` detaches the enforcer and reverts to the
+        legacy behaviour (no runtime scope check). The dispatcher
+        will then trust the caller's URL — relying on the
+        orchestrator's pre-flight configuration validation alone.
+        """
+        self._scope_enforcer = enforcer
+        if enforcer is not None:
+            logger.info(
+                "FastPathDispatcher: scope enforcement armed (%d entries)",
+                len(getattr(enforcer, "scope_entries", []) or []),
+            )
+        else:
+            logger.warning(
+                "FastPathDispatcher: scope enforcement DISARMED — "
+                "out-of-scope requests will not be blocked at runtime"
+            )
+
+    def apply_waf_tuning(self, tuning: Any) -> None:
+        """Apply a :class:`WafTuningProfile` to the dispatcher.
+
+        The tuning profile adjusts the connection pool size and the
+        per-second rate limit so the dispatcher's outbound traffic
+        matches the WAF's tolerance. When the profile is ``NONE``
+        the dispatcher falls back to its default (un-tuned) limits.
+        """
+        nuclei_rate = getattr(tuning, "nuclei_rate_limit", None)
+        httpx_conc = getattr(tuning, "httpx_concurrency", None)
+        if httpx_conc is not None and httpx_conc > 0:
+            self._max_connections = int(httpx_conc)
+            logger.info(
+                "FastPathDispatcher: connection pool resized to %d (WAF tuning)",
+                self._max_connections,
+            )
+            # The pool may already be open with the old size. Reset
+            # it lazily — the next ``_ensure_client`` call will pick
+            # up the new limit.
+            self._client_pool = None
+        if nuclei_rate is not None and nuclei_rate > 0:
+            self._rate_limit_per_second = float(nuclei_rate)
+            self._rate_limit_lock = None  # reinitialise on next use
+            logger.info(
+                "FastPathDispatcher: rate limit set to %d req/s (WAF tuning)",
+                int(self._rate_limit_per_second),
+            )
+
+    @property
+    def scope_violations(self) -> int:
+        """Number of requests blocked for being out of scope."""
+        return self._scope_violations
+
+    async def _throttle(self) -> None:
+        """Apply the per-second rate limit using a token-bucket scheme.
+
+        The bucket starts full and refills continuously. When a
+        request arrives we consume one token; if the bucket is empty
+        we sleep just long enough for one token to accrue. This is
+        cheap (no asyncio timer task) and accurate to within a few
+        milliseconds.
+        """
+        rate = self._rate_limit_per_second
+        if rate is None or rate <= 0:
+            return
+        if self._rate_limit_lock is None:
+            self._rate_limit_lock = asyncio.Lock()
+            self._rate_limit_tokens = float(rate)
+            self._rate_limit_last_refill = time.monotonic()
+        async with self._rate_limit_lock:
+            now = time.monotonic()
+            elapsed = now - self._rate_limit_last_refill
+            if elapsed > 0:
+                self._rate_limit_tokens = min(
+                    float(rate),
+                    self._rate_limit_tokens + elapsed * float(rate),
+                )
+                self._rate_limit_last_refill = now
+            if self._rate_limit_tokens >= 1.0:
+                self._rate_limit_tokens -= 1.0
+                return
+            # Need to wait. Sleep for the deficit.
+            deficit = 1.0 - self._rate_limit_tokens
+            sleep_for = deficit / float(rate)
+            await asyncio.sleep(sleep_for)
+            self._rate_limit_tokens = 0.0
+            self._rate_limit_last_refill = time.monotonic()
+
+    def _enforce_scope(self, url: str) -> None:
+        """Raise :class:`ScopeViolation` if ``url`` is out of scope.
+
+        A no-op when no enforcer is attached (legacy mode).
+        """
+        if self._scope_enforcer is None:
+            return
+        if not self._scope_enforcer.is_in_scope(url):
+            self._scope_violations += 1
+            logger.warning(
+                "FastPathDispatcher: blocking out-of-scope request %s "
+                "(total violations: %d)",
+                url,
+                self._scope_violations,
+            )
+            raise ScopeViolation(url)
 
     async def _ensure_client(self) -> httpx.AsyncClient:
         """Get or create the shared HTTP client pool."""
@@ -164,7 +317,25 @@ class FastPathDispatcher:
 
         Returns:
             HTTP response.
+
+        Raises:
+            ScopeViolation: When a scope enforcer is attached and ``url``
+                is not in the configured scope. The check happens
+                before any network I/O so the connection is never opened.
         """
+        # Per-request scope enforcement — runs first, before cache lookup
+        # or connection acquisition. This is the layer that prevents
+        # active probes from hitting out-of-scope domains, even if the
+        # URL was produced by a downstream tool that didn't validate
+        # scope itself.
+        self._enforce_scope(url)
+
+        # Per-second rate limit (token-bucket). Runs after scope check
+        # so we don't consume tokens on requests that would be blocked
+        # anyway. When ``_rate_limit_per_second`` is None the throttle
+        # is a no-op, matching the pre-rate-limiter behaviour.
+        await self._throttle()
+
         start = time.monotonic()
 
         # Check cache first (fastest possible path)
@@ -220,6 +391,12 @@ class FastPathDispatcher:
             self._stats.total_time_ms += (time.monotonic() - start) * 1000
 
             logger.debug("Fast path failed for %s: %s, falling back", url, exc)
+
+            # Re-check scope on the slow path too. A redirect or DNS
+            # rebind could shift the request to a different host, so
+            # we validate once more before opening the fallback
+            # connection.
+            self._enforce_scope(url)
 
             # Retry with reduced settings (no http2, single connection)
             try:

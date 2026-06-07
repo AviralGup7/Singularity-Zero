@@ -1,13 +1,15 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Pagination } from '@/components/ui/Pagination';
 import { useApi } from '@/hooks/useApi';
 import { useDebouncedFilter } from '@/hooks/useDebouncedFilter';
-import { UrlCollectionSystem } from '@/components/UrlCollectionSystem';
+import { UrlCollectionSystem } from '@/components/targets/UrlCollectionSystem';
 import { Target as TargetIcon, ChevronDown, AlertTriangle, X, Upload, ShieldCheck } from 'lucide-react';
 import { PageHeader, GlassCard, AnimatedCounter } from '@/components/ui';
-import { TargetsResponse, useTargetsKPIs, PAGE_SIZE } from '@/hooks/useTargetsKPIs';
+import { useTargetsKPIs } from '@/hooks/useTargetsKPIs';
+import type { TargetsResponse } from '@/hooks/useTargets';
+import { PAGE_SIZE } from '@/hooks/useTargetPagination';
 import { useTargetPagination } from '@/hooks/useTargetPagination';
 import { useTargetFilters, hasActiveFilters, useFilteredTargets } from '@/hooks/useTargetFilters';
 import { useScanProgress } from '@/hooks/useScanProgress';
@@ -24,11 +26,11 @@ const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 export function TargetsPage() {
   const { data, loading, error, refetch } = useApi<TargetsResponse>('/api/targets');
-  const { targetsCount, criticalFindings, avgFindings } = useTargetsKPIs(data);
+  const { targetsCount, criticalFindings, avgFindings } = useTargetsKPIs(data || undefined);
   const { filters, setFilters, showFilters, setShowFilters, toggleSeverity, clearAllFilters, activeFilterChips } =
     useTargetFilters();
   const { filter, setFilter, debouncedFilter } = useDebouncedFilter();
-  const { isScanning, progressList, selectedTargets, toggleTargetSelection, selectAllOnPage, clearSelection, handleBulkRescan, allOnPageSelected } =
+  const { isScanning, progressList, startScan, updateProgress } =
     useScanProgress();
   const { importTargetName, setImportTargetName, importFile, handleFileChange, executeImport, resetImport, isImporting } =
     useSemgrepImport();
@@ -40,6 +42,61 @@ export function TargetsPage() {
   const filtered = useFilteredTargets(data?.targets ?? [], filters, debouncedFilter);
   const { currentPage: pagingCurrentPage, setCurrentPage: setPagingCurrentPage, paginated: paging } = useTargetPagination(filtered.length, PAGE_SIZE);
   const paginatedTargets = filtered.slice(paging.start, paging.end);
+
+  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
+
+  const toggleTargetSelection = useCallback((name: string) => {
+    setSelectedTargets((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedTargets(new Set());
+  }, []);
+
+  const allOnPageSelected = useMemo(() => {
+    if (paginatedTargets.length === 0) return false;
+    return paginatedTargets.every((t) => selectedTargets.has(t.name || ''));
+  }, [paginatedTargets, selectedTargets]);
+
+  const selectAllOnPage = useCallback(() => {
+    setSelectedTargets((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) {
+        paginatedTargets.forEach((t) => next.delete(t.name || ''));
+      } else {
+        paginatedTargets.forEach((t) => next.add(t.name || ''));
+      }
+      return next;
+    });
+  }, [paginatedTargets, allOnPageSelected]);
+
+  const handleBulkRescan = useCallback(async () => {
+    if (selectedTargets.size === 0) return;
+    const targetsArray = Array.from(selectedTargets);
+    startScan(targetsArray);
+    try {
+      const { startJob } = await import('@/api/jobs');
+      for (const name of targetsArray) {
+        try {
+          const job = await startJob({ base_url: name, mode: 'safe', modules: ['subdomain_enum', 'url_discovery', 'port_scan', 'httpx'] });
+          updateProgress(name, { jobId: job.id, status: 'running', progress: 10 });
+        } catch {
+          updateProgress(name, { status: 'failed', progress: 0 });
+        }
+      }
+      clearSelection();
+    } catch (err) {
+      console.error('Bulk rescan error:', err);
+    }
+  }, [selectedTargets, startScan, updateProgress, clearSelection]);
 
   return (
     <div className="targets-page space-y-6">

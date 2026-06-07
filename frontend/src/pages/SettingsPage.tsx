@@ -6,6 +6,7 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { useDisplay } from '@/hooks/useDisplay';
 import { useSettings } from '@/hooks/useSettings'; import type { AppSettings } from '@/context/SettingsContext';
+import { useDisplayStore } from '@/stores/displayStore';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -32,14 +33,15 @@ import {
   DataSection,
   AboutSection,
   LanguageSection,
+  WorkflowModeSection,
 } from '../components/settings/sections';
 
-type SettingsSection = 'theme' | 'display' | 'dashboard' | 'notifications' | 'security' | 'pipeline' | 'api' | 'reports' | 'integrations' | 'scanProfiles' | 'experimental' | 'accessibility' | 'performance' | 'logging' | 'rateLimiting' | 'profiles' | 'shortcuts' | 'data' | 'about' | 'language';
+type SettingsSection = 'theme' | 'display' | 'dashboard' | 'notifications' | 'security' | 'pipeline' | 'api' | 'reports' | 'integrations' | 'scanProfiles' | 'experimental' | 'accessibility' | 'performance' | 'logging' | 'rateLimiting' | 'profiles' | 'shortcuts' | 'data' | 'about' | 'language' | 'workflowMode';
 
 type SettingsTab = 'appearance' | 'dashboard' | 'pipeline' | 'advanced' | 'data';
 
 const settingsTabs: { id: SettingsTab; label: string; icon: React.ReactNode; sections: SettingsSection[] }[] = [
-  { id: 'appearance', label: 'Appearance', icon: <Palette size={18} />, sections: ['theme', 'display', 'language', 'accessibility'] },
+  { id: 'appearance', label: 'Appearance', icon: <Palette size={18} />, sections: ['theme', 'display', 'language', 'accessibility', 'workflowMode'] },
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, sections: ['dashboard', 'notifications'] },
   { id: 'pipeline', label: 'Pipeline', icon: <SettingsIcon size={18} />, sections: ['pipeline', 'api', 'security'] },
   { id: 'advanced', label: 'Advanced', icon: <Zap size={18} />, sections: ['reports', 'integrations', 'scanProfiles', 'experimental', 'performance', 'logging', 'rateLimiting', 'profiles', 'shortcuts'] },
@@ -82,6 +84,8 @@ export function SettingsPage() {
   const { display, updater: displayUpdater } = useDisplay();
   const { settings, updater: settingsUpdater } = useSettings();
   const { updateSection } = settingsUpdater;
+  const workflowMode = useDisplayStore(s => s.workflowMode);
+  const setWorkflowMode = useDisplayStore(s => s.setWorkflowMode);
 
   const setThemeMode = themeUpdater.setThemeMode;
   const setAccentColor = themeUpdater.setAccentColor;
@@ -269,6 +273,7 @@ export function SettingsPage() {
     display: <DisplaySection density={display.density} fontSize={display.fontSize} animations={display.animations} gridBackground={display.gridBackground} motionIntensity={theme.motionIntensity} effectCapability={theme.effectCapability} onDensityChange={setDensity} onFontSizeChange={setFontSize} onAnimationsChange={setAnimations} onGridBackgroundChange={setGridBackground} onMotionIntensityChange={setMotionIntensity} onEffectCapabilityChange={setEffectCapability} />,
     accessibility: <AccessibilitySection reduceMotion={display.reduceMotion} highContrast={display.highContrast} focusIndicators={display.focusIndicators} screenReaderOptimizations={display.screenReaderOptimizations} onReduceMotionChange={setReduceMotion} onHighContrastChange={setHighContrast} onFocusIndicatorsChange={setFocusIndicators} onScreenReaderOptimizationsChange={setScreenReaderOptimizations} />,
     language: <LanguageSection />,
+    workflowMode: <WorkflowModeSection mode={workflowMode} onChange={setWorkflowMode} />,
     dashboard: <DashboardSection autoRefresh={settings.dashboard.autoRefresh} refreshInterval={settings.dashboard.refreshInterval} onAutoRefreshChange={setAutoRefresh} onRefreshIntervalChange={setRefreshInterval} />,
     notifications: <NotificationsSection jobCompleteNotification={settings.notifications.jobComplete} jobFailedNotification={settings.notifications.jobFailed} criticalFindingsNotification={settings.notifications.criticalFindings} soundEnabled={settings.notifications.soundEnabled} onJobCompleteNotificationChange={setJobCompleteNotification} onJobFailedNotificationChange={setJobFailedNotification} onCriticalFindingsNotificationChange={setCriticalFindingsNotification} onSoundEnabledChange={setSoundEnabled} />,
     security: <SecuritySection confirmDestructiveActions={settings.security.confirmDestructiveActions} showSensitiveData={settings.security.showSensitiveData} autoLogoutMinutes={settings.security.autoLogoutMinutes} onConfirmDestructiveActionsChange={setConfirmDestructiveActions} onShowSensitiveDataChange={setShowSensitiveData} onAutoLogoutMinutesChange={setAutoLogoutMinutes} />,
@@ -289,7 +294,7 @@ export function SettingsPage() {
     theme.mode, theme.accentColor, theme.motionIntensity, theme.effectCapability, 
     display.density, display.fontSize, display.animations, display.gridBackground, display.reduceMotion, display.highContrast, display.focusIndicators, display.screenReaderOptimizations,
     settings, handleExport, handleImport, handleReset, importError, saveConfirmation,
-    setThemeMode, setAccentColor, setMotionIntensity, setEffectCapability,
+    setThemeMode, setAccentColor, setMotionIntensity, setEffectCapability, workflowMode, setWorkflowMode,
     setDensity, setFontSize, setAnimations, setGridBackground, setReduceMotion, setHighContrast, setFocusIndicators, setScreenReaderOptimizations,
     setAutoRefresh, setRefreshInterval, setJobCompleteNotification, setJobFailedNotification, setCriticalFindingsNotification, setSoundEnabled, setConfirmDestructiveActions, setShowSensitiveData, setAutoLogoutMinutes,
     setPipelineConcurrency, setPipelineTimeout, setPipelineMaxRetries, setPipelineVerboseLogging, setPipelineParallelModules,

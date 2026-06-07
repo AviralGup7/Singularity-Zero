@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 import { AttackChainVisualizer } from '@/components/AttackChainVisualizer';
 import { AttackChainGraph3D } from '@/components/charts';
 import { apiClient } from '@/api/client';
@@ -9,7 +9,7 @@ import { cockpitApi } from '@/api/cockpit';
 import type { CockpitEdge, CockpitNode, ForensicExchange } from '@/api/cockpit';
 import { createNote, getNotes } from '@/api/notes';
 import type { Note } from '@/api/notes';
-import type { AttackChain, MeshHealth, Job } from '@/types/api';
+import type { AttackChain, MeshHealth, Job, MigrationEvent } from '@/types/api';
 import { useSSEProgress } from '@/hooks/useSSEProgress';
 import { useToast } from '@/hooks/useToast';
 import { startJob, stopJob, restartJob, getJob } from '@/api/jobs';
@@ -22,15 +22,6 @@ import { IntelSidebar } from '@/components/cockpit/IntelSidebar';
 import { GraphLegend } from '@/components/cockpit/GraphLegend';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { ScopeWarningBanner } from '@/components/scope/ScopeComplianceBadge';
-
-interface MigrationEvent {
-  id: string;
-  timestamp: number;
-  actor_id: string;
-  source_node: string;
-  target_node: string;
-  [key: string]: unknown;
-}
 
 function metadataText(metadata: CockpitNode['metadata'], key: string): string {
   const value = metadata ? Reflect.get(metadata, key) : undefined;
@@ -435,7 +426,6 @@ export function CockpitPage() {
                     setNewNote={setNewNote}
                     onAddNote={handleAddNote}
                     onTriggerProbe={handleTriggerProbe}
-                    selectedFindingId={selectedFindingId}
                     onDrillToFinding={(findingId) => navigate(`/findings?finding=${encodeURIComponent(findingId)}`)}
                     onDeleteNote={handleDeleteNote}
                     target={target}

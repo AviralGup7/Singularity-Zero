@@ -1,7 +1,8 @@
 import type { Finding } from '@/types/api';
 import { Pagination } from '@/components/ui/Pagination';
-import { CopyButton } from '@/components/CopyButton';
+import { CopyButton } from '@/components/ui/CopyButton';
 import { formatFindingDate } from '@/lib/utils';
+import { FindingsBulkActionBar } from './FindingsBulkActionBar';
 
 type SortKey = 'severity' | 'type' | 'target' | 'status' | 'date' | 'bounty_value';
 type SortDir = 'asc' | 'desc';
@@ -38,6 +39,8 @@ interface FindingsTableViewProps {
   expandedDuplicates: Set<string>;
   allOnPageSelected: boolean;
   uniqueAssignees: string[];
+  bulkActionMode: string | null;
+  bulkAssignee: string;
   handleSort: (key: SortKey) => void;
   toggleRow: (id: string) => void;
   togglePage: () => void;
@@ -52,6 +55,12 @@ interface FindingsTableViewProps {
   handleOpenDetail: (finding: Finding) => void;
   hashToColor: (str: string) => string;
   getInitials: (name: string) => string;
+  setBulkActionMode: (mode: string | null) => void;
+  setBulkAssignee: (name: string) => void;
+  handleBulkStatus: (status: 'open' | 'closed' | 'accepted') => void;
+  handleBulkFalsePositive: () => void;
+  handleBulkAssign: () => void;
+  handleBulkDelete: () => void;
 }
 
 export function FindingsTableView({
@@ -65,6 +74,8 @@ export function FindingsTableView({
   expandedDuplicates,
   allOnPageSelected,
   uniqueAssignees,
+  bulkActionMode,
+  bulkAssignee,
   handleSort,
   toggleRow,
   togglePage,
@@ -79,40 +90,37 @@ export function FindingsTableView({
   handleOpenDetail,
   hashToColor,
   getInitials,
+  setBulkActionMode,
+  setBulkAssignee,
+  handleBulkStatus,
+  handleBulkFalsePositive,
+  handleBulkAssign,
+  handleBulkDelete,
 }: FindingsTableViewProps) {
   return (
     <>
-      {selectedIds.size > 0 && (
-        <div className="bulk-action-bar">
-          <div className="bulk-action-info">
-            <input
-              type="checkbox"
-              checked={allOnPageSelected}
-              onChange={togglePage}
-              aria-label="Select all on page"
-            />
-            <span>{selectedIds.size} selected</span>
-            {selectedIds.size < filtered.length && (
-              <button className="bulk-select-all-btn" onClick={selectAll}>
-                Select all {filtered.length}
-              </button>
-            )}
-            <button className="bulk-clear-btn" onClick={clearSelection}>
-              Clear selection
-            </button>
-          </div>
-          <div className="bulk-actions">
-          {/* Bulk action buttons removed — handlers not yet implemented */}
-          <span className="bulk-actions-placeholder">Bulk actions coming soon</span>
-        </div>
-        </div>
-      )}
-
-      <div className="table-container table-responsive" role="region" aria-label="Findings table">
-        <table className="findings-table" role="table">
+      <FindingsBulkActionBar
+        selectedIds={selectedIds}
+        bulkActionMode={bulkActionMode}
+        bulkAssignee={bulkAssignee}
+        allOnPageSelected={allOnPageSelected}
+        filteredCount={filtered.length}
+        paginated={paginated}
+        setBulkActionMode={setBulkActionMode}
+        setBulkAssignee={setBulkAssignee}
+        togglePage={togglePage}
+        selectAll={selectAll}
+        clearSelection={clearSelection}
+        handleBulkStatus={handleBulkStatus}
+        handleBulkFalsePositive={handleBulkFalsePositive}
+        handleBulkAssign={handleBulkAssign}
+        handleBulkDelete={handleBulkDelete}
+      />
+      <div className="findings-table-wrapper">
+        <table className="findings-table">
           <thead>
             <tr>
-              <th scope="col" className="bulk-select-col">
+              <th className="col-checkbox">
                 <input
                   type="checkbox"
                   checked={allOnPageSelected}
@@ -120,81 +128,73 @@ export function FindingsTableView({
                   aria-label="Select all on page"
                 />
               </th>
-              <th scope="col" className="col-id">ID</th>
-              <th scope="col">
-                <button className="sort-btn" onClick={() => handleSort('severity')} aria-label={`Sort by severity, currently ${sortDir}`}>
-                  Severity
-                  {sortKey === 'severity' && <span className="sort-indicator">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                </button>
+              <th
+                className="sortable"
+                onClick={() => handleSort('severity')}
+                aria-sort={sortKey === 'severity' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Severity {sortKey === 'severity' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
               </th>
-              <th scope="col">
-                <button
-                  className="sort-btn bounty-sort-btn"
-                  onClick={() => handleSort('bounty_value')}
-                  aria-label={`Sort by bounty value, currently ${sortDir}`}
-                  title="Operator-estimated payout — sort to surface highest-impact submissions first"
-                >
-                  Bounty
-                  {sortKey === 'bounty_value' && <span className="sort-indicator">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                </button>
+              <th
+                className="sortable"
+                onClick={() => handleSort('bounty_value')}
+                aria-sort={sortKey === 'bounty_value' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Bounty {sortKey === 'bounty_value' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
               </th>
-              <th scope="col">
-                <button className="sort-btn" onClick={() => handleSort('type')} aria-label={`Sort by type, currently ${sortDir}`}>
-                  Type
-                  {sortKey === 'type' && <span className="sort-indicator">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                </button>
+              <th
+                className="sortable"
+                onClick={() => handleSort('type')}
+                aria-sort={sortKey === 'type' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Type {sortKey === 'type' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
               </th>
-              <th scope="col">
-                <button className="sort-btn" onClick={() => handleSort('target')} aria-label={`Sort by target, currently ${sortDir}`}>
-                  Target
-                  {sortKey === 'target' && <span className="sort-indicator">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                </button>
+              <th
+                className="sortable"
+                onClick={() => handleSort('target')}
+                aria-sort={sortKey === 'target' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Target {sortKey === 'target' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
               </th>
-              <th scope="col">
-                <button className="sort-btn" onClick={() => handleSort('status')} aria-label={`Sort by status, currently ${sortDir}`}>
-                  Status
-                  {sortKey === 'status' && <span className="sort-indicator">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                </button>
+              <th
+                className="sortable"
+                onClick={() => handleSort('status')}
+                aria-sort={sortKey === 'status' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Status {sortKey === 'status' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
               </th>
-              <th scope="col">Lifecycle</th>
-              <th scope="col">Signal</th>
-              <th scope="col">
-                <button className="sort-btn" onClick={() => handleSort('date')} aria-label={`Sort by date, currently ${sortDir}`}>
-                  Date
-                  {sortKey === 'date' && <span className="sort-indicator">{sortDir === 'asc' ? '↑' : '↓'}</span>}
-                </button>
+              <th>Lifecycle</th>
+              <th>Signal</th>
+              <th
+                className="sortable"
+                onClick={() => handleSort('date')}
+                aria-sort={sortKey === 'date' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Date {sortKey === 'date' && <span>{sortDir === 'asc' ? '↑' : '↓'}</span>}
               </th>
-              <th scope="col">Assignee</th>
-              <th scope="col">FP Status</th>
-              <th scope="col">Actions</th>
+              <th>Assignee</th>
+              <th>FP</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {paginated.map((finding, idx) => {
-              const dupCount = (finding.duplicates || []).length;
-              const isFP = finding.falsePositive;
+            {paginated.map(finding => {
               const signal = signalQualityFor(finding);
+              const isFP = finding.falsePositive;
+              const dupCount = (finding.duplicates || []).length;
               return (
                 <tr
-                  key={finding.id || idx}
-                  className={`finding-row-clickable ${isFP ? 'row-false-positive' : ''} ${selectedIds.has(finding.id) ? 'row-selected' : ''}`}
+                  key={finding.id}
+                  className={`finding-row ${isFP ? 'finding-row-fp' : ''}`}
                   onClick={() => handleOpenDetail(finding)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenDetail(finding); } }}
-                  tabIndex={0}
-                  role="link"
-                  aria-label={`View details for ${finding.title}`}
                 >
-                  <td className="bulk-select-col" onClick={e => e.stopPropagation()}>
+                  <td className="col-checkbox" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedIds.has(finding.id)}
                       onChange={() => toggleRow(finding.id)}
-                      aria-label={`Select ${finding.type || 'finding'}`}
+                      aria-label={`Select finding ${finding.id}`}
                     />
-                  </td>
-                  <td className="finding-id-cell">
-                    <span className="finding-id-text" title={finding.id}>{finding.id}</span>
-                    <CopyButton text={finding.id} />
                   </td>
                   <td>
                     <span className={`severity-badge sev-${finding.severity}`}>
@@ -203,14 +203,10 @@ export function FindingsTableView({
                   </td>
                   <td className="finding-bounty">
                     {typeof finding.bounty_value === 'number' && finding.bounty_value > 0 ? (
-                      <span
-                        className="bounty-pill"
-                        data-testid="bounty-value"
-                        title={`${finding.bounty_source ? `Source: ${finding.bounty_source}` : 'Operator-estimated payout'}`}
-                      >
+                      <span className="bounty-value">
                         ${finding.bounty_value.toLocaleString()}
                         {finding.bounty_currency && finding.bounty_currency !== 'USD' && (
-                          <span className="bounty-currency">{finding.bounty_currency}</span>
+                          <span className="bounty-currency"> {finding.bounty_currency}</span>
                         )}
                       </span>
                     ) : (
@@ -229,7 +225,9 @@ export function FindingsTableView({
                     )}
                   </td>
                   <td className="finding-target" title={finding.target}>
-                    <span className="target-text">{isFP ? <s>{finding.target || '—'}</s> : (finding.target || '—')}</span>
+                    <span className="target-text">
+                      {isFP ? <s>{finding.target || '—'}</s> : (finding.target || '—')}
+                    </span>
                     <CopyButton text={finding.target || ''} />
                   </td>
                   <td>
@@ -283,6 +281,7 @@ export function FindingsTableView({
                       className="assign-select-small"
                       value={finding.assignedTo || ''}
                       onChange={e => handleAssign(finding.id, e.target.value)}
+                      aria-label={`Assign ${finding.id}`}
                     >
                       <option value="">Assign...</option>
                       {uniqueAssignees.map(a => <option key={a} value={a}>{a}</option>)}
@@ -292,16 +291,18 @@ export function FindingsTableView({
                     </select>
                     {!isFP && (
                       <button
+                        type="button"
                         className="fp-mark-btn-small"
-                        onClick={() => setFpDialogFinding(finding)}
+                        onClick={e => { e.stopPropagation(); setFpDialogFinding(finding); }}
                       >
                         Mark FP
                       </button>
                     )}
                     {finding.fpStatus === 'pending' && (
                       <button
+                        type="button"
                         className="fp-review-btn-small"
-                        onClick={() => setFpReviewDialog(finding)}
+                        onClick={e => { e.stopPropagation(); setFpReviewDialog(finding); }}
                       >
                         Review
                       </button>

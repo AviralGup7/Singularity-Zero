@@ -1,5 +1,5 @@
-﻿import { FormField } from '../FormField';
-import ScanPresets from '../ScanPresets';
+﻿import { FormField } from '../ui/FormField';
+import ScanPresets from '../targets/ScanPresets';
 import AnalysisOptionsPanel from '../AnalysisOptionsPanel';
 import type { ModuleOption, AnalysisCheckOption, AnalysisControlGroup, AnalysisFocusPreset } from '../../types/api';
 

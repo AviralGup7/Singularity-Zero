@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, X, ChevronDown } from 'lucide-react';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StalledExplainerPanel } from '@/components/StalledExplainerPanel';
-import { ScanSummaryCard } from '@/components/ScanSummaryCard';
+import { ScanSummaryCard } from '@/components/targets/ScanSummaryCard';
 import { IterationProgressBar } from '@/components/IterationProgressBar';
 import { PluginProgressGrid } from '@/components/PluginProgressGrid';
+import { LiveTerminalFeed } from '@/components/LiveTerminalFeed';
 import { DurationForecast } from '@/components/DurationForecast';
 import { ModulePerformanceChart } from '@/components/charts/ModulePerformanceChart';
 import { JobStatusHeader } from '@/components/jobs/JobStatusHeader';
@@ -19,7 +20,7 @@ import { ThroughputStrip } from '@/components/ops/ThroughputStrip';
 import { VisualProvider } from '@/context/VisualContext';
 import { mapToVisualState } from '@/lib/mapToVisualState';
 import { useJobMonitor } from '@/hooks/useJobMonitor';
-import { RemediationSuggestions } from '@/components/RemediationSuggestions';
+import { RemediationSuggestions } from '@/components/findings/RemediationSuggestions';
 import { GlassCard, GlowProgress } from '@/components/ui';
 import { InfoItem, formatDurationLabel } from '@/components/jobs/JobInfoItem';
 import { useJobDetails, useJobStageTheater, useJobThroughput } from '@/hooks/useJobDetails';
@@ -45,6 +46,8 @@ export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const [warningsExpanded, setWarningsExpanded] = useState(true);
   const [logsExpanded, setLogsExpanded] = useState(true);
+  const prevStageRef = useRef<Record<string, number>>({});
+  const [stageDeltas, setStageDeltas] = useState<Array<{ stage: string; delta: number; status: string }>>([]);
 
   // Capture the export timestamp once at mount via an effect so render output
   // stays stable. Empty string is fine for the filename before mount completes.
@@ -90,6 +93,32 @@ export function JobDetailPage() {
   const throughput = useJobThroughput(job ?? null);
   const { remediation, remediationLoading } = useJobRemediation(jobId, job?.status === 'failed' || job?.status === 'stopped');
   const { tracePanel, traceLoading, openTracePanel, setTracePanel } = useJobTracePanel(jobId);
+
+  useEffect(() => {
+    if (!job?.stage_progress) return;
+    const prev = prevStageRef.current;
+    const next: Record<string, number> = {};
+    const deltas: Array<{ stage: string; delta: number; status: string }> = [];
+    for (const entry of job.stage_progress) {
+      const stageKey = entry.stage || 'unknown';
+      const progress = typeof entry.percent === 'number' ? entry.percent : 0;
+      // eslint-disable-next-line security/detect-object-injection
+      next[stageKey] = progress;
+      // eslint-disable-next-line security/detect-object-injection
+      const prevProgress = stageKey in prev ? prev[stageKey] : -1;
+
+      if (prevProgress >= 0 && progress > prevProgress) {
+        deltas.push({ stage: stageKey, delta: progress - prevProgress, status: entry.status || 'running' });
+      } else if (!(stageKey in prev) && progress > 0) {
+        deltas.push({ stage: stageKey, delta: progress, status: entry.status || 'running' });
+      }
+    }
+    if (deltas.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStageDeltas(deltas);
+    }
+    prevStageRef.current = next;
+  }, [job?.stage_progress]);
 
   const visualState = useMemo(
     () => mapToVisualState(job, { sseError }),
@@ -285,11 +314,25 @@ export function JobDetailPage() {
                 loading={loading && job.status === 'running'}
               />
             </div>
+            <div className="mt-4">
+              <LiveTerminalFeed jobId={job.id} />
+            </div>
           </motion.div>
         )}
 
         <motion.div variants={itemVariants} className="card ops-card">
           <h3>Stage Theater</h3>
+          {stageDeltas.length > 0 && (
+            <div className="stage-delta-badges" role="status" aria-live="polite">
+              {stageDeltas.map(d => (
+                <span key={d.stage} className={`stage-delta-badge stage-delta-badge--${d.status}`}>
+                  <span className="stage-delta-badge-arrow" aria-hidden="true">▲</span>
+                  {d.stage}
+                  <span className="stage-delta-badge-value">+{Math.round(d.delta)}%</span>
+                </span>
+              ))}
+            </div>
+          )}
           <StageTheater nodes={stageTheaterNodes} />
           <ThroughputStrip
             className="throughput-strip--embedded"
