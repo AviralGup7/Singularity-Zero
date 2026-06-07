@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { Briefcase, Search } from 'lucide-react';
-import JobList from '../components/JobList';
+import JobList from '../components/jobs/JobList';
 import { SkeletonCard, SkeletonText } from '../components/ui/Skeleton';
 import { PageHeader } from '../components/ui';
 import { useJobs, usePersistedState } from '../hooks';

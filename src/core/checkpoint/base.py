@@ -58,6 +58,12 @@ class CheckpointState:
     stage_deltas: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     """Incremental per-stage progress deltas for mid-stage resume."""
 
+    scanned_assets: list[str] = field(default_factory=list)
+    """Asset inventory snapshot from the most recent monitoring cycle."""
+
+    previous_findings: list[dict[str, Any]] = field(default_factory=list)
+    """Findings from the previous monitoring cycle for diff/alerting."""
+
     def to_dict(self) -> dict[str, Any]:
         """Convert state to a JSON-serializable dictionary."""
         raw = asdict(self)
@@ -98,7 +104,7 @@ def _deserialize_sets(obj: Any) -> Any:
     if isinstance(obj, dict):
         result = {}
         for key, value in obj.items():
-            if key == "completed_stages" and isinstance(value, list):
+            if key in {"completed_stages", "scanned_assets"} and isinstance(value, list):
                 result[key] = set(value)
             else:
                 result[key] = _deserialize_sets(value)

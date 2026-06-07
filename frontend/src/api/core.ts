@@ -6,6 +6,7 @@ import { dispatchToast } from '../lib/toastDispatcher';
 import { captureException } from '../utils/errorTracker';
 import { withRetry } from './retry';
 import { getStreamToken } from './streamAuth';
+import { useAuthStore } from '../stores/authStore';
 
 declare module 'axios' {
   interface InternalAxiosRequestConfig {
@@ -55,6 +56,14 @@ apiClient.interceptors.request.use(
 
     config.headers['X-Request-ID'] = generateRequestId();
     config.metadata = { startTime: Date.now() };
+
+    const user = useAuthStore.getState().user;
+    if (user?.tenantId) {
+      config.headers['X-Tenant-ID'] = user.tenantId;
+    }
+    if (user?.organizationId) {
+      config.headers['X-Organization-ID'] = user.organizationId;
+    }
 
     // Fix S0-3: Mark mutation start to prevent stale reads during mutations
     if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase()) && config.url) {

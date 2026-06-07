@@ -94,10 +94,13 @@ class PipelineInput:
     contract_version: str = RUNTIME_CONTRACT_VERSION
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    auth: Mapping[str, Any] | None = None
+    scan_session: Any | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "scope_entries", tuple(self.scope_entries))
         object.__setattr__(self, "metadata", _freeze_value(dict(self.metadata or {})))
+        object.__setattr__(self, "auth", _freeze_value(dict(self.auth or {})))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -107,6 +110,8 @@ class PipelineInput:
             "run_id": self.run_id,
             "started_at": self.started_at.isoformat(),
             "metadata": _thaw_value(self.metadata),
+            "auth": _thaw_value(self.auth),
+            "scan_session": None if self.scan_session is None else str(self.scan_session.scan_id),
         }
 
 

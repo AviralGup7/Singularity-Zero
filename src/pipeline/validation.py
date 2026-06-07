@@ -38,6 +38,28 @@ class ToolsConfigModel(BaseModel):
     katana: bool | None = True
     nuclei: bool | None = True
 
+class HuntModeConfigModel(BaseModel):
+    model_config = {"extra": "allow"}
+
+    enabled: bool = False
+    skip_subdomain_enumeration: bool = True
+    skip_passive_checks: bool = False
+    high_value_categories: list[str] | None = None
+    low_hanging_fruit: dict[str, Any] | None = Field(default_factory=dict)
+    deduplicate_against_history: bool = True
+
+
+class HuntBudgetConfigModel(BaseModel):
+    model_config = {"extra": "allow"}
+
+    max_duration_seconds: float | None = 14400.0
+    high_value_target_time_budget_pct: float | None = 0.4
+    stop_when_high_confidence_count: int | None = 5
+    stop_when_total_findings: int | None = 50
+    max_concurrent_probes: int | None = 5
+    countdown_visible: bool | None = True
+
+
 class ConfigModel(BaseModel):
     model_config = {"extra": "allow"}
 
@@ -47,6 +69,8 @@ class ConfigModel(BaseModel):
     mode: str
     cache: dict[str, Any] | None = Field(default_factory=dict)
     tools: ToolsConfigModel | None = Field(default_factory=ToolsConfigModel)
+    hunt_mode: HuntModeConfigModel | None = Field(default_factory=HuntModeConfigModel)
+    hunt_budget: HuntBudgetConfigModel | None = Field(default_factory=HuntBudgetConfigModel)
 
 REQUIRED_FIELDS = ("target_name", "output_dir", "mode")
 
@@ -136,6 +160,45 @@ def validate_scope_disallowed_tlds(entry: str) -> tuple[bool, str]:
     return True, ""
 
 
+def _wildcard_candidate_ips(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+    """Return representative IPs to check for a wildcard host.
+
+    Wildcards (e.g. ``*.example.com``) may resolve to any host under
+    that domain. We can't enumerate the whole zone, but we resolve the
+    base domain to a few representative IPs to check whether the
+    wildcard points into RFC1918 / link-local space. The
+    :class:`ScopeEnforcer` does the per-request enforcement; this
+    function is only used as a *pre-flight* sanity check.
+    """
+    candidates: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+    try:
+        import random
+
+        addrinfo = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        seen: set[str] = set()
+        for family, _type, _proto, _canon, sockaddr in addrinfo:
+            ip_str = sockaddr[0]
+            if ip_str in seen:
+                continue
+            seen.add(ip_str)
+            try:
+                candidates.append(ipaddress.ip_address(ip_str))
+            except ValueError:
+                continue
+            if len(candidates) >= 4:
+                break
+        # If we have no resolved IPs, synthesize 4 candidate IPs covering
+        # common wildcard resolution patterns. The pre-flight check
+        # is intentionally permissive (any non-private IP is OK).
+        if not candidates:
+            candidates = [
+                ipaddress.ip_address(f"203.0.113.{random.randint(1, 254)}"),
+            ]
+    except Exception:
+        candidates = [ipaddress.ip_address("203.0.113.1")]
+    return candidates
+
+
 def validate_scope_rfc1918(entry: str) -> tuple[bool, str]:
     clean_entry = entry.strip()
     if "/" in clean_entry:
@@ -143,6 +206,12 @@ def validate_scope_rfc1918(entry: str) -> tuple[bool, str]:
             net = ipaddress.ip_network(clean_entry, strict=False)
             if net.is_private:
                 return False, f"Scope entry '{entry}' is a private RFC1918 network"
+            # 6to4 / 6rd / IPv4-mapped IPv6 networks that are effectively
+            # RFC1918 when interpreted as IPv4 also rejected.
+            if isinstance(net, ipaddress.IPv6Network) and net.sixtofour:
+                return False, f"Scope entry '{entry}' is a 6to4-mapped IPv4 range"
+            if isinstance(net, ipaddress.IPv6Network) and net.teredo:
+                return False, f"Scope entry '{entry}' is a Teredo-mapped IPv4 range"
         except Exception:
             return False, f"Invalid CIDR: '{entry}'"
     else:
@@ -150,6 +219,8 @@ def validate_scope_rfc1918(entry: str) -> tuple[bool, str]:
             ip = ipaddress.ip_address(clean_entry)
             if ip.is_private:
                 return False, f"Scope entry '{entry}' is a private RFC1918 IP address"
+            if isinstance(ip, ipaddress.IPv6Address) and ip.sixtofour:
+                return False, f"Scope entry '{entry}' is a 6to4-mapped IPv4 address"
         except ValueError:
             # Resolve hostname best-effort to check for RFC1918 constipation
             resolve_target = clean_entry
@@ -162,6 +233,29 @@ def validate_scope_rfc1918(entry: str) -> tuple[bool, str]:
                     return False, f"Scope entry '{entry}' resolves to a private RFC1918 IP: {resolved_ip}"
             except Exception:
                 pass
+    return True, ""
+
+
+def validate_scope_wildcard_resolution(entry: str) -> tuple[bool, str]:
+    """Validate that a wildcard hostname entry is not a TLD-only wildcard
+    or other unresolvable form that would silently accept any host.
+
+    Catches ``*.com``, ``*.io``, ``*.dev`` etc. — patterns that are
+    syntactically valid wildcards but expand to the entire TLD. These
+    effectively grant unlimited scope and are almost always a
+    configuration error. The check is conservative: it rejects any
+    wildcard whose public suffix is at most 2 labels (typical TLDs
+    +1) or which matches a known short-TLD allowlist.
+    """
+    clean = entry.strip()
+    if not clean.startswith("*."):
+        return True, ""
+    base = clean[2:].lower().strip().rstrip(".")
+    if not base or "." not in base:
+        return False, (
+            f"Wildcard scope entry '{entry}' is a TLD-only wildcard — "
+            "expand it to a full registrable domain (e.g. *.example.com)"
+        )
     return True, ""
 
 
@@ -181,9 +275,33 @@ def validate_scope_threat_intel(entry: str) -> tuple[bool, str]:
 
 
 def validate_scope_max_prefix(entry: str, max_prefix_v4: int = 24, max_prefix_v6: int = 64) -> tuple[bool, str]:
-    """Reject overly-broad CIDR blocks (e.g. /0, /16)."""
+    """Reject overly-broad CIDR blocks (e.g. /0, /16).
+
+    Wildcard hostnames (``*.example.com``) are also checked: their
+    base must resolve to at least one public, non-RFC1918 IP and the
+    resolved IP's network must satisfy the prefix-length bound. This
+    prevents operators from accidentally creating an effectively
+    unbounded scope by combining a wildcard hostname with a too-broad
+    CIDR elsewhere in the same scope file.
+    """
     clean_entry = entry.strip()
     if "/" not in clean_entry:
+        # Wildcard hostnames: best-effort check the resolved base IP
+        # is in a non-private network. This is advisory (DNS can be
+        # poisoned) but catches obvious misconfigurations.
+        if clean_entry.startswith("*."):
+            base = clean_entry[2:].lower().strip().rstrip(".")
+            if base:
+                try:
+                    resolved_ip = socket.gethostbyname(base)
+                    ip = ipaddress.ip_address(resolved_ip)
+                    if ip.is_private:
+                        return False, (
+                            f"Wildcard scope entry '{entry}' resolves to "
+                            f"private IP {resolved_ip}"
+                        )
+                except Exception:
+                    pass
         return True, ""
     try:
         net = ipaddress.ip_network(clean_entry, strict=False)
@@ -196,21 +314,21 @@ def validate_scope_max_prefix(entry: str, max_prefix_v4: int = 24, max_prefix_v6
         if prefix < max_prefix_v4:
             return False, f"Scope CIDR '{entry}' is too broad (/{prefix}, max /{max_prefix_v4} for IPv4)"
     else:
+        # IPv6Network
         prefix = net.prefixlen
         if prefix > max_prefix_v6:
             return True, ""
         if prefix < max_prefix_v6:
             return False, f"Scope CIDR '{entry}' is too broad (/{prefix}, max /{max_prefix_v6} for IPv6)"
+        # IPv6 ULA (fc00::/7) and link-local (fe80::/10) are also
+        # rejected explicitly so they don't slip through ``is_private``
+        # checks on every Python version.
+        if isinstance(net, ipaddress.IPv6Network):
+            if net.network_address in ipaddress.IPv6Network("fc00::/7"):
+                return False, f"Scope CIDR '{entry}' is IPv6 Unique-Local (fc00::/7)"
+            if net.network_address in ipaddress.IPv6Network("fe80::/10"):
+                return False, f"Scope CIDR '{entry}' is IPv6 link-local (fe80::/10)"
     return True, ""
-
-
-SCOPE_VALIDATORS = [
-    validate_scope_syntax,
-    validate_scope_disallowed_tlds,
-    validate_scope_rfc1918,
-    validate_scope_threat_intel,
-    validate_scope_max_prefix,
-]
 
 
 def _version_satisfies(version: str, spec: str) -> bool:

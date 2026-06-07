@@ -6,23 +6,15 @@ primary entry point for passive analysis modules.
 """
 
 import logging
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import urllib3
-
-# Shared pool manager for connection reuse (Fix Audit #5)
-_HTTP_POOL = urllib3.PoolManager(
-    num_pools=50,
-    maxsize=10,
-    block=False,
-    retries=False,
-    timeout=urllib3.util.Timeout(connect=10, read=10),
-)
 
 from datetime import UTC
 
@@ -47,6 +39,76 @@ RequestRetryPolicy = RetryPolicy
 logger = logging.getLogger(__name__)
 
 
+# Shared pool manager for connection reuse (Fix Audit #5)
+_HTTP_POOL = urllib3.PoolManager(
+    num_pools=50,
+    maxsize=10,
+    block=False,
+    retries=False,
+    timeout=urllib3.util.Timeout(connect=10, read=10),
+)
+
+
+@dataclass(frozen=True)
+class AuthContext:
+    bearer_tokens: dict[str, str] = field(default_factory=dict)
+    api_keys: dict[str, str] = field(default_factory=dict)
+    client_cert_path: str | None = None
+    client_key_path: str | None = None
+    oauth2_tokens: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    def get_headers_for_url(self, url: str) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        for pattern, token in self.bearer_tokens.items():
+            if _url_matches(url, pattern):
+                headers.setdefault("Authorization", f"Bearer {token}")
+        for pattern, key in self.api_keys.items():
+            if _url_matches(url, pattern):
+                headers.setdefault("x-api-key", key)
+        for scope, payload in self.oauth2_tokens.items():
+            access_token = payload.get("access_token")
+            if access_token:
+                if scope == "*" or _url_matches(url, scope):
+                    headers.setdefault("Authorization", f"Bearer {access_token}")
+        return headers
+
+    def get_client_cert(self) -> tuple[str, str] | None:
+        if self.client_cert_path and self.client_key_path:
+            return (self.client_cert_path, self.client_key_path)
+        return None
+
+
+_BEARER_RE = re.compile(r"(?i)authorization\s*:\s*bearer\s+([A-Za-z0-9_\-\.~+/]+=*)")
+_API_KEY_RE = re.compile(r"(?:x-api-key|api[_-]key)\s*:\s*([A-Za-z0-9_\-\.~+/]+=*)", re.I)
+
+
+def _url_matches(url: str, pattern: str) -> bool:
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        if pattern == "*" or pattern.lower() == parsed.netloc.lower():
+            return True
+        if pattern in url:
+            return True
+    except Exception:  # noqa: S110
+        pass
+    return False
+
+
+def extract_tokens_from_headers(
+    request_headers: dict[str, str],
+    response_headers: dict[str, str],
+) -> dict[str, str]:
+    tokens: dict[str, str] = {}
+    header_text = "".join(f"{k}: {v}\n" for k, v in {**response_headers}.items())
+    for match in _BEARER_RE.finditer(header_text):
+        tokens["bearer"] = match.group(1)
+    for match in _API_KEY_RE.finditer(header_text):
+        tokens["api_key"] = match.group(1)
+    return tokens
+
+
 @dataclass(frozen=True)
 class FetchResponseResult:
     record: dict[str, Any] | None
@@ -55,6 +117,7 @@ class FetchResponseResult:
     successful: bool
     retryable: bool
     exchange_id: str | None = None
+    auth_context: "AuthContext | None" = None
 
 
 class RequestScheduler:
@@ -276,13 +339,14 @@ class ResponseCache:
         body: str | bytes | None = None,
         capture_forensics: bool = False,
         target_name: str | None = None,
+        auth_override: "AuthContext | None" = None,
     ) -> dict[str, Any] | None:
         normalized = normalize_url(url)
+        merged_headers = dict(headers or {})
+        if auth_override is not None:
+            merged_headers.update(auth_override.get_headers_for_url(normalized))
+        header_key = frozenset(merged_headers.items())
 
-        # Fix Audit #6: Key for active probes to allow memoization of repeated identical probes
-        header_key = frozenset((headers or {}).items())
-
-        # Robust body_key parsing to distinguish empty values and prevent unhashable TypeError
         if body is None:
             body_key = None
         elif isinstance(body, (str, bytes)):
@@ -297,7 +361,7 @@ class ResponseCache:
 
         active_key = (normalized, method.upper(), header_key, body_key)
 
-        if method.upper() == "GET" and not headers and body is None and not capture_forensics:
+        if method.upper() == "GET" and not merged_headers and body is None and not capture_forensics:
             return self.get(normalized)
 
         with self._lock:
@@ -319,11 +383,12 @@ class ResponseCache:
         record = self._request_with_policy(
             normalized,
             method=method,
-            headers=headers,
+            headers=merged_headers,
             body=body,
             capture_forensics=capture_forensics,
             output_dir=self.persistent_cache_path.parent if self.persistent_cache_path else None,
             target_name=target_name,
+            auth_override=auth_override,
         )
 
         with self._lock:
@@ -406,12 +471,14 @@ class ResponseCache:
         capture_forensics: bool = False,
         output_dir: Path | None = None,
         target_name: str | None = None,
+        auth_override: "AuthContext | None" = None,
     ) -> dict[str, Any] | None:
         policy = self.request_retry_policy
         last_result: FetchResponseResult | None = None
 
         for attempt in range(1, policy.max_attempts + 1):
             self.scheduler.acquire()
+            cert = auth_override.get_client_cert() if auth_override is not None else None
             result = _fetch_response_once(
                 url,
                 self.timeout_seconds,
@@ -419,6 +486,7 @@ class ResponseCache:
                 method=method,
                 extra_headers=headers,
                 body=body,
+                cert=cert,
             )
 
             # Fix Audit #31: Extract Retry-After
@@ -486,6 +554,7 @@ def _fetch_response_stream(
     method: str = "GET",
     extra_headers: dict[str, str] | None = None,
     body: str | bytes | None = None,
+    cert: tuple[str, str] | None = None,
 ) -> dict[str, Any] | None:
     headers = {
         "User-Agent": DEFAULT_USER_AGENT,

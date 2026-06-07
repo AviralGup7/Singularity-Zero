@@ -16,6 +16,12 @@ from src.core.checkpoint.recovery import (
     attempt_recovery,
     generate_run_id,
 )
+from src.core.checkpoint.resume_strategies import (
+    PartialResumePlanner,
+    ResumePolicy,
+    RESUME_BEHAVIORS,
+    StageResumeBehavior,
+)
 from src.core.checkpoint.strategies import (
     CheckpointManager,
     StageCheckpointGuard,
@@ -26,6 +32,10 @@ __all__ = [
     "CheckpointIntegrityError",
     "CheckpointManager",
     "CheckpointState",
+    "PartialResumePlanner",
+    "ResumePolicy",
+    "RESUME_BEHAVIORS",
+    "StageResumeBehavior",
     "StageCheckpointGuard",
     "_compute_checksum",
     "_deserialize_sets",

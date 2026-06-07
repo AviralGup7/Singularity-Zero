@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import concurrent.futures
+import logging
 import os
 from typing import Any, TypedDict, cast
 
@@ -286,15 +287,24 @@ class PipelineOrchestrator:
     ) -> None:
         merge_stage_output(ctx, stage_name, stage_output, wal=getattr(self, "_wal", None))
 
-        # Emit finding creation events
+        stage_trace_id = getattr(stage_output, "trace_id", "") or ""
         if stage_output.state_delta:
             findings = stage_output.state_delta.get("reportable_findings", [])
             if isinstance(findings, (list, tuple)):
                 for finding in findings:
+                    finding_id = ""
+                    if isinstance(finding, dict):
+                        finding_id = str(
+                            finding.get("finding_id")
+                            or finding.get("id")
+                            or finding.get("title", "")
+                            or ""
+                        )
                     self._emit_event(
                         EventType.FINDING_CREATED,
                         source=f"stage.{stage_name}",
-                        data={"finding": finding},
+                        data={"finding": finding, "trace_id": stage_trace_id},
+                        trace_id=stage_trace_id,
                     )
 
     @staticmethod
@@ -405,21 +415,47 @@ class PipelineOrchestrator:
             args=args,
         )
 
+    def _acquire_distributed_lock(self, target_name: str):
+        from src.infrastructure.task_pool import RunLock
+
+        scan_id = target_name
+        run_lock = RunLock()
+        acquired = run_lock.acquire(scan_id)
+        if acquired:
+            logger.info("Acquired run lock for target: %s", target_name)
+            self._run_lock = run_lock
+            self._run_lock_scan_id = scan_id
+            return scan_id
+        logger.error(
+            "Failed to acquire run lock: Target '%s' is already under active scan.",
+            target_name,
+        )
+        emit_progress(
+            "startup",
+            f"Collision: {target_name} is already under active scan",
+            0,
+            status="failed",
+        )
+        self._emit_pipeline_error("distributed_lock_collision", {"target": target_name})
+        return None
+
+    async def _release_distributed_lock(self) -> None:
+        run_lock = getattr(self, "_run_lock", None)
+        if run_lock is not None:
+            run_lock.release()
+            self._run_lock = None
+
     async def run(self, args: argparse.Namespace) -> int:
-        """Run the full security testing pipeline with distributed concurrency protection."""
+        """Run the full security testing pipeline with single-node concurrency protection."""
         from ._orchestrator.bootstrap import bootstrap_pipeline
 
         config, scope_entries, tool_status, flow_manifest = bootstrap_pipeline(args)
         setattr(args, "_loaded_config", config)
         setattr(args, "_loaded_scope_entries", scope_entries)
 
-        # ──────────────────────────────────────────────────────────
-        # Distributed Concurrency Guard (Overhaul #4)
-        # ──────────────────────────────────────────────────────────
         from src.infrastructure.cache import CacheManager
         from src.infrastructure.cache.config import CacheConfig
 
-        # Use common settings for cache paths if not in config
         cache_db_path = getattr(
             config, "cache_db_path", str(config.output_dir / "cache" / "cache_layer.db")
         )
@@ -435,43 +471,17 @@ class PipelineOrchestrator:
 
         target_name = str(getattr(config, "target_name", "unknown") or "unknown")
 
-        # Attempt to acquire a global lock for this target to prevent multi-worker collisions
-        logger.info("Acquiring distributed lock for target: %s", target_name)
-        import asyncio
-
-        lock_token = await asyncio.to_thread(
-            cache_mgr.acquire_recon_lock, target_name, ttl=3600, wait_timeout=5.0
-        )
-
-        if not lock_token:
-            if getattr(config, "redis_url", None) and cache_mgr._redis is not None:
-                logger.error(
-                    "Failed to acquire distributed lock: Target '%s' is already being scanned by another worker.",
-                    target_name,
-                )
-                emit_progress(
-                    "startup",
-                    f"Collision: {target_name} is already under active scan",
-                    0,
-                    status="failed",
-                )
-                self._emit_pipeline_error("distributed_lock_collision", {"target": target_name})
-                return 1
-            else:
-                logger.warning(
-                    "No distributed lock acquired for target '%s'. Running in single-node mode without Redis. "
-                    "Concurrent workers may collide.",
-                    target_name,
-                )
+        scan_id = self._acquire_distributed_lock(target_name)
+        if not scan_id:
+            cache_mgr.close()
+            return 1
 
         try:
             return await self._run_secured(
                 args, config, flow_manifest, cache_mgr, scope_entries, tool_status
             )
         finally:
-            if lock_token:
-                logger.info("Releasing distributed lock for target: %s", target_name)
-                cache_mgr.release_recon_lock(target_name, lock_token)
+            await self._release_distributed_lock()
             cache_mgr.close()
 
     async def _run_secured(
@@ -537,6 +547,83 @@ class PipelineOrchestrator:
         )
 
     # ------------------------------------------------------------------ stage execution --
+
+    async def _replay_single_stage(self, run_id: str, stage_name: str, trace_dir: str = ".ai/traces") -> StageOutput | None:
+        from src.infrastructure.observability.trace_store import get_trace_store
+        from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
+
+        trace_store = get_trace_store(trace_dir=trace_dir)
+        trace = trace_store.get_trace_for_stage(run_id, stage_name)
+        if trace is None:
+            logger.error("No trace found for run=%s stage=%s", run_id, stage_name)
+            return None
+
+        checkpoint_mgr = getattr(self, "_checkpoint_mgr", None)
+        if checkpoint_mgr is None:
+            logger.error("No checkpoint manager available for replay of run=%s", run_id)
+            return None
+
+        ctx_snapshot = checkpoint_mgr._load_context_snapshot_for_stage(stage_name)
+        if not ctx_snapshot:
+            logger.error("No context snapshot found for run=%s stage=%s", run_id, stage_name)
+            return None
+
+        from src.core.models.stage_result import PipelineContext, StageResult
+        from src.pipeline.services.output_store import PipelineOutputStore
+
+        result = StageResult.from_dict(ctx_snapshot.get("result", {}))
+        ctx = PipelineContext(
+            result=result,
+            output_store=getattr(self.ctx, "output_store", None),
+            run_id=run_id,
+        )
+        config = getattr(self, "_loaded_config", None) or getattr(self.ctx, "config", None)
+        if config is None:
+            logger.error("No config available for replay of run=%s stage=%s", run_id, stage_name)
+            return None
+
+        stage_methods = self._build_stage_methods()
+        method = stage_methods.get(stage_name)
+        if method is None:
+            logger.error("No stage method found for stage=%s", stage_name)
+            return None
+
+        stage_input = build_stage_input_from_context(stage_name, config, ctx)
+        scope_interceptor = getattr(self, "_scope_interceptor", None)
+        timeout = self._resolve_stage_timeout(stage_name, config, ctx)
+
+        logger.info(
+            "Replaying stage %s for run %s (trace_id=%s)",
+            stage_name,
+            run_id,
+            trace.trace_id,
+        )
+        return await self._run_stage_with_retry(
+            stage_name,
+            method,
+            getattr(self.ctx, "args", None) or config,
+            config,
+            ctx,
+            timeout,
+            scope_interceptor,
+            previous_deltas=[],
+        )
+
+    async def _replay_traces(self, run_id: str, trace_dir: str = ".ai/traces") -> list[StageOutput | None]:
+        from src.infrastructure.observability.trace_store import get_trace_store
+
+        trace_store = get_trace_store(trace_dir=trace_dir)
+        traces = trace_store.get_traces_for_run(run_id)
+        if not traces:
+            logger.error("No traces found for run=%s", run_id)
+            return []
+
+        results: list[StageOutput | None] = []
+        for trace in traces:
+            logger.info("Replaying stage %s from trace %s", trace.stage_name, trace.trace_id)
+            result = await self._replay_single_stage(run_id, trace.stage_name, trace_dir=trace_dir)
+            results.append(result)
+        return results
 
     async def _run_stage_with_retry(
         self,

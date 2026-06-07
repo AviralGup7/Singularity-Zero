@@ -2,6 +2,8 @@
 
 from .active_scan import run_active_scanning
 from .analysis import run_passive_scanning
+from .ci_export import run_ci_export
+from .dedup_stage import run_dedup_stage
 from .enrichment import run_post_analysis_enrichments
 from .git_diff_crawl import run_git_diff_crawl
 from .nuclei import run_nuclei_stage
@@ -15,6 +17,7 @@ from .recon import (
 )
 from .reporting import run_reporting
 from .sarif_export import run_sarif_export
+from .scope_stage import run_scope_stage
 from .semgrep import run_semgrep_stage
 from .validation import run_validation
 
@@ -34,4 +37,7 @@ __all__ = [
     "run_reporting",
     "run_sarif_export",
     "run_git_diff_crawl",
+    "run_ci_export",
+    "run_scope_stage",
+    "run_dedup_stage",
 ]

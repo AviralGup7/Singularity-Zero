@@ -16,7 +16,7 @@ import {
 import { useToast } from '@/hooks/useToast';
 import { remediationApi, type RemediationUnit } from '@/api/remediation';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 import { Badge } from '@/components/ui/Badge';
 
 const SEVERITY_COLORS: Record<string, string> = {

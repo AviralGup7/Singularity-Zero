@@ -17,11 +17,16 @@ from .host_header import host_header_injection_probe
 from .jwt_manipulation import jwt_manipulation_probe
 from .ldap import ldap_injection_active_probe
 from .nosql import nosql_injection_probe
+from .nosql_couchdb import nosql_couchdb_probe
+from .nosql_mongodb import nosql_mongodb_probe
+from .nosql_redis import nosql_redis_probe
 from .open_redirect import open_redirect_active_probe
 from .parameter_pollution import hpp_active_probe
 from .path_traversal import path_traversal_active_probe
 from .proxy_ssrf import proxy_ssrf_probe
 from .sqli import sqli_safe_probe
+from .sqli_advanced import sqli_advanced_probe
+from .sqli_timing import TimingComparator
 from .ssrf import ssrf_active_probe
 from .ssti import ssti_active_probe
 from .websocket_hijacking import websocket_hijacking_probe
@@ -36,11 +41,16 @@ __all__ = [
     "grafana_ssrf",
     "proxy_ssrf_probe",
     "sqli_safe_probe",
+    "sqli_advanced_probe",
+    "TimingComparator",
     "open_redirect_active_probe",
     "crlf_injection_probe",
     "host_header_injection_probe",
     "ssti_active_probe",
     "nosql_injection_probe",
+    "nosql_mongodb_probe",
+    "nosql_couchdb_probe",
+    "nosql_redis_probe",
     "deserialization_probe",
     "ldap_injection_active_probe",
     "csrf_active_probe",

@@ -6,13 +6,22 @@
  *
  * Existing CSV/JSON export continues to work via the `csv`/`json`
  * strategies, which mirror the legacy `useExport` behavior exactly. The
- * new `jira`, `hackerone`, `burp`, and `postman` strategies emit
- * structured documents the operator can drop straight into those
- * platforms:
+ * new `jira`, `hackerone`, `bugcrowd`, `intigriti`, `synack`, `burp`,
+ * and `postman` strategies emit structured documents the operator can
+ * drop straight into those platforms:
  *
  *   - Jira:    CSV header matches Jira's bulk-create import format
  *   - HackerOne: Markdown report template with the platform's required
- *                sections (Summary, Steps, Impact, Remediation)
+ *                sections (Title, Severity, Weakness, Summary, Steps,
+ *                Impact, Remediation)
+ *   - Bugcrowd: Markdown with the platform's submission fields
+ *                (Category, Description, Reproduction Steps, Impact,
+ *                Remediation Plan)
+ *   - Intigriti: Markdown with the platform's required sections
+ *                (Description, Steps, Impact, Remediation, Mitigation)
+ *   - Synack:   Markdown matching Synack's submission template
+ *                (Vulnerability Description, Reproduction Steps,
+ *                Business Impact, Suggested Fix)
  *   - Burp:    XML in Burp's findings-list format (Issues → Issue → ...)
  *   - Postman: JSON v2.1 collection with the report attached as a body
  *
@@ -24,7 +33,16 @@
 
 import type { Finding } from '@/types/api';
 
-export type ExporterFormat = 'csv' | 'json' | 'jira' | 'hackerone' | 'burp' | 'postman';
+export type ExporterFormat =
+  | 'csv'
+  | 'json'
+  | 'jira'
+  | 'hackerone'
+  | 'bugcrowd'
+  | 'intigriti'
+  | 'synack'
+  | 'burp'
+  | 'postman';
 
 export interface ExporterContext {
   findings: Finding[];
@@ -278,6 +296,169 @@ function escapeXml(s: string): string {
 }
 
 /**
+ * Bugcrowd submission format. Markdown with the platform's required
+ * fields (Category, Description, Reproduction Steps, Impact,
+ * Remediation Plan). Operators paste this directly into Bugcrowd's
+ * submission wizard.
+ */
+const bugcrowdExporter: ExporterFn = ({ findings, filename, context }) => {
+  const lines: string[] = [];
+  lines.push(`# Bug Bounty Submission — ${context?.target ?? 'Multiple Targets'}`);
+  lines.push('');
+  lines.push(`_Generated ${new Date().toISOString()} from ${context?.program ?? 'this program'}_`);
+  lines.push('');
+  for (const f of findings) {
+    lines.push('---');
+    lines.push('');
+    lines.push(`## ${f.title}`);
+    lines.push('');
+    lines.push(`**Category:** ${f.type || 'other'}  `);
+    lines.push(`**Severity:** ${f.severity}  `);
+    if (f.cvss_score != null) lines.push(`**CVSS Score:** ${f.cvss_score}  `);
+    lines.push('');
+    lines.push('### Description');
+    lines.push('');
+    lines.push(f.description || '_No description provided._');
+    lines.push('');
+    lines.push('### Reproduction Steps');
+    lines.push('');
+    lines.push('1. Navigate to the affected URL below');
+    lines.push(`2. Use the request/response pair provided`);
+    lines.push('3. Observe the behaviour described above');
+    lines.push('');
+    lines.push('### Impact');
+    lines.push('');
+    lines.push(f.description || 'See description above.');
+    lines.push('');
+    if (f.url) {
+      lines.push(`**Affected URL:** ${f.url}`);
+    }
+    if (f.target) {
+      lines.push(`**Target:** ${f.target}`);
+    }
+    lines.push('');
+    lines.push('### Remediation Plan');
+    lines.push('');
+    lines.push('Triage with the engineering team to determine the appropriate fix for this class of issue.');
+    lines.push('');
+  }
+  return {
+    blob: new Blob([lines.join('\n')], { type: 'text/markdown' }),
+    filename: `${filename}-bugcrowd.md`,
+    mime: 'text/markdown',
+  };
+};
+
+/**
+ * Intigriti submission format. Markdown with the platform's required
+ * sections (Description, Steps To Reproduce, Impact, Remediation,
+ * Mitigation). Operators paste this directly into Intigriti's
+ * submission form.
+ */
+const intigritiExporter: ExporterFn = ({ findings, filename, context }) => {
+  const lines: string[] = [];
+  lines.push(`# Bug Bounty Submission — ${context?.target ?? 'Multiple Targets'}`);
+  lines.push('');
+  lines.push(`_Generated ${new Date().toISOString()} from ${context?.program ?? 'this program'}_`);
+  lines.push('');
+  for (const f of findings) {
+    lines.push('---');
+    lines.push('');
+    lines.push(`## ${f.title}`);
+    lines.push('');
+    lines.push(`**Severity:** ${f.severity}  `);
+    lines.push(`**Weakness:** ${f.type}  `);
+    if (f.cve) lines.push(`**CVE:** ${f.cve}  `);
+    if (f.cvss_score != null) lines.push(`**CVSS:** ${f.cvss_score}  `);
+    lines.push('');
+    lines.push('### Description');
+    lines.push('');
+    lines.push(f.description || '_No description provided._');
+    lines.push('');
+    lines.push('### Steps To Reproduce');
+    lines.push('');
+    lines.push('1. Navigate to the affected URL below');
+    lines.push(`2. Use the request/response pair provided`);
+    lines.push('3. Observe the behaviour described above');
+    lines.push('');
+    lines.push('### Impact');
+    lines.push('');
+    lines.push(f.description || 'See description above.');
+    lines.push('');
+    if (f.url) {
+      lines.push(`**Affected URL:** ${f.url}`);
+    }
+    lines.push('');
+    lines.push('### Remediation');
+    lines.push('');
+    lines.push('Triage with the engineering team to determine the appropriate fix for this class of issue.');
+    lines.push('');
+    lines.push('### Mitigation');
+    lines.push('');
+    lines.push('Apply the remediation described above; if a patch cannot be deployed immediately, consider rate-limiting or blocking the affected endpoint as a temporary mitigation.');
+    lines.push('');
+  }
+  return {
+    blob: new Blob([lines.join('\n')], { type: 'text/markdown' }),
+    filename: `${filename}-intigriti.md`,
+    mime: 'text/markdown',
+  };
+};
+
+/**
+ * Synack submission format. Markdown matching Synack's submission
+ * template (Vulnerability Description, Reproduction Steps, Business
+ * Impact, Suggested Fix).
+ */
+const synackExporter: ExporterFn = ({ findings, filename, context }) => {
+  const lines: string[] = [];
+  lines.push(`# Bug Bounty Submission — ${context?.target ?? 'Multiple Targets'}`);
+  lines.push('');
+  lines.push(`_Generated ${new Date().toISOString()} from ${context?.program ?? 'this program'}_`);
+  lines.push('');
+  for (const f of findings) {
+    lines.push('---');
+    lines.push('');
+    lines.push(`## ${f.title}`);
+    lines.push('');
+    lines.push(`**Severity:** ${f.severity}  `);
+    lines.push(`**Vulnerability Category:** ${f.type}  `);
+    if (f.cvss_score != null) lines.push(`**CVSS:** ${f.cvss_score}  `);
+    lines.push('');
+    lines.push('### Vulnerability Description');
+    lines.push('');
+    lines.push(f.description || '_No description provided._');
+    lines.push('');
+    lines.push('### Reproduction Steps');
+    lines.push('');
+    lines.push('1. Navigate to the affected URL below');
+    lines.push(`2. Use the request/response pair provided`);
+    lines.push('3. Observe the behaviour described above');
+    lines.push('');
+    lines.push('### Business Impact');
+    lines.push('');
+    lines.push(f.description || 'See description above.');
+    lines.push('');
+    if (f.url) {
+      lines.push(`**Affected URL:** ${f.url}`);
+    }
+    if (f.target) {
+      lines.push(`**Target:** ${f.target}`);
+    }
+    lines.push('');
+    lines.push('### Suggested Fix');
+    lines.push('');
+    lines.push('Triage with the engineering team to determine the appropriate fix for this class of issue.');
+    lines.push('');
+  }
+  return {
+    blob: new Blob([lines.join('\n')], { type: 'text/markdown' }),
+    filename: `${filename}-synack.md`,
+    mime: 'text/markdown',
+  };
+};
+
+/**
  * Postman v2.1 collection with one request per finding. The body contains
  * the request/response pair, the URL is the affected endpoint, and the
  * request name is the finding title. Operators can drop this into
@@ -334,6 +515,9 @@ export const EXPORTERS: Record<ExporterFormat, { label: string; description: str
   json: { label: 'JSON', description: 'Structured findings dump', ext: 'json', export: jsonExporter },
   jira: { label: 'Jira CSV', description: 'Jira bulk-import compatible', ext: 'csv', export: jiraExporter },
   hackerone: { label: 'HackerOne', description: 'Markdown report with required H1 sections', ext: 'md', export: hackeroneExporter },
+  bugcrowd: { label: 'Bugcrowd', description: 'Markdown report with Bugcrowd submission fields', ext: 'md', export: bugcrowdExporter },
+  intigriti: { label: 'Intigriti', description: 'Markdown report matching Intigriti submission format', ext: 'md', export: intigritiExporter },
+  synack: { label: 'Synack', description: 'Markdown report matching Synack submission format', ext: 'md', export: synackExporter },
   burp: { label: 'Burp Suite', description: 'Burp issues XML', ext: 'xml', export: burpExporter },
   postman: { label: 'Postman', description: 'Re-executable request collection', ext: 'json', export: postmanExporter },
 };

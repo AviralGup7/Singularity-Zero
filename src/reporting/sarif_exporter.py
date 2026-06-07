@@ -53,9 +53,12 @@ def _coerce_str(value: Any, default: str = "") -> str:
 
 
 def _is_false_positive(finding: Mapping[str, Any]) -> bool:
-    if str(finding.get("lifecycle_state", "")).upper() == "FALSE_POSITIVE":
+    lifecycle = str(finding.get("lifecycle_state", "")).strip().lower()
+    if lifecycle in {"false_positive", "fp", "false-positive"}:
         return True
     if str(finding.get("status", "")).lower() == "false_positive":
+        return True
+    if finding.get("falsePositive") is True:
         return True
     decision = finding.get("ai_triage_decision")
     return isinstance(decision, str) and decision.upper() == "FP"
@@ -324,7 +327,164 @@ def merge_sarif_documents(documents: Iterable[Mapping[str, Any]]) -> dict[str, A
                     }
                 },
                 "results": merged_results,
-                **({"logs": merged_logs} if merged_logs else {}),
+                **({"logs": merged_logs} if logs else {}),
             }
         ],
     }
+
+
+def sarif_to_finding(sarif_result: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a single SARIF result into the internal finding shape used by
+    the platform exporters (HackerOne, Bugcrowd, Intigriti, Synack).
+
+    The internal shape is intentionally minimal — the platform exporters
+    enrich it with the structured fields each platform's API requires.
+    """
+    message = sarif_result.get("message", {})
+    text = message.get("text", "") if isinstance(message, Mapping) else str(message)
+    locations = sarif_result.get("locations", []) or []
+    url = ""
+    if locations:
+        loc = locations[0]
+        phys = loc.get("physicalLocation", {}) if isinstance(loc, Mapping) else {}
+        art = phys.get("artifactLocation", {}) if isinstance(phys, Mapping) else {}
+        url = str(art.get("uri") or "")
+    properties = sarif_result.get("properties", {}) or {}
+    rule_id = str(sarif_result.get("ruleId", "unknown"))
+    severity = str(properties.get("severity") or sarif_result.get("level") or "medium").lower()
+    return {
+        "id": str(properties.get("finding_id") or sarif_result.get("partialFingerprints", {}).get("primary", "")),
+        "title": text.split("\n", 1)[0][:240] if text else rule_id,
+        "description": text,
+        "severity": severity,
+        "type": str(properties.get("category") or rule_id),
+        "url": url,
+        "host": "",
+        "target": url,
+        "cwe": properties.get("cwe"),
+        "cve": properties.get("cve"),
+        "cvss_score": properties.get("cvss"),
+        "confidence": properties.get("confidence", 0.5),
+        "rule_id": rule_id,
+        "properties": dict(properties),
+    }
+
+
+def sarif_to_platform_report(
+    sarif_document: Mapping[str, Any],
+    platform: str = "hackerone",
+) -> list[dict[str, Any]]:
+    """Bridge a SARIF document to a list of platform-native report payloads.
+
+    Each entry in the returned list is the exact body the platform's
+    submission API expects (HackerOne: ``POST /v1/reports`` shape, etc.).
+    The platform's own exporter (``HackerOneExporter`` etc.) is responsible
+    for rendering the markdown; this function only extracts the
+    structured fields.
+
+    Supported platforms: ``hackerone``, ``bugcrowd``, ``intigriti``,
+    ``synack``. Unknown platforms return the raw finding dicts.
+    """
+    platform = platform.lower()
+    findings: list[dict[str, Any]] = []
+    for run in sarif_document.get("runs", []) or []:
+        for result in run.get("results", []) or []:
+            findings.append(sarif_to_finding(result))
+
+    if platform not in {"hackerone", "bugcrowd", "intigriti", "synack"}:
+        return findings
+
+    shaped: list[dict[str, Any]] = []
+    for f in findings:
+        if platform == "hackerone":
+            shaped.append({
+                "data": {
+                    "type": "report",
+                    "attributes": {
+                        "title": f.get("title", "Security finding")[:140],
+                        "severity_rating": _h1_severity(f.get("severity")),
+                        "vulnerability_information": f.get("description", ""),
+                    },
+                }
+            })
+        elif platform == "bugcrowd":
+            shaped.append({
+                "title": f.get("title", "Security finding")[:140],
+                "description": f.get("description", ""),
+                "severity": int(_bugcrowd_payout(f.get("severity"))),
+                "priority": _bugcrowd_priority(f.get("severity")),
+                "category": f.get("type", "other"),
+            })
+        elif platform == "intigriti":
+            shaped.append({
+                "title": f.get("title", "Security finding")[:140],
+                "description": f.get("description", ""),
+                "severity": _intigriti_severity(f.get("severity")),
+                "weakness": {"id": _intigriti_weakness_id(f.get("type"))},
+            })
+        else:  # synack
+            shaped.append({
+                "title": f.get("title", "Security finding")[:200],
+                "description": f.get("description", ""),
+                "severity": _synack_severity(f.get("severity")),
+                "vulnerability_category": f.get("type", "other"),
+            })
+    return shaped
+
+
+def _h1_severity(sev: Any) -> str:
+    s = str(sev or "").lower()
+    return s if s in {"critical", "high", "medium", "low", "none"} else "none"
+
+
+def _bugcrowd_payout(sev: Any) -> float:
+    return {
+        "critical": 5.0,
+        "high": 4.0,
+        "medium": 3.0,
+        "low": 2.0,
+    }.get(str(sev or "").lower(), 1.0)
+
+
+def _bugcrowd_priority(sev: Any) -> int:
+    return {
+        "critical": 1,
+        "high": 2,
+        "medium": 3,
+        "low": 4,
+    }.get(str(sev or "").lower(), 5)
+
+
+def _intigriti_severity(sev: Any) -> int:
+    return {
+        "critical": 5,
+        "high": 4,
+        "medium": 3,
+        "low": 2,
+    }.get(str(sev or "").lower(), 1)
+
+
+def _intigriti_weakness_id(finding_type: Any) -> str:
+    t = str(finding_type or "").lower()
+    if "xss" in t:
+        return "xss"
+    if "sql" in t:
+        return "sqli"
+    if "ssrf" in t:
+        return "server_side_request_forgery"
+    if "rce" in t or "command" in t:
+        return "rce"
+    if "auth" in t or "broken" in t:
+        return "broken_authentication"
+    if "idor" in t or "bola" in t:
+        return "idor"
+    return "other"
+
+
+def _synack_severity(sev: Any) -> str:
+    return {
+        "critical": "critical",
+        "high": "high",
+        "medium": "medium",
+        "low": "low",
+    }.get(str(sev or "").lower(), "informational")

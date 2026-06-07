@@ -7,6 +7,8 @@ interface TargetsFilterPanelProps {
   setFilters: (filters: TargetFilters) => void;
 }
 
+const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
+
 export function TargetsFilterPanel({ filters, toggleSeverity, setFilters }: TargetsFilterPanelProps) {
   return (
     <div className="card card-padded multi-filter-panel mb-6">

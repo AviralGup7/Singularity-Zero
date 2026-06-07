@@ -1,5 +1,5 @@
 import type { ForensicExchange } from '@/api/cockpit';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 
 interface ForensicExchangeDetailProps {
   exchange: ForensicExchange;

@@ -1,5 +1,12 @@
 """Schema definitions and table creation logic for the telemetry database."""
 
+from __future__ import annotations
+
+import logging
+import sqlite3
+
+logger = logging.getLogger(__name__)
+
 _SCHEMA_DDL = """
 -- Scan runs
 CREATE TABLE IF NOT EXISTS scan_runs (
@@ -42,6 +49,17 @@ CREATE TABLE IF NOT EXISTS findings (
     response_status     INTEGER,
     response_body_hash  TEXT,
     tech_stack          TEXT,
+    asset_id            TEXT,
+    asset_type          TEXT,
+    asset_criticality   REAL,
+    business_multiplier REAL,
+    control_discount    REAL,
+    modern_risk_score   REAL,
+    remediation_priority REAL,
+    triaged_at          TIMESTAMP,
+    remediation_started_at TIMESTAMP,
+    fixed_at            TIMESTAMP,
+    verified_at         TIMESTAMP,
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_findings_run ON findings(run_id);
@@ -49,6 +67,9 @@ CREATE INDEX IF NOT EXISTS idx_findings_category ON findings(category, severity)
 CREATE INDEX IF NOT EXISTS idx_findings_endpoint ON findings(endpoint_base, host);
 CREATE INDEX IF NOT EXISTS idx_findings_decision ON findings(decision);
 CREATE INDEX IF NOT EXISTS idx_findings_tech ON findings(tech_stack);
+CREATE INDEX IF NOT EXISTS idx_findings_asset ON findings(asset_id);
+CREATE INDEX IF NOT EXISTS idx_findings_asset_type ON findings(asset_type);
+CREATE INDEX IF NOT EXISTS idx_findings_priority ON findings(remediation_priority DESC);
 
 -- Feedback events
 CREATE TABLE IF NOT EXISTS feedback_events (
@@ -72,6 +93,10 @@ CREATE TABLE IF NOT EXISTS feedback_events (
     tech_stack          TEXT,
     scan_mode           TEXT NOT NULL,
     feedback_weight     REAL NOT NULL,
+    override_source     TEXT DEFAULT 'automated',
+    reviewer_id         TEXT,
+    override_reason     TEXT,
+    asset_type          TEXT,
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_run ON feedback_events(run_id);
@@ -81,6 +106,8 @@ CREATE INDEX IF NOT EXISTS idx_feedback_plugin ON feedback_events(plugin_name, w
 CREATE INDEX IF NOT EXISTS idx_feedback_param ON feedback_events(parameter_name, parameter_type);
 CREATE INDEX IF NOT EXISTS idx_feedback_host ON feedback_events(target_host, finding_category);
 CREATE INDEX IF NOT EXISTS idx_feedback_time ON feedback_events(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_feedback_override ON feedback_events(override_source);
+CREATE INDEX IF NOT EXISTS idx_feedback_asset_type ON feedback_events(asset_type);
 
 -- Parameter profiles
 CREATE TABLE IF NOT EXISTS parameter_profiles (
@@ -263,6 +290,203 @@ CREATE TABLE IF NOT EXISTS confidence_models (
     updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_confidence_models ON confidence_models(category, plugin_name);
+
+-- Asset registry (modern risk domain)
+CREATE TABLE IF NOT EXISTS assets (
+    asset_id              TEXT PRIMARY KEY,
+    name                  TEXT NOT NULL,
+    host_pattern          TEXT NOT NULL,
+    path_prefix           TEXT,
+    asset_type            TEXT NOT NULL DEFAULT 'unknown',
+    entity_type           TEXT NOT NULL DEFAULT 'unknown',
+    criticality           REAL NOT NULL DEFAULT 1.0,
+    tier                  TEXT NOT NULL DEFAULT 'tier_4',
+    business_value        REAL NOT NULL DEFAULT 1.0,
+    compliance_requirements TEXT,
+    owner                 TEXT,
+    notes                 TEXT,
+    metadata              TEXT,
+    is_active             INTEGER NOT NULL DEFAULT 1,
+    created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_assets_host ON assets(host_pattern);
+CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type, entity_type);
+CREATE INDEX IF NOT EXISTS idx_assets_criticality ON assets(criticality DESC);
+
+-- Risk acceptances (governance workflow)
+CREATE TABLE IF NOT EXISTS risk_acceptances (
+    acceptance_id          TEXT PRIMARY KEY,
+    finding_id             TEXT NOT NULL,
+    asset_id               TEXT,
+    accepted_until         TIMESTAMP,
+    accepted_by            TEXT NOT NULL,
+    justification          TEXT NOT NULL,
+    compensating_control_ref TEXT,
+    review_date            TIMESTAMP,
+    scope                  TEXT NOT NULL DEFAULT 'global',
+    state                  TEXT NOT NULL DEFAULT 'active',
+    created_by             TEXT,
+    metadata               TEXT,
+    created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_risk_acceptances_finding ON risk_acceptances(finding_id);
+CREATE INDEX IF NOT EXISTS idx_risk_acceptances_state ON risk_acceptances(state, accepted_until);
+CREATE INDEX IF NOT EXISTS idx_risk_acceptances_asset ON risk_acceptances(asset_id);
+
+-- Compensating controls
+CREATE TABLE IF NOT EXISTS compensating_controls (
+    control_id             TEXT PRIMARY KEY,
+    finding_id             TEXT NOT NULL,
+    control_type           TEXT NOT NULL,
+    description            TEXT,
+    discount_factor        REAL NOT NULL DEFAULT 0.85,
+    evidence_url           TEXT,
+    owner                  TEXT,
+    expires_at             TIMESTAMP,
+    is_active              INTEGER NOT NULL DEFAULT 1,
+    metadata               TEXT,
+    created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_controls_finding ON compensating_controls(finding_id);
+CREATE INDEX IF NOT EXISTS idx_controls_type ON compensating_controls(control_type, is_active);
+
+-- SLA lifecycle events
+CREATE TABLE IF NOT EXISTS sla_events (
+    event_id               TEXT PRIMARY KEY,
+    finding_id             TEXT NOT NULL,
+    from_state             TEXT NOT NULL,
+    to_state               TEXT NOT NULL,
+    timestamp              TIMESTAMP NOT NULL,
+    actor                  TEXT,
+    note                   TEXT,
+    metadata               TEXT,
+    created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sla_events_finding ON sla_events(finding_id);
+CREATE INDEX IF NOT EXISTS idx_sla_events_state ON sla_events(to_state, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_sla_events_time ON sla_events(timestamp DESC);
+
+-- Threat intel cache
+CREATE TABLE IF NOT EXISTS threat_intel_cache (
+    cache_id               TEXT PRIMARY KEY,
+    indicator              TEXT NOT NULL,
+    indicator_type         TEXT NOT NULL,
+    source                 TEXT NOT NULL,
+    score                  REAL,
+    severity               TEXT,
+    raw                    TEXT,
+    expires_at             TIMESTAMP,
+    fetched_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_threat_intel_indicator ON threat_intel_cache(indicator, source);
+CREATE INDEX IF NOT EXISTS idx_threat_intel_expiry ON threat_intel_cache(expires_at);
+
+-- Reviewer actions (FindingReviewPanel)
+CREATE TABLE IF NOT EXISTS reviewer_actions (
+    action_id              TEXT PRIMARY KEY,
+    finding_id             TEXT NOT NULL,
+    action_type            TEXT NOT NULL,
+    reviewer_id            TEXT,
+    structured_note        TEXT,
+    from_state             TEXT,
+    to_state               TEXT,
+    timestamp              TIMESTAMP NOT NULL,
+    metadata               TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_reviewer_finding ON reviewer_actions(finding_id);
+CREATE INDEX IF NOT EXISTS idx_reviewer_action ON reviewer_actions(action_type, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_reviewer_reviewer ON reviewer_actions(reviewer_id);
 """
 
-__all__ = ["_SCHEMA_DDL"]
+
+# ---------------------------------------------------------------------------
+# In-place migrations for databases created before the modern risk domain
+# tables / columns were added. ``CREATE TABLE IF NOT EXISTS`` only creates
+# *missing* tables; existing tables are not retro-fitted with new columns.
+# The list below is a series of idempotent ``ALTER TABLE`` statements. SQLite
+# has no ``IF NOT EXISTS`` for columns, so we check the table schema first via
+# ``PRAGMA table_info`` and skip columns that already exist.
+# ---------------------------------------------------------------------------
+
+# Mapping: table -> list of (column, definition) pairs to add.
+_COLUMN_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "findings": [
+        ("asset_id", "TEXT"),
+        ("asset_type", "TEXT"),
+        ("asset_criticality", "REAL"),
+        ("business_multiplier", "REAL"),
+        ("control_discount", "REAL"),
+        ("modern_risk_score", "REAL"),
+        ("remediation_priority", "REAL"),
+        ("triaged_at", "TIMESTAMP"),
+        ("remediation_started_at", "TIMESTAMP"),
+        ("fixed_at", "TIMESTAMP"),
+        ("verified_at", "TIMESTAMP"),
+    ],
+    "feedback_events": [
+        ("override_source", "TEXT DEFAULT 'automated'"),
+        ("reviewer_id", "TEXT"),
+        ("override_reason", "TEXT"),
+        ("asset_type", "TEXT"),
+    ],
+    "fp_patterns": [
+        ("scope_signature", "TEXT"),
+        ("is_global", "INTEGER DEFAULT 0"),
+    ],
+}
+
+
+def _existing_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    except sqlite3.Error:
+        return set()
+    return {row[1] for row in rows}
+
+
+def _existing_tables(conn: sqlite3.Connection) -> set[str]:
+    try:
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    except sqlite3.Error:
+        return set()
+    return {row[0] for row in rows}
+
+
+def apply_migrations(conn: sqlite3.Connection) -> int:
+    """Apply column-level migrations to ``conn`` in-place.
+
+    Returns the number of statements executed. Safe to call on a
+    brand-new database: the ``CREATE TABLE IF NOT EXISTS`` script
+    has already produced the modern schema, so this function will
+    detect every column as present and become a no-op.
+    """
+    executed = 0
+    tables = _existing_tables(conn)
+    for table, columns in _COLUMN_MIGRATIONS.items():
+        if table not in tables:
+            # ``CREATE TABLE IF NOT EXISTS`` will create the modern
+            # version on the next ``initialize()`` call.
+            continue
+        existing = _existing_columns(conn, table)
+        for name, definition in columns:
+            if name in existing:
+                continue
+            try:
+                conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
+                )
+                executed += 1
+            except sqlite3.Error as exc:  # noqa: BLE001
+                logger.warning(
+                    "Schema migration: failed to add %s.%s: %s", table, name, exc
+                )
+    conn.commit()
+    return executed
+
+
+__all__ = ["_SCHEMA_DDL", "apply_migrations"]

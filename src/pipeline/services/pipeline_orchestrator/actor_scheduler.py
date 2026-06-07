@@ -212,14 +212,17 @@ class ActorScheduler:
 
             ready = self._collect_ready_nodes()
             if ready:
-                from src.pipeline.validation import probe_system_resources
-                is_healthy, details = probe_system_resources(getattr(self._config, "output_dir", "."))
-                if not is_healthy:
-                    logger.error("System resource check failed: %s", details)
-                    self._error_emitter("resource_probe", f"Insufficient system resources: {details}")
-                    self._failed_critical = "resource_probe"
-                    self._outcome.exit_code = 1
-                    break
+                try:
+                    from src.infrastructure.resource_guard import ResourceGuard
+                    error_detail = ResourceGuard().check_and_halt_on_oom()
+                    if error_detail:
+                        logger.error("System resource check failed: %s", error_detail)
+                        self._error_emitter("resource_guard", f"Critical OOM detected: {error_detail}")
+                        self._failed_critical = "resource_guard"
+                        self._outcome.exit_code = 1
+                        break
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("ResourceGuard early check failed (%s).", exc)
                 for node in ready:
                     self._dispatch(node)
                 if self._in_flight:

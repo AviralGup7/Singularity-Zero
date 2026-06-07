@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from src.pipeline.retry.classifier import PermanentError, TransientError, classify_error
+from src.pipeline.retry.circuit_breaker import CircuitState, ToolCircuitBreaker
 from src.pipeline.retry.events import (
     RetryEvent,
     RetryEventEmitter,
@@ -29,6 +30,7 @@ from src.pipeline.retry.strategies import (
 
 __all__ = [
     "AdaptiveBackoffHeuristic",
+    "CircuitState",
     "RetryBudgetExhausted",
     "RetryEvent",
     "RetryEventEmitter",
@@ -38,6 +40,7 @@ __all__ = [
     "RetryPolicyState",
     "StageRetryPolicy",
     "ToolRetryPolicy",
+    "ToolCircuitBreaker",
     "TransientError",
     "PermanentError",
     "RetryBudgetExhausted",

@@ -1,3 +1,4 @@
+import type { AttackChain } from '@/types/api';
 import { apiClient } from './client';
 
 export interface CockpitNode {
@@ -80,6 +81,9 @@ export interface ForensicExchange {
 export const cockpitApi = {
   getGraph: (target: string, run?: string, jobId?: string, config?: { signal?: AbortSignal }) =>
     apiClient.get<CockpitGraphResponse>('/api/cockpit/graph', { ...config, params: { target, run, job_id: jobId } }),
+
+  getAttackChains: (target: string, config?: { signal?: AbortSignal }) =>
+    apiClient.get<AttackChain[]>('/api/cockpit/attack-chains', { ...config, params: { target } }),
 
   graphStreamUrl: (target: string, run?: string, jobId?: string) => {
     const params = new URLSearchParams({ target });

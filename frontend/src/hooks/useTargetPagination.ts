@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { Target } from '@/types/api';
 
-const PAGE_SIZE = 10;
+export const PAGE_SIZE = 10;
 
 export function useTargetPagination(total: number, pageSize = PAGE_SIZE) {
   const [currentPage, setCurrentPage] = useState(1);

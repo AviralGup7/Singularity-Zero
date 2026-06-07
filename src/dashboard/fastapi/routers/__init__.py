@@ -15,6 +15,7 @@ from .defaults import router as defaults_router
 from .evasion import router as evasion_router
 from .export import router as export_router
 from .findings import router as findings_router
+from .forensics_trace import router as forensics_trace_router
 from .gap_analysis import router as gap_analysis_router
 from .health import router as health_router
 from .jobs import router as jobs_router
@@ -28,6 +29,7 @@ from .remediation import router as remediation_router
 from .replay import router as replay_router
 from .reports import router as reports_router
 from .risk import router as risk_router
+from .risk_domain import router as risk_domain_router
 from .security import router as security_router
 from .self_healing import router as self_healing_router
 from .targets import router as targets_router
@@ -62,6 +64,7 @@ api_router.include_router(notes_router, tags=["Notes"])
 api_router.include_router(export_router, tags=["Export"])
 api_router.include_router(replay_router, tags=["Replay"])
 api_router.include_router(risk_router, tags=["Risk"])
+api_router.include_router(risk_domain_router, tags=["Risk Domain"])
 api_router.include_router(remediation_router, tags=["Remediation"])
 api_router.include_router(reports_router, tags=["Reports"])
 api_router.include_router(registry_router, tags=["Registry"])
@@ -74,3 +77,4 @@ api_router.include_router(launcher_router, tags=["Launcher"])
 api_router.include_router(tracing_router, tags=["Tracing"])
 api_router.include_router(triage_router, tags=["Triage Collaboration"])
 api_router.include_router(evasion_router, tags=["Evasion Telemetry"])
+api_router.include_router(forensics_trace_router, tags=["Forensics Trace"])

@@ -102,12 +102,17 @@ function compareFindings(a: FindingLike, b: FindingLike, key: string, dir: SortD
   return dir === 'asc' ? cmp : -cmp;
 }
 
-self.onmessage = (event: MessageEvent<ProcessRequest<FindingLike>>) => {
+let storedFindings: FindingLike[] = [];
+
+self.onmessage = (event: MessageEvent<ProcessRequest<FindingLike> & { findings?: FindingLike[] }>) => {
   try {
     const { type, findings, filters, sort } = event.data;
 
     if (type === 'PROCESS_FINDINGS') {
-      let result = [...findings];
+      if (findings) {
+        storedFindings = findings;
+      }
+      let result = [...storedFindings];
 
       // 1. Filtering
       if (filters.severity && filters.severity.length > 0) {

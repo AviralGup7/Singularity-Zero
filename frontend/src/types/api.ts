@@ -2,6 +2,15 @@
 // TypeScript types for the Cyber Pipeline API
 // ============================================================
 
+export interface MigrationEvent {
+  id: string;
+  timestamp: number;
+  actor_id: string;
+  source_node: string;
+  target_node: string;
+  [key: string]: unknown;
+}
+
 export interface MeshNode {
   id: string;
   host: string;
@@ -379,11 +388,10 @@ export interface Finding {
   cve?: string;
   cwe?: string;
   target?: string;
-  status?: 'open' | 'closed' | 'accepted';
+  status?: 'open' | 'closed' | 'accepted' | 'reviewed';
   cvss_score?: number;
   cvss_vector?: string;
   cvss_explanation?: string;
-  cvss_v4_score?: number;
   cvss_v4_vector?: string;
   request_response?: RequestResponsePair[];
 
@@ -415,6 +423,66 @@ export interface Finding {
    * Powers the scope-compliance badge on target cards.
    */
   scope_match?: string;
+
+  // Modern risk domain (Finding Priority, Attack Chain, Asset)
+  /**
+   * Composite remediation priority 0-100 produced by
+   * ``RemediationPriorityCalculator``. Missing values fall back to a
+   * severity-derived score so legacy findings still sort sensibly.
+   */
+  remediation_priority?: number;
+  /**
+   * Detailed breakdown of the composite priority. Keys: modern_risk,
+   * attack_chain, epss, asset_criticality, analyst_tp_rate.
+   */
+  remediation_priority_components?: Record<string, number>;
+  /**
+   * Human-readable reason codes driving the priority score
+   * (``cisa_kev``, ``crown_jewel_asset``, ``in_attack_chain`` …).
+   */
+  remediation_priority_reasons?: string[];
+  /** Modern risk 0-100 produced by ``ModernRiskCalculator``. */
+  modern_risk_score?: number;
+  /** Per-component breakdown of the modern risk score. */
+  modern_risk_components?: Record<string, number>;
+  /** CVSS 4.0 score 0-10 (alongside the legacy ``cvss_score``). */
+  cvss_v4_score?: number;
+  /** Asset registry identifier (e.g. ``asset-payments-prod-01``). */
+  asset_id?: string;
+  /** Canonical asset type (e.g. ``payment_processor``). */
+  asset_type?: string;
+  /** Asset criticality score 1.0-1.5. */
+  asset_criticality?: number;
+  /** Compensating control discount factor (1.0 = none, 0.05 = floor). */
+  control_discount?: number;
+  /** EPSS exploitation probability 0-1. */
+  epss_score?: number;
+  /** True when the CVE is on the CISA KEV catalogue. */
+  cisa_kev?: boolean;
+  /** Threat intel summary aggregated for this finding. */
+  threat_intel?: {
+    epss_score?: number;
+    cisa_kev?: boolean;
+    sources?: string[];
+  };
+  /** Attack chain membership metadata. */
+  attack_chain?: {
+    chain_id?: string;
+    chain_amplification?: number;
+    chain_kind?: 'rule' | 'graph';
+    chain_size?: number;
+  };
+  /** Lifecycle SLA timestamps. */
+  triaged_at?: number | string;
+  remediation_started_at?: number | string;
+  fixed_at?: number | string;
+  verified_at?: number | string;
+  /** Effective lifecycle state, set via the /transition endpoint. */
+  lifecycle_state_extended?: string;
+  cvss?: string | number;
+  proof_of_concept?: string;
+  poc?: string;
+  remediation?: string[];
 }
 
 export interface TargetSummary {

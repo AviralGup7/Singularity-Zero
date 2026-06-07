@@ -9,13 +9,14 @@ from .fp_patterns_repo import FpPatternsRepo
 from .graph_repo import GraphRepo
 from .metrics_repo import MetricsRepo
 from .scan_runs_repo import ScanRunsRepo
-from .schema import _SCHEMA_DDL
+from .schema import _SCHEMA_DDL, apply_migrations
 from .telemetry_store import TelemetryStore
 from .thresholds_repo import ThresholdsRepo
 
 __all__ = [
     "BaseRepo",
     "_SCHEMA_DDL",
+    "apply_migrations",
     "ScanRunsRepo",
     "FindingsRepo",
     "FeedbackRepo",

@@ -52,6 +52,8 @@ export type {
   FeedbackEventEntry,
 } from './learning';
 export { exportTargetFindings, exportLatestFindings } from './export';
+export { listPlatformClients, pushFindingToPlatform } from './platforms';
+export type { Platform, PlatformClientSummary, PlatformListResponse, SubmissionResult } from './platforms';
 export {
   createToken,
   generateApiKey,

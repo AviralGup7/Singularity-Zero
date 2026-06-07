@@ -1,5 +1,5 @@
 ﻿import { Link } from 'react-router-dom';
-import { Icon } from '../Icon';
+import { Icon } from '../ui/Icon';
 import { StatePulse } from '../motion/StatePulse';
 import type { Job } from '../../types/api';
 

@@ -2,7 +2,7 @@ import { createContext } from 'react';
 import type { UserRole, Permission } from '@/types/auth';
 
 export interface AuthContextType {
-  user: { id: string; name: string; role: UserRole; unlockPassword?: string } | null;
+  user: { id: string; name: string; role: UserRole; unlockPassword?: string; tenantId?: string; organizationId?: string } | null;
   permissions: Permission;
   login: (name: string, role: UserRole, unlockPassword?: string) => void;
   loginWithApiKey: (apiKey: string) => Promise<void>;

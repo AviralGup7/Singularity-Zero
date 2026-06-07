@@ -11,6 +11,38 @@ from src.intelligence.ml.xgboost_pipeline import XGBoostSeverityPipeline
 
 logger = logging.getLogger(__name__)
 
+# Weights applied to feedback examples based on the ``override_source``
+# column. Analyst-labelled examples are weighted higher than
+# automated ones so the model better tracks human-reviewed ground
+# truth.
+OVERRIDE_SOURCE_WEIGHTS: dict[str, float] = {
+    "analyst_triage": 2.0,
+    "red_team_manual": 2.5,
+    "automated": 0.65,
+}
+
+
+def _override_source_weight(override_source: str | None) -> float:
+    if not override_source:
+        return 1.0
+    return OVERRIDE_SOURCE_WEIGHTS.get(str(override_source).strip().lower(), 1.0)
+
+
+def _override_source_histogram(findings: list[dict[str, Any]]) -> dict[str, int]:
+    histogram: dict[str, int] = {}
+    for finding in findings:
+        key = str(finding.get("override_source") or "unknown").strip().lower() or "unknown"
+        histogram[key] = histogram.get(key, 0) + 1
+    return histogram
+
+
+def _asset_type_histogram(findings: list[dict[str, Any]]) -> dict[str, int]:
+    histogram: dict[str, int] = {}
+    for finding in findings:
+        key = str(finding.get("asset_type") or "unknown").strip().lower() or "unknown"
+        histogram[key] = histogram.get(key, 0) + 1
+    return histogram
+
 
 class ActiveLearningController:
     """Manages training cycles, validation partitions, and registry activation."""
@@ -148,6 +180,13 @@ class ActiveLearningController:
                                 )
                                 continue
 
+                        # ``override_source`` distinguishes human
+                        # review from automated lifecycle events. We
+                        # surface it on the training example so the
+                        # pipeline can weight analyst labels higher.
+                        override_source = str(
+                            item.get("override_source") or "automated"
+                        ).strip().lower() or "automated"
                         finding = {
                             "category": item.get("finding_category"),
                             "severity": item.get("finding_severity"),
@@ -160,6 +199,8 @@ class ActiveLearningController:
                             "url": item.get("target_endpoint"),
                             "host": item.get("target_host"),
                             "response_delta_score": item.get("response_delta_score"),
+                            "asset_type": item.get("asset_type") or "unknown",
+                            "override_source": override_source,
                         }
                         findings.append(finding)
                         labels.append(1.0 if was_tp else 0.0)
@@ -232,9 +273,21 @@ class ActiveLearningController:
         val_findings = [findings[i] for i in indices if i in val_indices]
         val_labels = [labels[i] for i in indices if i in val_indices]
 
+        # Compute per-sample weights from the ``override_source`` column
+        # so analyst-labelled examples are weighted higher. We also
+        # use the original ``feedback_weight`` column if present.
+        sample_weights: list[float] = []
+        for finding in train_findings:
+            base = float(finding.get("feedback_weight") or 1.0)
+            sample_weights.append(
+                base * _override_source_weight(finding.get("override_source"))
+            )
+
         # Fit model pipeline
         new_pipeline = XGBoostSeverityPipeline()
-        success = new_pipeline.fit(train_findings, train_labels)
+        success = new_pipeline.fit(
+            train_findings, train_labels, sample_weights=sample_weights or None
+        )
         if not success:
             return {"status": "failed", "reason": "fit_error"}
 
@@ -253,6 +306,9 @@ class ActiveLearningController:
             "accuracy": round(accuracy, 4),
             "samples": len(findings),
             "retrained_at": time.time(),
+            "weighted_training": True,
+            "asset_types": _asset_type_histogram(findings),
+            "override_source_histogram": _override_source_histogram(findings),
         }
 
         mv = ModelVersion(

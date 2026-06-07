@@ -31,6 +31,20 @@ class FPPattern:
     last_seen: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    # Optional scope fingerprint. When set, the pattern only fires for
+    # findings whose target's scope hash matches. Allows per-target
+    # suppression of program-specific noise (e.g. an endpoint that is
+    # always out-of-scope in a particular program).
+    scope_signature: str | None = None
+    # When True, the pattern applies globally; when False, it is scoped
+    # to a single program/target (scope_signature required).
+    is_global: bool = True
+
+    def applies_to(self, scope_signature: str | None) -> bool:
+        """Return True if this pattern applies to the given scope."""
+        if self.is_global:
+            return True
+        return bool(scope_signature) and self.scope_signature == scope_signature
 
     @classmethod
     def create(
@@ -39,11 +53,13 @@ class FPPattern:
         status_codes: set[int] | None = None,
         body_indicators: list[str] | None = None,
         header_indicators: dict[str, str] | None = None,
+        scope_signature: str | None = None,
     ) -> FPPattern:
         """Create a new FP pattern."""
         import hashlib
 
-        raw = f"{category}:{sorted(status_codes or set())}:{body_indicators or []}"
+        scope_part = scope_signature or "*"
+        raw = f"{category}:{sorted(status_codes or set())}:{body_indicators or []}:{scope_part}"
         pattern_id = f"fp-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
 
         now = datetime.now(UTC)
@@ -57,6 +73,8 @@ class FPPattern:
             last_seen=now,
             created_at=now,
             updated_at=now,
+            scope_signature=scope_signature,
+            is_global=scope_signature is None,
         )
 
     def update(self, is_fp: bool, is_tp: bool) -> None:
@@ -113,6 +131,8 @@ class FPPattern:
             "suppression_action": self.suppression_action,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "scope_signature": self.scope_signature,
+            "is_global": self.is_global,
         }
 
     @classmethod
@@ -146,4 +166,6 @@ class FPPattern:
             updated_at=datetime.fromisoformat(row["updated_at"])
             if row.get("updated_at")
             else datetime.now(UTC),
+            scope_signature=row.get("scope_signature"),
+            is_global=bool(row.get("is_global", True)),
         )

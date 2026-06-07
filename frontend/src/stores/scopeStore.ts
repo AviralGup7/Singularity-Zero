@@ -2,6 +2,22 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ParsedScope } from '@/utils/scopeParser';
 import { parseScopeText } from '@/utils/scopeParser';
+import { useAuthStore } from './authStore';
+
+const customTenantStorage = {
+  getItem: (name: string): string | null => {
+    const tenantId = useAuthStore.getState().user?.tenantId || 'tenant-default';
+    return localStorage.getItem(`${name}:${tenantId}`) || localStorage.getItem(name);
+  },
+  setItem: (name: string, value: string): void => {
+    const tenantId = useAuthStore.getState().user?.tenantId || 'tenant-default';
+    localStorage.setItem(`${name}:${tenantId}`, value);
+  },
+  removeItem: (name: string): void => {
+    const tenantId = useAuthStore.getState().user?.tenantId || 'tenant-default';
+    localStorage.removeItem(`${name}:${tenantId}`);
+  }
+};
 
 interface ScopeState {
   /** Program identifier (e.g. `hackerone-shopify`). */
@@ -43,7 +59,7 @@ export const useScopeStore = create<ScopeState>()(
     }),
     {
       name: 'cyber-pipeline-scope',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => customTenantStorage),
       partialize: (state) => ({
         programHandle: state.programHandle,
         parsed: state.parsed,
@@ -53,3 +69,12 @@ export const useScopeStore = create<ScopeState>()(
     },
   ),
 );
+
+let currentTenantId = useAuthStore.getState().user?.tenantId;
+useAuthStore.subscribe((state) => {
+  const nextTenantId = state.user?.tenantId;
+  if (nextTenantId !== currentTenantId) {
+    currentTenantId = nextTenantId;
+    useScopeStore.persist.rehydrate();
+  }
+});

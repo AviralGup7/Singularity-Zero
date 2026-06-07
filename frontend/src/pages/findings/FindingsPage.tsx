@@ -1,27 +1,28 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { exportFindings, getFindingById } from '../../api/client';
 import { useApi } from '../../hooks/useApi';
 import { useProcessedFindings } from '../../hooks/useProcessedFindings';
-import { VirtualizedFindingsList } from '../../components/VirtualizedFindingsList';
+import { VirtualizedFindingsList } from '../../components/findings/VirtualizedFindingsList';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../hooks/useToast';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
-import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2 } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2, Radio, X } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { ReportFab } from '../../components/report/ReportFab';
 
 export function FindingsPage() {
   const toast = useToast();
-   
+
   const [searchParams] = useSearchParams();
-  
+
+  const [detailFinding, setDetailFinding] = useState<Finding | null>(null);
+
   const { data: findingsData, loading } = useApi<{ findings: Finding[]; total: number }>('/api/targets/findings/list', {
-    refetchInterval: 15000,
+    refetchInterval: detailFinding ? undefined : 5000,
   });
 
-   
   const [searchQuery, setSearchQuery] = useState('');
 
   // Capture the export timestamp once at mount via an effect so render output
@@ -34,13 +35,45 @@ export function FindingsPage() {
 
   const [severityFilter, setSeverityFilter] = useState<string[]>([]);
 
-  const [sortKey, setSortKey] = useState<keyof Finding | 'bounty_value'>('severity');
+  const [sortKey, setSortKey] = useState<keyof Finding | 'bounty_value' | 'remediation_priority'>('severity');
 
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-   
+
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-   
-  const [detailFinding, setDetailFinding] = useState<Finding | null>(null);
+
+
+
+  // Live findings: discover new arrivals between polls and offer a "Load" button
+  // so the user can pull them in without waiting for the next 5s refresh.
+  const [newFindingIds, setNewFindingIds] = useState<string[]>([]);
+  const lastSeenIdsRef = useRef<Set<string>>(new Set());
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (!findingsData?.findings) return;
+    const currentIds = new Set(findingsData.findings.map(f => f.id).filter(Boolean) as string[]);
+    if (!initializedRef.current) {
+      lastSeenIdsRef.current = currentIds;
+      initializedRef.current = true;
+      return;
+    }
+    const fresh: string[] = [];
+    currentIds.forEach(id => {
+      if (!lastSeenIdsRef.current.has(id)) fresh.push(id);
+    });
+    if (fresh.length > 0) {
+      setNewFindingIds(prev => Array.from(new Set([...prev, ...fresh])));
+    }
+    lastSeenIdsRef.current = currentIds;
+  }, [findingsData?.findings]);
+
+  const loadNewFindings = useCallback(() => {
+    setNewFindingIds([]);
+  }, []);
+
+  const dismissNewFindings = useCallback(() => {
+    setNewFindingIds([]);
+  }, []);
 
   // Initialize filters from URL params
   useEffect(() => {
@@ -74,7 +107,7 @@ export function FindingsPage() {
     }
 
     return () => { mounted = false; };
-   
+
   }, [searchParams, findingsData?.findings]);
 
   // --- Overhaul: Off-Main-Thread Processing ---
@@ -106,7 +139,7 @@ export function FindingsPage() {
 
   }, [toast]);
 
-  const handleSortToggle = useCallback((key: keyof Finding | 'bounty_value') => {
+  const handleSortToggle = useCallback((key: keyof Finding | 'bounty_value' | 'remediation_priority') => {
     setSortKey((prev) => {
       if (prev === key) {
         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -155,6 +188,16 @@ export function FindingsPage() {
              </button>
              <button
                type="button"
+               onClick={() => handleSortToggle('remediation_priority')}
+               className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${sortKey === 'remediation_priority' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
+               aria-pressed={sortKey === 'remediation_priority'}
+               title="Sort by composite remediation priority (modern risk + attack chain + EPSS + asset criticality)"
+             >
+               Priority
+               {sortKey === 'remediation_priority' && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+             </button>
+             <button
+               type="button"
                onClick={() => handleSortToggle('bounty_value')}
                className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${sortKey === 'bounty_value' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
                aria-pressed={sortKey === 'bounty_value'}
@@ -180,7 +223,34 @@ export function FindingsPage() {
       </div>
 
       {/* ── Tactical Filters ─────────────────────────────────────── */}
-      <div className="px-8 py-4 bg-black/40 border-b border-white/5 flex items-center gap-6">
+      <div className="px-8 py-4 bg-black/40 border-b border-white/5 flex items-center gap-6 flex-wrap">
+        {newFindingIds.length > 0 && (
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/5 text-[10px] font-mono uppercase tracking-widest"
+            role="status"
+            aria-live="polite"
+          >
+            <Radio size={12} className="text-accent animate-pulse" aria-hidden="true" />
+            <span className="text-accent">{newFindingIds.length} new finding{newFindingIds.length === 1 ? '' : 's'}</span>
+            <span className="text-muted">since last view</span>
+            <button
+              type="button"
+              onClick={loadNewFindings}
+              className="ml-1 px-2 py-0.5 rounded bg-accent/20 text-accent hover:bg-accent/30"
+              aria-label="Load new findings"
+            >
+              Load
+            </button>
+            <button
+              type="button"
+              onClick={dismissNewFindings}
+              className="ml-0.5 text-muted hover:text-text"
+              aria-label="Dismiss new findings banner"
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input 

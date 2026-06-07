@@ -272,11 +272,26 @@
     ]
   },
   "screenshots": {
-    "enabled": false,
+    "enabled": true,
     "browser_paths": [],
     "max_hosts": 12,
     "per_url_timeout_seconds": 20,
-    "window_size": "1440,900"
+    "window_size": "1440,900",
+    "video": {
+      "enabled": true,
+      "max_duration_seconds": 15,
+      "format": "webm",
+      "bind_to_finding_types": [
+        "xss",
+        "stored_xss",
+        "reflected_xss",
+        "ssrf",
+        "ssti",
+        "rce",
+        "command_injection",
+        "open_redirect"
+      ]
+    }
   },
   "concurrency": {
     "nuclei_workers": 3
@@ -462,5 +477,153 @@
     "notify_on_success": true,
     "notify_on_failure": true,
     "include_finding_summary": true
+  },
+  "hunt_mode": {
+    "enabled": false,
+    "description": "Bug-bounty hunting preset — disables deep recon, focuses on high-bounty categories, surfaces low-hanging-fruit candidates first.",
+    "skip_subdomain_enumeration": true,
+    "skip_passive_checks": false,
+    "high_value_categories": [
+      "idor",
+      "bola",
+      "ssrf",
+      "ssti",
+      "rce",
+      "command_injection",
+      "auth_bypass",
+      "access_control",
+      "open_redirect",
+      "file_upload",
+      "insecure_deserialization"
+    ],
+    "low_hanging_fruit": {
+      "min_severity": "medium",
+      "min_confidence": 0.7,
+      "max_findings": 50,
+      "path_keywords": [
+        "admin",
+        "auth",
+        "login",
+        "oauth",
+        "api",
+        "user",
+        "account",
+        "internal",
+        "debug"
+      ]
+    },
+    "deduplicate_against_history": true,
+    "history_path": "output/hunt_history"
+  },
+  "hunt_budget": {
+    "description": "Hunter-centric time budget — overrides infrastructure budgets with the operator's actual time constraint.",
+    "max_duration_seconds": 14400,
+    "high_value_target_time_budget_pct": 0.4,
+    "stop_when_high_confidence_count": 5,
+    "stop_when_total_findings": 50,
+    "max_concurrent_probes": 5,
+    "countdown_visible": true
+  },
+  "business_context": {
+    "description": "Business context multipliers that uplift severity for high-impact entities and data classes.",
+    "entity_multipliers": {
+      "payment_processor": 1.6,
+      "pii_store": 1.5,
+      "auth_provider": 1.4,
+      "admin_console": 1.4,
+      "api_gateway": 1.3,
+      "data_warehouse": 1.3,
+      "internal_tool": 1.1,
+      "marketing_site": 0.8,
+      "public_docs": 0.6
+    },
+    "data_class_multipliers": {
+      "credit_card": 1.5,
+      "pii": 1.4,
+      "auth_token": 1.3,
+      "phi": 1.6,
+      "credentials": 1.4,
+      "session": 1.1
+    },
+    "default_multiplier": 1.0
+  },
+  "asset_criticality": {
+    "description": "Asset criticality scoring config used by AssetCriticalityService.",
+    "tier_multipliers": {
+      "tier_0_crown_jewel": 1.5,
+      "tier_1_critical": 1.3,
+      "tier_2_business_important": 1.1,
+      "tier_3_internal": 1.0,
+      "tier_4_external_public": 0.8
+    },
+    "known_asset_types": [
+      "api",
+      "payment_processor",
+      "pii_store",
+      "auth_provider",
+      "admin_console",
+      "data_warehouse",
+      "internal_tool",
+      "marketing_site",
+      "public_docs",
+      "static_site",
+      "dev_portal"
+    ]
+  },
+  "compensating_controls": {
+    "description": "Compensating control discounts applied to reduce severity when a control mitigates impact.",
+    "default_discounts": {
+      "waf": 0.20,
+      "rate_limiting": 0.05,
+      "mfa": 0.30,
+      "network_segmentation": 0.10,
+      "encryption_at_rest": 0.15,
+      "encryption_in_transit": 0.10,
+      "input_validation": 0.25,
+      "output_encoding": 0.25,
+      "parameterized_queries": 0.40,
+      "csrf_token": 0.35,
+      "csp": 0.20,
+      "sandboxed_runtime": 0.25,
+      "least_privilege": 0.15
+    },
+    "discount_floor": 0.05
+  },
+  "risk_acceptance": {
+    "description": "Risk acceptance governance — analysts can formally accept findings for a defined window.",
+    "suppression_factor": 0.0,
+    "default_review_days": 90,
+    "require_approval_for_critical": true,
+    "default_state": "draft"
+  },
+  "remediation_priority": {
+    "description": "Composite remediation priority weights (default 1.0 total).",
+    "weights": {
+      "modern_risk": 0.30,
+      "attack_chain": 0.25,
+      "epss": 0.20,
+      "asset_criticality": 0.15,
+      "analyst_tp_rate": 0.10
+    }
+  },
+  "attack_chain": {
+    "description": "Attack chain correlator tuning.",
+    "default_chain_amplification_cap": 2.0,
+    "default_severity_amplification": 1.25,
+    "default_max_graph_chain_length": 6
+  },
+  "sla": {
+    "description": "Finding lifecycle SLA targets in days.",
+    "triage_sla_days": 2.0,
+    "remediation_sla_days": 7.0,
+    "verification_sla_days": 5.0
+  },
+  "threat_intel": {
+    "description": "Threat intel enricher config (CVSS v4.0, EPSS, CISA KEV).",
+    "epss_endpoint": "https://api.first.org/data/v1/epss",
+    "epss_cache_ttl_seconds": 86400,
+    "cisa_kev_endpoint": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+    "cisa_kev_cache_ttl_seconds": 21600,
+    "test_mode": false
   }
 }

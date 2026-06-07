@@ -10,6 +10,16 @@ vi.mock('../../api/client', () => ({
   getGapAnalysis: (...args: unknown[]) => getGapAnalysisMock(...args),
   refreshGapAnalysis: (...args: unknown[]) => refreshGapAnalysisMock(...args),
   getTargets: (...args: unknown[]) => getTargetsMock(...args),
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    interceptors: {
+      request: { use: vi.fn(), eject: vi.fn() },
+      response: { use: vi.fn(), eject: vi.fn() },
+    },
+  },
 }));
 
 // Mock Framer Motion to prevent animation timers in tests

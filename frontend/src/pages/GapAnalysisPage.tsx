@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
-import { Icon } from '../components/Icon';
-import { useGapAnalysis } from '../hooks/useGapAnalysis';
-import { useGapAnalysisSorting } from '../hooks/useGapAnalysis';
-import { useGapAnalysisFiltering } from '../hooks/useGapAnalysisFiltering';
+import { motion } from 'framer-motion';
+import { Icon } from '../components/ui/Icon';
+import { EmptyState } from '../components/ui';
+import { useGapAnalysis, useGapAnalysisSorting, useGapAnalysisFiltering } from '../hooks/useGapAnalysis';
 import { GapDeficiencies } from '../components/gap-analysis/GapAnalysisComponents';
 import { MitigationModal } from '../components/gap-analysis/MitigationModal';
+
 
 export function GapAnalysisPage() {
   const { data, targets, selectedTarget, setSelectedTarget, loading, refreshing, error, loadData, handleRefresh } =
@@ -32,13 +33,13 @@ export function GapAnalysisPage() {
   if (loading && !data) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-10 w-48 animate-pulse rounded bg-white/5" />
+        <div className="h-10 w-48 animate-pulse rounded bg-[var(--panel-2)]" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="h-32 animate-pulse rounded bg-white/5" />
-          <div className="h-32 animate-pulse rounded bg-white/5" />
-          <div className="h-32 animate-pulse rounded bg-white/5" />
+          <div className="h-32 animate-pulse rounded bg-[var(--panel-2)]" />
+          <div className="h-32 animate-pulse rounded bg-[var(--panel-2)]" />
+          <div className="h-32 animate-pulse rounded bg-[var(--panel-2)]" />
         </div>
-        <div className="h-96 animate-pulse rounded bg-white/5" />
+        <div className="h-96 animate-pulse rounded bg-[var(--panel-2)]" />
       </div>
     );
   }
@@ -75,8 +76,8 @@ export function GapAnalysisPage() {
                 All Targets (Aggregated)
               </option>
               {targets.map((t) => (
-                <option key={t.name} value={t.name} className="bg-panel text-text">
-                  {t.name}
+                <option key={t} value={t} className="bg-panel text-text">
+                  {t}
                 </option>
               ))}
             </select>
@@ -114,7 +115,7 @@ export function GapAnalysisPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-panel border border-white/5 p-6 rounded-xl cyber-glow-sm"
+            className="glass-stat-card"
           >
             <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Overall Coverage</div>
             <div
@@ -128,7 +129,7 @@ export function GapAnalysisPage() {
             <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
               <div
                 className={`h-full transition-all duration-1000 ${
-                  data.overall_coverage > 80 ? 'bg-ok' : data.overall_coverage > 50 ? 'bg-warn' : 'text-bad'
+                  data.overall_coverage > 80 ? 'bg-ok' : data.overall_coverage > 50 ? 'bg-warn' : 'bg-bad'
                 }`}
                 style={{ width: `${data.overall_coverage}%` }}
               />
@@ -139,7 +140,7 @@ export function GapAnalysisPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-panel border border-white/5 p-6 rounded-xl"
+            className="glass-stat-card"
           >
             <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Module Integrity</div>
             <div className="font-semibold text-text" style={{ fontSize: 'var(--text-card-value)' }}>
@@ -155,7 +156,7 @@ export function GapAnalysisPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-panel border border-white/5 p-6 rounded-xl"
+            className="glass-stat-card"
           >
             <div className="text-muted text-xs uppercase tracking-widest font-bold mb-2">Identified Gaps</div>
             <div className={`font-semibold ${data.modules_with_gaps > 0 ? 'text-warn' : 'text-ok'}`} style={{ fontSize: 'var(--text-card-value)' }}>

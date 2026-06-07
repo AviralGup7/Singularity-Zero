@@ -35,6 +35,8 @@ export function useProcessedFindings(
     };
   }, []);
 
+  const lastRawFindingsRef = useRef<Finding[]>([]);
+
   useEffect(() => {
     if (!workerRef.current) return;
 
@@ -49,17 +51,33 @@ export function useProcessedFindings(
       }
     };
 
+    const lastRaw = lastRawFindingsRef.current;
+    let rawChanged = lastRaw.length !== rawFindings.length;
+    if (!rawChanged) {
+      for (let i = 0; i < rawFindings.length; i++) {
+        const f = rawFindings[i];
+        const prev = lastRaw[i];
+        if (!f || !prev || f.id !== prev.id || f.timestamp !== prev.timestamp) {
+          rawChanged = true;
+          break;
+        }
+      }
+    }
+
     workerRef.current.postMessage({
       type: 'PROCESS_FINDINGS',
-      findings: rawFindings,
+      findings: rawChanged ? rawFindings : undefined,
       filters,
       sort
     });
 
+    if (rawChanged) {
+      lastRawFindingsRef.current = rawFindings;
+    }
+
     return () => {
       isCurrent = false;
     };
-   
   }, [rawFindings, filters, sort]);
 
   return { processed, isProcessing };

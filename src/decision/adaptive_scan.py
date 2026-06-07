@@ -44,6 +44,7 @@ class ScanBatchResult:
     early_terminated: bool
     duration_ms: float
     results: list[ScanResult]
+    budget_snapshot: dict[str, Any] | None = None
 
 
 class AdaptiveScanCoordinator:
@@ -213,6 +214,7 @@ class AdaptiveScanCoordinator:
             early_terminated=self._queue.should_terminate_early(),
             duration_ms=round(elapsed_ms, 1),
             results=self._results,
+            budget_snapshot=self._queue.budget_snapshot(),
         )
 
     def _emit_batch_metrics(

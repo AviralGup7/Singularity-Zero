@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useApi } from '@/hooks/useApi';
 import { useToast } from '@/hooks/useToast';
-import type { TargetFilters } from '@/hooks/useTargetFilters';
+import { emptyFilters, type TargetFilters } from '@/hooks/useTargetFilters';
+import type { Target } from '@/types/api';
 
 export interface TargetsResponse {
   targets: Target[];

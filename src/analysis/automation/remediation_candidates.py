@@ -15,6 +15,11 @@ For :class:`AccessControlAnalyzer` results that meet the
 * a suggested fix string (human-readable)
 * a SHA-1 fingerprint so consumers can dedup
 * a list of ``evidence_keys`` for traceability
+* the relevant CWE identifier (when known) and OWASP Top 10 / API
+  category, sourced from :data:`CATEGORY_CWE_MAP`
+* an optional ``source_location`` (file path + line) when the
+  finding's evidence carries it, so engineers know exactly where
+  to apply the fix
 
 The candidate does **not** carry an executable payload — the goal is
 to bridge analysis and remediation, not to *be* the remediation.
@@ -32,6 +37,114 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_CONFIDENCE_THRESHOLD: float = 0.85
+
+
+# Category → CWE / OWASP mapping. Used to enrich the remediation
+# candidate with a precise identifier the engineering team can look
+# up in their secure-coding reference. The keys are matched
+# case-insensitively against the finding's ``category`` field.
+#
+# Sources:
+#   - MITRE CWE catalog (https://cwe.mitre.org)
+#   - OWASP Top 10 2021 / API Security Top 10 2023
+CATEGORY_CWE_MAP: dict[str, dict[str, str]] = {
+    "idor": {"cwe": "CWE-639", "owasp": "API1:2023", "owasp_top10": "A01:2021"},
+    "bola": {"cwe": "CWE-639", "owasp": "API1:2023", "owasp_top10": "A01:2021"},
+    "broken_object_level_authorization": {
+        "cwe": "CWE-639", "owasp": "API1:2023", "owasp_top10": "A01:2021"
+    },
+    "access_control": {
+        "cwe": "CWE-284", "owasp": "API5:2023", "owasp_top10": "A01:2021"
+    },
+    "auth_bypass": {
+        "cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"
+    },
+    "auth_bypass_no_auth": {
+        "cwe": "CWE-306", "owasp": "API2:2023", "owasp_top10": "A07:2021"
+    },
+    "auth_bypass_invalid_token": {
+        "cwe": "CWE-345", "owasp": "API2:2023", "owasp_top10": "A02:2021"
+    },
+    "authentication_bypass": {
+        "cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"
+    },
+    "broken_authentication": {
+        "cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"
+    },
+    "ssrf": {
+        "cwe": "CWE-918", "owasp": "API7:2023", "owasp_top10": "A10:2021"
+    },
+    "xss": {"cwe": "CWE-79", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
+    "reflected_xss": {"cwe": "CWE-79", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
+    "stored_xss": {"cwe": "CWE-79", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
+    "sql_injection": {
+        "cwe": "CWE-89", "owasp": "API8:2023", "owasp_top10": "A03:2021"
+    },
+    "command_injection": {
+        "cwe": "CWE-78", "owasp": "API8:2023", "owasp_top10": "A03:2021"
+    },
+    "ssti": {
+        "cwe": "CWE-1336", "owasp": "API8:2023", "owasp_top10": "A03:2021"
+    },
+    "open_redirect": {
+        "cwe": "CWE-601", "owasp": "API1:2023", "owasp_top10": "A01:2021"
+    },
+    "unvalidated_redirect": {
+        "cwe": "CWE-601", "owasp": "API1:2023", "owasp_top10": "A01:2021"
+    },
+    "csrf": {"cwe": "CWE-352", "owasp": "API2:2023", "owasp_top10": "A01:2021"},
+    "race_condition": {
+        "cwe": "CWE-362", "owasp": "API4:2023", "owasp_top10": "A04:2021"
+    },
+    "file_upload": {
+        "cwe": "CWE-434", "owasp": "API4:2023", "owasp_top10": "A04:2021"
+    },
+    "path_traversal": {
+        "cwe": "CWE-22", "owasp": "API1:2023", "owasp_top10": "A01:2021"
+    },
+    "directory_listing": {
+        "cwe": "CWE-548", "owasp": "API3:2023", "owasp_top10": "A05:2021"
+    },
+    "information_disclosure": {
+        "cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A04:2021"
+    },
+    "info_disclosure": {
+        "cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A04:2021"
+    },
+    "token_leak": {
+        "cwe": "CWE-798", "owasp": "API2:2023", "owasp_top10": "A07:2021"
+    },
+    "hardcoded_credentials": {
+        "cwe": "CWE-798", "owasp": "API2:2023", "owasp_top10": "A07:2021"
+    },
+    "weak_credentials": {
+        "cwe": "CWE-521", "owasp": "API2:2023", "owasp_top10": "A07:2021"
+    },
+    "business_logic": {
+        "cwe": "CWE-840", "owasp": "API6:2023", "owasp_top10": "A04:2021"
+    },
+    "insecure_deserialization": {
+        "cwe": "CWE-502", "owasp": "API8:2023", "owasp_top10": "A08:2021"
+    },
+    "mass_assignment": {
+        "cwe": "CWE-915", "owasp": "API6:2023", "owasp_top10": "A08:2021"
+    },
+    "excessive_data_exposure": {
+        "cwe": "CWE-213", "owasp": "API3:2023", "owasp_top10": "A04:2021"
+    },
+    "graphql_introspection": {
+        "cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A05:2021"
+    },
+    "websocket": {
+        "cwe": "CWE-1385", "owasp": "API2:2023", "owasp_top10": "A07:2021"
+    },
+    "jwt": {
+        "cwe": "CWE-347", "owasp": "API2:2023", "owasp_top10": "A02:2021"
+    },
+    "smuggling": {
+        "cwe": "CWE-444", "owasp": "API8:2023", "owasp_top10": "A05:2021"
+    },
+}
 
 
 _SEVERITY_TO_REMEDIATION_PROMPT: dict[str, str] = {
@@ -63,6 +176,18 @@ class RemediationCandidate:
     fingerprint: str
     evidence_keys: tuple[str, ...] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    # CWE / OWASP identifiers resolved from CATEGORY_CWE_MAP. Empty
+    # when the category is not in the map.
+    cwe_id: str = ""
+    owasp_api: str = ""
+    owasp_top10: str = ""
+    # Optional source-location pointers so engineers know where to
+    # apply the fix. ``source_file`` is a relative or absolute path;
+    # ``source_line`` is a 1-indexed line number; ``source_function``
+    # is the function/method name (if known).
+    source_file: str = ""
+    source_line: int = 0
+    source_function: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -77,6 +202,12 @@ class RemediationCandidate:
             "fingerprint": self.fingerprint,
             "evidence_keys": list(self.evidence_keys),
             "metadata": dict(self.metadata),
+            "cwe_id": self.cwe_id,
+            "owasp_api": self.owasp_api,
+            "owasp_top10": self.owasp_top10,
+            "source_file": self.source_file,
+            "source_line": self.source_line,
+            "source_function": self.source_function,
         }
 
 
@@ -144,6 +275,38 @@ def build_remediation_candidate(
     )
     fingerprint = _fingerprint(category, endpoint, method, severity)
 
+    # CWE / OWASP resolution. The map key is matched case-insensitively
+    # against the finding's category, then we attach the CWE to the
+    # candidate. When the finding itself already carries a CWE (e.g. a
+    # static-analysis result with ``cwe`` set), we prefer that value.
+    cwe_info = CATEGORY_CWE_MAP.get(category, {})
+    cwe_id = str(
+        finding.get("cwe")
+        or finding.get("cwe_id")
+        or cwe_info.get("cwe", "")
+    )
+    owasp_api = str(finding.get("owasp_api") or cwe_info.get("owasp", ""))
+    owasp_top10 = str(finding.get("owasp_top10") or cwe_info.get("owasp_top10", ""))
+
+    # Source-location context. The pipeline's source-fingerprinter
+    # (when run) attaches ``source_file`` / ``source_line`` /
+    # ``source_function`` to the finding's evidence. We pass them
+    # through so engineers can jump straight to the affected code.
+    source_file = str(
+        evidence.get("source_file")
+        or evidence.get("file")
+        or finding.get("source_file", "")
+    )
+    try:
+        source_line = int(evidence.get("source_line") or evidence.get("line") or 0)
+    except (TypeError, ValueError):
+        source_line = 0
+    source_function = str(
+        evidence.get("source_function")
+        or evidence.get("function")
+        or finding.get("source_function", "")
+    )
+
     return RemediationCandidate(
         finding_key=finding_key,
         endpoint=endpoint,
@@ -155,6 +318,12 @@ def build_remediation_candidate(
         suggested_fix=suggested_fix,
         fingerprint=fingerprint,
         evidence_keys=evidence_keys,
+        cwe_id=cwe_id,
+        owasp_api=owasp_api,
+        owasp_top10=owasp_top10,
+        source_file=source_file,
+        source_line=source_line,
+        source_function=source_function,
         metadata={
             "details": str(evidence.get("details", "")),
             "original_status": evidence.get("original_status"),
@@ -207,6 +376,7 @@ def attach_remediation_candidates_to_delta(
 
 
 __all__ = [
+    "CATEGORY_CWE_MAP",
     "DEFAULT_CONFIDENCE_THRESHOLD",
     "RemediationCandidate",
     "attach_remediation_candidates_to_delta",

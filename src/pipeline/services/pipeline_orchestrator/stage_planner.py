@@ -6,46 +6,44 @@ import logging
 from typing import Any
 
 from src.core.models.stage_result import StageStatus
+from src.infrastructure.resource_guard import ResourceGuard
 
 logger = logging.getLogger(__name__)
 
 class StagePlanner:
-    """Decouples the stage execution order from a static schedule.
-
-    Dynamically inserts/removes stages, calibrates tool concurrency, and performs budget allocation reviews.
-    """
-
     def __init__(self, config: Any, ctx: Any, learning_integration: Any) -> None:
         self.config = config
         self.ctx = ctx
         self.learning_integration = learning_integration
+        self.resource_guard = ResourceGuard()
 
     def plan_stages(self, remaining_stages: list[str]) -> tuple[list[str], dict[str, Any]]:
-        """Dynamically review and re-order the remaining stages, inserting new ones and adjusting resources."""
         adjusted_stages = list(remaining_stages)
         resources: dict[str, Any] = {}
-
-        # Get the result context
         result = self.ctx.result if hasattr(self.ctx, "result") else self.ctx
         urls = getattr(result, "urls", []) or []
-        findings = getattr(result, "reportable_findings", []) or []
-        findings_count = len(findings)
-
-        # 1. Dynamic stage insertion: Semgrep JS ruleset if urls contain .js
-        has_js = any(str(u).endswith(".js") or ".js?" in str(u) for u in urls)
-        if has_js and "semgrep" not in adjusted_stages and "semgrep" not in getattr(result, "stage_status", {}):
-            adjusted_stages.append("semgrep")
-            logger.info("StagePlanner: Auto-inserted 'semgrep' stage due to discoverable Javascript URLs.")
-
-        # 2. Dynamic stage insertion: Subdomain takeover check if wildcards present & subdomains found
         scope_entries = getattr(result, "scope_entries", []) or []
-        has_wildcard = any("*" in str(entry) for entry in scope_entries)
-        subdomains = getattr(result, "subdomains", []) or []
-        if has_wildcard and len(subdomains) > 0 and "subdomain_takeover" not in adjusted_stages and "subdomain_takeover" not in getattr(result, "stage_status", {}):
-            adjusted_stages.append("subdomain_takeover")
-            logger.info("StagePlanner: Auto-inserted 'subdomain_takeover' stage due to wildcards and enumerated subdomains.")
 
-        # 3. Confidence-gated Threat Modeling injection
+        try:
+            self.resource_guard.check_critical_oom()
+        except RuntimeError as exc:
+            logger.error("StagePlanner: critical OOM detected: %s", exc)
+            if hasattr(result, "stage_status"):
+                result.stage_status["pipeline"] = StageStatus.FAILED.value
+            if hasattr(result, "module_metrics"):
+                result.module_metrics["pipeline"] = {
+                    "status": "error",
+                    "error": str(exc),
+                    "failure_reason": str(exc),
+                    "fatal": True,
+                }
+            raise
+
+        target_count = len(scope_entries)
+        url_count = len(urls)
+        findings_count = len(getattr(result, "reportable_findings", []) or [])
+        stage_order_map = {name: idx for idx, name in enumerate(remaining_stages)}
+
         if findings_count >= 50 and "threat_modeling" not in adjusted_stages and "threat_modeling" not in getattr(result, "stage_status", {}):
             if "reporting" in adjusted_stages:
                 rep_idx = adjusted_stages.index("reporting")
@@ -55,41 +53,57 @@ class StagePlanner:
             logger.info("StagePlanner: Findings count (%d) >= 50. Auto-injected threat_modeling enrichment.", findings_count)
             resources["expand_report_details"] = True
 
-        # 4. Adaptive Concurrency calibration based on workload shape
-        url_count = len(urls)
+        active_stages = [s for s in adjusted_stages if s not in ("ranker", "deserialize_scope")]
+        filtered_stages: list[str] = []
+        for s in active_stages:
+            skip, reason = self.resource_guard.should_skip_stage(s, target_count, url_count)
+            if skip:
+                logger.info("StagePlanner: Skipping stage '%s' due to resource guard: %s", s, reason)
+                if hasattr(result, "stage_status"):
+                    result.stage_status[s] = StageStatus.SKIPPED.value
+                if hasattr(result, "module_metrics"):
+                    result.module_metrics[s] = {
+                        "status": "skipped",
+                        "reason": reason or "insufficient_ram",
+                    }
+                continue
+            filtered_stages.append(s)
+        adjusted_stages = filtered_stages
+
+        has_js = any(str(u).endswith(".js") or ".js?" in str(u) for u in urls)
+        if has_js and "semgrep" not in adjusted_stages and "semgrep" not in getattr(result, "stage_status", {}):
+            adjusted_stages.append("semgrep")
+            logger.info("StagePlanner: Auto-inserted 'semgrep' stage due to discoverable Javascript URLs.")
+
+        has_wildcard = any("*" in str(entry) for entry in scope_entries)
+        subdomains = getattr(result, "subdomains", []) or []
+        if has_wildcard and len(subdomains) > 0 and "subdomain_takeover" not in adjusted_stages and "subdomain_takeover" not in getattr(result, "stage_status", {}):
+            adjusted_stages.append("subdomain_takeover")
+            logger.info("StagePlanner: Auto-inserted 'subdomain_takeover' stage due to wildcards and enumerated subdomains.")
+
         time_budget = getattr(self.config, "estimated_time_budget", 3600)
 
-        # Calibration logic:
-        # A scope yielding 500 URLs gets light concurrency to avoid being banned;
-        # 50k URLs gets heavy concurrency with conservative rate-limiting.
         if url_count > 0:
-            if url_count >= 50000:
-                resources["httpx_concurrency"] = 150
-                resources["katana_depth"] = 5
-                resources["rate_limit_delay"] = 0.5
-            elif url_count >= 5000:
-                resources["httpx_concurrency"] = 80
-                resources["katana_depth"] = 3
-                resources["rate_limit_delay"] = 0.1
-            else:
-                resources["httpx_concurrency"] = 10
-                resources["katana_depth"] = 2
-                resources["rate_limit_delay"] = 0.0
-            logger.info(
-                "StagePlanner: Calibrated resources for %d URLs: concurrency=%d, depth=%d",
-                url_count, resources["httpx_concurrency"], resources["katana_depth"]
-            )
+            default_concurrency = int(getattr(self.config, "default_concurrency", 10))
+            base_concurrency = default_concurrency
+            depth = 2
+            stage_depth_map = {10: 2, 80: 3, 150: 5}
+            for threshold, d in sorted(stage_depth_map.items(), reverse=True):
+                if url_count >= threshold:
+                    base_concurrency = threshold
+                    depth = d
+                    break
+            cap = self.resource_guard.get_concurrency_cap("active_scan", base_concurrency)
+            cap = self.resource_guard.get_concurrency_cap("urls", cap)
+            resources["httpx_concurrency"] = min(cap, base_concurrency)
+            resources["katana_depth"] = depth
+            resources["rate_limit_delay"] = 0.5 if url_count >= 50000 else (0.1 if url_count >= 5000 else 0.0)
+            logger.info("StagePlanner: Calibrated resources for %d URLs: concurrency=%d, depth=%d", url_count, resources["httpx_concurrency"], resources["katana_depth"])
 
-        # 5. Probabilistic skipping with rollback: WAF sampling check
-        # WAF checks are expensive. If we sample-check 5% of hosts (min 3) and WAF detection is unlikely to surface anything, we bail early.
         live_hosts = getattr(result, "live_hosts", []) or []
         if len(live_hosts) > 3 and "waf" in adjusted_stages:
             sample_size = max(3, int(len(live_hosts) * 0.05))
-            list(live_hosts)[:sample_size]
-            # Simulate a quick checks evaluation (or logic checks if WAF features exists)
-            waf_detected_count = 0
-            # If no WAF issues/detections are simulated/recorded in first sample check, we mark WAF probability low
-            # For this model check, let's look at existing live_hosts properties or assume 0 for general cases:
+            waf_detected_count = await self._sample_waf_detection(list(live_hosts)[:sample_size])
             if waf_detected_count == 0:
                 logger.info("StagePlanner: WAF sample-check of %d hosts showed 0 detections. Skipping remaining waf checks.", sample_size)
                 adjusted_stages.remove("waf")
@@ -97,12 +111,9 @@ class StagePlanner:
                     result.stage_status["waf"] = StageStatus.SKIPPED.value
                     result.module_metrics["waf"] = {"status": "skipped", "reason": "probabilistic_skip_low_confidence"}
 
-        # 6. Budget Allocator (Knapsack Solver/Estimator)
-        # Allocate remaining wall clock time per remaining stage proportional to its predicted value.
-        # If value < threshold (0.3), skip with logged justification.
-        final_stages = []
+        final_stages: list[str] = []
         total_value = 0.0
-        stage_values = {}
+        stage_values: dict[str, float] = {}
         for s in adjusted_stages:
             val = self.learning_integration.predict_stage_value(s, self.ctx)
             stage_values[s] = val
@@ -110,13 +121,14 @@ class StagePlanner:
 
         remaining_time = time_budget
         threshold = 0.3
+        ordered_stages = sorted(stage_values.items(), key=lambda kv: stage_order_map.get(kv[0], 99))
 
-        for s in adjusted_stages:
-            val = stage_values[s]
+        for s, val in ordered_stages:
             if val < threshold:
                 logger.info("StagePlanner: Skipping stage '%s' (predicted marginal value %.2f < threshold %.2f)", s, val, threshold)
                 if hasattr(result, "stage_status"):
                     result.stage_status[s] = StageStatus.SKIPPED.value
+                if hasattr(result, "module_metrics"):
                     result.module_metrics[s] = {"status": "skipped", "reason": f"low_marginal_value_{val:.2f}"}
                 continue
 
@@ -125,3 +137,17 @@ class StagePlanner:
             final_stages.append(s)
 
         return final_stages, resources
+
+    async def _sample_waf_detection(self, sample_urls: list[str]) -> int:
+        headers_list = [({"host": url.split("/")[2]} if len(url.split("/")) > 2 else {}) for url in sample_urls]
+        detection_count = 0
+        try:
+            from src.detection.waf import fingerprint_response
+        except ImportError:
+            logger.debug("StagePlanner: WAF detector import unavailable; assuming 0 detections from sample.")
+            return 0
+        for headers in headers_list:
+            match = fingerprint_response(headers)
+            if match.confidence > 0.25:
+                detection_count += 1
+        return detection_count

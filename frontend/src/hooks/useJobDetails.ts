@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Job } from '@/types/api';
+import { buildStageTheaterNodesFromJob } from '@/lib/stageTheaterUtils';
 
 export function useJobDetails(job: Job | null) {
   const displayLines = job?.latest_logs ?? [];
@@ -28,7 +29,6 @@ export function useJobDetails(job: Job | null) {
 export function useJobStageTheater(job: Job | null) {
   const stageTheaterNodes = useMemo(() => {
     if (!job) return [];
-    const { buildStageTheaterNodesFromJob } = require('@/lib/stageTheaterUtils');
     return buildStageTheaterNodesFromJob(job);
   }, [job]);
 

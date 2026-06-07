@@ -117,12 +117,19 @@ class EventBus:
         source: str = "",
         data: dict[str, Any] | None = None,
         correlation_id: str | None = None,
+        trace_id: str | None = None,
     ) -> PipelineEvent:
         """Create and publish a pipeline event in one call."""
+        enriched: dict[str, Any] = {}
+        if trace_id:
+            enriched["trace_id"] = trace_id
+        payload = data or {}
+        if payload:
+            enriched.update(payload)
         event = PipelineEvent(
             event_type=event_type,
             source=source,
-            data=data or {},
+            data=enriched,
             correlation_id=correlation_id or str(uuid.uuid4()),
         )
         self.publish(event)

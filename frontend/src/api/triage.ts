@@ -39,6 +39,22 @@ export interface TriageFindingState {
   annotations: TriageAuditEvent[];
   audit: TriageAuditEvent[];
   chain: TriageChainStatus;
+  assigned_to?: string | null;
+  assigned_to_name?: string | null;
+  locked_by?: string | null;
+  locked_by_name?: string | null;
+  locked_at?: number | null;
+  lock_expires_at?: number | null;
+}
+
+export interface TriageLockConflict {
+  reason: 'locked_by_other' | 'assigned_to_other' | 'not_authorized';
+  message: string;
+  locked_by?: string;
+  locked_by_name?: string;
+  assigned_to?: string;
+  assigned_to_name?: string;
+  lock_expires_at?: number;
 }
 
 export interface AnalystPresence {
@@ -77,6 +93,90 @@ export async function recordTriageAction(
     { signal },
   );
   return data;
+}
+
+export async function assignFinding(
+  runId: string,
+  findingId: string,
+  analystId: string,
+  analystName: string,
+  actor: { analyst_id: string; analyst_name: string },
+  signal?: AbortSignal,
+): Promise<{ state: TriageFindingState; conflict?: TriageLockConflict }> {
+  try {
+    const { data } = await apiClient.post<{ state: TriageFindingState }>(
+      `/api/triage/runs/${encodeURIComponent(runId)}/findings/${encodeURIComponent(findingId)}/assign`,
+      { analyst_id: analystId, analyst_name: analystName, actor_id: actor.analyst_id, actor_name: actor.analyst_name },
+      { signal },
+    );
+    return data;
+  } catch (err: unknown) {
+    const conflict = extractConflictFromError(err);
+    if (conflict) {
+      return { state: undefined as unknown as TriageFindingState, conflict };
+    }
+    throw err;
+  }
+}
+
+export async function lockFinding(
+  runId: string,
+  findingId: string,
+  actor: { analyst_id: string; analyst_name: string },
+  signal?: AbortSignal,
+): Promise<{ state: TriageFindingState; conflict?: TriageLockConflict }> {
+  try {
+    const { data } = await apiClient.post<{ state: TriageFindingState }>(
+      `/api/triage/runs/${encodeURIComponent(runId)}/findings/${encodeURIComponent(findingId)}/lock`,
+      { ...actor },
+      { signal },
+    );
+    return data;
+  } catch (err: unknown) {
+    const conflict = extractConflictFromError(err);
+    if (conflict) {
+      return { state: undefined as unknown as TriageFindingState, conflict };
+    }
+    throw err;
+  }
+}
+
+export async function unlockFinding(
+  runId: string,
+  findingId: string,
+  actor: { analyst_id: string; analyst_name: string },
+  signal?: AbortSignal,
+): Promise<{ state: TriageFindingState }> {
+  const { data } = await apiClient.post<{ state: TriageFindingState }>(
+    `/api/triage/runs/${encodeURIComponent(runId)}/findings/${encodeURIComponent(findingId)}/unlock`,
+    { ...actor },
+    { signal },
+  );
+  return data;
+}
+
+function extractConflictFromError(err: unknown): TriageLockConflict | null {
+  if (typeof err !== 'object' || err === null) return null;
+  const anyErr = err as { response?: { status?: number; data?: { conflict?: TriageLockConflict } } };
+  if (anyErr.response?.status === 409 && anyErr.response.data?.conflict) {
+    return anyErr.response.data.conflict;
+  }
+  return null;
+}
+
+export interface TeamMember {
+  analyst_id: string;
+  analyst_name: string;
+  email?: string;
+  role?: 'analyst' | 'reviewer' | 'lead';
+}
+
+export async function listTeamMembers(signal?: AbortSignal): Promise<TeamMember[]> {
+  const { data } = await apiClient.get<{ members: TeamMember[] }>(
+    '/api/triage/team',
+    { signal },
+  );
+  return data.members || [];
 }
 
 export async function getTriageAudit(

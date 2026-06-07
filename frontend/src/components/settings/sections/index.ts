@@ -15,3 +15,4 @@ export { ShortcutsSection } from './ShortcutsSection';
 export { DataSection } from './DataSection';
 export { AboutSection } from './AboutSection';
 export { LanguageSection } from './LanguageSection';
+export { WorkflowModeSection } from './WorkflowModeSection';

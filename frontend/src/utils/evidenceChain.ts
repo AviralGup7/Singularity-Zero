@@ -29,7 +29,7 @@ export interface EvidenceRecord {
 
 const EVIDENCE_STORAGE_KEY = 'cyber-pipeline-evidence-chain';
 
-function loadEvidence(): EvidenceRecord[] {
+export function loadEvidence(): EvidenceRecord[] {
   try {
     const raw = sessionStorage.getItem(EVIDENCE_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -38,7 +38,7 @@ function loadEvidence(): EvidenceRecord[] {
   }
 }
 
-function saveEvidence(records: EvidenceRecord[]): void {
+export function saveEvidence(records: EvidenceRecord[]): void {
   try {
     sessionStorage.setItem(EVIDENCE_STORAGE_KEY, JSON.stringify(records));
   } catch (e) {

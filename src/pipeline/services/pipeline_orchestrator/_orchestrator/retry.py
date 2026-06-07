@@ -1,4 +1,4 @@
-"""Stage retry execution module with backoff, budget isolation, and event emission."""
+"""Stage retry execution module with backoff, budget isolation, event emission, and causal tracing."""
 
 from __future__ import annotations
 
@@ -6,21 +6,33 @@ import argparse
 import asyncio
 import inspect
 import time
+from datetime import UTC, datetime
 from typing import Any
 
-from src.core.contracts.pipeline_runtime import StageOutput
+from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
 from src.core.events import EventType
 from src.core.frontier.tracing_manager import get_tracing_manager
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
+from src.infrastructure.observability.trace_store import (
+    _truncate,
+    build_tool_invocation,
+    compute_stage_input_hash,
+    extract_findings_from_output,
+    get_trace_store,
+    make_trace_id,
+    redact_tool_invocation,
+)
 from src.pipeline.retry import (
     AdaptiveBackoffHeuristic,
+    CircuitState,
     RetryEventEmitter,
     RetryEventType,
     RetryMetrics,
     RetryPolicy,
     RetryPolicyState,
     StageRetryPolicy,
+    ToolCircuitBreaker,
     classify_error,
     is_retryable,
     sleep_before_retry_async,
@@ -30,6 +42,83 @@ logger = get_pipeline_logger(__name__)
 _retry_emitter = RetryEventEmitter()
 
 _DEFAULT_RETRY_BUDGET_SECONDS: float = 0.0
+
+
+async def _record_trace(
+    *,
+    orchestrator: Any,
+    stage_name: str,
+    stage_input: Any,
+    method: Any,
+    stage_output: StageOutput | None,
+    started: float,
+    finished: float,
+    error: str | None,
+    run_id: str,
+    finding_event_ids: list[str],
+    retry_count: int,
+) -> None:
+    trace_store = get_trace_store()
+    finished_dt = datetime.fromtimestamp(finished, tz=UTC)
+    started_dt = datetime.fromtimestamp(started, tz=UTC)
+    duration_ms = round((finished - started) * 1000, 3)
+    state_pre_count = 0
+    state_post_count = 0
+    state_delta_keys: list[str] = []
+    findings_produced: list[str] = []
+    tool_stdout: str | None = None
+    tool_stderr: str | None = None
+    exit_code: int | None = None
+
+    if stage_output is not None:
+        delta = getattr(stage_output, "state_delta", {}) or {}
+        if isinstance(delta, dict):
+            state_delta_keys = sorted(str(k) for k in delta.keys())
+            findings_produced = extract_findings_from_output(stage_output)
+        state_post_count = len(delta)
+        metrics = getattr(stage_output, "metrics", {}) or {}
+        if isinstance(metrics, dict):
+            raw_stdout = metrics.get("stdout") or metrics.get("tool_stdout")
+            raw_stderr = metrics.get("stderr") or metrics.get("tool_stderr")
+            if isinstance(raw_stdout, str):
+                tool_stdout = _truncate(raw_stdout)
+            if isinstance(raw_stderr, str):
+                tool_stderr = _truncate(raw_stderr)
+            exit_code = metrics.get("exit_code")
+            if not isinstance(exit_code, int):
+                exit_code = None
+        state_pre_count = max(0, state_post_count - len(findings_produced))
+    else:
+        state_pre_count = 0
+        state_post_count = 0
+        state_delta_keys = []
+        findings_produced = []
+
+    invocation = redact_tool_invocation(build_tool_invocation(stage_input, method))
+    trace = StageTrace(
+        trace_id=make_trace_id(),
+        run_id=run_id,
+        stage_name=stage_name,
+        started_at=started_dt,
+        finished_at=finished_dt,
+        duration_ms=duration_ms,
+        stage_input_hash=compute_stage_input_hash(stage_input),
+        tool_invocation=invocation,
+        tool_stdout=tool_stdout,
+        tool_stderr=tool_stderr,
+        exit_code=exit_code,
+        state_delta_keys=state_delta_keys,
+        state_pre_count=state_pre_count,
+        state_post_count=state_post_count,
+        findings_produced=findings_produced,
+        finding_event_ids=finding_event_ids,
+        error=error,
+        retry_count=retry_count,
+    )
+    try:
+        asyncio.create_task(trace_store.record_trace_async(trace))
+    except RuntimeError:
+        trace_store.record_trace(trace)
 
 
 async def run_stage_with_retry(
@@ -43,6 +132,7 @@ async def run_stage_with_retry(
     scope_interceptor: Any,
     progress_emitter: Any,
     previous_deltas: list[dict[str, Any]] | None = None,
+    circuit_breaker: ToolCircuitBreaker | None = None,
 ) -> StageOutput | None:
     """Run a single stage with timeout and StageRetryPolicy-managed backoff."""
     if getattr(ctx.result, "cancel_requested", False):
@@ -89,6 +179,61 @@ async def run_stage_with_retry(
             adaptive_heuristic=AdaptiveBackoffHeuristic(),
             max_retry_budget_seconds=_DEFAULT_RETRY_BUDGET_SECONDS,
         )
+    if circuit_breaker is not None and not circuit_breaker.can_execute(stage_name):
+        skip_reason = circuit_breaker.get_skip_reason(stage_name)
+        logger.info("Circuit breaker OPEN for stage '%s': %s", stage_name, skip_reason)
+        _retry_emitter.emit(
+            RetryEventType.RETRY_EXHAUSTED,
+            stage=stage_name,
+            attempt=0,
+            max_attempts=policy.max_attempts,
+            classification="circuit_open",
+            error=skip_reason or "Circuit breaker open",
+            backoff_seconds=0.0,
+            total_backoff_seconds=0.0,
+        )
+        progress_emitter(
+            stage_name,
+            f"Skipped stage {stage_name}: {skip_reason}",
+            orchestrator._stage_baseline(stage_name),
+            status="skipped",
+            stage_status="skipped",
+            reason="circuit_breaker_open",
+            error=skip_reason or "Circuit breaker open",
+            event_trigger="stage_skipped",
+        )
+        orchestrator._emit_event(
+            EventType.STAGE_SKIPPED,
+            source=f"stage.{stage_name}",
+            data={
+                "contract": ctx.build_stage_output(stage_name, 0.0).to_dict(),
+                "skip_reason": skip_reason,
+                "circuit_state": CircuitState.OPEN.value,
+            },
+        )
+        ctx.result.stage_status[stage_name] = StageStatus.SKIPPED.value
+        ctx.result.module_metrics[stage_name] = {
+            "status": "skipped",
+            "reason": "circuit_breaker_open",
+            "error": skip_reason,
+            "retry_count": 0,
+        }
+        return StageOutput(
+            stage_name=stage_name,
+            outcome=StageOutcome.SKIPPED,
+            duration_seconds=0.0,
+            reason="circuit_breaker_open",
+            error=skip_reason or "Circuit breaker open",
+            metrics={
+                "circuit_state": CircuitState.OPEN.value,
+                "skip_reason": skip_reason,
+                "retry_metrics": {
+                    "attempts": 0,
+                    "transient_errors": 0,
+                    "backoff_seconds": 0.0,
+                },
+            },
+        )
     metrics = RetryMetrics()
     shutdown_event = orchestrator._shutdown_event if hasattr(orchestrator, "_shutdown_event") else None
 
@@ -102,6 +247,7 @@ async def run_stage_with_retry(
 
         pre_snapshot = ctx.result.to_dict()
         started = time.monotonic()
+        run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
 
         stage_input = isolated_ctx.build_stage_input(
             stage_name=stage_name,
@@ -114,6 +260,7 @@ async def run_stage_with_retry(
             },
             previous_deltas=previous_deltas,
         )
+        stage_trace_id = make_trace_id()
 
         tracer = get_tracing_manager()
         with tracer.start_stage_span(stage_name, args, config, isolated_ctx) as span:
@@ -160,6 +307,16 @@ async def run_stage_with_retry(
             merged_delta = {**state_delta, **(result.state_delta or {})}
             result = dataclasses.replace(result, state_delta=merged_delta)
             tracer.record_stage_result(span, result)
+
+            orchestrator._emit_event(
+                EventType.STAGE_COMPLETED,
+                source=f"stage.{stage_name}",
+                data={
+                    "contract": orchestrator._build_stage_output_contract(stage_name, elapsed, ctx),
+                    "trace_id": stage_trace_id,
+                },
+                trace_id=stage_trace_id,
+            )
             return result
 
         stage_metrics = isolated_ctx.result.module_metrics.get(stage_name, {})
@@ -177,15 +334,25 @@ async def run_stage_with_retry(
             state_delta=state_delta,
         )
         tracer.record_stage_result(span, output)
+
+        orchestrator._emit_event(
+            EventType.STAGE_COMPLETED,
+            source=f"stage.{stage_name}",
+            data={
+                "contract": orchestrator._build_stage_output_contract(stage_name, elapsed, ctx),
+                "trace_id": stage_trace_id,
+            },
+            trace_id=stage_trace_id,
+        )
         return output
 
     last_exc: BaseException | None = None
     is_timeout = False
+    stage_input: Any = None
+    stage_started = time.monotonic()
 
     def _format_stage_error(exc: BaseException | None, *, timed_out: bool) -> str:
         if exc is None:
-            if timed_out:
-                return f"Stage {stage_name} timed out after {timeout}s"
             return f"Stage {stage_name} failed"
         raw = str(exc).strip()
         if raw:
@@ -200,6 +367,8 @@ async def run_stage_with_retry(
             stage_output = await _execute_stage()
             metrics.record_success()
             policy.observe_outcome(True)
+            if circuit_breaker is not None:
+                circuit_breaker.record_success(stage_name)
             if stage_output is not None:
                 import dataclasses
 
@@ -232,6 +401,21 @@ async def run_stage_with_retry(
                 backoff_seconds=0.0,
                 total_backoff_seconds=metrics.total_backoff_seconds,
             )
+            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
+            stage_trace_id = getattr(stage_output, "trace_id", "") if stage_output else ""
+            await _record_trace(
+                orchestrator=orchestrator,
+                stage_name=stage_name,
+                stage_input=stage_input,
+                method=method,
+                stage_output=stage_output,
+                started=stage_started,
+                finished=time.monotonic(),
+                error=None,
+                run_id=run_id,
+                finding_event_ids=[stage_trace_id] if stage_trace_id else [],
+                retry_count=max(0, attempt - 1),
+            )
             return stage_output
 
         except (TimeoutError, asyncio.TimeoutError) as exc:  # noqa: UP041
@@ -240,6 +424,8 @@ async def run_stage_with_retry(
             classification = "transient"
             metrics.record_transient()
             policy.observe_outcome(False)
+            if circuit_breaker is not None:
+                circuit_breaker.record_failure(stage_name, classification)
             if stage_name == "live_hosts":
                 orchestrator._log_live_hosts_timeout_diagnostics(ctx, timeout)
 
@@ -259,6 +445,8 @@ async def run_stage_with_retry(
             elif classification == "permanent":
                 metrics.record_permanent()
             policy.observe_outcome(False)
+            if circuit_breaker is not None:
+                circuit_breaker.record_failure(stage_name, classification)
 
         retryable = (
             last_exc is not None
@@ -269,12 +457,11 @@ async def run_stage_with_retry(
 
         if not retryable:
             metrics.record_failure()
-            status = "timeout" if is_timeout else "failed"
             stage_error = _format_stage_error(last_exc, timed_out=is_timeout)
             ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
             ctx.result.module_metrics[stage_name] = {
-                "status": status,
-                "duration_seconds": timeout if status == "timeout" else None,
+                "status": "timeout" if is_timeout else "failed",
+                "duration_seconds": timeout if is_timeout else None,
                 "error": stage_error,
                 "failure_reason": stage_error,
                 "retries_exhausted": attempt,
@@ -320,6 +507,20 @@ async def run_stage_with_retry(
                         stage_name, float(timeout), ctx
                     )
                 },
+            )
+            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
+            await _record_trace(
+                orchestrator=orchestrator,
+                stage_name=stage_name,
+                stage_input=stage_input,
+                method=method,
+                stage_output=None,
+                started=stage_started,
+                finished=time.monotonic(),
+                error=stage_error,
+                run_id=run_id,
+                finding_event_ids=[],
+                retry_count=max(0, attempt - 1),
             )
             return None
 
@@ -378,6 +579,20 @@ async def run_stage_with_retry(
                         stage_name, float(timeout), ctx
                     )
                 },
+            )
+            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
+            await _record_trace(
+                orchestrator=orchestrator,
+                stage_name=stage_name,
+                stage_input=stage_input,
+                method=method,
+                stage_output=None,
+                started=stage_started,
+                finished=time.monotonic(),
+                error=err,
+                run_id=run_id,
+                finding_event_ids=[],
+                retry_count=max(0, attempt - 1),
             )
             return None
 
@@ -493,5 +708,19 @@ async def run_stage_with_retry(
         data={
             "contract": orchestrator._build_stage_output_contract(stage_name, float(timeout), ctx)
         },
+    )
+    run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
+    await _record_trace(
+        orchestrator=orchestrator,
+        stage_name=stage_name,
+        stage_input=stage_input,
+        method=method,
+        stage_output=None,
+        started=stage_started,
+        finished=time.monotonic(),
+        error="max retries exhausted",
+        run_id=run_id,
+        finding_event_ids=[],
+        retry_count=max(0, policy.max_attempts - 1),
     )
     return None

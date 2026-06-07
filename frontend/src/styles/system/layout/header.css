@@ -153,6 +153,60 @@
   box-shadow: var(--glow-accent);
 }
 
+/* ── Live Stream Indicator (WebSocket connection state) ───── */
+.header-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-micro);
+  transition: all var(--motion-fast) var(--easing-out);
+}
+
+.header-live-indicator--connected {
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  color: var(--ok);
+}
+
+.header-live-indicator--reconnecting {
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--warn);
+}
+
+.header-live-indicator--offline {
+  border-color: color-mix(in srgb, var(--text-tertiary) 35%, transparent);
+  background: var(--surface-2);
+  color: var(--text-tertiary);
+}
+
+.header-live-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  flex-shrink: 0;
+}
+
+.header-live-indicator--connected .header-live-indicator-dot {
+  animation: pulse-dot-glow 2s ease-in-out infinite;
+}
+
+.header-live-indicator--reconnecting .header-live-indicator-dot {
+  animation: pulse-dot-glow 1s ease-in-out infinite;
+}
+
+.header-live-indicator--offline .header-live-indicator-dot {
+  opacity: 0.5;
+  animation: none;
+}
+
 /* ── Light Mode Header ───────────────────────────────────────── */
 [data-theme="light"] .app-command-header {
   background: rgba(255, 255, 255, 0.80);

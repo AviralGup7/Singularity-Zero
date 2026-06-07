@@ -7,6 +7,7 @@ import { RouteGuard } from '@/components/RouteGuard';
 import { getLiveness } from '@/api/health';
 import { syncServerTime } from '@/lib/timeSync';
 import { errorTracker } from '@/utils/errorTracker';
+import { LoginPage } from '@/pages/LoginPage';
 
 function LoadingFallback() {
   return (
@@ -16,9 +17,8 @@ function LoadingFallback() {
   );
 }
 
-// --- Page Imports ---
+// --- Page Imports (eager for first-paint critical pages) ---
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
-const LoginPage = lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const TargetsPage = lazy(() => import('@/pages/TargetsPage').then(m => ({ default: m.TargetsPage })));
 const JobsPage = lazy(() => import('@/pages/JobsPage').then(m => ({ default: m.JobsPage })));
 const JobDetailPage = lazy(() => import('@/pages/JobDetailPage').then(m => ({ default: m.JobDetailPage })));
@@ -41,10 +41,14 @@ const SecurityPage = lazy(() => import('@/pages/SecurityPage').then(m => ({ defa
 const AuditLogViewer = lazy(() => import('@/components/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })));
 const ComplianceDashboard = lazy(() => import('@/pages/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })));
 const ReportLibraryPage = lazy(() => import('@/pages/ReportLibraryPage').then(m => ({ default: m.ReportLibraryPage })));
+const ReportBuilderPage = lazy(() => import('@/pages/ReportBuilderPage').then(m => ({ default: m.ReportBuilderPage })));
 const AccessLogsPage = lazy(() => import('@/components/ComplianceLogViewer').then(m => ({ default: m.ComplianceLogViewer })));
 const EvidenceCustodyViewer = lazy(() => import('@/components/common/EvidenceCustodyViewer').then(m => ({ default: m.EvidenceCustodyViewer })));
+const EvidenceCustodyPage = lazy(() => import('@/pages/EvidenceCustodyPage').then(m => ({ default: m.EvidenceCustodyPage })));
 const SelfHealingPage = lazy(() => import('@/pages/SelfHealingPage').then(m => ({ default: m.SelfHealingPage })));
 const EvasionMetricsPage = lazy(() => import('@/pages/EvasionMetricsPage').then(m => ({ default: m.EvasionMetricsPage })));
+const AcceptancePage = lazy(() => import('@/pages/AcceptancePage').then(m => ({ default: m.AcceptancePage })));
+const AssetCriticalityPage = lazy(() => import('@/pages/AssetCriticalityPage').then(m => ({ default: m.AssetCriticalityPage })));
 
 function RouteWatcher() {
   const location = useLocation();
@@ -104,10 +108,14 @@ export default function App() {
           <Route path="/audit-logs" element={<RouteGuard requiredPermission="viewAuditLogs"><AuditLogViewer /></RouteGuard>} />
           <Route path="/compliance" element={<RouteGuard><ComplianceDashboard /></RouteGuard>} />
           <Route path="/reports" element={<RouteGuard><ReportLibraryPage /></RouteGuard>} />
+          <Route path="/reports/builder" element={<RouteGuard><ReportBuilderPage /></RouteGuard>} />
           <Route path="/access-logs" element={<RouteGuard><AccessLogsPage /></RouteGuard>} />
+          <Route path="/evidence-custody" element={<RouteGuard><EvidenceCustodyPage /></RouteGuard>} />
           <Route path="/evidence-custody/:evidenceId" element={<RouteGuard><EvidenceCustodyViewerWrapper /></RouteGuard>} />
           <Route path="/self-healing" element={<RouteGuard><SelfHealingPage /></RouteGuard>} />
           <Route path="/evasion" element={<RouteGuard><EvasionMetricsPage /></RouteGuard>} />
+          <Route path="/risk/acceptance" element={<RouteGuard><AcceptancePage /></RouteGuard>} />
+          <Route path="/risk/assets" element={<RouteGuard><AssetCriticalityPage /></RouteGuard>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>

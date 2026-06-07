@@ -128,11 +128,81 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Checkpoint run ID to resume from (skips completed stages).",
     )
     parser.add_argument(
+        "--replay-stage",
+        default=None,
+        dest="replay_stage",
+        help="Re-execute only a single stage from a captured run. "
+        "Requires --run-id to identify the source run.",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        dest="replay_run_id",
+        help="Run ID whose captured stage trace should be replayed.",
+    )
+    parser.add_argument(
+        "--replay-traces",
+        default=None,
+        dest="replay_traces_run_id",
+        help="Load and replay all stages from a traced run ID.",
+    )
+    parser.add_argument(
+        "--trace-dir",
+        default=".ai/traces",
+        dest="trace_dir",
+        help="Directory containing stage trace JSONL files (default: .ai/traces).",
+    )
+    parser.add_argument(
         "--max-duration",
         type=int,
         default=None,
         dest="max_duration_seconds",
         help="Maximum pipeline wall-clock duration in seconds. Exits with code 3 when exceeded.",
+    )
+    parser.add_argument(
+        "--ci-fail-on-severity",
+        default=None,
+        dest="ci_fail_on_severity",
+        choices=["critical", "high", "medium", "low", "info"],
+        help="Exit non-zero when any finding at or above this severity is present in CI export.",
+    )
+    parser.add_argument(
+        "--continuous",
+        action="store_true",
+        help="Enable continuous monitoring mode with asset inventory diff-based scanning.",
+    )
+    parser.add_argument(
+        "--monitor-interval",
+        type=int,
+        default=3600,
+        dest="monitor_interval",
+        help="Interval between monitoring cycles in seconds (default: 3600).",
+    )
+    parser.add_argument(
+        "--asset-diff-only",
+        action="store_true",
+        dest="asset_diff_only",
+        help="Only scan new/changed assets since the last checkpoint.",
+    )
+    parser.add_argument(
+        "--import-burp-issues",
+        type=Path,
+        default=None,
+        dest="import_burp_issues",
+        help="Import Burp Suite issues.xml export into pipeline findings.",
+    )
+    parser.add_argument(
+        "--import-burp-sitemap",
+        type=Path,
+        default=None,
+        dest="import_burp_sitemap",
+        help="Import Burp SiteMap JSON export to seed priority URLs.",
+    )
+    parser.add_argument(
+        "--burp-collaborator-url",
+        default=None,
+        dest="burp_collaborator_url",
+        help="Burp Collaborator server URL for OAST polling.",
     )
     return parser.parse_args(argv)
 

@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import type { SearchableItem } from '@/components/CommandPalette';
+import type { SearchableItem } from '@/components/layout/CommandPalette';
 
 interface _RegisteredItem {
   id: string;

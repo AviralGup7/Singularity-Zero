@@ -11,6 +11,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.intelligence.risk.remediation_priority import (
+    RemediationPriorityCalculator,
+    get_default_priority_calculator,
+)
 
 router = APIRouter(prefix="/api/risk", tags=["Risk"])
 
@@ -127,12 +131,30 @@ def _normalize_top_findings(
     *,
     target_name: str,
     timestamp: datetime,
+    priority_calculator: RemediationPriorityCalculator | None = None,
 ) -> list[dict[str, Any]]:
-    sorted_findings = sorted(
-        findings,
-        key=lambda item: SEVERITY_WEIGHTS.get(str(item.get("severity", "info")).lower(), 0),
-        reverse=True,
-    )
+    if priority_calculator is not None:
+        # Modern ordering: use the composite remediation priority
+        # score that combines modern_risk_score, attack chain
+        # membership, EPSS, asset criticality, and analyst TP rate.
+        # Falls back to legacy severity ordering when the calculator
+        # is not provided.
+        sorted_findings = sorted(
+            findings,
+            key=lambda item: (
+                -float(
+                    priority_calculator.for_finding(item).priority
+                )
+            ),
+        )
+    else:
+        sorted_findings = sorted(
+            findings,
+            key=lambda item: SEVERITY_WEIGHTS.get(
+                str(item.get("severity", "info")).lower(), 0
+            ),
+            reverse=True,
+        )
     top_items = sorted_findings[:5]
     if not top_items:
         top_items = [
@@ -179,7 +201,10 @@ def _history_for_run(target_name: str, run_dir: Path) -> dict[str, Any] | None:
         "severity_breakdown": breakdown,
         "factors": factors,
         "top_findings": _normalize_top_findings(
-            findings, target_name=target_name, timestamp=timestamp
+            findings,
+            target_name=target_name,
+            timestamp=timestamp,
+            priority_calculator=get_default_priority_calculator(),
         ),
     }
 
@@ -249,7 +274,10 @@ def _seeded_history(target_id: str | None, days: int) -> list[dict[str, Any]]:
                     "severity_breakdown": breakdown,
                     "factors": factors,
                     "top_findings": _normalize_top_findings(
-                        findings, target_name=target or "aggregate", timestamp=timestamp
+                        findings,
+                        target_name=target or "aggregate",
+                        timestamp=timestamp,
+                        priority_calculator=get_default_priority_calculator(),
                     ),
                 }
             )

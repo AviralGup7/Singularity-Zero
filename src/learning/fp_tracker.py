@@ -7,7 +7,10 @@ FP probability and confidence for each pattern.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 from src.learning.models.fp_pattern import FPPattern
@@ -16,7 +19,10 @@ from src.learning.telemetry_store import TelemetryStore
 
 logger = logging.getLogger(__name__)
 
-# Default static patterns (fallback when no learned patterns exist)
+# Default static patterns (fallback when no learned patterns exist).
+# These are intentionally coarse-grained; the curated seed file shipped
+# with the tool (``seed_fp_patterns.json``) provides ~50 narrower
+# signatures that match common WAF/CDN/auth flows observed in the wild.
 _DEFAULT_FP_PATTERNS: dict[str, dict[str, Any]] = {
     "rate_limit": {
         "status_codes": {429, 503},
@@ -58,6 +64,49 @@ _DEFAULT_FP_PATTERNS: dict[str, dict[str, Any]] = {
         ],
     },
 }
+
+
+def _load_seed_patterns_file() -> list[dict[str, Any]]:
+    """Load the curated ``seed_fp_patterns.json`` shipped with the tool.
+
+    The file lives at ``src/learning/seed_fp_patterns.json`` (sibling
+    to this module). The function returns an empty list if the file is
+    missing or unparseable — never raises, so a missing or malformed
+    seed file can never break FP tracking.
+    """
+    seed_path = Path(__file__).parent / "seed_fp_patterns.json"
+    if not seed_path.exists():
+        return []
+    try:
+        payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.debug("FPTracker: failed to load seed_fp_patterns.json: %s", exc)
+        return []
+    if not isinstance(payload, list):
+        return []
+    return [p for p in payload if isinstance(p, dict)]
+
+
+def compute_scope_signature(scope_entries: list[str] | None) -> str:
+    """Compute a stable fingerprint for a target's scope configuration.
+
+    The signature is a 16-character SHA-256 prefix of the sorted,
+    lower-cased, whitespace-stripped scope entries. Used to scope FP
+    patterns to a particular program/target.
+
+    Returns an empty string when ``scope_entries`` is ``None`` or
+    empty — callers should treat empty signatures as "no scope
+    information" and fall back to global FP patterns.
+    """
+    if not scope_entries:
+        return ""
+    import hashlib as _hl
+
+    normalised = sorted({str(e or "").strip().lower() for e in scope_entries if e})
+    if not normalised:
+        return ""
+    raw = "\n".join(normalised).encode("utf-8")
+    return _hl.sha256(raw).hexdigest()[:16]
 
 
 class FPTracker:
@@ -108,7 +157,7 @@ class FPTracker:
             pattern = FPPattern.from_db_row(row)
             self._cache[pattern.pattern_id] = pattern
 
-        # If no patterns exist, seed with defaults
+        # If no patterns exist, seed with defaults + the curated seed file
         if not self._cache:
             for category, config in _DEFAULT_FP_PATTERNS.items():
                 pattern = FPPattern.create(
@@ -116,6 +165,23 @@ class FPTracker:
                     status_codes=config["status_codes"],
                     body_indicators=config["body_indicators"],
                 )
+                self._cache[pattern.pattern_id] = pattern
+                self.store.upsert_fp_pattern(pattern.to_db_row())
+
+            for seed in _load_seed_patterns_file():
+                pattern = FPPattern.create(
+                    category=str(seed.get("category", "seed")),
+                    status_codes=set(seed.get("status_codes") or []),
+                    body_indicators=list(seed.get("body_indicators") or []),
+                    header_indicators=dict(seed.get("header_indicators") or {}),
+                )
+                # Seeded patterns are pre-suppressed by default so the
+                # cold-start FP filter is meaningful for new users.
+                pattern.fp_probability = float(seed.get("fp_probability", 0.85))
+                pattern.confidence = float(seed.get("confidence", 0.5))
+                pattern.occurrence_count = int(seed.get("occurrence_count", 5))
+                pattern.confirmed_fp_count = max(1, pattern.occurrence_count)
+                pattern.suppression_action = str(seed.get("suppression_action", "downgrade"))
                 self._cache[pattern.pattern_id] = pattern
                 self.store.upsert_fp_pattern(pattern.to_db_row())
 
@@ -139,8 +205,16 @@ class FPTracker:
 
         self._ensure_loaded()
 
-    async def update_from_run(self, run_id: str) -> int:
+    async def update_from_run(
+        self,
+        run_id: str,
+        scope_signature: str | None = None,
+    ) -> int:
         """Update FP patterns based on findings from a completed run.
+
+        ``scope_signature`` (when provided) is the scope fingerprint
+        derived from the run's target/scope file. It is used to suppress
+        program-specific false positives via per-target FP patterns.
 
         Returns the number of patterns updated.
         """
@@ -175,7 +249,13 @@ class FPTracker:
                     headers = {}
 
             # Match against existing patterns
-            matched = self._match_pattern(response_status or 0, body, headers, category)
+            matched = self._match_pattern(
+                response_status or 0,
+                body,
+                headers,
+                category,
+                scope_signature=scope_signature,
+            )
 
             if matched:
                 # `update()` correctly accumulates counts inside the FPPattern
@@ -244,22 +324,37 @@ class FPTracker:
         category: str,
         status_code: int | None = None,
         body_indicator: str | None = None,
+        scope_signature: str | None = None,
     ) -> FPPattern:
-        """Manually add or update a false positive pattern from triage and sync it mesh-wide."""
+        """Manually add or update a false positive pattern from triage and sync it mesh-wide.
+
+        Args:
+            category: The FP category label (e.g. ``waf_block``, ``cdn_error``).
+            status_code: Optional HTTP status code the pattern matches.
+            body_indicator: Optional substring of the response body.
+            scope_signature: Optional scope fingerprint. When provided, the
+                pattern only suppresses findings whose target's scope hash
+                matches this fingerprint. Useful for program-specific
+                "not in scope" suppression. When ``None``, the pattern is
+                treated as global and applies to all targets.
+        """
         await self._ensure_loaded_async()
 
         # Try to find if there's an existing pattern for this category and characteristics
         matched = None
         for pattern in self._cache.values():
-            if pattern.category == category:
-                if status_code and status_code in pattern.status_codes:
-                    matched = pattern
-                    break
-                if body_indicator and any(
-                    indicator in body_indicator.lower() for indicator in pattern.body_indicators
-                ):
-                    matched = pattern
-                    break
+            if pattern.category != category:
+                continue
+            if pattern.scope_signature != scope_signature:
+                continue
+            if status_code and status_code in pattern.status_codes:
+                matched = pattern
+                break
+            if body_indicator and any(
+                indicator in body_indicator.lower() for indicator in pattern.body_indicators
+            ):
+                matched = pattern
+                break
 
         if matched:
             matched.update(is_fp=True, is_tp=False)
@@ -275,6 +370,7 @@ class FPTracker:
                 category=category,
                 status_codes={status_code} if status_code else set(),
                 body_indicators=[body_indicator[:100]] if body_indicator else [],
+                scope_signature=scope_signature,
             )
             pattern.update(is_fp=True, is_tp=False)
             self._cache[pattern.pattern_id] = pattern
@@ -291,12 +387,20 @@ class FPTracker:
         body: str,
         headers: dict,
         category: str,
+        scope_signature: str | None = None,
     ) -> FPPattern | None:
-        """Match response characteristics against known FP patterns."""
+        """Match response characteristics against known FP patterns.
+
+        ``scope_signature`` (when provided) restricts the match to
+        patterns that apply to the current scope. Global patterns (no
+        scope) always match.
+        """
         body_lower = body.lower()
 
         for pattern in self._cache.values():
             if not pattern.is_active:
+                continue
+            if not pattern.applies_to(scope_signature):
                 continue
 
             # Check status code match
