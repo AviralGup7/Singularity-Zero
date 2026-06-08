@@ -21,6 +21,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { ShortcutsModal } from './ShortcutsModal';
+import { ScanStatusBar } from '@/components/ScanStatusBar';
 
 interface NavSection {
   label: string;
@@ -29,47 +30,73 @@ interface NavSection {
 
 function useNavSections(): NavSection[] {
   const { t } = useTranslation();
-  return useMemo(() => [
-    {
-      label: t('navigation.overview'),
-      items: [
-        { path: '/', label: 'Dashboard', icon: 'barChart', count: '1' },
-        { path: '/targets', label: t('navigation.targets'), icon: 'target', count: '2' },
-        { path: '/jobs', label: t('navigation.jobs'), icon: 'zap', count: '3' },
-        { path: '/findings', label: t('navigation.findings'), icon: 'shield', count: '4' },
-      ],
-    },
-    {
-      label: 'Analysis',
-      items: [
-        { path: '/pipeline', label: 'Pipeline Overview', icon: 'activity' },
-        { path: '/cockpit', label: 'Security Cockpit', icon: 'target' },
-        { path: '/remediation-planner', label: 'Remediation Planner', icon: 'checkCircle' },
-        { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
-        { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
-        { path: '/scan-diff', label: 'Scan Diff', icon: 'activity' },
-        { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
-        { path: '/learning', label: 'Autonomous Learning', icon: 'zap' },
-        { path: '/evasion', label: 'Evasion Metrics', icon: 'shield' },
-      ],
-    },
-    {
-      label: t('navigation.system'),
-      items: [
-        { path: '/mesh', label: 'Mesh Command', icon: 'server' },
-        { path: '/self-healing', label: 'Self-Healing', icon: 'zap' },
-        { path: '/tracing', label: 'Tracing', icon: 'activity' },
-        { path: '/cache-management', label: 'Cache', icon: 'database' },
-        { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
-        { path: '/compliance', label: 'Compliance', icon: 'shieldCheck' },
-        { path: '/reports', label: 'Reports', icon: 'fileText' },
-        { path: '/access-logs', label: 'Access Logs', icon: 'fileText' },
-        { path: '/evidence-custody', label: 'Evidence Chain', icon: 'link' },
-        { path: '/security', label: 'Security', icon: 'shieldCheck' },
-        { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
-      ],
-    },
-  ], [t]);
+  const workflowMode = useDisplayStore((state) => state.workflowMode);
+  return useMemo(() => {
+    const overview = [
+      { path: '/', label: 'Dashboard', icon: 'barChart', count: '1' },
+      { path: '/targets', label: t('navigation.targets'), icon: 'target', count: '2' },
+      { path: '/jobs', label: t('navigation.jobs'), icon: 'zap', count: '3' },
+      { path: '/findings', label: t('navigation.findings'), icon: 'shield', count: '4' },
+      { path: '/bug-bounty', label: 'Bounty Dashboard', icon: 'bug', count: '6' },
+    ];
+
+    if (workflowMode === 'pentest') {
+      return [
+        { label: t('navigation.overview'), items: overview },
+        {
+          label: 'Analysis',
+          items: [
+            { path: '/pipeline', label: 'Pipeline Overview', icon: 'activity' },
+            { path: '/cockpit', label: 'Security Cockpit', icon: 'target' },
+            { path: '/remediation-planner', label: 'Remediation Planner', icon: 'checkCircle' },
+            { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
+            { path: '/scan-diff', label: 'Scan Diff', icon: 'activity' },
+            { path: '/findings-timeline', label: 'Findings Timeline', icon: 'activity' },
+          ],
+        },
+        {
+          label: t('navigation.system'),
+          items: [
+            { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
+          ],
+        },
+      ];
+    }
+
+    return [
+      { label: t('navigation.overview'), items: overview },
+      {
+        label: 'Analysis',
+        items: [
+          { path: '/pipeline', label: 'Pipeline Overview', icon: 'activity' },
+          { path: '/cockpit', label: 'Security Cockpit', icon: 'target' },
+          { path: '/remediation-planner', label: 'Remediation Planner', icon: 'checkCircle' },
+          { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
+          { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
+          { path: '/scan-diff', label: 'Scan Diff', icon: 'activity' },
+          { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
+          { path: '/learning', label: 'Autonomous Learning', icon: 'zap' },
+          { path: '/evasion', label: 'Evasion Metrics', icon: 'shield' },
+        ],
+      },
+      {
+        label: t('navigation.system'),
+        items: [
+          { path: '/mesh', label: 'Mesh Command', icon: 'server' },
+          { path: '/self-healing', label: 'Self-Healing', icon: 'zap' },
+          { path: '/tracing', label: 'Tracing', icon: 'activity' },
+          { path: '/cache-management', label: 'Cache', icon: 'database' },
+          { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
+          { path: '/compliance', label: 'Compliance', icon: 'shieldCheck' },
+          { path: '/reports', label: 'Reports', icon: 'fileText' },
+          { path: '/access-logs', label: 'Access Logs', icon: 'fileText' },
+          { path: '/evidence-custody', label: 'Evidence Chain', icon: 'link' },
+          { path: '/security', label: 'Security', icon: 'shieldCheck' },
+          { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
+        ],
+      },
+    ];
+  }, [t, workflowMode]);
 }
 
 const NOTIF_STORAGE_KEY = 'cyber-pipeline-notifications';
@@ -201,6 +228,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/jobs': { title: 'Jobs', subtitle: 'Pipeline execution queue' },
   '/pipeline': { title: 'Pipeline Overview', subtitle: 'Stage flow and scanner telemetry' },
   '/findings': { title: 'Findings', subtitle: 'Security issues and evidence' },
+  '/bug-bounty': { title: 'Bounty Dashboard', subtitle: 'Bug bounty submission pipeline and yields' },
   '/risk-score': { title: 'Risk Score', subtitle: 'Target exposure scoring' },
   '/findings-timeline': { title: 'Timeline', subtitle: 'Findings activity over time' },
   '/target-comparison': { title: 'Compare', subtitle: 'Target posture comparison' },
@@ -372,6 +400,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     } else if (e.key === '5') {
       e.preventDefault();
       navigate('/pipeline');
+    } else if (e.key === '6') {
+      e.preventDefault();
+      navigate('/bug-bounty');
     } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       emitRefresh();
@@ -478,7 +509,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           appVersion={APP_VERSION}
           isOnline={isOnline}
           onRefresh={emitRefresh}
+          liveConnectionState={liveConnectionState}
         />
+        <ScanStatusBar />
       </div>
 
       <nav className="mobile-dock" aria-label="Primary sections">

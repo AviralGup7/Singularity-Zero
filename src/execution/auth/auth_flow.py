@@ -20,17 +20,16 @@ asynchronous HTTP client factory and a logger and produce a
 
 from __future__ import annotations
 
-import asyncio
 import base64
-import dataclasses
 import hashlib
 import json
 import logging
 import secrets
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
-from urllib.parse import urlencode, urlparse, parse_qs
+from typing import Any
+from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 

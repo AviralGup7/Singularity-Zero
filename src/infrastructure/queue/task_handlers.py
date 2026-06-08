@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import time
 import traceback
-from collections.abc import Callable
 from typing import Any
 
 from src.core.frontier.tracing_manager import get_tracing_manager

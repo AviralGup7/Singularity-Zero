@@ -1,4 +1,5 @@
 import { memo, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
 import { Shield, ExternalLink, Clock } from 'lucide-react';
 import type { Finding } from '../../types/api';
@@ -129,14 +130,17 @@ export const VirtualizedFindingsList = memo(function VirtualizedFindingsList({
         useWindowScroll={false}
         className="scrollbar-cyber"
         itemContent={(_index: number, finding: Finding) => (
-          <button
-            type="button"
+          <Link
+            to={`/findings?finding=${finding.id}`}
             className="w-full text-left block focus:outline-none"
-            onClick={() => onSelect?.(finding)}
+            onClick={(e) => {
+              e.preventDefault();
+              onSelect?.(finding);
+            }}
             key={finding.id}
           >
             <FindingRow finding={finding} />
-          </button>
+          </Link>
         )}
         components={{
           Header

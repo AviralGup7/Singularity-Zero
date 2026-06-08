@@ -10,7 +10,13 @@ that gap by:
 1. Expanding common origin-bypass subdomain patterns (``origin.``,
    ``direct.``, ``backend.``, ``real.``, ``internal.``, ``cname.``,
    ``no-cdn.``, ``nocdn.``, ``bypass.``, ``noproxy.``, ``egress.``,
-   ``pre-cdn.``, ``precdn.``, ``uncached.``).
+    ``pre-cdn.``, ``precdn.``, ``uncached.``,
+    ``origin-server.``, ``app-server.``, ``app.``, ``primary.``,
+    ``pri.``, ``src-origin.``, ``src.``).
+5. Probing CDN hint headers (X-Host, X-Forwarded-Host,
+6. X-Origin-Host) to leak origin hostnames from edge responses.
+7. Correlating origin candidates against JA3S fingerprints using
+8. tlsx to identify backend server stacks.
 2. Harvesting MX-record hostnames and resolving their A records to
    recover infrastructure IPs that the CDN typically fronts.
 3. Resolving NS-record hostnames to A records (nameservers are
@@ -33,6 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
@@ -71,6 +78,13 @@ ORIGIN_PREFIXES: tuple[str, ...] = (
     "noedge",
     "static-origin",
     "raw",
+    "origin-server",
+    "app-server",
+    "app",
+    "primary",
+    "pri",
+    "src-origin",
+    "src",
 )
 
 
@@ -129,6 +143,44 @@ class OriginDiscovery:
 # ---------------------------------------------------------------------------
 
 
+def _probe_cdn_hint_headers(url: str, timeout: float = 5.0) -> dict[str, Any]:
+    try:
+        import httpx
+
+        headers = {
+            "X-Host": urlparse(url).hostname or "",
+            "X-Forwarded-Host": urlparse(url).hostname or "",
+            "X-Origin-Host": urlparse(url).hostname or "",
+        }
+        host_pattern = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{1,253}\.[a-zA-Z]{2,}")
+        result: dict[str, Any] = {}
+        for scheme in ("https://", "http://"):
+            target = f"{scheme}{urlparse(url).hostname or ''}"
+            if not target:
+                continue
+            try:
+                with httpx.Client(follow_redirects=True, timeout=timeout) as client:
+                    response = client.get(target, headers=headers)
+                    for key, value in response.headers.items():
+                        matches = host_pattern.findall(value)
+                        if matches:
+                            result.setdefault(key.lower(), []).extend(matches)
+            except Exception:
+                continue
+        return result
+    except Exception:
+        return {}
+
+
+async def ja3s_correlate_origin(host: str, timeout: float = 5.0) -> dict[str, Any]:
+    try:
+        from src.recon.ja3_fingerprint import extract_ja3_from_session
+
+        return extract_ja3_from_session(host, timeout_seconds=int(timeout) or 30)
+    except Exception:
+        return {}
+
+
 def expand_origin_patterns(domain: str) -> set[str]:
     """Generate the canonical set of origin-bypass subdomain patterns.
 
@@ -159,6 +211,7 @@ async def discover_origins_async(
     enable_mx_harvest: bool = True,
     enable_ns_harvest: bool = True,
     enable_historical_dns: bool = True,
+    enable_cdn_header_probes: bool = False,
 ) -> OriginDiscovery:
     """Run all origin-discovery sources for a single root domain.
 
@@ -177,6 +230,7 @@ async def discover_origins_async(
         enable_mx_harvest: Toggle MX-record hostname/IP harvest.
         enable_ns_harvest: Toggle NS-record hostname/IP harvest.
         enable_historical_dns: Toggle SecurityTrails historical A fetch.
+        enable_cdn_header_probes: Toggle CDN hint header probing.
 
     Returns:
         Populated :class:`OriginDiscovery` instance.
@@ -214,6 +268,12 @@ async def discover_origins_async(
             )
         )
 
+    if enable_cdn_header_probes:
+        tasks.append(
+            asyncio.create_task(
+                _harvest_cdn_headers(clean, timeout), name=f"origin-cdn-headers:{clean}"
+            )
+        )
     if not tasks:
         return result
 
@@ -232,6 +292,8 @@ async def discover_origins_async(
                 result.mx_hosts.update(hosts)
             elif source == "ns":
                 result.ns_hosts.update(hosts)
+            elif source == "cdn_header":
+                result.candidate_hosts.update(hosts)
         if ips:
             if source == "historical_a":
                 result.historical_ips.update(ips)
@@ -451,6 +513,23 @@ async def _harvest_ns(domain: str, timeout: float) -> tuple[str, set[str], set[s
     return "ns", hosts, ips
 
 
+async def _harvest_cdn_headers(domain: str, timeout: float) -> tuple[str, set[str], set[str]]:
+    try:
+        hints = await asyncio.to_thread(_probe_cdn_hint_headers, domain, timeout)
+    except Exception as exc:
+        logger.debug("CDN header probe failed for %s: %s", domain, exc)
+        return "cdn_header", set(), set()
+    hosts: set[str] = set()
+    for values in hints.values():
+        for value in values:
+            host = value.lower().strip().rstrip(".")
+            if host == domain:
+                continue
+            if host.endswith("." + domain):
+                hosts.add(host)
+    return "cdn_header", hosts, set()
+
+
 async def _resolve_hosts_async(hosts: set[str]) -> set[str]:
     """Resolve a set of hostnames to A records, bounded by a small semaphore."""
     if not hosts:
@@ -507,4 +586,5 @@ __all__ = [
     "discover_origins_for_findings",
     "discover_origins_sync",
     "expand_origin_patterns",
+    "ja3s_correlate_origin",
 ]

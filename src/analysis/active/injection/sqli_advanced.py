@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import random
 import time
 from dataclasses import dataclass
 from typing import Any
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.sqli_signals import SQL_ERROR_RE, SQL_PARAM_NAMES
-from ._confidence import probe_confidence, probe_severity
 
+from ._confidence import probe_confidence, probe_severity
 
 DATABASE_SPECIFIC_PAYLOADS: dict[str, list[tuple[str, str]]] = {
     "mysql": [
@@ -192,9 +191,9 @@ def sqli_advanced_probe(
     findings: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    union_payloads = _build_union_payloads()
-    boolean_payloads = _build_boolean_payloads()
-    oob_payloads = _build_oob_payloads(collaborator)
+    _build_union_payloads()
+    _build_boolean_payloads()
+    _build_oob_payloads(collaborator)
 
     for url_entry in priority_urls:
         if len(findings) >= limit:

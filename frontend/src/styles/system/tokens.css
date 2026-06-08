@@ -11,6 +11,7 @@
   --sidebar-inset:#12161E;
   --surface:      #12161E;
   --surface-2:    #1A1F2B;
+  --surface-raised:#1E2330;
   --surface-3:    #222836;
   --surface-muted:#10131A;
   --surface-hover:#1E2432;
@@ -20,9 +21,9 @@
   --line:         rgba(255, 255, 255, 0.06);
   --line-muted:   rgba(255, 255, 255, 0.04);
   --line-strong:  rgba(255, 255, 255, 0.10);
-  --border:       rgba(255, 255, 255, 0.08);
-  --border-strong:rgba(255, 255, 255, 0.14);
-  --border-soft:  rgba(255, 255, 255, 0.05);
+  --border:       rgba(255, 255, 255, 0.07);
+  --border-strong:rgba(255, 255, 255, 0.16);
+  --border-soft:  rgba(255, 255, 255, 0.04);
 
   /* ── Text Hierarchy ───────────────────────────────────────── */
   --text-primary:   #F0F2F5;
@@ -68,8 +69,9 @@
 
   /* ── Glassmorphism ──────────────────────────────────────────── */
   --glass-bg:     rgba(10, 14, 20, 0.55);
+  --glass-bg-elevated: rgba(14, 18, 26, 0.65);
   --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-blur:   24px;
+  --glass-blur:   28px;
   --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 
   /* ── Glow Effects ──────────────────────────────────────────── */
@@ -77,6 +79,7 @@
   --glow-ok:      0 0 12px hsla(150, 84%, 55%, 0.35), 0 0 32px hsla(150, 84%, 55%, 0.12);
   --glow-bad:     0 0 12px hsla(329, 86%, 60%, 0.4), 0 0 32px hsla(329, 86%, 60%, 0.15);
   --glow-warn:    0 0 12px hsla(38, 92%, 56%, 0.35), 0 0 32px hsla(38, 92%, 56%, 0.12);
+  --glow-subtle:  0 0 6px hsla(217, 91%, 60%, 0.12);
 
   /* ── Severity Scale (CVSS-aligned) ────────────────────────── */
   --severity-critical: #DC2626;
@@ -116,8 +119,8 @@
   --text-section-title: 16px;
   --text-panel-title:   14px;
   --text-card-title:    13px;
-  --text-card-value:    28px;
-  --text-card-value-sm: 22px;
+  --text-card-value:    26px;
+  --text-card-value-sm: 21px;
   --text-body:          14px;
   --text-label:         13px;
   --text-small:         12px;
@@ -150,6 +153,7 @@
   --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.40);
   --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.50);
   --shadow-xl:   0 16px 48px rgba(0, 0, 0, 0.60);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.25);
   --shadow-panel: var(--shadow-sm);
   --shadow-panel-hover: 0 4px 16px rgba(0, 0, 0, 0.40);
   --shadow-sidebar: inset -1px 0 0 var(--border);
@@ -217,8 +221,8 @@
   --line:         rgba(0, 0, 0, 0.06);
   --line-muted:   rgba(0, 0, 0, 0.04);
   --line-strong:  rgba(0, 0, 0, 0.10);
-  --border:       rgba(0, 0, 0, 0.08);
-  --border-strong:rgba(0, 0, 0, 0.14);
+  --border:       rgba(0, 0, 0, 0.07);
+  --border-strong:rgba(0, 0, 0, 0.16);
   --border-soft:  rgba(0, 0, 0, 0.05);
 
   /* ── Text Hierarchy ───────────────────────────────────────── */
@@ -245,8 +249,9 @@
 
   /* ── Glassmorphism ──────────────────────────────────────────── */
   --glass-bg:     rgba(255, 255, 255, 0.72);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.80);
   --glass-border: rgba(0, 0, 0, 0.06);
-  --glass-blur:   20px;
+  --glass-blur:   24px;
   --glass-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.06), inset 0 0 0 1px rgba(0, 0, 0, 0.04);
 
   /* ── Glow Effects (subtle for light mode) ────────────────── */
@@ -254,6 +259,7 @@
   --glow-ok:      0 0 8px hsla(160, 84%, 39%, 0.15), 0 0 20px hsla(160, 84%, 39%, 0.06);
   --glow-bad:     0 0 8px hsla(0, 72%, 51%, 0.15), 0 0 20px hsla(0, 72%, 51%, 0.06);
   --glow-warn:    0 0 8px hsla(38, 92%, 50%, 0.15), 0 0 20px hsla(38, 92%, 50%, 0.06);
+  --glow-subtle:  0 0 4px hsla(217, 91%, 60%, 0.06);
 
   /* ── Severity Scale ────────────────────────────────────────── */
   --severity-critical: #B91C1C;
@@ -268,6 +274,7 @@
   --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.10);
   --shadow-xl:   0 16px 48px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 0 1px rgba(0, 0, 0, 0.04);
   --shadow-panel: var(--shadow-sm);
   --shadow-panel-hover: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-sidebar: inset -1px 0 0 var(--border);

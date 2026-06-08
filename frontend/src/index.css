@@ -95,7 +95,7 @@
 .cyber-glow-card:hover {
   border-color: rgba(59, 130, 246, 0.3);
   box-shadow: 0 0 25px rgba(59, 130, 246, 0.15);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .cyber-glow-card-ok:hover {
@@ -226,7 +226,7 @@
 .glass-stat-card:hover {
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: var(--glass-shadow), 0 0 20px rgba(59, 130, 246, 0.06);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 /* ── Shimmer Loading Effect ──────────────────────────────────── */
@@ -262,14 +262,14 @@
 }
 
 /* ── Stagger Delay Utilities (extended) ──────────────────────── */
-.stagger-delay-1 { animation-delay: 50ms; }
-.stagger-delay-2 { animation-delay: 100ms; }
-.stagger-delay-3 { animation-delay: 150ms; }
-.stagger-delay-4 { animation-delay: 200ms; }
-.stagger-delay-5 { animation-delay: 250ms; }
-.stagger-delay-6 { animation-delay: 300ms; }
-.stagger-delay-7 { animation-delay: 350ms; }
-.stagger-delay-8 { animation-delay: 400ms; }
+.stagger-delay-1 { animation-delay: 40ms; }
+.stagger-delay-2 { animation-delay: 80ms; }
+.stagger-delay-3 { animation-delay: 120ms; }
+.stagger-delay-4 { animation-delay: 160ms; }
+.stagger-delay-5 { animation-delay: 200ms; }
+.stagger-delay-6 { animation-delay: 240ms; }
+.stagger-delay-7 { animation-delay: 280ms; }
+.stagger-delay-8 { animation-delay: 320ms; }
 
 /* ── Scrollbar Cyber Style ───────────────────────────────────── */
 .scrollbar-cyber::-webkit-scrollbar {

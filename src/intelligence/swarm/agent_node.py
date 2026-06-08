@@ -1,4 +1,6 @@
 """
+RESEARCH PROTOTYPE — not wired into the active scan pipeline. See docs/architecture.md Implementation Status table for current state.
+
 Agent Node for the Collaborative AI Swarm.
 Negotiates and passes state synchronously using the platform's Vector-Clocked CRDTs.
 

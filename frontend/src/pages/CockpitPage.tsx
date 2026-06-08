@@ -124,7 +124,7 @@ export function CockpitPage() {
       } else if (event.event_type === 'migration_event') {
         const data = event.data as Record<string, unknown>;
         const migration = handleMigrationEvent(event.id, data);
-        toast.info(`Ghost-Actor Migration: ${migration.actor_id} moved to ${migration.target_node}`);
+        toast.info(`Distributed Agent Migration: ${migration.actor_id} moved to ${migration.target_node}`);
         requestGraphUpdate(target, run, activeJobId || jobId);
       } else if (
         event.event_type === 'finding_batch' ||
@@ -348,7 +348,7 @@ export function CockpitPage() {
 
         {loading ? (
           <div className="flex h-full items-center justify-center animate-pulse font-mono text-xs uppercase tracking-widest text-accent/40">
-            Establishing 3D Neural Link...
+            Establishing 3D View...
           </div>
         ) : nodes.length === 0 ? (
           <div className="relative h-full">

@@ -49,8 +49,8 @@ def _print_banner() -> None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="cyber",
-        description="Unified Cyber Security Test Pipeline Command Engine.",
+        prog="cstp",
+        description="API Security Scanner with Exploit Verification and Closed-Loop Remediation.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="area", required=True)

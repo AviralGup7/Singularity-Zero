@@ -68,14 +68,20 @@ def _load_active_probe_indicators(config_path: str | None = None) -> dict[str, l
 
 _STATIC_ACTIVE_PROBE_INDICATORS: dict[str, list[str]] = {
     "Cloudflare": ["cloudflare", "cf-ray", "attention required"],
+    "Cloudflare WAFChallenge": ["cloudflare", "cf-ray", "challenge platform", "cf_clearance"],
     "Akamai": ["akamai", "reference #", "access denied"],
-    "Imperva (Incapsula)": ["incapsula", "incident id", "_incap_"],
+    "Imperva/Incapsula": ["incapsula", "incident id", "_incap_"],
     "Sucuri": ["sucuri", "cloudproxy"],
     "ModSecurity": ["mod_security", "modsecurity", "not acceptable"],
     "Barracuda": ["barracuda", "barra_counter_session"],
-    "F5 BIG-IP ASM": ["bigip", "ts=", "the requested url was rejected"],
+    "F5 BIG-IP": ["bigip", "ts=", "the requested url was rejected"],
     "AWS WAF": ["aws waf", "x-amzn-requestid"],
-    "Fastly WAF": ["fastly", "x-served-by"],
+    "Fastly": ["fastly", "x-served-by"],
+    "Bunny.net": ["bunnycdn", "cdn-bunny"],
+    "CDN77": ["cdn77", "cdn-cgi"],
+    "Azure Front Door": ["azure-frontdoor", "x-fd-", "x-azure-ref"],
+    "Alibaba Cloud CDN": ["ali-cdn", "ali-swift-global", "x-alicdn-"],
+    "Tencent Cloud CDN": ["tencent-cdn", "x-tencent-", "cloud"],
 }
 
 _ACTIVE_PROBE_INDICATORS = _load_active_probe_indicators()

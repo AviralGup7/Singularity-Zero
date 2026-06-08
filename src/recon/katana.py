@@ -5,7 +5,9 @@ Runs `katana` in batches and returns discovered URLs plus metadata.
 
 from __future__ import annotations
 
+import os
 import time
+from pathlib import Path
 from typing import Any, cast
 
 from src.core.models import Config
@@ -13,6 +15,43 @@ from src.pipeline.tools import build_retry_policy
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.common import parse_plain_lines, run_commands_parallel_outcomes
 from src.recon.filters import apply_url_filters
+
+
+def _resolve_katana_path(config: Config) -> str | None:
+    katana_cfg = getattr(config, "katana", None) or {}
+    candidates: list[str] = []
+    env_path = os.environ.get("KATANA_BIN", "").strip()
+    if env_path:
+        candidates.append(env_path)
+    cfg_path = (katana_cfg.get("bin_path") or "").strip()
+    if cfg_path:
+        candidates.append(cfg_path)
+    tool_path = (getattr(config, "tools", None) or {}).get("katana_bin_path", "").strip()
+    if tool_path and tool_path not in candidates:
+        candidates.append(tool_path)
+    candidates.append("katana")
+    for candidate in candidates:
+        path_obj = Path(candidate)
+        if path_obj.is_file() and os.access(path_obj, os.X_OK):
+            return str(path_obj)
+    fallback = candidates[0]
+    return fallback
+
+
+def _collect_katana_flags(config: Config) -> tuple[list[str], str | None]:
+    katana_cfg = getattr(config, "katana", None) or {}
+    flags: list[str] = ["-headless", "-jc", "-timeout", "30", "-concurrency", "10", "-depth", "5"]
+    har_path = (katana_cfg.get("har_output_path") or "").strip()
+    if har_path:
+        flags.extend(["-har", har_path])
+    extra_args = [str(a) for a in (katana_cfg.get("extra_args") or []) if str(a).strip()]
+    flags.extend(extra_args)
+    proxy = (getattr(config, "proxy", None) or {}).get("http") if isinstance(getattr(config, "proxy", None), dict) else None
+    if not proxy:
+        proxy = (katana_cfg.get("proxy") or "").strip()
+    if proxy:
+        flags.extend(["-proxy", proxy])
+    return flags, proxy
 
 
 def run_katana(
@@ -30,7 +69,7 @@ def run_katana(
 
     sorted_hosts = sorted(live_hosts)
     discovered_host_count = len(sorted_hosts)
-    max_hosts = max(1, int(filters.get("katana_max_hosts", 24) or 24))
+    max_hosts = max(1, int(filters.get("katana_max_hosts", 100) or 100))
     if len(sorted_hosts) > max_hosts:
         emit_collection_progress(
             progress_callback,
@@ -76,9 +115,31 @@ def run_katana(
             break
 
         batch = sorted_hosts[start : start + batch_size]
+    katana_bin = _resolve_katana_path(config)
+    common_flags, _har_flag_used = _collect_katana_flags(config)
+    proxy = _collect_katana_flags(config)[1]
+    for start in range(0, total_hosts, batch_size):
+        elapsed = time.monotonic() - katana_started
+        if elapsed >= katana_time_budget_seconds:
+            budget_exceeded = True
+            processed = min(total_hosts, start)
+            emit_collection_progress(
+                progress_callback,
+                (
+                    "Katana crawl budget exceeded "
+                    f"({elapsed:.1f}s/{katana_time_budget_seconds}s); using discovered URLs so far"
+                ),
+                66,
+                processed=processed,
+                total=total_hosts,
+                stage_percent=int((processed / max(1, total_hosts)) * 100),
+            )
+            break
+
+        batch = sorted_hosts[start : start + batch_size]
         batch_jobs = [
             (
-                ["katana", "-u", host, *config.katana.get("extra_args", [])],
+                [katana_bin, "-u", host, *common_flags],
                 None,
                 int(config.katana.get("timeout_seconds", 30)),
                 build_retry_policy(config.tools, config.katana),

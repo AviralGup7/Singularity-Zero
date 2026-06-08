@@ -1,8 +1,8 @@
 from .coverage_guided import CorpusManager, CoverageTracker, run_coverage_guided_campaign
 from .diff_utils import compute_diff_ratio, find_byte_level_diffs, normalize_response
 from .differential_fuzzer import GoldenResponseStore, run_differential_fuzzing_campaign
-from .framing_fuzzer import run_framing_fuzzing_campaign
 from .fork_server import ForkServer
+from .framing_fuzzer import run_framing_fuzzing_campaign
 from .generators.dockerfile_fuzzer import scan_for_secrets
 from .generators.graphql_payloads import generate_graphql_introspection_payloads
 from .generators.jwt_payloads import (

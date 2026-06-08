@@ -241,7 +241,7 @@ def _run_httpx_batch(
     retry_policy: Any,
 ) -> tuple[list[dict[str, Any]], set[str], dict[str, Any]]:
     import logging
-    logger = logging.getLogger(__name__)
+    logging.getLogger(__name__)
     outcome = execute_command(
         command,
         timeout=timeout_seconds,

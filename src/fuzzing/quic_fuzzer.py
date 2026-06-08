@@ -2,6 +2,9 @@
 
 Tests server behaviour against malformed QUIC Initial packets, CRYPTO frame
 floods, CONTINUATION frame exhaustion, and invalid-version probes.
+
+NOTE: QUIC runs over UDP, not TCP. This module uses asyncio's UDP transport
+for actual QUIC frame delivery over UDP sockets.
 """
 
 from __future__ import annotations
@@ -17,6 +20,36 @@ from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_
 from src.core.utils.url_validation import is_safe_url_with_dns_check
 
 logger = logging.getLogger(__name__)
+
+QUIC_PORT = 443
+
+
+class _UdpQuicProtocol(asyncio.DatagramProtocol):
+    """Minimal UDP protocol that captures server response."""
+
+    def __init__(self) -> None:
+        self.transport: asyncio.DatagramTransport | None = None
+        self.response: bytes = b""
+        self._done: asyncio.Future[bool] = asyncio.get_event_loop().create_future()
+
+    def connection_made(self, transport: asyncio.DatagramTransport) -> None:
+        self.transport = transport
+
+    def datagram_received(self, data: bytes, addr: tuple) -> None:
+        if not self._done.done():
+            self.response = data
+            self._done.set_result(True)
+
+    def error_received(self, exc: Exception) -> None:
+        if not self._done.done():
+            self._done.set_exception(exc)
+
+    def connection_lost(self, exc: Exception | None) -> None:
+        if not self._done.done():
+            if exc is not None:
+                self._done.set_exception(exc)
+            else:
+                self._done.set_result(False)
 
 
 def _build_quic_initial_packet(dcid: bytes, scid: bytes) -> bytes:
@@ -73,13 +106,21 @@ _CRYPTO_FLOOD_DATA = (
 )
 
 
-async def _probe_quic(host, port, timeout=3.0) -> dict[str, Any]:
+async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) -> dict[str, Any]:
+    """Probe a QUIC endpoint over UDP (actual QUIC transport)."""
+    loop = asyncio.get_event_loop()
+    protocol = _UdpQuicProtocol()
+    transport: asyncio.DatagramTransport | None = None
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host=host, port=port),
+        transport, _ = await asyncio.wait_for(
+            loop.create_datagram_endpoint(
+                lambda: protocol,
+                remote_addr=(host, port),
+            ),
             timeout=timeout,
         )
-    except Exception:
+    except (OSError, asyncio.TimeoutError, ConnectionRefusedError) as exc:
+        logger.debug("QUIC UDP connect failed: %s", exc)
         return {
             "reachable": False,
             "crypto_sent": False,
@@ -95,32 +136,32 @@ async def _probe_quic(host, port, timeout=3.0) -> dict[str, Any]:
         dcid = random.randbytes(random.randint(8, 20))
         scid = random.randbytes(random.randint(8, 20))
         initial_pkt = _build_quic_initial_packet(dcid, scid)
-        writer.write(initial_pkt)
-        await writer.drain()
+        transport.sendto(initial_pkt)
+
+        await asyncio.sleep(0.1)
 
         crypto_pkt = _build_quic_crypto_frame(_CRYPTO_FLOOD_DATA, frame_type=0x05)
-        writer.write(crypto_pkt)
-        await writer.drain()
+        transport.sendto(crypto_pkt)
         crypto_sent = True
 
         invalid_pkt = _build_quic_invalid_packet()
-        writer.write(invalid_pkt)
-        await writer.drain()
+        transport.sendto(invalid_pkt)
 
         try:
-            response = await asyncio.wait_for(reader.read(4096), timeout=timeout)
-            response_bytes = len(response)
-            response_preview = response[:200].decode("latin-1", errors="replace")
-        except Exception:
+            await asyncio.wait_for(protocol._done, timeout=timeout)
+            response_bytes = len(protocol.response)
+            if response_bytes > 0:
+                response_preview = protocol.response[:200].decode("latin-1", errors="replace")
+        except (asyncio.TimeoutError, Exception):
             pass
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("QUIC send failed: %s", exc)
     finally:
-        try:
-            writer.close()
-            await writer.wait_closed()
-        except Exception:
-            pass
+        if transport is not None:
+            try:
+                transport.close()
+            except Exception:
+                pass
 
     return {
         "reachable": response_bytes > 0 or crypto_sent,
@@ -165,7 +206,7 @@ async def run_quic_fuzzing_campaign(url, *, timeout_seconds=5.0) -> list[dict[st
 
     for case in _QUIC_FRAMING_PAYLOADS:
         label = case["label"]
-        frame_type = case["frame_type"]
+        case["frame_type"]
 
         probe_result = await _probe_quic(host, port, timeout=timeout_seconds)
 

@@ -6,12 +6,9 @@ Provides the main polling loop, startup orchestration, and stale checkpoint take
 from __future__ import annotations
 
 import asyncio
-import time
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.checkpoint import DistributedCheckpointStore
-from src.infrastructure.queue.models import Job
 
 logger = get_pipeline_logger(__name__)
 

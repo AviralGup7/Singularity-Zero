@@ -7,6 +7,7 @@ from .dnsdumpster import query_dnsdumpster
 from .rapiddns import query_rapiddns
 from .securitytrails import query_securitytrails, query_securitytrails_historical_a
 from .spyse import query_spyse
+from .subdomain_center import query_subdomain_center
 from .virustotal import query_virustotal_passive
 
 __all__ = [
@@ -18,5 +19,6 @@ __all__ = [
     "query_securitytrails",
     "query_securitytrails_historical_a",
     "query_spyse",
+    "query_subdomain_center",
     "query_virustotal_passive",
 ]

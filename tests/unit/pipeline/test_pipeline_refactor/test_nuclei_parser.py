@@ -1,34 +1,9 @@
 import json
 import logging
-import time
 from pathlib import Path
-from unittest.mock import MagicMock
+
 import pytest
-from src.core.checkpoint import (
-    CheckpointManager,
-    CheckpointState,
-    StageCheckpointGuard,
-    _compute_checksum,
-    _serialize_sets,
-    attempt_recovery,
-    create_checkpoint_manager,
-    generate_run_id,
-)
-from src.core.middleware import (
-    OutboundRequestInterceptor,
-    ScopeCheckResult,
-    ScopeValidator,
-    ScopeViolationError,
-    create_scope_guard,
-    validate_url_scope,
-)
-from src.core.models.stage_result import (
-    PipelineContext,
-    StageMetric,
-    StageName,
-    StageResult,
-    StageStatus,
-)
+
 from src.core.parsers.nuclei_parser import (
     MITRE_TAG_MAP,
     SEVERITY_SCORES,
@@ -39,7 +14,6 @@ from src.core.parsers.nuclei_parser import (
     parse_nuclei_jsonl,
     parse_nuclei_jsonl_file,
 )
-
 
 
 class TestNucleiFindingParser:

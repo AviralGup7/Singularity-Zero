@@ -1,4 +1,5 @@
 import os
+
 os.environ["ALLOW_ANONYMOUS_WS"] = "1"
 
 from fastapi import FastAPI

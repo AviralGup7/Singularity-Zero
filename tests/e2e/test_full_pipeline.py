@@ -79,7 +79,7 @@ class TestFullPipelineE2E:
         Checks that the metric names in PIPELINE_STAGES match expectations
         and that each stage has valid percentage ranges.
         """
-        from src.pipeline.services.pipeline_flow import PIPELINE_STAGES
+        from src.pipeline.services.stage_registry import PIPELINE_STAGES
 
         expected_keys = {
             "startup",

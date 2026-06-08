@@ -191,6 +191,8 @@ class ActorScheduler:
 
         while True:
             if self._failed_critical is not None:
+                if self._outcome.exit_code is None:
+                    self._outcome.exit_code = 3
                 break
             if self._shutdown_requested():
                 logger.warning("Shutdown flag detected by ActorScheduler, stopping.")
@@ -386,6 +388,7 @@ class ActorScheduler:
             self._stage_checkpoint_guard,
             self._progress_emitter,
             self._error_emitter,
+            critical=node.critical,
         )
 
     # ------------------------------------------------------------------

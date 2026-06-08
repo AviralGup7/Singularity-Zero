@@ -20,7 +20,10 @@ parallel.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import re
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -116,6 +119,111 @@ def render_pr_candidates(project: str, pr_numbers: Iterable[int]) -> set[str]:
         except (TypeError, ValueError):
             continue
     return candidates
+
+
+_FLY_IO_REGIONS: tuple[str, ...] = ("iad", "fra", "ams", "lax", "hkg", "syd")
+
+
+def fly_io_pr_candidates(project: str, pr_numbers: Iterable[int]) -> set[str]:
+    candidates: set[str] = set()
+    project = (project or "").strip().lower()
+    if not project:
+        return candidates
+    for pr in pr_numbers or ():
+        try:
+            pr_int = int(pr)
+        except (TypeError, ValueError):
+            continue
+        for region in _FLY_IO_REGIONS:
+            candidates.add(f"{project}-pr-{pr_int}.{region}.fly.dev")
+    return candidates
+
+
+def amplify_preview_candidates(project: str, branches: Iterable[str] = ()) -> set[str]:
+    candidates: set[str] = set()
+    project = (project or "").strip().lower()
+    if not project:
+        return candidates
+    for branch in branches or ():
+        branch = branch.strip().lower().replace("/", "-")
+        if not branch:
+            continue
+        candidates.add(f"{branch}.{project}.amplifyapp.com")
+    return candidates
+
+
+def firebase_preview_candidates(project: str, channels: Iterable[str] = ()) -> set[str]:
+    candidates: set[str] = set()
+    project = (project or "").strip().lower().replace(".", "-")
+    if not project:
+        return candidates
+    for channel in channels or ():
+        channel = channel.strip().lower().replace("/", "-")
+        if not channel:
+            continue
+        candidates.add(f"{channel}.{project}.web.app")
+    return candidates
+
+
+def azure_static_apps_candidates(project: str, branches: Iterable[str] = ()) -> set[str]:
+    candidates: set[str] = set()
+    project = (project or "").strip().lower().replace("_", "-")
+    if not project:
+        return candidates
+    for branch in branches or ():
+        branch = branch.strip().lower().replace("/", "-")
+        if not branch:
+            continue
+        candidates.add(f"{project}-{branch}.azurestaticapps.net")
+    return candidates
+
+
+_DETERMINISTIC_BRANCHES: tuple[str, ...] = (
+    "main",
+    "master",
+    "develop",
+    "dev",
+    "feature",
+    "hotfix",
+    "release",
+    "staging",
+    "test",
+    "qa",
+)
+
+
+def _guess_project_name_from_inputs(
+    git_remote: str | None = None,
+    package_json_path: str | None = None,
+    repo_slug: str | None = None,
+) -> str:
+    if repo_slug:
+        slug = repo_slug.strip().lower().replace("_", "-")
+        if slug:
+            return slug.split("/")[-1]
+    if git_remote:
+        remote = git_remote.strip().lower().rstrip("/")
+        if remote:
+            for prefix in ("https://github.com/", "git@github.com:", "https://gitlab.com/"):
+                if remote.startswith(prefix):
+                    remote = remote[len(prefix):]
+                    break
+            remote = remote.split("/")[-1]
+            if remote.endswith(".git"):
+                remote = remote[:-4]
+            if remote:
+                return remote
+    if package_json_path and os.path.isfile(package_json_path):
+        try:
+            with open(package_json_path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, dict) and isinstance(data.get("name"), str):
+                name = data["name"].strip().lower().split("/")[-1].replace("_", "-")
+                if name:
+                    return name
+        except (OSError, json.JSONDecodeError):
+            pass
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -218,13 +326,23 @@ def all_candidates_for_project(
     users: Iterable[str] = (),
     netlify_hashes: Iterable[str] = (),
     pr_numbers: Iterable[int] = (),
+    amplify_branch_overrides: Iterable[str] | None = None,
+    firebase_channels: Iterable[str] | None = None,
+    fly_regions: Iterable[str] | None = None,
 ) -> set[str]:
     """Return the union of preview hostnames for *project* across providers."""
+    branch_list = list(dict.fromkeys(
+        [b for b in branches or () if b and str(b).strip()] or list(_DETERMINISTIC_BRANCHES)
+    ))
     candidates: set[str] = set()
-    candidates.update(vercel_preview_candidates(project, branches, users))
-    candidates.update(netlify_preview_candidates(project, branches, netlify_hashes))
+    candidates.update(vercel_preview_candidates(project, branch_list, users))
+    candidates.update(netlify_preview_candidates(project, branch_list, netlify_hashes))
     candidates.update(railway_pr_candidates(project, pr_numbers))
     candidates.update(render_pr_candidates(project, pr_numbers))
+    candidates.update(fly_io_pr_candidates(project, pr_numbers))
+    candidates.update(amplify_preview_candidates(project, amplify_branch_overrides or branch_list))
+    candidates.update(firebase_preview_candidates(project, firebase_channels or branch_list))
+    candidates.update(azure_static_apps_candidates(project, branch_list))
     return candidates
 
 
@@ -238,7 +356,11 @@ def parse_host_from_url(url: str) -> str:
 
 __all__ = [
     "all_candidates_for_project",
+    "amplify_preview_candidates",
+    "azure_static_apps_candidates",
     "discover_preview_deployments",
+    "firebase_preview_candidates",
+    "fly_io_pr_candidates",
     "netlify_preview_candidates",
     "parse_host_from_url",
     "railway_pr_candidates",

@@ -23,11 +23,11 @@ import asyncio
 import logging
 import secrets
 import ssl
+import struct
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-import struct
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.core.utils.url_validation import is_safe_url_with_dns_check

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from logging.config import fileConfig
 from typing import Any
@@ -7,31 +8,24 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# ------------------------------------------------------------------
-# Model metadata for autogenerate support
-# ------------------------------------------------------------------
-# When SQLAlchemy models are defined, import their Base.metadata here:
-#   from src.core.models import Base
-#   target_metadata = Base.metadata
-#
-# Until then, migrations must be written manually.
-# ------------------------------------------------------------------
-target_metadata = None
+logger = logging.getLogger(__name__)
+
+try:
+    from src.core.models.pipeline_state import Base
+    target_metadata = Base.metadata
+except Exception:
+    target_metadata = None
+    logger.warning("Could not load model metadata; autogenerate disabled. Run migrations manually.")
 
 
 def get_url() -> str:
-    """Get database URL from config or environment variable."""
     url = os.getenv("DATABASE_URL")
     if url:
-        # Convert postgresql:// to postgresql+asyncpg:// for async
         if url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         elif url.startswith("postgres://"):
@@ -46,8 +40,21 @@ def get_url() -> str:
     return url
 
 
+def verify_schema_versions() -> None:
+    try:
+        from sqlalchemy import create_engine, text
+        url = get_url()
+        engine = create_engine(url)
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT version_num FROM alembic_version ORDER BY version_num DESC LIMIT 1"))
+            row = result.fetchone()
+            current = row[0] if row else None
+            logger.info("Current alembic_version: %s", current)
+    except Exception as exc:
+        logger.warning("Schema version verification skipped: %s", exc)
+
+
 def run_migrations_offline() -> None:
-    """Run migrations in offline mode."""
     url = get_url()
     context.configure(
         url=url,
@@ -61,7 +68,6 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Any) -> None:
-    """Run migrations with the given connection."""
     context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
@@ -69,7 +75,6 @@ def do_run_migrations(connection: Any) -> None:
 
 
 async def run_async_migrations() -> None:
-    """Run migrations in online mode with async engine."""
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = get_url()
 
@@ -86,7 +91,6 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in online mode."""
     asyncio.run(run_async_migrations())
 
 

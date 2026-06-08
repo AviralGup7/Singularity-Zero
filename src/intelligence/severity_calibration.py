@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 DEFAULT_DB_PATH = ".pipeline/telemetry.db"
 DEFAULT_ACTIVE_MODEL_VERSION = "severity-logreg-v1"
 

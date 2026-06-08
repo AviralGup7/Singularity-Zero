@@ -33,7 +33,6 @@ import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urljoin
 
 import httpx
 

@@ -6,14 +6,14 @@
   border: var(--border-width) solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--shadow-card);
   transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out), transform var(--motion-fast) var(--easing-out);
 }
 
 .card:hover, .ops-card:hover, .job-card:hover, .job-stage-card:hover, .pipeline-stat-card:hover, .info-item:hover, .fix-command-item:hover, .finding-min-card:hover {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--glass-border));
-  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.6), 0 0 24px -4px color-mix(in srgb, var(--accent) 22%, transparent);
-  transform: translateY(-3px) scale(1.008);
+  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), 0 0 20px -4px color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: translateY(-2px);
 }
 
 .card--glass {
@@ -45,4 +45,33 @@
   border-color: var(--info);
   background: color-mix(in srgb, var(--info) 5%, var(--surface));
   box-shadow: var(--glow-accent);
+}
+
+/* ── Card Modifiers ──────────────────────────────────────────── */
+.card--accent-top {
+  position: relative;
+  overflow: hidden;
+}
+
+.card--accent-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  pointer-events: none;
+}
+
+.card--interactive {
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out), transform var(--motion-fast) var(--easing-out), background var(--motion-fast) var(--easing-out);
+}
+
+.card--interactive:hover {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--glass-border));
+  box-shadow: var(--glow-subtle), var(--shadow-card);
+  transform: translateY(-1px);
+  background: var(--glass-bg-elevated);
 }

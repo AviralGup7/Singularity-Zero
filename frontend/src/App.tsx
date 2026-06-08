@@ -23,6 +23,7 @@ const TargetsPage = lazy(() => import('@/pages/TargetsPage').then(m => ({ defaul
 const JobsPage = lazy(() => import('@/pages/JobsPage').then(m => ({ default: m.JobsPage })));
 const JobDetailPage = lazy(() => import('@/pages/JobDetailPage').then(m => ({ default: m.JobDetailPage })));
 const FindingsPage = lazy(() => import('@/pages/findings/FindingsPage').then(m => ({ default: m.FindingsPage })));
+const BugBountyDashboardPage = lazy(() => import('@/pages/BugBountyDashboardPage').then(m => ({ default: m.BugBountyDashboardPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const CockpitPage = lazy(() => import('@/pages/CockpitPage').then(m => ({ default: m.CockpitPage })));
 const ReplayPage = lazy(() => import('@/pages/ReplayPage').then(m => ({ default: m.ReplayPage })));
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="/jobs" element={<RouteGuard><JobsPage /></RouteGuard>} />
           <Route path="/jobs/:id" element={<RouteGuard><JobDetailPage /></RouteGuard>} />
           <Route path="/findings" element={<RouteGuard><FindingsPage /></RouteGuard>} />
+          <Route path="/bug-bounty" element={<RouteGuard><BugBountyDashboardPage /></RouteGuard>} />
           <Route path="/pipeline" element={<RouteGuard><PipelineOverviewPage /></RouteGuard>} />
           <Route path="/settings" element={<RouteGuard><SettingsPage /></RouteGuard>} />
           <Route path="/cockpit" element={<RouteGuard><CockpitPage /></RouteGuard>} />

@@ -77,7 +77,7 @@ def parse_issues_xml(path: str) -> list[Finding]:
     try:
         import xml.etree.ElementTree as ET
 
-        tree = ET.parse(path)
+        tree = ET.parse(path)  # noqa: S314
         root = tree.getroot()
     except Exception as exc:
         logger.error("Failed to parse Burp issues XML: %s", exc)
@@ -91,7 +91,6 @@ def parse_issues_xml(path: str) -> list[Finding]:
         severity = (issue.findtext("severity") or "").strip()
         confidence = (issue.findtext("confidence") or "").strip()
         url = ""
-        request_response = ""
         background = issue.findtext("background")
         remediation = issue.findtext("remediationDetail")
 
@@ -104,7 +103,7 @@ def parse_issues_xml(path: str) -> list[Finding]:
         for entry in issue.iter("requestresponse"):
             req = entry.findtext("request") or ""
             resp = entry.findtext("response") or ""
-            request_response = html.escape(req) + "\n\n" + html.escape(resp)
+            html.escape(req) + "\n\n" + html.escape(resp)
             if req or resp:
                 break
 

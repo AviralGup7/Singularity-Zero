@@ -1,10 +1,6 @@
 import json
-from datetime import UTC, datetime
-from src.learning.models.feedback_event import FeedbackEvent
-from src.learning.models.fp_pattern import FPPattern
-from src.learning.models.graph_node import GraphEdge, GraphEdgeType, GraphNode, GraphNodeType
-from src.learning.models.risk_score import RiskScore
 
+from src.learning.models.fp_pattern import FPPattern
 
 
 class TestFPPattern:

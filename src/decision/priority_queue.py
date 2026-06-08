@@ -275,7 +275,7 @@ class CorrelationPriorityQueue:
         *,
         auto_correlate: bool = True,
         boost_factor: float = 2.0,
-        budget_enforcer: "HuntBudgetEnforcer | None" = None,
+        budget_enforcer: HuntBudgetEnforcer | None = None,
     ) -> None:
         self._lock = threading.Lock()
         self._targets: list[ScanTarget] = []  # heap
@@ -310,7 +310,7 @@ class CorrelationPriorityQueue:
         base_scores: dict[str, float] | None = None,
         auto_correlate: bool = True,
         boost_factor: float = 2.0,
-        budget_enforcer: "HuntBudgetEnforcer | None" = None,
+        budget_enforcer: HuntBudgetEnforcer | None = None,
     ) -> CorrelationPriorityQueue:
         """Build a priority queue from a list of URLs.
 
@@ -625,7 +625,7 @@ class CorrelationPriorityQueue:
                 else [],
             }
 
-    def set_budget_enforcer(self, enforcer: "HuntBudgetEnforcer | None") -> None:
+    def set_budget_enforcer(self, enforcer: HuntBudgetEnforcer | None) -> None:
         """Attach (or replace) the budget enforcer that gates ``pop``.
 
         When an enforcer is attached, ``should_terminate_early`` will

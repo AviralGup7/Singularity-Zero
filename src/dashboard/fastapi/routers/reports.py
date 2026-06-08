@@ -16,20 +16,20 @@ from pydantic import BaseModel, Field
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
 from src.reporting.compliance_pdf import generate_compliance_pdf
 from src.reporting.platform_clients import (
+    AppleClient,
+    AWSClient,
     BugcrowdClient,
+    GoogleVRPClient,
+    GovDefenseClient,
     HackerOneClient,
     IntigritiClient,
+    MetaClient,
+    MozillaClient,
+    MSRCAgent,
+    OpenBugBountyClient,
     SubmissionResult,
     SynackClient,
     YesWeHackClient,
-    OpenBugBountyClient,
-    GoogleVRPClient,
-    MetaClient,
-    AppleClient,
-    AWSClient,
-    MSRCAgent,
-    MozillaClient,
-    GovDefenseClient,
 )
 from src.reporting.report_artifacts import build_report_library
 

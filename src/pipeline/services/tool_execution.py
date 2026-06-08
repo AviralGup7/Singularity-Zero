@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from src.core.contracts.pipeline import TIMEOUT_DEFAULTS
@@ -906,7 +907,7 @@ class ToolExecutionService:
             return None
         for flag in ("-version", "--version", "-v"):
             try:
-                proc = subprocess.run(
+                proc = subprocess.run(  # noqa: S603
                     [path, flag],
                     text=True,
                     encoding="utf-8",
@@ -948,8 +949,8 @@ class ToolExecutionService:
         stderr_text: str = "",
         waf_profile: WafTuningProfile | None = None,
     ) -> bool:
-        from src.pipeline.retry import retry_ready, sleep_before_retry
         from src.core.logging.pipeline_logging import emit_retry_warning
+        from src.pipeline.retry import retry_ready, sleep_before_retry
         if not retry_ready(policy, attempt):
             return False
         delay = self._compute_retry_delay(policy, attempt + 1, stderr_text, waf_profile)

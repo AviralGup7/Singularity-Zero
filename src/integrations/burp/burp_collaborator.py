@@ -8,7 +8,7 @@ import secrets
 import string
 import time
 from typing import Any
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode
 
 import urllib3
 

@@ -332,7 +332,6 @@ class HMMWafEvader:
                 "method": "GET",
                 "params": {
                     param_name: encoded_payload,
-                    param_name: encoded_payload,
                 },
                 "headers": {},
                 "description": "HPP: duplicate query param (server takes last)",

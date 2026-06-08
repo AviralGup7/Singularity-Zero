@@ -41,9 +41,10 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Iterable, Mapping
+from enum import StrEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ _SEVERITY_RANK: dict[str, int] = {
 }
 
 
-class BudgetAxis(str, Enum):
+class BudgetAxis(StrEnum):
     """Names of the three orthogonal budget axes."""
 
     TIME = "time"
@@ -118,7 +119,7 @@ class HuntMode:
     deduplicate_against_history: bool = True
 
     @classmethod
-    def from_config(cls, config: Mapping[str, Any] | None) -> "HuntMode":
+    def from_config(cls, config: Mapping[str, Any] | None) -> HuntMode:
         section = (config or {}).get("hunt_mode") or {}
         if not isinstance(section, Mapping):
             return cls()
@@ -228,7 +229,7 @@ class HuntBudget:
         }
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HuntBudget":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> HuntBudget:
         if not isinstance(payload, Mapping):
             return cls()
         return cls(
@@ -350,7 +351,7 @@ class HuntBudgetEnforcer:
     @classmethod
     def from_config(
         cls, config: Mapping[str, Any] | None, *, label: str = "default"
-    ) -> "HuntBudgetEnforcer":
+    ) -> HuntBudgetEnforcer:
         """Build an enforcer from the ``hunt_budget`` block of the config."""
         section: Mapping[str, Any] | None = None
         if isinstance(config, Mapping):

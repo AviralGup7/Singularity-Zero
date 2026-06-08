@@ -21,15 +21,13 @@ import unittest
 from unittest.mock import patch
 
 from src.intelligence.risk.asset_registry import (
+    KNOWN_ASSET_TYPES,
     Asset,
-    AssetContext,
     AssetCriticalityService,
     AssetRegistry,
-    KNOWN_ASSET_TYPES,
 )
 from src.intelligence.risk.business_context import (
     BusinessContext,
-    BusinessContextConfig,
 )
 from src.intelligence.risk.compensating_controls import (
     CompensatingControl,
@@ -58,7 +56,6 @@ from src.intelligence.risk.risk_acceptance import (
     RiskAcceptance,
     RiskAcceptanceManager,
 )
-
 
 # ---------------------------------------------------------------------------
 # Asset registry / criticality

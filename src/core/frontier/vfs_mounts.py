@@ -4,7 +4,6 @@ Disk persistence helpers (flush_to_disk, load_from_disk, bundle export/import).
 
 from __future__ import annotations
 
-import base64
 import os
 import pathlib
 import tempfile
@@ -13,7 +12,6 @@ from typing import TYPE_CHECKING
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.security.encryption import (
     Argon2idAESGCM,
-    SecretLease,
     sealed_bundle_decrypt,
     sealed_bundle_encrypt,
     secure_wipe,
@@ -22,6 +20,8 @@ from src.infrastructure.security.encryption import (
 logger = get_pipeline_logger(__name__)
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from src.core.frontier.vfs_isolation import VFSEncryptionPolicy
 
 
@@ -42,7 +42,7 @@ class VFSMountsMixin:
                     logger.error("Ghost-VFS: Path traversal blocked for path: %s", path)
                     continue
 
-                policy: "VFSEncryptionPolicy" = self._policy_engine
+                policy: VFSEncryptionPolicy = self._policy_engine
                 if not policy.is_allowed(self._principal, "export", path):
                     logger.error("Ghost-VFS: Policy blocked flushing of path: %s", path)
                     continue

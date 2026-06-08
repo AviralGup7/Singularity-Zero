@@ -1,4 +1,11 @@
 /* ── Tables ─────────────────────────────────────────────────── */
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--glass-bg);
+}
+
 table {
   width: 100%;
   border-collapse: separate;
@@ -19,6 +26,7 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   background: var(--surface-2);
+  border-bottom: 1px solid var(--border-strong);
   position: sticky;
   top: 0;
   z-index: 2;
@@ -63,11 +71,12 @@ tbody tr {
 }
 
 tbody tr:nth-child(even) {
-  background: var(--surface-muted);
+  background: rgba(255, 255, 255, 0.01);
 }
 
 tbody tr:hover {
   background: var(--surface-hover);
+  box-shadow: inset 3px 0 0 var(--accent-soft);
 }
 
 tbody tr[aria-selected="true"] {

@@ -8,8 +8,8 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../hooks/useToast';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
-import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2, Radio, X } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
+import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2, Radio, X, AlertOctagon, TrendingUp, DollarSign } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ReportFab } from '../../components/report/ReportFab';
 
 export function FindingsPage() {
@@ -169,42 +169,45 @@ export function FindingsPage() {
             <h2 className="text-xl font-black text-text uppercase tracking-tighter">Aggregated Findings</h2>
             <div className="flex items-center gap-2 text-[10px] text-muted font-mono">
               <div className={`w-1.5 h-1.5 rounded-full ${isProcessing ? 'bg-warn animate-pulse' : 'bg-accent'}`} />
-              {isProcessing ? 'Processing Engine Active...' : `${findings.length} Signals Synchronized`}
+              {isProcessing ? 'Processing Engine Active...' : `${findings.length} Findings Synchronized`}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center bg-zinc-900/50 p-1 rounded-lg border border-white/5">
+          <div className="flex items-center gap-1 p-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
              <button
                type="button"
                onClick={() => handleSortToggle('severity')}
-               className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${sortKey === 'severity' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
+               className={`btn btn-sm ${sortKey === 'severity' ? 'btn-primary' : 'btn-ghost'} flex items-center gap-1.5`}
                aria-pressed={sortKey === 'severity'}
                title="Sort by severity"
              >
-               Severity
-               {sortKey === 'severity' && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+               <AlertOctagon size={12} />
+               <span>Severity</span>
+               {sortKey === 'severity' && <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>}
              </button>
              <button
                type="button"
                onClick={() => handleSortToggle('remediation_priority')}
-               className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${sortKey === 'remediation_priority' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
+               className={`btn btn-sm ${sortKey === 'remediation_priority' ? 'btn-primary' : 'btn-ghost'} flex items-center gap-1.5`}
                aria-pressed={sortKey === 'remediation_priority'}
-               title="Sort by composite remediation priority (modern risk + attack chain + EPSS + asset criticality)"
+               title="Sort by composite remediation priority"
              >
-               Priority
-               {sortKey === 'remediation_priority' && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+               <TrendingUp size={12} />
+               <span>Priority</span>
+               {sortKey === 'remediation_priority' && <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>}
              </button>
              <button
                type="button"
                onClick={() => handleSortToggle('bounty_value')}
-               className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${sortKey === 'bounty_value' ? 'bg-accent text-black' : 'text-muted hover:text-white'}`}
+               className={`btn btn-sm ${sortKey === 'bounty_value' ? 'btn-primary' : 'btn-ghost'} flex items-center gap-1.5`}
                aria-pressed={sortKey === 'bounty_value'}
-               title="Sort by bounty value (operator-estimated payout)"
+               title="Sort by bounty value"
              >
-               Bounty
-               {sortKey === 'bounty_value' && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+               <DollarSign size={12} />
+               <span>Bounty</span>
+               {sortKey === 'bounty_value' && <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>}
              </button>
           </div>
           <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-white/5">
@@ -222,35 +225,53 @@ export function FindingsPage() {
         </div>
       </div>
 
-      {/* ── Tactical Filters ─────────────────────────────────────── */}
-      <div className="px-8 py-4 bg-black/40 border-b border-white/5 flex items-center gap-6 flex-wrap">
+      {/* ── New Findings Notification Banner ─────────────────────── */}
+      <AnimatePresence>
         {newFindingIds.length > 0 && (
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/5 text-[10px] font-mono uppercase tracking-widest"
-            role="status"
-            aria-live="polite"
-          >
-            <Radio size={12} className="text-accent animate-pulse" aria-hidden="true" />
-            <span className="text-accent">{newFindingIds.length} new finding{newFindingIds.length === 1 ? '' : 's'}</span>
-            <span className="text-muted">since last view</span>
-            <button
-              type="button"
-              onClick={loadNewFindings}
-              className="ml-1 px-2 py-0.5 rounded bg-accent/20 text-accent hover:bg-accent/30"
-              aria-label="Load new findings"
+          <div className="px-8 pt-4">
+            <motion.div
+              initial={{ opacity: 0, y: -20, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -20, height: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+              className="w-full flex items-center justify-between gap-4 px-6 py-3 border border-accent/30 bg-accent/10 rounded-xl shadow-[0_0_20px_rgba(0,255,65,0.1)]"
+              role="status"
+              aria-live="polite"
             >
-              Load
-            </button>
-            <button
-              type="button"
-              onClick={dismissNewFindings}
-              className="ml-0.5 text-muted hover:text-text"
-              aria-label="Dismiss new findings banner"
-            >
-              <X size={12} aria-hidden="true" />
-            </button>
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-accent"></span>
+                </div>
+                <div className="text-xs font-mono uppercase tracking-wider text-text">
+                  <span className="text-accent font-black">{newFindingIds.length} new finding{newFindingIds.length === 1 ? '' : 's'}</span> detected in the background
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={loadNewFindings}
+                  className="px-4 py-1.5 rounded-lg bg-accent text-black font-black text-xs uppercase tracking-widest hover:bg-accent-dim transition-all shadow-[0_0_15px_rgba(0,255,65,0.3)] cursor-pointer"
+                  aria-label="Load new findings"
+                >
+                  Load Feed
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissNewFindings}
+                  className="p-1 rounded-lg text-muted hover:text-white transition-colors cursor-pointer"
+                  aria-label="Dismiss banner"
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* ── Tactical Filters ─────────────────────────────────────── */}
+      <div className="px-8 py-4 card mx-4 mt-4 flex items-center gap-6 flex-wrap">
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input 
@@ -265,21 +286,27 @@ export function FindingsPage() {
         <div className="flex items-center gap-2">
            <Filter size={14} className="text-muted" />
            <div className="flex gap-2">
-             {['critical', 'high', 'medium', 'low', 'info'].map(sev => (
-               <button 
-                key={sev}
-   
-                onClick={() => setSeverityFilter(prev => prev.includes(sev) ? prev.filter(s => s !== sev) : [...prev, sev])}
-   
-                className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${
-                  severityFilter.includes(sev) 
-                    ? 'bg-white/10 border-white/20 text-white' 
-                    : 'border-white/5 text-muted hover:border-white/10'
-                }`}
-               >
-                 {sev}
-               </button>
-             ))}
+             {['critical', 'high', 'medium', 'low', 'info'].map(sev => {
+               const dotColor = 
+                 sev === 'critical' ? 'bg-critical' :
+                 sev === 'high' ? 'bg-high' :
+                 sev === 'medium' ? 'bg-medium' :
+                 sev === 'low' ? 'bg-low' : 'bg-info';
+               return (
+                 <button 
+                  key={sev}
+                  onClick={() => setSeverityFilter(prev => prev.includes(sev) ? prev.filter(s => s !== sev) : [...prev, sev])}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all flex items-center gap-2 cursor-pointer ${
+                    severityFilter.includes(sev) 
+                      ? 'bg-white/10 border-white/25 text-white' 
+                      : 'border-white/5 text-muted hover:border-white/15 hover:text-text'
+                  }`}
+                 >
+                   <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                   <span>{sev}</span>
+                 </button>
+               );
+             })}
            </div>
         </div>
       </div>

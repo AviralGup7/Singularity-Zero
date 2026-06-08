@@ -13,7 +13,6 @@ import socket
 import time
 from typing import Any
 
-from src.core.frontier.tracing_manager import get_tracing_manager
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.infrastructure.checkpoint import DistributedCheckpointStore
 from src.infrastructure.queue.models import WorkerInfo

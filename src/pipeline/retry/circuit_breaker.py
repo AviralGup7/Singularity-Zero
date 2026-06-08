@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import time
 from enum import StrEnum
-from typing import Any
 
 
 class CircuitState(StrEnum):

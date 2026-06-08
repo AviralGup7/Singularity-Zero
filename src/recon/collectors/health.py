@@ -35,7 +35,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 

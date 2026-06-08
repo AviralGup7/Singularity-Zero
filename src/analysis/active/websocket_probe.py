@@ -26,7 +26,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -167,7 +166,7 @@ async def probe_message_fuzz(
                                 },
                             )
                         )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
                 else:
                     if isinstance(response, (bytes, bytearray)):

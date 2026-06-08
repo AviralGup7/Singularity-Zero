@@ -23,13 +23,13 @@ import time
 import uuid
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class FindingState(str, Enum):
+class FindingState(StrEnum):
     OPEN = "OPEN"
     TRIAGED = "TRIAGED"
     IN_REMEDIATION = "IN_REMEDIATION"

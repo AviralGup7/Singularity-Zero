@@ -34,7 +34,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from http.cookiejar import CookieJar
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
 

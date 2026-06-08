@@ -11,12 +11,11 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
 import urllib3
-
-from datetime import UTC
 
 from src.analysis.passive.patterns import TEXTUAL_CONTENT_TYPES
 from src.analysis.text_utils import (

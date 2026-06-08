@@ -29,7 +29,8 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from src.recon.collectors.types import CollectorMeta, CollectorStatus
 from src.recon.common import run_async_in_sync_context
@@ -129,6 +130,7 @@ def all_meta_wrappers() -> dict[str, Callable[..., tuple[set[str], CollectorMeta
         "chaos",
         "virustotal",
         "rapiddns",
+        "subdomain_center",
     ):
         _ensure_source(source)
     return dict(WRAPPED_SOURCES)

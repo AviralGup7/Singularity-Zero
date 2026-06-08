@@ -1,6 +1,6 @@
 from pathlib import Path
-from src.learning.telemetry_store import TelemetryStore
 
+from src.learning.telemetry_store import TelemetryStore
 
 
 class TestTelemetryStoreInit:

@@ -14,6 +14,16 @@ CDN_WAF_PATTERNS: dict[str, dict[str, Any]] = {
         "cookies": ["__cfduid", "__cf_bm"],
         "body": [],
     },
+    "Cloudflare UAM": {
+        "headers": ["cf-ray", "cf-cache-status", "server: cloudflare"],
+        "cookies": ["__cfduid", "cf_use_info", "cf_clearance"],
+        "body": ["access denied", "attention required", "cloudflare ray id", "please wait", "under attack mode"],
+    },
+    "Cloudflare WAFChallenge": {
+        "headers": ["cf-ray", "server: cloudflare", "set-cookie: cf_clearance"],
+        "cookies": ["cf_clearance", "__cfduid"],
+        "body": ["please wait", "challenge platform", "ray id", "cloudflare", "access to this site has been limited"],
+    },
     "AWS CloudFront": {
         "headers": ["x-amz-cf-id", "x-amz-cf-pop", "cloudfront", "via"],
         "cookies": ["CloudFront-Policy", "CloudFront-Key-Pair-Id", "CloudFront-Signature"],
@@ -25,9 +35,9 @@ CDN_WAF_PATTERNS: dict[str, dict[str, Any]] = {
         "body": ["blocked by AWS WAF"],
     },
     "Akamai": {
-        "headers": ["x-akamai-transformed", "pragma", "akamai-grn", "x-cache-remote"],
+        "headers": ["x-akamai-transformed", "pragma", "akamai-grn", "x-cache-remote", "x-edge-"],
         "cookies": ["ak_bmsc", "akavpau", "abck"],
-        "body": [],
+        "body": ["reference #", "access denied", "akamai"],
     },
     "Fastly": {
         "headers": ["x-served-by", "x-timer", "fastly"],
@@ -35,14 +45,14 @@ CDN_WAF_PATTERNS: dict[str, dict[str, Any]] = {
         "body": [],
     },
     "Imperva/Incapsula": {
-        "headers": ["X-Iinfo", "Incapsula"],
-        "cookies": ["incap_ses", "visid_incap"],
-        "body": ["check if you are a human", "incapsula incident"],
+        "headers": ["X-Iinfo", "Incapsula", "x-cdn"],
+        "cookies": ["incap_ses", "visid_incap", "incap_ses_", "visid_incap_"],
+        "body": ["check if you are a human", "incapsula incident", "_incap_"],
     },
     "Sucuri": {
-        "headers": ["x-sucuri-id", "sucuri"],
-        "cookies": ["sucuri_cloudproxy_uuid"],
-        "body": ["sucuri web firewall"],
+        "headers": ["x-sucuri-id", "sucuri", "x-sucuri-cache", "cf-bgi"],
+        "cookies": ["sucuri_cloudproxy_uuid", "sucuri_cloudproxy"],
+        "body": ["sucuri web firewall", "access denied", "cloudproxy"],
     },
     "Barracuda WAF": {
         "headers": ["x-barracuda-"],
@@ -65,8 +75,28 @@ CDN_WAF_PATTERNS: dict[str, dict[str, Any]] = {
         "body": [],
     },
     "Azure Front Door": {
-        "headers": ["x-azure-ref", "x-msedge-ref", "x-azure-fd"],
+        "headers": ["x-azure-ref", "x-msedge-ref", "x-azure-fd", "x-fd-", "azure-frontdoor"],
         "cookies": [],
+        "body": [],
+    },
+    "Bunny.net": {
+        "headers": ["x-bunny-cdn", "cdn-bunny", "bunnycdn-edge", "x-cache-status"],
+        "cookies": ["bunnycdn"],
+        "body": [],
+    },
+    "CDN77": {
+        "headers": ["cdn77", "cdn-cgi", "x-cdn77-edge"],
+        "cookies": [],
+        "body": [],
+    },
+    "Alibaba Cloud CDN": {
+        "headers": ["ali-cdn", "ali-swift-global", "x-alicdn-", "ecd"],
+        "cookies": ["_alicdn_"],
+        "body": [],
+    },
+    "Tencent Cloud CDN": {
+        "headers": ["tencent-cdn", "x-tencent-"],
+        "cookies": ["tencent_sid", "td_cdn"],
         "body": [],
     },
     "Google Cloud CDN": {
@@ -85,8 +115,8 @@ CDN_WAF_PATTERNS: dict[str, dict[str, Any]] = {
         "body": [],
     },
     "StackPath": {
-        "headers": ["x-cdn", "x-stackpath"],
-        "cookies": [],
+        "headers": ["x-cdn", "x-stackpath", "stackpath-cdn", "x-edge-location", "stackpath-cdn"],
+        "cookies": ["stackpath", "sp_cdn"],
         "body": [],
     },
     "Zscaler/ZScaler": {

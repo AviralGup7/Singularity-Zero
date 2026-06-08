@@ -13,9 +13,9 @@ from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.lifespan import lifespan
 from src.dashboard.fastapi.middleware_setup import setup_middleware
 from src.dashboard.fastapi.router_setup import setup_routers
-from src.dashboard.fastapi.spa import setup_spa_routes
 from src.dashboard.fastapi.schemas import DashboardStatsResponse
 from src.dashboard.fastapi.security_setup import setup_security_store
+from src.dashboard.fastapi.spa import setup_spa_routes
 
 
 def create_app(config: DashboardConfig | None = None) -> FastAPI:

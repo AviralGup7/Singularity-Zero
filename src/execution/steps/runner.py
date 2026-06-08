@@ -7,19 +7,15 @@ can be referenced without importing the full engine module.
 
 from __future__ import annotations
 
-import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
-from src.core.session import Session, SessionRegistry
+from src.core.session import SessionRegistry
 from src.execution.scenario_models import ScenarioStep, ScenarioStepResult
-from src.execution.steps.template import render_template
-from src.execution.steps.validators import validate_step_result
 
 if TYPE_CHECKING:
-    from src.execution.steps.results import StepResultsDict
+    pass
 
 
 def execute_wave(

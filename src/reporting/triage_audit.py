@@ -146,7 +146,7 @@ def export_triage_queue_json(findings: list[dict[str, Any]], output_path: Path) 
 def triage_audit_section(output_root: Path, run_id: str | None = None, limit: int = 25) -> str:
     """Render the collaborative triage audit section including team metrics scorecard."""
     events = load_triage_events(output_root, run_id=run_id)
-    
+
     findings = []
     findings_path = Path(output_root) / "findings.json"
     if run_id:
@@ -159,7 +159,7 @@ def triage_audit_section(output_root: Path, run_id: str | None = None, limit: in
             pass
 
     metrics = calculate_team_triage_metrics(events, findings)
-    
+
     # Render GRC / Team workload scorecard
     workload_items = []
     for name, val in metrics["analyst_workload"].items():
@@ -205,7 +205,7 @@ def triage_audit_section(output_root: Path, run_id: str | None = None, limit: in
         )
         note = payload.get("text") or payload.get("reason") or payload.get("status") or ""
         role = event.get("analyst_role", "Analyst")
-        
+
         fids = event.get("finding_ids")
         finding_id_str = event.get("finding_id", "")
         if fids:

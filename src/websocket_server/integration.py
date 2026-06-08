@@ -20,9 +20,10 @@ from fastapi import FastAPI
 """
 
 import asyncio
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from fastapi import FastAPI, Request
 from starlette.websockets import WebSocket

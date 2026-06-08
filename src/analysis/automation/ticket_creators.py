@@ -101,7 +101,7 @@ class TicketCreatorBase:
         url = str(finding.get("url", ""))
         category = str(finding.get("category", ""))
         title = str(finding.get("title", ""))
-        payload = f"{category}|{url}|{title}".encode("utf-8")
+        payload = f"{category}|{url}|{title}".encode()
         return hashlib.sha1(payload).hexdigest()
 
     def _should_create(self, finding: Mapping[str, Any]) -> bool:
@@ -305,7 +305,7 @@ class JiraTicketCreator(TicketCreatorBase):
                     ],
                 },
                 "labels": [
-                    f"security",
+                    "security",
                     f"severity-{str(finding.get('severity', 'info')).lower()}",
                 ],
             }

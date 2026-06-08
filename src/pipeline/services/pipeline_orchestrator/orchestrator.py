@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 import concurrent.futures
-import logging
 import os
 from typing import Any, TypedDict, cast
 
@@ -123,6 +122,7 @@ class ObservabilityBus:
         data: dict[str, Any],
         pipeline_input: PipelineInput | None,
         correlation_id: str,
+        trace_id: str | None = None,
     ) -> None:
         enriched_data = {
             "event_schema_version": EVENT_SCHEMA_VERSION,
@@ -139,6 +139,7 @@ class ObservabilityBus:
                 source=source,
                 data=enriched_data,
                 correlation_id=correlation_id or None,
+                trace_id=trace_id,
             )
         except (TypeError, ValueError, AttributeError) as exc:
             logger.warning("Failed to emit event %s from %s: %s", event_type.value, source, exc)
@@ -246,7 +247,7 @@ class PipelineOrchestrator:
     ) -> None:
         log_live_hosts_timeout_diagnostics(ctx, timeout)
 
-    def _emit_event(self, event_type: EventType, source: str, data: dict[str, Any]) -> None:
+    def _emit_event(self, event_type: EventType, source: str, data: dict[str, Any], trace_id: str | None = None) -> None:
         """Emit a pipeline domain event while keeping orchestration failure-safe."""
         self.observability_bus.emit_event(
             event_type,
@@ -254,6 +255,7 @@ class PipelineOrchestrator:
             data=data,
             pipeline_input=self.ctx.pipeline_input,
             correlation_id=self.ctx.pipeline_correlation_id,
+            trace_id=trace_id,
         )
 
     def _emit_pipeline_error(self, reason: str, details: dict[str, Any] | None = None) -> None:
@@ -292,9 +294,8 @@ class PipelineOrchestrator:
             findings = stage_output.state_delta.get("reportable_findings", [])
             if isinstance(findings, (list, tuple)):
                 for finding in findings:
-                    finding_id = ""
                     if isinstance(finding, dict):
-                        finding_id = str(
+                        str(
                             finding.get("finding_id")
                             or finding.get("id")
                             or finding.get("title", "")
@@ -569,7 +570,6 @@ class PipelineOrchestrator:
             return None
 
         from src.core.models.stage_result import PipelineContext, StageResult
-        from src.pipeline.services.output_store import PipelineOutputStore
 
         result = StageResult.from_dict(ctx_snapshot.get("result", {}))
         ctx = PipelineContext(
@@ -588,7 +588,7 @@ class PipelineOrchestrator:
             logger.error("No stage method found for stage=%s", stage_name)
             return None
 
-        stage_input = build_stage_input_from_context(stage_name, config, ctx)
+        build_stage_input_from_context(stage_name, config, ctx)
         scope_interceptor = getattr(self, "_scope_interceptor", None)
         timeout = self._resolve_stage_timeout(stage_name, config, ctx)
 
@@ -635,6 +635,7 @@ class PipelineOrchestrator:
         timeout: int,
         scope_interceptor: Any,
         previous_deltas: list[dict[str, Any]] | None = None,
+        critical: bool = False,
     ) -> StageOutput | None:
         # 🛸 Sprint 1: Register for proactive migration monitoring
         actor_id = f"actor:{stage_name}:{ctx.run_id}"
@@ -658,6 +659,7 @@ class PipelineOrchestrator:
                 scope_interceptor,
                 emit_progress,
                 previous_deltas=previous_deltas,
+                critical=critical,
             )
         finally:
             if self._migration_handler:
@@ -683,6 +685,7 @@ class PipelineOrchestrator:
         stage_checkpoint_guard: Any,
         progress_emitter: Any,
         error_emitter: Any,
+        critical: bool = False,
     ) -> int | str | None:
         """Execute a single stage under the actor scheduler.
 
@@ -736,6 +739,7 @@ class PipelineOrchestrator:
                     timeout,
                     scope_interceptor,
                     previous_deltas=previous_deltas,
+                    critical=critical,
                 )
 
                 if stage_output is not None:
@@ -792,6 +796,6 @@ class PipelineOrchestrator:
                     "status": "error",
                     "error": str(exc) or exc.__class__.__name__,
                     "failure_reason": str(exc) or exc.__class__.__name__,
-                    "fatal": False,
+                    "fatal": critical,
                 }
                 return 1

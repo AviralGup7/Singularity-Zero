@@ -8,6 +8,7 @@ package. Import explicitly from that package to avoid wildcard ambiguity.
 from src.pipeline.retry import (
     AdaptiveBackoffHeuristic,
     CircuitState,
+    PermanentError,
     RetryBudgetExhausted,
     RetryEvent,
     RetryEventEmitter,
@@ -18,7 +19,6 @@ from src.pipeline.retry import (
     StageRetryPolicy,
     ToolCircuitBreaker,
     ToolRetryPolicy,
-    PermanentError,
     TransientError,
     cancellable_sleep,
     classify_error,

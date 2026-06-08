@@ -15,15 +15,11 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import httpx
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
-from src.core.models.entities import SEVERITY_LEVELS
 from src.core.mutation_engine import detect_parameter_type
 from src.core.utils.url_validation import is_safe_url_with_dns_check
 from src.fuzzing.stop_conditions import (
     StopCondition,
     StopOnFirstFinding,
-    StopOnN,
-    StopOnPattern,
-    StopOnSeverity,
 )
 
 try:
@@ -34,7 +30,6 @@ try:
     from src.fuzzing.quic_fuzzer import run_quic_fuzzing_campaign
 except ImportError:
     run_quic_fuzzing_campaign = None  # type: ignore[misc,assignment]
-from src.fuzzing.graphql_fuzzer import run_graphql_fuzzing_campaign
 
 try:
     from src.core.session import Session
@@ -125,6 +120,34 @@ class FuzzingOrchestrator:
         self.request_sender = FuzzingRequestSender()
         self.feedback_tracker = FuzzingFeedbackTracker()
         self.stop_condition = stop_condition if stop_condition is not None else StopOnFirstFinding()
+        # Adaptive mutation tracking: records which strategies produce findings
+        # to weight future payloads towards more effective strategies.
+        self._strategy_effectiveness: dict[str, dict[str, int]] = {}
+        self._strategy_total: dict[str, int] = {}
+
+    def _record_strategy_outcome(self, strategy: str, had_finding: bool) -> None:
+        """Track whether a mutation strategy produced a finding."""
+        if strategy not in self._strategy_effectiveness:
+            self._strategy_effectiveness[strategy] = {"findings": 0, "total": 0}
+        self._strategy_effectiveness[strategy]["total"] += 1
+        self._strategy_total[strategy] = self._strategy_total.get(strategy, 0) + 1
+        if had_finding:
+            self._strategy_effectiveness[strategy]["findings"] += 1
+
+    def _strategy_weight(self, strategy: str) -> float:
+        """Return a weight for a strategy based on past effectiveness."""
+        stats = self._strategy_effectiveness.get(strategy)
+        if not stats or stats["total"] < 3:
+            return 1.0
+        success_rate = stats["findings"] / stats["total"]
+        return 1.0 + (success_rate * 5.0)
+
+    def _prioritize_payloads(self, payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Reorder payloads based on adaptive strategy effectiveness."""
+        for p in payloads:
+            p["_weight"] = self._strategy_weight(p.get("strategy", "unknown"))
+        payloads.sort(key=lambda x: x.get("_weight", 1.0), reverse=True)
+        return payloads
 
     def bit_flip(self, data: str) -> str:
         if not data:
@@ -246,7 +269,7 @@ class FuzzingOrchestrator:
                 unique_payloads.append(p)
                 if len(unique_payloads) >= max_payloads:
                     break
-        return unique_payloads
+        return self._prioritize_payloads(unique_payloads)
 
     def _handle_stop_condition(
         self,
@@ -388,6 +411,7 @@ class FuzzingOrchestrator:
                 error_match = error_re.search(body[:50000])
                 if error_match:
                     self.feedback_tracker.record_anomaly()
+                    self._record_strategy_outcome(strategy, True)
                     findings.append(
                         {
                             "url": url,

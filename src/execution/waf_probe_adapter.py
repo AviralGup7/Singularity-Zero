@@ -30,8 +30,9 @@ Usage::
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,41 @@ class WafAwareProbeAdapter:
         self._bundle: StrategyBundle | None = None
         self._enabled: bool = False
         self._applications: int = 0
+        # Strategy effectiveness tracking: maps strategy __name__ to
+        # {"success": int, "failure": int} counts. Used to reorder
+        # strategies at runtime based on observed success rates.
+        self._strategy_stats: dict[str, dict[str, int]] = {}
+
+    def record_strategy_outcome(self, strategy_name: str, success: bool) -> None:
+        """Record whether a strategy succeeded or failed.
+
+        Callers should invoke this after dispatch() when the response
+        indicates the payload bypassed WAF detection (success) or was
+        blocked (failure).
+        """
+        if strategy_name not in self._strategy_stats:
+            self._strategy_stats[strategy_name] = {"success": 0, "failure": 0}
+        key = "success" if success else "failure"
+        self._strategy_stats[strategy_name][key] += 1
+
+    def get_strategy_stats(self) -> dict[str, dict[str, int]]:
+        """Return the current strategy effectiveness statistics."""
+        return dict(self._strategy_stats)
+
+    def get_effective_strategies(self) -> list[str]:
+        """Return strategy names sorted by success rate (best first).
+
+        Strategies with fewer than 3 total uses are excluded until
+        enough data is collected to avoid skewing results.
+        """
+        stats = []
+        for name, counts in self._strategy_stats.items():
+            total = counts["success"] + counts["failure"]
+            if total >= 3:
+                rate = counts["success"] / total
+                stats.append((name, rate))
+        stats.sort(key=lambda x: (-x[1], x[0]))
+        return [name for name, _ in stats]
 
     def set_strategy_bundle(self, bundle: StrategyBundle | None) -> None:
         """Bind a strategy bundle to the adapter.

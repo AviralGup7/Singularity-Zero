@@ -25,7 +25,7 @@ import math
 import socket
 import struct
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -453,7 +453,6 @@ async def _race_cache_request_async(
     headers: dict[str, str],
     body: bytes | None,
 ) -> RaceResponse:
-    import time as _time
 
     sent_at_ns = time.perf_counter_ns()
     status_code: int | None = None
@@ -509,12 +508,12 @@ async def _execute_race(
 
     if response_cache is None:
         limits = httpx.Limits(max_connections=0, max_keepalive_connections=0)
-        race_boundary = object()
+        object()
         try:
             import contextvars
 
             race_ctx: contextvars.Context[Any] = contextvars.copy_context()
-            tasks = [
+            [
                 race_ctx.run(
                     _race_single_request_async,
                     None,  # placeholder for client
@@ -527,7 +526,7 @@ async def _execute_race(
                 for i in range(count)
             ]
         except Exception:  # pragma: no cover - contextvars optional
-            tasks = [
+            [
                 _race_single_request_async(
                     None,  # type: ignore[arg-type]
                     url,

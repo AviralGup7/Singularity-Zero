@@ -1,5 +1,138 @@
 {
   "$defs": {
+    "HuntBudgetConfigModel": {
+      "additionalProperties": true,
+      "properties": {
+        "max_duration_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 14400.0,
+          "title": "Max Duration Seconds"
+        },
+        "high_value_target_time_budget_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 0.4,
+          "title": "High Value Target Time Budget Pct"
+        },
+        "stop_when_high_confidence_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 5,
+          "title": "Stop When High Confidence Count"
+        },
+        "stop_when_total_findings": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 50,
+          "title": "Stop When Total Findings"
+        },
+        "max_concurrent_probes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 5,
+          "title": "Max Concurrent Probes"
+        },
+        "countdown_visible": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": true,
+          "title": "Countdown Visible"
+        }
+      },
+      "title": "HuntBudgetConfigModel",
+      "type": "object"
+    },
+    "HuntModeConfigModel": {
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "skip_subdomain_enumeration": {
+          "default": true,
+          "title": "Skip Subdomain Enumeration",
+          "type": "boolean"
+        },
+        "skip_passive_checks": {
+          "default": false,
+          "title": "Skip Passive Checks",
+          "type": "boolean"
+        },
+        "high_value_categories": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "High Value Categories"
+        },
+        "low_hanging_fruit": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Low Hanging Fruit"
+        },
+        "deduplicate_against_history": {
+          "default": true,
+          "title": "Deduplicate Against History",
+          "type": "boolean"
+        }
+      },
+      "title": "HuntModeConfigModel",
+      "type": "object"
+    },
     "ToolsConfigModel": {
       "additionalProperties": true,
       "properties": {
@@ -244,6 +377,26 @@
       "anyOf": [
         {
           "$ref": "#/$defs/ToolsConfigModel"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hunt_mode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HuntModeConfigModel"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hunt_budget": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HuntBudgetConfigModel"
         },
         {
           "type": "null"

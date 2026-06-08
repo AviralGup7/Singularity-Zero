@@ -22,10 +22,6 @@ Importing this module is therefore equivalent to importing
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from src.infrastructure.queue.retry_policy import RetryPolicy
-
 from src.infrastructure.queue.consumer_groups import (
     JobQueueConsumerGroupsMixin as _JobQueueConsumerGroups,
 )
@@ -36,6 +32,7 @@ from src.infrastructure.queue.persistence import (
 from src.infrastructure.queue.rate_limiter import (
     JobQueueRateLimiterMixin as _JobQueueRateLimiter,
 )
+from src.infrastructure.queue.retry_policy import RetryPolicy
 
 
 class JobQueue(

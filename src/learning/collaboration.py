@@ -31,20 +31,19 @@ same change) provides CRUD operations.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import sqlite3
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from enum import Enum
-from typing import Any, Iterable, Mapping
+from enum import StrEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     """Built-in roles.
 
     New roles can be added via :func:`register_role`, which stores
@@ -57,10 +56,10 @@ class Role(str, Enum):
     ADMIN = "admin"
 
 
-CUSTOM_ROLES: dict[str, "Role"] = {}
+CUSTOM_ROLES: dict[str, Role] = {}
 
 
-def register_role(name: str) -> "Role":
+def register_role(name: str) -> Role:
     """Register a custom role and return it.
 
     Because :class:`Role` is a closed :class:`enum.Enum` we cannot
@@ -92,7 +91,7 @@ class User:
     teams: tuple[str, ...] = ()
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "User":
+    def from_dict(cls, data: Mapping[str, Any]) -> User:
         role_name = str(data.get("role", "operator")).lower()
         try:
             role = Role(role_name)
@@ -130,7 +129,7 @@ class Team:
     members: tuple[str, ...] = ()
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "Team":
+    def from_dict(cls, data: Mapping[str, Any]) -> Team:
         return cls(
             team_id=str(data["team_id"]),
             name=str(data.get("name", data["team_id"])),
@@ -165,7 +164,7 @@ class FindingAssignment:
         }
 
     @classmethod
-    def from_db_row(cls, row: Any) -> "FindingAssignment":
+    def from_db_row(cls, row: Any) -> FindingAssignment:
         """Build a :class:`FindingAssignment` from a DB row.
 
         ``row`` can be either a :class:`sqlite3.Row` (mapping-like)
@@ -249,6 +248,7 @@ class AssignmentStore:
         conn = sqlite3.connect(self._db_path, check_same_thread=False, timeout=5.0)
         conn.row_factory = sqlite3.Row
         try:
+            conn.execute("PRAGMA foreign_keys=ON")
             conn.executescript(_CREATE_ASSIGNMENT_TABLE)
             conn.commit()
             # Warm the cache.
@@ -346,11 +346,63 @@ class AssignmentStore:
         with self._lock:
             return [fa for fa in self._cache.values() if fa.assigned_to == user_id]
 
+    def cleanup_stale(self, stale_after_seconds: float = 600.0) -> int:
+        """Release all stale review locks across the store.
+
+        Returns the number of locks released.
+        """
+        with self._lock:
+            now = time.time()
+            released = 0
+            for fa in list(self._cache.values()):
+                if (
+                    fa.locked_by is not None
+                    and fa.locked_at is not None
+                    and (now - fa.locked_at) > stale_after_seconds
+                ):
+                    fa.locked_by = None
+                    fa.locked_at = None
+                    if fa.status == "in_progress":
+                        fa.status = "pending"
+                    self._persist(fa)
+                    released += 1
+            return released
+
+    def delete_old_assignments(self, older_than_seconds: float) -> int:
+        """Delete assignments older than a threshold (durably in SQLite and in-memory)."""
+        with self._lock:
+            cutoff = time.time() - older_than_seconds
+            to_delete = [
+                fid for fid, fa in self._cache.items()
+                if fa.assigned_at < cutoff
+            ]
+            for fid in to_delete:
+                del self._cache[fid]
+
+            if self._db_path and to_delete:
+                conn = sqlite3.connect(self._db_path, check_same_thread=False, timeout=5.0)
+                try:
+                    conn.execute("PRAGMA foreign_keys=ON")
+                    # chunk it
+                    chunk_size = 900
+                    for i in range(0, len(to_delete), chunk_size):
+                        chunk = to_delete[i : i + chunk_size]
+                        placeholders = ",".join("?" for _ in chunk)
+                        conn.execute(
+                            f"DELETE FROM finding_assignments WHERE finding_id IN ({placeholders})",
+                            chunk
+                        )
+                    conn.commit()
+                finally:
+                    conn.close()
+            return len(to_delete)
+
     def _persist(self, fa: FindingAssignment) -> None:
         if not self._db_path:
             return
         conn = sqlite3.connect(self._db_path, check_same_thread=False, timeout=5.0)
         try:
+            conn.execute("PRAGMA foreign_keys=ON")
             conn.execute(
                 """INSERT OR REPLACE INTO finding_assignments
                    (finding_id, assigned_to, assigned_at, assigned_by,
@@ -369,7 +421,7 @@ class AssignmentStore:
 # ---------------------------------------------------------------------------
 
 
-_STORE_SINGLETON: "AssignmentStore | None" = None
+_STORE_SINGLETON: AssignmentStore | None = None
 
 
 def get_default_store(db_path: str | None = None) -> AssignmentStore:

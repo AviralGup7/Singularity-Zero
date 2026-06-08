@@ -15,6 +15,21 @@ class AttackChainsRepo(BaseRepo):
 
     def record_attack_chain(self, row: dict[str, Any]) -> None:
         """Record a detected attack chain."""
+        import json
+        finding_ids_raw = row.get("finding_ids")
+        finding_ids: list[str] = []
+        if isinstance(finding_ids_raw, list):
+            finding_ids = [str(x) for x in finding_ids_raw]
+        elif isinstance(finding_ids_raw, str):
+            try:
+                parsed = json.loads(finding_ids_raw)
+                if isinstance(parsed, list):
+                    finding_ids = [str(x) for x in parsed]
+                else:
+                    finding_ids = [str(finding_ids_raw)]
+            except json.JSONDecodeError:
+                finding_ids = [x.strip() for x in finding_ids_raw.split(",") if x.strip()]
+
         with self._cursor() as cur:
             cur.execute(
                 """INSERT OR REPLACE INTO attack_chains
@@ -26,6 +41,14 @@ class AttackChainsRepo(BaseRepo):
                            :validation_result, :detected_at)""",
                 row,
             )
+            # Delete old mappings for this chain_id to keep referential integrity
+            cur.execute("DELETE FROM attack_chain_findings WHERE chain_id = ?", (row["chain_id"],))
+            # Insert new mappings
+            for fid in finding_ids:
+                cur.execute(
+                    "INSERT OR IGNORE INTO attack_chain_findings (chain_id, finding_id) VALUES (?, ?)",
+                    (row["chain_id"], fid),
+                )
 
     def get_attack_chains(
         self,
@@ -46,4 +69,16 @@ class AttackChainsRepo(BaseRepo):
             query += " ORDER BY risk_score DESC LIMIT ?"
             params.append(limit)
             cur.execute(query, params)
+            return [dict(r) for r in cur.fetchall()]
+
+    def get_attack_chains_for_finding(self, finding_id: str) -> list[dict]:
+        """Get all attack chains containing a specific finding ID."""
+        with self._cursor() as cur:
+            cur.execute(
+                """SELECT ac.* FROM attack_chains ac
+                   JOIN attack_chain_findings acf ON ac.chain_id = acf.chain_id
+                   WHERE acf.finding_id = ?
+                   ORDER BY ac.risk_score DESC""",
+                (finding_id,),
+            )
             return [dict(r) for r in cur.fetchall()]

@@ -10,7 +10,10 @@ from __future__ import annotations
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, cast
+from typing import Any, Iterable, cast
+from urllib.parse import urlparse
+
+import requests
 
 from src.pipeline.tools import execute_command
 from src.recon.collectors.observability import emit_collection_progress
@@ -18,6 +21,25 @@ from src.recon.common import parse_plain_lines
 from src.recon.filters import apply_url_filters
 
 logger = logging.getLogger(__name__)
+
+
+_ALLOWED_MIME_PATH_EXTENSIONS = frozenset({".html", ".htm", ".php", ".asp", ".aspx", ".jsp"})
+
+
+def _mime_filter(urls: Iterable[str], filters: dict[str, Any]) -> set[str]:
+    archive_filter_mime = filters.get("archive_filter_mime")
+    if not archive_filter_mime:
+        return set(urls)
+    allowed = set()
+    for url in urls:
+        parsed = urlparse(url)
+        path = parsed.path
+        ext = None
+        if "." in path and not path.endswith("/"):
+            ext = "." + path.rsplit(".", 1)[-1].lower()
+        if ext in _ALLOWED_MIME_PATH_EXTENSIONS or ext is None:
+            allowed.add(url)
+    return allowed
 
 
 def run_archive_jobs(
@@ -177,6 +199,11 @@ def run_archive_jobs(
                     continue
                 output = outcome.stdout
                 parsed_urls = apply_url_filters(parse_plain_lines(output), filters)
+                archive_filter_mime = filters.get("archive_filter_mime")
+                if archive_filter_mime:
+                    mime_filtered = _mime_filter(parsed_urls, filters)
+                    if mime_filtered:
+                        parsed_urls = mime_filtered
                 new_urls = len(parsed_urls - urls)
                 urls.update(parsed_urls)
                 duration = round(outcome.duration_seconds or (time.monotonic() - started), 1)
@@ -244,6 +271,30 @@ def run_archive_jobs(
                         total=total_archive_batches,
                         stage_percent=int((current_batch / total_archive_batches) * 100),
                     )
+
+    if filters.get("archive_fetch_archiveph_today"):
+        candidate_hosts = []
+        for discovered_url in urls:
+            parsed_candidate = urlparse(discovered_url)
+            host_candidate = parsed_candidate.netloc or parsed_candidate.path.split("/")[0]
+            if host_candidate and host_candidate not in candidate_hosts:
+                candidate_hosts.append(host_candidate)
+            if len(candidate_hosts) >= 10:
+                break
+
+        for submit_host in ("https://archive.today/submit", "https://archive.ph/submit"):
+            for candidate_hostname in candidate_hosts:
+                try:
+                    response = requests.post(
+                        submit_host,
+                        data={"url": f"http://{candidate_hostname}/"},
+                        timeout=10,
+                    )
+                    if response.ok:
+                        for discovered_url in parse_plain_lines(response.text):
+                            urls.add(discovered_url)
+                except Exception:
+                    pass
 
     return urls, aggregate_meta
 

@@ -33,13 +33,13 @@ from typing import Any
 
 from src.core.models.config import Config
 from src.recon.collectors import metrics as collector_metrics
-from src.recon.collectors.http_safety import get_default_session
 from src.recon.collectors.health import (
     cool_down_remaining,
     is_circuit_open,
     record_failure,
     record_success,
 )
+from src.recon.collectors.http_safety import get_default_session
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.provider_selection import select_enabled_providers
 from src.recon.collectors.providers import (

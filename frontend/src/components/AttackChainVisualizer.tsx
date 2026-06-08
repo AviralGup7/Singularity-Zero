@@ -195,7 +195,7 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="h-[320px]"
+                className="h-[320px] relative"
               >
                 <AttackChainGraph3D
                   nodes={activeGraph.nodes}
@@ -206,6 +206,71 @@ export const AttackChainVisualizer = memo(function AttackChainVisualizer({
                   onHoverNode={setHoveredNodeId}
                   className="h-full w-full"
                 />
+
+                {/* Visual Graph Legend */}
+                <div className="absolute bottom-3 left-3 z-10 bg-black/85 border border-white/10 rounded-xl p-3 flex flex-wrap gap-x-4 gap-y-2 text-[10px] uppercase font-mono max-w-[85%] backdrop-blur-md shadow-lg pointer-events-none">
+                  <div className="flex items-center gap-1.5 text-cyan-400">
+                    <span className="w-2 h-2 rounded bg-cyan-400/25 border border-cyan-400" />
+                    <span>Subdomain</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-purple-400">
+                    <span className="w-2 h-2 rounded bg-purple-400/25 border border-purple-400" />
+                    <span>Endpoint</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-rose-400">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Critical Find</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-amber-400">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span>Medium Find</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted">
+                    <span className="w-4 h-0.5 border-t border-dashed border-cyan-200" />
+                    <span>Pivot Path</span>
+                  </div>
+                </div>
+
+                {/* Dynamic Graph Tooltip */}
+                {hoveredNodeId && (() => {
+                  const node = activeGraph.nodes.find(n => n.id === hoveredNodeId);
+                  if (!node) return null;
+                  const isFinding = node.type === 'finding';
+                  return (
+                    <div className="absolute top-3 left-3 z-10 bg-black/90 border border-cyan-500/30 rounded-xl p-3 max-w-[280px] backdrop-blur-md shadow-[0_0_20px_rgba(0,255,65,0.1)] pointer-events-none">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
+                          node.type === 'subdomain' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20' :
+                          node.type === 'endpoint' ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20' :
+                          'bg-red-500/10 text-red-300 border border-red-500/20'
+                        }`}>
+                          {node.type}
+                        </span>
+                        {isFinding && (
+                          <span className={`text-[8px] font-black uppercase tracking-widest ${
+                            node.severity === 'critical' ? 'text-critical' : 'text-high'
+                          }`}>
+                            {node.severity}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-bold text-text truncate font-mono" title={node.label}>
+                        {node.label}
+                      </div>
+                      {node.metadata && (
+                        <div className="mt-1 text-[9px] text-muted font-mono leading-normal">
+                          {node.metadata.host && <div>Host: {node.metadata.host}</div>}
+                          {typeof node.metadata.health === 'number' && (
+                            <div>Confidence: {Math.round(node.metadata.health * 100)}%</div>
+                          )}
+                        </div>
+                      )}
+                      <div className="mt-1.5 pt-1 border-t border-white/5 text-[8px] text-accent/70 font-mono">
+                        Click node to select finding
+                      </div>
+                    </div>
+                  );
+                })()}
               </motion.div>
             )}
           </AnimatePresence>

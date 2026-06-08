@@ -36,7 +36,6 @@ from urllib.parse import urlparse
 
 from src.core.models.config import Config
 from src.recon.collectors import metrics as collector_metrics
-from src.recon.collectors.http_safety import get_default_session
 from src.recon.collectors.health import (
     HEALTH_REGISTRY,
     cool_down_remaining,
@@ -44,6 +43,7 @@ from src.recon.collectors.health import (
     record_failure,
     record_success,
 )
+from src.recon.collectors.http_safety import get_default_session
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.provider_selection import ProviderSpec, select_enabled_providers
 from src.recon.collectors.providers import (

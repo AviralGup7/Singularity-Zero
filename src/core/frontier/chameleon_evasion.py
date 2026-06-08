@@ -1,4 +1,6 @@
 """
+RESEARCH PROTOTYPE — not wired into the active scan pipeline. See docs/architecture.md Implementation Status table for current state.
+
 Chameleon Evasion Subsystem - Advanced WAF Evasion Engine
 
 Implements:

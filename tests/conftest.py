@@ -99,6 +99,29 @@ def _offline_dns_mock(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
     yield
 
 
+@pytest.fixture(autouse=True)
+def _mock_resource_guard(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
+    """Auto-applied fixture: disable ResourceGuard checks during tests to prevent host-RAM dependency."""
+    try:
+        from src.infrastructure.resource_guard import ResourceGuard
+        monkeypatch.setattr(ResourceGuard, "should_skip_stage", lambda *args, **kwargs: (False, None))
+        monkeypatch.setattr(ResourceGuard, "check_critical_oom", lambda *args, **kwargs: None)
+        monkeypatch.setattr(ResourceGuard, "check_and_halt_on_oom", lambda *args, **kwargs: None)
+        monkeypatch.setattr(ResourceGuard, "get_concurrency_cap", lambda self, stage_name, default: default)
+    except ImportError:
+        pass
+@pytest.fixture(autouse=True)
+def _mock_run_lock_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
+    """Mock the RunLock cache directory to use a temporary path per test to avoid pollution."""
+    try:
+        import src.infrastructure.task_pool
+        monkeypatch.setattr(src.infrastructure.task_pool, "_CACHE_DIR", tmp_path / "run_lock")
+    except ImportError:
+        pass
+    yield
+
+
+
 @pytest.fixture
 def temp_workspace() -> Generator[Path]:
     """Provide a temporary workspace directory for tests."""

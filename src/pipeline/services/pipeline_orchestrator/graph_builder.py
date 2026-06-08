@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -26,6 +25,7 @@ from src.pipeline.stage_registry import (
     _global_stage_registry,
     _make_stage_node,
 )
+
 from ._graph_dsl import (
     All,
     FlagSet,
@@ -299,29 +299,6 @@ def build_pipeline_graph(
                     node.name,
                     required_tool,
                 )
-
-    # Startup injection
-    if stage_methods is not None and "startup" in stage_methods:
-        nodes.insert(
-            0,
-            StageNode(
-                name="startup",
-                needs=(),
-                weight=0,
-                timeout=0,
-            ),
-        )
-        for index, node in enumerate(nodes):
-            if node.name == "subdomains":
-                nodes[index] = StageNode(
-                    name=node.name,
-                    needs=("startup",) + tuple(node.needs),
-                    when=node.when,
-                    weight=node.weight,
-                    timeout=node.timeout,
-                    critical=node.critical,
-                )
-                break
 
     return Graph(nodes=tuple(nodes))
 

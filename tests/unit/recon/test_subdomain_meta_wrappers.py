@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
-
-import pytest
 
 from src.recon.collectors.types import CollectorMeta, CollectorStatus
 from src.recon.sources import _meta_wrappers

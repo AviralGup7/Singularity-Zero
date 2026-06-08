@@ -141,7 +141,7 @@ async def _probe_one_subprotocol(
             await ws.send(json.dumps({"type": "connection_init", "payload": {}}))
             try:
                 ack_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
-            except (asyncio.TimeoutError, TimeoutError):
+            except TimeoutError:
                 record["error"] = "no_connection_ack"
                 return record
             try:
@@ -159,7 +159,7 @@ async def _probe_one_subprotocol(
                 await ws.send(json.dumps(message))
                 try:
                     response_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
-                except (asyncio.TimeoutError, TimeoutError):
+                except TimeoutError:
                     record["subscribe_responses"].append(
                         {"probe": label, "status": "no_response"}
                     )

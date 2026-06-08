@@ -10,7 +10,7 @@ export interface SkeletonProps {
 
 const shimmerAnimation =
    
-  'relative overflow-hidden bg-[var(--panel-2)] before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-[var(--panel-3)]/50 before:to-transparent';
+  'relative overflow-hidden bg-[var(--panel-2)] before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/[0.06] before:to-transparent';
 
 export function Skeleton({ variant = 'text', width, height, lines = 1, className }: SkeletonProps) {
   if (variant === 'card') {

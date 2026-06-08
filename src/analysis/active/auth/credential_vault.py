@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import base64
 import dataclasses
-import json
 import logging
 import re
 import threading
-import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import urlparse
 
 import requests
 
@@ -251,9 +249,9 @@ class CredentialVault:
     def record_saml_assertion(self, saml_response_b64: str, *, source_url: str, request_body: str = "", response_body: str = "") -> CapturedCredential | None:
         encoded = saml_response_b64 if isinstance(saml_response_b64, str) else ""
         try:
-            decoded_value = base64.b64decode(encoded).decode("utf-8", errors="replace")
+            base64.b64decode(encoded).decode("utf-8", errors="replace")
         except Exception:  # noqa: S110
-            decoded_value = encoded
+            pass
         pseudo_response = {
             "final_url": source_url,
             "url": source_url,

@@ -374,7 +374,8 @@ def graphql_active_probe(
             parsed = _parse_graphql_response(body)
 
             if parsed:
-                if "data" in parsed and "__schema" in parsed.get("data", {}):
+                data = parsed.get("data") or {}
+                if "data" in parsed and "__schema" in data:
                     signals.append("introspection_enabled")
                     introspection_result = {
                         "status_code": status,

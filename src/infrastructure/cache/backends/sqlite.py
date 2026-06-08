@@ -183,7 +183,33 @@ class SQLiteBackend:
                     "CREATE INDEX IF NOT EXISTS idx_cache_namespace_expires "
                     "ON cache_entries(namespace, expires_at)"
                 )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS cache_entry_tags (
+                        key TEXT NOT NULL REFERENCES cache_entries(key) ON DELETE CASCADE,
+                        tag TEXT NOT NULL,
+                        PRIMARY KEY (key, tag)
+                    )
+                    """
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_cache_entry_tags_tag ON cache_entry_tags(tag)"
+                )
                 conn.commit()
+
+                # Self-healing migration for tags
+                cursor = conn.execute("SELECT COUNT(*) FROM cache_entry_tags")
+                if cursor.fetchone()[0] == 0:
+                    cursor = conn.execute("SELECT key, tags FROM cache_entries WHERE tags IS NOT NULL AND tags != ''")
+                    rows = cursor.fetchall()
+                    for key, tags_str in rows:
+                        tags_parsed = {t.strip() for t in tags_str.split(",") if t.strip()}
+                        for t in tags_parsed:
+                            conn.execute(
+                                "INSERT OR IGNORE INTO cache_entry_tags (key, tag) VALUES (?, ?)",
+                                (key, t),
+                            )
+                    conn.commit()
             finally:
                 self._close_conn()
 
@@ -303,6 +329,15 @@ class SQLiteBackend:
                     """,
                     (key, value_str, now, expires_at, now, tags_str, namespace, deps_str, meta_str),
                 )
+                
+                # Delete old tags and insert new tags
+                conn.execute("DELETE FROM cache_entry_tags WHERE key = ?", (key,))
+                if tags:
+                    for t in tags:
+                        conn.execute(
+                            "INSERT OR IGNORE INTO cache_entry_tags (key, tag) VALUES (?, ?)",
+                            (key, t),
+                        )
                 conn.commit()
                 self.evict_lru(max(0, self.size() - self._max_entries))
             finally:
@@ -526,17 +561,12 @@ class SQLiteBackend:
             try:
                 cursor = conn.execute(
                     """
-                    SELECT key
-                    FROM cache_entries
-                    WHERE (expires_at IS NULL OR expires_at > ?)
-                        AND (
-                            tags = ?
-                            OR tags LIKE ?
-                            OR tags LIKE ?
-                            OR tags LIKE ?
-                        )
+                    SELECT ce.key
+                    FROM cache_entries ce
+                    JOIN cache_entry_tags cet ON ce.key = cet.key
+                    WHERE cet.tag = ? AND (ce.expires_at IS NULL OR ce.expires_at > ?)
                     """,
-                    (time.time(), tag, f"{tag},%", f"%,{tag},%", f"%,{tag}"),
+                    (tag, time.time()),
                 )
                 return [row[0] for row in cursor.fetchall()]
             finally:

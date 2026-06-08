@@ -23,11 +23,11 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass, field, replace
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class CollectorStatus(str, Enum):
+class CollectorStatus(StrEnum):
     """Canonical status values reported by collectors and source wrappers.
 
     Subclassing ``str`` means an enum value compares equal to its

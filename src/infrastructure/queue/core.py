@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from collections.abc import Callable
 from typing import Any
 
@@ -22,11 +21,10 @@ from src.infrastructure.queue.lua_scripts import (
     FAIL_JOB_SCRIPT,
     RELEASE_LEASE_SCRIPT,
 )
-from src.infrastructure.queue.models import Job, JobState, WorkerInfo
+from src.infrastructure.queue.models import Job
 from src.infrastructure.queue.redis_client import RedisClient
 from src.infrastructure.queue.retry_policy import RetryPolicy
 from src.infrastructure.scheduling.resource_aware import ResourceAwareScheduler
-from src.pipeline.self_healing import HealthComponent, HealthMetric, HealthStatus
 
 logger = get_pipeline_logger(__name__)
 

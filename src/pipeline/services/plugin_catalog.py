@@ -27,7 +27,8 @@ from src.core.plugins.loader import refresh_dynamic_plugins
 from src.pipeline.stage_registry import (
     StageNodeDefinition,
     _global_stage_registry,
-    list_registered_stage_definitions,
+)
+from src.pipeline.stage_registry import (
     resolve_stage_definition as _resolve_stage_definition,
 )
 
@@ -72,6 +73,9 @@ def _register_defaults() -> None:
         run_threat_modeling,
     )
     from src.pipeline.services.pipeline_orchestrator.stages.analysis import run_passive_scanning
+    from src.pipeline.services.pipeline_orchestrator.stages.container_scan import (
+        run_container_scan_stage,
+    )
     from src.pipeline.services.pipeline_orchestrator.stages.enrichment import (
         run_post_analysis_enrichments,
     )
@@ -81,6 +85,10 @@ def _register_defaults() -> None:
     from src.pipeline.services.pipeline_orchestrator.stages.git_diff_crawl import (
         run_git_diff_crawl,
     )
+    from src.pipeline.services.pipeline_orchestrator.stages.git_secret_scan import (
+        run_git_secret_scan_stage,
+    )
+    from src.pipeline.services.pipeline_orchestrator.stages.iac_scan import run_iac_scan_stage
     from src.pipeline.services.pipeline_orchestrator.stages.nuclei import run_nuclei_stage
     from src.pipeline.services.pipeline_orchestrator.stages.recon import (
         run_live_hosts,
@@ -94,14 +102,13 @@ def _register_defaults() -> None:
     )
     from src.pipeline.services.pipeline_orchestrator.stages.reporting import run_reporting
     from src.pipeline.services.pipeline_orchestrator.stages.sarif_export import run_sarif_export
+    from src.pipeline.services.pipeline_orchestrator.stages.sbom_diff import run_sbom_diff_stage
+    from src.pipeline.services.pipeline_orchestrator.stages.sbom_generate import (
+        run_sbom_generate_stage,
+    )
+    from src.pipeline.services.pipeline_orchestrator.stages.sca_scan import run_sca_scan_stage
     from src.pipeline.services.pipeline_orchestrator.stages.semgrep import run_semgrep_stage
     from src.pipeline.services.pipeline_orchestrator.stages.validation import run_validation
-    from src.pipeline.services.pipeline_orchestrator.stages.sca_scan import run_sca_scan_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.container_scan import run_container_scan_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.iac_scan import run_iac_scan_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.sbom_generate import run_sbom_generate_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.sbom_diff import run_sbom_diff_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.git_secret_scan import run_git_secret_scan_stage
 
     register_plugin(RECON_PROVIDER, "subdomains")(run_subdomain_enumeration)
     register_plugin(RECON_PROVIDER, "live_hosts")(run_live_hosts)

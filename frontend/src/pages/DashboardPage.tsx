@@ -73,7 +73,7 @@ export function DashboardPage() {
 
       {/* ── KPI Row ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <GlassCard variant="glow" delay={0} hoverable>
+        <GlassCard variant="accent-top" delay={0} hoverable>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-muted">Total Targets</span>
             <Target size={16} className="text-muted" />
@@ -131,14 +131,14 @@ export function DashboardPage() {
       <FindingsOverview />
 
       <motion.section
-        className="card"
+        className="card card--accent-top"
         custom={0}
         initial="hidden"
         animate="visible"
         variants={sectionVariants}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-text">Pipeline Telemetry Ledger</h3>
+          <h3 className="card-title">Pipeline Telemetry Ledger</h3>
           <Link to="/findings-timeline" className="text-xs font-medium text-accent hover:text-accent-2 transition-colors">Inspect Timeline</Link>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -166,7 +166,7 @@ export function DashboardPage() {
         >
           <section className="card">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-semibold text-text">Recent Pipeline Jobs</h3>
+              <h3 className="card-title">Recent Pipeline Jobs</h3>
               <Link to="/jobs" className="text-xs font-medium text-accent hover:text-accent-2 transition-colors">View All</Link>
             </div>
             
@@ -182,7 +182,7 @@ export function DashboardPage() {
                 >
                   <Link 
                     to={`/jobs/${job.id}`}
-                    className="flex items-center gap-4 p-3 rounded-lg border border-transparent hover:border-[var(--border)] transition-all duration-200 group hover:-translate-y-0.5 hover:bg-white/5"
+                    className="flex items-center gap-4 p-3 rounded-lg border border-transparent hover:border-[var(--border)] transition-all duration-200 group hover:-translate-y-0.5 hover:bg-white/5 card--interactive"
                   >
                     <div className={`w-2.5 h-2.5 rounded-full ${
                       job.status === 'running' ? 'bg-accent shadow-[0_0_8px_rgba(59,130,246,0.5)]' :

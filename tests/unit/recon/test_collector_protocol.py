@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-from types import SimpleNamespace
-
-import pytest
-
 from src.recon.collectors import protocol
 from src.recon.collectors.protocol import (
     CollectorProvider,

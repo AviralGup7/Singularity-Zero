@@ -1,33 +1,24 @@
 """ASN / CIDR expansion pipeline.
 
 Modern bug-bounty recon pivots from a known target into adjacent
-infrastructure via ASN → CIDR lookup. The previous recon pipeline
-resolved DNS records but never expanded the resulting IPs into the
-neighbouring netblocks the target's organisation owns — which is
-where the most lucrative findings (forgotten dev hosts, sibling
-properties, internal-staging replicas exposed by accident) actually
-live.
+infrastructure via ASN -> CIDR lookup.
 
-This module wraps the ProjectDiscovery ``asnmap`` and ``mapcidr``
-CLIs when installed, and provides pure-Python fallbacks using
-public BGP data sources:
+Multi-provider fallback order for IP-to-ASN:
+  1. ipinfo.io  (primary)
+  2. ip-api.com (secondary)
+  3. BGPView    (tertiary)
+  4. RIPEstat   (quaternary)
 
-* `https://ip-api.com` for ASN lookup by IP (free, rate-limited).
-* `https://rdap.arin.net` for ASN → CIDR expansion (no key required,
-  though ARIN-only; the function queries the appropriate RIR based
-  on the IP family).
-* The Team Cymru DNS-based ASN lookup (``dig +short TXT
-  31.108.5.116.origin.asn.cymru.com``) for environments where
-  outbound HTTP is blocked.
-
-The output is a list of CIDR blocks plus a flat list of candidate
-hostnames to feed into the live-host probing phase.
+Per-RIR RDAP endpoints are selected based on the registry RIR field
+rather than hard-routing everything through ARIN. Team Cymru
+DNS is kept as a parallel data source for ARIN/RIPE.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import logging
+import math
 import re
 import socket
 from collections.abc import Iterable
@@ -42,13 +33,12 @@ from src.recon.dnsx_wildcard import is_public_ip
 
 logger = logging.getLogger(__name__)
 
-# IP-API endpoint (free, no key, ~45 req/min from a single IP).
+_IPINFO_URL = "https://ipinfo.io/{ip}/json"
 _IP_API_URL = "http://ip-api.com/json/{ip}"
 _IP_API_FIELDS = "status,message,country,countryCode,as,asname,org,query"
+_BGPVIEW_URL = "https://api.bgpview.io/ip/{ip}"
+_RIPESTAT_URL = "https://stat.ripe.net/data/as-overview/data.json?resource=AS{asn}"
 
-# RDAP bootstrap is at https://data.iana.org/rdap/dns.json — we
-# don't fetch this dynamically to keep the offline-friendly
-# fallback working. The most common RIRs are pre-listed.
 _RIR_RDAP_ENDPOINTS: dict[str, str] = {
     "ARIN": "https://rdap.arin.net/registry/ip",
     "RIPE": "https://rdap.db.ripe.net/ip",
@@ -57,46 +47,63 @@ _RIR_RDAP_ENDPOINTS: dict[str, str] = {
     "AFRINIC": "https://rdap.afrinic.net/rdap/ip",
 }
 
-# CIDR per ASN to enumerate. Larger CIDRs (e.g. /16) are sliced into
-# /24 subnets to keep the candidate host count manageable.
+_RIR_FROM_WHOIS: dict[str, str] = {
+    "arin": "ARIN",
+    "ripe": "RIPE",
+    "apnic": "APNIC",
+    "lacnic": "LACNIC",
+    "afrinic": "AFRINIC",
+}
+
 _CIDR_SLICE_BITS = 24
-
-# Max subnets enumerated per ASN — defensive cap.
 _MAX_SUBNETS_PER_ASN = 1024
-
-# Max concurrent Team Cymru DNS lookups.
 _CYMRU_CONCURRENCY = 4
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
+def _next_backoff(attempt: int, base: float = 1.0, cap: float = 16.0) -> float:
+    return min(cap, base * (2 ** (attempt - 1)))
 
 
-def ip_to_asn(
-    ip: str,
-    *,
-    timeout: float = 5.0,
-) -> dict[str, Any] | None:
-    """Look up the ASN for an IP address via ip-api.com.
-
-    Returns a dict with ``asn``, ``as_name``, ``org``, ``country``,
-    or ``None`` on lookup failure. The function makes a single HTTP
-    request and is safe to call from a thread pool.
-    """
+def _query_ipinfo(ip: str, timeout: float) -> dict[str, Any] | None:
     try:
-        addr = ipaddress.ip_address(ip)
-    except ValueError:
+        resp = requests.get(_IPINFO_URL.format(ip=ip), timeout=max(2.0, float(timeout)))
+        if resp.status_code == 429:
+            return {"_rate_limited": True}
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.debug("ipinfo lookup failed for %s: %s", ip, exc)
         return None
-    if not is_public_ip(ip):
+    if not isinstance(data, dict):
         return None
+    asn_raw = (data.get("org") or "").split()[0] if data.get("org") else ""
+    if not asn_raw.upper().startswith("AS"):
+        return None
+    registry = str(data.get("country") or "")
+    return {
+        "ip": ip,
+        "asn": asn_raw.upper(),
+        "as_name": data.get("org") or "",
+        "org": data.get("org") or "",
+        "country": data.get("country") or "",
+        "country_code": data.get("country") or "",
+        "registry": registry,
+        "raw": data.get("org") or "",
+    }
+
+
+def _query_ipapi(ip: str, timeout: float) -> dict[str, Any] | None:
     try:
-        resp = requests.get(  # nosec B113
-            _IP_API_URL.format(ip=addr),
+        resp = requests.get(
+            _IP_API_URL.format(ip=ip),
             params={"fields": _IP_API_FIELDS},
             timeout=max(2.0, float(timeout)),
         )
-        resp.raise_for_status()
+        if resp.status_code == 429:
+            return {"_rate_limited": True}
+        if resp.status_code != 200:
+            return None
         data = resp.json()
     except (requests.RequestException, ValueError) as exc:
         logger.debug("ip-api lookup failed for %s: %s", ip, exc)
@@ -105,6 +112,8 @@ def ip_to_asn(
         return None
     as_field = str(data.get("as") or "").strip()
     asn = as_field.split()[0] if as_field else ""
+    if not asn:
+        return None
     return {
         "ip": ip,
         "asn": asn,
@@ -112,45 +121,102 @@ def ip_to_asn(
         "org": data.get("org") or "",
         "country": data.get("country") or "",
         "country_code": data.get("countryCode") or "",
+        "registry": "",
         "raw": as_field,
     }
 
 
-def asn_to_cidrs_via_arin(
-    asn: str,
-    *,
-    timeout: float = 10.0,
-) -> list[str]:
-    """Enumerate the CIDR blocks announced by *asn* using the ARIN RDAP.
+def _query_bgpview(ip: str, timeout: float) -> dict[str, Any] | None:
+    try:
+        resp = requests.get(_BGPVIEW_URL.format(ip=ip), timeout=max(2.0, float(timeout)))
+        if resp.status_code == 429:
+            return {"_rate_limited": True}
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.debug("BGPView lookup failed for %s: %s", ip, exc)
+        return None
+    if not isinstance(data, dict) or str(data.get("status") or "").lower() != "ok":
+        return None
+    ptr = data.get("data") or {}
+    pref = ptr.get("prefixes") or []
+    if not isinstance(pref, list) or not pref:
+        return None
+    best = pref[0]
+    if not isinstance(best, dict):
+        return None
+    asn_raw = best.get("asn", {}).get("asn") if isinstance(best.get("asn"), dict) else best.get("asn")
+    if asn_raw is None:
+        return None
+    asn = f"AS{asn_raw}"
+    name = best.get("asn", {}).get("name") if isinstance(best.get("asn"), dict) else ""
+    return {
+        "ip": ip,
+        "asn": asn,
+        "as_name": name or "",
+        "org": name or "",
+        "country": best.get("country_code") or "",
+        "country_code": best.get("country_code") or "",
+        "registry": "",
+        "raw": asn,
+    }
 
-    This is the most reliable free path. It queries the ARIN RDAP
-    endpoint for the ASN handle and walks the ``cidr0_cidrs`` /
-    ``cidr0_cidrs`` list in the response. Note that the ARIN RDAP
-    only directly returns CIDRs delegated to ARIN; for ASNs delegated
-    to RIPE / APNIC, the response is empty and operators should fall
-    back to ``asn_to_cidrs_via_cymru``.
 
-    Returns a list of CIDR strings (``"1.2.3.0/24"``). Empty on failure.
-    """
+def _query_ripestat(asn: str, timeout: float) -> dict[str, Any] | None:
+    asn_digits = asn.upper().lstrip("AS").strip()
+    if not asn_digits.isdigit():
+        return None
+    try:
+        resp = requests.get(
+            _RIPESTAT_URL.format(asn=asn_digits), timeout=max(2.0, float(timeout))
+        )
+        if resp.status_code == 429:
+            return {"_rate_limited": True}
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.debug("RIPEstat lookup failed for %s: %s", asn, exc)
+        return None
+    if not isinstance(data, dict) or data.get("status") != "ok":
+        return None
+    d = data.get("data") or {}
+    holder = d.get("holder") or ""
+    return {
+        "asn": asn.upper(),
+        "as_name": holder,
+        "org": holder,
+        "country": "",
+        "country_code": "",
+        "registry": "",
+        "raw": holder,
+    }
+
+
+def _asn_to_cidrs_via_rir_rdap(asn: str, rir: str, *, timeout: float = 10.0) -> list[str]:
     if not asn:
         return []
     asn_digits = asn.upper().lstrip("AS").strip()
     if not asn_digits.isdigit():
         return []
-    url = f"{_RIR_RDAP_ENDPOINTS['ARIN']}/{asn_digits}"
+    rir_key = _RIR_FROM_WHOIS.get(rir.lower(), rir.upper())
+    base = _RIR_RDAP_ENDPOINTS.get(rir_key) or _RIR_RDAP_ENDPOINTS["ARIN"]
+    url = f"{base}/{asn_digits}"
     try:
         resp = requests.get(  # nosec B113
             url,
             timeout=max(2.0, float(timeout)),
             headers={"Accept": "application/rdap+json"},
         )
+        if resp.status_code == 429:
+            return []
         if resp.status_code != 200:
             return []
         data = resp.json()
     except (requests.RequestException, ValueError) as exc:
-        logger.debug("ARIN RDAP lookup failed for %s: %s", asn, exc)
+        logger.debug("%s RDAP lookup failed for %s: %s", rir_key, asn, exc)
         return []
-
     cidrs: set[str] = set()
     if isinstance(data, dict):
         for key in ("cidr0_cidrs", "cidr6_cidrs"):
@@ -164,27 +230,80 @@ def asn_to_cidrs_via_arin(
     return sorted(cidrs)
 
 
-def asn_to_cidrs_via_cymru(asn: str) -> list[str]:
-    """Enumerate the CIDR blocks announced by *asn* via Team Cymru DNS.
+def ip_to_asn(
+    ip: str,
+    *,
+    timeout: float = 5.0,
+) -> dict[str, Any] | None:
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return None
+    if not is_public_ip(ip):
+        return None
 
-    Uses the BGPView-style ``dig`` query against Cymru's DNS server.
-    Falls back to ``nslookup`` when ``dig`` is not available, and to
-    an empty list when neither is available. The result is the raw
-    ``<CIDR>|<ASN>|<country>|<registry>`` text returned by Cymru.
-    """
+    backoff_state: dict[str, int] = {}
+
+    def _with_backoff(provider: str, attempt: int) -> None:
+        backoff_state[provider] = attempt
+
+    def _should_skip(provider: str) -> bool:
+        attempt = backoff_state.get(provider, 0)
+        if attempt >= 3:
+            return True
+        if attempt > 0:
+            delay = _next_backoff(attempt)
+            time.sleep(delay)
+        return False
+
+    providers = [
+        ("ipinfo", _query_ipinfo),
+        ("ipapi", _query_ipapi),
+        ("bgpview", _query_bgpview),
+    ]
+    for name, fn in providers:
+        if _should_skip(name):
+            continue
+        _with_backoff(name, backoff_state.get(name, 0) + 1)
+        result = fn(ip, timeout)
+        if isinstance(result, dict) and result.get("_rate_limited"):
+            continue
+        if result:
+            return result
+
+    result = _query_ripestat(
+        _resolve_asn_for_ip(ip), timeout
+    )
+    if result:
+        return result
+
+    return None
+
+
+def _resolve_asn_for_ip(ip: str) -> str | None:
+    try:
+        for name, fn in [("ipinfo", _query_ipinfo), ("ipapi", _query_ipapi), ("bgpview", _query_bgpview)]:
+            r = fn(ip, 3.0)
+            if isinstance(r, dict) and r.get("_rate_limited"):
+                continue
+            if r and r.get("asn"):
+                return r["asn"]
+    except Exception:
+        pass
+    return None
+
+
+def asn_to_cidrs_via_cymru(asn: str) -> list[str]:
     if not asn:
         return []
     asn_digits = asn.upper().lstrip("AS").strip()
     if not asn_digits.isdigit():
         return []
     query = f"AS{asn_digits}.asn.cymru.com"
-    # The DNS response is a TXT record. ``getaddrinfo`` won't return it
-    # (it only returns A/AAAA), so we always fall through to nslookup.
     return _asn_to_cidrs_via_nslookup(query)
 
 
 def _asn_to_cidrs_via_nslookup(query: str) -> list[str]:
-    """Fallback: nslookup the Cymru TXT record and parse the CIDR column."""
     try:
         result = try_command(
             ["nslookup", "-type=txt", query],
@@ -198,29 +317,13 @@ def _asn_to_cidrs_via_nslookup(query: str) -> list[str]:
         text = line.strip()
         if not text or "=" not in text:
             continue
-        # The TXT record payload is a single string with | separators:
-        #   "1.2.3.0/24 | AS12345 | ... | ..."
         match = re.search(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2})", text)
         if match:
             cidrs.add(match.group(1))
     return sorted(cidrs)
 
 
-# ---------------------------------------------------------------------------
-# mapcidr-style subnet slicing
-# ---------------------------------------------------------------------------
-
-
 def slice_cidr(cidr: str, *, bits: int = _CIDR_SLICE_BITS) -> list[str]:
-    """Slice *cidr* into smaller subnets of *bits* size.
-
-    For example, slicing ``"10.0.0.0/16"`` with bits=24 yields
-    ``["10.0.0.0/24", "10.0.1.0/24", ..., "10.0.255.0/24"]``.
-
-    The function honours the defensive cap
-    :data:`_MAX_SUBNETS_PER_ASN` — slices beyond the cap are
-    silently dropped.
-    """
     try:
         network = ipaddress.ip_network(cidr, strict=False)
     except ValueError:
@@ -242,19 +345,7 @@ def slice_cidr(cidr: str, *, bits: int = _CIDR_SLICE_BITS) -> list[str]:
     return [str(s) for s in sliced]
 
 
-# ---------------------------------------------------------------------------
-# End-to-end driver
-# ---------------------------------------------------------------------------
-
-
 def asnmap_cli(ips_or_cidrs: Iterable[str], *, timeout_seconds: int = 60) -> list[str]:
-    """Run the :command:`asnmap` CLI as a thin wrapper.
-
-    When asnmap is installed this delegates the whole ASN→CIDR
-    expansion to it. When it is not installed, returns an empty list
-    and the caller should use :func:`resolve_asn_for_ips` +
-    :func:`asn_to_cidrs_via_arin` as the fallback.
-    """
     if not tool_available("asnmap"):
         return []
     args = ["asnmap", "-silent"]
@@ -266,7 +357,6 @@ def asnmap_cli(ips_or_cidrs: Iterable[str], *, timeout_seconds: int = 60) -> lis
 
 
 def mapcidr_cli(cidrs: Iterable[str], *, timeout_seconds: int = 60) -> list[str]:
-    """Run the :command:`mapcidr` CLI to slice a list of CIDRs into /24s."""
     if not tool_available("mapcidr"):
         return []
     args = ["mapcidr", "-silent", "-cidr", "-"]
@@ -283,22 +373,10 @@ def expand_ips_to_cidrs(
     max_workers: int = 4,
     slice_bits: int = _CIDR_SLICE_BITS,
 ) -> tuple[set[str], dict[str, str]]:
-    """Look up the ASN for each IP, then enumerate the ASN's CIDR blocks.
-
-    Args:
-        ips: List of IPv4 / IPv6 literals.
-        max_workers: Max concurrent IP-API lookups.
-        slice_bits: Target prefix length for the slice step.
-
-    Returns:
-        Tuple of (sliced_cidrs_set, asn_map). ``asn_map`` is a dict of
-        ``ip -> asn_string`` for every IP that resolved successfully.
-    """
     ip_list = [ip.strip() for ip in ips if ip and ip.strip()]
     if not ip_list:
         return set(), {}
 
-    # 1. ASN lookup
     asn_map: dict[str, str] = {}
     asns: set[str] = set()
     with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(ip_list)))) as ex:
@@ -313,15 +391,13 @@ def expand_ips_to_cidrs(
                 asn_map[asn_info["ip"]] = asn_info["asn"]
                 asns.add(asn_info["asn"])
 
-    # 2. CIDR enumeration
     cidrs: set[str] = set()
     for asn in asns:
-        for cidr in asn_to_cidrs_via_arin(asn):
-            cidrs.add(cidr)
-        for cidr in asn_to_cidrs_via_cymru(asn):
-            cidrs.add(cidr)
+        asn_digits = asn.upper().lstrip("AS").strip()
+        cidrs.update(asn_to_cidrs_via_cymru(asn))
+        for rir in ("arin", "ripe", "apnic", "lacnic", "afrinic"):
+            cidrs.update(_asn_to_cidrs_via_rir_rdap(asn, rir))
 
-    # 3. Slice
     sliced: set[str] = set()
     for cidr in cidrs:
         sliced.update(slice_cidr(cidr, bits=slice_bits))
@@ -333,7 +409,6 @@ def asn_for_host(
     *,
     timeout: float = 5.0,
 ) -> str | None:
-    """Resolve a hostname to an IP and return the ASN string, or None."""
     try:
         addr_info = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
     except (socket.gaierror, OSError):
@@ -349,7 +424,6 @@ def asn_for_host(
 
 
 def asn_for_url(url: str) -> str | None:
-    """Resolve the host portion of *url* and return the ASN string."""
     parsed = urlparse(url if "://" in url else f"https://{url}")
     host = parsed.hostname or ""
     if not host:
@@ -360,7 +434,6 @@ def asn_for_url(url: str) -> str | None:
 __all__ = [
     "asn_for_host",
     "asn_for_url",
-    "asn_to_cidrs_via_arin",
     "asn_to_cidrs_via_cymru",
     "asnmap_cli",
     "expand_ips_to_cidrs",

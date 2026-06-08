@@ -2,24 +2,7 @@
 
 The original ``js_parsers`` module relies on a small set of regex
 patterns. That works for the simple case of ``axios.get("/users")`` but
-misses huge swathes of modern framework code:
-
-* **Multi-layer indirection** — ``api.get(`/users/${id}`)`` where
-  ``api = axios.create(...)`` and ``get = (url) => axios.get(url)``.
-* **Template literals with expressions** — ``/users/${userId}/posts``
-  where the placeholder is not a simple ``${var}``.
-* **WebSocket / EventSource URLs** — ``new WebSocket("wss://api/x")``
-  contains significant attack surface but the previous code dropped
-  non-http schemes.
-* **Source maps** — webpack-style ``.map`` files contain the original
-  source under ``sourcesContent``. The previous code re-ran the JS
-  regex over the map body, which is useless because the map is JSON,
-  not JS.
-* **htmx / Alpine / Turbo** — these frameworks encode endpoints in
-  HTML attributes (``hx-get``, ``x-on:fetch``, ``data-turbo-action``),
-  not in JS.
-* **GraphQL strings** — ``gql`query { user(id: 1) { name } }``` often
-  embeds the full query in JS, which is a strong GraphQL signal.
+misses huge swathes of modern framework code.
 
 This module is a *tokenizer-light* parser: it strips comments and
 string literals, walks the remaining token stream to balance braces /
@@ -37,16 +20,15 @@ from __future__ import annotations
 import json
 import logging
 import re
+import string
 from urllib.parse import urljoin, urlparse
 
+import requests
+
+from src.recon.js_fetcher import _fetch_text_content
 from src.recon.url_validation import is_safe_url
 
-# ---------------------------------------------------------------------------
-# Inlined helpers (duplicated from src.recon.js_parsers to avoid the
-# js_parsers -> src.recon.__init__ -> js_parsers_v2 circular chain that
-# surfaces when the package __init__ runs during partial module loads).
-# Keep these in sync with src.recon.js_parsers.
-# ---------------------------------------------------------------------------
+
 
 
 def _is_in_scope_url(url: str, scope_roots: set[str]) -> bool:
@@ -83,9 +65,7 @@ def _candidate_to_absolute_url(candidate: str, base_url: str) -> str | None:
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# String / comment stripping
-# ---------------------------------------------------------------------------
+
 
 
 _STRING_RE = re.compile(
@@ -102,7 +82,7 @@ _STRING_RE = re.compile(
     re.VERBOSE | re.DOTALL,
 )
 
-# Block + line comments
+
 _BLOCK_COMMENT_RE = re.compile(r"/\*[\s\S]*?\*/")
 _LINE_COMMENT_RE = re.compile(r"//[^\n]*")
 
@@ -124,24 +104,19 @@ def _strip_strings_and_comments(content: str) -> str:
     return content
 
 
-# ---------------------------------------------------------------------------
-# HTML attribute endpoint extraction (htmx, Alpine, Turbo)
-# ---------------------------------------------------------------------------
 
 
-# htmx: hx-get, hx-post, hx-put, hx-patch, hx-delete, hx-connect
+
 _HTMX_RE = re.compile(
     r'\bhx-(?:get|post|put|patch|delete|connect|target|include|vals|boost|ws|ws-connect|sse)\s*=\s*["\']([^"\']+)["\']',
     re.IGNORECASE,
 )
 
-# Alpine: x-data with fetch() calls, x-init, @click="fetch('/x')"
 _ALPINE_RE = re.compile(
     r'(?:x-on:|@)([a-zA-Z][\w-]*)\s*=\s*"([^"]+)"',
     re.IGNORECASE,
 )
 
-# Turbo / Hotwire: data-turbo-action, data-turbo-method
 _TURBO_RE = re.compile(
     r'data-turbo-(?:action|method|frame|src|confirm)\s*=\s*["\']([^"\']+)["\']',
     re.IGNORECASE,
@@ -165,9 +140,7 @@ def extract_html_attribute_endpoints(html: str) -> set[str]:
     return candidates
 
 
-# ---------------------------------------------------------------------------
-# WebSocket / EventSource URL extraction
-# ---------------------------------------------------------------------------
+
 
 
 _WEBSOCKET_RE = re.compile(
@@ -175,7 +148,7 @@ _WEBSOCKET_RE = re.compile(
     re.IGNORECASE,
 )
 
-# socket.io connect: io("https://api/x", { ... }) — second-arg is config
+
 _SOCKETIO_RE = re.compile(
     r"\bio\([\"']([^\"']+)[\"']",
     re.IGNORECASE,
@@ -202,13 +175,9 @@ def extract_websocket_endpoints(content: str) -> set[str]:
     return candidates
 
 
-# ---------------------------------------------------------------------------
-# AST-aware call extraction
-# ---------------------------------------------------------------------------
 
 
-# Callee names we treat as "fetch-like". Matched case-insensitively,
-# optionally chained: ``axios.get``, ``http.get``, ``api.fetch``.
+
 _FETCH_LIKE_RE = re.compile(
     r"""
     \b(?P<callee>
@@ -227,6 +196,89 @@ _FETCH_LIKE_RE = re.compile(
     """,
     re.IGNORECASE | re.VERBOSE,
 )
+
+_GRAPHQL_GQL_RE = re.compile(
+    r"\b(?:gql|graphql)\s*`([^`]*)`",
+    re.IGNORECASE,
+)
+
+_JWT_RE = re.compile(
+    r"\b(?:Bearer|bearer)\s+([A-Za-z0-9_\-\.]+)",
+)
+
+_API_KEY_RE = re.compile(
+    r"""(?i)\b(?:
+        api_key|apikey|api-key|x-api-key|x-api_secret|authorization
+    )\s*[:=]\s*["']([^"']{8,})["']""",
+    re.VERBOSE,
+)
+
+_NEW_REQUEST_RE = re.compile(
+    r"""\bnew\s+Request\s*\(\s*(['"`])([^'"`]+)\1""",
+    re.IGNORECASE,
+)
+
+_AXIOS_INTERCEPTOR_RE = re.compile(
+    r"""\baxios\.interceptors\.request\.use\s*\(\s*[^,]+,\s*[^)]*\)""",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def extract_graphql_tagged_literals(content: str) -> set[str]:
+    candidates: set[str] = set()
+    for match in _GRAPHQL_GQL_RE.finditer(content or ""):
+        inner = match.group(1)
+        if inner and "{" in inner:
+            candidates.add(inner.strip())
+    return candidates
+
+
+def extract_jwt_tokens(content: str) -> list[dict[str, str]]:
+    tokens: list[dict[str, str]] = []
+    for match in _JWT_RE.finditer(content or ""):
+        val = match.group(1)
+        if val and len(val) > 10:
+            tokens.append({"type": "JWT/Bearer", "value": val[:12] + "***"})
+    return tokens
+
+
+def extract_api_keys(content: str) -> list[dict[str, str]]:
+    keys: list[dict[str, str]] = []
+    for match in _API_KEY_RE.finditer(content or ""):
+        val = match.group(1)
+        if val and len(val) >= 8:
+            keys.append({"type": "API Key", "value": val[:8] + "***"})
+    return keys
+
+
+def extract_new_request_urls(content: str) -> set[str]:
+    candidates: set[str] = set()
+    for match in _NEW_REQUEST_RE.finditer(content or ""):
+        url = match.group(2)
+        if url:
+            candidates.add(url.strip())
+    return candidates
+
+
+def extract_axios_interceptors(content: str) -> set[str]:
+    candidates: set[str] = set()
+    for match in _AXIOS_INTERCEPTOR_RE.finditer(content or ""):
+        snippet = match.group(0)
+        url_matches = re.findall(r"""['"`]([^'"`]*\/[^'"`]*)['"`]""", snippet)
+        for url in url_matches:
+            if url and not url.startswith(("javascript:", "data:")):
+                candidates.add(url.strip())
+    return candidates
+
+
+def extract_tokens_and_keys(content: str) -> list[dict[str, str]]:
+    secrets: list[dict[str, str]] = []
+    secrets.extend(extract_jwt_tokens(content))
+    secrets.extend(extract_api_keys(content))
+    return secrets
+
+
+
 
 
 def _find_balanced_arg(content: str, start: int) -> tuple[str, int] | None:
@@ -318,7 +370,6 @@ def _split_args(args_blob: str) -> list[str]:
         if in_str:
             current.append(ch)
             if ch == "\\" and current:
-                # pass through escape
                 continue
             if ch == str_ch:
                 in_str = False
@@ -373,17 +424,13 @@ def extract_endpoint_calls(content: str) -> list[str]:
         first_args = _split_args(args_blob)
         if not first_args:
             continue
-        # ``fetch``/``axios``/etc. take a URL as their first argument;
-        # ``api(url, config)`` patterns also fit.
         first = first_args[0]
         if first:
             candidates.append(first)
     return candidates
 
 
-# ---------------------------------------------------------------------------
-# Source map de-mangling
-# ---------------------------------------------------------------------------
+
 
 
 _SOURCE_MAP_RE = re.compile(
@@ -426,9 +473,230 @@ def extract_sources_content(map_body: str) -> list[str]:
     return [c for c in contents if isinstance(c, str) and c]
 
 
-# ---------------------------------------------------------------------------
-# Endpoint resolution
-# ---------------------------------------------------------------------------
+
+
+_NODE_MODULES_SEG = re.compile(r"(?:^|/)node_modules/", re.IGNORECASE)
+_MINIFIED_EXT_RE = re.compile(r"\.(min|chunk|bundle)\.(js|css|mjs)$", re.IGNORECASE)
+
+
+def _is_minified_or_node_modules(url: str) -> bool:
+    if _NODE_MODULES_SEG.search(url or ""):
+        return True
+    if _MINIFIED_EXT_RE.search(url or ""):
+        return True
+    return False
+
+
+def _scan_source_contents(
+    contents: list[str],
+    base_ref: str,
+    scope_roots: set[str],
+    provenance: dict[str, str],
+    max_depth: int,
+) -> tuple[set[str], dict[str, str]]:
+    discovered: set[str] = set()
+    for source_body in contents:
+        if not source_body or not source_body.strip():
+            continue
+        src_discovered = extract_endpoints_v2(source_body, base_ref, scope_roots)
+        discovered.update(src_discovered)
+        for ep in src_discovered:
+            provenance[ep] = base_ref
+    return discovered, provenance
+
+
+def follow_source_map_chain(
+    js_url: str,
+    js_body: str,
+    base_url: str,
+    scope_roots: set[str],
+    depth: int = 0,
+    provenance: dict[str, str] | None = None,
+) -> tuple[set[str], dict[str, str]]:
+    """Recursively follow source maps up to 3 hops, building endpoint provenance."""
+    if provenance is None:
+        provenance = {}
+    if depth >= 3:
+        return set(), provenance
+    discovered: set[str] = set()
+    map_url = extract_source_map_url(js_body)
+    if not map_url:
+        return discovered, provenance
+    resolved_map = urljoin(js_url, map_url)
+    if _is_minified_or_node_modules(resolved_map):
+        return discovered, provenance
+    map_body = _fetch_text_content(resolved_map, 8, 250_000)
+    if not map_body or not is_source_map_body(map_body):
+        return discovered, provenance
+    proven = dict(provenance)
+    sources = extract_sources_content(map_body)
+    if sources:
+        src_disc, proven = _scan_source_contents(sources, resolved_map, scope_roots, proven, depth)
+        discovered.update(src_disc)
+    else:
+        body_disc = extract_endpoints_v2(map_body, resolved_map, scope_roots)
+        discovered.update(body_disc)
+        for ep in body_disc:
+            proven[ep] = resolved_map
+    from src.recon.js_parsers import _extract_js_candidate_urls
+    cand = _extract_js_candidate_urls(map_body, resolved_map, scope_roots)
+    discovered.update(cand)
+    for ep in cand:
+        proven[ep] = resolved_map
+    try:
+        map_data = json.loads(map_body) or {}
+    except json.JSONDecodeError:
+        return discovered, proven
+    for source_url in map_data.get("sources", []) or []:
+        if not isinstance(source_url, str):
+            continue
+        abs_src = urljoin(resolved_map, source_url)
+        if _is_minified_or_node_modules(abs_src):
+            continue
+        src_body = _fetch_text_content(abs_src, 6, 150_000)
+        if not src_body:
+            continue
+        src_disc = extract_endpoints_v2(src_body, abs_src, scope_roots)
+        discovered.update(src_disc)
+        for ep in src_disc:
+            proven[ep] = abs_src
+        next_disc, proven = follow_source_map_chain(abs_src, src_body, base_url, scope_roots, depth + 1, proven)
+        discovered.update(next_disc)
+    return discovered, proven
+
+
+def analyze_wasm_url(
+    wasm_url: str,
+    base_url: str,
+    scope_roots: set[str],
+    max_bytes: int = 50000,
+) -> tuple[set[str], list[str]]:
+    wasm_discovered: set[str] = set()
+    wasm_strings: list[str] = []
+    if not (wasm_url or "").endswith(".wasm"):
+        return wasm_discovered, wasm_strings
+    hostname = (urlparse(wasm_url).hostname or "").lower()
+    if scope_roots and not any(hostname == r or hostname.endswith("." + r) for r in scope_roots):
+        return wasm_discovered, wasm_strings
+    try:
+        resp = requests.get(
+            wasm_url,
+            timeout=8,
+            allow_redirects=False,
+            headers={"User-Agent": "target-specific-pipeline/2.0"},
+        )
+        if resp.status_code >= 400:
+            return wasm_discovered, wasm_strings
+        data = resp.content[:max_bytes]
+    except requests.RequestException:
+        return wasm_discovered, wasm_strings
+    ascii_chars = set(string.printable)
+    current: list[str] = []
+    for byte in data:
+        ch = chr(byte)
+        if ch in ascii_chars and ch != "\x00":
+            current.append(ch)
+        else:
+            if len(current) >= 6:
+                s = "".join(current)
+                wasm_strings.append(s)
+                for url in re.findall(r"(https?://[^\s\"'<>]+)", s):
+                    wasm_discovered.add(url)
+                for path in re.findall(r"(/[A-Za-z0-9_/\-]{3,}(?:\?[^\s\"'<>]*)?)", s):
+                    wasm_discovered.add(urljoin(base_url, path))
+            current = []
+    return wasm_discovered, wasm_strings
+
+
+def analyze_service_worker(
+    sw_url: str,
+    base_url: str,
+    scope_roots: set[str],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "sw_url": sw_url,
+        "cache_names": [],
+        "fetch_routes": [],
+        "sync_endpoints": [],
+        "push_endpoints": [],
+        "wasm_references": [],
+    }
+    body = _fetch_text_content(sw_url, 8, 250_000)
+    if not body:
+        return result
+    for match in re.finditer(r'["\']([^"\']+\.wasm)["\']', body):
+        wasm_url = match.group(1)
+        resolved = urljoin(sw_url, wasm_url)
+        if is_safe_url(resolved):
+            result["wasm_references"].append(resolved)
+    for name_match in re.finditer(r'cacheName\s*[:=]\s*["\']([^"\']+)["\']', body):
+        result["cache_names"].append(name_match.group(1))
+    route_patterns = re.findall(
+        r"""(?:event\.request|fetch\(\s*)(['"`])([^'"`]+)\1""",
+        body,
+    )
+    for _, route in route_patterns:
+        if route and not route.startswith(("javascript:", "data:")):
+            result["fetch_routes"].append(route)
+    for push_match in re.finditer(r'push\.subscribe\s*\(\s*["\']([^"\']+)["\']', body):
+        result["push_endpoints"].append(push_match.group(1))
+    for sync_match in re.finditer(r'sync\.register\s*\(\s*["\']([^"\']+)["\']', body):
+        result["sync_endpoints"].append(sync_match.group(1))
+    return result
+
+
+def discover_and_analyze_manifest(
+    base_url: str,
+    scope_roots: set[str],
+    html_body: str | None = None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "manifest_url": None,
+        "discovered": False,
+        "start_url": None,
+        "scope": None,
+        "related_applications": [],
+        "shortcuts": [],
+        "external_start_url": False,
+        "warnings": [],
+        "raw": None,
+    }
+    candidates: list[str] = []
+    if html_body:
+        for match in re.finditer(r'<link[^>]+rel\s*=\s*["\'][^"\']*manifest[^"\']*["\'][^>]+href\s*=\s*["\']([^"\']+)["\']', html_body, re.IGNORECASE):
+            candidates.append(match.group(1))
+    candidates.append(base_url.rstrip("/") + "/manifest.json")
+    seen: set[str] = set()
+    for candidate in candidates:
+        absolute = candidate if candidate.startswith(("http://", "https://")) else urljoin(base_url, candidate)
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        if not is_safe_url(absolute):
+            continue
+        body = _fetch_text_content(absolute, 6, 250_000)
+        if not body:
+            continue
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        result["manifest_url"] = absolute
+        result["discovered"] = True
+        result["raw"] = data
+        result["start_url"] = data.get("start_url")
+        result["scope"] = data.get("scope")
+        result["related_applications"] = data.get("related_applications", []) or []
+        result["shortcuts"] = data.get("shortcuts", []) or []
+        if result["start_url"]:
+            if result["start_url"].startswith("http://") or result["start_url"].startswith("https://"):
+                start_netloc = urlparse(result["start_url"]).netloc.lower()
+                base_netloc = urlparse(base_url).netloc.lower()
+                if start_netloc != base_netloc:
+                    result["external_start_url"] = True
+                    result["warnings"].append(f"start_url {result['start_url']} is on a different origin")
+        break
+    return result
 
 
 def _resolve_template_to_pattern(text: str) -> str:
@@ -454,13 +722,11 @@ def _resolve_call_endpoint(arg_expr: str, base_url: str) -> str | None:
     """
     if not arg_expr:
         return None
-    # Plain string
     string_match = re.search(r"""(['"`])((?:\\.|(?!\1).)*)\1""", arg_expr, re.DOTALL)
     if string_match:
         inner = string_match.group(2)
         normalized = _resolve_template_to_pattern(inner)
         return _candidate_to_absolute_url(normalized, base_url)
-    # Concat of a string + identifier: '/api/v1/' + userId
     concat_match = re.match(
         r"^(['\"`])([^'\"`]+)\1\s*\+\s*[A-Za-z_$][\w$]*", arg_expr
     )
@@ -491,12 +757,6 @@ def extract_endpoints_v2(
     if not content:
         return discovered
 
-    # 1. AST-aware fetch-like call extraction. We run the parser on a
-    #    string-stripped copy so balanced paren walking is robust to
-    #    nested comments / regex noise, then we *also* run it on the raw
-    #    content so plain string-literal first arguments (the most
-    #    common case) survive. The dedupe in ``discovered`` is order-
-    #    preserving so callers get deterministic results.
     stripped = _strip_strings_and_comments(content)
     for arg_expr in extract_endpoint_calls(stripped):
         resolved = _resolve_call_endpoint(arg_expr, base_url)
@@ -507,19 +767,25 @@ def extract_endpoints_v2(
         if resolved and _is_in_scope_url(resolved, scope_roots):
             discovered.add(resolved)
 
-    # 2. WebSocket / EventSource / socket.io (uses raw content)
     for url in extract_websocket_endpoints(content):
-        # WebSocket URLs are kept even if they target external hosts —
-        # these are the most interesting "where else does this app
-        # talk to" findings and we always emit them. The caller can
-        # still filter by scope if desired.
         discovered.add(url)
 
-    # 3. HTML attribute endpoints (htmx / Alpine / Turbo)
     for value in extract_html_attribute_endpoints(content):
         resolved = _candidate_to_absolute_url(value, base_url)
         if resolved and _is_in_scope_url(resolved, scope_roots):
             discovered.add(resolved)
+
+    for arg_expr in extract_new_request_urls(content):
+        resolved = _candidate_to_absolute_url(arg_expr, base_url)
+        if resolved and _is_in_scope_url(resolved, scope_roots):
+            discovered.add(resolved)
+
+    for url in extract_axios_interceptors(content):
+        if not url.startswith(("javascript:", "data:")):
+            discovered.add(url)
+
+    for ql in extract_graphql_tagged_literals(content):
+        discovered.add(ql)
 
     return discovered
 
@@ -540,11 +806,21 @@ def is_source_map_body(body: str) -> bool:
 
 __all__ = [
     "_strip_strings_and_comments",
+    "analyze_service_worker",
+    "analyze_wasm_url",
+    "discover_and_analyze_manifest",
+    "extract_api_keys",
+    "extract_axios_interceptors",
     "extract_endpoint_calls",
     "extract_endpoints_v2",
+    "extract_graphql_tagged_literals",
     "extract_html_attribute_endpoints",
+    "extract_jwt_tokens",
+    "extract_new_request_urls",
     "extract_source_map_url",
     "extract_sources_content",
+    "extract_tokens_and_keys",
     "extract_websocket_endpoints",
+    "follow_source_map_chain",
     "is_source_map_body",
 ]

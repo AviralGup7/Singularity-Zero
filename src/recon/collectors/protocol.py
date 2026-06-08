@@ -34,7 +34,6 @@ from typing import Any, Protocol, runtime_checkable
 from src.recon.collectors.types import CollectorMeta
 from src.recon.common import run_async_in_sync_context
 
-
 # A "host list" is any iterable of strings (we normalise inside each
 # provider to be defensive against ``set``/``list``/``tuple``/generator
 # inputs).

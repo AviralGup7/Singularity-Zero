@@ -20,8 +20,8 @@ body {
   font-size: var(--text-body);
   color: var(--text-primary);
   background: 
-    linear-gradient(rgba(255, 255, 255, 0.005) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.005) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.008) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.008) 1px, transparent 1px),
     radial-gradient(circle at 80% 20%, hsla(271, 91%, 65%, 0.12) 0%, transparent 55%),
     radial-gradient(circle at 20% 80%, hsla(187, 92%, 53%, 0.12) 0%, transparent 55%),
     radial-gradient(circle at 50% 50%, hsla(329, 86%, 60%, 0.06) 0%, transparent 60%),
@@ -87,12 +87,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-pill);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.22);
 }
 
 /* ── Typography ─────────────────────────────────────────────── */
@@ -101,7 +101,7 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   font-weight: var(--weight-title);
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
 }
 
@@ -158,7 +158,7 @@ input, select, textarea {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-body);
   color: var(--text-primary);
-  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out);
+  transition: border-color var(--motion-fast) var(--easing-out), box-shadow var(--motion-fast) var(--easing-out), background var(--motion-fast) var(--easing-out);
 }
 
 input::placeholder,
@@ -170,6 +170,7 @@ input:hover,
 select:hover,
 textarea:hover {
   border-color: var(--border-strong);
+  background: var(--surface-hover);
 }
 
 /* ── Focus Rings ────────────────────────────────────────────── */

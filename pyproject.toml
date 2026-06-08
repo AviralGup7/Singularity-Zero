@@ -1,76 +1,57 @@
 [project]
 name = "cyber-security-test-pipeline"
 version = "2.0.0"
-description = "Automated API security testing pipeline with intelligent analysis"
-requires-python = ">=3.14"
+description = "API security scanner with exploit verification and closed-loop remediation — validated findings from recon to report."
+requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
-    # HTTP clients
     "httpx==0.28.0",
     "aiohttp==3.14.0",
     "urllib3==2.7.0",
     "requests==2.33.0",
-    # Data validation & serialization
     "pydantic==2.12.0",
     "pydantic-settings==2.13.0",
     "pyyaml==6.0.3",
-    # Templates & CLI
     "jinja2==3.1.6",
     "click==8.3.0",
     "rich==14.0.0",
-    # Logging
     "loguru==0.7.3",
-    # DNS & crypto
     "dnspython==2.8.0",
     "cryptography==46.0.7",
-    # HTML parsing
     "beautifulsoup4==4.14.0",
-    # --- FastAPI dashboard ---
     "fastapi==0.136.3",
     "starlette==1.0.1",
     "uvicorn[standard]==0.30.0",
     "python-multipart==0.0.27",
     "email-validator==2.0.0",
     "sse-starlette==3.0.0",
-    # --- Redis job queue ---
     "redis[hiredis]==7.0.0",
-    # --- WebSocket support ---
     "websockets==15.0",
     "PyJWT==2.13.0",
-    # --- Observability ---
     "prometheus-client==0.24.0",
     "opentelemetry-api==1.40.0",
     "opentelemetry-sdk==1.40.0",
     "opentelemetry-exporter-otlp-proto-http==1.40.0",
-    # --- System monitoring ---
     "psutil==5.9.1",
-    # --- Database & migrations ---
     "sqlalchemy==2.0.30",
     "alembic==1.14.0",
     "aiosqlite==0.20.0",
-    # --- Security analysis ---
     "numpy==2.0.0",
     "Pillow==11.1.0",
     "networkx==3.0.0",
     "beartype==0.18.5",
     "mmh3==5.1.0",
     "argon2-cffi==23.1.0",
-    # --- Message queue ---
     "msgspec==0.19.0",
     "msgpack==1.0.0",
     "cloudpickle==3.0.0",
     "crcmod==1.7",
-    # --- Actor & Sandbox ---
-    "pykka==4.0.0",
-    "wasmtime==44.0.0",
-    # --- File watching ---
     "watchfiles==1.0.4",
 ]
 
 [project.scripts]
-cyber = "src.cli:main"
+cstp = "src.cli:main"
 cyber-pipeline = "src.pipeline.runtime:main"
-# cyber-dashboard removed; use src.dashboard.fastapi.app:create_app for ASGI launch
 cyber-worker = "src.infrastructure.queue.worker:main"
 
 [project.optional-dependencies]
@@ -87,11 +68,9 @@ dev = [
     "jsonschema>=4.0.0",
     "safety>=3.7.0",
     "vulture>=2.16",
-    # Security scanning
     "bandit>=1.8.0",
     "cyclonedx-bom>=5.0.0",
     "import-linter>=2.0.0",
-    # Benchmarking
     "locust>=2.43.0",
     "pytest-benchmark>=5.0.0",
     "memory-profiler>=0.61.0",
@@ -103,6 +82,10 @@ ml = [
     "xgboost==2.0.0",
     "scikit-learn==1.5.0",
     "zstandard==0.22.0",
+]
+wasm = [
+    "pykka==4.0.0",
+    "wasmtime==44.0.0",
 ]
 
 [tool.pytest.ini_options]
@@ -120,8 +103,7 @@ markers = [
     "regression: marks tests as regression tests",
     "security: marks tests as security tests",
 ]
-filterwarnings = [
-]
+filterwarnings = []
 
 [tool.coverage.run]
 source = ["src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure.queue", "src.infrastructure.execution_engine", "src.infrastructure.cache", "src.infrastructure.observability", "src.infrastructure.security", "src.infrastructure.notifications", "src.dashboard.fastapi", "src.websocket_server", "src.learning", "src.exploitation"]
@@ -130,9 +112,6 @@ omit = [
     "tests/*",
     "*/__pycache__/*",
     "*/.venv/*",
-    "src/analysis/active/*",
-    "src/analysis/passive/*",
-    "src/analysis/checks/*",
     "src/execution/validators/validators/*",
     "src/intelligence/feeds/*",
     "src/infrastructure/notifications/*",
@@ -146,36 +125,13 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 25
+fail_under = 70
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
-
-[tool.coverage.per_module]
-"src.analysis" = 5
-"src.core" = 5
-"src.pipeline" = 5
-"src.dashboard" = 5
-"src.recon" = 5
-"src.execution" = 5
-"src.reporting" = 5
-"src.intelligence" = 5
-"src.detection" = 5
-"src.decision" = 5
-"src.fuzzing" = 5
-"src.infrastructure.queue" = 5
-"src.infrastructure.execution_engine" = 5
-"src.infrastructure.cache" = 5
-"src.dashboard.fastapi" = 5
-"src.websocket_server" = 5
-"src.infrastructure.observability" = 5
-"src.infrastructure.security" = 5
-"src.infrastructure.notifications" = 5
-"src.learning" = 5
-"src.exploitation" = 5
 
 [tool.ruff]
 target-version = "py312"
@@ -198,25 +154,17 @@ extend-exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "S"]
 ignore = [
-    "E501",   # line-length
-    "BLE001", # blind-except
-    "S101",   # assert
-    "E701",   # multiple-statements-on-one-line-colon
-    "S110",   # try-except-pass
-    "S112",   # try-except-continue
-    "E402",   # module-import-not-at-top-of-file
-    "N806",   # non-lowercase-variable-in-function
-    "N803",   # non-lowercase-argument-name
-    "N818",   # exception-name-without-error
+    "E501",
+    "BLE001",
+    "S101",
+    "E701",
+    "S110",
+    "S112",
+    "E402",
+    "N806",
+    "N803",
+    "N818",
 ]
-# SECURITY: the following Bandit rules are intentionally NOT suppressed.
-# They are re-enabled so that CI catches new security regressions:
-#   S104: hardcoded-bind-all-interfaces (0.0.0.0 binding)
-#   S103: bad-file-permissions (world-writable files)
-#   S310: audit-url-open (unverified URL opening)
-#   S311: pseudo-random-generator (for security/crypto)
-# The full Ruff rule reference lists them in [tool.ruff.lint] by default
-# once they are removed from the ignore list above.
 
 [tool.ruff.lint.isort]
 known-first-party = ["src", "src.analysis", "src.core", "src.pipeline", "src.dashboard", "src.recon", "src.execution", "src.reporting", "src.intelligence", "src.detection", "src.decision", "src.fuzzing", "src.infrastructure", "src.infrastructure.queue", "src.infrastructure.cache", "src.infrastructure.execution_engine", "src.infrastructure.observability", "src.infrastructure.security", "src.websocket_server", "src.learning", "src.exploitation"]

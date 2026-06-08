@@ -149,6 +149,45 @@ def evaluate_cache_poison(
         bonuses.append(0.04)
         notes.append("Status code changed between probe and follow-up requests.")
 
+    # --- POET (Parameter-Order-based Exploitation Technique) ---
+    # Test whether query parameter order affects caching. Send a request
+    # with parameters in reversed order and check if the response changes.
+    # This is a passive check - callers should supply reversed_params
+    # probe data via context.
+    reversed_params = probe_response.get("reversed_params_response")
+    if reversed_params:
+        rp_body = str(reversed_params.get("body", "") or "")
+        rp_status = int(reversed_params.get("status_code", 0) or 0)
+        if rp_status != probe_status:
+            signals.append("poet_parameter_order_caching")
+            bonuses.append(0.10)
+            notes.append("Parameter order affects cache key (POET vulnerability)")
+
+    # --- Fat GET smuggling ---
+    # Send a GET request with a body (fat GET). If the server processes
+    # both the body and caches the response, the next GET without a body
+    # may receive the poisoned content.
+    fat_get_response = probe_response.get("fat_get_response")
+    if fat_get_response:
+        fg_body = str(fat_get_response.get("body", "") or "")
+        fg_status = int(fat_get_response.get("status_code", 0) or 0)
+        fg_cache_hit = _is_cache_hit(fat_get_response.get("headers", {}))
+        if fg_status == 200 and fg_cache_hit:
+            signals.append("fat_get_cached")
+            bonuses.append(0.14)
+            notes.append("GET request with body was cached (fat GET smuggling)")
+
+    # --- CRLF header injection into cache key ---
+    # Check if CRLF sequences in header values affect the cache key.
+    crlf_response = probe_response.get("crlf_response")
+    if crlf_response:
+        crlf_body = str(crlf_response.get("body", "") or "")
+        crlf_status = int(crlf_response.get("status_code", 0) or 0)
+        if crlf_status == 200 and token in crlf_body:
+            signals.append("crlf_header_injection_cached")
+            bonuses.append(0.12)
+            notes.append("CRLF injection in header affected cache key")
+
     if signals and in_scope and "cached_unkeyed_input" in signals:
         status = ValidationStatus.CONFIRMED.value
     elif signals and in_scope:

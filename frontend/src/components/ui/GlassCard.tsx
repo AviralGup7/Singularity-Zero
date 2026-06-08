@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 /* ── Variant types ─────────────────────────────────────────────── */
 
-export type GlassCardVariant = 'default' | 'glow' | 'error' | 'success' | 'warning';
+export type GlassCardVariant = 'default' | 'glow' | 'error' | 'success' | 'warning' | 'accent-top';
 
 export interface GlassCardProps {
   /** Visual variant — controls the hover glow color */
@@ -31,6 +31,7 @@ const hoverGlowMap: Record<GlassCardVariant, string> = {
   error:   'hover:shadow-[var(--glow-bad)]',
   success: 'hover:shadow-[var(--glow-ok)]',
   warning: 'hover:shadow-[var(--glow-warn)]',
+  'accent-top': 'hover:shadow-[var(--glow-accent)]',
 };
 
 /* ── Variant-specific hover border tints ───────────────────────── */
@@ -41,6 +42,7 @@ const hoverBorderMap: Record<GlassCardVariant, string> = {
   error:   'hover:border-[var(--bad)]',
   success: 'hover:border-[var(--ok)]',
   warning: 'hover:border-[var(--warn)]',
+  'accent-top': 'hover:border-[var(--accent)]',
 };
 
 /* ── Component ─────────────────────────────────────────────────── */
@@ -66,7 +68,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps & Omit<Compon
       <MotionComponent
         ref={ref}
         /* ── Entrance animation ──────────────────────────────── */
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
           duration: 0.45,
@@ -88,10 +90,13 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps & Omit<Compon
 
           // Hover micro-interactions
           hoverable && [
-            'hover:-translate-y-[3px]',
+            'hover:-translate-y-0.5',
             hoverGlowMap[variant as GlassCardVariant],
             hoverBorderMap[variant as GlassCardVariant],
           ],
+
+          // Accent-top modifier
+          variant === 'accent-top' && 'card--accent-top',
 
           className,
         )}

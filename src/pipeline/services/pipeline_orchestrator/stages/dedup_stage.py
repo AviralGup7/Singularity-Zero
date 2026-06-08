@@ -14,7 +14,7 @@ async def run_dedup_stage(
     *,
     stage_input: Any | None = None,
 ) -> Any:
-    from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
+    from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
     from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 
     started = __import__("time").time()

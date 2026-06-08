@@ -320,9 +320,12 @@ class LearningIntegration:
             return 1.0
 
         # Access ctx result
-        result = ctx.get("result", ctx)
         if hasattr(ctx, "result"):
             result = ctx.result
+        elif isinstance(ctx, dict):
+            result = ctx.get("result", ctx)
+        else:
+            result = ctx
 
         findings = getattr(result, "reportable_findings", []) or []
         findings_count = len(findings)

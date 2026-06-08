@@ -63,7 +63,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <div
                 className="flex items-start gap-4 p-4 rounded-xl border shadow-2xl"
                 style={{
-                  backdropFilter: 'blur(var(--glass-blur))',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
                   background:
                     toast.type === 'success' ? 'color-mix(in srgb, var(--ok) 12%, var(--bg))' :
                     toast.type === 'error' ? 'color-mix(in srgb, var(--bad) 12%, var(--bg))' :

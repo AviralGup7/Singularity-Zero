@@ -1,4 +1,4 @@
-"""Subdomain enumeration using multiple sources (crt.sh, subfinder, assetfinder, amass).
+"""Subdomain enumeration using multiple sources (crt.sh, subfinder, assetfinder, amass, findomain, SubdomainCenter, GitHub, GitLab, BinaryEdge).
 
 Provides functions for discovering subdomains via certificate transparency
 logs and external tools, with retry support and deduplication.
@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
+import time
 from collections.abc import Mapping
 from typing import Any
 
@@ -85,7 +88,240 @@ register_plugin(SUBDOMAIN_ENUMERATOR, "crtsh", contract=SubdomainEnumeratorProto
     fetch_crtsh_subdomains
 )
 
-# Additional passive recon sources
+try:
+    from src.recon.sources.subdomain_center import query_subdomain_center
+
+    register_plugin(SUBDOMAIN_ENUMERATOR, "subdomain_center", contract=SubdomainEnumeratorProtocol)(
+        query_subdomain_center
+    )
+except ImportError:
+    pass
+
+
+def _fetch_findomain_subdomains(
+    domain: str,
+    timeout_seconds: int = 60,
+) -> set[str]:
+    if not tool_available("findomain"):
+        return set()
+    clean = str(domain or "").strip().lower().rstrip(".")
+    if not clean:
+        return set()
+    try:
+        from src.pipeline.tools import try_command
+        output = try_command(
+            ["findomain", "-t", clean, "-q"],
+            timeout=timeout_seconds,
+        )
+        return {line.strip().lower() for line in (output or "").splitlines() if line.strip()}
+    except Exception:
+        return set()
+
+
+async def _fetch_github_code_search(
+    domain: str,
+    timeout_seconds: int = 30,
+) -> set[str]:
+    import os
+
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_API_TOKEN")
+    if not token:
+        return set()
+    clean = str(domain or "").strip().lower().rstrip(".")
+    if not clean:
+        return set()
+    subdomains: set[str] = set()
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(
+            timeout=timeout_seconds,
+            follow_redirects=False,
+            headers={
+                "User-Agent": "cyber-pipeline/1.0",
+                "Accept": "application/vnd.github.v3+json",
+                "Authorization": f"token {token}",
+            },
+        ) as client:
+            query = f"{clean}"
+            resp = await client.get(
+                "https://api.github.com/search/code",
+                params={"q": query, "per_page": 50},
+            )
+            if resp.status_code == 403:
+                return set()
+            if resp.status_code != 200:
+                return set()
+            data = resp.json()
+            for item in (data.get("items") or []):
+                for match in (item.get("text_matches") or []):
+                    frag = match.get("fragment") or ""
+                    for line in frag.splitlines():
+                        for token in line.split():
+                            tok = token.strip().rstrip(".,;\"'`")
+                            if tok.endswith(f".{clean}") and tok != clean:
+                                subdomains.add(tok.lower())
+    except Exception:
+        pass
+    return subdomains
+
+
+async def _fetch_gitlab_search(
+    domain: str,
+    timeout_seconds: int = 30,
+) -> set[str]:
+    token = os.environ.get("GITLAB_TOKEN") or os.environ.get("GITLAB_API_TOKEN")
+    if not token:
+        return set()
+    clean = str(domain or "").strip().lower().rstrip(".")
+    if not clean:
+        return set()
+    subdomains: set[str] = set()
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(
+            timeout=timeout_seconds,
+            follow_redirects=False,
+            headers={
+                "User-Agent": "cyber-pipeline/1.0",
+                "Private-Token": token,
+            },
+        ) as client:
+            resp = await client.get(
+                "https://gitlab.com/api/v4/search",
+                params={"scope": "blobs", "search": clean, "per_page": 25},
+            )
+            if resp.status_code == 403:
+                return set()
+            if resp.status_code != 200:
+                return set()
+            data = resp.json()
+            for item in data or []:
+                snippet = item.get("data") or ""
+                for line in snippet.splitlines():
+                    for token in line.split():
+                        tok = token.strip().rstrip(".,;\"'`")
+                        if tok.endswith(f".{clean}") and tok != clean:
+                            subdomains.add(tok.lower())
+    except Exception:
+        pass
+    return subdomains
+
+
+async def _fetch_binaryedge_passive(
+    domain: str,
+    timeout_seconds: int = 30,
+) -> set[str]:
+    token = os.environ.get("BINARYEDGE_API_KEY") or os.environ.get("BINARYEDGE_TOKEN")
+    if not token:
+        return set()
+    clean = str(domain or "").strip().lower().rstrip(".")
+    if not clean:
+        return set()
+    subdomains: set[str] = set()
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(
+            timeout=timeout_seconds,
+            follow_redirects=False,
+            headers={
+                "User-Agent": "cyber-pipeline/1.0",
+                "X-Key": token,
+            },
+        ) as client:
+            resp = await client.get(
+                "https://api.binaryedge.io/v2/query/domains/subdomain",
+                params={"domain": clean},
+            )
+            if resp.status_code == 403:
+                return set()
+            if resp.status_code != 200:
+                return set()
+            data = resp.json()
+            events = data.get("events") or data.get("result") or []
+            if isinstance(events, list):
+                for entry in events:
+                    if isinstance(entry, str):
+                        cand = entry.strip().lower()
+                    elif isinstance(entry, dict):
+                        cand = (entry.get("domain") or entry.get("host") or "").strip().lower()
+                    else:
+                        continue
+                    if cand and cand.endswith(f".{clean}") and cand != clean:
+                        subdomains.add(cand)
+    except Exception:
+        pass
+    return subdomains
+
+
+class _FindomainBackend:
+    @staticmethod
+    def query(domain: str) -> set[str]:
+        return _fetch_findomain_subdomains(domain)
+
+
+class _SubdomainCenterBackend:
+    @staticmethod
+    def query(domain: str) -> set[str]:
+        from src.recon.sources.subdomain_center import query_subdomain_center as _q
+        return run_async_in_sync_context(_q(domain))
+
+
+class _GitHubSearchBackend:
+    @staticmethod
+    def query(domain: str) -> set[str]:
+        return run_async_in_sync_context(_fetch_github_code_search(domain))
+
+
+class _GitLabSearchBackend:
+    @staticmethod
+    def query(domain: str) -> set[str]:
+        return run_async_in_sync_context(_fetch_gitlab_search(domain))
+
+
+class _BinaryEdgeBackend:
+    @staticmethod
+    def query(domain: str) -> set[str]:
+        return run_async_in_sync_context(_fetch_binaryedge_passive(domain))
+
+
+try:
+    register_plugin(
+        SUBDOMAIN_ENUMERATOR, "findomain", type="command", args=["findomain", "-t", "{root}", "-q"]
+    )(_FindomainBackend.query)
+except Exception:
+    pass
+
+try:
+    register_plugin(
+        SUBDOMAIN_ENUMERATOR, "subdomain_center", contract=SubdomainEnumeratorProtocol
+    )(_SubdomainCenterBackend.query)
+except Exception:
+    pass
+
+try:
+    register_plugin(
+        SUBDOMAIN_ENUMERATOR, "github_search", contract=SubdomainEnumeratorProtocol
+    )(_GitHubSearchBackend.query)
+except Exception:
+    pass
+
+try:
+    register_plugin(
+        SUBDOMAIN_ENUMERATOR, "gitlab_search", contract=SubdomainEnumeratorProtocol
+    )(_GitLabSearchBackend.query)
+except Exception:
+    pass
+
+try:
+    register_plugin(
+        SUBDOMAIN_ENUMERATOR, "binaryedge", contract=SubdomainEnumeratorProtocol
+    )(_BinaryEdgeBackend.query)
+except Exception:
+    pass
+
 try:
     from src.recon.sources.virustotal import query_virustotal_passive
 
@@ -104,13 +340,6 @@ try:
 except ImportError:
     pass
 
-# Dynamic customizable passive subdomain sources registry.
-# The previous implementation used ``importlib.import_module`` with a
-# hard-coded source list and a bare ``except ImportError: pass`` that
-# silently swallowed every failure (including a typo'd provider, a
-# broken submodule import, or a missing dependency). We now do
-# explicit imports per source, log at WARNING on failure, and never
-# silently fall through.
 import importlib
 import logging as _logging
 
@@ -129,24 +358,6 @@ for source in ("dnsdumpster", "bufferover", "certspotter", "spyse", "securitytra
     register_plugin(SUBDOMAIN_ENUMERATOR, source, contract=SubdomainEnumeratorProtocol)(func)
 
 
-# CLI Tools registered as plugins.
-#
-# Improvement (v3): The previous amass registration used
-# ``amass enum -passive -norecursive`` which forced the slowest possible
-# configuration. Amass's passive + no-recursive mode produces strictly less
-# output than subfinder + crt.sh + every other passive source already
-# registered, so it only added execution time. The new registration runs
-# amass in its full enum mode (``active`` is enabled so the recursive
-# brute-force + DNS graph walk run, and ``-passive`` is removed). This is
-# gated by ``tools.amass`` so operators can opt-out per-config.
-#
-# dnsx is registered so post-enumeration we can run wildcard detection /
-# active resolution of the merged subdomain set (see ``dnsx_wildcard.py``).
-# shuffledns is registered as a DNS brute-forcer that supersedes amass's
-# internal brute-force on large wordlists.
-# alterx is registered as a permutation generator that produces a wordlist
-# from observed subdomain patterns (insertions like ``dev-``, ``staging-``
-# etc.) that dnsx / shuffledns can then resolve.
 register_plugin(
     SUBDOMAIN_ENUMERATOR, "subfinder", type="command", args=["subfinder", "-d", "{root}", "-silent"]
 )(None)
@@ -160,7 +371,7 @@ register_plugin(
     SUBDOMAIN_ENUMERATOR,
     "amass",
     type="command",
-    args=["amass", "enum", "-timeout", "10", "-d", "{root}"],
+    args=["amass", "enum", "-passive", "-norecursive", "-timeout", "10", "-d", "{root}"],
 )(None)
 register_plugin(
     SUBDOMAIN_ENUMERATOR,
@@ -171,14 +382,12 @@ register_plugin(
 
 
 def _run_async_provider(provider: Any, root: str) -> Any:
-    """Run an async subdomain provider safely within a synchronous context."""
     return run_async_in_sync_context(provider(root))
 
 
 def enumerate_subdomains(
     scope_entries: list[str], config: Mapping[str, Any], skip_crtsh: bool
 ) -> set[str]:
-    """Enumerate subdomains for a list of scope entries using registered providers."""
     subdomains: set[str] = set()
     command_jobs: list[Any] = []
 
@@ -186,7 +395,6 @@ def enumerate_subdomains(
     tool_timeout = int(tools_config.get("timeout_seconds", 120))
     tool_retry_policy = build_retry_policy(tools_config)
 
-    # Performance #4: Deduplicate overlapping roots to prevent redundant queries
     raw_roots = sorted(
         {normalize_scope_entry(entry).strip().lower() for entry in scope_entries}, key=len
     )
@@ -194,7 +402,6 @@ def enumerate_subdomains(
     for r in raw_roots:
         if not r:
             continue
-        # If this root is a subdomain of an existing shorter root, skip it
         if any(r.endswith(f".{existing}") for existing in roots):
             continue
         roots.append(r)
@@ -204,12 +411,13 @@ def enumerate_subdomains(
 
     stage_meta: dict[str, Any] = config.get("_stage_meta") if isinstance(config, dict) else None
 
-    # Resolve all enumerators from registry
     for reg in list_plugins(SUBDOMAIN_ENUMERATOR):
+        if reg.key in ("assetfinder", "amass") and not tools_config.get(reg.key, False):
+            continue
+
         if reg.key == "crtsh" and skip_crtsh:
             continue
 
-        # Check configuration for provider enablement
         if not tools_config.get(reg.key, True):
             continue
 
@@ -225,11 +433,6 @@ def enumerate_subdomains(
                 )
             continue
 
-        # Function-based enumerators.  When a meta-aware wrapper exists
-        # in :mod:`src.recon.sources._meta_wrappers` we use it so that
-        # per-source ``CollectorMeta`` is captured in ``stage_meta``; we
-        # still fall back to the raw async provider to preserve the
-        # existing ``set[str]`` contract.
         for root in roots:
             try:
                 if asyncio.iscoroutinefunction(reg.provider):
@@ -252,7 +455,6 @@ def enumerate_subdomains(
         for output in run_commands_parallel(command_jobs):
             subdomains.update(parse_plain_lines(output))
 
-    # Always seed root domains from scope entries
     for entry in scope_entries:
         root = normalize_scope_entry(entry).strip().lower()
         if root:

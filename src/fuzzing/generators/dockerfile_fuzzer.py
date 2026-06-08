@@ -30,7 +30,7 @@ def scan_for_secrets(paths: list[str]) -> list[dict]:
         if not os.path.isfile(path):
             continue
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            with open(path, encoding="utf-8", errors="replace") as fh:
                 for lineno, line in enumerate(fh, 1):
                     for pattern, kind in _SECRET_PATTERNS:
                         for m in re.finditer(pattern, line, re.IGNORECASE):

@@ -82,7 +82,7 @@ class GCPAssetInventory(CloudAssetInventory):
         assets: set[str] = set()
         try:
             instances_client = compute_v1.InstancesClient()
-            forwarding_client = compute_v1.ForwardingRulesClient()
+            compute_v1.ForwardingRulesClient()
             for zone in compute_v1.ZonesClient().list(project=compute_v1.ProjectsClient().get("").project):
                 for instance in instances_client.list(zone=zone.name, project=zone.project):
                     for nic in instance.network_interfaces:

@@ -1,5 +1,5 @@
-﻿import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { replayRequest } from '@/api/client';
 import type { ReplayResult } from '@/types/api';
 
@@ -103,9 +103,29 @@ export default function ReplayInterface({ targetName, runName, replayId }: Repla
   };
   // FIX: Removed unused getStatusLabel function
 
+  const findingId = searchParams.get('finding');
+
   return (
     <div className="section">
-      <div className="section-title">🔄 Replay Request</div>
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+        <div className="section-title mb-0">🔄 Replay Request</div>
+        {findingId && (
+          <div className="flex gap-2">
+            <Link
+              to={`/findings?finding=${findingId}`}
+              className="btn btn-secondary btn-sm uppercase tracking-widest text-[10px] font-black"
+            >
+              ← Back to Finding
+            </Link>
+            <Link
+              to={`/reports/builder?finding=${findingId}`}
+              className="btn btn-primary btn-sm uppercase tracking-widest text-[10px] font-black"
+            >
+              📄 Generate Report
+            </Link>
+          </div>
+        )}
+      </div>
 
       <form onSubmit={handleReplay} className="card card-padded">
         {error && <div className="banner error" role="alert">{error}</div>}

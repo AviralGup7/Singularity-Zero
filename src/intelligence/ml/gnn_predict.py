@@ -1,4 +1,7 @@
-"""Graph Neural Network (GNN) and Reinforcement Learning (RL) prediction engine.
+"""
+PROTOTYPE: hidden_dim bumped from 8 to 128 for minimal representational capacity. Still requires Kuzu graph DB integration and real attack-graph training data for production use. See docs/architecture.md Implementation Status table.
+
+Graph Neural Network (GNN) and Reinforcement Learning (RL) prediction engine.
 
 Provides zero-dependency, pure-NumPy Graph Convolutional Network (GCN) layers for link
 prediction, and a Q-learning RL agent for optimal security probe selection.
@@ -17,7 +20,7 @@ logger = logging.getLogger(__name__)
 class GNNPredictor:
     """Pure-NumPy 2-layer Graph Convolutional Network (GCN) for predicting unseen attack paths."""
 
-    def __init__(self, hidden_dim: int = 8, seed: int = 42) -> None:
+    def __init__(self, hidden_dim: int = 128, seed: int = 42) -> None:
         self.hidden_dim = hidden_dim
         # Seed for deterministic and reproducible weight initialization
         rng = np.random.default_rng(seed)

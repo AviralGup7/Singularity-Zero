@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
+
 import pytest
+
 from src.core.checkpoint import CheckpointManager, CheckpointState
 from src.core.middleware import ScopeValidator
 

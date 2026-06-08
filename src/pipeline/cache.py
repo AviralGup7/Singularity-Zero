@@ -14,10 +14,15 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from src.core.logging.trace_logging import get_pipeline_logger
-from src.pipeline.storage import ensure_dir
-
-logger = get_pipeline_logger(__name__)
+from src.pipeline.unified_cache import (
+    CacheKeyNormalizer,
+    cache_enabled,
+    _unified_cache as _unified,
+    load_cached_json,
+    load_cached_set,
+    save_cached_json,
+    save_cached_set,
+)
 
 
 class TTLMode(StrEnum):
@@ -31,119 +36,28 @@ def cache_enabled(settings: dict[str, Any]) -> bool:
     return bool(settings.get("enabled", True))
 
 
+_unified = UnifiedCache()
+
+
 def _read_cached_payload(path: Path) -> Any | None:
-    """Read a cached payload from file, supporting gzip fallback and decoding.
-
-    Args:
-        path: Path to the cached file.
-
-    Returns:
-        Decoded JSON payload, or None if missing or corrupt.
-    """
-    if path.name.endswith(".gz"):
-        gz_path = path
-        normal_path = path.parent / path.name[:-3]
-    else:
-        normal_path = path
-        gz_path = path.parent / (path.name + ".gz")
-
-    resolved_path = None
-    if normal_path.exists():
-        resolved_path = normal_path
-    elif gz_path.exists():
-        resolved_path = gz_path
-    else:
-        return None
-
-    try:
-        if resolved_path.name.endswith(".gz"):
-            data = gzip.decompress(resolved_path.read_bytes())
-            return json.loads(data.decode("utf-8"))
-        else:
-            return json.loads(resolved_path.read_text(encoding="utf-8"))
-    except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to read cache file (%s): %s", exc.__class__.__name__, resolved_path)
-        return None
+    value = load_cached_json(path)
+    return value if value else None
 
 
 def load_cached_set(path: Path) -> set[str]:
-    """Load a cached set from a JSON file.
-
-    Args:
-        path: Path to the cached JSON file.
-
-    Returns:
-        Set of strings, or empty set if file is missing or corrupt.
-    """
-    payload = _read_cached_payload(path)
-    if not isinstance(payload, list):
-        return set()
-    return {str(item).strip() for item in payload if str(item).strip()}
+    return load_cached_set(path)
 
 
 def save_cached_set(path: Path, items: set[str], *, compress: bool = True) -> None:
-    """Save a set to a JSON file with optional gzip compression.
-
-    Args:
-        path: Path to the cached JSON file.
-        items: Set of strings to save.
-        compress: Whether to use gzip compression (default True).
-    """
-    ensure_dir(path.parent)
-    data = json.dumps(sorted(items)).encode("utf-8")
-    if path.name.endswith(".gz"):
-        base_path = path.parent / path.name[:-3]
-        gz_path = path
-    else:
-        base_path = path
-        gz_path = path.parent / (path.name + ".gz")
-
-    if compress:
-        data = gzip.compress(data, compresslevel=6)
-        _atomic_write(gz_path, data)
-        _remove_stale_alternate(base_path)
-    else:
-        _atomic_write(base_path, data)
-        _remove_stale_alternate(gz_path)
+    save_cached_set(path, items)
 
 
 def load_cached_json(path: Path) -> dict[str, Any]:
-    """Load a cached JSON file, returning an empty dict if missing or corrupt.
-
-    Args:
-        path: Path to the cached JSON file.
-
-    Returns:
-        Parsed dict, or empty dict if file is missing, corrupt, or not a dict.
-    """
-    payload = _read_cached_payload(path)
-    return payload if isinstance(payload, dict) else {}
+    return load_cached_json(path)
 
 
 def save_cached_json(path: Path, payload: dict[str, Any], *, compress: bool = True) -> None:
-    """Save a dict to a JSON file with optional gzip compression.
-
-    Args:
-        path: Path to the cached JSON file.
-        payload: Dict to save as JSON.
-        compress: Whether to use gzip compression (default True).
-    """
-    ensure_dir(path.parent)
-    data = json.dumps(payload).encode("utf-8")
-    if path.name.endswith(".gz"):
-        base_path = path.parent / path.name[:-3]
-        gz_path = path
-    else:
-        base_path = path
-        gz_path = path.parent / (path.name + ".gz")
-
-    if compress:
-        data = gzip.compress(data, compresslevel=6)
-        _atomic_write(gz_path, data)
-        _remove_stale_alternate(base_path)
-    else:
-        _atomic_write(base_path, data)
-        _remove_stale_alternate(gz_path)
+    save_cached_json(path, payload)
 
 
 def _atomic_write(path: Path, data: bytes) -> None:

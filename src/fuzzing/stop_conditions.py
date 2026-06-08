@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import re
+from abc import ABC, abstractmethod
 from typing import Any
 
 from src.core.models.entities import SEVERITY_LEVELS
+
 
 class StopCondition(ABC):
     @abstractmethod

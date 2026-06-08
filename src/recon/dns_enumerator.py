@@ -22,9 +22,11 @@ Improvements (v2):
 from __future__ import annotations
 
 import asyncio
+import httpx
+import ipaddress
 import logging
 import socket
-from typing import Any, cast
+from typing import Any, Iterable, cast
 
 try:
     import dns.asyncresolver
@@ -84,7 +86,7 @@ async def enumerate_dns_records(
         return []
 
     if record_types is None:
-        record_types = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA", "SRV"]
+        record_types = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA", "SRV", "CAA", "TLSA", "MTA-STS"]
 
     sem = asyncio.Semaphore(_DNS_CONCURRENCY)
 
@@ -133,6 +135,54 @@ async def enumerate_dns_records(
         HAS_DNSPYTHON,
         _DNS_CONCURRENCY,
     )
+    return results
+
+
+async def ptr_sweep(
+    cidrs: Iterable[str],
+    timeout: float = 3.0,
+) -> list[dict[str, Any]]:
+    sem = asyncio.Semaphore(_DNS_CONCURRENCY)
+
+    async def _bounded_ptr(ip_str: str, arpa_name: str) -> tuple[str, list[str]]:
+        async with sem:
+            values = await _query_dns(arpa_name, "PTR", timeout)
+        return ip_str, values
+
+    tasks: list[Any] = []
+    for cidr in cidrs:
+        try:
+            network = ipaddress.ip_network(cidr, strict=False)
+        except ValueError:
+            continue
+        if network.num_addresses > 65536:
+            continue
+        for ip in network.hosts():
+            ip_str = str(ip)
+            if isinstance(network, ipaddress.IPv6Network):
+                reversed_bytes = socket.inet_pton(socket.AF_INET6, ip_str)
+                arpa_name = ".".join(f"{b:02x}" for b in reversed(reversed_bytes)) + ".ip6.arpa"
+            else:
+                reversed_bytes = socket.inet_aton(ip_str)
+                arpa_name = ".".join(str(b) for b in reversed(reversed_bytes)) + ".in-addr.arpa"
+            tasks.append(_bounded_ptr(ip_str, arpa_name))
+
+    completed = await asyncio.gather(*tasks, return_exceptions=True)
+    results: list[dict[str, Any]] = []
+    for item in completed:
+        if isinstance(item, BaseException):
+            continue
+        ip_str, values = cast(tuple[str, list[str]], item)
+        for value in values:
+            results.append(
+                {
+                    "ip": ip_str,
+                    "record_type": "PTR",
+                    "value": value,
+                    "security_relevant": False,
+                    "details": {"raw": value},
+                }
+            )
     return results
 
 
@@ -282,6 +332,37 @@ def _parse_nslookup_output(output: str, record_type: str) -> list[str]:
     return values
 
 
+async def _query_doh(domain: str, rtype: str) -> list[str]:
+    results: list[str] = []
+
+    async def _fetch(url: str, params: dict[str, str], headers: dict[str, str]) -> list[str]:
+        try:
+            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+                resp = await client.get(url, params=params, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                answers = data.get("Answer", [])
+                return [str(r.get("data", "")).rstrip(".") for r in answers if r.get("data")]
+        except Exception:
+            return []
+
+    google_params = {"name": domain, "type": rtype}
+    cloudflare_params = {"name": domain, "type": rtype}
+    cloudflare_headers = {"Accept": "application/dns-json"}
+
+    google_future = _fetch("https://dns.google/resolve", google_params, {})
+    cloudflare_future = _fetch(
+        "https://cloudflare-dns.com/dns-query",
+        cloudflare_params,
+        cloudflare_headers,
+    )
+
+    g_results, c_results = await asyncio.gather(google_future, cloudflare_future)
+    results.extend(g_results)
+    results.extend(c_results)
+    return list(dict.fromkeys(results))
+
+
 async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]:
     """Query DNS for a single (domain, type) pair.
 
@@ -301,10 +382,16 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
         except Exception:  # noqa: S110
             pass
 
-    if record_type == "A":
+    actual_domain = domain
+    actual_type = record_type
+    if record_type == "MTA-STS":
+        actual_domain = f"_mta-sts.{domain}"
+        actual_type = "TXT"
+
+    if actual_type == "A":
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, _resolve_a, domain)
-    if record_type == "AAAA":
+    if actual_type == "AAAA":
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, _resolve_aaaa, domain)
 
@@ -317,11 +404,17 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
             pass
         return []
 
+    dnssec_types = {"RRSIG", "DNSKEY", "DS", "NSEC", "NSEC3"}
     try:
         resolver = dns.asyncresolver.Resolver()
         resolver.timeout = timeout
         resolver.lifetime = timeout
-        answer = await resolver.resolve(domain, record_type)
+        if actual_type in dnssec_types:
+            try:
+                resolver.use_edns(0, 0, 1232)
+            except Exception as exc:
+                logger.debug("EDNS0 setup failed for %s/%s: %s", actual_type, actual_domain, exc)
+        answer = await resolver.resolve(actual_domain, actual_type)
         return [str(rdata).rstrip(".") for rdata in answer]
     except (
         dns.resolver.NoAnswer,
@@ -329,9 +422,11 @@ async def _query_dns(domain: str, record_type: str, timeout: float) -> list[str]
         dns.exception.Timeout,
         dns.resolver.NoNameservers,
     ):
+        if actual_type in {"CAA", "TLSA", "MTA-STS"} or actual_type in dnssec_types:
+            return await _query_doh(actual_domain, actual_type)
         return []
     except Exception as exc:
-        logger.debug("DNS %s/%s failed: %s", record_type, domain, exc)
+        logger.debug("DNS %s/%s failed: %s", actual_type, actual_domain, exc)
         return []
 
 

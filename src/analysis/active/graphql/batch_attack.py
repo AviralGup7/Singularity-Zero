@@ -29,13 +29,12 @@ pipeline via :class:`GraphQLBatchAttack`.
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 import string
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
-from urllib.parse import urlparse
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

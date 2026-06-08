@@ -286,6 +286,28 @@ class Graph:
         """Return the set of nodes that list ``stage`` in their ``needs``."""
         return tuple(n for n in self.nodes if stage in n.needs)
 
+    def topological_sort(self) -> tuple[str, ...]:
+        """Return node names in topological order using Kahn's algorithm."""
+        name_set = {n.name for n in self.nodes}
+        in_degree: dict[str, int] = {n.name: 0 for n in self.nodes}
+        adjacency: dict[str, list[str]] = {n.name: [] for n in self.nodes}
+        for n in self.nodes:
+            for dep in n.needs:
+                if dep not in name_set or dep == n.name:
+                    continue
+                adjacency[dep].append(n.name)
+                in_degree[n.name] += 1
+        queue: deque[str] = deque(n for n, d in in_degree.items() if d == 0)
+        order: list[str] = []
+        while queue:
+            current = queue.popleft()
+            order.append(current)
+            for child in adjacency.get(current, []):
+                in_degree[child] -= 1
+                if in_degree[child] == 0:
+                    queue.append(child)
+        return tuple(order)
+
 
 def _result_of(ctx: Any) -> Any:
     """Return ``ctx.result`` if present, else ``ctx`` itself.

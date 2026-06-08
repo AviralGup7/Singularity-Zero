@@ -3,8 +3,8 @@
 
 def generate_malformed_jwt() -> list[str]:
     """Return a list of malformed JWT tokens covering common attack vectors."""
-    import json
     import base64
+    import json
 
     def b64url(obj: object) -> str:
         return base64.urlsafe_b64encode(json.dumps(obj).encode()).rstrip(b"=").decode()

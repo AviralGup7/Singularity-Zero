@@ -1,198 +1,17 @@
 {
   "worktrees": {
-    "wt-1780814119325-1": {
-      "branch": "analyze-recon-reconnaissance",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-recon-reconnaissance",
+    "wt-1780899937564-17": {
+      "branch": "pitch-act",
+      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\pitch-act",
       "parentBranch": "main",
-      "createdAt": "2026-06-07T06:35:19.325Z",
-      "remote": "origin",
-      "label": "recon strategy audit"
-    },
-    "wt-1780814130474-2": {
-      "branch": "analyze-exploitation-module",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-exploitation-module",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:35:30.474Z",
-      "remote": "origin",
-      "label": "exploitation module audit"
-    },
-    "wt-1780814141551-3": {
-      "branch": "analyze-intelligence-learning",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-intelligence-learning",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:35:41.551Z",
-      "remote": "origin",
-      "label": "intelligence learning audit"
-    },
-    "wt-1780814154122-4": {
-      "branch": "analyze-frontend-experience",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-frontend-experience",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:35:54.122Z",
-      "remote": "origin",
-      "label": "frontend ux audit"
-    },
-    "wt-1780814168379-5": {
-      "branch": "analyze-recon-discovery-pipeline",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-recon-discovery-pipeline",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:36:08.379Z",
-      "remote": "origin",
-      "label": "discovery pipeline audit"
-    },
-    "wt-1780814189562-6": {
-      "branch": "analyze-reporting-compliance",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-reporting-compliance",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:36:29.562Z",
-      "remote": "origin",
-      "label": "reporting compliance audit"
-    },
-    "wt-1780814205846-7": {
-      "branch": "analyze-api-backend",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-api-backend",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:36:45.846Z",
-      "remote": "origin",
-      "label": "api backend audit"
-    },
-    "wt-1780814220213-8": {
-      "branch": "analyze-infrastructure-deployment",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-infrastructure-deployment",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:37:00.213Z",
-      "remote": "origin",
-      "label": "infrastructure deployment"
-    },
-    "wt-1780814233712-9": {
-      "branch": "analyze-waf-cdn-evasion",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-waf-cdn-evasion",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:37:13.712Z",
-      "remote": "origin",
-      "label": "waf cdn evasion"
-    },
-    "wt-1780814247129-10": {
-      "branch": "analyze-dashboard-architecture",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-dashboard-architecture",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:37:27.129Z",
-      "remote": "origin",
-      "label": "dashboard architecture audit"
-    },
-    "wt-1780814260374-11": {
-      "branch": "analyze-takeover-subdomain",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-takeover-subdomain",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:37:40.374Z",
-      "remote": "origin",
-      "label": "takeover subdomain audit"
-    },
-    "wt-1780814276235-12": {
-      "branch": "analyze-graphql-api-security",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-graphql-api-security",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:37:56.235Z",
-      "remote": "origin",
-      "label": "graphql api security"
-    },
-    "wt-1780814291876-13": {
-      "branch": "analyze-detection-alerts",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-detection-alerts",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:38:11.876Z",
-      "remote": "origin",
-      "label": "detection alerting audit"
-    },
-    "wt-1780814307156-14": {
-      "branch": "analyze-config-orchestration",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-config-orchestration",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:38:27.156Z",
-      "remote": "origin",
-      "label": "config orchestration audit"
-    },
-    "wt-1780814324485-15": {
-      "branch": "analyze-frontend-mobile",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-frontend-mobile",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:38:44.485Z",
-      "remote": "origin",
-      "label": "frontend mobile"
-    },
-    "wt-1780814342891-16": {
-      "branch": "analyze-frontend-monetization",
-      "path": "d:\\cyber security test pipeline - Copy\\.kilo\\worktrees\\analyze-frontend-monetization",
-      "parentBranch": "main",
-      "createdAt": "2026-06-07T06:39:02.891Z",
-      "remote": "origin",
-      "label": "frontend value"
+      "createdAt": "2026-06-08T06:25:37.564Z",
+      "remote": "origin"
     }
   },
   "sessions": {
-    "ses_15f34f1e9ffesA6bnPN5ISckwx": {
-      "worktreeId": "wt-1780814119325-1",
-      "createdAt": "2026-06-07T06:35:22.528Z"
-    },
-    "ses_15f34cb5dffeaDZUkSrk9AOXz8": {
-      "worktreeId": "wt-1780814130474-2",
-      "createdAt": "2026-06-07T06:35:32.399Z"
-    },
-    "ses_15f349cf8ffeQpmIQfDm1ri7pS": {
-      "worktreeId": "wt-1780814141551-3",
-      "createdAt": "2026-06-07T06:35:44.275Z"
-    },
-    "ses_15f34662affeviaOy0Tnt7Egux": {
-      "worktreeId": "wt-1780814154122-4",
-      "createdAt": "2026-06-07T06:35:58.349Z"
-    },
-    "ses_15f342d32ffeRE3qHjNZ0aquhp": {
-      "worktreeId": "wt-1780814168379-5",
-      "createdAt": "2026-06-07T06:36:13.281Z"
-    },
-    "ses_15f33d8b9ffe3FuD99vzjeVWve": {
-      "worktreeId": "wt-1780814189562-6",
-      "createdAt": "2026-06-07T06:36:34.518Z"
-    },
-    "ses_15f339cc7ffeVTuG9ADFA6pFHv": {
-      "worktreeId": "wt-1780814205846-7",
-      "createdAt": "2026-06-07T06:36:49.877Z"
-    },
-    "ses_15f3367e3ffeXnYMS97N8H0mSL": {
-      "worktreeId": "wt-1780814220213-8",
-      "createdAt": "2026-06-07T06:37:03.401Z"
-    },
-    "ses_15f33329ffferUZtCX15iDmo3p": {
-      "worktreeId": "wt-1780814233712-9",
-      "createdAt": "2026-06-07T06:37:17.146Z"
-    },
-    "ses_15f32fd78ffeoUGw1JeaEDFXMp": {
-      "worktreeId": "wt-1780814247129-10",
-      "createdAt": "2026-06-07T06:37:30.644Z"
-    },
-    "ses_15f32c757fferjY0HNeK3EN4aY": {
-      "worktreeId": "wt-1780814260374-11",
-      "createdAt": "2026-06-07T06:37:44.558Z"
-    },
-    "ses_15f3284aeffeKPnm553hSO1x1q": {
-      "worktreeId": "wt-1780814276235-12",
-      "createdAt": "2026-06-07T06:38:01.605Z"
-    },
-    "ses_15f324bd0ffeCmg3V1Jf2Ti5wg": {
-      "worktreeId": "wt-1780814291876-13",
-      "createdAt": "2026-06-07T06:38:16.135Z"
-    },
-    "ses_15f3210d1ffeJ476jNTmamnECd": {
-      "worktreeId": "wt-1780814307156-14",
-      "createdAt": "2026-06-07T06:38:31.255Z"
-    },
-    "ses_15f31cc17ffeMWTE2hgnF8QI7W": {
-      "worktreeId": "wt-1780814324485-15",
-      "createdAt": "2026-06-07T06:38:48.880Z"
-    },
-    "ses_15f318398ffe2xQnmUZticzaqo": {
-      "worktreeId": "wt-1780814342891-16",
-      "createdAt": "2026-06-07T06:39:07.390Z"
+    "ses_15a177aedffe9kdjt2uY8SSszx": {
+      "worktreeId": "wt-1780899937564-17",
+      "createdAt": "2026-06-08T06:25:39.599Z"
     }
   },
   "tabOrder": {
@@ -201,22 +20,7 @@
     ]
   },
   "worktreeOrder": [
-    "wt-1780814119325-1",
-    "wt-1780814130474-2",
-    "wt-1780814141551-3",
-    "wt-1780814154122-4",
-    "wt-1780814168379-5",
-    "wt-1780814189562-6",
-    "wt-1780814205846-7",
-    "wt-1780814220213-8",
-    "wt-1780814233712-9",
-    "wt-1780814247129-10",
-    "wt-1780814260374-11",
-    "wt-1780814276235-12",
-    "wt-1780814291876-13",
-    "wt-1780814307156-14",
-    "wt-1780814324485-15",
-    "wt-1780814342891-16"
+    "wt-1780899937564-17"
   ],
   "sessionsCollapsed": true
 }

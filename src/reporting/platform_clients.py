@@ -12,13 +12,12 @@ All clients are *opt-in* — they make a live network call only when
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping
-from urllib.parse import urljoin
+from typing import Any
 
 import httpx
 
@@ -100,7 +99,7 @@ class _BaseClient:
             await self._client.aclose()
             self._client = None
 
-    async def __aenter__(self) -> "_BaseClient":
+    async def __aenter__(self) -> _BaseClient:
         return self
 
     async def __aexit__(self, *_args: Any) -> None:
@@ -160,7 +159,7 @@ class HackerOneClient(_BaseClient):
                 auth=(self.api_token, ""),
                 headers={"Accept": "application/json"},
             )
-        except (httpx.RequestError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, httpx.RequestError) as exc:
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
@@ -241,7 +240,7 @@ class BugcrowdClient(_BaseClient):
                     "Content-Type": "application/json",
                 },
             )
-        except (httpx.RequestError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, httpx.RequestError) as exc:
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
@@ -320,7 +319,7 @@ class IntigritiClient(_BaseClient):
                     "Content-Type": "application/json",
                 },
             )
-        except (httpx.RequestError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, httpx.RequestError) as exc:
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
@@ -399,7 +398,7 @@ class SynackClient(_BaseClient):
                     "Content-Type": "application/json",
                 },
             )
-        except (httpx.RequestError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, httpx.RequestError) as exc:
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,

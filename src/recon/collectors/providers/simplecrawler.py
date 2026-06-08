@@ -24,7 +24,6 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
-from src.recon.collectors import metrics as collector_metrics
 from src.recon.collectors.observability import emit_collection_progress
 from src.recon.collectors.types import CollectorMeta, CollectorStatus
 from src.recon.common import normalize_url

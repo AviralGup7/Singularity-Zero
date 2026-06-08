@@ -45,7 +45,7 @@
   background-position: 0% 0%;
   border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 4px 14px -4px hsla(217, 91%, 60%, 0.5);
+  box-shadow: 0 3px 12px -3px hsla(217, 91%, 60%, 0.5);
   transition: all var(--motion-fast) var(--easing-out);
 }
 
@@ -53,7 +53,7 @@
   background-position: 100% 0%;
   border-color: transparent;
   box-shadow: 0 6px 24px -2px hsla(271, 91%, 65%, 0.6), var(--glow-accent);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
@@ -100,7 +100,7 @@
 }
 
 .btn-ghost:hover {
-  background: var(--surface-2);
+  background: var(--surface-muted);
   color: var(--text-primary);
 }
 
@@ -123,4 +123,11 @@
 
 @keyframes btn-spin {
   to { transform: rotate(360deg); }
+}
+
+.btn-xs {
+  padding: 4px var(--space-2);
+  font-size: var(--text-micro);
+  border-radius: var(--radius-sm);
+  gap: var(--space-1);
 }

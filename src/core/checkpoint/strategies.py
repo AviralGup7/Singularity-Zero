@@ -68,6 +68,9 @@ class CheckpointManager:
 
         return self._run_dir / f"delta_{_stage_safe_name(stage_name)}_{sequence:06d}.json"
 
+    def _checkpoint_path(self, version: int) -> Path:
+        return self._run_dir / f"checkpoint_v{version}.json"
+
     def _ensure_run_dir(self) -> None:
         """Backwards-compat shim: ensure the run directory exists on disk.
 

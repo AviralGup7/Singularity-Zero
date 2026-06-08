@@ -138,7 +138,7 @@ def _build_fuzz_value(field: Mapping[str, Any]) -> list[Any]:
     count stays bounded for large schemas.
     """
     ftype = (field.get("type") or field.get("kind") or "").lower()
-    name = field.get("name", "field")
+    field.get("name", "field")
     is_repeated = bool(field.get("label") == "repeated" or field.get("repeated"))
     values: list[Any] = []
     if ftype in {"string", "bytes"}:

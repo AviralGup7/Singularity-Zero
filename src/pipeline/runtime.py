@@ -309,7 +309,6 @@ def main(argv: list[str] | None = None) -> int:
             if hasattr(args, "_loaded_config"):
                 args._loaded_config._resume_from = resume_from
             else:
-                import types
 
                 args._resume_from = resume_from
         if getattr(args, "validate_config", False):

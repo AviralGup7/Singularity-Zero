@@ -286,7 +286,7 @@ class EmailNotifier(BaseNotifier):
         if mime_type:
             maintype, subtype = mime_type.split("/", 1)
         else:
-            maintype, subtype = "application", "octet-stream"
+            _maintype, subtype = "application", "octet-stream"
         attachment = MIMEApplication(data, _subtype=subtype)
         attachment.add_header(
             "Content-Disposition",

@@ -6,13 +6,14 @@ files while re-exporting public APIs and the combined router.
 
 from fastapi import APIRouter
 
-from .crud import router as crud_router
-from .crud import list_all_findings
-from .scoring import router as scoring_router
 from src.dashboard.fastapi.schemas import (
     TargetComparisonDetail,
     TargetComparisonResponse,
 )
+
+from .crud import list_all_findings
+from .crud import router as crud_router
+from .scoring import router as scoring_router
 from .validation import (
     TargetFindingsResponse,
     _normalize_finding_payload,

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from src.pipeline.waf_profile import WafProfile, WafTuningProfile
 
 

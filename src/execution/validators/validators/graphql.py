@@ -39,6 +39,69 @@ _DEPTH_PROBE_QUERY = (
 
 BATCH_QUERY = "[{__typename},{__typename},{__typename},{__typename},{__typename}]"
 
+# Authorization bypass queries: tests whether batching or alias tricks
+# bypass per-field authorization.
+AUTH_BYPASS_QUERIES: list[dict[str, str]] = [
+    {
+        "label": "batch_auth_bypass",
+        "query": "[{query Me{me{id,email,role}}},{query Users{users{id,email,role}}}]",
+    },
+    {
+        "label": "alias_field_suggestion",
+        "query": "{a1:__typename a2:__typename a3:__typename a4:__typename a5:__typename}",
+    },
+]
+
+# Fragment DoS: deeply recursive fragment references that can cause infinite loops.
+FRAGMENT_DOS_QUERY = "fragment Frag on __Type { fields { type { ...Frag } } }\n{ ...Frag }"
+
+# Persisted query hijacking: test for common persisted query IDs.
+PERSISTED_QUERY_IDS = [
+    "persisted-query-1",
+    "query-001",
+    "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+]
+
+# Fragment-based DoS probe - circular fragment reference
+FRAGMENT_CIRCULAR_QUERY = (
+    "fragment A on Query { ...B } "
+    "fragment B on Query { ...A } "
+    "{ ...A }"
+)
+
+# Directive abuse probe - @include/@skip with always-true/always-false
+DIRECTIVE_ABUSE_QUERY = (
+    "{__typename @include(if:true) @skip(if:false){__typename}}"
+)
+
+# Auth bypass via batching - queries that may bypass per-field authorization
+AUTH_BYPASS_BATCH_QUERY = (
+    "[{__typename,secretField},{__typename,secretField}]"
+)
+
+# Persisted query hijacking probe - common persisted query IDs
+PERSISTED_QUERY_IDS = [
+    "1",
+    "0",
+    "00000000-0000-4000-8000-000000000000",
+    "ecosse",
+    "persistedQuery",
+    "sha256hash",
+    "1a2b3c4d5e6f",
+]
+
+# Subscription abuse probe - tests if subscriptions can be created
+# without authentication
+SUBSCRIPTION_ABUSE_QUERY = (
+    "subscription { __typename }"
+)
+
+# Field suggestions probe - tests if the server leaks field names
+# in error messages (suggestions leak sensitive schema info)
+FIELD_SUGGESTIONS_QUERY = (
+    "{ __typ }"
+)
+
 _INTROSPECTION_MARKER = "__schema"
 
 
@@ -74,6 +137,57 @@ def _count_nested_braces(query: str) -> int:
     return max_depth
 
 
+def _looks_like_fragment_circular(body: str) -> bool:
+    """Check if body suggests a circular fragment query succeeded."""
+    if not body:
+        return False
+    try:
+        parsed = json.loads(body)
+        data = parsed.get("data", {})
+        return bool(data)
+    except (ValueError, TypeError):
+        return False
+
+
+def _looks_like_directive_abuse(body: str) -> bool:
+    """Check if body suggests a @include/@skip directive abuse succeeded."""
+    if not body:
+        return False
+    return "__typename" in body
+
+
+def _looks_like_persisted_query(body: str) -> bool:
+    """Check if body suggests a persisted query hijacking."""
+    if not body:
+        return False
+    try:
+        parsed = json.loads(body)
+        return bool(parsed.get("data", {}))
+    except (ValueError, TypeError):
+        return False
+
+
+def _looks_like_subscription_response(body: str) -> bool:
+    """Check if body suggests a subscription request was accepted."""
+    if not body:
+        return False
+    try:
+        parsed = json.loads(body)
+        return bool(parsed.get("data", {})) and "__typename" in body
+    except (ValueError, TypeError):
+        return False
+
+
+def _looks_like_field_suggestions(body: str) -> bool:
+    """Check if body suggests field suggestions leak."""
+    if not body:
+        return False
+    lowered = body.lower()
+    return bool(re.search(r'did you mean', lowered, re.IGNORECASE)) or (
+        "cannot query field" in lowered
+    )
+
+
 def evaluate_graphql(
     *,
     endpoint: str,
@@ -82,6 +196,10 @@ def evaluate_graphql(
     introspection_query: str = INTROSPECTION_QUERY,
     depth_query: str = _DEPTH_PROBE_QUERY,
     batch_query: str = BATCH_QUERY,
+    fragment_query: str = FRAGMENT_CIRCULAR_QUERY,
+    directive_query: str = DIRECTIVE_ABUSE_QUERY,
+    auth_bypass_query: str = AUTH_BYPASS_BATCH_QUERY,
+    persisted_query_ids: list[str] | None = None,
     max_acceptable_depth: int = 8,
     in_scope: bool = True,
 ) -> dict[str, Any]:
@@ -95,6 +213,10 @@ def evaluate_graphql(
         introspection_query: Query used to test introspection.
         depth_query: Query used to test query depth limits.
         batch_query: Query used to test batching/aliasing.
+        fragment_query: Query used to test circular fragment DoS.
+        directive_query: Query used to test @include/@skip directive abuse.
+        auth_bypass_query: Query used to test auth bypass via batching.
+        persisted_query_ids: List of persisted query IDs to try.
         max_acceptable_depth: Depth above which the response is considered
             a DoS risk.
         in_scope: Whether the target endpoint is in scope.
@@ -115,6 +237,7 @@ def evaluate_graphql(
     bonuses: list[float] = []
     notes: list[str] = []
     responses: dict[str, Any] = {}
+    persisted_query_ids = persisted_query_ids or PERSISTED_QUERY_IDS
 
     if in_scope:
         intro_response = graphql_request(endpoint, introspection_query)
@@ -150,9 +273,66 @@ def evaluate_graphql(
                 f"GraphQL query depth {depth_value} accepted (limit >{max_acceptable_depth})."
             )
 
+        # Fragment-based DoS (circular fragment)
+        fragment_response = graphql_request(endpoint, fragment_query)
+        responses["fragment_circular"] = fragment_response
+        if _looks_like_fragment_circular(str(fragment_response.get("body", ""))):
+            signals.append("fragment_circular_accepted")
+            bonuses.append(0.15)
+            notes.append("Circular fragment reference query accepted - DoS risk.")
+
+        # Directive abuse (@include/@skip)
+        directive_response = graphql_request(endpoint, directive_query)
+        responses["directive_abuse"] = directive_response
+        if _looks_like_directive_abuse(str(directive_response.get("body", ""))):
+            signals.append("directive_abuse_accepted")
+            bonuses.append(0.12)
+            notes.append("@include/@skip directive abuse without proper validation.")
+
+        # Auth bypass via batching (batched queries accessing potentially
+        # unauthorized fields)
+        auth_bypass_response = graphql_request(endpoint, auth_bypass_query)
+        responses["auth_bypass"] = auth_bypass_response
+        if _looks_like_batch_response(str(auth_bypass_response.get("body", ""))):
+            signals.append("auth_bypass_batch_accepted")
+            bonuses.append(0.18)
+            notes.append("Auth bypass via batched query succeeded - potential privilege escalation.")
+
+        # Persisted query hijacking
+        for pq_id in persisted_query_ids[:3]:
+            persisted_body = json.dumps({
+                "id": pq_id,
+                "variables": "{}",
+            })
+            pq_response = graphql_request(endpoint, persisted_body)
+            responses[f"persisted_query_{pq_id}"] = pq_response
+            if _looks_like_persisted_query(str(pq_response.get("body", ""))):
+                signals.append("persisted_query_hijacking")
+                bonuses.append(0.15)
+                notes.append(f"Persisted query ID '{pq_id}' resolved - potential hijacking.")
+
+        # Subscription abuse - tests if subscriptions can be created
+        # without authentication
+        subscription_response = graphql_request(endpoint, SUBSCRIPTION_ABUSE_QUERY)
+        responses["subscription_abuse"] = subscription_response
+        if _looks_like_subscription_response(str(subscription_response.get("body", ""))):
+            signals.append("subscription_abuse")
+            bonuses.append(0.12)
+            notes.append("Subscription accepted - potential unauthenticated subscription access.")
+
+        # Field suggestions leak - tests if error messages suggest field names
+        suggestion_response = graphql_request(endpoint, FIELD_SUGGESTIONS_QUERY)
+        responses["field_suggestions"] = suggestion_response
+        if _looks_like_field_suggestions(str(suggestion_response.get("body", ""))):
+            signals.append("field_suggestions_leak")
+            bonuses.append(0.10)
+            notes.append("Error messages leak field name suggestions - information disclosure.")
+
     if signals and in_scope:
-        if "introspection_exposed" in signals or "deeply_nested_accepted" in signals:
+        if "introspection_exposed" in signals or "deeply_nested_accepted" in signals or "fragment_circular_accepted" in signals:
             status = ValidationStatus.CONFIRMED.value
+        elif "persisted_query_hijacking" in signals or "directive_abuse_accepted" in signals:
+            status = ValidationStatus.HEURISTIC.value
         else:
             status = ValidationStatus.HEURISTIC.value
     elif signals:
@@ -170,8 +350,10 @@ def evaluate_graphql(
         "introspection_query_depth": _count_nested_braces(introspection_query),
         "batch_query_count": batch_query.count("__typename"),
         "depth_query_depth": _count_nested_braces(depth_query),
+        "fragment_query_depth": _count_nested_braces(fragment_query),
         "signals": signals,
         "notes": notes,
+        "persisted_query_ids_tested": persisted_query_ids[:3],
         "responses": {
             key: {
                 "status_code": value.get("status_code"),

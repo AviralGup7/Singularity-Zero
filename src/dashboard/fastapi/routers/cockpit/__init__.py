@@ -8,12 +8,12 @@ compatibility.
 from fastapi import APIRouter
 
 from .edges import router as edges_router
-from .forensics import router as forensics_router
 from .forensics import get_forensic_exchange
-from .nodes import router as nodes_router
+from .forensics import router as forensics_router
 from .nodes import get_cockpit_graph
-from .notes import router as notes_router
+from .nodes import router as nodes_router
 from .notes import get_cockpit_events
+from .notes import router as notes_router
 
 router = APIRouter()
 
