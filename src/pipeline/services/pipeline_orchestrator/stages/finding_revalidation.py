@@ -29,7 +29,6 @@ defaults to enabled to preserve existing operator expectations.
 from __future__ import annotations
 
 import json
-import logging
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field
@@ -119,8 +118,8 @@ def _http_get(url: str, *, timeout: float = 5.0) -> dict[str, Any] | None:
     import urllib.request
 
     try:
-        req = urllib.request.Request(url, method="GET", headers={"User-Agent": "finding-revalidator/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        req = urllib.request.Request(url, method="GET", headers={"User-Agent": "finding-revalidator/1.0"})  # noqa: S310
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
             return {
                 "status_code": int(getattr(resp, "status", 200) or 200),
                 "body": resp.read(2_000_000).decode("utf-8", errors="replace"),

@@ -103,6 +103,12 @@
   margin-bottom: var(--space-5);
 }
 
+.sidebar-section + .sidebar-section {
+  border-top: 1px solid var(--border-soft);
+  padding-top: var(--space-3);
+  margin-top: var(--space-2);
+}
+
 .sidebar-section-label {
   color: var(--text-tertiary);
   font-size: var(--text-micro);
@@ -118,7 +124,7 @@
   gap: var(--space-3);
   width: 100%;
   min-height: 36px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   margin-bottom: 2px;
   padding: 6px var(--space-3);
   color: var(--text-secondary);
@@ -150,7 +156,7 @@
   width: 3px;
   border-radius: 0 2px 2px 0;
   background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  box-shadow: 0 0 16px var(--accent);
 }
 
 .sidebar-nav-label {

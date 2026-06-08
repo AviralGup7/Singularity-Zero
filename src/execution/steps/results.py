@@ -6,7 +6,6 @@ referenced without importing the full scenario engine module.  The public API
 is unchanged.
 """
 
-from collections.abc import Callable
 from typing import Any
 
 from src.execution.scenario_models import ScenarioStep, ScenarioStepResult

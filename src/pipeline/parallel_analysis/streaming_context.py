@@ -17,21 +17,18 @@ class StreamingAnalysisContext:
             hosts = self._context.live_hosts
         except AttributeError:
             hosts = self._context.result.live_hosts
-        for host in hosts:
-            yield host
+        yield from hosts
 
     def iter_urls(self) -> AsyncIterator[str]:
         try:
             urls = self._context.urls
         except AttributeError:
             urls = self._context.result.urls
-        for url in urls:
-            yield url
+        yield from urls
 
     def iter_subdomains(self) -> AsyncIterator[str]:
         try:
             subs = self._context.subdomains
         except AttributeError:
             subs = self._context.result.subdomains
-        for sub in subs:
-            yield sub
+        yield from subs

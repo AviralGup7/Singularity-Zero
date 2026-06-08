@@ -167,10 +167,10 @@ class CISAKEVClient:
 
     def _refresh(self) -> None:
         try:
-            request = urllib.request.Request(
+            request = urllib.request.Request(  # noqa: S310
                 self.url, headers={"User-Agent": self.user_agent, "Accept": "application/json"}
             )
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
                 payload = json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
             logger.debug("CISAKEVClient: catalogue fetch failed: %s", exc)

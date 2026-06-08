@@ -42,8 +42,7 @@ logger = logging.getLogger(__name__)
 # none of these is a strong "this looks like an unusual origin
 # stack" signal worth investigating.
 KNOWN_ORIGIN_JA3S: dict[str, str] = {
-    # 771,4865-4866-4867-49195-49196-49199-49200-52393-52394-52395-52396-49187-49188-49189-49190,
-    # 0 — nginx default
+    # nginx default (OpenSSL)
     "771,4865-4866-4867-49195-49196-49199-49200-52393-52394-52395-52396-49187-49188-49189-49190,0":
         "nginx-default",
     # Cloudflare worker origin
@@ -52,6 +51,60 @@ KNOWN_ORIGIN_JA3S: dict[str, str] = {
     # AWS ELB
     "771,49195-49196-49199-49200-52393-52394-49187-49188-49189-49190,0":
         "aws-elb",
+    # OpenResty / nginx with BoringSSL / LibreSSL
+    "769,4865-4866-4867-49195-49196-49199-49200-49187-49188-49189-49190,0":
+        "nginx-openresty",
+    # nginx with custom cipher assembly
+    "772,4865-4866-4867-49195-49196-49199-49200-52393-52394-52395-52396-49187-49188-49189-49190,0":
+        "nginx-custom",
+    # Apache httpd 2.4.x (OpenSSL)
+    "771,4865-4866-4867-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "apache-httpd-2.4",
+    # Apache httpd with NSS
+    "771,4865-4867-4866-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "apache-httpd-nss",
+    # Caddy (Go standard crypto)
+    "771,4865-4866-4867-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "caddy",
+    # Traefik (Go / francisca)
+    "771,4865-4866-4867-49195-49196-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "traefik",
+    # Envoy proxy
+    "771,4865-4866-4867-49195-49196-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "envoy",
+    # Envoy with QUIC
+    "771,4865-4866-4867-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "envoy-quic",
+    # Apache Tomcat (JSSE)
+    "771,4865-4866-4867-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "apache-tomcat",
+    # Jetty
+    "771,4865-4866-4867-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "jetty",
+    # Node.js https (OpenSSL bindings)
+    "772,4865-4866-4867-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "nodejs-https",
+    # Microsoft IIS (Schannel SChannel)
+    "771,49200-49201-159-52393-52394-49196-49199-49162-32-255-0,0":
+        "microsoft-iis-schannel",
+    # Azure ARR
+    "771,49200-49199-159-52393-52394-49162-0-255-32,0":
+        "microsoft-azure-arr",
+    # H2O web server (mruby / OpenSSL)
+    "771,4865-4866-4867-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "h2o",
+    # AWS ALB
+    "771,49195-49199-49200-52393-52394-49187-49188-49189-49190-156-157,0":
+        "aws-alb",
+    # AWS NLB (TLS passthrough)
+    "768,49196-49199-49200-159-52393-52394-107-103-57-51-157,0":
+        "aws-nlb",
+    # GFE (Google Front End)
+    "771,4865-4866-4867-49195-49199-49200-52393-52394-49187-49188-49189-49190,0":
+        "gfe-google",
+    # Cloudflare origin (dedicated port)
+    "771,4865-4867-4866-49195-49199-52393-52394-49196-49200-49187-49191-49188-49192-49189-49190,0":
+        "cloudflare-origin-dedicated-port",
 }
 
 # JA3 hashes for "common" client stacks. Used as a sanity check

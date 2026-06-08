@@ -1,6 +1,5 @@
 """Bootstrap: create all frontier submodule files and update proc_pool/wal as re-export shims."""
 
-import io
 import os
 
 FRONTIER = r"D:\cyber security test pipeline - Copy\src\core\frontier"

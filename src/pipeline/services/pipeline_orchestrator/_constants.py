@@ -2,20 +2,17 @@
 
 The Neural-Mesh executable graph lives in ``STAGE_GRAPH`` and is the
 single source of truth for dependencies, conditional gating, and
-priority weights.  The legacy ``STAGE_DEPS`` mapping is now derived
-from the graph for backward compatibility with dashboards and
-plugins; new code should import ``STAGE_GRAPH`` directly.
+priority weights.  ``STAGE_ORDER`` and ``PIPELINE_STAGES`` are derived
+from the graph at import time; ``STAGE_TIMEOUTS``, ``STAGE_DEPS``, and
+``DEFAULT_*`` remain as stable constants used by the timeout resolver,
+dashboards, and plugins.
 """
 from __future__ import annotations
 
-import json
 import logging
-from pathlib import Path
-from typing import Any
 
 from ._graph_dsl import Graph
-from .graph_builder import build_pipeline_graph, _load_capability_profile
-from src.pipeline.stage_registry import _global_stage_registry
+from .graph_builder import _load_capability_profile, build_pipeline_graph
 
 __all__ = [
     "PIPELINE_STAGES",
@@ -31,29 +28,36 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
+def _build_default_graph(profile=None):
+    profile = profile if profile is not None else _load_capability_profile("default")
+    return build_pipeline_graph(profile=profile)
+
+
+STAGE_GRAPH: Graph = _build_default_graph()
+
+STAGE_ORDER = STAGE_GRAPH.topological_sort()
+_graph_names = set(STAGE_GRAPH.names())
+_order_names = set(STAGE_ORDER)
+if _graph_names != _order_names:
+    logger.warning(
+        "STAGE_ORDER derived from graph does not cover all graph nodes: "
+        "graph=%r order=%r diff_in=%r diff_out=%r",
+        sorted(_graph_names),
+        sorted(STAGE_ORDER),
+        sorted(_graph_names - _order_names),
+        sorted(_order_names - _graph_names),
+    )
+try:
+    from src.pipeline.services.stage_registry import PIPELINE_STAGES as _SR_STAGES
+
+    _legacy_labels = {s.key: s.label for s in _SR_STAGES}
+except Exception:
+    _legacy_labels = {}
 PIPELINE_STAGES = {
-    "subdomains": "Subdomain enumeration",
-    "subdomain_takeover": "Subdomain Takeover check",
-    "live_hosts": "Live host probing",
-    "waf": "WAF/CDN detection",
-    "urls": "URL collection",
-    "parameters": "Parameter extraction",
-    "ranking": "Priority ranking",
-    "passive_scan": "Passive analysis",
-    "active_scan": "Active probing",
-    "semgrep": "Static analysis (Semgrep)",
-    "validation": "Validation runtime",
-    "intelligence": "Intelligence merge",
-    "threat_modeling": "Threat modeling enrichment",
-    "access_control": "Authorization bypass detection",
-    "git_diff_crawl": "Incremental git-diff URL filter",
-    "sarif_export": "SARIF 2.1 export for CI consumers",
-    "reporting": "Report generation",
+    node.name: _legacy_labels.get(node.name, node.name.replace("_", " ").title())
+    for node in STAGE_GRAPH.nodes
 }
 
-
-# Per-stage timeouts in seconds.  Used by ``orchestrator._resolve_stage_timeout``
-# unless a ``StageNode.timeout`` override is supplied (currently none are).
 STAGE_TIMEOUTS = {
     "subdomains": 600,
     "live_hosts": 900,
@@ -73,76 +77,9 @@ STAGE_TIMEOUTS = {
     "sarif_export": 30,
 }
 
-# Stage timeout reasoning:
-# subdomains (600s): DNS enumeration with retries for large scopes
-# live_hosts (900s): HTTP probing with batch concurrency for 1000s of hosts
-# waf (120s): WAF/CDN active fingerprinting probes
-# urls (900s): URL collection from multiple sources with rate limiting
-# parameters (120s): Fast parameter extraction from collected URLs
-# ranking (60s): Lightweight scoring and prioritization
-# passive_scan (300s): Passive analysis with external API lookups
-# active_scan (900s): Active probing with multiple tool categories
-# semgrep (600s): Static analysis with multiple rule sets
-# validation (300s): Runtime validation of findings
-# intelligence (180s): Threat intel feed aggregation and correlation
-# access_control (600s): Authorization bypass detection across auth flows
-# reporting (300s): Report generation and export
-# nuclei (600s): Nuclei vulnerability scanning with custom templates
-
-# Declared execution order.  Used by tests, dashboards, and the
-# ``stage_index`` field of progress events.  The scheduler itself is
-# not constrained by this order — the graph topology governs.
-STAGE_ORDER = (
-    "subdomains",
-    "subdomain_takeover",
-    "live_hosts",
-    "waf",
-    "urls",
-    "git_diff_crawl",
-    "parameters",
-    "ranking",
-    "passive_scan",
-    "active_scan",
-    "semgrep",
-    "nuclei",
-    "access_control",
-    "validation",
-    "intelligence",
-    "threat_modeling",
-    "reporting",
-    "sarif_export",
-)
-
+STAGE_DEPS: dict[str, frozenset[str]] = {
+    node.name: frozenset(node.needs) for node in STAGE_GRAPH.nodes
+}
 
 DEFAULT_ITERATION_LIMIT = 3
 DEFAULT_TIMEOUT_SECONDS = 3600
-
-
-def _build_default_graph() -> Graph:
-    """Construct the canonical pipeline graph.
-
-    The graph is built by merging built-in nodes with any stages
-    registered in the global StageRegistry. Registered nodes take
-    precedence over built-in nodes with the same name.
-
-    Optionally reads ``.ai/capability_manifest.json``
-    ``pipeline_profiles.default`` section to gate stages.
-    """
-    profile = _load_capability_profile("default")
-    return build_pipeline_graph(profile=profile)
-
-
-STAGE_GRAPH: Graph = _build_default_graph()
-
-
-def _derive_stage_deps(graph: Graph) -> dict[str, frozenset[str]]:
-    """Project the graph down to the legacy ``{stage: deps}`` mapping.
-
-    The projection is computed at import time and frozen.  Dashboards
-    and plugins that still read ``STAGE_DEPS`` get a stable snapshot;
-    the ``ActorScheduler`` does not consult this mapping at all.
-    """
-    return {node.name: frozenset(node.needs) for node in graph.nodes}
-
-
-STAGE_DEPS: dict[str, frozenset[str]] = _derive_stage_deps(STAGE_GRAPH)

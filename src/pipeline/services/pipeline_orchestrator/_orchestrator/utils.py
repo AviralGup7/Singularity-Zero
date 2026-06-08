@@ -565,16 +565,22 @@ def merge_stage_output(
     else:
         ctx.result.stage_status[stage_name] = StageStatus.COMPLETED.value
 
+    existing_metrics = ctx.result.module_metrics.get(stage_name) or {}
     stage_metrics = _to_mutable(dict(stage_output.metrics))
-    stage_metrics.setdefault("status", stage_output.outcome.value)
-    stage_metrics.setdefault("duration_seconds", round(stage_output.duration_seconds, 2))
+    merged_metrics = {}
+    if isinstance(existing_metrics, dict):
+        merged_metrics.update(_to_mutable(existing_metrics))
+    merged_metrics.update(stage_metrics)
+
+    merged_metrics.setdefault("status", stage_output.outcome.value)
+    merged_metrics.setdefault("duration_seconds", round(stage_output.duration_seconds, 2))
     if stage_output.reason:
-        stage_metrics.setdefault("reason", stage_output.reason)
+        merged_metrics.setdefault("reason", stage_output.reason)
     if stage_output.error:
-        stage_metrics.setdefault("error", stage_output.error)
+        merged_metrics.setdefault("error", stage_output.error)
     if hasattr(ctx.result.module_metrics, "copy"):
         ctx.result.module_metrics = dict(ctx.result.module_metrics)
-    ctx.result.module_metrics[stage_name] = stage_metrics
+    ctx.result.module_metrics[stage_name] = merged_metrics
 
     if stage_name == "parameters":
         ctx.output_store.write_parameters(ctx.result.parameters)

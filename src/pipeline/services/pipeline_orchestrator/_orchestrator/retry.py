@@ -15,6 +15,7 @@ from src.core.frontier.tracing_manager import get_tracing_manager
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import PipelineContext, StageStatus
 from src.infrastructure.observability.trace_store import (
+    StageTrace,
     _truncate,
     build_tool_invocation,
     compute_stage_input_hash,
@@ -133,6 +134,7 @@ async def run_stage_with_retry(
     progress_emitter: Any,
     previous_deltas: list[dict[str, Any]] | None = None,
     circuit_breaker: ToolCircuitBreaker | None = None,
+    critical: bool = False,
 ) -> StageOutput | None:
     """Run a single stage with timeout and StageRetryPolicy-managed backoff."""
     if getattr(ctx.result, "cancel_requested", False):
@@ -297,9 +299,6 @@ async def run_stage_with_retry(
             and key not in {"output_store", "module_metrics", "stage_status", "_neural_state"}
             and not key.startswith("_")
         }
-
-        if "_neural_state" in post_snapshot:
-            state_delta["_neural_state"] = post_snapshot["_neural_state"]
 
         if isinstance(result, StageOutput):
             import dataclasses
@@ -466,7 +465,7 @@ async def run_stage_with_retry(
                 "failure_reason": stage_error,
                 "retries_exhausted": attempt,
                 "retry_count": max(0, attempt - 1),
-                "fatal": False,
+                "fatal": critical,
             }
             _retry_emitter.emit(
                 RetryEventType.RETRY_EXHAUSTED,
@@ -497,7 +496,7 @@ async def run_stage_with_retry(
                     "timeout_seconds": timeout if is_timeout else None,
                 },
                 event_trigger="stage_failed",
-                fatal=False,
+                fatal=critical,
             )
             orchestrator._emit_event(
                 EventType.STAGE_FAILED,
@@ -544,7 +543,7 @@ async def run_stage_with_retry(
                 "status": "failed",
                 "error": err,
                 "retry_count": max(0, attempt - 1),
-                "fatal": False,
+                "fatal": critical,
                 "retry_metrics": {
                     "attempts": metrics.total_attempts,
                     "transient_errors": metrics.transient_errors,
@@ -569,7 +568,7 @@ async def run_stage_with_retry(
                     "budget_remaining_seconds": policy.budget_remaining(),
                 },
                 event_trigger="stage_failed",
-                fatal=False,
+                fatal=critical,
             )
             orchestrator._emit_event(
                 EventType.STAGE_FAILED,
@@ -676,7 +675,7 @@ async def run_stage_with_retry(
         "status": "failed",
         "error": "max retries exhausted",
         "retry_count": max(0, policy.max_attempts - 1),
-        "fatal": False,
+        "fatal": critical,
         "retry_metrics": {
             "attempts": metrics.total_attempts,
             "transient_errors": metrics.transient_errors,
@@ -700,7 +699,7 @@ async def run_stage_with_retry(
             "backoff_seconds": round(metrics.total_backoff_seconds, 2),
         },
         event_trigger="stage_failed",
-        fatal=False,
+        fatal=critical,
     )
     orchestrator._emit_event(
         EventType.STAGE_FAILED,

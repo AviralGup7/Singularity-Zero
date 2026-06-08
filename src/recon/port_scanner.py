@@ -14,6 +14,12 @@ integration or for direct service-fingerprinting.
 
 Both modes are best-effort and never raise. A failed probe contributes
 an empty result for that host; the rest of the scan continues.
+
+When ``naabu`` is available, the CLI invocation probes both TCP (``-top-ports``)
+and a small UDP set (``-u top-udp-ports:50``) unless the caller opts out via
+``top_ports=0`` or supplies their own ``-u`` override in ``extra_args``. Service
+version detection (``-sV``) is enabled by default unless overridden in
+``extra_args``.
 """
 
 from __future__ import annotations
@@ -36,7 +42,7 @@ logger = logging.getLogger(__name__)
 # Naabu's built-in ``-top-ports 100`` covers the most common 100 TCP
 # services — the same set we use as the fallback. For deeper scans
 # operators can raise this to 1000 or 65535 in their config.
-DEFAULT_TOP_PORTS = 100
+DEFAULT_TOP_PORTS = 1000
 
 # Concurrency for the socket fallback path.
 _SOCKET_CONCURRENCY = 200
@@ -120,6 +126,10 @@ def run_naabu_cli(
         args.extend(["-top-ports", str(int(top_ports))])
     else:
         args.extend(["-p", "-"])
+    if top_ports and top_ports > 0 and not any(str(a).startswith("-u") for a in (extra_args or [])):
+        args.extend(["-u", "top-udp-ports:50"])
+    if not any(str(a).startswith("-sV") for a in (extra_args or [])):
+        args.extend(["-sV"])
     if extra_args:
         args.extend(extra_args)
 
@@ -280,6 +290,18 @@ def run_port_scan(
             9200,
             15672,
             27017,
+            5699,
+            54321,
+            55555,
+            5985,
+            5986,
+            11211,
+            2049,
+            2375,
+            2376,
+            3389,
+            5900,
+            5901,
         )
     return socket_port_scan(hosts, fallback_ports)
 

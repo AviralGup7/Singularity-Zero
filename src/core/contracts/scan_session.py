@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-import abc
 import json
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet
 
 from src.infrastructure.security.encryption import decrypt_string, encrypt_string
+
 
 @dataclass(frozen=True, slots=True)
 class SessionCredential:

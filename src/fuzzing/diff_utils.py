@@ -1,7 +1,6 @@
-import re
 import difflib
+import re
 from typing import Any
-
 
 _DYNAMIC_VALUE_PATTERNS = [
     r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?',

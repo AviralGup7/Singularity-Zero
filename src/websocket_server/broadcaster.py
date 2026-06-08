@@ -25,7 +25,6 @@ from src.infrastructure.queue.redis_config import (
 )
 from src.websocket_server.manager import ConnectionManager
 from src.websocket_server.metrics import (
-    WS_AUTHZ_REJECTIONS,
     WS_BACKPRESSURE_EVENTS,
     WS_DROPPED_MESSAGES,
     WS_LATENCY,

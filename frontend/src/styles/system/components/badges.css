@@ -19,8 +19,8 @@
 .status-badge::before, .status-pill::before, .job-status::before, .stage-status-badge::before, .sev-badge::before {
   content: '';
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: currentColor;
 }
@@ -53,6 +53,68 @@
   color: var(--text-secondary);
   border-color: var(--border);
   background: var(--surface-2);
+}
+
+/* Severity-specific badge colors */
+.status-critical, .status-badge.status-critical {
+  color: var(--severity-critical);
+  border-color: color-mix(in srgb, var(--severity-critical) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-critical) 10%, transparent);
+}
+
+.status-high, .status-badge.status-high {
+  color: var(--severity-high);
+  border-color: color-mix(in srgb, var(--severity-high) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-high) 10%, transparent);
+}
+
+.status-medium, .status-badge.status-medium {
+  color: var(--severity-medium);
+  border-color: color-mix(in srgb, var(--severity-medium) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-medium) 10%, transparent);
+}
+
+.status-low, .status-badge.status-low {
+  color: var(--severity-low);
+  border-color: color-mix(in srgb, var(--severity-low) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-low) 10%, transparent);
+}
+
+.status-info, .status-badge.status-info {
+  color: var(--severity-info);
+  border-color: color-mix(in srgb, var(--severity-info) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-info) 10%, transparent);
+}
+
+/* Severity-specific badge colors */
+.status-critical, .status-badge.status-critical {
+  color: var(--severity-critical);
+  border-color: color-mix(in srgb, var(--severity-critical) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-critical) 10%, transparent);
+}
+
+.status-high, .status-badge.status-high {
+  color: var(--severity-high);
+  border-color: color-mix(in srgb, var(--severity-high) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-high) 10%, transparent);
+}
+
+.status-medium, .status-badge.status-medium {
+  color: var(--severity-medium);
+  border-color: color-mix(in srgb, var(--severity-medium) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-medium) 10%, transparent);
+}
+
+.status-low, .status-badge.status-low {
+  color: var(--severity-low);
+  border-color: color-mix(in srgb, var(--severity-low) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-low) 10%, transparent);
+}
+
+.status-info, .status-badge.status-info {
+  color: var(--severity-info);
+  border-color: color-mix(in srgb, var(--severity-info) 30%, transparent);
+  background: color-mix(in srgb, var(--severity-info) 10%, transparent);
 }
 
 /* Pulsing dot for running states */

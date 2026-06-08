@@ -1,7 +1,6 @@
 """Unit tests for the 'cyber launch' CLI command and argument parsing."""
 
 import argparse
-import pathlib
 import unittest
 from unittest.mock import MagicMock, patch
 

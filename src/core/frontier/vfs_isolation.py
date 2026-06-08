@@ -8,7 +8,6 @@ import os
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.security.encryption import secure_wipe
 
 logger = get_pipeline_logger(__name__)
 

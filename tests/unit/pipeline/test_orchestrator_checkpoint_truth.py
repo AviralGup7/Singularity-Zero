@@ -189,21 +189,7 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
 ) -> None:
     emitted_progress: list[dict[str, object]] = []
     _patch_runtime_environment(monkeypatch, tmp_path, emitted_progress)
-    monkeypatch.setattr(orch_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
-    # ``security.py`` imports STAGE_ORDER directly from ``_constants`` and
-    # also runs the recovery / skip-completed-stages logic, so the patch
-    # on ``orch_mod.STAGE_ORDER`` alone is not enough. Patch the
-    # constants module (the source of truth) and the security module's
-    # own binding as well, so the recovery filter sees the reduced
-    # three-stage list rather than the full fourteen-stage production
-    # pipeline.
-    from src.pipeline.services.pipeline_orchestrator import _constants as const_mod
-    from src.pipeline.services.pipeline_orchestrator._orchestrator import security as sec_mod
-
-    monkeypatch.setattr(const_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
-    monkeypatch.setattr(sec_mod, "STAGE_ORDER", ["subdomains", "live_hosts", "urls"])
-
-    recovered_context: dict[str, object] = {
+    _recovered_context = {
         "scope_entries": ["example.com"],
         "subdomains": ["a.example.com"],
         "live_hosts": ["https://a.example.com"],
@@ -215,27 +201,36 @@ async def test_orchestrator_recovery_uses_context_snapshot_and_skips_completed_s
             "subdomains": {"status": "ok"},
             "live_hosts": {"status": "ok"},
         },
-        # Include the target name and the current checkpoint schema
-        # version so the orchestrator's recovery validator (which
-        # rejects payloads that do not match the target and the minimum
-        # supported checkpoint version) accepts the snapshot.
         "target_name": "example.com",
         "checkpoint_version": 2,
     }
 
-    managers: dict[str, _RecoveryCheckpointManager] = {}
+    reduced_stages = ["subdomains", "live_hosts", "urls"]
+    monkeypatch.setattr(orch_mod, "STAGE_ORDER", reduced_stages)
+
+    from src.pipeline.services.pipeline_orchestrator import _constants as const_mod
+
+    monkeypatch.setattr(const_mod, "STAGE_ORDER", reduced_stages)
+
+    import src.pipeline.services.pipeline_orchestrator._orchestrator.security as security_mod
+
+    monkeypatch.setattr(security_mod, "STAGE_ORDER", reduced_stages)
 
     def _create_checkpoint_manager(
         _output: Path, _target: str, run_id: str | None = None, **kwargs: object
     ):
         key = str(run_id or "run-test")
-        if key not in managers:
-            managers[key] = _RecoveryCheckpointManager(
-                tmp_path,
+        if key == "run-old":
+            return _RecoveryCheckpointManager(
+                _output.parent / "run-old",
                 key,
-                recovered_context if key == "run-old" else None,
+                _recovered_context,
             )
-        return managers[key]
+        return _RecoveryCheckpointManager(
+            _output.parent / (key or "run-test"),
+            key,
+            None,
+        )
 
     monkeypatch.setattr(orch_mod, "create_checkpoint_manager", _create_checkpoint_manager)
     monkeypatch.setattr(

@@ -17,14 +17,26 @@ class FeedbackRepo(BaseRepo):
 
     def insert_feedback_event(self, row: dict[str, Any]) -> None:
         """Insert a feedback event."""
-        if "tech_stack" in row and isinstance(row["tech_stack"], (list, set)):
-            row = dict(row)
-            row["tech_stack"] = ",".join(list(row["tech_stack"]))
+        expected_fields = [
+            "event_id", "run_id", "timestamp", "target_host", "target_endpoint",
+            "finding_category", "finding_severity", "finding_confidence",
+            "finding_decision", "plugin_name", "parameter_name", "parameter_type",
+            "was_validated", "was_false_positive", "validation_method",
+            "response_delta_score", "endpoint_type", "tech_stack", "scan_mode",
+            "feedback_weight", "override_source", "reviewer_id", "override_reason", "asset_type"
+        ]
+        params = {k: row.get(k) for k in expected_fields}
+        
+        # Default override_source to 'automated' if not provided
+        if not params["override_source"]:
+            params["override_source"] = "automated"
+
+        if isinstance(params["tech_stack"], (list, set)):
+            params["tech_stack"] = ",".join(list(params["tech_stack"]))
 
         for key in ("was_validated", "was_false_positive"):
-            if key in row and isinstance(row[key], bool):
-                row = dict(row)
-                row[key] = self._bool_to_int(row[key])
+            if isinstance(params[key], bool):
+                params[key] = self._bool_to_int(params[key])
 
         with self._cursor() as cur:
             cur.execute(
@@ -34,15 +46,17 @@ class FeedbackRepo(BaseRepo):
                     finding_decision, plugin_name, parameter_name, parameter_type,
                     was_validated, was_false_positive, validation_method,
                     response_delta_score, endpoint_type, tech_stack, scan_mode,
-                    feedback_weight)
+                    feedback_weight, override_source, reviewer_id, override_reason,
+                    asset_type)
                    VALUES (:event_id, :run_id, :timestamp, :target_host,
                            :target_endpoint, :finding_category, :finding_severity,
                            :finding_confidence, :finding_decision, :plugin_name,
                            :parameter_name, :parameter_type, :was_validated,
                            :was_false_positive, :validation_method,
                            :response_delta_score, :endpoint_type, :tech_stack,
-                           :scan_mode, :feedback_weight)""",
-                row,
+                           :scan_mode, :feedback_weight, :override_source,
+                           :reviewer_id, :override_reason, :asset_type)""",
+                params,
             )
 
     def get_feedback_events_for_run(self, run_id: str) -> list[dict]:

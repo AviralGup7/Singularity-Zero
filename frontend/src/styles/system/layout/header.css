@@ -10,8 +10,8 @@
   padding: 0 var(--space-6);
   border-bottom: 1px solid var(--border);
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
 }
 
 .header-left {
@@ -30,7 +30,10 @@
 }
 
 .header-subtitle {
-  display: none;
+  display: block;
+  font-size: var(--text-micro);
+  color: var(--text-tertiary);
+  margin-top: 1px;
 }
 
 .header-command-row {
@@ -54,7 +57,7 @@
 
 /* ── Command Search ─────────────────────────────────────────── */
 .command-search {
-  width: 240px;
+  width: 280px;
   height: 32px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

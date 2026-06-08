@@ -1,4 +1,6 @@
 """
+RESEARCH PROTOTYPE — not wired into the active scan pipeline. See docs/architecture.md Implementation Status table for current state.
+
 P2P Gossip Protocol with BFT and Noise Encryption Simulation.
 
 Byzantine-fault-tolerant message validation uses Ed25519 signatures, not

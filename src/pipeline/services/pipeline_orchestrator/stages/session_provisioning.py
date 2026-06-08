@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput

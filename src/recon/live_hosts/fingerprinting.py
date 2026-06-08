@@ -11,8 +11,6 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
-from src.core.models import Config, DEFAULT_USER_AGENT
-from src.core.utils.url_validation import is_safe_url
 from src.recon.common import normalize_url
 
 logger = logging.getLogger(__name__)

@@ -6,12 +6,15 @@ import asyncio
 import hashlib
 import inspect
 import json
-import logging
 import re
-from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from src.core.logging.trace_logging import get_pipeline_logger
+
+logger = get_pipeline_logger(__name__)
 
 _SECRET_PATTERN = re.compile(
     r"(?i)(api[_-]?key|token|password|secret|auth|authorization|bearer)\s*[:=]\s*\S+",
@@ -88,7 +91,7 @@ class TraceStore:
             return []
         traces: list[StageTrace] = []
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if not line:

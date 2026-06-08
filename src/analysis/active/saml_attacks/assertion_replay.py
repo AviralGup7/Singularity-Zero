@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 from typing import Any
 from urllib.parse import urlparse
 
+from src.analysis._core.http_request import _safe_request
 from src.analysis.active.auth.credential_vault import CredentialVault
 from src.analysis.passive.runtime import ResponseCache
-from src.analysis._core.http_request import _safe_request
 
 logger = logging.getLogger(__name__)
 

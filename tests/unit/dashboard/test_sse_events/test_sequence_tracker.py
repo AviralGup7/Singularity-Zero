@@ -1,13 +1,6 @@
-import json
-import re
-from collections.abc import Generator
-import pytest
 from src.dashboard.fastapi.routers.sse_events import (
-    SSEEventEmitter,
-    _global_tracker,
     _SequenceTracker,
 )
-
 
 
 class TestSequenceTracker:

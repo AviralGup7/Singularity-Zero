@@ -135,7 +135,7 @@ class FastPathDispatcher:
         # Per-request scope enforcement. ``None`` means the dispatcher
         # is in legacy mode and trusts the caller — the orchestrator
         # wires a real enforcer at startup when scope is configured.
-        self._scope_enforcer: "ScopeEnforcer | None" = None
+        self._scope_enforcer: ScopeEnforcer | None = None
         # Tracks how many requests have been blocked for being out of
         # scope. Useful for the self-healing controller to detect
         # misconfigured targets without spamming logs.
@@ -172,7 +172,7 @@ class FastPathDispatcher:
     async def __aexit__(self, *_args: Any) -> None:
         await self.close()
 
-    def set_scope_enforcer(self, enforcer: "ScopeEnforcer | None") -> None:
+    def set_scope_enforcer(self, enforcer: ScopeEnforcer | None) -> None:
         """Attach a :class:`ScopeEnforcer` for per-request scope checks.
 
         Passing ``None`` detaches the enforcer and reverts to the

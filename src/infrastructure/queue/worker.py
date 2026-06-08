@@ -4,8 +4,8 @@ All public classes and functions are re-exported from their new locations.
 This file will be removed once all downstream imports are migrated.
 """
 
-from src.infrastructure.queue.lifecycle import WorkerLifecycleMixin
 from src.infrastructure.queue.execution_loop import WorkerExecutionLoopMixin
+from src.infrastructure.queue.lifecycle import WorkerLifecycleMixin
 from src.infrastructure.queue.task_handlers import WorkerTaskHandlersMixin
 
 

@@ -5,6 +5,7 @@ server accepts a discount beyond the spec-defined redemption limit.
 """
 
 from __future__ import annotations
+
 import logging
 from typing import Any
 

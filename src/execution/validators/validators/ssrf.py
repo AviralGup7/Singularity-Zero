@@ -279,6 +279,26 @@ def validate_ssrf_candidates(
             bonuses.append(0.06)
             notes.append("Contains data/blob URI scheme — potential client-side SSRF vector.")
 
+        # Active OOB validation: if callback is ready and the parameter
+        # is a strong sink, we can validate by injecting a unique
+        # callback URL and checking for an incoming request.
+        if callback_ready and any(r["risk_level"] == "strong_sink" for r in risk_assessments):
+            oob_token = (callback_context or {}).get("oob_token", "")
+            if oob_token:
+                # Check if any parameter value contains a URL we can
+                # instrument for OOB validation
+                for param in parameters:
+                    param_value = str(param_values.get(param, "")).strip()
+                    parsed = urlparse(param_value)
+                    if parsed.scheme in ("http", "https") and parsed.netloc:
+                        validation_state = "oob_validation_ready"
+                        bonuses.append(0.18)
+                        notes.append(
+                            f"OOB validation ready: inject {oob_token} into {param} "
+                            f"to confirm SSRF via callback."
+                        )
+                        break
+
         # Edge case: Check for public/external URL patterns (lower risk)
         has_external_only = all(
             not signal.startswith(

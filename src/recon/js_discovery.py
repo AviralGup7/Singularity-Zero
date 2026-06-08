@@ -14,8 +14,7 @@ import re
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Any
-
-logger = logging.getLogger(__name__)
+from urllib.parse import urljoin
 
 from src.core.models import Config
 from src.recon.collectors.observability import emit_collection_progress
@@ -26,9 +25,14 @@ from src.recon.js_parsers import (
     _normalized_scope_roots,
 )
 from src.recon.js_parsers_v2 import (
+    analyze_service_worker,
+    analyze_wasm_url,
+    discover_and_analyze_manifest,
     extract_endpoints_v2,
     extract_source_map_url,
     extract_sources_content,
+    extract_tokens_and_keys,
+    follow_source_map_chain,
     is_source_map_body,
 )
 
@@ -89,20 +93,7 @@ def _extract_secrets(
     redact_prefix_len: int = 4,
     expose_full: bool = False,
 ) -> list[dict[str, str]]:
-    """Extract secret-shaped strings from JS content with safe redaction.
-
-    The default redaction keeps only the first ``redact_prefix_len``
-    characters of each match (plus a ``***`` marker) so that operators
-    can confirm the secret type and length without ever letting the full
-    credential leave the host running the recon. The trimmed prefix is
-    commonly enough to fingerprint a key family (e.g. ``AKIA`` for AWS)
-    while removing the bulk of the entropy that an attacker would need
-    to brute-force the remainder.
-
-    Set ``expose_full=True`` only when the caller has confirmed the
-    output is being written to a local, access-controlled sink and not
-    piped to a shared report, dashboard, or remote logging endpoint.
-    """
+    """Extract secret-shaped strings from JS content with safe redaction."""
     if redact_prefix_len < 0 or redact_prefix_len > 32:
         redact_prefix_len = 4
     secrets = []
@@ -112,13 +103,6 @@ def _extract_secrets(
             if expose_full:
                 secrets.append({"type": label, "value": val})
             else:
-                # Deterministic, length-aware redaction. The previous
-                # implementation had two branches that produced the same
-                # truncated output (first-N + "***") regardless of secret
-                # length, which made it possible to fingerprint the redactor
-                # and ambiguous for human reviewers. We now show the first
-                # ``redact_prefix_len`` and the last 4 characters so
-                # operators can tell secrets apart in reports.
                 if len(val) <= redact_prefix_len + 4:
                     redacted = "*" * len(val)
                 else:
@@ -173,24 +157,36 @@ def _collect_js_discovery_urls(
     started = time.monotonic()
     discovered_urls: set[str] = set()
     all_secrets: list[dict[str, Any]] = []
+    endpoint_provenance: dict[str, str] = {}
+    wasm_results: list[dict[str, Any]] = []
+    sw_results: list[dict[str, Any]] = []
+    manifest_results: list[dict[str, Any]] = []
+    wasm_attack_surface: list[str] = []
+    sw_attack_surface: list[dict[str, Any]] = []
     hosts_scanned = 0
     script_refs = 0
     js_files_fetched = 0
     errors = 0
     budget_exceeded = False
 
-    def _scan_single_host(base_url: str) -> tuple[set[str], int, int, list[dict[str, Any]]]:
+    def _scan_single_host(base_url: str) -> tuple[set[str], int, int, list[dict[str, Any]], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         host_discovered: set[str] = set()
         host_secrets: list[dict[str, Any]] = []
+        host_wasm: list[dict[str, Any]] = []
+        host_sw: list[dict[str, Any]] = []
+        host_manifest: list[dict[str, Any]] = []
+        host_provenance: dict[str, str] = {}
         html = _fetch_text_content(base_url, timeout_seconds, max_response_bytes)
         if not html:
-            return host_discovered, 0, 0, host_secrets
+            return host_discovered, 0, 0, host_secrets, host_provenance, host_wasm, host_sw, host_manifest
 
-        # v2 endpoint extraction: AST-aware fetch-like calls, htmx /
-        # Alpine / Turbo attributes, WebSocket / socket.io URLs.
-        # Falls back to the regex pipeline below.
         host_discovered.update(extract_endpoints_v2(html, base_url, scope_roots))
         host_discovered.update(_extract_js_candidate_urls(html, base_url, scope_roots))
+        for ep in host_discovered:
+            host_provenance[ep] = base_url
+        manifest_info = discover_and_analyze_manifest(base_url, scope_roots, html_body=html)
+        if manifest_info.get("discovered"):
+            host_manifest.append(manifest_info)
         script_urls = sorted(_extract_script_urls_from_html(html, base_url, scope_roots))
         fetched = 0
         for js_url in script_urls[:max_js_files_per_host]:
@@ -198,62 +194,67 @@ def _collect_js_discovery_urls(
             if not js_body:
                 continue
             fetched += 1
-            # v2 (AST-aware) extraction first, then the legacy regex
-            # pipeline as a fallback for things v2 doesn't catch yet.
             host_discovered.update(extract_endpoints_v2(js_body, js_url, scope_roots))
             host_discovered.update(_extract_js_candidate_urls(js_body, js_url, scope_roots))
-
-            # Secret Scanning
-            # Only the redacted form (default 4-char prefix + "***") is
-            # ever attached to the host's finding. Operators wanting the
-            # full credential must re-extract from the raw response
-            # payload in a secure, local-only context.
+            for ep in extract_endpoints_v2(js_body, js_url, scope_roots):
+                host_provenance[ep] = js_url
+            for ep in _extract_js_candidate_urls(js_body, js_url, scope_roots):
+                host_provenance[ep] = js_url
             extracted_secrets = _extract_secrets(js_body, redact_prefix_len=4)
+            extracted_secrets.extend(extract_tokens_and_keys(js_body))
             for secret in extracted_secrets:
                 host_secrets.append(
                     {"url": js_url, "type": secret["type"], "value": secret["value"]}
                 )
-
-            # Map File Analysis
-            # v3: support both ``<file>.js.map`` (legacy) and
-            # ``sourceMappingURL`` declarations inside the bundle.
-            map_urls_to_try: list[str] = [js_url + ".map"]
+            if re.search(r"navigator\.serviceWorker|serviceWorker\.register", js_body):
+                sw_candidate = re.search(r'["\']([^"\']+\.js)["\']', js_body)
+                if sw_candidate:
+                    sw_url = sw_candidate.group(1)
+                    if not sw_url.startswith(("http://", "https://")):
+                        sw_url = urljoin(js_url, sw_url)
+                    if is_safe_url(sw_url):
+                        sw_info = analyze_service_worker(sw_url, base_url, scope_roots)
+                        host_sw.append(sw_info)
+                        if sw_info.get("fetch_routes") or sw_info.get("cache_names"):
+                            sw_attack_surface.append(sw_info)
+                sw_url = urljoin(js_url, "sw.js")
+                if is_safe_url(sw_url):
+                    sw_info = analyze_service_worker(sw_url, base_url, scope_roots)
+                    if sw_info.get("fetch_routes") or sw_info.get("cache_names"):
+                        host_sw.append(sw_info)
+                        sw_attack_surface.append(sw_info)
+            for m in re.finditer(r"""\.wasm\s*["']([^"']+)["']""", js_body):
+                wasm_candidate = m.group(1)
+                if not wasm_candidate.startswith(("http://", "https://")):
+                    wasm_candidate = urljoin(js_url, wasm_candidate)
+                if is_safe_url(wasm_candidate):
+                    w_disc, w_strings = analyze_wasm_url(wasm_candidate, base_url, scope_roots)
+                    if w_disc or w_strings:
+                        host_wasm.append({"url": wasm_candidate, "discovered": sorted(w_disc), "strings": w_strings[:20]})
+                        wasm_attack_surface.extend(sorted(w_disc))
+            for m in re.finditer(r"""\.wasm\b""", js_body):
+                pass
+            source_map_candidates: list[str] = [js_url + ".map"]
             declared_map = extract_source_map_url(js_body)
             if declared_map:
-                # The map URL may be absolute or relative; resolve
-                # against the JS URL the bundle came from.
-                from urllib.parse import urljoin
-
-                map_urls_to_try.append(urljoin(js_url, declared_map))
-
-            for map_url in dict.fromkeys(map_urls_to_try):
+                source_map_candidates.append(urljoin(js_url, declared_map))
+            for map_url in dict.fromkeys(source_map_candidates):
                 map_body = _fetch_text_content(map_url, timeout_seconds, max_response_bytes)
                 if not map_body:
                     continue
                 host_discovered.add(map_url)
                 if is_source_map_body(map_body):
-                    # Real source map — extract sourcesContent and
-                    # run both the v2 and legacy extractors over each
-                    # original source body.
-                    for original_source in extract_sources_content(map_body):
-                        host_discovered.update(
-                            extract_endpoints_v2(original_source, map_url, scope_roots)
-                        )
-                        host_discovered.update(
-                            _extract_js_candidate_urls(original_source, map_url, scope_roots)
-                        )
+                    chain_disc, chain_prov = follow_source_map_chain(map_url, map_body, base_url, scope_roots)
+                    host_discovered.update(chain_disc)
+                    host_provenance.update(chain_prov)
                 else:
-                    # Map body is not a real source map (legacy fallback)
-                    host_discovered.update(
-                        extract_endpoints_v2(map_body, map_url, scope_roots)
-                    )
-                    host_discovered.update(
-                        _extract_js_candidate_urls(map_body, map_url, scope_roots)
-                    )
+                    host_discovered.update(extract_endpoints_v2(map_body, map_url, scope_roots))
+                    for ep in extract_endpoints_v2(map_body, map_url, scope_roots):
+                        host_provenance[ep] = map_url
                 fetched += 1
 
         host_discovered.update(script_urls[:max_js_files_per_host])
-        return host_discovered, len(script_urls), fetched, host_secrets
+        return host_discovered, len(script_urls), fetched, host_secrets, host_provenance, host_wasm, host_sw, host_manifest
 
     emit_collection_progress(
         progress_callback,
@@ -297,8 +298,12 @@ def _collect_js_discovery_urls(
             for future in done:
                 pending.pop(future, None)
                 try:
-                    host_urls, host_script_refs, host_js_files, h_secrets = future.result()
+                    host_urls, host_script_refs, host_js_files, h_secrets, h_prov, h_wasm, h_sw, h_manifest = future.result()
                     all_secrets.extend(h_secrets)
+                    endpoint_provenance.update(h_prov)
+                    wasm_results.extend(h_wasm)
+                    sw_results.extend(h_sw)
+                    manifest_results.extend(h_manifest)
                 except Exception as exc:
                     logger.warning("JS discovery scan failed for host: %s", exc, exc_info=True)
                     host_urls, host_script_refs, host_js_files = set(), 0, 0
@@ -309,9 +314,6 @@ def _collect_js_discovery_urls(
                 before = len(discovered_urls)
                 discovered_urls.update(host_urls)
                 if max_discovered_urls > 0 and len(discovered_urls) > max_discovered_urls:
-                    # Prefer URLs WITHOUT query strings (cleaner entry points)
-                    # come first. Previously the boolean was inverted, causing
-                    # noisy query-string URLs to take precedence.
                     prioritized = sorted(discovered_urls, key=lambda item: ("?" in item, item))
                     discovered_urls = set(prioritized[:max_discovered_urls])
                 emit_collection_progress(
@@ -346,6 +348,12 @@ def _collect_js_discovery_urls(
         "js_discovery_time_budget_seconds": js_discovery_time_budget_seconds,
         "budget_exceeded": budget_exceeded,
         "js_secrets_found": all_secrets,
+        "endpoint_provenance": endpoint_provenance,
+        "wasm_findings": wasm_results,
+        "wasm_attack_surface": wasm_attack_surface,
+        "service_workers": sw_results,
+        "sw_attack_surface": sw_attack_surface,
+        "pwa_manifests": manifest_results,
     }
     return discovered_urls, meta
 

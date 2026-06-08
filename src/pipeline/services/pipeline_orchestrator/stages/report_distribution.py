@@ -13,12 +13,10 @@ report run directory.
 
 from __future__ import annotations
 
-import asyncio
-import logging
 import os
 import time
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -101,7 +99,7 @@ class ReportDistributor:
             raise ValueError("to_addresses must not be empty when distribution is enabled")
 
     @classmethod
-    def from_config(cls, config: Any) -> "ReportDistributor":
+    def from_config(cls, config: Any) -> ReportDistributor:
         section: Any = None
         if config is None:
             section = None

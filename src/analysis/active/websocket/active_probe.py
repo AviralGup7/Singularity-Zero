@@ -26,11 +26,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
-import os
 import secrets
 import struct
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -203,7 +202,7 @@ class WebSocketActiveProbe:
                 asyncio.open_connection(host, port, ssl=ssl),
                 timeout=self.open_timeout,
             )
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OSError) as exc:
             return WSProbeResult(url=probe.url, error=f"connect failed: {exc}")
 
         key = _ws_key()
@@ -238,7 +237,7 @@ class WebSocketActiveProbe:
                     k, v = line.decode("iso-8859-1").split(":", 1)
                     headers[k.strip().lower()] = v.strip()
             status = int(status_line.split()[1]) if status_line else 0
-        except (asyncio.TimeoutError, ValueError, IndexError) as exc:
+        except (TimeoutError, ValueError, IndexError) as exc:
             writer.close()
             return WSProbeResult(url=probe.url, error=f"handshake failed: {exc}")
 
@@ -270,7 +269,7 @@ class WebSocketActiveProbe:
                 _, _, length, header_end = decoded
                 body = await asyncio.wait_for(reader.readexactly(length), timeout=self.frame_timeout)
                 received.append((_OP_TEXT, body))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             except (ConnectionError, OSError) as exc:
                 result.error = f"recv failed: {exc}"

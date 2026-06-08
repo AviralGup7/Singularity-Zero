@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FileText, Download, Filter, Search, Shield, X, CheckSquare, Square, FileJson, FileCode2 } from 'lucide-react';
 
@@ -18,6 +19,9 @@ function shortId(id: string): string {
 }
 
 export function ReportBuilderPage() {
+  const [searchParams] = useSearchParams();
+  const initialFindingId = searchParams.get('finding');
+
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,6 +34,20 @@ export function ReportBuilderPage() {
     author: '',
     scope: '',
   });
+
+  useEffect(() => {
+    if (initialFindingId && findings.length > 0) {
+      setSelected(new Set([initialFindingId]));
+      const f = findings.find(x => x.id === initialFindingId);
+      if (f) {
+        setMeta(m => ({
+          title: m.title || `Report for ${f.title}`,
+          author: m.author || 'Security Team',
+          scope: m.scope || f.target || '',
+        }));
+      }
+    }
+  }, [initialFindingId, findings]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);

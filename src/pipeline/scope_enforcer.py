@@ -6,11 +6,11 @@ before it enters downstream stages or is passed to active scanners.
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import logging
 import socket
 from dataclasses import dataclass, field
-from typing import Any
 
 from src.core.utils import normalize_scope_entry
 
@@ -65,6 +65,11 @@ class ScopeEnforcer:
         except Exception:
             pass
         return False
+
+    async def is_in_scope_async(self, host_or_url: str) -> bool:
+        """Async variant that offloads blocking DNS resolution to a thread."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.is_in_scope, host_or_url)
 
     def filter_in_scope(self, items: list[str]) -> list[str]:
         """Filter a list of hosts/URLs, keeping only in-scope items."""

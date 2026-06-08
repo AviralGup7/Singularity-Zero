@@ -11,6 +11,7 @@ from src.analysis.active.auth_bypass.analyzer import run_auth_bypass_probes
 from src.analysis.active.brute_force import brute_force_resistance_probe
 from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
 from src.analysis.active.cloud_metadata import cloud_metadata_active_probe
+from src.analysis.active.auth.credential_vault import CredentialVault
 from src.analysis.active.graphql import graphql_active_probe
 from src.analysis.active.graphql_ws_probe import graphql_ws_injection_probe
 from src.analysis.active.http_methods import (
@@ -45,8 +46,6 @@ from src.analysis.active.injection.xxe import xxe_active_probe
 from src.analysis.active.jwt_attacks import run_jwt_attack_suite
 from src.analysis.active.param_mining import param_mining_probe
 from src.analysis.active.race_condition import race_condition_probe
-from src.analysis.active.saml_attacks import run_saml_attack_suite
-from src.detection.ast import analyze_html_for_prototype_pollution
 from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
 from src.analysis.checks.active.idor_probe import idor_active_probe
 from src.analysis.helpers import (
@@ -57,6 +56,7 @@ from src.analysis.helpers import (
     probe_severity_from_map,
 )
 from src.analysis.passive.runtime import ResponseCache
+from src.detection.ast import analyze_html_for_prototype_pollution
 
 __all__ = [
     "brute_force_resistance_probe",

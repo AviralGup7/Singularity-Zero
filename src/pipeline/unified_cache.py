@@ -29,92 +29,33 @@ from src.pipeline.cache_backend import PersistentCache
 logger = get_pipeline_logger(__name__)
 
 
-_ROUTING_PREFIX = "__routing__:"
-_DATA_PREFIX = "__data__:"
+class CacheKeyNormalizer:
+    """Normalize cache keys to enforce canonical form.
 
+    Applied rules (in order):
+    1. Strip trailing slashes.
+    2. Lowercase the entire key.
+    3. Normalize scheme: ``http://`` → ``https://``.
+    4. Normalize ``www.`` prefix: ``www.example.com`` → ``example.com``.
+    """
 
-class Backend(StrEnum):
-    """Physical store that holds the bytes for a cache entry."""
+    @staticmethod
+    def normalize(key: str) -> str:
+        key = key.rstrip("/")
+        key = key.lower()
+        if key.startswith("http://"):
+            key = "https://" + key[7:]
+        if key.startswith("https://www."):
+            key = "https://" + key[12:]
+        return key
 
-    SQLITE = "sqlite"
-    FILE = "file"
+    @staticmethod
+    def path_to_key(path: Path) -> str:
+        normalized = str(path).replace("\\", "/").rstrip("/").lower()
+        return f"legacy_path:{normalized}"
 
-
-class CachePriority(StrEnum):
-    """Eviction-ordering tag for a cache entry."""
-
-    CRITICAL = "critical"
-    NORMAL = "normal"
-    TRANSIENT = "transient"
-
-
-class TTLMode(StrEnum):
-    """TTL enforcement strategy for a cache entry."""
-
-    HARD_TTL = "hard_ttl"
-    STALE_WHILE_REVALIDATE = "stale_while_revalidate"
-
-
-PRIORITY_RANK: dict[str, int] = {
-    CachePriority.TRANSIENT.value: 0,
-    CachePriority.NORMAL.value: 1,
-    CachePriority.CRITICAL.value: 2,
-}
-
-
-@dataclass(frozen=True)
-class NamespaceRouting:
-    """Routing policy for one logical namespace."""
-
-    default_backend: Backend
-    split_threshold_bytes: int | None = None
-    default_priority: CachePriority = CachePriority.NORMAL
-
-
-NAMESPACE_ROUTING: dict[str, NamespaceRouting] = {
-    "probe": NamespaceRouting(Backend.SQLITE),
-    "http_response": NamespaceRouting(
-        Backend.SQLITE, split_threshold_bytes=16 * 1024
-    ),
-    "screenshot": NamespaceRouting(Backend.FILE),
-    "subdomain": NamespaceRouting(Backend.SQLITE),
-    "url": NamespaceRouting(Backend.SQLITE),
-    "resume": NamespaceRouting(
-        Backend.SQLITE, default_priority=CachePriority.CRITICAL
-    ),
-    "checkpoint": NamespaceRouting(
-        Backend.SQLITE, default_priority=CachePriority.CRITICAL
-    ),
-    "tool_output": NamespaceRouting(
-        Backend.FILE, default_priority=CachePriority.TRANSIENT
-    ),
-    "passive_record": NamespaceRouting(Backend.FILE),
-}
 
 _DEFAULT_ROUTING = NamespaceRouting(Backend.SQLITE)
-
-
-class UnknownNamespaceError(ValueError):
-    """Raised in strict mode when a namespace has no routing entry."""
-
-
-def _parse_namespace(key: str) -> str:
-    """Return the namespace prefix of ``key`` (``namespace:rest`` form)."""
-    if ":" not in key:
-        return ""
-    return key.split(":", 1)[0]
-
-
-def _resolve_routing(namespace: str, strict: bool) -> NamespaceRouting:
-    """Look up the routing policy for ``namespace``."""
-    routing = NAMESPACE_ROUTING.get(namespace)
-    if routing is not None:
-        return routing
-    if strict:
-        raise UnknownNamespaceError(
-            f"namespace {namespace!r} has no routing entry"
-        )
-    return _DEFAULT_ROUTING
 
 
 def _hash_key(key: str) -> str:
@@ -226,10 +167,7 @@ class UnifiedCache:
         ttl_mode: TTLMode | None = None,
         stale_threshold_hours: int | None = None,
     ) -> Backend:
-        """Store ``value`` under ``key`` in the backend chosen by routing.
-
-        Returns the backend that received the bytes.
-        """
+        key = CacheKeyNormalizer.normalize(key)
         namespace = _parse_namespace(key)
         routing = _resolve_routing(namespace, self._strict)
 
@@ -280,7 +218,7 @@ class UnifiedCache:
         return backend
 
     def get(self, key: str) -> Any | None:
-        """Return the value for ``key`` or ``None`` if absent / expired."""
+        key = CacheKeyNormalizer.normalize(key)
         with self._lock:
             record = self._read_routing(key)
             if record is None:
@@ -319,7 +257,7 @@ class UnifiedCache:
             return None
 
     def delete(self, key: str) -> bool:
-        """Delete ``key`` from every physical store and the routing index."""
+        key = CacheKeyNormalizer.normalize(key)
         with self._lock:
             record = self._read_routing(key)
             if record is None:

@@ -51,6 +51,8 @@ from src.analysis.automation.workflow import (
     default_workflow,
     evaluate_workflow,
     expression_to_dict,
+)
+from src.analysis.automation.workflow import (
     from_dict as workflow_from_dict,
 )
 

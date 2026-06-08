@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.analysis.bug_bounty.scope_parser import ProgramScope, filter_out_of_scope, expand_wildcards, parse_bugcrowd_scope, parse_hackerone_scope
+from src.analysis.bug_bounty.scope_parser import (
+    filter_out_of_scope,
+    parse_bugcrowd_scope,
+    parse_hackerone_scope,
+)
 
 
 async def run_scope_stage(
@@ -14,7 +18,7 @@ async def run_scope_stage(
     *,
     stage_input: Any | None = None,
 ) -> Any:
-    from src.core.contracts.pipeline_runtime import StageInput, StageOutcome, StageOutput
+    from src.core.contracts.pipeline_runtime import StageOutcome, StageOutput
     from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 
     started = __import__("time").time()

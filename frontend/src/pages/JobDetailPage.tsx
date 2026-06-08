@@ -406,7 +406,7 @@ export function JobDetailPage() {
 
               {job.progress_telemetry.learning_feedback && (
                 <GlassCard variant="glow" delay={0.1} className="mt-4 p-4 border border-[var(--accent)]/30">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--accent)] mb-2 font-mono">Neural Engine Feedback</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--accent)] mb-2 font-mono">Remediation Analysis</h4>
                   <p className="text-xs italic text-[var(--text-secondary)] leading-relaxed font-sans">
                     {typeof job.progress_telemetry.learning_feedback === 'string'
                       ? job.progress_telemetry.learning_feedback

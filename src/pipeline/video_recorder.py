@@ -28,12 +28,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import os
 import shutil
 import time
-from dataclasses import dataclass, field
+from collections.abc import AsyncIterator, Callable, Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Iterable, Mapping
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class VideoRecorder:
                             asyncio.ensure_future(on_flow(page)),
                             timeout=self.max_duration_seconds,
                         )
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         logger.debug(
                             "VideoRecorder: flow for %s exceeded %.1fs, stopping",
                             url,

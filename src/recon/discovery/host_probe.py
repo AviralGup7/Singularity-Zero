@@ -15,10 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from urllib.parse import urlparse
 
-import urllib3
-
-from src.core.models import DEFAULT_USER_AGENT, Config
-from src.core.utils.http_pool import get_pooled_connection
+from src.core.models import Config
 from src.pipeline.cache_backend import PersistentCache
 from src.pipeline.tools import (
     build_retry_policy,

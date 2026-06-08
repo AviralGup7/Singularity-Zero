@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +95,7 @@ def get_by_capability(capability: str) -> list[StageNodeDefinition]:
     return _global_stage_registry.get_by_capability(capability)
 
 
-def _make_stage_node(defn: StageNodeDefinition) -> "StageNode":
+def _make_stage_node(defn: StageNodeDefinition) -> StageNode:
     from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
     return StageNode(
         name=defn.name,
@@ -106,14 +109,11 @@ def _make_stage_node(defn: StageNodeDefinition) -> "StageNode":
 
 def _register_builtin_stages() -> None:
     from src.pipeline.services.pipeline_orchestrator._graph_dsl import (
-        AlwaysTrue, AnyOf, OutputNonEmpty, StageCompleted,
+        AlwaysTrue,
+        AnyOf,
+        OutputNonEmpty,
+        StageCompleted,
     )
-    from src.pipeline.services.pipeline_orchestrator.stages.sca_scan import run_sca_scan_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.container_scan import run_container_scan_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.iac_scan import run_iac_scan_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.sbom_generate import run_sbom_generate_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.sbom_diff import run_sbom_diff_stage
-    from src.pipeline.services.pipeline_orchestrator.stages.git_secret_scan import run_git_secret_scan_stage
 
     register(StageNodeDefinition(name="sca_scan", needs=[], weight=5, timeout_seconds=600, when=OutputNonEmpty("source_code_paths"), runner_name="sca_scan", produces=["sca_findings", "dependency_tree", "sbom_fragment"], group="scanner"))
     register(StageNodeDefinition(name="container_scan", needs=[], weight=5, timeout_seconds=900, when=AnyOf(conditions=(OutputNonEmpty("container_images"), OutputNonEmpty("dockerfiles"))), runner_name="sca_scan", produces=["container_findings", "image_vulns", "sbom_fragment"], group="scanner"))
@@ -130,7 +130,7 @@ def list_registered_stage_definitions() -> list[StageNodeDefinition]:
     return _global_stage_registry.get_all()
 
 
-def resolve_stage_definition(name: str) -> "StageNodeDefinition | None":
+def resolve_stage_definition(name: str) -> StageNodeDefinition | None:
     for defn in _global_stage_registry.get_all():
         if defn.name == name:
             return defn

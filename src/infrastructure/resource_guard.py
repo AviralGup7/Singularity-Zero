@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import shutil
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ class ResourceGuard:
             return json.loads(json.dumps(_BUILTIN_DEFAULTS))
 
         try:
-            with open(candidate, "r", encoding="utf-8") as f:
+            with open(candidate, encoding="utf-8") as f:
                 data = json.load(f)
             if not isinstance(data, dict):
                 raise ValueError("performance_model.json root must be an object")
@@ -88,7 +87,7 @@ class ResourceGuard:
 
         return max(0, base)
 
-    def estimate_stage_ram(self, stage_name: str, target_count: int, url_count: int, active_tools: Optional[list[str]] = None) -> int:
+    def estimate_stage_ram(self, stage_name: str, target_count: int, url_count: int, active_tools: list[str] | None = None) -> int:
         tools = active_tools if active_tools else self.stage_tools.get(stage_name, ["default"])
         total = sum(self._tool_ram(t, target_count, url_count) for t in tools)
         total = int(total * self.multiplier)
@@ -115,7 +114,7 @@ class ResourceGuard:
         available = self._get_available_ram_mb()
         return available >= estimated_ram_mb
 
-    def should_skip_stage(self, stage_name: str, target_count: int, url_count: int) -> Tuple[bool, Optional[str]]:
+    def should_skip_stage(self, stage_name: str, target_count: int, url_count: int) -> tuple[bool, str | None]:
         if not self.oom_guard.get("enabled", True):
             return False, None
 
@@ -141,7 +140,7 @@ class ResourceGuard:
         except Exception as exc:
             logger.debug("ResourceGuard: psutil-based OOM check failed (%s).", exc)
 
-    def check_and_halt_on_oom(self) -> Optional[str]:
+    def check_and_halt_on_oom(self) -> str | None:
         if not self.oom_guard.get("enabled", True):
             return None
         kill_percent = self.oom_guard.get("kill_ram_mb", 0.90)

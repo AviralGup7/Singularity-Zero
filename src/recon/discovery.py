@@ -136,7 +136,6 @@ def _run_wildcard_filter(
 
 
 def _host_strings(live_hosts: Iterable[Any]) -> list[str]:
-    """Extract plain host strings from a mix of dict / string live_host entries."""
     out: list[str] = []
     for entry in live_hosts:
         if isinstance(entry, str):
@@ -148,6 +147,78 @@ def _host_strings(live_hosts: Iterable[Any]) -> list[str]:
             if host:
                 out.append(str(host).strip())
     return out
+
+
+def _asn_cidrs_for_hosts(hosts: Iterable[str]) -> set[str]:
+    cidrs: set[str] = set()
+    for host in hosts:
+        host = (host or "").strip()
+        if not host:
+            continue
+        try:
+            import ipaddress
+            ipaddress.ip_address(host)
+            cidrs.add(host + "/32")
+        except ValueError:
+            pass
+    return cidrs
+
+
+def _looks_like_ip(value: str) -> bool:
+    try:
+        import ipaddress
+        ipaddress.ip_address(value.strip().lower())
+        return True
+    except Exception:
+        return False
+
+
+def _reprobe_origin_hosts(scope_entries: list[str], progress_callback: Any | None = None) -> set[str]:
+    reprobed_hosts: set[str] = set()
+    try:
+        from src.recon.origin_discovery import discover_origins_for_findings
+    except Exception:  # pragma: no cover - defensive
+        return reprobed_hosts
+    try:
+        findings: list[dict[str, Any]] = []
+        for root in scope_entries:
+            if not root:
+                continue
+            findings.append({"domain": root, "source": "scope"})
+        if not findings:
+            return reprobed_hosts
+        result_map = discover_origins_for_findings(findings, timeout=6.0, max_domains=len(scope_entries) or 1)
+        for domain, result in (result_map or {}).items():
+            reprobed_hosts.update(result.candidate_hosts)
+            reprobed_hosts.update(result.candidate_ips)
+            for host in result.candidate_hosts:
+                if progress_callback is not None:
+                    try:
+                        progress_callback(host, ["origin-discovery"])
+                    except Exception:  # noqa: BLE001
+                        pass
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("origin re-probe failed: %s", exc)
+    return reprobed_hosts
+
+
+def run_spa_aware_headless(
+    live_hosts: Iterable[Any],
+    progress_callback: Any | None = None,
+    spa_page_budget: int = 50,
+    spa_depth: int = 4,
+) -> tuple[set[str], dict[str, Any]]:
+    from src.recon.headless_crawler import headless_crawl_hosts
+
+    hosts = _host_strings(live_hosts)
+    if not hosts:
+        return set(), {"status": "skipped", "duration_seconds": 0.0, "new_urls": 0}
+    return headless_crawl_hosts(
+        hosts,
+        max_pages_per_host=spa_page_budget,
+        max_depth=spa_depth,
+        progress_callback=progress_callback,
+    )
 
 
 def _run_spa_discovery(
@@ -260,6 +331,20 @@ def run_enhanced_recon_layer(
 
     _, live_hosts = probe_live_hosts(subdomains, config, progress_callback=progress_callback)
 
+    extras.setdefault("origin_reprobe", {})
+    reprobed_hosts = _safe_call(
+        "origin-reprobe",
+        _reprobe_origin_hosts,
+        scope_entries,
+        progress_callback=progress_callback,
+    ) or set()
+    if reprobed_hosts:
+        extras["origin_reprobe"] = {
+            "hosts": sorted(reprobed_hosts),
+            "count": len(reprobed_hosts),
+        }
+        live_hosts.extend(reprobed_hosts)
+
     urls = collect_urls(live_hosts, scope_entries, config)
     parameters = extract_parameters(urls)
     profile = infer_target_profile(urls)
@@ -278,12 +363,47 @@ def run_enhanced_recon_layer(
         from src.recon.port_scanner import run_port_scan_async
 
         async def _port_scan() -> Any:
-            return await run_port_scan_async(_host_strings(live_hosts))
+            port_hosts: list[str] = _host_strings(live_hosts)
+            asn_cidrs: set[str] = set()
+            if run_asn_expansion:
+                try:
+                    from src.recon.asn_expansion import expand_ips_to_cidrs
+                    asn_cidrs = _asn_cidrs_for_hosts(port_hosts)
+                    port_hosts = list(set(port_hosts) | asn_cidrs)
+                except Exception:  # noqa: BLE001
+                    pass
+            for source_hosts in (extras.get("probed_ips"), extras.get("waf_cdn_ips")):
+                if isinstance(source_hosts, set) and source_hosts:
+                    port_hosts = list(set(port_hosts) | {str(h) for h in source_hosts if str(h).strip()})
+            return await run_port_scan_async(port_hosts)
 
         extras["port_scan"] = _run_async(_port_scan)
 
     if run_spa_detection:
-        extras["spa"] = _run_spa_discovery(live_hosts, progress_callback)
+        spa_report = _run_spa_discovery(live_hosts, progress_callback)
+        extras["spa"] = spa_report
+        if bool(config.filters.get("run_headless_on_spa", True)) and spa_report:
+            spa_hits = set()
+            for hit in (spa_report.get("hits") or []) if isinstance(spa_report, dict) else []:
+                if isinstance(hit, dict):
+                    host = hit.get("host")
+                    if host:
+                        spa_hits.add(host)
+                elif isinstance(hit, str):
+                    spa_hits.add(hit)
+            extra_urls = spa_report.get("extra_urls") if isinstance(spa_report, dict) else None
+            if isinstance(extra_urls, set):
+                spa_hits.update(extra_urls)
+            if spa_hits:
+                headless_urls, headless_meta = _safe_call(
+                    "headless-spa",
+                    run_spa_aware_headless,
+                    list(spa_hits),
+                    progress_callback=progress_callback,
+                ) or (set(), {})
+                if headless_urls:
+                    urls.update(headless_urls)
+                    extras["headless_spa"] = headless_meta
 
     if run_graphql_discovery:
         from src.recon.graphql_introspection import discover_graphql_endpoints
@@ -360,6 +480,43 @@ def run_enhanced_recon_layer(
             _host_strings(live_hosts),
             progress_callback=progress_callback,
         )
+
+    if getattr(config, "run_waf_cdn_detection", False):
+        from src.recon.waf_cdn_detector import build_waf_cdn_report, detect_waf_cdn
+
+        waf_findings = _safe_call(
+            "waf-cdn-detection",
+            detect_waf_cdn,
+            _host_strings(live_hosts),
+            max_urls=int(config.filters.get("waf_max_urls", 50) or 50),
+        ) or []
+        waf_ips: set[str] = set()
+        waf_hosts: set[str] = set()
+        for finding in waf_findings:
+            url = finding.get("url") or finding.get("input")
+            host = None
+            if isinstance(url, str) and "://" in url:
+                host = url.split("://", 1)[1].split("/", 1)[0]
+            if not host:
+                host = finding.get("host")
+            if host:
+                waf_hosts.add(host)
+            if host and _looks_like_ip(host):
+                waf_ips.add(host)
+        if waf_hosts or waf_ips:
+            try:
+                _, waf_live_hosts = probe_live_hosts(
+                    list(waf_hosts | waf_ips), config, progress_callback=progress_callback
+                )
+                live_hosts.extend(waf_live_hosts)
+            except Exception:  # noqa: BLE001
+                pass
+        report = _safe_call(
+            "waf-cdn-report",
+            build_waf_cdn_report,
+            waf_findings,
+        )
+        extras["waf_cdn"] = report if isinstance(report, dict) else {}
 
     if run_azure_sas:
         extras["azure"] = _run_azure_for_scope(scope_entries, progress_callback)

@@ -9,7 +9,6 @@ Extends the legacy stateful fuzzer with:
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import re
@@ -44,7 +43,7 @@ class EndpointNode:
         self.endpoint_id = endpoint_id
         self.path = path
         self.method = method.upper()
-        self.transitions: dict[str, "EndpointNode"] = {}
+        self.transitions: dict[str, EndpointNode] = {}
 
     def __repr__(self) -> str:
         return f"EndpointNode({self.method} {self.path})"

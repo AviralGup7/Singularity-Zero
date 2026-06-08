@@ -201,14 +201,31 @@ class MaintenanceLock:
     def __enter__(self) -> "MaintenanceLock":
         self.lockfile_path.parent.mkdir(parents=True, exist_ok=True)
         if self._use_sqlite:
+            conn = None
             try:
                 import sqlite3
-                conn = sqlite3.connect(str(self._sqlite_path), timeout=10)
+                conn = sqlite3.connect(str(self._sqlite_path), timeout=1)
                 cur = conn.execute("BEGIN EXCLUSIVE")
                 cur.fetchone()
                 self._conn = conn
+                self.lockfile_path.write_text("sqlite-lock\n", encoding="utf-8")
                 return self
-            except Exception:
+            except Exception as exc:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                import sqlite3
+                if isinstance(exc, sqlite3.OperationalError) and any(k in str(exc).lower() for k in ("lock", "busy")):
+                    raise RuntimeError("Maintenance task already running.") from exc
+                if self.lockfile_path.exists():
+                    try:
+                        content = self.lockfile_path.read_text().strip()
+                        if content == "sqlite-lock":
+                            raise RuntimeError("Maintenance task already running.") from exc
+                    except Exception:
+                        pass
                 self._use_sqlite = False
         return self._acquire_pid_lock()
 

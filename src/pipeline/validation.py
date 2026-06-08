@@ -16,6 +16,8 @@ from typing import Any
 import psutil
 from pydantic import BaseModel, Field
 
+from src.pipeline.tools import get_tool_version, tool_available
+
 
 # Pydantic models for structural configuration validation
 class ToolsConfigModel(BaseModel):
@@ -192,7 +194,7 @@ def _wildcard_candidate_ips(host: str) -> list[ipaddress.IPv4Address | ipaddress
         # is intentionally permissive (any non-private IP is OK).
         if not candidates:
             candidates = [
-                ipaddress.ip_address(f"203.0.113.{random.randint(1, 254)}"),
+                ipaddress.ip_address(f"203.0.113.{random.randint(1, 254)}"),  # noqa: S311
             ]
     except Exception:
         candidates = [ipaddress.ip_address("203.0.113.1")]
@@ -329,6 +331,16 @@ def validate_scope_max_prefix(entry: str, max_prefix_v4: int = 24, max_prefix_v6
             if net.network_address in ipaddress.IPv6Network("fe80::/10"):
                 return False, f"Scope CIDR '{entry}' is IPv6 link-local (fe80::/10)"
     return True, ""
+
+
+SCOPE_VALIDATORS = (
+    validate_scope_syntax,
+    validate_scope_disallowed_tlds,
+    validate_scope_rfc1918,
+    validate_scope_wildcard_resolution,
+    validate_scope_threat_intel,
+    validate_scope_max_prefix,
+)
 
 
 def _version_satisfies(version: str, spec: str) -> bool:
@@ -553,10 +565,6 @@ def validate_config(
     # Check 6: Tool version requirements
     version_errors: list[str] = []
     version_ok = True
-    for tool_name, manifest_entry in getattr(
-        getattr(config, "tools_manifest", None), "__dict__", {}
-    ).items() if hasattr(getattr(config, "tools_manifest", None), "__dict__") else []:
-        pass  # config-driven version checks via tools_capabilities
 
     try:
         from src.pipeline.tools_capabilities import CAPABILITY_REGISTRY

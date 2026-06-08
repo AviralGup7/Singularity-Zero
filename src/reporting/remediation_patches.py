@@ -242,7 +242,7 @@ class RemediationPatchGenerator:
 
             # Write physical files for patch and WAF rules
             clean_cat = "".join(c if c.isalnum() else "_" for c in category.lower())
-            
+
             patch_file = artifacts_dir / f"{clean_cat}_fix.patch"
             patch_file.write_text(patch_data["remediation_code"], encoding="utf-8")
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from src.pipeline.retry.classifier import PermanentError, TransientError, classify_error
 from src.pipeline.retry.circuit_breaker import CircuitState, ToolCircuitBreaker
+from src.pipeline.retry.classifier import PermanentError, TransientError, classify_error
 from src.pipeline.retry.events import (
     RetryEvent,
     RetryEventEmitter,

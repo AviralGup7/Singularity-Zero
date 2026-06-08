@@ -1,4 +1,6 @@
 """
+RESEARCH PROTOTYPE — not wired into the active scan pipeline. See docs/architecture.md Implementation Status table for current state.
+
 Multi-Agent Reinforcement Learning (MARL) Attack-Path Simulation.
 
 Computes deep GNN node embeddings to execute lateral movement rollouts

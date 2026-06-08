@@ -17,9 +17,9 @@ from src.core.checkpoint.recovery import (
     generate_run_id,
 )
 from src.core.checkpoint.resume_strategies import (
+    RESUME_BEHAVIORS,
     PartialResumePlanner,
     ResumePolicy,
-    RESUME_BEHAVIORS,
     StageResumeBehavior,
 )
 from src.core.checkpoint.strategies import (

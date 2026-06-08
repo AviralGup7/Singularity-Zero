@@ -4,17 +4,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import logging
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from src.core.contracts.pipeline_runtime import PipelineInput
-from src.core.events import EventType
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.core.models.entities import SEVERITY_LEVELS
-from src.core.monitoring.asset_inventory import AssetDiff, AssetInventoryManager
+from src.core.monitoring.asset_inventory import AssetInventoryManager
 from src.infrastructure.notifications.manager import NotificationManager
 
 logger = get_pipeline_logger(__name__)
@@ -151,7 +147,7 @@ class ContinuousScanMode:
         if config_path is None:
             config_path = Path("configs/pipeline.json")
 
-        exit_code = await self._run_pipeline_for_scope(sorted(scan_targets), output_dir, target_name, config_path)
+        await self._run_pipeline_for_scope(sorted(scan_targets), output_dir, target_name, config_path)
         result.scans_triggered = sorted(scan_targets)
 
         try:

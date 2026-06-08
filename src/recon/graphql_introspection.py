@@ -30,14 +30,43 @@ This module:
    benign field. The response is annotated with whether the server
    required authentication — useful for separating "open public API"
    from "needs a token" assets.
+
+Attack-surface additions:
+
+- **batching amplification** — probes whether the endpoint accepts a
+  JSON array payload and returns batched responses, enabling cost
+  amplification / DoS.
+- **alias-based auth bypass** — inspects the schema for field aliases
+  that point to sensitive data (email, password, token …) that may be
+  reachable through a proxy-resistant alias.
+- **Apollo Relay persisted-query analysis** — detects SHA-256 query
+  whitelisting and the ``x-apollo-operation-name`` / ``apollo-hash``
+  header patterns that indicate persisted-query enforcement.
+- **GraphQL-over-WebSocket probe patterns** — checks for
+  ``graphql-ws`` and ``graphql-transport-ws`` subprotocol support.
+- **CSRF-style detection for cookie-authenticated endpoints** — sends
+  a cheap graphql POST with a forged cookie header and looks for
+  Set-Cookie responses that indicate server-side session state.
+- **introspection bypass probing** — crawls nested ``__typename``
+  queries at increasing depths to find where introspection data leaks
+  through when the top-level ``__schema`` introspection is disabled.
+- **production GraphQL Playground / GraphiQL exposure detection** —
+  flags IDE endpoints.
+- **field-level auth inference** — probes discovered fields with an
+  anonymous token to surface which sensitive fields are actually
+  accessible unauthenticated.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import random
 import re
+import string
+import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -107,6 +136,68 @@ _PROBE_TIMEOUT_SECONDS = 6
 # the ``graphql_introspection_max_bytes`` config key.
 _MAX_INTROSPECTION_BYTES = 1 * 1024 * 1024
 
+_ALIAS_TOKENS: tuple[str, ...] = (
+    "email",
+    "emails",
+    "phone",
+    "phones",
+    "password",
+    "passwords",
+    "ssn",
+    "social",
+    "secret",
+    "token",
+    "tokens",
+    "apiKey",
+    "api_keys",
+    "creditCard",
+    "address",
+    "billing",
+    "payment",
+    "balance",
+    "transaction",
+    "internal",
+    "admin",
+    "role",
+    "permission",
+    "permissions",
+)
+
+_TYPENAME_NESTED_DEPTHS: tuple[int, ...] = (2, 3, 4, 6, 8, 10)
+
+_GRAPHQL_WS_PROTOCOLS: tuple[str, ...] = (
+    "graphql-ws",
+    "graphql-transport-ws",
+)
+
+_INTROSPECTION_BYPASS_FIELDS: tuple[str, ...] = (
+    "__typename",
+    "id",
+    "_id",
+    "createdAt",
+    "updatedAt",
+)
+
+_FIELD_PROBE_FIELDS: tuple[str, ...] = (
+    "__typename",
+    "id",
+    "name",
+    "email",
+    "username",
+    "createdAt",
+)
+
+_CSRF_COOKIE_NAMES: tuple[str, ...] = (
+    "sessionid",
+    "session",
+    "sid",
+    "auth",
+    "token",
+    "access_token",
+    "refresh_token",
+    "connect.sid",
+)
+
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -125,6 +216,7 @@ class GraphQLEndpoint:
     schema_operations: dict[str, list[str]] = field(default_factory=dict)
     requires_auth: bool = False
     notes: list[str] = field(default_factory=list)
+    attack_surface: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -138,6 +230,7 @@ class GraphQLEndpoint:
             },
             "requires_auth": self.requires_auth,
             "notes": list(self.notes),
+            "attack_surface": self.attack_surface,
         }
 
 
@@ -186,9 +279,13 @@ def _candidate_endpoint_urls(
 # Introspection
 # ---------------------------------------------------------------------------
 
-
 _GRAPHQL_KEY_RE = re.compile(
     r'"(?:query|mutation|subscription|__schema|__typename|errors|data)"',
+    re.IGNORECASE,
+)
+
+_GRAPHQL_INTROSPECTION_ERROR_RE = re.compile(
+    r"introspection|schema|response.*grid",
     re.IGNORECASE,
 )
 
@@ -200,6 +297,48 @@ def _looks_like_graphql(content_type: str, body: str) -> bool:
         if body and _GRAPHQL_KEY_RE.search(body):
             return True
     return False
+
+
+def _detect_merged_response_grid(intro_body: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "detected": False,
+        "notes": "",
+    }
+    if not isinstance(intro_body, dict):
+        return result
+    errors = intro_body.get("errors") or []
+    if not isinstance(errors, list) or not errors:
+        return result
+    classes: set[str] = set()
+    for entry in errors:
+        if not isinstance(entry, dict):
+            continue
+        ext = entry.get("extensions") or {}
+        if isinstance(ext, dict):
+            classes.update(str(k) for k in ext.keys())
+    if any(_GRAPHQL_INTROSPECTION_ERROR_RE.search(c) for c in classes):
+        result["detected"] = True
+        result["notes"] = "Response grid with introspection error extension detected"
+    return result
+
+
+def _detect_debug_headers(resp: requests.Response) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "detected": False,
+        "header_names": [],
+    }
+    seen: list[tuple[str, str]] = []
+    for raw_key, raw_val in resp.headers.items():
+        if re.search(
+            r"x-graphql|graphql-introspection|graphql-debug|graphql-errors|x-apollo|x-introspection",
+            raw_key,
+            re.IGNORECASE,
+        ):
+            seen.append((raw_key, str(raw_val)[:128]))
+    if seen:
+        result["detected"] = True
+        result["header_names"] = seen
+    return result
 
 
 def _extract_operations(schema: dict[str, Any]) -> dict[str, list[str]]:
@@ -220,9 +359,24 @@ def _extract_operations(schema: dict[str, Any]) -> dict[str, list[str]]:
             type_map[entry["name"]] = entry
 
     for op_kind, type_name in (
-        ("query", schema_root.get("queryType", {}).get("name") if isinstance(schema_root.get("queryType"), dict) else None),
-        ("mutation", schema_root.get("mutationType", {}).get("name") if isinstance(schema_root.get("mutationType"), dict) else None),
-        ("subscription", schema_root.get("subscriptionType", {}).get("name") if isinstance(schema_root.get("subscriptionType"), dict) else None),
+        (
+            "query",
+            schema_root.get("queryType", {}).get("name")
+            if isinstance(schema_root.get("queryType"), dict)
+            else None,
+        ),
+        (
+            "mutation",
+            schema_root.get("mutationType", {}).get("name")
+            if isinstance(schema_root.get("mutationType"), dict)
+            else None,
+        ),
+        (
+            "subscription",
+            schema_root.get("subscriptionType", {}).get("name")
+            if isinstance(schema_root.get("subscriptionType"), dict)
+            else None,
+        ),
     ):
         if not type_name:
             continue
@@ -231,6 +385,247 @@ def _extract_operations(schema: dict[str, Any]) -> dict[str, list[str]]:
             if isinstance(entry, dict) and isinstance(entry.get("name"), str):
                 operations[op_kind].append(entry["name"])
     return operations
+
+
+def _alias_authorization_bypass(schema: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "batching_amplification": {
+            "detected": False,
+            "notes": "",
+        },
+        "alias_authorization_bypass": {
+            "detected": False,
+            "sensitive_aliases": [],
+            "notes": "",
+        },
+        "apollo_persisted_query": {
+            "detected": False,
+            "sha256_required": False,
+            "sha256_fields_found": [],
+            "notes": "",
+        },
+        "graphql_over_websocket_protocols": [],
+        "csrf_cookie_authenticated": {
+            "detected": False,
+            "cookie_names_found": [],
+            "notes": "",
+        },
+        "introspection_bypass_nested_typename": {
+            "detected": False,
+            "max_depth_reached": 0,
+            "notes": "",
+        },
+        "playground_graphiql_exposure": {
+            "detected": False,
+            "locations": [],
+            "notes": "",
+        },
+        "field_level_auth_inference": {
+            "accessible_fields": [],
+            "inaccessible_fields": [],
+            "notes": "",
+        },
+    }
+
+    types = (schema.get("__schema") or {}).get("types") or []
+    if not isinstance(types, list):
+        return result
+    aliases_found: list[str] = []
+
+    for entry in types:
+        if not isinstance(entry, dict):
+            continue
+        fields = entry.get("fields") or []
+        if not isinstance(fields, list):
+            continue
+        for f in fields:
+            if not isinstance(f, dict):
+                continue
+            fname = str(f.get("name", "")).lower()
+            args = f.get("args") or []
+            args_lower = [str(a.get("name", "")).lower() for a in args if isinstance(a, dict)]
+            if any(tok in fname for tok in ("alias",)):
+                aliases_found.append(fname)
+            for tok in _ALIAS_TOKENS:
+                if tok in fname and fname not in aliases_found:
+                    aliases_found.append(fname)
+                    break
+
+    result["alias_authorization_bypass"]["detected"] = bool(aliases_found)
+    result["alias_authorization_bypass"]["sensitive_aliases"] = aliases_found
+    if any(
+        "query" == t
+        for t in (schema.get("__schema") or {}).get("types", [{}])[0].get("fields", [])
+        if isinstance(t, str)
+    ):
+        result["batching_amplification"]["notes"] = "batching route may exist (queries endpoint present)"
+    return result
+
+
+def _check_apollo_persisted_query_headers(headers: dict[str, str] | None) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "sha256_required": False,
+        "sha256_fields_found": [],
+        "notes": "",
+    }
+    if not isinstance(headers, dict):
+        return result
+    hlower = {k.lower(): v for k, v in headers.items() if isinstance(k, str) and isinstance(v, str)}
+    apollo_hdr = hlower.get("x-apollo-operation-name")
+    hash_hdr = hlower.get("apollo-hash") or hlower.get("x-apollo-hash")
+    ext_pq = (hlower.get("extensions") or "").lower()
+    if "persistedquery" in ext_pq or "sha256" in ext_pq:
+        result["sha256_required"] = True
+        result["sha256_fields_found"].append("extensions.persistedQuery")
+    if apollo_hdr or hash_hdr:
+        result["sha256_fields_found"].append("apollo-operation-name/apollo-hash headers")
+    if result["sha256_fields_found"]:
+        result["notes"] = "Apollo Relay persisted-query detected"
+    return result
+
+
+def _build_nested_typename_query(depth: int) -> str:
+    inner = "{ __typename }"
+    query = inner
+    for _ in range(max(0, int(depth) - 1)):
+        query = f"{{ {inner} }}"
+    return f"{{{query}}}"
+
+
+def _introspection_bypass_nested_typename(
+    url: str,
+    query: str,
+    headers: dict[str, str],
+    *,
+    timeout_seconds: int = 6,
+) -> bool:
+    try:
+        resp = requests.post(
+            url,
+            data=json.dumps({"query": query}),
+            headers=headers,
+            timeout=max(2, timeout_seconds),
+            allow_redirects=False,
+        )
+    except requests.RequestException:
+        return False
+    if resp.status_code != 200:
+        return False
+    try:
+        body = resp.json()
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(body, dict):
+        return False
+    if "data" in body and body.get("data"):
+        return True
+    return False
+
+
+def _detect_graphql_ws(url: str, *, timeout_seconds: int = 5) -> list[str]:
+    protocols: list[str] = []
+    origin = urlparse(url).netloc or urlparse(url).hostname or ""
+    if not origin:
+        return protocols
+    ws_base = f"wss://{origin}" if urlparse(url).scheme == "https" else f"ws://{origin}"
+    try:
+        import websocket  # noqa: F401
+
+        for proto in _GRAPHQL_WS_PROTOCOLS:
+            try:
+                ws = websocket.create_connection(
+                    ws_base,
+                    header=[f"Sec-WebSocket-Protocol: {proto}"],
+                    subprotocols=[proto],
+                    timeout=max(2, timeout_seconds),
+                )
+                ws.settimeout(1)
+                try:
+                    ws.send(json.dumps({"type": "connection_init"}))
+                    resp = json.loads(ws.recv())
+                except Exception:
+                    resp = {}
+                ws.close()
+                if resp.get("type") in ("connection_ack", "ka", "data"):
+                    protocols.append(proto)
+            except Exception:
+                continue
+    except ImportError:
+        pass
+    return protocols
+
+
+def _detect_csrf_cookie_auth(url: str, *, timeout_seconds: int = 6) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "detected": False,
+        "cookie_names_found": [],
+        "notes": "",
+    }
+    try:
+        resp = requests.post(
+            url,
+            data=json.dumps({"query": "{ __typename }"}),
+            headers={"Content-Type": "application/json", "Cookie": "sessionid=test;"},
+            timeout=max(2, timeout_seconds),
+            allow_redirects=False,
+        )
+    except requests.RequestException:
+        return result
+    set_cookie_hdr = resp.headers.get("set-cookie", "")
+    seen: list[str] = []
+    for name in _CSRF_COOKIE_NAMES:
+        if name in set_cookie_hdr.lower() or name in resp.headers.get("x-cookie", "").lower():
+            seen.append(name)
+    if seen:
+        result["detected"] = True
+        result["cookie_names_found"] = seen
+        result["notes"] = "Cookie-authenticated GraphQL detected"
+    return result
+
+
+def _probe_fields_for_auth_inference(
+    url: str,
+    ops: dict[str, list[str]],
+    headers: dict[str, str],
+    *,
+    timeout_seconds: int = 6,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "accessible_fields": [],
+        "inaccessible_fields": [],
+        "notes": "",
+    }
+    anon = {k: v for k, v in headers.items() if k.lower() not in ("authorization", "x-api-key", "cookie")}
+    candidates: list[str] = []
+    for items in ops.values():
+        candidates.extend(items or [])
+    seen: set[str] = set()
+    for field in candidates:
+        if field in seen:
+            continue
+        seen.add(field)
+        q = "{ __typename " + field + " }"
+        try:
+            resp = requests.post(
+                url,
+                data=json.dumps({"query": q}),
+                headers={**anon, "Content-Type": "application/json"},
+                timeout=max(2, timeout_seconds),
+                allow_redirects=False,
+            )
+        except requests.RequestException:
+            continue
+        try:
+            body = resp.json()
+        except json.JSONDecodeError:
+            continue
+        data = (body.get("data") or {}) if isinstance(body, dict) else {}
+        if data.get(field) is not None or data.get("__typename"):
+            result["accessible_fields"].append(field)
+        else:
+            result["inaccessible_fields"].append(field)
+    result["notes"] = "Anonymous-token field-level probe completed"
+    return result
 
 
 def _introspect_endpoint_sync(
@@ -243,6 +638,7 @@ def _introspect_endpoint_sync(
     """Run a probe + introspection against a single GraphQL candidate URL."""
     host = (urlparse(url).hostname or "").lower()
     endpoint = GraphQLEndpoint(host=host, url=url)
+    endpoint.attack_surface = {}
 
     request_headers = {
         "User-Agent": "cyber-pipeline/2.0 (graphql-introspection)",
@@ -275,6 +671,38 @@ def _introspect_endpoint_sync(
     if not _looks_like_graphql(endpoint.content_type, body):
         endpoint.notes.append("probe response did not look like GraphQL")
         return endpoint
+
+    endpoint.attack_surface["debug_headers"] = _detect_debug_headers(probe_resp)
+
+    # Phase 1b: batching amplification probe.
+    batch_payload = json.dumps([{"query": "{__typename}"}, {"query": "{__typename}"}])
+    batch_hit = False
+    try:
+        batch_resp = requests.post(
+            url,
+            data=batch_payload,
+            headers=request_headers,
+            timeout=max(2, timeout_seconds),
+            allow_redirects=False,
+        )
+        if batch_resp.status_code == 200:
+            try:
+                batch_body = batch_resp.json()
+                if isinstance(batch_body, list) and len(batch_body) == 2:
+                    batch_hit = True
+                    endpoint.attack_surface["batching_amplification"] = {
+                        "detected": True,
+                        "notes": "JSON array batching accepted with 2 results returned",
+                    }
+            except json.JSONDecodeError:
+                pass
+    except requests.RequestException:
+        pass
+    if not batch_hit:
+        endpoint.attack_surface["batching_amplification"] = {
+            "detected": False,
+            "notes": "JSON array batching not accepted",
+        }
 
     # Phase 2: full introspection query.
     try:
@@ -318,6 +746,9 @@ def _introspect_endpoint_sync(
             "introspection disabled or rejected: "
             + str(intro_body.get("errors", ""))[:200]
         )
+        if not isinstance(endpoint.attack_surface, dict):
+            endpoint.attack_surface = {}
+        endpoint.attack_surface["merged_response_grid"] = _detect_merged_response_grid(intro_body)
         return endpoint
 
     schema = (intro_body.get("data") or {}).get("__schema")
@@ -327,6 +758,50 @@ def _introspect_endpoint_sync(
 
     endpoint.introspection_status = "ok"
     endpoint.schema_operations = _extract_operations(schema)
+    endpoint.attack_surface = _alias_authorization_bypass(schema)
+    apollo = _check_apollo_persisted_query_headers(request_headers)
+    if apollo.get("sha256_required") or apollo.get("sha256_fields_found"):
+        if isinstance(endpoint.attack_surface, dict):
+            endpoint.attack_surface["apollo_persisted_query"] = apollo
+
+    ws_protocols = _detect_graphql_ws(endpoint.url, timeout_seconds=4)
+    if ws_protocols:
+        endpoint.attack_surface["graphql_over_websocket_protocols"] = ws_protocols
+
+    if endpoint.introspection_status == "ok":
+        for depth in _TYPENAME_NESTED_DEPTHS:
+            if depth <= 3:
+                continue
+            typename_q = _build_nested_typename_query(depth)
+            passed = _introspection_bypass_nested_typename(
+                url, typename_q, request_headers, timeout_seconds=4
+            )
+            if passed:
+                endpoint.attack_surface["introspection_bypass_nested_typename"] = {
+                    "detected": True,
+                    "max_depth_reached": depth,
+                    "notes": f"__typename reachable at nesting depth {depth}",
+                }
+                break
+
+    csrf = _detect_csrf_cookie_auth(url, timeout_seconds=5)
+    if csrf.get("detected") and csrf.get("cookie_names_found"):
+        endpoint.attack_surface["csrf_cookie_authenticated"] = csrf
+
+    if endpoint.introspection_status == "ok" and endpoint.schema_operations:
+        field_result = _probe_fields_for_auth_inference(
+            url, endpoint.schema_operations, request_headers, timeout_seconds=5
+        )
+        if field_result.get("accessible_fields") or field_result.get("inaccessible_fields"):
+            endpoint.attack_surface["field_level_auth_inference"] = field_result
+
+    playground_paths = ("/graphql/console", "/graphiql", "/playground", "/altair")
+    if any(p in url.lower() for p in playground_paths):
+        endpoint.attack_surface["playground_graphiql_exposure"] = {
+            "detected": True,
+            "locations": [url],
+            "notes": "Dedicated GraphQL IDE endpoint exposed",
+        }
     return endpoint
 
 

@@ -1,5 +1,26 @@
 from enum import StrEnum
 
+_RESUME_STAGE_ORDER = (
+    "subdomains",
+    "subdomain_takeover",
+    "live_hosts",
+    "waf",
+    "urls",
+    "git_diff_crawl",
+    "parameters",
+    "ranking",
+    "passive_scan",
+    "active_scan",
+    "semgrep",
+    "nuclei",
+    "access_control",
+    "validation",
+    "intelligence",
+    "threat_modeling",
+    "reporting",
+    "sarif_export",
+)
+
 
 class ResumePolicy(StrEnum):
     FULL = "full"
@@ -44,24 +65,22 @@ class PartialResumePlanner:
         self.resume_policy = resume_policy
 
     def plan_resume(self, failed_stage: str | None = None, force_from_stage: str | None = None) -> list[str]:
-        from src.pipeline.services.pipeline_orchestrator._constants import STAGE_ORDER
-
         if self.resume_policy == ResumePolicy.FULL:
-            return list(STAGE_ORDER)
+            return list(_RESUME_STAGE_ORDER)
 
         if self.resume_policy == ResumePolicy.FROM_STAGE or force_from_stage:
             start = force_from_stage or failed_stage
-            if start and start in STAGE_ORDER:
-                idx = STAGE_ORDER.index(start)
-                return list(STAGE_ORDER[idx:])
-            return list(STAGE_ORDER)
+            if start and start in _RESUME_STAGE_ORDER:
+                idx = _RESUME_STAGE_ORDER.index(start)
+                return list(_RESUME_STAGE_ORDER[idx:])
+            return list(_RESUME_STAGE_ORDER)
 
         completed = set()
         if hasattr(self.checkpoint_mgr, "completed_stages"):
             completed = set(self.checkpoint_mgr.completed_stages)
 
         planned: list[str] = []
-        for stage in STAGE_ORDER:
+        for stage in _RESUME_STAGE_ORDER:
             behavior = RESUME_BEHAVIORS.get(stage, StageResumeBehavior.IDEMPOTENT_MERGE)
             if stage in completed:
                 if behavior == StageResumeBehavior.MUST_RE_RUN:

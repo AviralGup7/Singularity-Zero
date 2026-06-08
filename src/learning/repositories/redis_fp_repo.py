@@ -11,6 +11,7 @@ import logging
 import threading
 import time
 from typing import Any, cast
+from collections import OrderedDict
 
 import redis.asyncio as redis
 
@@ -37,7 +38,7 @@ class RedisFPRepository:
     Stores patterns in Redis for mesh-wide access and real-time synchronization.
     """
 
-    def __init__(self, redis_url: str, key_prefix: str = "cyber:fp_patterns"):
+    def __init__(self, redis_url: str, key_prefix: str = "cyber:fp_patterns", max_entries: int = 10000):
         self._client = redis.from_url(
             redis_url,
             decode_responses=True,
@@ -48,7 +49,8 @@ class RedisFPRepository:
             retry_on_timeout=True,
         )
         self._key = key_prefix
-        self._fallback: dict[str, str] = {}
+        self._max_entries = max_entries
+        self._fallback: OrderedDict[str, str] = OrderedDict()
         self._degraded_until = 0.0
         self._closed = False
         self._state_lock = threading.Lock()
@@ -84,7 +86,11 @@ class RedisFPRepository:
         row = pattern.to_db_row()
         serialized = json.dumps(row)
         with self._state_lock:
+            if pattern.pattern_id in self._fallback:
+                self._fallback.move_to_end(pattern.pattern_id)
             self._fallback[pattern.pattern_id] = serialized
+            if len(self._fallback) > self._max_entries:
+                self._fallback.popitem(last=False)
             degraded_until = self._degraded_until
         if time.monotonic() < degraded_until:
             return
@@ -114,6 +120,9 @@ class RedisFPRepository:
             )
         data = self._fallback.get(pattern_id)
         if data:
+            with self._state_lock:
+                if pattern_id in self._fallback:
+                    self._fallback.move_to_end(pattern_id)
             return FPPattern.from_db_row(json.loads(data))
         return None
 
@@ -123,7 +132,11 @@ class RedisFPRepository:
             all_data = await self._redis_call("hgetall", self.key)
             if all_data:
                 with self._state_lock:
-                    self._fallback.update({str(k): str(v) for k, v in all_data.items()})
+                    for k, v in all_data.items():
+                        self._fallback[str(k)] = str(v)
+                        self._fallback.move_to_end(str(k))
+                    while len(self._fallback) > self._max_entries:
+                        self._fallback.popitem(last=False)
                 return self._deserialize_patterns(all_data.values(), active_only=active_only)
         except Exception as e:
             logger.warning("RedisFPRepo degraded: listing patterns from local fallback: %s", e)
@@ -165,7 +178,11 @@ class RedisFPRepository:
             all_data = await self._redis_call("hgetall", self.key)
             if all_data:
                 with self._state_lock:
-                    self._fallback.update({str(k): str(v) for k, v in all_data.items()})
+                    for k, v in all_data.items():
+                        self._fallback[str(k)] = str(v)
+                        self._fallback.move_to_end(str(k))
+                    while len(self._fallback) > self._max_entries:
+                        self._fallback.popitem(last=False)
                 logger.debug("RedisFPRepo primed %d patterns from Redis", len(all_data))
         except Exception as e:
             logger.debug("RedisFPRepo warm-up skipped: %s", e)

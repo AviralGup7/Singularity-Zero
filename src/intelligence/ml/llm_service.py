@@ -1,4 +1,7 @@
-"""Large Language Model (LLM) service client plane.
+"""
+RESEARCH PROTOTYPE — not wired into the active scan pipeline. See docs/architecture.md Implementation Status table for current state.
+
+Large Language Model (LLM) service client plane.
 
 Provides async, non-blocking integrations with Ollama, OpenAI, Gemini,
 and a high-fidelity local mock provider, complete with robust security-rule fallbacks.

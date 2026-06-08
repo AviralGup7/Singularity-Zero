@@ -23,13 +23,10 @@ recording layer.
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import random
-import string
 import time
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +211,7 @@ class GrpcFuzzer:
                         response=response,
                         latency_ms=(time.monotonic() - start) * 1000,
                     ))
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     results.append(FuzzResult(
                         method=method.get("name", "unknown"),
                         payload=fuzz.payload,

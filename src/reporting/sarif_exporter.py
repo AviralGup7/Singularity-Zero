@@ -327,7 +327,7 @@ def merge_sarif_documents(documents: Iterable[Mapping[str, Any]]) -> dict[str, A
                     }
                 },
                 "results": merged_results,
-                **({"logs": merged_logs} if logs else {}),
+                **({"logs": merged_logs} if merged_logs else {}),
             }
         ],
     }

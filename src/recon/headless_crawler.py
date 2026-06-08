@@ -28,9 +28,11 @@ existing crawler.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -48,16 +50,9 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     HAS_PLAYWRIGHT = False
 
-# Default per-host budget for the headless crawl.
-DEFAULT_MAX_PAGES_PER_HOST = 25
-
-# Default per-page navigation budget (seconds).
+DEFAULT_MAX_PAGES_PER_HOST = 100
 DEFAULT_PAGE_TIMEOUT_SECONDS = 15
-
-# Default depth — number of in-app link clicks to follow.
-DEFAULT_MAX_DEPTH = 2
-
-# Default concurrent browser instances.
+DEFAULT_MAX_DEPTH = 5
 DEFAULT_BROWSER_CONCURRENCY = 2
 
 
@@ -70,6 +65,78 @@ def _normalize_base(host: str) -> str:
     return f"https://{host}"
 
 
+def _extract_shadow_links(page: Any) -> list[str]:
+    try:
+        links = page.evaluate("""() => {
+            const out = [];
+            const queue = [document];
+            while (queue.length) {
+                const el = queue.pop();
+                const shadow = el.shadowRoot;
+                if (shadow) {
+                    const anchors = shadow.querySelectorAll('a[href]');
+                    for (let i = 0; i < anchors.length; i += 1) {
+                        out.push(anchors[i].href);
+                    }
+                    const nested = shadow.querySelectorAll('*');
+                    for (let i = 0; i < nested.length; i += 1) {
+                        const nestedShadow = nested[i].shadowRoot;
+                        if (nestedShadow) queue.push(nested[i]);
+                    }
+                }
+            }
+            return out;
+        }""")
+        if isinstance(links, list):
+            return [link for link in links if isinstance(link, str)]
+    except Exception:  # noqa: BLE001
+        pass
+    return []
+
+
+def _extract_api_tokens(context: Any, page: Any, origin: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    tokens: list[dict[str, Any]] = []
+    service_workers: list[dict[str, Any]] = []
+    try:
+        cookies = context.cookies()
+        for cookie in cookies or []:
+            name = (cookie.get("name") or "").lower()
+            if any(token in name for token in ["token", "access_token", "authorization", "api_key", "session", "auth"]):
+                tokens.append({
+                    "source": "cookie",
+                    "name": cookie.get("name"),
+                    "value": cookie.get("value"),
+                    "domain": cookie.get("domain"),
+                    "host": origin,
+                    "page_url": page.url,
+                })
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        storage = page.evaluate("""() => {
+            const out = [];
+            for (let i = 0; i < localStorage.length; i += 1) {
+                const key = localStorage.key(i);
+                out.push({ key, value: localStorage.getItem(key) });
+            }
+            return out;
+        }""")
+        if isinstance(storage, list):
+            for entry in storage:
+                key = (entry.get("key") or "") if isinstance(entry, dict) else ""
+                if any(token in key.lower() for token in ["token", "access", "auth", "api_key", "session"]):
+                    tokens.append({
+                        "source": "localStorage",
+                        "name": key,
+                        "value": entry.get("value"),
+                        "host": origin,
+                        "page_url": page.url,
+                    })
+    except Exception:  # noqa: BLE001
+        pass
+    return tokens, service_workers
+
+
 def headless_crawl_host(
     host: str,
     *,
@@ -77,18 +144,6 @@ def headless_crawl_host(
     page_timeout_seconds: int = DEFAULT_PAGE_TIMEOUT_SECONDS,
     max_depth: int = DEFAULT_MAX_DEPTH,
 ) -> set[str]:
-    """Crawl a single host with a headless browser.
-
-    Args:
-        host: Hostname or base URL.
-        max_pages: Cap on the number of internal pages visited.
-        page_timeout_seconds: Per-page navigation timeout.
-        max_depth: Cap on the number of in-app link clicks to follow.
-
-    Returns:
-        Set of absolute URLs observed during the crawl. Empty when
-        Playwright is not installed.
-    """
     if not HAS_PLAYWRIGHT:
         return set()
     base = _normalize_base(host)
@@ -109,9 +164,6 @@ def headless_crawl_host(
                     ),
                 )
                 page = context.new_page()
-                # Track every URL the browser requests (main frame,
-                # sub-frames, XHR/fetch). These URLs are exactly the
-                # modern SPA endpoint surface.
                 requested: set[str] = set()
 
                 def _on_request(request: Any) -> None:
@@ -131,7 +183,6 @@ def headless_crawl_host(
                     logger.debug("Headless navigation failed for %s: %s", base, exc)
                 discovered.update(requested)
 
-                # Discover in-page links from the current DOM
                 hrefs: list[str] = []
                 try:
                     anchors = page.eval_on_selector_all(
@@ -141,8 +192,8 @@ def headless_crawl_host(
                         hrefs = [h for h in anchors if isinstance(h, str)]
                 except Exception:  # noqa: BLE001
                     pass
+                hrefs.extend(_extract_shadow_links(page))
 
-                # BFS the link graph up to ``max_depth`` and ``max_pages``
                 visited: set[str] = {base}
                 queue: list[tuple[str, int]] = [(base, 0)]
                 pages_visited = 0
@@ -162,13 +213,14 @@ def headless_crawl_host(
                         try:
                             page.goto(
                                 absolute,
-                                wait_until="domcontentloaded",
+                                wait_until="networkidle",
                                 timeout=page_timeout_seconds * 1000,
                             )
                             pages_visited += 1
                         except Exception:  # noqa: BLE001
                             continue
                         discovered.update(requested)
+                        hrefs.extend(_extract_shadow_links(page))
                         if depth + 1 < max_depth:
                             queue.append((absolute, depth + 1))
                         if pages_visited >= max_pages:
@@ -190,20 +242,6 @@ def headless_crawl_hosts(
     max_workers: int = DEFAULT_BROWSER_CONCURRENCY,
     progress_callback: Any = None,
 ) -> tuple[set[str], dict[str, Any]]:
-    """Run a headless crawl across a list of hosts concurrently.
-
-    Args:
-        hosts: Hostnames or base URLs.
-        max_pages_per_host: Per-host page budget.
-        page_timeout_seconds: Per-page navigation timeout.
-        max_depth: Per-host link-following depth.
-        max_workers: Max concurrent browser instances.
-        progress_callback: Optional observability hook.
-
-    Returns:
-        Tuple of (urls_set, meta). ``meta`` is a JSON-serialisable dict
-        with counts, status, and durations.
-    """
     if not HAS_PLAYWRIGHT:
         return set(), {
             "status": "playwright_unavailable",
@@ -269,24 +307,12 @@ def headless_crawl_hosts(
     return discovered, meta
 
 
-# ---------------------------------------------------------------------------
-# Lightweight SPA-friendly HTTP crawler fallback (no Playwright required)
-# ---------------------------------------------------------------------------
-
-
 def simple_html_link_crawl(
     host: str,
     *,
     max_pages: int = DEFAULT_MAX_PAGES_PER_HOST,
     timeout_seconds: int = 6,
 ) -> set[str]:
-    """Crawl internal links via plain HTTP (no JS execution).
-
-    This is a much weaker fallback than :func:`headless_crawl_host` —
-    it cannot execute client-side routing, so SPAs will look empty.
-    It exists for environments where Playwright is not installable and
-    the default crawler is also unavailable.
-    """
     base = _normalize_base(host)
     if not base or not is_safe_url(base):
         return set()
@@ -310,7 +336,6 @@ def simple_html_link_crawl(
             continue
         discovered.add(url)
         pages_visited += 1
-        # Naive anchor extraction
         for href in re.findall(r'href=["\']([^"\']+)["\']', resp.text or ""):
             absolute = urljoin(url, href)
             if not is_safe_url(absolute) or not absolute.startswith(origin):
@@ -321,10 +346,6 @@ def simple_html_link_crawl(
             queue.append(absolute)
     return discovered
 
-
-# Late import to avoid the regex module being required at import time
-# when the only consumer wants the headless path.
-import re  # noqa: E402
 
 __all__ = [
     "DEFAULT_BROWSER_CONCURRENCY",

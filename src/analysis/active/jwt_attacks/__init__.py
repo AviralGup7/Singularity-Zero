@@ -9,7 +9,7 @@ from .jku_x5u_injection import test_jku_injection
 from .key_confusion import test_algorithm_confusion
 from .kid_injection import test_kid_traversal
 from .token_replay import test_token_replay
-from .weak_secret import test_weak_secret
+from .weak_secret import run_weak_secret
 
 __all__ = [
     "test_alg_none",

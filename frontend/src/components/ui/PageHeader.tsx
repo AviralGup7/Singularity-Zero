@@ -20,11 +20,12 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
     return (
       <motion.div
         ref={ref}
-        initial={{ opacity: 0, y: -10 }}
+        initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
         className={cn(
-          'flex items-center justify-between gap-4',
+          'flex items-center justify-between gap-4 pb-4',
+          'border-b border-[var(--border-soft)]',
           className
         )}
         {...props}
@@ -34,8 +35,8 @@ export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
           {icon && (
             <div
               className={cn(
-                'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
-                'bg-[var(--accent-soft)] text-[var(--accent)]'
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                'bg-gradient-to-br from-[var(--accent-soft)] to-[var(--accent-muted)] text-[var(--accent)] border border-[var(--accent)]/10'
               )}
             >
               {icon}

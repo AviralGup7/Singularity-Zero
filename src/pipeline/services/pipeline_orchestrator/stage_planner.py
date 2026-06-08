@@ -103,7 +103,7 @@ class StagePlanner:
         live_hosts = getattr(result, "live_hosts", []) or []
         if len(live_hosts) > 3 and "waf" in adjusted_stages:
             sample_size = max(3, int(len(live_hosts) * 0.05))
-            waf_detected_count = await self._sample_waf_detection(list(live_hosts)[:sample_size])
+            waf_detected_count = self._sample_waf_detection(list(live_hosts)[:sample_size])
             if waf_detected_count == 0:
                 logger.info("StagePlanner: WAF sample-check of %d hosts showed 0 detections. Skipping remaining waf checks.", sample_size)
                 adjusted_stages.remove("waf")
@@ -121,7 +121,8 @@ class StagePlanner:
 
         remaining_time = time_budget
         threshold = 0.3
-        ordered_stages = sorted(stage_values.items(), key=lambda kv: stage_order_map.get(kv[0], 99))
+        adjusted_order_map = {name: idx for idx, name in enumerate(adjusted_stages)}
+        ordered_stages = sorted(stage_values.items(), key=lambda kv: adjusted_order_map.get(kv[0], 99))
 
         for s, val in ordered_stages:
             if val < threshold:
@@ -138,7 +139,7 @@ class StagePlanner:
 
         return final_stages, resources
 
-    async def _sample_waf_detection(self, sample_urls: list[str]) -> int:
+    def _sample_waf_detection(self, sample_urls: list[str]) -> int:
         headers_list = [({"host": url.split("/")[2]} if len(url.split("/")) > 2 else {}) for url in sample_urls]
         detection_count = 0
         try:

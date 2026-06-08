@@ -85,8 +85,8 @@ CREATE TABLE IF NOT EXISTS feedback_events (
     plugin_name         TEXT NOT NULL,
     parameter_name      TEXT,
     parameter_type      TEXT,
-    was_validated       INTEGER NOT NULL,
-    was_false_positive  INTEGER NOT NULL,
+    was_validated       BOOLEAN NOT NULL,
+    was_false_positive  BOOLEAN NOT NULL,
     validation_method   TEXT,
     response_delta_score INTEGER,
     endpoint_type       TEXT,
@@ -149,7 +149,9 @@ CREATE TABLE IF NOT EXISTS fp_patterns (
     is_active             INTEGER DEFAULT 1,
     suppression_action    TEXT DEFAULT 'downgrade',
     created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    scope_signature       TEXT,
+    is_global             INTEGER DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_fp_patterns_category ON fp_patterns(category, is_active);
 CREATE INDEX IF NOT EXISTS idx_fp_patterns_probability ON fp_patterns(fp_probability DESC);
@@ -399,6 +401,20 @@ CREATE TABLE IF NOT EXISTS reviewer_actions (
 CREATE INDEX IF NOT EXISTS idx_reviewer_finding ON reviewer_actions(finding_id);
 CREATE INDEX IF NOT EXISTS idx_reviewer_action ON reviewer_actions(action_type, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_reviewer_reviewer ON reviewer_actions(reviewer_id);
+
+-- Attack chain findings (junction table for many-to-many relationship)
+CREATE TABLE IF NOT EXISTS attack_chain_findings (
+    chain_id            TEXT NOT NULL REFERENCES attack_chains(chain_id) ON DELETE CASCADE,
+    finding_id          TEXT NOT NULL,
+    PRIMARY KEY (chain_id, finding_id)
+);
+CREATE INDEX IF NOT EXISTS idx_attack_chain_findings_finding ON attack_chain_findings(finding_id);
+
+-- Schema versioning
+CREATE TABLE IF NOT EXISTS schema_version (
+    version             INTEGER PRIMARY KEY,
+    applied_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -486,6 +502,89 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
                     "Schema migration: failed to add %s.%s: %s", table, name, exc
                 )
     conn.commit()
+
+    # Schema versioning sequential upgrades
+    try:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS schema_version (
+                version             INTEGER PRIMARY KEY,
+                applied_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"""
+        )
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.warning("Schema migration: failed to initialize schema_version table: %s", exc)
+
+    try:
+        cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+        row = cursor.fetchone()
+        current_version = row[0] if row and row[0] is not None else 0
+    except sqlite3.Error:
+        current_version = 0
+
+    # Version 1 migration: attack_chain_findings junction table & population
+    if current_version < 1:
+        try:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS attack_chain_findings (
+                    chain_id            TEXT NOT NULL REFERENCES attack_chains(chain_id) ON DELETE CASCADE,
+                    finding_id          TEXT NOT NULL,
+                    PRIMARY KEY (chain_id, finding_id)
+                )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_attack_chain_findings_finding ON attack_chain_findings(finding_id)"
+            )
+            
+            # Populate it from existing attack_chains
+            import json
+            cursor = conn.execute("SELECT chain_id, finding_ids FROM attack_chains")
+            rows = cursor.fetchall()
+            for chain_id, finding_ids_raw in rows:
+                if not finding_ids_raw:
+                    continue
+                finding_ids = []
+                try:
+                    parsed = json.loads(finding_ids_raw)
+                    if isinstance(parsed, list):
+                       finding_ids = [str(x) for x in parsed]
+                    else:
+                       finding_ids = [str(finding_ids_raw)]
+                except Exception:
+                    finding_ids = [x.strip() for x in finding_ids_raw.split(",") if x.strip()]
+                for fid in finding_ids:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO attack_chain_findings (chain_id, finding_id) VALUES (?, ?)",
+                        (chain_id, fid),
+                    )
+            conn.execute("INSERT INTO schema_version (version) VALUES (1)")
+            conn.commit()
+            executed += 1
+        except sqlite3.Error as exc:
+            logger.warning("Schema migration version 1 failed: %s", exc)
+            try:
+                conn.rollback()
+            except sqlite3.Error:
+                pass
+
+    # Version 2 migration: Composite indexes
+    if current_version < 2:
+        try:
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_controls_finding_active ON compensating_controls(finding_id, is_active)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sla_events_finding_time ON sla_events(finding_id, timestamp DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_risk_acceptances_finding_state ON risk_acceptances(finding_id, state)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_findings_endpoint_category ON findings(endpoint_base, category)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_findings_category_tech ON findings(category, tech_stack)")
+            conn.execute("INSERT INTO schema_version (version) VALUES (2)")
+            conn.commit()
+            executed += 1
+        except sqlite3.Error as exc:
+            logger.warning("Schema migration version 2 failed: %s", exc)
+            try:
+                conn.rollback()
+            except sqlite3.Error:
+                pass
+
     return executed
 
 

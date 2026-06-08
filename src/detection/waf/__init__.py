@@ -27,6 +27,7 @@ from src.detection.waf.fingerprints import (
     STRATEGY_DESCRIPTIONS,
     WAFFingerprint,
 )
+from src.detection.waf.hmm_evader import HMMWafEvader
 from src.detection.waf.strategies import (
     SmugglingProbe,
     StrategyBundle,
@@ -47,7 +48,6 @@ from src.detection.waf.strategies import (
 from src.detection.waf.strategies import (
     describe_strategy as _describe_via_fingerprints,
 )
-from src.detection.waf.hmm_evader import HMMWafEvader
 
 __all__ = [
     "CATALOGUE",

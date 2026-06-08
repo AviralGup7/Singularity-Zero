@@ -79,6 +79,7 @@ class TestTaskEnvelopeExclusivity:
             "src/websocket_server/handlers.py",
             "src/websocket_server/broadcaster.py",
             "src/dashboard/fastapi/routers/jobs.py",
+            "src/pipeline/parallel_analysis/executor.py",
         }
 
         violations: list[str] = []

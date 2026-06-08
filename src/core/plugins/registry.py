@@ -76,6 +76,12 @@ class PluginRegistry:
             values = tuple(self._providers.get(normalized_kind, {}).values())
         return values
 
+    def has(self, kind: str, key: str) -> bool:
+        normalized_kind = kind.strip().lower()
+        normalized_key = key.strip().lower()
+        with self._lock:
+            return normalized_key in self._providers.get(normalized_kind, {})
+
     def unregister(self, kind: str, key: str) -> bool:
         normalized_kind = kind.strip().lower()
         normalized_key = key.strip().lower()

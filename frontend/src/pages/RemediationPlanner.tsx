@@ -238,7 +238,7 @@ export function RemediationPlanner() {
         <div className="relative z-10 max-w-2xl">
           <h2 className="text-xl font-bold text-text uppercase tracking-tight mb-3">Enterprise Fix Orchestration</h2>
           <p className="text-sm text-muted leading-relaxed mb-6">
-            The Singularity-Zero neural engine has automatically clustered discovered vulnerabilities into <strong>Tactical Fix Units</strong>. 
+            The system has automatically clustered discovered vulnerabilities into <strong>Tactical Fix Units</strong>. 
             Each unit contains a verified remediation path backed by hardware-isolated WASM PoC results.
           </p>
           <div className="flex gap-4">

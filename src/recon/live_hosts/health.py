@@ -11,7 +11,6 @@ import logging
 import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
-from urllib.parse import urlparse
 
 import urllib3
 
@@ -34,12 +33,9 @@ def probe_live_hosts_fallback(
     from src.recon.live_hosts.discovery import (
         PROBE_CACHE_DEFAULT_TTL_SECONDS,
         _cache_lookup,
-        _cache_update,
         _cache_update_from_batch,
-        _host_from_url,
         _normalized_probe_hosts,
         _probe_cache_ttl_seconds,
-        clear_probe_cache,
         emit_collection_progress,
     )
 

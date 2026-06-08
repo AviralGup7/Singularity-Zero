@@ -1,25 +1,32 @@
 # Singularity-Zero: Evolution Alpha - Development Roadmap
 
-All development roadmap phases (Phases 1 through 11) have been **100% completed, integrated, and verified**. The platform is fully operational, production-grade, and hardened against security and operational failures.
+This document lists development phases by their honest current status.
+Claims here are aligned with the implementation status table in
+docs/architecture.md.  Status reflects the state of the main branch at
+the time of this update.
 
-Refer to the table below to find the core documentation references and testing suites associated with each completed development phase:
-
-| Phase | Description | Status | Core Documentation SSOT | Verification & Testing Suite |
-| :--- | :--- | :--- | :--- | :--- |
-| **Phase 1** | Metric-Aware Balancing & Proactive Actor Migration | **100% COMPLETED** | [architecture.md](architecture.md#1-the-ghost-execution-plane-actor-mesh) | `tests/stress/test_mesh_failover.py`<br>`tests/test_ghost_actor.py` |
-| **Phase 2** | Autonomous Exploitation Engine (AEVE) Verification | **100% COMPLETED** | [architecture.md](architecture.md#2-cognitive-logic-analysis) | `tests/unit/execution/` |
-| **Phase 3** | 3D Attack-Chain Visualizer & Telemetry Micro-Batching | **100% COMPLETED** | [architecture.md](architecture.md#ui-ux-synchronization) | `tests/unit/dashboard/` |
-| **Phase 4** | WAL State Compaction & GhostVFS Key Rotation | **100% COMPLETED** | [architecture.md](architecture.md#1-the-ghost-execution-plane-actor-mesh) | `tests/test_recovery_subsystem_upgrades.py`<br>`tests/chaos/test_redis_failover.py` |
-| **Phase 5** | Continuous Self-Learning & Tag Threshold Tuning | **100% COMPLETED** | [architecture.md](architecture.md#2-cognitive-logic-analysis) | `tests/unit/learning/` |
-| **Phase 6** | Automated Compliance & Regulatory GRC Reporting | **100% COMPLETED** | [architecture.md](architecture.md#4-grc-compliance-scoring) | `tests/unit/reporting/` |
-| **Phase 7** | Multi-Tenant Isolation (TenantContext & Keys Scoping) | **100% COMPLETED** | [architecture.md](architecture.md#1-multi-tenant-key-namespacing-playbook-pub-sub-isolation) | `tests/unit/core/test_tenant_context.py` |
-| **Phase 8** | Supply Chain Integrity (Provenance & Dependency Locks) | **100% COMPLETED** | [testing.md](testing.md#automated-quality-gates-pipeline-security-verification) | CI Gated Scripts |
-| **Phase 9** | Closed-Loop Exploit Remediation Re-Scan Firewall | **100% COMPLETED** | [architecture.md](architecture.md#7-remediation-re-scan-firewall) | `tests/unit/execution/` |
-| **Phase 10** | OpenAPI Spec validation, Plugin Scaffold, cyber doctor | **100% COMPLETED** | [commands.md](commands.md#5-system-maintenance-health) | CI Gated Scripts |
-| **Phase 11** | WCAG 2.2 AA Playwright audits & CSRF Propagation | **100% COMPLETED** | [testing.md](testing.md#automated-quality-gates-pipeline-security-verification) | CI Gated Scripts |
+| Phase | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Phase 1** | Metric-Aware Balancing & Proactive Actor Migration | **In Progress** | Single-node actor runtimes are functional. Distributed actor migration across nodes is not implemented. |
+| **Phase 2** | Autonomous Exploitation Engine (AEVE) Verification | **Implemented** | Exploitation engines, safe-exploit wrapper, and rollback manager are functional. WASM-sandboxed PoC execution is not yet connected to wasmtime. |
+| **Phase 3** | 3D Attack-Chain Visualizer & Telemetry Micro-Batching | **Implemented** | Dashboard with 3D attack-graph rendering and telemetry streaming is functional. |
+| **Phase 4** | WAL State Compaction & GhostVFS Key Rotation | **Partial** | WAL and circuit breaker are functional. GhostVFS AES-GCM encrypted RAM-primary storage is not implemented as described (uses Python bytearray + secure_wipe). |
+| **Phase 5** | Continuous Self-Learning & Tag Threshold Tuning | **Implemented** | Nuclei tag optimizer, FP watchlist, and active-learning feedback loop are functional. Optional XGBoost/scikit-learn deps may not be installed; fallback to scikit-learn LogisticRegression is standard. |
+| **Phase 6** | Automated Compliance & Regulatory GRC Reporting | **Implemented** | HTML, SARIF, compliance, SLA, VRT reporting is functional. Ticketing (Jira/ServiceNow/DefectDojo) is planned but not shipped. |
+| **Phase 7** | Multi-Tenant Isolation (TenantContext & Keys Scoping) | **Implemented** | Redis namespacing and RBAC are functional. Distributed multi-node tenant isolation across a mesh is not implemented. |
+| **Phase 8** | Supply Chain Integrity (Provenance & Dependency Locks) | **Implemented** | Nuclei template SHA-256 verification and Ed25519 manifest signing are functional. |
+| **Phase 9** | Closed-Loop Exploit Remediation Re-Scan Firewall | **Implemented** | Remediation cooldown + original payload replay logic is functional. |
+| **Phase 10** | OpenAPI Spec validation, Plugin Scaffold, cstp doctor | **Implemented** | `cstp` CLI entry point replaces the old `cyber` name. OpenAPI schema sync is functional. |
+| **Phase 11** | WCAG 2.2 AA Playwright audits & CSRF Propagation | **Planned** | Playwright workflow fuzzer exists; dedicated WCAG audits are not yet implemented. |
 
 ---
 
-### Verification Summary
-The complete Singularity-Zero platform is fully locked under rigorous unit, integration, stress, and chaos engineering verification suites. Continuous quality checks gate the repository branch integrations to prevent regressions, secure dependencies, and enforce high-fidelity runtime performance.
+### Outstanding Work (as of this revision)
+
+- Ticket-creation integration (Jira, ServiceNow, DefectDojo) is scaffolded as `ticket_creators.py` but wired execution is pending.
+- Secrets scanning plugin for response bodies/headers/JS bundles exists as `src/analysis/checks/passive/secrets_scanner.py` and is awaiting broader pipeline integration.
+- `intelligence/swarm/`, `intelligence/ml/marl_simulation.py`, and `intelligence/ml/llm_service.py` remain research prototypes and are not wired into the active scan pipeline.
+- GraphQL mutation / alias-stacking / persisted-query-hijacking active testing is a gap in the engine catalog.
+- Authenticated multi-role credential-rotation scanning is not implemented.
+- `detection/` is a thin facade over `analysis/` and remains; merging is planned but not started.
 

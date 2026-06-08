@@ -2,26 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import ssl
 import struct
 from typing import Any
 
 import httpx
 
 from src.exploitation.http2_exploit import (
-    _H2_FRAME_TYPES,
     _HPACK_STATIC,
     _attempt_h2c_upgrade,
-    _encode_h2_settings_b64,
-    _h2_data_frame,
-    _h2_frame,
     _h2_headers_frame,
     _h2_settings_frame,
     _h2_window_update,
-    _hpack_encode,
-    _hpack_index,
-    _hpack_literal,
-    _open_socket,
 )
 
 logger = logging.getLogger(__name__)
@@ -242,9 +233,10 @@ async def run_h2_fuzzing_campaign(
     timeout_seconds: float = 5.0,
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
+    from urllib.parse import urlparse
+
     from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
     from src.core.utils.url_validation import is_safe_url_with_dns_check
-    from urllib.parse import urlparse
     if not is_safe_url_with_dns_check(url):
         logger.warning("H2 fuzzer: URL failed SSRF safety check, skipping: %s", url)
         return findings

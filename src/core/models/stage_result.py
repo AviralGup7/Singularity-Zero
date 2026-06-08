@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from dataclasses import MISSING, dataclass, field
 from enum import Enum, StrEnum
@@ -79,6 +80,7 @@ class StageResult:
     _compaction_budget: CRDTCompactionBudget | None = field(
         default=None, init=False, compare=False, repr=False
     )
+    _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
 
     # ------------------------------------------------------------------
     # Configuration / bootstrap
@@ -130,21 +132,20 @@ class StageResult:
 
     def apply_state_delta(self, delta: dict[str, Any]) -> None:
         """Atomically merge an incremental delta using Neural-Mesh logic."""
-        # 1. Update CRDT sets
-        # Overhaul #6: If the delta contains a full neural state snapshot, merge it first
-        # to ensure tombstones and causal metadata (HLC/WAL) are preserved.
+        with self._lock:
+            self._do_apply_state_delta(delta)
+
+    def _do_apply_state_delta(self, delta: dict[str, Any]) -> None:
         if "_neural_state" in delta:
             remote_state = NeuralState.from_crdt_snapshot(delta["_neural_state"])
             self._neural_state.merge(remote_state)
 
         self._neural_state.apply_delta(delta)
 
-        # 2. Update auxiliary fields (Legacy/Non-resilient)
         for key, value in delta.items():
             if key == "findings":
                 key = "reportable_findings"
 
-            # Skip fields managed by CRDT directly to prevent duplicate writes
             if key in (
                 "subdomains",
                 "urls",
@@ -165,13 +166,12 @@ class StageResult:
                 elif isinstance(current, set) and isinstance(value, (list, tuple, set, frozenset)):
                     current.update(value)
                 elif isinstance(current, list) and isinstance(value, list):
-                    setattr(self, key, value)  # Replacement rule as per architecture.md
+                    setattr(self, key, value)
                 elif isinstance(current, list) and isinstance(value, (tuple, set, frozenset)):
                     setattr(self, key, list(value))
                 else:
                     setattr(self, key, value)
 
-        # Sync plain fields from CRDT sets to guarantee consistency and single source of truth
         self.subdomains = self._neural_state.subdomains.to_set()
         self.urls = self._neural_state.urls.to_set()
         self.reportable_findings = list(self._neural_state.findings.values())
@@ -256,6 +256,8 @@ class StageResult:
 
     @staticmethod
     def _serialize_value(value: Any) -> Any:
+        if isinstance(value, threading.RLock):
+            return None
         if isinstance(value, NeuralState):
             return value.to_crdt_snapshot()
         if isinstance(value, set):

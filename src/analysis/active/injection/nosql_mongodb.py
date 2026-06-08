@@ -13,9 +13,8 @@ from typing import Any
 
 from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
 from src.analysis.passive.runtime import ResponseCache
-from ._confidence import probe_confidence, probe_severity
-from ._patterns import NOSQL_ERROR_RE
 
+from ._confidence import probe_confidence, probe_severity
 
 _MONGO_ERROR_RE = re.compile(
     r"(?i)(?:mongo|mongodb|bson|E11000|MongoError|MongoServerError|"

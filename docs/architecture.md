@@ -1,6 +1,34 @@
 ﻿# Project: Singularity-Zero Architecture
 
-This document defines the high-resilience, distributed execution model of the Cyber Security Test Pipeline. The system operates as a **Ghost-Actor Mesh**â€”a self-organizing, hardware-accelerated autonomous entity designed for infinite scale and zero silent failures.
+## Implementation Status — Read First
+
+This document mixes shipped features with research prototypes. The table below
+marks each section so operators can distinguish production claims from
+planned/future work.  Always check this section before making deployment or
+procurement decisions.
+
+| Section / Claim | Status |
+|---|---|
+| Ghost-Actor Mesh — location-transparent actor migration across nodes | **Not implemented.** Current deployment runs `pykka.ThreadingActor` on a single node. Multi-node actor migration is planned but not shipped. |
+| Distributed Consensus (SWIM gossip, Bully leader election, CRDT state engine) | **Not implemented.** Single-node only; no multi-node test harness exists. |
+| Durable Ledger & Circuit Breaker (WAL, Redis Stream + AOF dual-commit) | **Partially implemented** — WAL and circuit breaker patterns exist for single-node queue/cache layers. |
+| Tamper-Evident Audit Chain | **Implemented** — HMAC-SHA256 audit log is functional. |
+| Ghost-VFS — AES-256-GCM encrypted RAM-primary storage | **Not implemented as described.** Current implementation uses Python `bytearray` heap memory with `secure_wipe`. True encrypted RAM isolation requires OS-level memory protection and is not yet available. |
+| Differential Logic Prober (state-machine fuzzer, IDOR/BAC detection) | **Partially implemented** — core state-matching logic exists; coverage enforcement is low. |
+| Lateral Movement Graph (Kuzu integration) | **Research prototype** — Kuzu is a hard dependency on some install paths but the attack-graph wiring is minimal. |
+| Hardware-Isolated WASM Validation (AEVE engine) | **Not implemented as described.** `wasmtime` is installed but the AEVE sandboxed PoC execution path does not appear connected to WASM in the exploit engine code. The isolation claim is not currently satisfiable by this implementation. |
+| XGBoost & Active Learning Severity Engine | **Partially implemented** — XGBoost path exists but silently falls back to `LogisticRegression` when ML deps are absent. Behaves correctly in either case. |
+| GNN Attack Path Prediction (2-layer GCN) | **Research prototype** — pure-NumPy 2-layer GCN with small hidden dimensions. Requires Kuzu wiring and real attack-graph training data to be production-viable. |
+| RL Probe Selection (Q-learning agent) | **Implemented** — Q-table heuristic agent is functional. |
+| Collaborative AI Swarm (Red Team Mesh) | **Not implemented.** AgentNode and SwarmOrchestrator exist as thin prototypes (184+ lines) with no LLM backend or multi-node consensus harness. |
+| DRL Evasion Model (PPO policy-gradient) | **Not implemented.** No PyTorch / stable-baselines3 dependency exists; the evasion path uses a HMM-based approach. DRL as described requires additional dependencies not currently in this package. |
+| Threat Intelligence & MISP Feed Correlation | **Partially implemented** — MISP feed connector exists; VirusTotal and AlienVault OTX are not wired. |
+| Adaptive Nuclei Tag Optimizer | **Implemented** — per-tag precision/recall/F1 telemetry loop is functional. |
+| Sandbox Proxies & Time-Travel | **Partially implemented** — sandbox service layer exists; container orchestration is limited. |
+
+---
+
+This document defines the high-resilience, distributed execution model of the Cyber Security Test Pipeline. The system operates as a **Ghost-Actor Mesh**—a self-organizing, hardware-accelerated autonomous entity designed for infinite scale and zero silent failures.
 
 ---
 

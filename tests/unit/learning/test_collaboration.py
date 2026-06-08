@@ -129,3 +129,29 @@ class TestAssignmentStore:
         a = get_default_store()
         b = get_default_store()
         assert a is b
+
+    def test_cleanup_stale_locks(self) -> None:
+        store = AssignmentStore()
+        store.assign("f1", "alice")
+        store.lock("f1", "alice")
+        # backdate lock
+        fa = store.get("f1")
+        fa.locked_at = time.time() - 3600.0
+        # run cleanup
+        released = store.cleanup_stale(stale_after_seconds=60.0)
+        assert released == 1
+        assert store.get("f1").locked_by is None
+        assert store.get("f1").status == "pending"
+
+    def test_delete_old_assignments(self) -> None:
+        store = AssignmentStore()
+        store.assign("f1", "alice")
+        store.assign("f2", "bob")
+        # backdate f1
+        fa1 = store.get("f1")
+        fa1.assigned_at = time.time() - 3600.0
+        # prune older than 1800 sec (f1 should be deleted, f2 kept)
+        deleted = store.delete_old_assignments(older_than_seconds=1800.0)
+        assert deleted == 1
+        assert store.get("f1") is None
+        assert store.get("f2") is not None

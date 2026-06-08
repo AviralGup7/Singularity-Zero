@@ -18,7 +18,7 @@ from .jwt_attack_helpers import (
 logger = logging.getLogger(__name__)
 
 
-def test_weak_secret(token: str, url: str, session: Any) -> dict[str, Any]:
+def run_weak_secret(token: str, url: str, session: Any) -> dict[str, Any]:
     """Test common weak JWT signing secrets using an offline dictionary attack."""
     result: dict[str, Any] = {"attack": "weak_secret", "vulnerable": False, "details": []}
     try:
@@ -115,3 +115,6 @@ def test_weak_secret(token: str, url: str, session: Any) -> dict[str, Any]:
     except Exception as e:
         logger.error("Weak secret test error on %s: %s", url, e)
     return result
+
+
+test_weak_secret = run_weak_secret

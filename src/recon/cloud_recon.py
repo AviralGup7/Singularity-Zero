@@ -39,9 +39,7 @@ Improvements (v3):
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import logging
-import socket
 from typing import Any, cast
 from urllib.parse import urlparse
 
@@ -97,7 +95,121 @@ _GCP_CLOUD_RUN_SERVICE_HINTS: tuple[str, ...] = (
     "service",
     "backend",
     "frontend",
+    "auth",
+    "proxy",
+    "gateway",
+    "cdn",
+    "webhook",
+    "worker",
 )
+
+_DEFAULT_AWS_REGIONS: tuple[str, ...] = (
+    "us-east-1",
+    "us-east-2",
+    "us-west-1",
+    "us-west-2",
+    "eu-west-1",
+    "eu-west-2",
+    "eu-west-3",
+    "eu-central-1",
+    "ap-northeast-1",
+    "ap-northeast-2",
+    "ap-southeast-1",
+    "ap-southeast-2",
+    "sa-east-1",
+)
+
+_DEFAULT_GCP_REGIONS: tuple[str, ...] = (
+    "us-central1",
+    "us-east1",
+    "us-east4",
+    "us-west1",
+    "us-west2",
+    "us-west3",
+    "us-west4",
+    "europe-west1",
+    "europe-west2",
+    "europe-west3",
+    "europe-west4",
+    "europe-west6",
+    "asia-east1",
+    "asia-east2",
+    "asia-northeast1",
+    "asia-northeast2",
+    "asia-northeast3",
+    "asia-southeast1",
+    "asia-southeast2",
+    "australia-southeast1",
+    "southamerica-east1",
+)
+
+_AZURE_FUNCTIONS_REGIONS: tuple[str, ...] = (
+    "us",
+    "us2",
+    "us3",
+    "europe",
+    "asia",
+    "australia",
+    "india",
+    "canada",
+    "uk",
+    "germany",
+    "japan",
+    "korea",
+    "brazil",
+    "southafrica",
+    "uae",
+)
+
+_OCI_REGIONS: tuple[str, ...] = (
+    "us-ashburn-1",
+    "us-luke-1",
+    "us-gov-phx-1",
+    "ca-toronto-1",
+    "sa-saopaulo-1",
+    "eu-amsterdam-1",
+    "eu-frankfurt-1",
+    "uk-london-1",
+    "ap-mumbai-1",
+    "ap-osaka-1",
+    "ap-seoul-1",
+    "ap-sydney-1",
+    "ap-tokyo-1",
+)
+
+_WASABI_REGIONS: tuple[str, ...] = (
+    "us-east-1",
+    "us-east-2",
+    "us-west-1",
+    "us-west-2",
+    "eu-central-1",
+    "eu-west-1",
+    "ap-northeast-1",
+    "ap-southeast-1",
+)
+
+_DO_REGIONS: tuple[str, ...] = (
+    "nyc3",
+    "sfo2",
+    "nyc1",
+    "ams3",
+    "sgp1",
+    "lon1",
+    "fra1",
+    "tor1",
+    "sfo3",
+    "blr1",
+    "syd1",
+)
+
+_BACKBLAZE_REGIONS: tuple[str, ...] = (
+    "us-west-002",
+    "us-west-001",
+    "us-east-005",
+    "eu-central-001",
+    "apac-001",
+)
+
 
 
 class CloudBucketScanner:
@@ -111,6 +223,13 @@ class CloudBucketScanner:
         s3_website_regions: tuple[str, ...] | None = None,
         s3_object_paths: tuple[str, ...] | None = None,
         enable_cloud_run_enum: bool = True,
+        aws_regions: tuple[str, ...] | None = None,
+        gcp_regions: tuple[str, ...] | None = None,
+        azure_function_regions: tuple[str, ...] | None = None,
+        backblaze_regions: tuple[str, ...] | None = None,
+        wasabi_regions: tuple[str, ...] | None = None,
+        do_regions: tuple[str, ...] | None = None,
+        oci_regions: tuple[str, ...] | None = None,
     ):
         """Initialize the scanner.
 
@@ -131,6 +250,16 @@ class CloudBucketScanner:
                 on every AWS/GCP bucket.
             enable_cloud_run_enum: When True, the scanner will probe
                 candidate Cloud Run URLs derived from the target brand.
+            aws_regions: Override the list of AWS regions probed for
+                S3 Access Points, API Gateway, Lambda Function URLs.
+            gcp_regions: Override the list of GCP regions probed for
+                Cloud Functions, Cloud Run, App Engine.
+            azure_function_regions: Override the list of Azure region
+                prefixes used in Function/Logic App URL candidates.
+            backblaze_regions: Override regions probed for Backblaze B2.
+            wasabi_regions: Override regions probed for Wasabi object storage.
+            do_regions: Override regions probed for DigitalOcean Spaces.
+            oci_regions: Override regions probed for OCI Object Storage.
         """
         self.timeout_seconds = timeout_seconds
         self.concurrency = concurrency
@@ -138,6 +267,13 @@ class CloudBucketScanner:
         self.s3_website_regions = s3_website_regions or DEFAULT_S3_WEBSITE_REGIONS
         self.s3_object_paths = s3_object_paths or _S3_COMMON_OBJECT_PATHS
         self.enable_cloud_run_enum = enable_cloud_run_enum
+        self.aws_regions = aws_regions or _DEFAULT_AWS_REGIONS
+        self.gcp_regions = gcp_regions or _DEFAULT_GCP_REGIONS
+        self.azure_function_regions = azure_function_regions or _AZURE_FUNCTIONS_REGIONS
+        self.backblaze_regions = backblaze_regions or _BACKBLAZE_REGIONS
+        self.wasabi_regions = wasabi_regions or _WASABI_REGIONS
+        self.do_regions = do_regions or _DO_REGIONS
+        self.oci_regions = oci_regions or _OCI_REGIONS
 
     def generate_candidates(self, target: str) -> list[str]:
         """Generate smart storage bucket candidates based on target domain.
@@ -319,7 +455,8 @@ class CloudBucketScanner:
                     ) as policy_resp:
                         if policy_resp.status == 200:
                             finding["permissions"]["public_policy"] = True
-                            finding["severity"] = "medium"
+                            if finding["severity"] not in ("high", "critical"):
+                                finding["severity"] = "medium"
                             finding["details"] += " Bucket policy document is publicly readable."
                 except Exception:  # noqa: S110
                     pass
@@ -634,23 +771,12 @@ class CloudBucketScanner:
     async def probe_cloud_run(
         self, session: aiohttp.ClientSession, target: str
     ) -> list[dict[str, Any]]:
-        """Probe candidate Cloud Run URLs derived from the target brand.
-
-        Args:
-            session: aiohttp session.
-            target: Target domain.
-
-        Returns:
-            List of finding dicts. A 200/301 response from a candidate
-            URL is recorded as a finding with the URL attached. A 404
-            is not a finding.
-        """
-        if not self.enable_cloud_run_enum:
-            return []
-        candidates = self.enumerate_cloud_run_candidates(target)
+        candidate_urls: set[str] = set()
+        candidate_urls.update(self._build_cloud_run_1st_gen_candidates(target))
+        candidate_urls.update(self._build_cloud_run_2nd_gen_candidates(target))
         findings: list[dict[str, Any]] = []
-        for host in candidates:
-            url = f"https://{host}"
+        for candidate_url in candidate_urls:
+            url = f"https://{candidate_url}"
             try:
                 async with session.get(
                     url,
@@ -661,7 +787,7 @@ class CloudBucketScanner:
                         findings.append(
                             {
                                 "platform": "GCP Cloud Run",
-                                "service": host,
+                                "service": candidate_url,
                                 "url": url,
                                 "status": "public",
                                 "severity": "info",
@@ -677,39 +803,690 @@ class CloudBucketScanner:
 
     async def scan_all_candidates(self, target: str) -> list[dict[str, Any]]:
         """Generate and scan all bucket candidates concurrently."""
-        candidates = self.generate_candidates(target)
-        if not candidates:
-            # Even when there are no bucket candidates, we can still
-            # attempt Cloud Run URL enumeration against the brand.
-            connector = aiohttp.TCPConnector(limit=self.concurrency, ssl=True)
-            async with aiohttp.ClientSession(connector=connector) as session:
-                try:
-                    return await self.probe_cloud_run(session, target)
-                except Exception:  # noqa: S110
-                    return []
-            return []
+        parsed = urlparse(target if "://" in target else f"https://{target}")
+        domain = parsed.hostname or parsed.path or target
+        core_name = domain.split(".")[0].lower().strip()
+        project_id = core_name
 
-        # Enforce TLS certificate validation. Disabling verification silently
-        # downgrades the connection to plaintext-equivalent and exposes the
-        # scan to MITM. Operators who need a custom CA should pass a
-        # ``ssl_context`` via the connector and leave verification on.
         connector = aiohttp.TCPConnector(limit=self.concurrency, ssl=True)
         async with aiohttp.ClientSession(connector=connector) as session:
-            tasks: list[asyncio.Task[Any]] = [
-                asyncio.create_task(self.scan_bucket(session, bucket)) for bucket in candidates
-            ]
+            tasks: list[asyncio.Task[Any]] = []
+            candidates = self.generate_candidates(target)
+            if candidates:
+                for bucket in candidates:
+                    tasks.append(asyncio.create_task(self.scan_bucket(session, bucket)))
+
             tasks.append(asyncio.create_task(self.probe_cloud_run(session, target)))
-            # Run tasks concurrently
+            tasks.append(asyncio.create_task(self.probe_gcp_cloud_functions(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_gcp_app_engine(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_aws_lambda_urls(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_api_gateway(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_aws_amplify(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_firebase_hosting(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_azure_functions(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_azure_logic_apps(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_azure_static_web_apps(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_s3_access_points(session, core_name)))
+            tasks.append(asyncio.create_task(self.probe_multi_region_s3(session, core_name)))
+            tasks.append(asyncio.create_task(self.probe_digitalocean_spaces(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_backblaze_b2(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_wasabi(session, project_id)))
+            tasks.append(asyncio.create_task(self.probe_oci_object_storage(session, project_id)))
+
             completed = await asyncio.gather(*tasks, return_exceptions=True)
-            # Flatten results list
             findings: list[dict[str, Any]] = []
             for sublist in completed:
                 if isinstance(sublist, BaseException):
-                    logger.debug("Cloud bucket scan failed: %s", sublist)
+                    logger.debug("Cloud asset scan failed: %s", sublist)
                     continue
                 if isinstance(sublist, list):
                     findings.extend(cast(list[dict[str, Any]], sublist))
             return findings
+
+    def _build_cloud_run_1st_gen_candidates(self, target: str) -> list[str]:
+        parsed = urlparse(target if "://" in target else f"https://{target}")
+        domain = parsed.hostname or parsed.path or target
+        core_name = domain.split(".")[0].lower().strip()
+        if not core_name:
+            return []
+        candidates: set[str] = set()
+        if self.enable_cloud_run_enum:
+            for hint in _GCP_CLOUD_RUN_SERVICE_HINTS:
+                for region_tpl in _GCP_CLOUD_RUN_REGION_TEMPLATES:
+                    candidates.add(f"{core_name}-{hint}{region_tpl}")
+                    candidates.add(f"{core_name}{region_tpl}")
+        return sorted(candidates)
+
+    def _build_cloud_run_2nd_gen_candidates(self, target: str) -> list[str]:
+        parsed = urlparse(target if "://" in target else f"https://{target}")
+        domain = parsed.hostname or parsed.path or target
+        core_name = domain.split(".")[0].lower().strip()
+        if not core_name:
+            return []
+        candidates: set[str] = set()
+        if self.enable_cloud_run_enum:
+            for region in self.gcp_regions:
+                candidates.add(f"{core_name}-{region}-uc.a.run.app")
+                candidates.add(f"{core_name}-{region}.a.run.app")
+                for h in _GCP_CLOUD_RUN_SERVICE_HINTS:
+                    candidates.add(f"{core_name}-{h}-{region}-uc.a.run.app")
+                    candidates.add(f"{core_name}-{h}-{region}.a.run.app")
+        return sorted(candidates)
+
+    async def probe_gcp_cloud_functions(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        for region in self.gcp_regions:
+            base = f"https://{region}-{project_id}.cloudfunctions.net"
+            for function_name in [
+                project_id,
+                f"{project_id}-api",
+                f"{project_id}-service",
+                f"{project_id}-app",
+                "api",
+                "service",
+                "web",
+            ]:
+                url = f"{base}/{function_name}"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302, 401, 403):
+                            findings.append(
+                                {
+                                    "platform": "GCP Cloud Functions",
+                                    "service": function_name,
+                                    "url": url,
+                                    "region": region,
+                                    "status": "detected",
+                                    "severity": "info",
+                                    "details": (
+                                        f"Cloud Function URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        second_gen_base = f"https://{project_id}-{self.gcp_regions[0]}.cloudfunctions.net"
+        try:
+            async with session.get(
+                second_gen_base,
+                timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                allow_redirects=False,
+            ) as resp:
+                if resp.status in (200, 301, 302, 401, 403):
+                    findings.append(
+                        {
+                            "platform": "GCP Cloud Functions (2nd Gen)",
+                            "url": second_gen_base,
+                            "region": self.gcp_regions[0],
+                            "status": "detected",
+                            "severity": "info",
+                            "details": (
+                                f"2nd Gen Cloud Functions base URL responded with HTTP {resp.status}."
+                            ),
+                        }
+                    )
+        except Exception:  # noqa: S110
+            pass
+        return findings
+
+    async def probe_gcp_app_engine(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        candidates = [
+            f"https://{project_id}.appspot.com",
+            f"https://{project_id}.uc.r.appspot.com",
+            f"https://{project_id}.ew.r.appspot.com",
+            f"https://{project_id}.ae.r.appspot.com",
+        ]
+        for version in ["v1", "prod", "staging", "dev", "default"]:
+            candidates.append(f"https://{version}-dot-{project_id}.appspot.com")
+        for url in candidates:
+            try:
+                async with session.get(
+                    url,
+                    timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                    allow_redirects=False,
+                ) as resp:
+                    if resp.status in (200, 301, 302):
+                        findings.append(
+                            {
+                                "platform": "GCP App Engine",
+                                "url": url,
+                                "status": "public",
+                                "severity": "info",
+                                "details": (
+                                    f"App Engine URL responded with HTTP {resp.status}."
+                                ),
+                            }
+                        )
+            except Exception:  # noqa: S110
+                continue
+        return findings
+
+    async def probe_aws_lambda_urls(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        function_candidates = [
+            project_id,
+            f"{project_id}-function",
+            f"{project_id}-api",
+            f"{project_id}-handler",
+            "api",
+            "handler",
+            "webhook",
+        ]
+        for region in self.aws_regions:
+            for func_name in function_candidates:
+                url = f"https://{func_name}.lambda-url.{region}.on.aws"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302, 401, 403):
+                            findings.append(
+                                {
+                                    "platform": "AWS Lambda Function URL",
+                                    "function_name": func_name,
+                                    "url": url,
+                                    "region": region,
+                                    "status": "detected",
+                                    "severity": "info",
+                                    "details": (
+                                        f"Lambda Function URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_api_gateway(self, session: aiohttp.ClientSession, project_id: str) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        api_candidates = [
+            project_id,
+            f"{project_id}-api",
+            f"{project_id}-gw",
+            f"{project_id}-gateway",
+            "api",
+            "gateway",
+        ]
+        for region in self.aws_regions:
+            for api_id in api_candidates:
+                urls = [
+                    f"https://{api_id}.execute-api.{region}.amazonaws.com",
+                    f"https://{api_id}.execute-api.{region}.vpce.amazonaws.com",
+                ]
+                for url in urls:
+                    try:
+                        async with session.get(
+                            url,
+                            timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                            allow_redirects=False,
+                        ) as resp:
+                            if resp.status in (200, 301, 302, 401, 403):
+                                findings.append(
+                                    {
+                                        "platform": "AWS API Gateway",
+                                        "api_id": api_id,
+                                        "url": url,
+                                        "region": region,
+                                        "status": "detected",
+                                        "severity": "info",
+                                        "details": (
+                                            f"API Gateway endpoint responded with HTTP {resp.status}."
+                                        ),
+                                    }
+                                )
+                    except Exception:  # noqa: S110
+                        continue
+        return findings
+
+    async def probe_aws_amplify(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        app_id_candidates = [project_id, f"{project_id}1234567890"]
+        branch_candidates = [
+            "main",
+            "master",
+            "prod",
+            "staging",
+            "dev",
+            "preview",
+            "develop",
+            "production",
+        ]
+        for app_id in app_id_candidates:
+            for branch in branch_candidates:
+                url = f"https://{branch}.{app_id}.amplifyapp.com"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302):
+                            findings.append(
+                                {
+                                    "platform": "AWS Amplify",
+                                    "app_id": app_id,
+                                    "branch": branch,
+                                    "url": url,
+                                    "status": "public",
+                                    "severity": "info",
+                                    "details": (
+                                        f"Amplify branch URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_firebase_hosting(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        channel_candidates = [
+            "live",
+            "preview",
+            "prod",
+            "staging",
+            "dev",
+            "production",
+        ]
+        for channel in channel_candidates:
+            for domain_suffix in ["web.app", "firebaseapp.com"]:
+                url = f"https://{channel}.{project_id}.{domain_suffix}"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302):
+                            findings.append(
+                                {
+                                    "platform": "Firebase Hosting",
+                                    "url": url,
+                                    "channel": channel,
+                                    "status": "public",
+                                    "severity": "info",
+                                    "details": (
+                                        f"Firebase Hosting URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_azure_functions(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        function_candidates = [
+            project_id,
+            f"{project_id}-function",
+            f"{project_id}-api",
+            "api",
+            "function",
+            "handler",
+            "webhook",
+        ]
+        for region in self.azure_function_regions:
+            for func in function_candidates:
+                for azure_suffix in [
+                    f"{func}.{region}.azurewebsites.net",
+                    f"{func}.azurewebsites.net",
+                ]:
+                    url = f"https://{azure_suffix}"
+                    try:
+                        async with session.get(
+                            url,
+                            timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                            allow_redirects=False,
+                        ) as resp:
+                            if resp.status in (200, 301, 302, 401, 403):
+                                findings.append(
+                                    {
+                                        "platform": "Azure Functions",
+                                        "function_name": func,
+                                        "url": url,
+                                        "region": region,
+                                        "status": "detected",
+                                        "severity": "info",
+                                        "details": (
+                                            f"Azure Functions URL responded with HTTP {resp.status}."
+                                        ),
+                                    }
+                                )
+                    except Exception:  # noqa: S110
+                        continue
+        return findings
+
+    async def probe_azure_logic_apps(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        logic_candidates = [
+            project_id,
+            f"{project_id}-logic",
+            f"{project_id}-workflow",
+            "workflow",
+            "logicapp",
+        ]
+        for region in self.azure_function_regions:
+            for logic_name in logic_candidates:
+                url = f"https://{logic_name}.{region}.logic.azure.com"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302, 401, 403):
+                            findings.append(
+                                {
+                                    "platform": "Azure Logic Apps",
+                                    "logic_app_name": logic_name,
+                                    "url": url,
+                                    "region": region,
+                                    "status": "detected",
+                                    "severity": "info",
+                                    "details": (
+                                        f"Logic Apps URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_azure_static_web_apps(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        swa_candidates = [
+            project_id,
+            f"{project_id}-site",
+            f"{project_id}-app",
+            f"{project_id}-static",
+            "site",
+            "app",
+        ]
+        for swa_name in swa_candidates:
+            for swa_suffix in [
+                f"{swa_name}.azurestaticapps.net",
+                f"{swa_name}.standard.azurestaticapps.net",
+            ]:
+                url = f"https://{swa_suffix}"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302):
+                            findings.append(
+                                {
+                                    "platform": "Azure Static Web Apps",
+                                    "swa_name": swa_name,
+                                    "url": url,
+                                    "status": "public",
+                                    "severity": "info",
+                                    "details": (
+                                        f"Static Web Apps URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_s3_access_points(
+        self, session: aiohttp.ClientSession, base_name: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        access_point_candidates = [
+            base_name,
+            f"{base_name}-ap",
+            f"{base_name}-access",
+            f"{base_name}-edge",
+            "access",
+            "edge",
+        ]
+        for ap_name in access_point_candidates:
+            for region in self.aws_regions:
+                url = f"https://{ap_name}-<account-id>.s3-accesspoint.{region}.amazonaws.com"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (403, 200):
+                            findings.append(
+                                {
+                                    "platform": "AWS S3 Access Point",
+                                    "access_point_name": ap_name,
+                                    "url": url.replace("<account-id>", "<unverified>"),
+                                    "region": region,
+                                    "status": "detected",
+                                    "severity": "info",
+                                    "details": (
+                                        f"S3 Access Point responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_multi_region_s3(
+        self, session: aiohttp.ClientSession, bucket: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        path_style_urls = [
+            f"https://s3.{region}.amazonaws.com/{bucket}" for region in self.aws_regions
+        ]
+        vhost_style_urls = [
+            f"https://{bucket}.s3.{region}.amazonaws.com" for region in self.aws_regions
+        ]
+        urls = path_style_urls + vhost_style_urls
+        for url in urls:
+            try:
+                async with session.get(
+                    url,
+                    timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                    allow_redirects=False,
+                ) as resp:
+                    if resp.status in (200, 301, 302, 403):
+                        findings.append(
+                            {
+                                "platform": "AWS S3 Multi-Region",
+                                "bucket": bucket,
+                                "url": url,
+                                "region": self._extract_region_from_url(url),
+                                "status": "detected",
+                                "severity": "info",
+                                "details": (
+                                    f"S3 endpoint responded with HTTP {resp.status}."
+                                ),
+                            }
+                        )
+            except Exception:  # noqa: S110
+                continue
+        return findings
+
+    def _extract_region_from_url(self, url: str) -> str:
+        try:
+            parts = url.split(".amazonaws.com")
+            if parts:
+                prefix = parts[0]
+                region_candidate = prefix.split(".")[-2]
+                if region_candidate not in {"s3", "execute-api", "vpce", "lambda-url"}:
+                    return region_candidate
+        except Exception:  # noqa: S110
+            pass
+        return "unknown"
+
+    async def probe_digitalocean_spaces(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        space_candidates = [
+            project_id,
+            f"{project_id}-assets",
+            f"{project_id}-files",
+            f"{project_id}-backup",
+            "space",
+        ]
+        for region in self.do_regions:
+            for space_name in space_candidates:
+                url = f"https://{space_name}.{region}.digitaloceanspaces.com"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302, 403):
+                            findings.append(
+                                {
+                                    "platform": "DigitalOcean Spaces",
+                                    "space_name": space_name,
+                                    "url": url,
+                                    "region": region,
+                                    "status": "detected",
+                                    "severity": "info",
+                                    "details": (
+                                        f"DigitalOcean Space URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_backblaze_b2(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        bucket_candidates = [
+            project_id,
+            f"{project_id}-backup",
+            f"{project_id}-assets",
+            "bucket",
+        ]
+        for region in self.backblaze_regions:
+            for bucket_name in bucket_candidates:
+                url = f"https://{bucket_name}.s3.us-west-002.backblazeb2.com"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302, 403):
+                            findings.append(
+                                {
+                                    "platform": "Backblaze B2",
+                                    "bucket": bucket_name,
+                                    "url": url,
+                                    "region": region,
+                                    "status": "detected",
+                                    "severity": "info",
+                                    "details": (
+                                        f"Backblaze B2 bucket URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_wasabi(self, session: aiohttp.ClientSession, project_id: str) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        bucket_candidates = [
+            project_id,
+            f"{project_id}-backup",
+            f"{project_id}-assets",
+            "bucket",
+        ]
+        for region in self.wasabi_regions:
+            for bucket_name in bucket_candidates:
+                url = f"https://{bucket_name}.s3.{region}.wasabisys.com"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302, 403):
+                            findings.append(
+                                {
+                                    "platform": "Wasabi",
+                                    "bucket": bucket_name,
+                                    "url": url,
+                                    "region": region,
+                                    "status": "detected",
+                                    "severity": "info",
+                                    "details": (
+                                        f"Wasabi bucket URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
+
+    async def probe_oci_object_storage(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        bucket_candidates = [
+            project_id,
+            f"{project_id}-backup",
+            f"{project_id}-assets",
+            "bucket",
+        ]
+        for region in self.oci_regions:
+            for bucket_name in bucket_candidates:
+                url = f"https://{bucket_name}.objectstorage.{region}.oraclecloud.com"
+                try:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.timeout_seconds),
+                        allow_redirects=False,
+                    ) as resp:
+                        if resp.status in (200, 301, 302, 403):
+                            findings.append(
+                                {
+                                    "platform": "OCI Object Storage",
+                                    "bucket": bucket_name,
+                                    "url": url,
+                                    "region": region,
+                                    "status": "detected",
+                                    "severity": "info",
+                                    "details": (
+                                        f"OCI Object Storage URL responded with HTTP {resp.status}."
+                                    ),
+                                }
+                            )
+                except Exception:  # noqa: S110
+                    continue
+        return findings
 
     def run_scan_sync(self, target: str) -> list[dict[str, Any]]:
         """Synchronous runner wrapper for the async scan."""

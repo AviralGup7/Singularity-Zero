@@ -15,18 +15,40 @@ class FindingsRepo(BaseRepo):
 
     def record_finding(self, row: dict[str, Any]) -> None:
         """Record a finding."""
+        expected_fields = [
+            "finding_id", "run_id", "category", "title", "url", "severity",
+            "confidence", "score", "decision", "lifecycle_state", "cvss_score",
+            "plugin_name", "endpoint_base", "host", "parameter_name",
+            "parameter_type", "evidence", "response_status", "response_body_hash",
+            "tech_stack", "asset_id", "asset_type", "asset_criticality",
+            "business_multiplier", "control_discount", "modern_risk_score",
+            "remediation_priority", "triaged_at", "remediation_started_at",
+            "fixed_at", "verified_at"
+        ]
+        params = {k: row.get(k) for k in expected_fields}
+        if isinstance(params["tech_stack"], (list, set)):
+            params["tech_stack"] = ",".join(list(params["tech_stack"]))
+
         with self._cursor() as cur:
             cur.execute(
                 """INSERT OR REPLACE INTO findings
                    (finding_id, run_id, category, title, url, severity,
                     confidence, score, decision, lifecycle_state, cvss_score,
                     plugin_name, endpoint_base, host, parameter_name,
-                    parameter_type, evidence, response_status, response_body_hash)
+                    parameter_type, evidence, response_status, response_body_hash,
+                    tech_stack, asset_id, asset_type, asset_criticality,
+                    business_multiplier, control_discount, modern_risk_score,
+                    remediation_priority, triaged_at, remediation_started_at,
+                    fixed_at, verified_at)
                    VALUES (:finding_id, :run_id, :category, :title, :url, :severity,
                            :confidence, :score, :decision, :lifecycle_state, :cvss_score,
                            :plugin_name, :endpoint_base, :host, :parameter_name,
-                           :parameter_type, :evidence, :response_status, :response_body_hash)""",
-                row,
+                           :parameter_type, :evidence, :response_status, :response_body_hash,
+                           :tech_stack, :asset_id, :asset_type, :asset_criticality,
+                           :business_multiplier, :control_discount, :modern_risk_score,
+                           :remediation_priority, :triaged_at, :remediation_started_at,
+                           :fixed_at, :verified_at)""",
+                params,
             )
 
     def get_findings_for_run(self, run_id: str) -> list[dict]:

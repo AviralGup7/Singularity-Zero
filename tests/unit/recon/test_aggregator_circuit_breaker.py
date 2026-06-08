@@ -4,15 +4,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
 from src.recon.collectors import aggregator
 from src.recon.collectors.health import (
     HEALTH_REGISTRY,
     record_failure,
     reset_health_state,
 )
-from src.recon.collectors.types import CollectorStatus
 
 
 def _cfg(**tools_overrides) -> SimpleNamespace:

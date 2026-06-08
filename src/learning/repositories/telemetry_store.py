@@ -73,7 +73,18 @@ _KNOWN_TABLES = {
     "threat_intel_cache",
     "reviewer_actions",
 }
-_KNOWN_TIME_COLUMNS = {"created_at", "updated_at", "timestamp", "last_seen"}
+_KNOWN_TIME_COLUMNS = {
+    "created_at",
+    "updated_at",
+    "timestamp",
+    "last_seen",
+    "token_expiry",
+    "expires_at",
+    "detected_at",
+    "recorded_at",
+    "start_time",
+    "end_time",
+}
 
 _DELETE_QUERIES = {  # noqa: S608  # nosec B608  (t and c are from hardcoded allowlisted sets)
     (t, c): f"DELETE FROM {t} WHERE {c} < ?"  # noqa: S608  # nosec B608
@@ -377,6 +388,10 @@ class TelemetryStore:
         """Get attack chains with optional filters."""
         return self.attack_chains.get_attack_chains(pattern_name, status, limit)
 
+    def get_attack_chains_for_finding(self, finding_id: str) -> list[dict]:
+        """Get all attack chains containing a specific finding ID."""
+        return self.attack_chains.get_attack_chains_for_finding(finding_id)
+
     def save_confidence_model(self, row: dict[str, Any]) -> None:
         """Save a confidence calibration model."""
         self.confidence.save_confidence_model(row)
@@ -495,9 +510,58 @@ class TelemetryStore:
             sizes[table] = int(cur.fetchone()[0])
         return sizes
 
-    def run_maintenance(self) -> dict[str, Any]:
-        """Run database maintenance (VACUUM, ANALYZE)."""
+    def run_maintenance(self, retention_policies: dict[str, int] | None = None) -> dict[str, Any]:
+        """Run database maintenance.
+        
+        This automatically deletes expired records based on retention policies,
+        then performs VACUUM and ANALYZE.
+        
+        Args:
+            retention_policies: Dict mapping table name to retention age in days.
+                                If None, defaults are applied:
+                                - "feedback_events": 90 days
+                                - "performance_metrics": 30 days
+                                - "plugin_stats": 30 days
+                                - "threshold_history": 60 days
+        """
+        import datetime
+        now = datetime.datetime.now(datetime.UTC)
+        deleted_counts = {}
+
+        # 1. Absolute expiration cleanup (delete where expiry < now)
+        try:
+            now_iso = now.isoformat()
+            deleted_counts["session_states"] = self.delete_expired_records(
+                "session_states", now_iso, "token_expiry"
+            )
+            deleted_counts["threat_intel_cache"] = self.delete_expired_records(
+                "threat_intel_cache", now_iso, "expires_at"
+            )
+        except Exception as exc:
+            logger.warning("Telemetry store maintenance: failed absolute expiry cleanup: %s", exc)
+
+        # 2. Relative retention cleanup (delete where age > X days)
+        policies = retention_policies or {
+            "feedback_events": 90,
+            "performance_metrics": 30,
+            "plugin_stats": 30,
+            "threshold_history": 60,
+        }
+        
+        for table, days in policies.items():
+            try:
+                cutoff = (now - datetime.timedelta(days=days)).isoformat()
+                column = "timestamp" if table == "feedback_events" else "recorded_at"
+                deleted_counts[table] = self.delete_expired_records(table, cutoff, column)
+            except Exception as exc:
+                logger.warning("Telemetry store maintenance: failed to prune table %s: %s", table, exc)
+
+        # 3. Compact & optimize
         conn = self._get_conn()
         conn.execute("VACUUM")
         conn.execute("ANALYZE")
-        return {"status": "completed", "size": self.get_db_size()}
+        return {
+            "status": "completed",
+            "deleted_counts": deleted_counts,
+            "size": self.get_db_size(),
+        }
