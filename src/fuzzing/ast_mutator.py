@@ -17,6 +17,15 @@ from io import StringIO
 from typing import Any
 
 
+class BaseASTMutator(ABC):
+    """Abstract base class for all AST-based mutators."""
+
+    @abstractmethod
+    def mutate(self, base_text: str) -> list[str]:
+        """Generate syntactic mutations of the input base string."""
+        pass
+
+
 class JSONASTMutator(BaseASTMutator):
     """Mutates JSON payloads by traversing their AST and applying syntactic transformations."""
 

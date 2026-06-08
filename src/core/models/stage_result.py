@@ -256,7 +256,7 @@ class StageResult:
 
     @staticmethod
     def _serialize_value(value: Any) -> Any:
-        if isinstance(value, threading.RLock):
+        if isinstance(value, type(threading.RLock())):
             return None
         if isinstance(value, NeuralState):
             return value.to_crdt_snapshot()
