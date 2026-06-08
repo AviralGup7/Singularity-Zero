@@ -86,9 +86,23 @@ payload_logs/
 attack_surfaces/
 
 # Anti-forensic Ghost-VFS (CRITICAL - NEVER COMMIT)
+/tmp_reports/
+/tmp_scratch/
 /tmp_ghost_vfs/
 *.vfs
 *.ramfs
+
+# Transient temp / scratch files
+tmp_*
+*.tmp
+*.temp
+*.log
+
+# Ad-hoc analysis exports and one-off reports
+test_analysis*
+scratch_*
+*junk*
+*~backup*
 
 # Database and Cache state
 *.db
@@ -129,11 +143,13 @@ configs/pipeline_resume.cfg
 helm/**/values.local.yaml
 helm/**/secrets.yaml
 
-# AI/Vibe Coding Instructions
+# AI/Vibe Coding Instructions / runtime traces
 GEMINI.md
 **/GEMINI.md
 .kilo/
 **/sessions/
+.ai/
+.ai/traces/
 
 # IDE/Editor
 *.tmp

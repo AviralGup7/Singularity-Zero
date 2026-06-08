@@ -12,7 +12,7 @@ import logging
 from typing import Any, Callable
 
 from src.core.scoring import ScoringConfig, bounded_confidence
-from src.core.status import ValidationStatus
+from src.execution.validators.status import ValidationStatus
 
 logger = logging.getLogger(__name__)
 

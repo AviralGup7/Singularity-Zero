@@ -143,8 +143,9 @@ def _looks_like_fragment_circular(body: str) -> bool:
         return False
     try:
         parsed = json.loads(body)
-        data = parsed.get("data", {})
-        return bool(data)
+        if isinstance(parsed, list):
+            return any(isinstance(item, dict) and bool(item.get("data", {})) for item in parsed)
+        return isinstance(parsed, dict) and bool(parsed.get("data", {}))
     except (ValueError, TypeError):
         return False
 
@@ -162,7 +163,9 @@ def _looks_like_persisted_query(body: str) -> bool:
         return False
     try:
         parsed = json.loads(body)
-        return bool(parsed.get("data", {}))
+        if isinstance(parsed, list):
+            return any(isinstance(item, dict) and bool(item.get("data", {})) for item in parsed)
+        return isinstance(parsed, dict) and bool(parsed.get("data", {}))
     except (ValueError, TypeError):
         return False
 
@@ -173,7 +176,9 @@ def _looks_like_subscription_response(body: str) -> bool:
         return False
     try:
         parsed = json.loads(body)
-        return bool(parsed.get("data", {})) and "__typename" in body
+        if isinstance(parsed, list):
+            return any(isinstance(item, dict) and bool(item.get("data", {})) for item in parsed) and "__typename" in body
+        return isinstance(parsed, dict) and bool(parsed.get("data", {})) and "__typename" in body
     except (ValueError, TypeError):
         return False
 

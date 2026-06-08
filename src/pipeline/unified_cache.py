@@ -29,6 +29,66 @@ from src.pipeline.cache_backend import PersistentCache
 logger = get_pipeline_logger(__name__)
 
 
+class Backend(StrEnum):
+    SQLITE = "sqlite"
+    FILE = "file"
+
+
+class CachePriority(StrEnum):
+    NORMAL = "normal"
+    TRANSIENT = "transient"
+    CRITICAL = "critical"
+
+
+class TTLMode(StrEnum):
+    HARD_TTL = "hard_ttl"
+    STALE_WHILE_REVALIDATE = "stale_while_revalidate"
+
+
+@dataclass
+class NamespaceRouting:
+    default_backend: Backend
+    default_priority: CachePriority
+    split_threshold_bytes: int | None = None
+
+
+_NAMESPACE_ROUTING: dict[str, NamespaceRouting] = {
+    "resume": NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.CRITICAL),
+    "probe": NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL),
+    "subdomain": NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL),
+    "tool_output": NamespaceRouting(default_backend=Backend.FILE, default_priority=CachePriority.TRANSIENT),
+    "screenshot": NamespaceRouting(default_backend=Backend.FILE, default_priority=CachePriority.TRANSIENT),
+    "http_response": NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL),
+}
+
+NAMESPACE_ROUTING = _NAMESPACE_ROUTING
+
+PRIORITY_RANK: dict[str, int] = {
+    CachePriority.TRANSIENT.value: 0,
+    CachePriority.NORMAL.value: 1,
+    CachePriority.CRITICAL.value: 2,
+}
+
+ROUTING_PREFIX = "__route__:"
+DATA_PREFIX = "__data__:"
+
+
+def _parse_namespace(key: str) -> str:
+    return key.split(":", 1)[0] if ":" in key else key
+
+
+def _resolve_routing(namespace: str, strict: bool = False) -> NamespaceRouting:
+    if namespace in _NAMESPACE_ROUTING:
+        return _NAMESPACE_ROUTING[namespace]
+    return NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL)
+
+
+# Module-level constant aliases used throughout unified_cache
+_DEFAULT_ROUTING = NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL)
+_ROUTING_PREFIX = ROUTING_PREFIX
+_DATA_PREFIX = DATA_PREFIX
+
+
 class CacheKeyNormalizer:
     """Normalize cache keys to enforce canonical form.
 
@@ -53,9 +113,6 @@ class CacheKeyNormalizer:
     def path_to_key(path: Path) -> str:
         normalized = str(path).replace("\\", "/").rstrip("/").lower()
         return f"legacy_path:{normalized}"
-
-
-_DEFAULT_ROUTING = NamespaceRouting(Backend.SQLITE)
 
 
 def _hash_key(key: str) -> str:
@@ -562,7 +619,7 @@ class CoalescingCacheWrapper:
             if cached is not None and ttl_mode == TTLMode.HARD_TTL:
                 return cached
             if cached is not None and ttl_mode == TTLMode.STALE_WHILE_REVALIDATE:
-                if _response_cache_fresh(cached, stale_threshold_hours):
+                if response_cache_fresh(cached, stale_threshold_hours):
                     return cached
                 background = self._maybe_kick_off_refresh(key, cached, loader, refresh_ttl, priority)
                 if background is not None:
@@ -650,7 +707,7 @@ class CoalescingCacheWrapper:
         self._executor.shutdown(wait=False)
 
 
-def _response_cache_fresh(
+def response_cache_fresh(
     record: dict[str, Any],
     ttl_hours: int,
     content_hash: str | None = None,
@@ -666,3 +723,32 @@ def _response_cache_fresh(
     if content_hash and record.get("content_hash") != content_hash:
         return False
     return (time.time() - fetched_at) < ttl_hours * 3600
+
+
+_unified_cache = UnifiedCache()
+
+
+def cache_enabled(settings: dict[str, Any]) -> bool:
+    return bool(settings.get("enabled", True))
+
+
+def load_cached_json(path: Path) -> dict[str, Any] | None:
+    try:
+        raw = path.read_bytes()
+        return json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
+def save_cached_json(path: Path, payload: dict[str, Any], *, compress: bool = True) -> None:
+    data = json.dumps(payload).encode("utf-8")
+    _atomic_write_bytes(path, data)
+
+
+def load_cached_set(path: Path) -> set[str]:
+    loaded = load_cached_json(path)
+    return set(loaded) if isinstance(loaded, list) else set()
+
+
+def save_cached_set(path: Path, items: set[str], *, compress: bool = True) -> None:
+    save_cached_json(path, list(items), compress=compress)
