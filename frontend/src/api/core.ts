@@ -26,8 +26,10 @@ const ALLOWED_PROTOCOLS = ['http:', 'https:'];
 
 function validateUrl(url: string, baseURL?: string): boolean {
   try {
-    const resolved = baseURL ? new URL(url, baseURL) : new URL(url);
+    const base = baseURL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+    const resolved = new URL(url, base);
     if (!ALLOWED_PROTOCOLS.includes(resolved.protocol)) return false;
+    if (import.meta.env.DEV) return true;
     if (resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1') return false;
     return true;
   } catch {
