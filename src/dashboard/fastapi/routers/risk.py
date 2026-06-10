@@ -1,7 +1,7 @@
+from __future__ import annotations
+
 import logging
 """Risk score endpoints for historical CSI views."""
-
-from __future__ import annotations
 
 import hashlib
 import json
