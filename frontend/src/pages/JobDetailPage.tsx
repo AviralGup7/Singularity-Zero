@@ -179,13 +179,34 @@ export function JobDetailPage() {
         {(job.status === 'failed' || job.status === 'stopped') && (
           <motion.div variants={itemVariants} className="card error-card" role="alert">
             <h3>Job Failure Details</h3>
-            <div className="info-grid">
-              {job.failed_stage && <InfoItem label="Stage" value={job.failed_stage} />}
-              {job.failure_reason_code && <InfoItem label="Reason Code" value={job.failure_reason_code} />}
-              {job.failure_step && <InfoItem label="Failure Step" value={job.failure_step} />}
-            </div>
-            {(job.failure_reason || job.error || sseError) && (
-              <pre className="error-text mt-4">{job.failure_reason || job.error || sseError}</pre>
+            {job.failure_reason_code === 'circuit_breaker_open' ? (
+              <div className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'var(--warning-bg, rgba(234, 179, 8, 0.08))' }}>
+                <span className="text-lg" aria-hidden="true">⚡</span>
+                <div>
+                  <p className="font-medium text-sm" style={{ color: 'var(--warning-text, #eab308)' }}>
+                    Stage Skipped: Circuit Breaker Open
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    The <strong>{job.failed_stage || 'tool'}</strong> stage was skipped because its circuit breaker is open
+                    due to repeated failures. The tool may be temporarily unavailable or misconfigured.
+                  </p>
+                  <p className="text-xs text-[var(--text-tertiary)] mt-2">
+                    Visit <Link to="/self-healing" className="underline">Self-Healing</Link> to reset the circuit breaker
+                    or check tool availability in Settings.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="info-grid">
+                  {job.failed_stage && <InfoItem label="Stage" value={job.failed_stage} />}
+                  {job.failure_reason_code && <InfoItem label="Reason Code" value={job.failure_reason_code} />}
+                  {job.failure_step && <InfoItem label="Failure Step" value={job.failure_step} />}
+                </div>
+                {(job.failure_reason || job.error || sseError) && (
+                  <pre className="error-text mt-4">{job.failure_reason || job.error || sseError}</pre>
+                )}
+              </>
             )}
           </motion.div>
         )}
@@ -534,7 +555,14 @@ export function JobDetailPage() {
         {job.error && (
           <motion.div variants={itemVariants} className="card error-card">
             <h3>Error</h3>
-            <pre className="error-text">{job.error}</pre>
+            {job.failure_reason_code === 'circuit_breaker_open' ? (
+              <p className="text-sm text-[var(--text-secondary)]">
+                Circuit breaker is open for <strong>{job.failed_stage || 'a tool'}</strong>.
+                Stage was skipped. Visit <Link to="/self-healing" className="underline">Self-Healing</Link> to manage circuit breakers.
+              </p>
+            ) : (
+              <pre className="error-text">{job.error}</pre>
+            )}
           </motion.div>
         )}
 

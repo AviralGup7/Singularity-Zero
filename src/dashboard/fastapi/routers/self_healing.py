@@ -189,3 +189,54 @@ async def reset_tool_breaker(
         "tool": tool_name,
         "state": stats.state,
     }
+
+
+class ToolAvailabilityRequest(BaseModel):
+    """Body for the tool availability check endpoint."""
+
+    tools: list[str] = Field(..., description="List of tool names to check availability for")
+
+
+@router.post(
+    "/tools/check",
+    response_model=dict[str, Any],
+    responses={401: {"description": "Unauthorized"}},
+)
+async def check_tool_availability(
+    payload: ToolAvailabilityRequest,
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
+    """Check if required tool binaries are available on the system.
+
+    Returns a map of tool name to availability status, including whether
+    the tool is installed, its resolved path, and circuit breaker state.
+    """
+    service = getattr(request.app.state, "tool_execution_service", None)
+    if service is None:
+        from src.pipeline.services.tool_execution import ToolExecutionService
+        service = ToolExecutionService()
+
+    results: dict[str, dict[str, Any]] = {}
+    for tool_name in payload.tools:
+        available = service.tool_available(tool_name)
+        path = service.resolve_tool_path(tool_name) if available else None
+        breaker = service._get_circuit_breaker(tool_name)
+        breaker_stats = breaker.stats()
+
+        results[tool_name] = {
+            "available": available,
+            "path": path,
+            "circuit_breaker_state": breaker_stats.state,
+            "circuit_breaker_open": breaker_stats.state == "open",
+        }
+
+    all_available = all(r["available"] for r in results.values())
+    any_breaker_open = any(r["circuit_breaker_open"] for r in results.values())
+
+    return {
+        "tools": results,
+        "all_available": all_available,
+        "any_breaker_open": any_breaker_open,
+        "can_scan": all_available and not any_breaker_open,
+    }

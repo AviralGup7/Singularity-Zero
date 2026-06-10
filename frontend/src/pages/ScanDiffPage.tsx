@@ -124,11 +124,11 @@ export function ScanDiffPage() {
     setSearchParams(next, { replace: true });
   }, [filter, runA, runB, searchParams, setSearchParams]);
 
-  const { data: dataA, loading: loadingA } = useApi<{ findings: Finding[] }>(
+  const { data: dataA, loading: loadingA, error: errorA, refetch: refetchA } = useApi<{ findings: Finding[] }>(
     runA ? `/api/export/findings/${runA}/latest` : '__skip__',
     { enabled: Boolean(runA) },
   );
-  const { data: dataB, loading: loadingB } = useApi<{ findings: Finding[] }>(
+  const { data: dataB, loading: loadingB, error: errorB, refetch: refetchB } = useApi<{ findings: Finding[] }>(
     runB ? `/api/export/findings/${runB}/latest` : '__skip__',
     { enabled: Boolean(runB) },
   );
@@ -199,6 +199,20 @@ export function ScanDiffPage() {
         title="Scan Diff"
         subtitle="Compare two runs, with bounty-delta highlights"
       />
+
+      {(errorA || errorB) && (
+        <div className="card error-card p-4" role="alert">
+          <p className="text-sm text-[var(--text-secondary)]">
+            {errorA?.message || errorB?.message || 'Failed to load scan data'}
+          </p>
+          <button
+            className="btn btn-secondary btn-sm mt-2"
+            onClick={() => { errorA && refetchA(); errorB && refetchB(); }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <GlassCard hoverable={false}>

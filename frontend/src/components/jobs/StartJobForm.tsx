@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { startJob } from '../../api/client';
+import { checkToolAvailability } from '../../api/selfHealing';
 import { useToast } from '../../hooks/useToast';
 import { validateUrl } from '../../lib/utils';
 import { useJobFormState } from './useJobFormState';
@@ -92,6 +93,28 @@ export default function StartJobForm({ onJobStarted }: StartJobFormProps) {
 
     setSubmitting(true);
     try {
+      // Check tool availability before starting scan
+      const selectedModuleList = Array.from(form.selectedModules);
+      if (selectedModuleList.length > 0) {
+        try {
+          const toolCheck = await checkToolAvailability(selectedModuleList);
+          if (!toolCheck.all_available) {
+            const missingTools = Object.entries(toolCheck.tools)
+              .filter(([, info]) => !info.available)
+              .map(([name]) => name);
+            toast.warning(`Some tools may not be installed: ${missingTools.join(', ')}. Scan may partially fail.`);
+          }
+          if (toolCheck.any_breaker_open) {
+            const openBreakers = Object.entries(toolCheck.tools)
+              .filter(([, info]) => info.circuit_breaker_open)
+              .map(([name]) => name);
+            toast.warning(`Circuit breaker open for: ${openBreakers.join(', ')}. These stages will be skipped.`);
+          }
+        } catch {
+          // Tool availability check is non-blocking; proceed with scan
+        }
+      }
+
       const nonDefaultExec = Object.fromEntries(
         Object.entries(form.executionOptions).filter(([, v]) => v)
       );

@@ -31,6 +31,7 @@ export function BugBountyDashboardPage() {
   const toast = useToast();
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { filter: searchQuery, setFilter: setSearchQuery, debouncedFilter: debouncedSearch } = useDebouncedFilter(300);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
