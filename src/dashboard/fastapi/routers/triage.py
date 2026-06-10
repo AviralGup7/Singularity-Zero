@@ -1,7 +1,7 @@
+from __future__ import annotations
+
 import logging
 """Collaborative triage REST and WebSocket endpoints."""
-
-from __future__ import annotations
 
 import json
 from typing import Any, cast
