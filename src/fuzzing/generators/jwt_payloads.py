@@ -27,25 +27,19 @@ def generate_malformed_jwt() -> list[str]:
     payloads.append("a.b.c.d")
     payloads.append("a" * 65536)
     payloads.append(".")
-    payloads.append(
-        b64url(header_alg_none) + "." + b64url(claims) + "."
-    )
-    payloads.append(
-        b64url(header_alg_rs256) + "." + b64url({"sub": "admin"}) + "."
-        + "A" * 65536
-    )
-    payloads.append(
-        b64url(header_alg_none) + "." + "not_base64" + "."
-    )
+    payloads.append(b64url(header_alg_none) + "." + b64url(claims) + ".")
+    payloads.append(b64url(header_alg_rs256) + "." + b64url({"sub": "admin"}) + "." + "A" * 65536)
+    payloads.append(b64url(header_alg_none) + "." + "not_base64" + ".")
     payloads.append("header." + "x" * 1024 + ".sig")
     payloads.append(
         b64url({"alg": "RS256", "kid": "0" * min(8192, max(1, 4096))})
-        + "." + b64url({"sub": "admin"}) + "." + "sig"
+        + "."
+        + b64url({"sub": "admin"})
+        + "."
+        + "sig"
     )
     claims_massive = {"data": "A" * 70000}
-    payloads.append(
-        b64url({"alg": "HS256"}) + "." + b64url(claims_massive) + ".sig"
-    )
+    payloads.append(b64url({"alg": "HS256"}) + "." + b64url(claims_massive) + ".sig")
 
     return payloads
 

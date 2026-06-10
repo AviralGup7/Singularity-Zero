@@ -198,9 +198,7 @@ class ThreatIntelEnricher:
         finding["threat_intel"] = existing
         return finding
 
-    def enrich_findings(
-        self, findings: Iterable[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def enrich_findings(self, findings: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         return [self.enrich_finding(f) for f in findings]
 
     # -- helpers -------------------------------------------------------
@@ -224,9 +222,7 @@ class ThreatIntelEnricher:
             try:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
-                cves.extend(
-                    ThreatIntelCorrelator().correlate_cve(str(finding.get("category", "")))
-                )
+                cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
             except Exception:  # noqa: BLE001
                 pass
         return [c for c in cves if c]

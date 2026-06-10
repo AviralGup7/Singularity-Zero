@@ -4,6 +4,7 @@ Provides the core JobQueue class with job enqueue/dequeue, priority-based
 scheduling, atomic state transitions via Redis Lua scripts, lease management,
 dead-letter queue handling, and configurable retry policies.
 """
+
 from __future__ import annotations
 
 import asyncio

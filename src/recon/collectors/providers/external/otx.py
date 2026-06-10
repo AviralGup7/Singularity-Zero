@@ -29,7 +29,9 @@ from src.recon.common import normalize_url
 
 logger = logging.getLogger(__name__)
 
-OTX_DOMAIN_URL = os.environ.get("OTX_DOMAIN_URL", "https://otx.alienvault.com/api/v1/indicators/domain/{domain}/url_list")
+OTX_DOMAIN_URL = os.environ.get(
+    "OTX_DOMAIN_URL", "https://otx.alienvault.com/api/v1/indicators/domain/{domain}/url_list"
+)
 
 # Circuit breaker state
 _cb_failures: int = 0
@@ -140,9 +142,7 @@ def iter_for_hosts(
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         future_to_host = {
-            executor.submit(
-                _collect_for_host, host, timeout_seconds, per_host_limit, session
-            ): host
+            executor.submit(_collect_for_host, host, timeout_seconds, per_host_limit, session): host
             for host in hosts_list
         }
         idx = 0

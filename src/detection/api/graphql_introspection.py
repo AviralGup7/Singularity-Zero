@@ -237,9 +237,7 @@ def analyze_graphql_introspection(
     body_text = body or ""
     header_dict = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
     flattened_headers = "\n".join(f"{k}: {v}" for k, v in header_dict.items())
-    search_blob = "\n".join(
-        part for part in (body_text, flattened_headers, query or "") if part
-    )
+    search_blob = "\n".join(part for part in (body_text, flattened_headers, query or "") if part)
 
     introspection_signals = _scan_text(search_blob, _INTROSPECTION_TOKENS)
     ide_fingerprints = _scan_text(body_text, _IDE_FINGERPRINTS)
@@ -270,9 +268,7 @@ def analyze_graphql_introspection(
             for key, value in extensions.items():
                 key_l = str(key).lower()
                 if "persisted" in key_l or "tracing" in key_l or "cache" in key_l:
-                    persisted_query_signals = tuple(
-                        dict.fromkeys((*persisted_query_signals, key))
-                    )
+                    persisted_query_signals = tuple(dict.fromkeys((*persisted_query_signals, key)))
                 if isinstance(value, dict):
                     for inner_key in value:
                         if "persisted" in str(inner_key).lower():
@@ -283,9 +279,7 @@ def analyze_graphql_introspection(
         if any(isinstance(item, dict) and "data" in item for item in json_body):
             has_data_field = True
         if any(
-            isinstance(item, dict)
-            and isinstance(item.get("errors"), list)
-            and item["errors"]
+            isinstance(item, dict) and isinstance(item.get("errors"), list) and item["errors"]
             for item in json_body
             if isinstance(item, dict)
         ):
@@ -305,10 +299,7 @@ def analyze_graphql_introspection(
     elif has_ide:
         severity = "high"
         confidence = 0.85
-        summary = (
-            f"GraphQL IDE exposed at {url} — introspection reachable "
-            "via the bundled UI."
-        )
+        summary = f"GraphQL IDE exposed at {url} — introspection reachable via the bundled UI."
     elif introspection_signals and is_endpoint:
         severity = "high"
         confidence = 0.85
@@ -319,15 +310,12 @@ def analyze_graphql_introspection(
     elif introspection_signals and has_data_field:
         severity = "high"
         confidence = 0.80
-        summary = (
-            f"GraphQL introspection query returned a 'data' object at {url}."
-        )
+        summary = f"GraphQL introspection query returned a 'data' object at {url}."
     elif introspection_signals and has_error_array:
         severity = "medium"
         confidence = 0.65
         summary = (
-            f"GraphQL endpoint at {url} leaked GraphQLError details — "
-            "introspection policy unclear."
+            f"GraphQL endpoint at {url} leaked GraphQLError details — introspection policy unclear."
         )
     elif has_error_array and is_endpoint and has_query_field:
         severity = "medium"

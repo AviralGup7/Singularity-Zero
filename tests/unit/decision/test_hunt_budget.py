@@ -130,9 +130,7 @@ class TestHuntBudgetEnforcerExtensions:
         assert enforcer.budget.label == "test"
 
     def test_exhausted_axes_falls_under_findings(self) -> None:
-        enforcer = HuntBudgetEnforcer(
-            budget=HuntBudget(stop_when_high_confidence_count=1)
-        )
+        enforcer = HuntBudgetEnforcer(budget=HuntBudget(stop_when_high_confidence_count=1))
         enforcer.record_finding(0.99)
         axes = enforcer.exhausted_axes()
         # FINDINGS axis is the one we report (and we don't leak the
@@ -142,9 +140,7 @@ class TestHuntBudgetEnforcerExtensions:
         assert BudgetAxis.FINDINGS in axes
 
     def test_reset_clears_high_confidence(self) -> None:
-        enforcer = HuntBudgetEnforcer(
-            budget=HuntBudget(stop_when_high_confidence_count=1)
-        )
+        enforcer = HuntBudgetEnforcer(budget=HuntBudget(stop_when_high_confidence_count=1))
         enforcer.record_finding(0.99)
         assert enforcer.is_exhausted()
         enforcer.reset()

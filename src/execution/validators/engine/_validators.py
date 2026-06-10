@@ -51,9 +51,7 @@ class SsrfValidator(BaseValidator):
         items = validate_ssrf_candidates(context.analysis_results, context.callback_context)
         findings: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
-        calibration = getattr(
-            getattr(context, "validation_config", None), "calibration", None
-        )
+        calibration = getattr(getattr(context, "validation_config", None), "calibration", None)
         ssrf_active_enabled = bool(
             calibration is None or getattr(calibration, "ssrf_active_probe_enabled", True)
         )
@@ -82,16 +80,12 @@ class SsrfValidator(BaseValidator):
                 # R4: send an active probe that substitutes a controlled
                 # callback host into the SSRF-vulnerable parameter(s) so
                 # the validator can observe an out-of-band connection.
-                probe_url, probe_error = self._build_callback_probe(
-                    finding, context
-                )
+                probe_url, probe_error = self._build_callback_probe(finding, context)
                 if probe_error:
                     finding["status"] = "error"
                     finding["error"] = probe_error
                 elif probe_url:
-                    probe = context.http_client.request(
-                        probe_url, method="GET"
-                    )
+                    probe = context.http_client.request(probe_url, method="GET")
                     error = apply_probe_result(finding=finding, probe=probe)
                     if error:
                         errors.append(error)
@@ -125,9 +119,7 @@ class SsrfValidator(BaseValidator):
             or ""
         ).strip()
         probe_token = str(
-            callback_context.get("probe_token")
-            or callback_context.get("token")
-            or ""
+            callback_context.get("probe_token") or callback_context.get("token") or ""
         ).strip()
         if not host:
             return "", {

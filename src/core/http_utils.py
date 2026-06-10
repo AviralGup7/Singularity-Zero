@@ -40,6 +40,8 @@ def _get_sync_session() -> requests.Session:
         _sync_session_local.session = session
         atexit.register(session.close)
     return session
+
+
 _ASYNC_CLIENTS: dict[tuple[bool, bool], httpx.AsyncClient] = {}
 
 _ASYNC_CLIENTS_WEAKSET: weakref.WeakSet[httpx.AsyncClient] = weakref.WeakSet()

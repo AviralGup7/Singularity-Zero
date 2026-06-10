@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Iterable, cast
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import requests

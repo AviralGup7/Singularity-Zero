@@ -61,8 +61,12 @@ class NotificationPayload(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     source: str = Field(default="cyber-security-pipeline")
     correlation_id: str | None = Field(default=None)
-    entity_id: str | None = Field(default=None, description="ID of the related entity (job, finding, etc.)")
-    entity_type: str | None = Field(default=None, description="Type of related entity (job, finding, target)")
+    entity_id: str | None = Field(
+        default=None, description="ID of the related entity (job, finding, etc.)"
+    )
+    entity_type: str | None = Field(
+        default=None, description="Type of related entity (job, finding, target)"
+    )
     href: str | None = Field(default=None, description="Deep-link URL for the related entity")
 
 

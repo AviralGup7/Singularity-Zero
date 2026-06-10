@@ -28,9 +28,7 @@ class WorkerTaskHandlersMixin:
             nonlocal task_cancelled
             while self._running:
                 if await self.queue.is_job_cancelled(job.id):
-                    logger.warning(
-                        "Job %s was cancelled by user, terminating task", job.id
-                    )
+                    logger.warning("Job %s was cancelled by user, terminating task", job.id)
                     task_cancelled = True
                     return
                 await asyncio.sleep(2.0)
@@ -60,11 +58,10 @@ class WorkerTaskHandlersMixin:
                 from src.infrastructure.queue.plugin_handler_bridge import (
                     resolve_handler_for_job_type,
                 )
+
                 handler = resolve_handler_for_job_type(self.queue, job.type)
             if handler is None:
-                raise ValueError(
-                    f"No handler registered for job type: {job.type}"
-                )
+                raise ValueError(f"No handler registered for job type: {job.type}")
 
             if not isinstance(job.payload, dict) or not job.payload.get("schema_version"):
                 error_msg = (
@@ -110,9 +107,7 @@ class WorkerTaskHandlersMixin:
                 if asyncio.iscoroutinefunction(handler):
                     result_task = asyncio.create_task(handler(handler_input))
                 else:
-                    result_task = asyncio.create_task(
-                        asyncio.to_thread(handler, handler_input)
-                    )
+                    result_task = asyncio.create_task(asyncio.to_thread(handler, handler_input))
 
                 while not result_task.done() and not task_cancelled:
                     await asyncio.sleep(0.5)
@@ -136,9 +131,7 @@ class WorkerTaskHandlersMixin:
             error_msg = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
             logger.error("Job %s failed (type=%s): %s", job.id, job.type, exc)
 
-            success, outcome = await self.queue.fail_job(
-                job.id, self.worker_id, error_msg
-            )
+            success, outcome = await self.queue.fail_job(job.id, self.worker_id, error_msg)
 
             if outcome == "dead_letter":
                 logger.warning(

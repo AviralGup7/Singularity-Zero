@@ -220,9 +220,7 @@ class RiskAcceptanceManager:
             return 1.0
         return ACCEPTANCE_SUPPRESSION_FACTOR
 
-    def evaluate_finding(
-        self, finding_id: str, *, now: float | None = None
-    ) -> dict[str, Any]:
+    def evaluate_finding(self, finding_id: str, *, now: float | None = None) -> dict[str, Any]:
         acceptances = self.for_finding(finding_id)
         active = [a for a in acceptances if a.is_active(now=now)]
         return {

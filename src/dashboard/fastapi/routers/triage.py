@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+
 """Collaborative triage REST and WebSocket endpoints."""
 
 import json

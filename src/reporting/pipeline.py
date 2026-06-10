@@ -194,10 +194,11 @@ def build_summary(
     from src.reporting.compliance_mapping import build_compliance_report
 
     # Enrich findings with Threat Intelligence CVE mappings (only if not already enriched)
-    already_enriched = all(
-        isinstance(f.get("threat_intel"), dict) and f["threat_intel"]
-        for f in merged_findings
-    ) if merged_findings else False
+    already_enriched = (
+        all(isinstance(f.get("threat_intel"), dict) and f["threat_intel"] for f in merged_findings)
+        if merged_findings
+        else False
+    )
     if not already_enriched:
         try:
             from src.intelligence.threat_intel import ThreatIntelCorrelator
@@ -214,7 +215,10 @@ def build_summary(
     return {
         "target_name": target_name,
         "generated_at_ist": ist_timestamp(),
-        "generated_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "generated_at_utc": datetime.now(UTC)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
         "duration_seconds": round(time.time() - started_at, 2),
         "previous_run": str(previous_run) if previous_run else "",
         "counts": counts,

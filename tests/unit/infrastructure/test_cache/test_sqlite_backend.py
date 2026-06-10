@@ -11,6 +11,7 @@ class CacheTestBase(unittest.TestCase):
 
         self.tmp_path = Path(tempfile.mkdtemp())
 
+
 class TestSQLiteBackend(CacheTestBase):
     def test_set_and_get(self) -> None:
         backend = SQLiteBackend(db_path=str(self.tmp_path / "test.db"))

@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+
 """Cyber Security Test Pipeline - State Validation
 HLC clocks, VectorClock, LWW CRDT set primitives, and utility functions.
 """
@@ -184,11 +186,6 @@ class LWWset[T]:
                 if existing is None or _element_wins(element, existing):
                     self._elements[item] = _clone_element(element)
 
-    @property
-    def tombstone_count(self) -> int:
-        with self._lock:
-            return sum(1 for el in self._elements.values() if el.deleted)
-
     def compact(self, max_tombstone_age_seconds: float = 86400.0) -> int:
         now = time.time()
         with self._lock:
@@ -328,7 +325,9 @@ class LWWset[T]:
                     try:
                         item["id"] = generated_fid
                     except TypeError as exc:
-                        logging.warning("Operation failed in state_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
+                        logging.warning(
+                            "Operation failed in state_validation.py: %s", exc, exc_info=True
+                        )  # noqa: BLE001
                     return generated_fid
                 return fid
             return repr(item)

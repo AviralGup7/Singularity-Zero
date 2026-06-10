@@ -234,6 +234,7 @@ def nosql_couchdb_probe(
                 body = json.dumps(payload_body)
             elif is_alldocs:
                 from urllib.parse import urlencode, urlparse, urlunparse
+
                 parsed = urlparse(url)
                 qs = urlencode(payload_body)
                 test_url = urlunparse(parsed._replace(query=qs))

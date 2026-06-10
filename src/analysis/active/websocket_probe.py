@@ -139,9 +139,7 @@ async def probe_message_fuzz(
     findings: list[WebSocketProbeFinding] = []
     for msg in messages:
         try:
-            async with websockets.connect(
-                url, open_timeout=timeout, close_timeout=timeout
-            ) as ws:
+            async with websockets.connect(url, open_timeout=timeout, close_timeout=timeout) as ws:
                 if isinstance(msg, bytes):
                     await ws.send(msg)
                 else:
@@ -286,9 +284,7 @@ class WebSocketActiveProbe:
                 results: list[WebSocketProbeFinding] = []
                 try:
                     results.extend(await probe_cswsh(url, timeout=self.timeout))
-                    results.extend(
-                        await probe_message_fuzz(url, timeout=self.timeout)
-                    )
+                    results.extend(await probe_message_fuzz(url, timeout=self.timeout))
                 except Exception as exc:
                     logger.debug("WebSocketActiveProbe: %s failed: %s", url, exc)
                 return results

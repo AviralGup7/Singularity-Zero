@@ -70,7 +70,11 @@ class TestAggregatorCircuitBreaker:
 
     def test_record_success_keeps_breaker_closed(self, monkeypatch) -> None:
         def _fake_collect_for_hosts(hosts, **_kwargs):
-            return {"https://example.com/x"}, {"status": "ok", "new_urls": 1, "duration_seconds": 0.1}
+            return {"https://example.com/x"}, {
+                "status": "ok",
+                "new_urls": 1,
+                "duration_seconds": 0.1,
+            }
 
         monkeypatch.setattr(
             aggregator.wayback,
@@ -163,6 +167,7 @@ class TestSessionKwargsInjection:
 
     def test_existing_session_kwarg_not_overwritten(self) -> None:
         sentinel = object()
+
         def _stub(hosts, session=None):
             return set(), {"status": "ok"}
 

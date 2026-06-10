@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .shared import (
@@ -27,7 +27,7 @@ def subdomain_privilege_methods_test(
         [
             f"Target Base : {base_url}",
             f"API Key     : {display_secret(api_key)}",
-            f"Started     : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n",
+            f"Started     : {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n",
         ],
         divider_width=95,
     )

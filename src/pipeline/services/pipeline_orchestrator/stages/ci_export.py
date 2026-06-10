@@ -33,7 +33,9 @@ SEVERITY_ORDER = ["info", "low", "medium", "high", "critical"]
 
 
 def _severity_exceeds_threshold(finding: Any, threshold: str) -> bool:
-    finding_severity = _classify_severity(getattr(finding, "severity", None) or getattr(finding, "risk", None))
+    finding_severity = _classify_severity(
+        getattr(finding, "severity", None) or getattr(finding, "risk", None)
+    )
     try:
         return SEVERITY_ORDER.index(finding_severity) >= SEVERITY_ORDER.index(threshold)
     except ValueError:
@@ -44,13 +46,23 @@ def _junit_xml(findings: list[Any], threshold: str) -> str:
     timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<testsuites>',
+        "<testsuites>",
         f'  <testsuite name="security-scan" tests="{len(findings)}" timestamp="{timestamp}">',
     ]
     for i, finding in enumerate(findings, start=1):
-        severity = _classify_severity(getattr(finding, "severity", None) or getattr(finding, "risk", None))
-        name = getattr(finding, "title", None) or getattr(finding, "name", None) or getattr(finding, "vuln_type", "unknown")
-        target = getattr(finding, "target_url", None) or getattr(finding, "affected_url", None) or getattr(finding, "url", "unknown")
+        severity = _classify_severity(
+            getattr(finding, "severity", None) or getattr(finding, "risk", None)
+        )
+        name = (
+            getattr(finding, "title", None)
+            or getattr(finding, "name", None)
+            or getattr(finding, "vuln_type", "unknown")
+        )
+        target = (
+            getattr(finding, "target_url", None)
+            or getattr(finding, "affected_url", None)
+            or getattr(finding, "url", "unknown")
+        )
         message = getattr(finding, "description", None) or getattr(finding, "summary", "") or ""
         tool = getattr(finding, "tool", "unknown")
         lines.append(f'    <testcase name="{i}. {name}" classname="{tool}">')
@@ -61,7 +73,9 @@ def _junit_xml(findings: list[Any], threshold: str) -> str:
             lines.append(f"        Tool: {tool}")
             lines.append("      </failure>")
         else:
-            lines.append(f'      <skipped message="Below threshold ({severity})" type="{severity}"/>')
+            lines.append(
+                f'      <skipped message="Below threshold ({severity})" type="{severity}"/>'
+            )
         lines.append("    </testcase>")
     lines.append("  </testsuite>")
     lines.append("</testsuites>")
@@ -81,10 +95,24 @@ def _github_summary(findings: list[Any], threshold: str, failed_stages: dict[str
         lines.append("No findings detected.")
     else:
         for finding in findings:
-            severity = _classify_severity(getattr(finding, "severity", None) or getattr(finding, "risk", None))
-            name = getattr(finding, "title", None) or getattr(finding, "name", None) or getattr(finding, "vuln_type", "unknown")
-            target = getattr(finding, "target_url", None) or getattr(finding, "affected_url", None) or getattr(finding, "url", "unknown")
-            status = "❌ FAIL" if _severity_exceeds_threshold(finding, threshold) else "⚠️ BELOW THRESHOLD"
+            severity = _classify_severity(
+                getattr(finding, "severity", None) or getattr(finding, "risk", None)
+            )
+            name = (
+                getattr(finding, "title", None)
+                or getattr(finding, "name", None)
+                or getattr(finding, "vuln_type", "unknown")
+            )
+            target = (
+                getattr(finding, "target_url", None)
+                or getattr(finding, "affected_url", None)
+                or getattr(finding, "url", "unknown")
+            )
+            status = (
+                "❌ FAIL"
+                if _severity_exceeds_threshold(finding, threshold)
+                else "⚠️ BELOW THRESHOLD"
+            )
             lines.append(f"- **{severity.upper()}** | {status} | {name}")
             lines.append(f"  - Target: `{target}`")
             tool = getattr(finding, "tool", "unknown")
@@ -97,7 +125,11 @@ def _github_summary(findings: list[Any], threshold: str, failed_stages: dict[str
         for stage_name, metrics in failed_stages.items():
             reason = ""
             if isinstance(metrics, dict):
-                reason = metrics.get("failure_reason") or metrics.get("error") or metrics.get("status", "unknown")
+                reason = (
+                    metrics.get("failure_reason")
+                    or metrics.get("error")
+                    or metrics.get("status", "unknown")
+                )
             lines.append(f"- **{stage_name}**: {reason}")
 
     failed_count = sum(1 for f in findings if _severity_exceeds_threshold(f, threshold))
@@ -125,7 +157,9 @@ async def run_ci_export(
         if hasattr(args, "ci_fail_on_severity") and args.ci_fail_on_severity:
             threshold = str(args.ci_fail_on_severity).strip().lower()
             if threshold not in SEVERITY_ORDER:
-                logger.warning("Invalid --ci-fail-on-severity value %r; defaulting to 'medium'.", threshold)
+                logger.warning(
+                    "Invalid --ci-fail-on-severity value %r; defaulting to 'medium'.", threshold
+                )
                 threshold = "medium"
 
         run_dir = getattr(getattr(ctx, "output_store", None), "run_dir", None) or Path(".")
@@ -171,7 +205,9 @@ async def run_ci_export(
                 "junit_xml": str(junit_path),
                 "github_summary": ci_artifacts["github_summary"],
                 "ci_artifacts": ci_artifacts,
-                "exit_code_recommendation": 1 if any(_severity_exceeds_threshold(f, threshold) for f in findings) else 0,
+                "exit_code_recommendation": 1
+                if any(_severity_exceeds_threshold(f, threshold) for f in findings)
+                else 0,
             },
         )
     except Exception as exc:

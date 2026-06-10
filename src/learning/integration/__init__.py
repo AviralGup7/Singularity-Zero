@@ -360,7 +360,6 @@ class LearningIntegration:
         return 0.5
 
 
-
 def _cleanup_learning_integration() -> None:
     """Close the global learning integration store on interpreter shutdown."""
     global _integration_instance

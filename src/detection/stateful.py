@@ -152,10 +152,7 @@ def analyze_csrf_entropy(
     unique_ratio = _safe_ratio(len(unique), len(cleaned))
     is_static = len(unique) == 1 and len(cleaned) >= 2
     is_predictable = entropy < 0.5 or unique_ratio < 0.5
-    is_session_bound = (
-        len(cleaned) >= 4
-        and len(unique) == 1
-    )
+    is_session_bound = len(cleaned) >= 4 and len(unique) == 1
     return CSRFEntropyFinding(
         url=url,
         sample_count=len(cleaned),
@@ -304,11 +301,7 @@ def adapt_rate_limit_observations(
     sorted_samples = sorted(samples, key=lambda s: float(s.get("interval_ms", 0)))
     baseline = sorted_samples[0].get("status_code")
     throttled_sample = next(
-        (
-            s
-            for s in sorted_samples
-            if s.get("status_code") in threshold_status_codes
-        ),
+        (s for s in sorted_samples if s.get("status_code") in threshold_status_codes),
         None,
     )
     threshold_estimate = None
@@ -354,7 +347,9 @@ class RaceConditionProbeResult:
                 f"appeared to succeed — TOCTOU candidate."
             ),
             "severity": "high" if self.drift_observed else "medium",
-            "confidence": round(0.5 + (self.success_count / max(1, self.fired_concurrent)) * 0.4, 3),
+            "confidence": round(
+                0.5 + (self.success_count / max(1, self.fired_concurrent)) * 0.4, 3
+            ),
             "fired_concurrent": self.fired_concurrent,
             "success_count": self.success_count,
             "failure_count": self.failure_count,

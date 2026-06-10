@@ -49,7 +49,6 @@ class _DummyLearning:
         return 1.0
 
 
-
 class _RecoveryCheckpointManager:
     def __init__(
         self, root: Path, run_id: str, recovered_context: dict[str, object] | None = None
@@ -62,9 +61,10 @@ class _RecoveryCheckpointManager:
         self.completed_stages: list[str] = []
         if recovered_context and isinstance(recovered_context.get("stage_status"), dict):
             self.completed_stages = [
-                k for k, v in recovered_context["stage_status"].items() if str(v).upper() == "COMPLETED"
+                k
+                for k, v in recovered_context["stage_status"].items()
+                if str(v).upper() == "COMPLETED"
             ]
-
 
     def get_remaining_stages(self, all_stages: list[str]) -> list[str]:
         return list(all_stages)
@@ -141,8 +141,9 @@ def _patch_runtime_environment(
         "_record_stage_post_run",
         AsyncMock(return_value=None),
     )
-    monkeypatch.setattr("src.pipeline.validation.validate_stage_artifact", lambda stage_name, ctx: (True, None))
-
+    monkeypatch.setattr(
+        "src.pipeline.validation.validate_stage_artifact", lambda stage_name, ctx: (True, None)
+    )
 
     monkeypatch.setattr(
         orch_mod,
@@ -377,9 +378,9 @@ def test_checkpoint_migration_v1_to_v2() -> None:
                         "category": "XSS",
                         # missing fields like title, url, severity, score, evidence, signals, cwe_id
                     }
-                ]
+                ],
             }
-        }
+        },
     }
 
     migrated = GLOBAL_MIGRATION_REGISTRY.migrate(v1_data)
@@ -413,7 +414,7 @@ def test_scope_merge_diffing_on_resume() -> None:
             reportable_findings=[
                 {"url": "https://a.example.com/path", "category": "vuln"},
                 {"url": "https://other.com/path", "category": "vuln"},
-            ]
+            ],
         )
     )
 
@@ -461,6 +462,7 @@ async def test_adaptive_scan_cancellation_shield() -> None:
     )
 
     deltas_saved = []
+
     def save_delta_fn(urls, findings):
         deltas_saved.append((urls, findings))
 
@@ -480,4 +482,3 @@ async def test_adaptive_scan_cancellation_shield() -> None:
     assert len(deltas_saved) == 1
     assert deltas_saved[0][0] == ["http://target1.com"]
     assert len(deltas_saved[0][1]) == 1
-

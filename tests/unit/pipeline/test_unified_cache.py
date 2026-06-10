@@ -80,24 +80,16 @@ class TestUnifiedCachePRIORITY(unittest.TestCase):
 
     def test_priority_queue_orders_critical_first(self) -> None:
         self.cache.set("resume:run:1", {"state": "saved"}, priority=CachePriority.CRITICAL)
-        self.cache.set(
-            "tool_output:cmd:1", {"stdout": "ok"}, priority=CachePriority.TRANSIENT
-        )
-        self.cache.set(
-            "probe:target:1", {"v": 1}, priority=CachePriority.NORMAL
-        )
+        self.cache.set("tool_output:cmd:1", {"stdout": "ok"}, priority=CachePriority.TRANSIENT)
+        self.cache.set("probe:target:1", {"v": 1}, priority=CachePriority.NORMAL)
         queue = self.cache.priority_queue()
         ranks = [PRIORITY_RANK[entry["priority"]] for entry in queue]
         assert ranks == sorted(ranks)
 
     def test_prune_oldest_protects_critical(self) -> None:
         for i in range(5):
-            self.cache.set(
-                f"resume:run:{i}", {"v": i}, priority=CachePriority.CRITICAL
-            )
-            self.cache.set(
-                f"tool_output:cmd:{i}", {"v": i}, priority=CachePriority.TRANSIENT
-            )
+            self.cache.set(f"resume:run:{i}", {"v": i}, priority=CachePriority.CRITICAL)
+            self.cache.set(f"tool_output:cmd:{i}", {"v": i}, priority=CachePriority.TRANSIENT)
         removed = self.cache.prune_oldest(5, preserve_priority=CachePriority.CRITICAL)
         assert removed == 5
         for i in range(5):
@@ -212,5 +204,9 @@ class TestNamespaceRouting(unittest.TestCase):
 @pytest.mark.unit
 class TestPriorityRankOrder(unittest.TestCase):
     def test_rank_order(self) -> None:
-        assert PRIORITY_RANK[CachePriority.TRANSIENT.value] < PRIORITY_RANK[CachePriority.NORMAL.value]
-        assert PRIORITY_RANK[CachePriority.NORMAL.value] < PRIORITY_RANK[CachePriority.CRITICAL.value]
+        assert (
+            PRIORITY_RANK[CachePriority.TRANSIENT.value] < PRIORITY_RANK[CachePriority.NORMAL.value]
+        )
+        assert (
+            PRIORITY_RANK[CachePriority.NORMAL.value] < PRIORITY_RANK[CachePriority.CRITICAL.value]
+        )

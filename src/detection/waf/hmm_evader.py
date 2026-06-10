@@ -244,7 +244,9 @@ class HMMWafEvader:
             elif strategy == "replace":
                 idx = random.randint(0, len(mutated) - 1)
                 if mutated[idx].isalpha():
-                    mutated[idx] = mutated[idx].upper() if random.random() < 0.5 else mutated[idx].lower()
+                    mutated[idx] = (
+                        mutated[idx].upper() if random.random() < 0.5 else mutated[idx].lower()
+                    )
 
             elif strategy == "comment":
                 comment_pairs = [
@@ -266,7 +268,9 @@ class HMMWafEvader:
                         for c in mutated
                     ]
                 else:
-                    mutated = [c.upper() if c.isalpha() and random.random() < 0.5 else c for c in mutated]
+                    mutated = [
+                        c.upper() if c.isalpha() and random.random() < 0.5 else c for c in mutated
+                    ]
 
             elif strategy == "split" and len(mutated) > 3:
                 pos = random.randint(1, len(mutated) - 1)

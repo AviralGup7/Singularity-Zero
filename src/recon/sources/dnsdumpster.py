@@ -57,9 +57,7 @@ async def query_dnsdumpster(
         "Referer": "https://dnsdumpster.com/",
     }
     subdomains: set[str] = set()
-    pattern = re.compile(
-        r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE
-    )
+    pattern = re.compile(r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE)
 
     try:
         async with httpx.AsyncClient(
@@ -100,9 +98,7 @@ async def query_dnsdumpster(
     return subdomains
 
 
-def _parse_subdomains(
-    html: str, domain: str, pattern: re.Pattern[str]
-) -> set[str]:
+def _parse_subdomains(html: str, domain: str, pattern: re.Pattern[str]) -> set[str]:
     """Pull subdomain FQDNs out of the DNSDumpster result page.
 
     DNSDumpster renders a ``<table class="table">`` containing rows with

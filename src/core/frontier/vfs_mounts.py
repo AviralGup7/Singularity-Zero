@@ -64,7 +64,9 @@ class VFSMountsMixin:
                             f.write(sealed.encode("utf-8"))
                         os.replace(temp_file_path, full_path)
                     except Exception as e:
-                        logger.error("Ghost-VFS: Write fallback failed for %s: %s", temp_file_path, e)
+                        logger.error(
+                            "Ghost-VFS: Write fallback failed for %s: %s", temp_file_path, e
+                        )
                         try:
                             os.close(fd)
                         except OSError as exc:
@@ -172,7 +174,9 @@ class VFSMountsMixin:
                         logger.debug("Ghost-VFS: temp remove error: %s", ex)
                 raise
 
-        logger.info("Ghost-VFS: Sealed bundle exported to %s with %d files.", output_path, len(records))
+        logger.info(
+            "Ghost-VFS: Sealed bundle exported to %s with %d files.", output_path, len(records)
+        )
 
     def import_sealed_bundle(self: Any, bundle_path: str, master_key: str) -> None:
         self._ensure_active()

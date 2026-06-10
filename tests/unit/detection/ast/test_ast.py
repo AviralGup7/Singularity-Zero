@@ -1,7 +1,5 @@
 """Tests for the AST detection package (JS sinks, Wasm, prototype pollution)."""
 
-
-
 from src.detection.ast import (
     analyze_html_for_prototype_pollution,
     analyze_html_for_sinks,
@@ -265,7 +263,9 @@ def test_analyze_object_for_prototype_pollution_via_string():
 # ---------------------------------------------------------------------------
 
 
-def _make_minimal_wasm(imports=None, exports=None, memory=False, table=False, start=False, data_count=False):
+def _make_minimal_wasm(
+    imports=None, exports=None, memory=False, table=False, start=False, data_count=False
+):
     """Build a tiny valid wasm module with optional sections."""
 
     body = b"\x00asm\x01\x00\x00\x00"  # magic + version
@@ -419,5 +419,7 @@ def test_analyze_response_json_with_proto():
 
 def test_analyze_response_wasm_bytes():
     body = _make_minimal_wasm(memory=True)
-    findings = analyze_response(url="https://e/app.wasm", body=body, content_type="application/wasm")
+    findings = analyze_response(
+        url="https://e/app.wasm", body=body, content_type="application/wasm"
+    )
     assert isinstance(findings, list)

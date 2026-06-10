@@ -1,4 +1,3 @@
-
 """Step assertion validation helpers.
 
 Split out of ``scenario_engine.py`` so that the ``_revalidate_wave_assertions``
@@ -36,6 +35,7 @@ def validate_step_result(
 
     if tuple(merged_errors) != result.assertion_errors:
         from dataclasses import replace
+
         result = replace(result, assertion_errors=tuple(merged_errors))
     return result
 
@@ -60,5 +60,7 @@ def reconcile_wave(
                 step = matching_steps[-1]
         if not step:
             step = steps_by_name.get(result.name)
-        reconciled.append(validate_step_result(result, step, steps_by_name=steps_by_name, timeline=timeline))
+        reconciled.append(
+            validate_step_result(result, step, steps_by_name=steps_by_name, timeline=timeline)
+        )
     return reconciled

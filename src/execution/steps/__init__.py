@@ -1,4 +1,3 @@
-
 """Package for step definitions in scenario execution.
 Public API re-exported from ``src.execution.steps`` for convenience."""
 

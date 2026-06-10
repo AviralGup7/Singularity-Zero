@@ -42,23 +42,56 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/risk-domain", tags=["Risk Domain"])
 
 
-_VALID_ASSET_COLUMNS = frozenset({
-    "asset_id", "name", "host_pattern", "path_prefix", "asset_type",
-    "entity_type", "criticality", "tier", "business_value",
-    "compliance_requirements", "owner", "notes", "metadata", "is_active",
-})
+_VALID_ASSET_COLUMNS = frozenset(
+    {
+        "asset_id",
+        "name",
+        "host_pattern",
+        "path_prefix",
+        "asset_type",
+        "entity_type",
+        "criticality",
+        "tier",
+        "business_value",
+        "compliance_requirements",
+        "owner",
+        "notes",
+        "metadata",
+        "is_active",
+    }
+)
 
-_VALID_ACCEPTANCE_COLUMNS = frozenset({
-    "acceptance_id", "finding_id", "asset_id", "accepted_until",
-    "accepted_by", "justification", "compensating_control_ref",
-    "review_date", "scope", "state", "created_by", "metadata",
-})
+_VALID_ACCEPTANCE_COLUMNS = frozenset(
+    {
+        "acceptance_id",
+        "finding_id",
+        "asset_id",
+        "accepted_until",
+        "accepted_by",
+        "justification",
+        "compensating_control_ref",
+        "review_date",
+        "scope",
+        "state",
+        "created_by",
+        "metadata",
+    }
+)
 
-_VALID_CONTROL_COLUMNS = frozenset({
-    "control_id", "finding_id", "control_type", "description",
-    "discount_factor", "evidence_url", "owner", "expires_at",
-    "is_active", "metadata",
-})
+_VALID_CONTROL_COLUMNS = frozenset(
+    {
+        "control_id",
+        "finding_id",
+        "control_type",
+        "description",
+        "discount_factor",
+        "evidence_url",
+        "owner",
+        "expires_at",
+        "is_active",
+        "metadata",
+    }
+)
 
 
 def _nested_get(data: dict[str, Any], *keys: str, default: Any = None) -> Any:
@@ -170,7 +203,9 @@ async def create_asset(
     return {"asset_id": asset_id, "status": "created"}
 
 
-@router.delete("/assets/{asset_id}", summary="Delete an asset", dependencies=[Depends(require_admin)])
+@router.delete(
+    "/assets/{asset_id}", summary="Delete an asset", dependencies=[Depends(require_admin)]
+)
 async def delete_asset(asset_id: str, request: Request) -> dict[str, Any]:
     store = _get_store(request)
     conn = store._get_conn()
@@ -314,9 +349,7 @@ async def create_control(
     finding_id = str(payload.get("finding_id") or "").strip()
     control_type = str(payload.get("control_type") or "").strip()
     if not finding_id or not control_type:
-        raise HTTPException(
-            status_code=422, detail="finding_id and control_type are required"
-        )
+        raise HTTPException(status_code=422, detail="finding_id and control_type are required")
     control_id = str(payload.get("control_id") or f"ctrl-{uuid.uuid4().hex[:12]}")
     record = {
         "control_id": control_id,
@@ -434,8 +467,7 @@ async def get_review_history(
     store = _get_store(request)
     conn = store._get_conn()
     cursor = conn.execute(
-        "SELECT * FROM reviewer_actions WHERE finding_id = ? "
-        "ORDER BY timestamp DESC LIMIT 200",
+        "SELECT * FROM reviewer_actions WHERE finding_id = ? ORDER BY timestamp DESC LIMIT 200",
         [finding_id],
     )
     return [_row_to_dict(cursor, row) for row in cursor.fetchall()]

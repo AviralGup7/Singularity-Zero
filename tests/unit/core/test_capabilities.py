@@ -83,6 +83,7 @@ class TestGenerateCapabilityManifest(unittest.TestCase):
 class TestCapabilityManifestDataclass(unittest.TestCase):
     def test_construction_with_fields(self) -> None:
         from src.core.capabilities import CapabilityManifest
+
         manifest = CapabilityManifest(
             estimated_duration_seconds=120.0,
             memory_mb=512.0,
@@ -101,6 +102,7 @@ class TestCapabilityManifestDataclass(unittest.TestCase):
 class TestToolExecutionContext(unittest.TestCase):
     def test_construction_with_fields(self) -> None:
         from src.core.capabilities import ToolExecutionContext
+
         context = ToolExecutionContext(
             resolved_paths={"tool": "/path/to/tool"},
             env={"VAR": "val"},

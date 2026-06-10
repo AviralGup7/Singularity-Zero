@@ -107,7 +107,9 @@ def detect_balance_changes(
 ) -> list[dict[str, Any]]:
     balances: list[float] = []
     for resp in responses:
-        body = str(resp.get("body_text", "") or "" if isinstance(resp, dict) else (resp.body_text or ""))
+        body = str(
+            resp.get("body_text", "") or "" if isinstance(resp, dict) else (resp.body_text or "")
+        )
         if not body:
             continue
         val = extract_json_value(body, "balance")
@@ -144,10 +146,14 @@ def detect_duplicate_processing(
     seen_ids: dict[str, int] = {}
     success_count = 0
     for resp in responses:
-        body = str(resp.get("body_text", "") or "" if isinstance(resp, dict) else (resp.body_text or ""))
+        body = str(
+            resp.get("body_text", "") or "" if isinstance(resp, dict) else (resp.body_text or "")
+        )
         if not body:
             continue
-        status = int(resp.get("status_code") or 0 if isinstance(resp, dict) else (resp.status_code or 0))
+        status = int(
+            resp.get("status_code") or 0 if isinstance(resp, dict) else (resp.status_code or 0)
+        )
         if 200 <= status < 300:
             success_count += 1
         op_id = extract_json_value(body, "id")
@@ -211,10 +217,14 @@ def detect_response_inconsistency(
     body_hashes: dict[str, int] = {}
     status_counts: dict[int, int] = {}
     for resp in responses:
-        body = str(resp.get("body_text", "") or "" if isinstance(resp, dict) else (resp.body_text or ""))
+        body = str(
+            resp.get("body_text", "") or "" if isinstance(resp, dict) else (resp.body_text or "")
+        )
         h = compute_body_hash(body)
         body_hashes[h] = body_hashes.get(h, 0) + 1
-        status = int(resp.get("status_code") or 0 if isinstance(resp, dict) else (resp.status_code or 0))
+        status = int(
+            resp.get("status_code") or 0 if isinstance(resp, dict) else (resp.status_code or 0)
+        )
         status_counts[status] = status_counts.get(status, 0) + 1
     findings: list[dict[str, Any]] = []
     unique_bodies = len(body_hashes)
@@ -245,11 +255,7 @@ def detect_timing_discrepancy(
 ) -> list[dict[str, Any]]:
     latencies: list[float] = []
     for resp in responses:
-        latency = (
-            resp.get("latency_seconds")
-            if isinstance(resp, dict)
-            else resp.latency_seconds
-        )
+        latency = resp.get("latency_seconds") if isinstance(resp, dict) else resp.latency_seconds
         if latency is not None:
             try:
                 latencies.append(float(latency))
@@ -308,7 +314,17 @@ def classify_race_type(url: str) -> str:
     }
     vote_claim = {"vote", "claim", "apply"}
     resource = {"book", "booking", "reserve", "reservation", "seat", "ticket", "stock", "inventory"}
-    state = {"status", "state", "approve", "reject", "cancel", "enable", "disable", "lock", "unlock"}
+    state = {
+        "status",
+        "state",
+        "approve",
+        "reject",
+        "cancel",
+        "enable",
+        "disable",
+        "lock",
+        "unlock",
+    }
     for kw in list(financial) + ["balance", "wallet", "credit", "debit", "checkout", "purchase"]:
         if kw in lowered:
             return "financial"
@@ -608,10 +624,14 @@ class RaceCoordinator:
         request_factory: Any,
         n: int,
     ) -> list[dict[str, Any]]:
-        async with httpx.AsyncClient(
-            limits=httpx.Limits(max_connections=0, max_keepalive_connections=0),
-            timeout=30.0,
-        ) if httpx is not None else _NullClient() as client:
+        async with (
+            httpx.AsyncClient(
+                limits=httpx.Limits(max_connections=0, max_keepalive_connections=0),
+                timeout=30.0,
+            )
+            if httpx is not None
+            else _NullClient() as client
+        ):
             tasks = []
             per_worker = max(1, math.ceil(n / max(len(workers), 1)))
             idx = 0
@@ -636,11 +656,15 @@ class RaceCoordinator:
                 return await spawned
             if hasattr(spawned, "__await__"):
                 return await spawned.__await__()
-            return dict(spawned) if spawned is not None else {
-                "request_index": index,
-                "worker_url": worker_url,
-                "error": "factory returned non-awaitable",
-            }
+            return (
+                dict(spawned)
+                if spawned is not None
+                else {
+                    "request_index": index,
+                    "worker_url": worker_url,
+                    "error": "factory returned non-awaitable",
+                }
+            )
         # Default: POST a race trigger to the worker
         if httpx is None or hasattr(client, "NOOP"):
             return {
@@ -721,9 +745,7 @@ def _measure_date_header_jitter(
             continue
     if len(parsed) < 2:
         return {"count": len(parsed), "unparseable_dates": True}
-    deltas = [
-        (parsed[i + 1] - parsed[i]).total_seconds() * 1000 for i in range(len(parsed) - 1)
-    ]
+    deltas = [(parsed[i + 1] - parsed[i]).total_seconds() * 1000 for i in range(len(parsed) - 1)]
     return {
         "count": len(parsed),
         "min_delta_ms": round(min(deltas), 4),
@@ -836,7 +858,9 @@ def sync_workers(workers: list[str], timeout: float = 1.0) -> list[_UdpTimestamp
                 try:
                     sock.close()
                 except OSError as exc:
-                    logger.warning("Operation failed in race_condition_helpers.py: %s", exc, exc_info=True)  # noqa: BLE001
+                    logger.warning(
+                        "Operation failed in race_condition_helpers.py: %s", exc, exc_info=True
+                    )  # noqa: BLE001
     return results
 
 
@@ -872,7 +896,9 @@ class ActorRaceTester:
     def __init__(self, credential_vault: Any) -> None:
         self.vault = credential_vault
 
-    def _pick_two_credentials(self, resource_id: str, action: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _pick_two_credentials(
+        self, resource_id: str, action: str
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         creds = self._resolve_credentials(resource_id, action)
         if len(creds) < 2:
             raise ValueError(
@@ -937,15 +963,19 @@ class ActorRaceTester:
             client = self._make_client(credential)
             try:
                 req_body = body
-                if req_body is not None and isinstance(req_body, str) and "Content-Type" not in (
-                    extra_headers or {}
+                if (
+                    req_body is not None
+                    and isinstance(req_body, str)
+                    and "Content-Type" not in (extra_headers or {})
                 ):
                     req_headers = {"Content-Type": "application/json"}
                     req_headers.update(extra_headers or {})
                 else:
                     req_headers = dict(extra_headers or {})
                 with client:
-                    resp = client.request(method.upper(), url, headers=req_headers, content=req_body)
+                    resp = client.request(
+                        method.upper(), url, headers=req_headers, content=req_body
+                    )
                 return {
                     "status_code": resp.status_code,
                     "body_text": resp.text,
@@ -1013,7 +1043,8 @@ class ActorRaceTester:
                             "delta": change_a,
                             "privilege_leak": (
                                 "actor_a_advantage"
-                                if change_a > 0 and key in {"balance", "credits", "amount", "wallet"}
+                                if change_a > 0
+                                and key in {"balance", "credits", "amount", "wallet"}
                                 else "actor_b_advantage"
                                 if change_a < 0
                                 else None

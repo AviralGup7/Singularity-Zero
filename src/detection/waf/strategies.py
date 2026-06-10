@@ -261,15 +261,23 @@ def build_strategy_bundle(
     if "unicode_normalization" in strategies:
         payloads["unicode"] = [unicode_normalize(p) for p in base]
     if "json_padding" in strategies:
-        payloads["json_padded"] = [
-            json_pad(p) for p in base if "/" in p or "." in p
-        ]
+        payloads["json_padded"] = [json_pad(p) for p in base if "/" in p or "." in p]
     if not payloads:
         payloads["default"] = base
 
-    smuggling = smuggling_probes() if any(
-        s in strategies for s in ("request_smuggling_cl_te", "request_smuggling_te_cl", "h2_pseudo_header_smuggling", "h2_stream_priority")
-    ) else ()
+    smuggling = (
+        smuggling_probes()
+        if any(
+            s in strategies
+            for s in (
+                "request_smuggling_cl_te",
+                "request_smuggling_te_cl",
+                "h2_pseudo_header_smuggling",
+                "h2_stream_priority",
+            )
+        )
+        else ()
+    )
 
     return StrategyBundle(
         waf_name=fingerprint.name,

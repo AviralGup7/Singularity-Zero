@@ -109,9 +109,9 @@ async def test_dnsdumpster_invalid_domain_returns_empty():
 @pytest.mark.asyncio
 async def test_dnsdumpster_happy_path_parses_subdomains():
     landing_html = (
-        '<html><body><form>'
+        "<html><body><form>"
         '<input type="hidden" name="csrfmiddlewaretoken" value="abc123token" />'
-        '</form></body></html>'
+        "</form></body></html>"
     )
     results_html = (
         "<html><body><table class='table'>"
@@ -221,9 +221,7 @@ async def test_certspotter_uses_api_key_header_when_provided(monkeypatch):
     cm, _ = _async_client_mock(resp)
 
     with patch.object(httpx, "AsyncClient", return_value=cm) as client_cls:
-        await certspotter.query_certspotter(
-            "example.com", api_key="sekret", timeout=5
-        )
+        await certspotter.query_certspotter("example.com", api_key="sekret", timeout=5)
 
     kwargs = client_cls.call_args.kwargs
     assert kwargs["headers"]["Authorization"] == "Bearer sekret"
@@ -345,9 +343,7 @@ async def test_chaos_handles_dict_payload_with_domains_key():
     cm, _ = _async_client_mock(resp)
 
     with patch.object(httpx, "AsyncClient", return_value=cm):
-        result = await chaos.query_chaos(
-            "example.com", api_key="token", timeout=5
-        )
+        result = await chaos.query_chaos("example.com", api_key="token", timeout=5)
 
     assert result == {"www.example.com", "vpn.example.com"}
 

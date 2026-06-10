@@ -42,7 +42,7 @@ class ParameterProfile:
         import hashlib
 
         raw = f"{parameter_name}:{canonical_type}"
-        profile_id = f"pp-{hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]}"
+        profile_id = f"pp-{hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]}"
 
         now = datetime.now(UTC)
         return cls(

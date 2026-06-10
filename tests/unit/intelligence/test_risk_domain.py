@@ -403,9 +403,7 @@ class TestCVSSv4AndThreatIntel(unittest.TestCase):
     def test_epss_client_lookup_offline(self) -> None:
         from src.intelligence.risk.epss import EPSSClient
 
-        with patch.dict(
-            os.environ, {"PIPELINE_OFFLINE": "1"}, clear=False
-        ):
+        with patch.dict(os.environ, {"PIPELINE_OFFLINE": "1"}, clear=False):
             client = EPSSClient()
             result = client.lookup("CVE-2024-1234")
             # Offline: no remote fetch, no cached result, returns None.
@@ -414,9 +412,7 @@ class TestCVSSv4AndThreatIntel(unittest.TestCase):
     def test_cisa_kev_lookup_offline(self) -> None:
         from src.intelligence.risk.cisa_kev import CISAKEVClient
 
-        with patch.dict(
-            os.environ, {"PIPELINE_OFFLINE": "1"}, clear=False
-        ):
+        with patch.dict(os.environ, {"PIPELINE_OFFLINE": "1"}, clear=False):
             client = CISAKEVClient()
             self.assertFalse(client.is_known_exploited("CVE-2024-1234"))
 
@@ -430,14 +426,10 @@ class TestThreatIntelModuleTestMode(unittest.TestCase):
     def test_threat_intel_uses_env_var(self) -> None:
         from src.intelligence import threat_intel
 
-        with patch.dict(
-            os.environ, {"PIPELINE_THREAT_INTEL_TEST_MODE": "1"}, clear=False
-        ):
+        with patch.dict(os.environ, {"PIPELINE_THREAT_INTEL_TEST_MODE": "1"}, clear=False):
             self.assertTrue(threat_intel._is_test_mode())
 
-        with patch.dict(
-            os.environ, {"PIPELINE_THREAT_INTEL_TEST_MODE": "0"}, clear=False
-        ):
+        with patch.dict(os.environ, {"PIPELINE_THREAT_INTEL_TEST_MODE": "0"}, clear=False):
             self.assertFalse(threat_intel._is_test_mode())
 
     def test_threat_intel_does_not_use_sys_modules(self) -> None:

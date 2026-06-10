@@ -337,6 +337,7 @@ class SecurityConfig(BaseModel):
             )
         if len(v.secret) < 32:
             import warnings
+
             warnings.warn(
                 "JWT secret is shorter than 32 characters. "
                 "Use a cryptographically random value of at least 32 characters.",

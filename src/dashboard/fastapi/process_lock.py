@@ -60,7 +60,9 @@ class ProcessLifespanLock:
                     try:
                         os.unlink(self.lock_path)
                     except OSError as exc:
-                        logger.warning("Operation failed in process_lock.py: %s", exc, exc_info=True)  # noqa: BLE001
+                        logger.warning(
+                            "Operation failed in process_lock.py: %s", exc, exc_info=True
+                        )  # noqa: BLE001
             except OSError as exc:
                 logger.warning("Operation failed in process_lock.py: %s", exc, exc_info=True)  # noqa: BLE001
             return False

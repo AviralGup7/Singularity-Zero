@@ -148,12 +148,16 @@ def adapt_subdomain_source(
                     host_error = 1
                 total_new += len(host_urls)
                 total_errors += host_error
-                yield host, host_urls, CollectorMeta(
-                    status=CollectorStatus.OK if host_urls else CollectorStatus.EMPTY,
-                    new_urls=len(host_urls),
-                    errors=host_error,
-                    hosts_scanned=1,
-                    provider_name=name,
+                yield (
+                    host,
+                    host_urls,
+                    CollectorMeta(
+                        status=CollectorStatus.OK if host_urls else CollectorStatus.EMPTY,
+                        new_urls=len(host_urls),
+                        errors=host_error,
+                        hosts_scanned=1,
+                        provider_name=name,
+                    ),
                 )
             return CollectorMeta(
                 status=CollectorStatus.OK if total_new else CollectorStatus.EMPTY,

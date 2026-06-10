@@ -160,14 +160,16 @@ async def _probe_one_subprotocol(
                 try:
                     response_raw = await asyncio.wait_for(ws.recv(), timeout=4.0)
                 except TimeoutError:
-                    record["subscribe_responses"].append(
-                        {"probe": label, "status": "no_response"}
-                    )
+                    record["subscribe_responses"].append({"probe": label, "status": "no_response"})
                     continue
                 try:
                     response = json.loads(response_raw)
                 except (ValueError, TypeError):
-                    response = {"raw": response_raw[:200] if hasattr(response_raw, "__getitem__") else str(response_raw)[:200]}
+                    response = {
+                        "raw": response_raw[:200]
+                        if hasattr(response_raw, "__getitem__")
+                        else str(response_raw)[:200]
+                    }
                 rtype = str(response.get("type", "")).lower()
                 entry: dict[str, Any] = {"probe": label, "type": rtype}
                 if rtype in ("next", "data"):
@@ -186,9 +188,7 @@ async def _probe_one_subprotocol(
     return record
 
 
-async def _probe_url(
-    ws_url: str, *, origin: str | None, verify_tls: bool
-) -> dict[str, Any]:
+async def _probe_url(ws_url: str, *, origin: str | None, verify_tls: bool) -> dict[str, Any]:
     """Run both subprotocols against a single URL and merge results."""
     out: dict[str, Any] = {
         "ws_url": ws_url,
@@ -275,9 +275,7 @@ def graphql_ws_injection_probe(
         per_origin_results: list[dict[str, Any]] = []
         for origin in origins:
             try:
-                result = asyncio.run(
-                    _probe_url(ws_url, origin=origin, verify_tls=verify_tls)
-                )
+                result = asyncio.run(_probe_url(ws_url, origin=origin, verify_tls=verify_tls))
             except RuntimeError:
                 # We're inside a running event loop; fall back to per-coroutine
                 # execution. Should not happen for sync probe entry points.
@@ -303,17 +301,13 @@ def graphql_ws_injection_probe(
         # Cross-origin subscription acceptance: same-host rejected but
         # evil-host accepted (or vice versa) -> CSWSH.
         hosts_accepting = {
-            r.get("origin"): r
-            for r in per_origin_results
-            if r.get("connection_accepted")
+            r.get("origin"): r for r in per_origin_results if r.get("connection_accepted")
         }
         if (
             len(hosts_accepting) > 1
             and None in hosts_accepting
             and any(
-                origin is not None
-                and "evil" in str(origin).lower()
-                for origin in hosts_accepting
+                origin is not None and "evil" in str(origin).lower() for origin in hosts_accepting
             )
         ):
             issues.append("graphql_ws_csws_origin_bypass")
@@ -337,9 +331,7 @@ def graphql_ws_injection_probe(
                     if "graphql_ws_unauthenticated_subscription" in issues
                     else "high"
                 ),
-                "confidence": 0.85
-                if "graphql_ws_subscription_data_leaked" in issues
-                else 0.7,
+                "confidence": 0.85 if "graphql_ws_subscription_data_leaked" in issues else 0.7,
             }
         )
 

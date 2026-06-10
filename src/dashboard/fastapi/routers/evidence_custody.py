@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -39,7 +39,7 @@ class CustodyEntryModel(BaseModel):
     evidence_id: str
     action: str  # created | accessed | modified | exported | deleted
     user: str = "anonymous"
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     hash_before: str | None = None
     hash_after: str | None = None
     details: str = ""
@@ -52,7 +52,7 @@ class EvidenceRecordModel(BaseModel):
     finding_id: str
     data: str
     hash: str
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     created_by: str = "anonymous"
     custody_chain: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -135,7 +135,7 @@ async def create_evidence(
     """Create a new evidence record with an initial custody entry."""
     evidence_hash = _sha256(payload.data)
     record_id = f"evidence-{uuid.uuid4()}"
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     custody_entry = {
         "id": f"custody-{uuid.uuid4()}",
@@ -183,7 +183,7 @@ async def log_evidence_access(
                     "evidence_id": evidence_id,
                     "action": "accessed",
                     "user": payload.user,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "details": payload.details,
                 }
                 record["custody_chain"].append(entry)
@@ -217,7 +217,7 @@ async def modify_evidence(
                     "evidence_id": evidence_id,
                     "action": "modified",
                     "user": payload.user,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "hash_before": hash_before,
                     "hash_after": hash_after,
                     "details": payload.details,
@@ -245,7 +245,9 @@ async def verify_evidence(
                 valid = current_hash == record["hash"]
                 return {
                     "valid": valid,
-                    "message": "Evidence integrity verified" if valid else "Evidence integrity compromised - hash mismatch!",
+                    "message": "Evidence integrity verified"
+                    if valid
+                    else "Evidence integrity compromised - hash mismatch!",
                     "stored_hash": record["hash"],
                     "computed_hash": current_hash,
                 }

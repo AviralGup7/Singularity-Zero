@@ -72,6 +72,7 @@ def __getattr__(name: str):
             ReportDistributor,
             run_report_distribution,
         )
+
         mapping = {
             "ReportDistributor": ReportDistributor,
             "DistributionRecord": DistributionRecord,
@@ -84,6 +85,7 @@ def __getattr__(name: str):
             revalidate_resolved_findings,
             run_finding_revalidation,
         )
+
         mapping = {
             "RevalidationEntry": RevalidationEntry,
             "revalidate_resolved_findings": revalidate_resolved_findings,

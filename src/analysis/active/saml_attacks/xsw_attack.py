@@ -42,7 +42,9 @@ def _saml_response_value(xml_text: str) -> str:
     return base64.b64encode(xml_text.encode("utf-8")).decode("ascii")
 
 
-def _submit_saml_response(url: str, saml_response_value: str, vault: CredentialVault) -> dict[str, Any] | None:
+def _submit_saml_response(
+    url: str, saml_response_value: str, vault: CredentialVault
+) -> dict[str, Any] | None:
     body = (
         "SAMLResponse="
         + saml_response_value
@@ -95,6 +97,7 @@ def _is_web_target(host: str) -> bool:
     if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
         return False
     import re
+
     if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
         return False
     return "." in host

@@ -3,14 +3,13 @@
 Provides a common interface for both the full Worker and LiteWorker,
 enabling transparent substitution and shared dispatch logic.
 """
+
 from __future__ import annotations
 
 import abc
-import asyncio
 from typing import Any
 
 from src.core.logging.trace_logging import get_pipeline_logger
-from src.infrastructure.queue.models import Job
 
 logger = get_pipeline_logger(__name__)
 

@@ -16,6 +16,7 @@ class AttackChainsRepo(BaseRepo):
     def record_attack_chain(self, row: dict[str, Any]) -> None:
         """Record a detected attack chain."""
         import json
+
         finding_ids_raw = row.get("finding_ids")
         finding_ids: list[str] = []
         if isinstance(finding_ids_raw, list):

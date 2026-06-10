@@ -45,9 +45,7 @@ class ActorRaceTester:
     def __init__(self, credential_vault: Any) -> None:
         self._vault = credential_vault
 
-    def _resolve_credentials(
-        self, resource_id: str, action: str
-    ) -> list[dict[str, Any]]:
+    def _resolve_credentials(self, resource_id: str, action: str) -> list[dict[str, Any]]:
         if hasattr(self._vault, "get_credentials_for"):
             return list(self._vault.get_credentials_for(resource_id, action) or [])
         if hasattr(self._vault, "credentials"):
@@ -87,9 +85,7 @@ class ActorRaceTester:
             headers=headers if headers else None,
             cookies=cookie_map if cookie_map else None,
             follow_redirects=False,
-            timeout=httpx.Timeout(
-                connect=10.0, read=15.0, write=10.0, pool=5.0
-            ),
+            timeout=httpx.Timeout(connect=10.0, read=15.0, write=10.0, pool=5.0),
         )
 
     def race_action(
@@ -111,8 +107,7 @@ class ActorRaceTester:
         """
         if httpx is None:
             raise ImportError(
-                "httpx is required for ActorRaceTester. "
-                "Install httpx==0.28.0 to use this feature."
+                "httpx is required for ActorRaceTester. Install httpx==0.28.0 to use this feature."
             )
 
         actor_a = {"token": actor_a_token, "auth_scheme": "Bearer", "actor_name": "actor_a"}
@@ -124,16 +119,10 @@ class ActorRaceTester:
             client = self._build_client(credential)
             try:
                 req_headers = dict(extra_headers or {})
-                if (
-                    body is not None
-                    and isinstance(body, str)
-                    and "Content-Type" not in req_headers
-                ):
+                if body is not None and isinstance(body, str) and "Content-Type" not in req_headers:
                     req_headers["Content-Type"] = "application/json"
                 with client:
-                    resp = client.request(
-                        method.upper(), url, headers=req_headers, content=body
-                    )
+                    resp = client.request(method.upper(), url, headers=req_headers, content=body)
                 return {
                     "status_code": resp.status_code,
                     "body_text": resp.text,
@@ -156,11 +145,13 @@ class ActorRaceTester:
             loop = None
 
         async def _paired() -> tuple[dict[str, Any], dict[str, Any]]:
-            return tuple(await asyncio.gather(  # type: ignore[return-value]
-                asyncio.to_thread(_fire, actor_a),
-                asyncio.to_thread(_fire, actor_b),
-                return_exceptions=False,
-            ))
+            return tuple(
+                await asyncio.gather(  # type: ignore[return-value]
+                    asyncio.to_thread(_fire, actor_a),
+                    asyncio.to_thread(_fire, actor_b),
+                    return_exceptions=False,
+                )
+            )
 
         if loop is not None and loop.is_running():
             future = asyncio.run_coroutine_threadsafe(_paired(), loop)
@@ -208,10 +199,12 @@ class ActorRaceTester:
                             "delta": delta,
                             "privilege_leak": (
                                 "actor_a_advantage"
-                                if delta is not None and delta > 0
+                                if delta is not None
+                                and delta > 0
                                 and key in {"balance", "credits", "amount", "wallet", "total"}
                                 else "actor_b_advantage"
-                                if delta is not None and delta < 0
+                                if delta is not None
+                                and delta < 0
                                 and key in {"balance", "credits", "amount", "wallet", "total"}
                                 else None
                             ),
@@ -275,8 +268,7 @@ class ActorRaceTester:
 
         if httpx is None:
             raise ImportError(
-                "httpx is required for ActorRaceTester. "
-                "Install httpx==0.28.0 to use this feature."
+                "httpx is required for ActorRaceTester. Install httpx==0.28.0 to use this feature."
             )
 
         try:
@@ -285,11 +277,13 @@ class ActorRaceTester:
             loop = None
 
         async def _coro() -> list[dict[str, Any]]:
-            return list(await asyncio.gather(  # type: ignore[return-value]
-                asyncio.to_thread(_submit, actor_a),
-                asyncio.to_thread(_submit, actor_b),
-                return_exceptions=False,
-            ))
+            return list(
+                await asyncio.gather(  # type: ignore[return-value]
+                    asyncio.to_thread(_submit, actor_a),
+                    asyncio.to_thread(_submit, actor_b),
+                    return_exceptions=False,
+                )
+            )
 
         if loop is not None and loop.is_running():
             future = asyncio.run_coroutine_threadsafe(_coro(), loop)

@@ -124,7 +124,9 @@ class TestR2ScopeEnforcement(unittest.TestCase):
         findings, _errors = strategy.run(ctx)
         self.assertEqual(len(findings), 1)
         self.assertFalse(findings[0]["in_scope"])
-        self.assertIn(findings[0]["scope_reason"], ("outside_scope", "host_mismatch", "out_of_scope"))
+        self.assertIn(
+            findings[0]["scope_reason"], ("outside_scope", "host_mismatch", "out_of_scope")
+        )
 
     def test_engine_run_with_unscoped_warns(self) -> None:
         result = run_blackbox_validation_engine(
@@ -168,30 +170,18 @@ class TestR2BaseFindingUnscoped(unittest.TestCase):
 
 class TestBugGCacheKeyIncludesAuthHeaders(unittest.TestCase):
     def test_cache_key_differs_for_different_authorization(self) -> None:
-        key1 = _cache_key_for(
-            "GET", "https://example.com", {"Authorization": "Bearer A"}, None
-        )
-        key2 = _cache_key_for(
-            "GET", "https://example.com", {"Authorization": "Bearer B"}, None
-        )
+        key1 = _cache_key_for("GET", "https://example.com", {"Authorization": "Bearer A"}, None)
+        key2 = _cache_key_for("GET", "https://example.com", {"Authorization": "Bearer B"}, None)
         self.assertNotEqual(key1, key2)
 
     def test_cache_key_differs_for_different_cookie(self) -> None:
-        key1 = _cache_key_for(
-            "GET", "https://example.com", {"Cookie": "session=abc"}, None
-        )
-        key2 = _cache_key_for(
-            "GET", "https://example.com", {"Cookie": "session=xyz"}, None
-        )
+        key1 = _cache_key_for("GET", "https://example.com", {"Cookie": "session=abc"}, None)
+        key2 = _cache_key_for("GET", "https://example.com", {"Cookie": "session=xyz"}, None)
         self.assertNotEqual(key1, key2)
 
     def test_cache_key_ignores_non_auth_headers(self) -> None:
-        key1 = _cache_key_for(
-            "GET", "https://example.com", {"X-Forwarded-Host": "a"}, None
-        )
-        key2 = _cache_key_for(
-            "GET", "https://example.com", {"X-Forwarded-Host": "b"}, None
-        )
+        key1 = _cache_key_for("GET", "https://example.com", {"X-Forwarded-Host": "a"}, None)
+        key2 = _cache_key_for("GET", "https://example.com", {"X-Forwarded-Host": "b"}, None)
         self.assertEqual(key1, key2)
 
     def test_cache_key_includes_body_fingerprint(self) -> None:

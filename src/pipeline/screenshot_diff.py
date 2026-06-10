@@ -87,7 +87,9 @@ def _gaussian_kernel(size: int = 11, sigma: float = 1.5) -> np.ndarray:
     return result
 
 
-def _compute_ssim(img_a: Image.Image, img_b: Image.Image, win_size: int = 11, sigma: float = 1.5) -> float:
+def _compute_ssim(
+    img_a: Image.Image, img_b: Image.Image, win_size: int = 11, sigma: float = 1.5
+) -> float:
     """Compute structural similarity (SSIM) using a 2D Gaussian window."""
     # Convert to grayscale float array
     arr_a = np.array(img_a.convert("L"), dtype=float)
@@ -99,17 +101,17 @@ def _compute_ssim(img_a: Image.Image, img_b: Image.Image, win_size: int = 11, si
     c2 = (0.03 * 255) ** 2
 
     # Local means
-    mu1 = convolve2d(arr_a, window, mode='valid')
-    mu2 = convolve2d(arr_b, window, mode='valid')
+    mu1 = convolve2d(arr_a, window, mode="valid")
+    mu2 = convolve2d(arr_b, window, mode="valid")
 
-    mu1_sq = mu1 ** 2
-    mu2_sq = mu2 ** 2
+    mu1_sq = mu1**2
+    mu2_sq = mu2**2
     mu1_mu2 = mu1 * mu2
 
     # Local variances and covariances
-    sigma1_sq = convolve2d(arr_a ** 2, window, mode='valid') - mu1_sq
-    sigma2_sq = convolve2d(arr_b ** 2, window, mode='valid') - mu2_sq
-    sigma12 = convolve2d(arr_a * arr_b, window, mode='valid') - mu1_mu2
+    sigma1_sq = convolve2d(arr_a**2, window, mode="valid") - mu1_sq
+    sigma2_sq = convolve2d(arr_b**2, window, mode="valid") - mu2_sq
+    sigma12 = convolve2d(arr_a * arr_b, window, mode="valid") - mu1_mu2
 
     # SSIM map calculation
     ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / (
@@ -252,4 +254,3 @@ def compute_screenshot_diff(
         metrics.identical,
     )
     return result
-

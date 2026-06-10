@@ -7,7 +7,6 @@ HPACK bombing, request smuggling via h2, and CONNECT tunnel testing.
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 import os
 from typing import Any
@@ -17,8 +16,8 @@ logger = logging.getLogger(__name__)
 try:
     import h2.config
     import h2.connection
-    import h2.events
     import h2.errors
+    import h2.events
     import h2.exceptions
 
     HAS_H2 = True
@@ -235,10 +234,12 @@ async def h2_concurrent_requests(
     await asyncio.sleep(1.0)
 
     for sid in stream_ids:
-        results.append({
-            "stream_id": sid,
-            "status": "sent",
-        })
+        results.append(
+            {
+                "stream_id": sid,
+                "status": "sent",
+            }
+        )
 
     try:
         transport.close()

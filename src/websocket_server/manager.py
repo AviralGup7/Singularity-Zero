@@ -186,7 +186,7 @@ class ConnectionManager:
             attempts[:] = [t for t in attempts if t > now - 60.0]
             if len(attempts) > self.max_connection_attempts_per_minute * 2:
                 # Hard cap to prevent memory exhaustion
-                attempts[:] = attempts[-self.max_connection_attempts_per_minute:]
+                attempts[:] = attempts[-self.max_connection_attempts_per_minute :]
             if len(attempts) >= self.max_connection_attempts_per_minute:
                 logger.warning(
                     "Connection attempt rate limit exceeded for IP %s (%d attempts in last minute)",
@@ -420,7 +420,8 @@ class ConnectionManager:
         # to prevent unbounded memory growth.
         now = time.time()
         stale_ips = [
-            ip for ip, attempts in self.ip_connection_attempts.items()
+            ip
+            for ip, attempts in self.ip_connection_attempts.items()
             if not attempts or all(t <= now - 120.0 for t in attempts)
         ]
         for ip in stale_ips:
@@ -459,14 +460,14 @@ class ConnectionManager:
             # Process drain tasks in batches to avoid task-queue exhaustion
             batch_size = 100
             for i in range(0, len(drain_tasks), batch_size):
-                batch = drain_tasks[i:i + batch_size]
+                batch = drain_tasks[i : i + batch_size]
                 if batch:
                     try:
                         await asyncio.wait_for(
                             asyncio.gather(*batch, return_exceptions=True),
                             timeout=timeout,
                         )
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         logger.warning("Drain batch timed out after %.1fs", timeout)
 
         for info in conns:

@@ -264,7 +264,9 @@ async def list_all_findings(
                     if isinstance(parsed_summary, dict):
                         summary_data = parsed_summary
                 except Exception:
-                    logger.warning("Failed to parse run_summary.json at %s", summary_path, exc_info=True)
+                    logger.warning(
+                        "Failed to parse run_summary.json at %s", summary_path, exc_info=True
+                    )
                     summary_data = {}
 
             run_generated_at = str(

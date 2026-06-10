@@ -416,7 +416,9 @@ def mass_assignment_detector(
                                     field_accepted = True
                                     acceptance_signals.append(f"field_reflected:{injected_key}")
                     except (json.JSONDecodeError, ValueError) as exc:
-                        logger.warning("Operation failed in mass_assignment.py: %s", exc, exc_info=True)  # noqa: BLE001
+                        logger.warning(
+                            "Operation failed in mass_assignment.py: %s", exc, exc_info=True
+                        )  # noqa: BLE001
 
             if field_accepted:
                 accepted_fields.append(

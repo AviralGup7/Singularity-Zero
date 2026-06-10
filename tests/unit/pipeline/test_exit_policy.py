@@ -83,9 +83,7 @@ class TestPolicyLoading:
         )
         policy = load_policy(path)
         assert policy.findings.thresholds.critical == 0
-        assert policy.findings.exclude_categories == frozenset(
-            {"info-disclosure", "fingerprint"}
-        )
+        assert policy.findings.exclude_categories == frozenset({"info-disclosure", "fingerprint"})
         assert policy.findings.branch_glob == "main"
         assert policy.infra.fatal_stages == frozenset({"subdomains", "urls"})
         assert policy.infra.degraded_stages == frozenset({"live_hosts"})

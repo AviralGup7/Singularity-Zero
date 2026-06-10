@@ -209,7 +209,10 @@ def generate_body_payloads(
 
         sample_values = {"integer": "0", "float": "0.0", "string": "", "boolean": "true"}
         generated: list[dict[str, Any]] = []
-        has_query_field = any(field_name == "query" and field_type == "string" for field_name, field_type in body_fields)
+        has_query_field = any(
+            field_name == "query" and field_type == "string"
+            for field_name, field_type in body_fields
+        )
         for field_name, field_type in body_fields[:max_fields_per_endpoint]:
             sample = sample_values.get(field_type, "")
             payloads = generate_payloads_for_parameter(field_name, sample)

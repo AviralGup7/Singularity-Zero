@@ -53,10 +53,7 @@ class GraphQLAttackFinding:
 
 
 def _introspection_query() -> str:
-    return (
-        "{ __schema { queryType { name } mutationType { name } "
-        "subscriptionType { name } } }"
-    )
+    return "{ __schema { queryType { name } mutationType { name } subscriptionType { name } } }"
 
 
 def alias_batching_query(target_field: str, ids: Iterable[Any]) -> str:
@@ -66,9 +63,7 @@ def alias_batching_query(target_field: str, ids: Iterable[Any]) -> str:
     """
     parts: list[str] = []
     for i, value in enumerate(ids):
-        parts.append(
-            f'a{i}: {target_field}(id: "{value}") {{ id email }}'
-        )
+        parts.append(f'a{i}: {target_field}(id: "{value}") {{ id email }}')
     return "query AliasBatch { " + " ".join(parts) + " }"
 
 
@@ -246,9 +241,7 @@ class GraphQLBatchAttack:
             cost_estimate=2**depth if depth < 25 else None,
         )
 
-    def run_persisted_query_probe(
-        self, shas: Iterable[str]
-    ) -> GraphQLAttackFinding:
+    def run_persisted_query_probe(self, shas: Iterable[str]) -> GraphQLAttackFinding:
         shas_list = list(shas)
         payload = persisted_query_probe(shas_list)
         response, elapsed = self._post(payload)

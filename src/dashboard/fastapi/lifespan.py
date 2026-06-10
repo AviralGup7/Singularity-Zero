@@ -138,10 +138,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     ws_services: WSServices | None = None
     try:
         ws_api_keys = {key: f"admin:{index}" for index, key in enumerate(config.admin_keys) if key}
-        ws_required_roles = {"read_only", "worker", "admin", "guest"} if api_security_enabled() else None
+        ws_required_roles = (
+            {"read_only", "worker", "admin", "guest"} if api_security_enabled() else None
+        )
         ws_services = setup_websocket(
             app,
-            jwt_secret=app_secret_key() if api_security_enabled() else (config.api_key if config.api_key else None),
+            jwt_secret=app_secret_key()
+            if api_security_enabled()
+            else (config.api_key if config.api_key else None),
             api_keys=ws_api_keys or None,
             required_roles=ws_required_roles,
             heartbeat_interval=20.0,
@@ -364,14 +368,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             finding_id=finding.finding_id,
             action=CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER,
             success=success,
-            message=f"Force-opened circuit breaker for {tool_name}" if success else f"Unable to trip breaker for {tool_name}",
+            message=f"Force-opened circuit breaker for {tool_name}"
+            if success
+            else f"Unable to trip breaker for {tool_name}",
             component=finding.component,
             details={"reason": finding.reason, "labels": labels, "tool": tool_name},
         )
 
     action_registry.register(CorrectiveAction.TRIP_TOOL_CIRCUIT_BREAKER, _trip_tool_breaker)
 
-    tool_service: ToolExecutionService = getattr(app.state, "tool_execution_service", None) or ToolExecutionService()
+    tool_service: ToolExecutionService = (
+        getattr(app.state, "tool_execution_service", None) or ToolExecutionService()
+    )
     app.state.tool_execution_service = tool_service
 
     async def _pipeline_stage_probe() -> list[HealthMetric]:
@@ -388,10 +396,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             if job.get("status") != "running":
                 continue
             updated = float(
-                job.get("updated_at")
-                or job.get("last_update")
-                or job.get("started_at")
-                or now
+                job.get("updated_at") or job.get("last_update") or job.get("started_at") or now
             )
             age = max(0.0, now - updated)
             metrics.append(
@@ -435,7 +440,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                     component=HealthComponent.DASHBOARD_CONNECTION,
                     name="dashboard_connection_age",
                     value=round(now - connection.last_activity, 2),
-                    labels={"connection_id": connection.connection_id, "user_id": connection.user_id},
+                    labels={
+                        "connection_id": connection.connection_id,
+                        "user_id": connection.user_id,
+                    },
                 )
             )
         return metrics
@@ -461,20 +469,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                         node.ram_available_mb = psutil.virtual_memory().available / 1024 / 1024
                     except (AttributeError, OSError) as psutil_exc:
                         logger.debug("psutil metric read failed: %s", psutil_exc)
-                running = [j for j in app_ref.state.services.jobs.values() if j.get("status") == "running"]
+                running = [
+                    j for j in app_ref.state.services.jobs.values() if j.get("status") == "running"
+                ]
                 node.active_jobs = len(running)
                 node.last_seen = time.time()
 
                 try:
                     from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+
                     _reg = _get_metrics()
                     _reg.gauge("active_workers").set(len(running))
                     _reg.gauge("queue_depth").set(
-                        sum(1 for j in app_ref.state.services.jobs.values() if j.get("status") == "queued")
+                        sum(
+                            1
+                            for j in app_ref.state.services.jobs.values()
+                            if j.get("status") == "queued"
+                        )
                     )
                     if psutil is not None:
                         _reg.gauge("cpu_usage_percent").set(psutil.cpu_percent(interval=0))
-                        _reg.gauge("memory_usage_mb").set(psutil.virtual_memory().used / 1024 / 1024)
+                        _reg.gauge("memory_usage_mb").set(
+                            psutil.virtual_memory().used / 1024 / 1024
+                        )
                 except Exception:  # noqa: BLE001
                     pass
 
@@ -489,6 +506,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
         from src.dashboard.fastapi.feature_flags_setup import maybe_start_bayesian_eta
+
         maybe_start_bayesian_eta()
 
     logger.info("Neural-Mesh Infrastructure: ACTIVE (NodeID: %s)", node_id)
@@ -555,6 +573,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     if FeatureFlags.ENABLE_BAYESIAN_ETA():
         from src.dashboard.eta_engine import get_eta_engine
+
         await get_eta_engine().stop()
 
     if hasattr(app.state.services, "close_persistence"):
@@ -566,4 +585,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 def _init_model_registry() -> Any:
     from src.intelligence.ml.registry import ModelVersionRegistry
+
     return ModelVersionRegistry()

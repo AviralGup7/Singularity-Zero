@@ -130,7 +130,6 @@ def open_redirect_active_probe(
                 if not response:
                     continue
 
-                body = str(response.get("body_text", "") or "")[:8000]
                 status = int(response.get("status_code") or 0)
                 headers = {
                     str(key).lower(): str(value)
@@ -141,14 +140,19 @@ def open_redirect_active_probe(
                 location = headers.get("location", "")
                 original_host = parsed.hostname or ""
 
-                loc_lower = location.lower()
                 loc_host = urlparse(location).hostname or ""
-                if loc_host and any(loc_host == domain or loc_host.endswith("." + domain) for domain in external_domains):
+                if loc_host and any(
+                    loc_host == domain or loc_host.endswith("." + domain)
+                    for domain in external_domains
+                ):
                     issues_for_hit.append("open_redirect_location_header")
                 elif 300 <= status < 400 and location:
                     if loc_host and loc_host.lower() != original_host.lower():
                         issues_for_hit.append("open_redirect_status_3xx")
-                elif loc_host and any(loc_host == domain or loc_host.endswith("." + domain) for domain in external_domains):
+                elif loc_host and any(
+                    loc_host == domain or loc_host.endswith("." + domain)
+                    for domain in external_domains
+                ):
                     issues_for_hit.append("open_redirect_body_reflection")
 
                 if issues_for_hit:

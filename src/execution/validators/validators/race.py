@@ -113,9 +113,7 @@ def evaluate_race_condition(
         signals.append("all_concurrent_succeeded")
         bonuses.append(0.05)
     if len(responses) < expected_concurrency:
-        notes.append(
-            f"Only {len(responses)} of {expected_concurrency} responses captured."
-        )
+        notes.append(f"Only {len(responses)} of {expected_concurrency} responses captured.")
 
     if signals and in_scope and (duplicate or inconsistent):
         status = ValidationStatus.CONFIRMED.value
@@ -190,9 +188,7 @@ def validate_race_condition(
         "status": evaluation["status"],
         "confidence": evaluation["confidence"],
         "in_scope": in_scope,
-        "scope_reason": "scope_evaluated"
-        if in_scope
-        else "scope_unavailable_or_out_of_scope",
+        "scope_reason": "scope_evaluated" if in_scope else "scope_unavailable_or_out_of_scope",
         "evidence": evaluation["evidence"],
     }
     return to_validation_result(

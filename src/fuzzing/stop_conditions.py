@@ -15,6 +15,7 @@ class StopCondition(ABC):
     def __or__(self, other: StopCondition) -> StopConditionOr:
         return StopConditionOr(self, other)
 
+
 class StopConditionOr(StopCondition):
     def __init__(self, left: StopCondition, right: StopCondition) -> None:
         self.left = left
@@ -23,9 +24,11 @@ class StopConditionOr(StopCondition):
     def __call__(self, finding: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
         return self.left(finding, findings) or self.right(finding, findings)
 
+
 class StopOnFirstFinding(StopCondition):
     def __call__(self, finding: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
         return len(findings) >= 1
+
 
 class StopOnN(StopCondition):
     def __init__(self, n: int) -> None:
@@ -33,6 +36,7 @@ class StopOnN(StopCondition):
 
     def __call__(self, finding: dict[str, Any], findings: list[dict[str, Any]]) -> bool:
         return len(findings) >= self.n
+
 
 class StopOnSeverity(StopCondition):
     def __init__(self, threshold: str) -> None:
@@ -45,6 +49,7 @@ class StopOnSeverity(StopCondition):
                 if SEVERITY_LEVELS.index(severity) <= self.threshold_index:
                     return True
         return False
+
 
 class StopOnPattern(StopCondition):
     def __init__(self, pattern: re.Pattern) -> None:

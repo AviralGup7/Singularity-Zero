@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreFPPatterns:
     """Tests for FP pattern operations."""
 

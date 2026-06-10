@@ -11,6 +11,7 @@ class CacheTestBase(unittest.TestCase):
 
         self.tmp_path = Path(tempfile.mkdtemp())
 
+
 class TestFileBackend(CacheTestBase):
     def test_set_and_get(self) -> None:
         backend = FileBackend(cache_dir=str(self.tmp_path))

@@ -9,7 +9,6 @@ reuse.
 
 from __future__ import annotations
 
-import logging
 import re
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -30,7 +29,6 @@ from src.recon.js_parsers_v2 import (
     discover_and_analyze_manifest,
     extract_endpoints_v2,
     extract_source_map_url,
-    extract_sources_content,
     extract_tokens_and_keys,
     follow_source_map_chain,
     is_source_map_body,
@@ -169,7 +167,18 @@ def _collect_js_discovery_urls(
     errors = 0
     budget_exceeded = False
 
-    def _scan_single_host(base_url: str) -> tuple[set[str], int, int, list[dict[str, Any]], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    def _scan_single_host(
+        base_url: str,
+    ) -> tuple[
+        set[str],
+        int,
+        int,
+        list[dict[str, Any]],
+        dict[str, Any],
+        list[dict[str, Any]],
+        list[dict[str, Any]],
+        list[dict[str, Any]],
+    ]:
         host_discovered: set[str] = set()
         host_secrets: list[dict[str, Any]] = []
         host_wasm: list[dict[str, Any]] = []
@@ -178,7 +187,16 @@ def _collect_js_discovery_urls(
         host_provenance: dict[str, str] = {}
         html = _fetch_text_content(base_url, timeout_seconds, max_response_bytes)
         if not html:
-            return host_discovered, 0, 0, host_secrets, host_provenance, host_wasm, host_sw, host_manifest
+            return (
+                host_discovered,
+                0,
+                0,
+                host_secrets,
+                host_provenance,
+                host_wasm,
+                host_sw,
+                host_manifest,
+            )
 
         host_discovered.update(extract_endpoints_v2(html, base_url, scope_roots))
         host_discovered.update(_extract_js_candidate_urls(html, base_url, scope_roots))
@@ -232,7 +250,13 @@ def _collect_js_discovery_urls(
                 if is_safe_url(wasm_candidate):
                     w_disc, w_strings = analyze_wasm_url(wasm_candidate, base_url, scope_roots)
                     if w_disc or w_strings:
-                        host_wasm.append({"url": wasm_candidate, "discovered": sorted(w_disc), "strings": w_strings[:20]})
+                        host_wasm.append(
+                            {
+                                "url": wasm_candidate,
+                                "discovered": sorted(w_disc),
+                                "strings": w_strings[:20],
+                            }
+                        )
                         wasm_attack_surface.extend(sorted(w_disc))
             for m in re.finditer(r"""\.wasm\b""", js_body):
                 pass
@@ -246,7 +270,9 @@ def _collect_js_discovery_urls(
                     continue
                 host_discovered.add(map_url)
                 if is_source_map_body(map_body):
-                    chain_disc, chain_prov = follow_source_map_chain(map_url, map_body, base_url, scope_roots)
+                    chain_disc, chain_prov = follow_source_map_chain(
+                        map_url, map_body, base_url, scope_roots
+                    )
                     host_discovered.update(chain_disc)
                     host_provenance.update(chain_prov)
                 else:
@@ -257,7 +283,16 @@ def _collect_js_discovery_urls(
                 fetched += 1
 
         host_discovered.update(script_urls[:max_js_files_per_host])
-        return host_discovered, len(script_urls), fetched, host_secrets, host_provenance, host_wasm, host_sw, host_manifest
+        return (
+            host_discovered,
+            len(script_urls),
+            fetched,
+            host_secrets,
+            host_provenance,
+            host_wasm,
+            host_sw,
+            host_manifest,
+        )
 
     emit_collection_progress(
         progress_callback,
@@ -301,7 +336,16 @@ def _collect_js_discovery_urls(
             for future in done:
                 pending.pop(future, None)
                 try:
-                    host_urls, host_script_refs, host_js_files, h_secrets, h_prov, h_wasm, h_sw, h_manifest = future.result()
+                    (
+                        host_urls,
+                        host_script_refs,
+                        host_js_files,
+                        h_secrets,
+                        h_prov,
+                        h_wasm,
+                        h_sw,
+                        h_manifest,
+                    ) = future.result()
                     all_secrets.extend(h_secrets)
                     endpoint_provenance.update(h_prov)
                     wasm_results.extend(h_wasm)

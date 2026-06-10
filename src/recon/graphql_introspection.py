@@ -56,17 +56,13 @@ Attack-surface additions:
   anonymous token to surface which sensitive fields are actually
   accessible unauthenticated.
 """
+
 from __future__ import annotations
 
-
 import asyncio
-import hashlib
 import json
 import logging
-import random
 import re
-import string
-import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -458,7 +454,9 @@ def _alias_authorization_bypass(schema: dict[str, Any]) -> dict[str, Any]:
         for t in (schema.get("__schema") or {}).get("types", [{}])[0].get("fields", [])
         if isinstance(t, str)
     ):
-        result["batching_amplification"]["notes"] = "batching route may exist (queries endpoint present)"
+        result["batching_amplification"]["notes"] = (
+            "batching route may exist (queries endpoint present)"
+        )
     return result
 
 
@@ -595,7 +593,11 @@ def _probe_fields_for_auth_inference(
         "inaccessible_fields": [],
         "notes": "",
     }
-    anon = {k: v for k, v in headers.items() if k.lower() not in ("authorization", "x-api-key", "cookie")}
+    anon = {
+        k: v
+        for k, v in headers.items()
+        if k.lower() not in ("authorization", "x-api-key", "cookie")
+    }
     candidates: list[str] = []
     for items in ops.values():
         candidates.extend(items or [])
@@ -695,7 +697,9 @@ def _introspect_endpoint_sync(
                         "notes": "JSON array batching accepted with 2 results returned",
                     }
             except json.JSONDecodeError as exc:
-                logger.warning("Operation failed in graphql_introspection.py: %s", exc, exc_info=True)  # noqa: BLE001
+                logger.warning(
+                    "Operation failed in graphql_introspection.py: %s", exc, exc_info=True
+                )  # noqa: BLE001
     except requests.RequestException as exc:
         logger.warning("Operation failed in graphql_introspection.py: %s", exc, exc_info=True)  # noqa: BLE001
     if not batch_hit:
@@ -743,8 +747,7 @@ def _introspect_endpoint_sync(
     if "errors" in intro_body and "data" not in intro_body:
         endpoint.introspection_status = "disabled"
         endpoint.notes.append(
-            "introspection disabled or rejected: "
-            + str(intro_body.get("errors", ""))[:200]
+            "introspection disabled or rejected: " + str(intro_body.get("errors", ""))[:200]
         )
         if not isinstance(endpoint.attack_surface, dict):
             endpoint.attack_surface = {}

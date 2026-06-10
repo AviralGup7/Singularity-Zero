@@ -32,7 +32,6 @@ import re
 import time
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -94,22 +93,36 @@ def _extract_shadow_links(page: Any) -> list[str]:
     return []
 
 
-def _extract_api_tokens(context: Any, page: Any, origin: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _extract_api_tokens(
+    context: Any, page: Any, origin: str
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     tokens: list[dict[str, Any]] = []
     service_workers: list[dict[str, Any]] = []
     try:
         cookies = context.cookies()
         for cookie in cookies or []:
             name = (cookie.get("name") or "").lower()
-            if any(token in name for token in ["token", "access_token", "authorization", "api_key", "session", "auth"]):
-                tokens.append({
-                    "source": "cookie",
-                    "name": cookie.get("name"),
-                    "value": cookie.get("value"),
-                    "domain": cookie.get("domain"),
-                    "host": origin,
-                    "page_url": page.url,
-                })
+            if any(
+                token in name
+                for token in [
+                    "token",
+                    "access_token",
+                    "authorization",
+                    "api_key",
+                    "session",
+                    "auth",
+                ]
+            ):
+                tokens.append(
+                    {
+                        "source": "cookie",
+                        "name": cookie.get("name"),
+                        "value": cookie.get("value"),
+                        "domain": cookie.get("domain"),
+                        "host": origin,
+                        "page_url": page.url,
+                    }
+                )
     except Exception:  # noqa: BLE001
         pass
     try:
@@ -124,14 +137,19 @@ def _extract_api_tokens(context: Any, page: Any, origin: str) -> tuple[list[dict
         if isinstance(storage, list):
             for entry in storage:
                 key = (entry.get("key") or "") if isinstance(entry, dict) else ""
-                if any(token in key.lower() for token in ["token", "access", "auth", "api_key", "session"]):
-                    tokens.append({
-                        "source": "localStorage",
-                        "name": key,
-                        "value": entry.get("value"),
-                        "host": origin,
-                        "page_url": page.url,
-                    })
+                if any(
+                    token in key.lower()
+                    for token in ["token", "access", "auth", "api_key", "session"]
+                ):
+                    tokens.append(
+                        {
+                            "source": "localStorage",
+                            "name": key,
+                            "value": entry.get("value"),
+                            "host": origin,
+                            "page_url": page.url,
+                        }
+                    )
     except Exception:  # noqa: BLE001
         pass
     return tokens, service_workers
@@ -185,9 +203,7 @@ def headless_crawl_host(
 
                 hrefs: list[str] = []
                 try:
-                    anchors = page.eval_on_selector_all(
-                        "a[href]", "els => els.map(e => e.href)"
-                    )
+                    anchors = page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)")
                     if isinstance(anchors, list):
                         hrefs = [h for h in anchors if isinstance(h, str)]
                 except Exception:  # noqa: BLE001

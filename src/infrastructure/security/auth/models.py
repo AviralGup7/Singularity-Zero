@@ -138,8 +138,7 @@ class TokenPayload(BaseModel):
             Role(v)
         except ValueError:
             raise ValueError(
-                f"Invalid role '{v}'. Must be one of: "
-                f"{', '.join(r.value for r in Role)}"
+                f"Invalid role '{v}'. Must be one of: {', '.join(r.value for r in Role)}"
             ) from None
         return v
 

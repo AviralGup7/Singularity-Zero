@@ -388,14 +388,14 @@ class LiteWorker:
             if "payload" in payload and isinstance(payload["payload"], dict):
                 inner_payload = payload["payload"]
             elif "schema_version" in payload:
-                inner_payload = payload.get("payload", {}) if isinstance(payload.get("payload"), dict) else {}
+                inner_payload = (
+                    payload.get("payload", {}) if isinstance(payload.get("payload"), dict) else {}
+                )
             else:
                 inner_payload = payload
 
             target = str(
-                inner_payload.get("target_name")
-                or inner_payload.get("target")
-                or ""
+                inner_payload.get("target_name") or inner_payload.get("target") or ""
             ).strip()
             scope_entries = inner_payload.get("scope_entries", [])
 
@@ -412,10 +412,16 @@ class LiteWorker:
 
             # Route to correct Go scanning tool command
             results = []
-            if canonical_type in ("recon_provider.subdomains",) or job_type in ("subdomains", "subdomain_enum"):
+            if canonical_type in ("recon_provider.subdomains",) or job_type in (
+                "subdomains",
+                "subdomain_enum",
+            ):
                 cmd = ["subfinder", "-d", target, "-silent"]
                 results = await self._execute_recon_command(cmd)
-            elif canonical_type in ("recon_provider.live_hosts",) or job_type in ("live_hosts", "port_probe"):
+            elif canonical_type in ("recon_provider.live_hosts",) or job_type in (
+                "live_hosts",
+                "port_probe",
+            ):
                 cmd = ["httpx", "-u", target, "-silent"]
                 results = await self._execute_recon_command(cmd)
             elif canonical_type in ("recon_provider.urls",) or job_type in ("urls", "katana"):
@@ -609,12 +615,6 @@ class LiteWorker:
         await self._redis.ping()
 
         # Pre-register Lua scripts and fetch their SHAs (unified with core, Gap 8-C)
-        from src.infrastructure.queue.lua_scripts import (
-            CLAIM_JOB_SCRIPT,
-            COMPLETE_JOB_SCRIPT,
-            FAIL_JOB_SCRIPT,
-            RELEASE_LEASE_SCRIPT,
-        )
 
         self._shas["claim_job"] = await self._redis.script_load(CLAIM_JOB_SCRIPT)
         self._shas["complete_job"] = await self._redis.script_load(COMPLETE_JOB_SCRIPT)

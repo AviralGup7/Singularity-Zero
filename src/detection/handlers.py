@@ -43,9 +43,7 @@ def js_sink_source_analyzer(
             continue
         body = response.get("body_text") or response.get("body") or ""
         content_type = response.get("content_type", "")
-        for finding in analyze_response(
-            url=url, body=body, content_type=content_type
-        ):
+        for finding in analyze_response(url=url, body=body, content_type=content_type):
             finding.setdefault("analyzer_key", "js_sink_source_analyzer")
             finding.setdefault("phase", "analyze")
             findings.append(finding)
@@ -189,9 +187,7 @@ def waf_challenge_detector(
         headers = response.get("headers") or {}
         body = response.get("body_text") or response.get("body") or ""
         status = response.get("status_code")
-        assessment = assess_for_engine(
-            headers, str(body) if body else None, status_code=status
-        )
+        assessment = assess_for_engine(headers, str(body) if body else None, status_code=status)
         if not assessment.get("is_challenge"):
             continue
         finding = {

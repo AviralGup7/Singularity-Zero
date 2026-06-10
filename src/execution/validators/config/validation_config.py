@@ -41,15 +41,9 @@ def _coerce_scope_policy(raw: dict[str, Any] | None) -> ScopePolicy:
     if not raw:
         return ScopePolicy()
     return ScopePolicy(
-        block_active_when_unscoped=bool(
-            raw.get("block_active_when_unscoped", True)
-        ),
-        log_warning_when_unscoped=bool(
-            raw.get("log_warning_when_unscoped", True)
-        ),
-        treat_unscoped_as_out_of_scope=bool(
-            raw.get("treat_unscoped_as_out_of_scope", True)
-        ),
+        block_active_when_unscoped=bool(raw.get("block_active_when_unscoped", True)),
+        log_warning_when_unscoped=bool(raw.get("log_warning_when_unscoped", True)),
+        treat_unscoped_as_out_of_scope=bool(raw.get("treat_unscoped_as_out_of_scope", True)),
     )
 
 
@@ -120,9 +114,7 @@ def load_validation_config(
             scope_policy=ScopePolicy(),
             raw={},
         )
-    blackbox = raw_settings.get("extensions", {}).get(
-        "blackbox_validation", {}
-    ) or {}
+    blackbox = raw_settings.get("extensions", {}).get("blackbox_validation", {}) or {}
     scoring_overrides = blackbox.get("scoring", {}) or {}
     calibration_cfg = CalibrationConfig(
         min_independent_signals=int(
@@ -141,14 +133,10 @@ def load_validation_config(
             blackbox.get("calibration", {}).get("ssti_baseline_required", True)
         ),
         token_replay_block_by_default=bool(
-            blackbox.get("calibration", {}).get(
-                "token_replay_block_by_default", True
-            )
+            blackbox.get("calibration", {}).get("token_replay_block_by_default", True)
         ),
         max_concurrent_race_workers=int(
-            blackbox.get("calibration", {}).get(
-                "max_concurrent_race_workers", 5
-            )
+            blackbox.get("calibration", {}).get("max_concurrent_race_workers", 5)
         ),
         cache_poisoning_unkeyed_headers=tuple(
             blackbox.get("calibration", {}).get(
@@ -168,14 +156,10 @@ def load_validation_config(
             blackbox.get("token_replay_safety", {}).get("authorized_replay", False)
         ),
         max_replay_attempts_per_token=int(
-            blackbox.get("token_replay_safety", {}).get(
-                "max_replay_attempts_per_token", 3
-            )
+            blackbox.get("token_replay_safety", {}).get("max_replay_attempts_per_token", 3)
         ),
         max_replay_attempts_per_host=int(
-            blackbox.get("token_replay_safety", {}).get(
-                "max_replay_attempts_per_host", 5
-            )
+            blackbox.get("token_replay_safety", {}).get("max_replay_attempts_per_host", 5)
         ),
     )
     scope_policy = _coerce_scope_policy(blackbox.get("scope", {}))

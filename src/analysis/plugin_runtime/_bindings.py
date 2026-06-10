@@ -227,7 +227,9 @@ def _register_bindings() -> None:
         "auth_boundary_redirect_detection": _binding("priority_urls_and_cache"),
         "graphql_error_leakage_checker": _binding("responses_only"),
         "openapi_swagger_spec_checker": _binding("urls_and_responses"),
-        "ai_endpoint_exposure_analyzer": _binding("urls_and_responses", ai_endpoint_exposure_analyzer),
+        "ai_endpoint_exposure_analyzer": _binding(
+            "urls_and_responses", ai_endpoint_exposure_analyzer
+        ),
         "grpc_reflection_exposure_checker": _binding("urls_and_responses"),
         "cloud_storage_exposure_checker": _binding("responses_only"),
         "cloud_metadata_exposure_checker": _binding("urls_and_responses"),

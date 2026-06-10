@@ -66,9 +66,7 @@ async def query_spyse(
         return set()
 
     subdomains: set[str] = set()
-    pattern = re.compile(
-        r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE
-    )
+    pattern = re.compile(r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE)
 
     try:
         async with httpx.AsyncClient(
@@ -101,11 +99,7 @@ async def query_spyse(
                 logger.debug("Spyse JSON parse failed: %s", exc)
                 return set()
 
-            items = (
-                payload.get("data", {}).get("items", [])
-                if isinstance(payload, dict)
-                else []
-            )
+            items = payload.get("data", {}).get("items", []) if isinstance(payload, dict) else []
             for item in items:
                 if not isinstance(item, dict):
                     continue

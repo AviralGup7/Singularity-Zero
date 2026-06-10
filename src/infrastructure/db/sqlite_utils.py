@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+
 """Shared SQLite retry and safe-close helpers for the pipeline.
 
 This module is the single source of truth for the SQLite connection

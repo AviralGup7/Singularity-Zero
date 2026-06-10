@@ -28,7 +28,9 @@ _STATE_CHAIN_MAX_STEPS = 20
 
 csrf_token_re = re.compile(r"name=[\"']csrf_token[\"']\s+value=[\"']([^\"']+)[\"']", re.IGNORECASE)
 csrf_header_re = re.compile(r"X-CSRF-Token:\s*([^\s]+)", re.IGNORECASE)
-csrf_meta_re = re.compile(r"<meta\s+name=[\"']csrf-token[\"']\s+content=[\"']([^\"']+)[\"']", re.IGNORECASE)
+csrf_meta_re = re.compile(
+    r"<meta\s+name=[\"']csrf-token[\"']\s+content=[\"']([^\"']+)[\"']", re.IGNORECASE
+)
 
 try:
     import playwright  # noqa: F401
@@ -54,7 +56,11 @@ class EndpointNode:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, EndpointNode):
             return NotImplemented
-        return self.endpoint_id == other.endpoint_id and self.method == other.method and self.path == other.path
+        return (
+            self.endpoint_id == other.endpoint_id
+            and self.method == other.method
+            and self.path == other.path
+        )
 
 
 class WorkflowFuzzer:
@@ -73,7 +79,9 @@ class WorkflowFuzzer:
                 if method not in methods:
                     continue
                 node_id = f"{method.upper()} {path}"
-                self.nodes.setdefault(node_id, EndpointNode(endpoint_id=node_id, path=path, method=method.upper()))
+                self.nodes.setdefault(
+                    node_id, EndpointNode(endpoint_id=node_id, path=path, method=method.upper())
+                )
 
         param_sets: dict[str, set[str]] = {}
         for node_id, node in self.nodes.items():
@@ -112,8 +120,12 @@ class WorkflowFuzzer:
                 if lp & rp:
                     lid = f"GET {lk.split('|')[1]}"
                     rid = f"GET {rk.split('|')[1]}"
-                    left = self.nodes.setdefault(lid, EndpointNode(endpoint_id=lid, path=lk.split("|")[1], method="GET"))
-                    right = self.nodes.setdefault(rid, EndpointNode(endpoint_id=rid, path=rk.split("|")[1], method="GET"))
+                    left = self.nodes.setdefault(
+                        lid, EndpointNode(endpoint_id=lid, path=lk.split("|")[1], method="GET")
+                    )
+                    right = self.nodes.setdefault(
+                        rid, EndpointNode(endpoint_id=rid, path=rk.split("|")[1], method="GET")
+                    )
                     if rid not in left.transitions:
                         left.transitions[rid] = right
                     if lid not in right.transitions:
@@ -147,7 +159,11 @@ class WorkflowFuzzer:
             url = to_endpoint
             method = combined.pop("_method", "POST").upper()
             if method in {"GET", "HEAD"}:
-                url = str(httpx.URL(to_endpoint).copy_with(params=combined)) if combined else to_endpoint
+                url = (
+                    str(httpx.URL(to_endpoint).copy_with(params=combined))
+                    if combined
+                    else to_endpoint
+                )
 
             req = session.attach(
                 Request(
@@ -158,7 +174,13 @@ class WorkflowFuzzer:
                 )
             )
             try:
-                resp = await client.request(req.method, req.url, headers=req.headers, content=req.body, timeout=timeout_seconds)
+                resp = await client.request(
+                    req.method,
+                    req.url,
+                    headers=req.headers,
+                    content=req.body,
+                    timeout=timeout_seconds,
+                )
             except Exception as exc:
                 logger.debug("Transition fuzz request failed: %s", exc)
                 continue
@@ -191,7 +213,12 @@ class WorkflowFuzzer:
             if isinstance(value, str) and value:
                 mutations.append({"name": f"bitflip_{key}", "fields": {key: _bitflip(value)}})
                 mutations.append({"name": f"empty_{key}", "fields": {key: ""}})
-                mutations.append({"name": f"overflow_{key}", "fields": {key: "A" * min(8192, max(1, 8192 // max(1, len(value))))}})
+                mutations.append(
+                    {
+                        "name": f"overflow_{key}",
+                        "fields": {key: "A" * min(8192, max(1, 8192 // max(1, len(value))))},
+                    }
+                )
             if isinstance(value, (int, float)):
                 mutations.append({"name": f"negative_{key}", "fields": {key: -value}})
                 mutations.append({"name": f"zero_{key}", "fields": {key: 0}})
@@ -286,7 +313,9 @@ class WorkflowFuzzer:
                 try:
                     await playwright_page.click(state["submit_selector"])
                 except Exception as exc:
-                    logger.debug("Playwright click failed for %s: %s", state["submit_selector"], exc)
+                    logger.debug(
+                        "Playwright click failed for %s: %s", state["submit_selector"], exc
+                    )
             content = await playwright_page.content()
             return [
                 {
@@ -350,14 +379,20 @@ class WorkflowFuzzer:
             if response_cache and base_resp.status_code in {401, 403}:
                 cached = response_cache.get(url)
                 if cached:
-                    findings.extend(self._extract_csrf_findings(url, str(cached.get("body_text", "")), endpoint_key))
+                    findings.extend(
+                        self._extract_csrf_findings(
+                            url, str(cached.get("body_text", "")), endpoint_key
+                        )
+                    )
 
         if close_client:
             await client.aclose()
         return findings[:limit]
 
     def _record_edge(self, url: str, response: httpx.Response, endpoint_key: str) -> None:
-        body_hash = hashlib.md5(response.text[:4096].encode("utf-8", errors="ignore")).hexdigest()[:8]
+        body_hash = hashlib.md5(response.text[:4096].encode("utf-8", errors="ignore")).hexdigest()[
+            :8
+        ]
         signature = f"wf:{endpoint_key}:{response.status_code}:{len(response.text)}:{body_hash}"
         self._edge_signatures.add(signature)
 

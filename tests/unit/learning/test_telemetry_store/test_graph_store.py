@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreGraph:
     """Tests for graph operations."""
 

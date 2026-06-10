@@ -62,9 +62,7 @@ class CircuitBreakerIntegrationTests(unittest.TestCase):
             breaker.record_failure()
         self.assertEqual(breaker.state, CircuitState.OPEN)
 
-        with patch(
-            "src.pipeline.services.tool_execution.subprocess.run"
-        ) as mock_run:
+        with patch("src.pipeline.services.tool_execution.subprocess.run") as mock_run:
             with self.assertRaises(ToolExecutionError) as exc:
                 self.service.run_command(self.command)
         mock_run.assert_not_called()
@@ -187,9 +185,7 @@ class CircuitBreakerIntegrationTests(unittest.TestCase):
 
     def test_consume_pending_probes_drains_on_half_open(self) -> None:
         called: list[str] = []
-        self.service.schedule_recovery_probe(
-            "nuclei", lambda _b: called.append("nuclei")
-        )
+        self.service.schedule_recovery_probe("nuclei", lambda _b: called.append("nuclei"))
         breaker = self.service._get_circuit_breaker("nuclei")
         # Manually transition to HALF_OPEN to simulate recovery timeout elapsing
         breaker._set_state_locked(CircuitState.HALF_OPEN, time.time(), log=False)

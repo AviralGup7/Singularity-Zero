@@ -43,6 +43,7 @@ class ContinuousScanMode:
         if self._notification_manager is None:
             try:
                 from src.infrastructure.notifications.manager import ManagerConfig
+
                 mgr = NotificationManager(ManagerConfig())
                 await mgr.initialize()
                 self._notification_manager = mgr
@@ -95,7 +96,9 @@ class ContinuousScanMode:
                 logger.warning("Failed to send alert for finding: %s", exc)
         return alerts_sent
 
-    async def _run_pipeline_for_scope(self, scope_entries: list[str], output_dir: Path, target_name: str, config_path: Path) -> int:
+    async def _run_pipeline_for_scope(
+        self, scope_entries: list[str], output_dir: Path, target_name: str, config_path: Path
+    ) -> int:
         scope_file = None
         try:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -127,10 +130,18 @@ class ContinuousScanMode:
             if scope_file and Path(scope_file).exists():
                 Path(scope_file).unlink(missing_ok=True)
 
-    async def run_cycle(self, output_dir: Path, target_name: str = "continuous", asset_diff_only: bool = False, config_path: Path | None = None) -> ScanCycleResult:
+    async def run_cycle(
+        self,
+        output_dir: Path,
+        target_name: str = "continuous",
+        asset_diff_only: bool = False,
+        config_path: Path | None = None,
+    ) -> ScanCycleResult:
         result = ScanCycleResult()
         current_assets = await self._inventory_mgr.discover_all()
-        asset_diff = self._inventory_mgr.diff_against_checkpoint(current_assets, self._checkpoint_mgr)
+        asset_diff = self._inventory_mgr.diff_against_checkpoint(
+            current_assets, self._checkpoint_mgr
+        )
         result.new_assets = asset_diff.new
         result.removed_assets = asset_diff.removed
 
@@ -147,7 +158,9 @@ class ContinuousScanMode:
         if config_path is None:
             config_path = Path("configs/pipeline.json")
 
-        await self._run_pipeline_for_scope(sorted(scan_targets), output_dir, target_name, config_path)
+        await self._run_pipeline_for_scope(
+            sorted(scan_targets), output_dir, target_name, config_path
+        )
         result.scans_triggered = sorted(scan_targets)
 
         try:
@@ -164,8 +177,10 @@ class ContinuousScanMode:
                     for f in previous_findings
                 }
                 new_high = [
-                    f for f in findings
-                    if (f.get("url", ""), f.get("category", ""), f.get("severity", "")) not in prev_keys
+                    f
+                    for f in findings
+                    if (f.get("url", ""), f.get("category", ""), f.get("severity", ""))
+                    not in prev_keys
                     and f.get("severity", "").lower() in ("high", "critical")
                 ]
                 result.new_findings = new_high
@@ -178,7 +193,14 @@ class ContinuousScanMode:
         await self._persist_assets(current_assets)
         return result
 
-    async def run_continuous(self, interval_seconds: int = 3600, output_dir: Path = Path("output"), target_name: str = "continuous", asset_diff_only: bool = False, config_path: Path | None = None) -> None:
+    async def run_continuous(
+        self,
+        interval_seconds: int = 3600,
+        output_dir: Path = Path("output"),
+        target_name: str = "continuous",
+        asset_diff_only: bool = False,
+        config_path: Path | None = None,
+    ) -> None:
         logger.info("Starting continuous scan mode (interval=%ds)", interval_seconds)
         try:
             while True:

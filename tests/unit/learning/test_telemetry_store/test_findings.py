@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreFindings:
     """Tests for finding operations."""
 

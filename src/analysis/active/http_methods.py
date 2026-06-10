@@ -144,6 +144,7 @@ def origin_reflection_probe(
         domain = urlparse(url).netloc.split(":")[0]
         # Sanitize domain to prevent injection into Origin header
         import re as _re
+
         domain = _re.sub(r"[^a-zA-Z0-9.\-]", "", domain)
         # Multiple probe origins (Fix Audit #19)
         probe_origins = [

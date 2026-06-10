@@ -51,6 +51,7 @@ def _split_sql_statements(script: str) -> list[str]:
         statements.append(tail)
     return statements
 
+
 _KNOWN_TABLES = {
     "scan_runs",
     "findings",
@@ -525,6 +526,7 @@ class TelemetryStore:
                                 - "threshold_history": 60 days
         """
         import datetime
+
         now = datetime.datetime.now(datetime.UTC)
         deleted_counts = {}
 
@@ -554,14 +556,19 @@ class TelemetryStore:
                 column = "timestamp" if table == "feedback_events" else "recorded_at"
                 deleted_counts[table] = self.delete_expired_records(table, cutoff, column)
             except Exception as exc:
-                logger.warning("Telemetry store maintenance: failed to prune table %s: %s", table, exc)
+                logger.warning(
+                    "Telemetry store maintenance: failed to prune table %s: %s", table, exc
+                )
 
         # 3. Compact & optimize
         conn = self._get_conn()
         try:
             conn.execute("VACUUM")
         except sqlite3.OperationalError as exc:
-            logger.warning("Telemetry store maintenance: VACUUM failed (may be SQLITE_FULL or SQLITE_BUSY): %s", exc)
+            logger.warning(
+                "Telemetry store maintenance: VACUUM failed (may be SQLITE_FULL or SQLITE_BUSY): %s",
+                exc,
+            )
         conn.execute("ANALYZE")
         return {
             "status": "completed",

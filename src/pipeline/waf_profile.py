@@ -18,6 +18,7 @@ class WafProfile(StrEnum):
 @dataclass(frozen=True, slots=True)
 class WafTuningProfile:
     """Per-WAF tool-tuning parameters."""
+
     profile: WafProfile = WafProfile.NONE
     nuclei_rate_limit: int = 150
     nuclei_timeout_seconds: int = 5

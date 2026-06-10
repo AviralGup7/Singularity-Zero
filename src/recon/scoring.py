@@ -5,11 +5,10 @@ target profiles, mode bonuses, flow analysis, and trust boundary detection.
 Includes both standard and precomputed variants for performance optimization.
 """
 
+import logging
 from collections.abc import Iterable, Mapping
 from typing import Any, cast
 from urllib.parse import urlparse
-
-import logging
 
 from src.analysis.helpers import (
     classify_endpoint,
@@ -384,9 +383,7 @@ def rank_urls(
             cleaned = host.strip().lower().rstrip(".")
             if cleaned:
                 origin_host_set.add(cleaned)
-        existing_hosts = {
-            (urlparse(u).hostname or "").lower() for u in url_list
-        }
+        existing_hosts = {(urlparse(u).hostname or "").lower() for u in url_list}
         for host in origin_host_set:
             if host and host not in existing_hosts:
                 url_list.append(f"https://{host}")
@@ -567,10 +564,7 @@ def prioritize_urls(
     origin_hosts: set[str] | None = None,
 ) -> list[str]:
     return [
-        item["url"]
-        for item in rank_urls(
-            urls, filters, scoring, mode, origin_hosts=origin_hosts
-        )
+        item["url"] for item in rank_urls(urls, filters, scoring, mode, origin_hosts=origin_hosts)
     ]
 
 

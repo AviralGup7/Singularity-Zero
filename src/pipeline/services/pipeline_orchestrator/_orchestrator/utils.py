@@ -713,7 +713,9 @@ def build_stage_input_contract(
     ctx: PipelineContext,
     config: Any | None = None,
 ) -> dict[str, Any]:
-    stage_index = (STAGE_ORDER_INDEX.get(stage_name, -1) + 1) if stage_name in STAGE_ORDER_INDEX else 0
+    stage_index = (
+        (STAGE_ORDER_INDEX.get(stage_name, -1) + 1) if stage_name in STAGE_ORDER_INDEX else 0
+    )
     if orchestrator._pipeline_input is None:
         orchestrator._pipeline_input = PipelineInput(
             target_name="unknown",

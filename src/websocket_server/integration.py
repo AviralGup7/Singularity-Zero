@@ -27,9 +27,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import FastAPI, Request
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.websockets import WebSocket
-
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.websocket_server.broadcaster import Broadcaster
@@ -130,9 +129,7 @@ class WSServices:
     heartbeat: HeartbeatMonitor
     reconnect: ReconnectionManager
     handler: WebSocketHandler
-    job_tenant_resolver: JobTenantResolver = field(
-        default=_default_job_tenant_resolver, repr=False
-    )
+    job_tenant_resolver: JobTenantResolver = field(default=_default_job_tenant_resolver, repr=False)
     default_tenant_id: str = "default"
     _cleanup_task: asyncio.Task[None] | None = field(default=None, repr=False)
 
@@ -336,12 +333,8 @@ class WSServices:
         tenant = tenant_id or self._tenant_for_job(job_id)
 
         async def _fanout() -> int:
-            logs_sent = await self.broadcaster.broadcast_to_group(
-                f"logs:{job_id}", msg
-            )
-            global_sent = await self.broadcaster.broadcast_to_group(
-                f"global:{tenant}", msg
-            )
+            logs_sent = await self.broadcaster.broadcast_to_group(f"logs:{job_id}", msg)
+            global_sent = await self.broadcaster.broadcast_to_group(f"global:{tenant}", msg)
             return logs_sent + global_sent
 
         task = asyncio.create_task(_fanout(), name=f"ws-log-{job_id}")
@@ -365,9 +358,7 @@ class WSServices:
             Total number of connections that received the message.
         """
         job_sent = await self.broadcaster.broadcast_to_group(f"job:{job_id}", message)
-        global_sent = await self.broadcaster.broadcast_to_group(
-            f"global:{tenant_id}", message
-        )
+        global_sent = await self.broadcaster.broadcast_to_group(f"global:{tenant_id}", message)
         return job_sent + global_sent
 
     async def _broadcast_to_job_and_global(
@@ -379,9 +370,7 @@ class WSServices:
         un-namespaced global channel. Internally uses
         ``default_tenant_id`` so behaviour is preserved for legacy
         single-tenant deployments."""
-        return await self._broadcast_to_job_and_tenant(
-            message, job_id, self.default_tenant_id
-        )
+        return await self._broadcast_to_job_and_tenant(message, job_id, self.default_tenant_id)
 
     async def start_cleanup_loop(self, interval: float = 60.0) -> None:
         """Start a background task that periodically cleans up stale connections.
@@ -586,11 +575,7 @@ def setup_websocket_routes(
     # ------------------------------------------------------------------
     # Admin route protection & audit logging
     # ------------------------------------------------------------------
-    effective_admin_roles = (
-        admin_required_roles
-        if admin_required_roles is not None
-        else {"admin"}
-    )
+    effective_admin_roles = admin_required_roles if admin_required_roles is not None else {"admin"}
 
     def _resolve_admin_roles(request: Any) -> set[str]:
         """Resolve the roles for a request hitting an admin endpoint."""
@@ -707,7 +692,8 @@ def setup_websocket_routes(
 
         # Validate channel to prevent injection of Redis-special characters or path traversal
         import re as _re
-        if not _re.match(r'^[a-zA-Z0-9_\-:.]+$', channel) or '..' in channel or '/' in channel:
+
+        if not _re.match(r"^[a-zA-Z0-9_\-:.]+$", channel) or ".." in channel or "/" in channel:
             raise HTTPException(status_code=400, detail="Invalid channel name")
 
         # Block internal system group prefixes to prevent broadcasting to

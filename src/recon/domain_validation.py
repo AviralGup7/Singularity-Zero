@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+
 """Domain validation and normalization helpers.
 
 A previous version of the project compiled the same domain-validation

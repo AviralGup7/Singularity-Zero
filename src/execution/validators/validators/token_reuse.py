@@ -156,9 +156,7 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
         original_url = str(token_target.get("url", target.get("url", "")))
 
         # R6: skip replay for unsafe locations unless authorized.
-        location_allowed = _location_allowed_for_replay(
-            token_location, replay_safety
-        )
+        location_allowed = _location_allowed_for_replay(token_location, replay_safety)
         host_attempts = per_host_attempts.get(_host_of(original_url), 0)
         within_cap = host_attempts < replay_safety.max_replay_attempts_per_host
         can_replay = bool(
@@ -175,7 +173,8 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
         else:
             replay_result = {
                 "status": "skipped",
-                "reason": "replay_safety_block" if not replay_safety.authorized_replay
+                "reason": "replay_safety_block"
+                if not replay_safety.authorized_replay
                 else "unsafe_location_or_cap_reached",
                 "token_accepted": False,
                 "token_rejected": False,
@@ -202,7 +201,8 @@ def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResul
             else:
                 cross_result = {
                     "status": "skipped",
-                    "reason": "replay_safety_block" if not replay_safety.authorized_replay
+                    "reason": "replay_safety_block"
+                    if not replay_safety.authorized_replay
                     else "unsafe_location_or_cap_reached",
                     "token_accepted": False,
                     "token_rejected": False,
@@ -298,9 +298,7 @@ def _resolve_replay_safety(context: dict[str, Any]) -> ReplaySafetyConfig:
     return ReplaySafetyConfig()
 
 
-def _location_allowed_for_replay(
-    token_location: str, replay_safety: ReplaySafetyConfig
-) -> bool:
+def _location_allowed_for_replay(token_location: str, replay_safety: ReplaySafetyConfig) -> bool:
     """Return whether the given location is safe for active replay."""
     loc = (token_location or "unknown").strip().lower()
     skip = {value.lower() for value in (replay_safety.skip_replay_for or ())}

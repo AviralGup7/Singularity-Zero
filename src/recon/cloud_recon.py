@@ -211,7 +211,6 @@ _BACKBLAZE_REGIONS: tuple[str, ...] = (
 )
 
 
-
 class CloudBucketScanner:
     """Asynchronous multi-cloud storage bucket enumerator."""
 
@@ -522,7 +521,7 @@ class CloudBucketScanner:
         self, session: aiohttp.ClientSession, bucket: str
     ) -> dict[str, Any] | None:
         """Check Google Cloud Storage bucket status and permissions.
-        
+
         NOTE: This probe is intentionally unauthenticated and direct to storage.googleapis.com
         because its explicit purpose is to verify if a third-party bucket is publicly readable
         without authentication (checking for security misconfigurations).
@@ -969,9 +968,7 @@ class CloudBucketScanner:
                                 "url": url,
                                 "status": "public",
                                 "severity": "info",
-                                "details": (
-                                    f"App Engine URL responded with HTTP {resp.status}."
-                                ),
+                                "details": (f"App Engine URL responded with HTTP {resp.status}."),
                             }
                         )
             except Exception:  # noqa: S110
@@ -1018,7 +1015,9 @@ class CloudBucketScanner:
                     continue
         return findings
 
-    async def probe_api_gateway(self, session: aiohttp.ClientSession, project_id: str) -> list[dict[str, Any]]:
+    async def probe_api_gateway(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
         findings: list[dict[str, Any]] = []
         api_candidates = [
             project_id,
@@ -1328,9 +1327,7 @@ class CloudBucketScanner:
                                 "region": self._extract_region_from_url(url),
                                 "status": "detected",
                                 "severity": "info",
-                                "details": (
-                                    f"S3 endpoint responded with HTTP {resp.status}."
-                                ),
+                                "details": (f"S3 endpoint responded with HTTP {resp.status}."),
                             }
                         )
             except Exception:  # noqa: S110
@@ -1424,7 +1421,9 @@ class CloudBucketScanner:
                     continue
         return findings
 
-    async def probe_wasabi(self, session: aiohttp.ClientSession, project_id: str) -> list[dict[str, Any]]:
+    async def probe_wasabi(
+        self, session: aiohttp.ClientSession, project_id: str
+    ) -> list[dict[str, Any]]:
         findings: list[dict[str, Any]] = []
         bucket_candidates = [
             project_id,

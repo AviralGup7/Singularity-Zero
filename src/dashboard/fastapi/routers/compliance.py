@@ -147,7 +147,7 @@ async def create_access_log(
     now = time.time()
     conn = _get_conn(request)
     conn.execute(
-        "INSERT INTO compliance_access_logs (id, timestamp, \"user\", action, resource, reason, details, outcome, created_at) "
+        'INSERT INTO compliance_access_logs (id, timestamp, "user", action, resource, reason, details, outcome, created_at) '
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             log_id,
@@ -197,7 +197,7 @@ async def list_evidence(
     # Attach custody chain to each record
     for rec in records:
         chain_cursor = conn.execute(
-            "SELECT id, evidence_id, action, \"user\", timestamp, hash_before, hash_after, details "
+            'SELECT id, evidence_id, action, "user", timestamp, hash_before, hash_after, details '
             "FROM evidence_custody_chain WHERE evidence_id = ? ORDER BY created_at ASC",
             [rec["id"]],
         )
@@ -237,7 +237,7 @@ async def create_evidence(
     # Also add the initial custody-chain entry
     chain_id = f"custody-{uuid.uuid4().hex[:12]}"
     conn.execute(
-        "INSERT INTO evidence_custody_chain (id, evidence_id, action, \"user\", timestamp, hash_after, details, created_at) "
+        'INSERT INTO evidence_custody_chain (id, evidence_id, action, "user", timestamp, hash_after, details, created_at) '
         "VALUES (?, ?, 'created', ?, ?, ?, 'Evidence created and hashed', ?)",
         [chain_id, evidence_id, created_by, created_at, data_hash, now],
     )
@@ -266,7 +266,7 @@ async def log_evidence_access(
     ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
     chain_id = f"custody-{uuid.uuid4().hex[:12]}"
     conn.execute(
-        "INSERT INTO evidence_custody_chain (id, evidence_id, action, \"user\", timestamp, details, created_at) "
+        'INSERT INTO evidence_custody_chain (id, evidence_id, action, "user", timestamp, details, created_at) '
         "VALUES (?, ?, 'accessed', ?, ?, ?, ?)",
         [chain_id, evidence_id, user, ts, details, now],
     )
@@ -286,9 +286,7 @@ async def verify_evidence(
     import hashlib
 
     conn = _get_conn(request)
-    cursor = conn.execute(
-        "SELECT id, data, hash FROM evidence_custody WHERE id = ?", [evidence_id]
-    )
+    cursor = conn.execute("SELECT id, data, hash FROM evidence_custody WHERE id = ?", [evidence_id])
     row = cursor.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Evidence record not found")
@@ -297,7 +295,9 @@ async def verify_evidence(
     is_valid = current_hash == row[2]
     return {
         "valid": is_valid,
-        "message": "Evidence integrity verified" if is_valid else "Evidence integrity compromised - hash mismatch!",
+        "message": "Evidence integrity verified"
+        if is_valid
+        else "Evidence integrity compromised - hash mismatch!",
         "expected_hash": row[2],
         "actual_hash": current_hash,
     }

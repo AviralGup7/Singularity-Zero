@@ -174,6 +174,7 @@ async def _run_continuous(args: argparse.Namespace) -> int:
 
     config_path = Path(args.config).resolve()
     from src.core.config import load_config
+
     config = load_config(config_path)
     output_dir = Path(config.output_dir)
     target_name = str(getattr(config, "target_name", "continuous") or "continuous")
@@ -319,7 +320,6 @@ def main(argv: list[str] | None = None) -> int:
             if hasattr(args, "_loaded_config"):
                 args._loaded_config._resume_from = resume_from
             else:
-
                 args._resume_from = resume_from
         if getattr(args, "validate_config", False):
             from src.core.config import load_config

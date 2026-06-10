@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreConfidenceModels:
     """Tests for confidence model operations."""
 

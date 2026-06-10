@@ -52,7 +52,9 @@ def _netloc(url: str) -> str:
 def _replay_response(endpoint: str, assertion_value: str) -> dict[str, Any] | None:
     encoded = base64.b64encode(assertion_value.encode("utf-8")).decode("ascii")
     body = (
-        "SAMLResponse=" + encoded + "&RelayState=&SigAlg=http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+        "SAMLResponse="
+        + encoded
+        + "&RelayState=&SigAlg=http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
     )
     return _safe_request(endpoint, method="POST", body=body.encode("utf-8"), timeout=12)
 
@@ -78,6 +80,7 @@ def _is_web_target(host: str) -> bool:
     if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
         return False
     import re
+
     if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
         return False
     return True

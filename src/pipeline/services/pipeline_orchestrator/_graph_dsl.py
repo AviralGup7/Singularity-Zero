@@ -10,6 +10,7 @@ nodes are type-checkable, IDE-discoverable, and easy to compose.  The
 runtime cost is zero: nodes are dataclasses and conditions are pure
 predicates evaluated by :mod:`actor_scheduler`.
 """
+
 from __future__ import annotations
 
 from collections import deque
@@ -84,7 +85,11 @@ class StageCompleted:
     def is_satisfied(self, ctx: Any, state: Mapping[str, Any]) -> bool:  # noqa: ARG002
         result = _result_of(ctx)
         status = result.stage_status.get(self.stage)
-        return status in (StageStatusValue.COMPLETED, StageStatusValue.DEGRADED, StageStatusValue.SKIPPED)
+        return status in (
+            StageStatusValue.COMPLETED,
+            StageStatusValue.DEGRADED,
+            StageStatusValue.SKIPPED,
+        )
 
 
 @dataclass(frozen=True)
@@ -228,17 +233,13 @@ class Graph:
                 raise ValueError(f"Stage '{n.name}' has a self-dependency in needs")
             for dep in n.needs:
                 if dep not in name_set:
-                    raise ValueError(
-                        f"Stage '{n.name}' depends on unknown stage '{dep}'"
-                    )
+                    raise ValueError(f"Stage '{n.name}' depends on unknown stage '{dep}'")
 
         in_degree: dict[str, int] = {n: 0 for n in name_set}
         adjacency: dict[str, list[str]] = {n: [] for n in name_set}
         for src, dst in self.edges:
             if src not in name_set or dst not in name_set:
-                raise ValueError(
-                    f"Edge ({src!r} -> {dst!r}) references an unknown stage"
-                )
+                raise ValueError(f"Edge ({src!r} -> {dst!r}) references an unknown stage")
             adjacency[src].append(dst)
             in_degree[dst] += 1
 

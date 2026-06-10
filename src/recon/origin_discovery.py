@@ -243,23 +243,11 @@ async def discover_origins_async(
     tasks: list[asyncio.Task[Any]] = []
 
     if enable_pattern_expansion:
-        tasks.append(
-            asyncio.create_task(
-                _gather_patterns(clean), name=f"origin-patterns:{clean}"
-            )
-        )
+        tasks.append(asyncio.create_task(_gather_patterns(clean), name=f"origin-patterns:{clean}"))
     if enable_mx_harvest:
-        tasks.append(
-            asyncio.create_task(
-                _harvest_mx(clean, timeout), name=f"origin-mx:{clean}"
-            )
-        )
+        tasks.append(asyncio.create_task(_harvest_mx(clean, timeout), name=f"origin-mx:{clean}"))
     if enable_ns_harvest:
-        tasks.append(
-            asyncio.create_task(
-                _harvest_ns(clean, timeout), name=f"origin-ns:{clean}"
-            )
-        )
+        tasks.append(asyncio.create_task(_harvest_ns(clean, timeout), name=f"origin-ns:{clean}"))
     if enable_historical_dns:
         tasks.append(
             asyncio.create_task(
@@ -546,9 +534,7 @@ async def _resolve_hosts_async(hosts: set[str]) -> set[str]:
                 logger.debug("Origin resolve failed for %s: %s", host, exc)
                 return set()
 
-    results = await asyncio.gather(
-        *(_resolve_one(h) for h in hosts), return_exceptions=True
-    )
+    results = await asyncio.gather(*(_resolve_one(h) for h in hosts), return_exceptions=True)
     ips: set[str] = set()
     for item in results:
         if isinstance(item, BaseException):

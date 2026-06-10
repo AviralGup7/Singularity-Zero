@@ -98,9 +98,7 @@ def is_safe_url(url: str, *, check_once: bool = False) -> None:
 
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
-        raise ValueError(
-            f"Disallowed URL scheme: {parsed.scheme!r} (only http/https allowed)"
-        )
+        raise ValueError(f"Disallowed URL scheme: {parsed.scheme!r} (only http/https allowed)")
     hostname = parsed.hostname
     if not hostname:
         raise ValueError(f"Cannot parse hostname from URL: {url}")
@@ -112,7 +110,8 @@ def is_safe_url(url: str, *, check_once: bool = False) -> None:
         except ValueError:
             resolved = []
             for family_info in socket.getaddrinfo(
-                hostname, parsed.port or (443 if parsed.scheme == "https" else 80),
+                hostname,
+                parsed.port or (443 if parsed.scheme == "https" else 80),
                 proto=socket.IPPROTO_TCP,
             ):
                 addr_str = family_info[4][0]
@@ -126,9 +125,7 @@ def is_safe_url(url: str, *, check_once: bool = False) -> None:
     for ip in resolved:
         for network in _BLOCKED_NETWORKS:
             if ip in network:
-                raise ValueError(
-                    f"URL resolves to blocked address {ip} in {network}: {url}"
-                )
+                raise ValueError(f"URL resolves to blocked address {ip} in {network}: {url}")
 
     if check_once:
         with _SAFE_URL_CACHE_LOCK:
@@ -147,7 +144,6 @@ def clear_safe_url_cache() -> None:
 
 _DEFAULT_SESSION: requests.Session | None = None
 _DEFAULT_SESSION_LOCK = threading.Lock()
-
 
 
 def _build_default_session() -> requests.Session:
@@ -192,8 +188,8 @@ def reset_default_session() -> None:
 
 
 import atexit as _atexit
-_atexit.register(reset_default_session)
 
+_atexit.register(reset_default_session)
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +325,10 @@ def safe_get(
             collector_metrics.increment_errors(provider)
             logger.debug(
                 "safe_get(%s): timeout on attempt %d/%d: %s",
-                provider, attempt, attempts_budget, exc,
+                provider,
+                attempt,
+                attempts_budget,
+                exc,
             )
             if attempt < attempts_budget:
                 _sleep(backoff_seconds * (2 ** (attempt - 1)))
@@ -340,7 +339,10 @@ def safe_get(
             collector_metrics.increment_errors(provider)
             logger.debug(
                 "safe_get(%s): request error on attempt %d/%d: %s",
-                provider, attempt, attempts_budget, exc,
+                provider,
+                attempt,
+                attempts_budget,
+                exc,
             )
             if attempt < attempts_budget:
                 _sleep(backoff_seconds * (2 ** (attempt - 1)))
@@ -352,7 +354,10 @@ def safe_get(
             collector_metrics.increment_errors(provider)
             logger.debug(
                 "safe_get(%s): %s on attempt %d/%d",
-                provider, last_error, attempt, attempts_budget,
+                provider,
+                last_error,
+                attempt,
+                attempts_budget,
             )
             if attempt < attempts_budget and response.status_code >= 500:
                 _sleep(backoff_seconds * (2 ** (attempt - 1)))

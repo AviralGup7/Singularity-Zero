@@ -43,7 +43,7 @@ class NotificationBroadcaster:
                         break
                     try:
                         data = await asyncio.wait_for(queue.get(), timeout=30.0)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         # Send keepalive comment
                         yield ": keepalive\n\n"
                         continue

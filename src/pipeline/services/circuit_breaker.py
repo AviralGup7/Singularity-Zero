@@ -326,9 +326,7 @@ class CircuitBreaker:
                 last_failure_time=self._last_failure_time,
                 last_state_change=self._last_state_change,
                 force_open_until=(
-                    self._force_open_until
-                    if self._force_open_until != float("inf")
-                    else 0.0
+                    self._force_open_until if self._force_open_until != float("inf") else 0.0
                 ),
                 forced_open=self._forced_open,
                 probe_registered=self._probe_callback is not None,
@@ -460,7 +458,7 @@ def load_all_breakers(cache: Any) -> dict[str, dict[str, Any]]:
         prefix = _CB_PERSISTENCE_PREFIX
         keys = cache.keys_with_prefix(prefix)
         for key in keys:
-            name = key[len(prefix):]
+            name = key[len(prefix) :]
             state = cache.get(key)
             if isinstance(state, dict):
                 result[name] = state

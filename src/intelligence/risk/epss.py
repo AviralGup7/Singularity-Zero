@@ -185,9 +185,7 @@ class EPSSClient:
             try:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
-                cves.extend(
-                    ThreatIntelCorrelator().correlate_cve(str(finding.get("category", "")))
-                )
+                cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
             except Exception:  # noqa: BLE001
                 pass
         return [c for c in cves if c]
@@ -201,7 +199,12 @@ class EPSSClient:
             )
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+        except (
+            urllib.error.URLError,
+            urllib.error.HTTPError,
+            TimeoutError,
+            json.JSONDecodeError,
+        ) as exc:
             logger.debug("EPSSClient: %s fetch failed: %s", cve, exc)
             return None
         return self._parse_payload(cve, payload)

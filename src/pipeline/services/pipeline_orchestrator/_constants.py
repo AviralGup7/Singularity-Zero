@@ -7,6 +7,7 @@ from the graph at import time; ``STAGE_TIMEOUTS``, ``STAGE_DEPS``, and
 ``DEFAULT_*`` remain as stable constants used by the timeout resolver,
 dashboards, and plugins.
 """
+
 from __future__ import annotations
 
 import logging

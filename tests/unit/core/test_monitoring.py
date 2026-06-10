@@ -116,7 +116,9 @@ class TestContinuousScanMode:
         orchestrator = MagicMock()
         inventory_mgr = MagicMock()
         inventory_mgr.discover_all = AsyncMock(return_value=set())
-        inventory_mgr.diff_against_checkpoint.return_value = AssetDiff(new=set(), removed=set(), unchanged=set())
+        inventory_mgr.diff_against_checkpoint.return_value = AssetDiff(
+            new=set(), removed=set(), unchanged=set()
+        )
         checkpoint_mgr = MagicMock()
         return ContinuousScanMode(orchestrator, inventory_mgr, checkpoint_mgr)
 

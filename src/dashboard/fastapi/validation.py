@@ -77,8 +77,11 @@ def validate_url(url: str) -> bool:
         return False
     try:
         from urllib.parse import unquote
+
         decoded_hostname = unquote(hostname)
-        if decoded_hostname != hostname and (".." in decoded_hostname or _is_path_traversal(decoded_hostname)):
+        if decoded_hostname != hostname and (
+            ".." in decoded_hostname or _is_path_traversal(decoded_hostname)
+        ):
             return False
     except Exception:  # noqa: BLE001
         pass

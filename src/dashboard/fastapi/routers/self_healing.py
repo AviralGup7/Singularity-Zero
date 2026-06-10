@@ -215,6 +215,7 @@ async def check_tool_availability(
     service = getattr(request.app.state, "tool_execution_service", None)
     if service is None:
         from src.pipeline.services.tool_execution import ToolExecutionService
+
         service = ToolExecutionService()
 
     results: dict[str, dict[str, Any]] = {}

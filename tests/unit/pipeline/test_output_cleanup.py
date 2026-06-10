@@ -20,15 +20,18 @@ def _write_run(target_root: Path, run_name: str, counts=None, dry_run=False, age
 
     # Generate time string for simulated age
     import datetime
+
     dt = datetime.datetime.utcnow() - datetime.timedelta(days=age_days)
     dt_str = dt.strftime("%Y-%m-%dT%H:%M:%S")
 
     (run_dir / "run_summary.json").write_text(
-        json.dumps({
-            "generated_at_utc": dt_str,
-            "counts": counts,
-            "dry_run": dry_run,
-        }),
+        json.dumps(
+            {
+                "generated_at_utc": dt_str,
+                "counts": counts,
+                "dry_run": dry_run,
+            }
+        ),
         encoding="utf-8",
     )
     (run_dir / "report.html").write_text("<html></html>", encoding="utf-8")
@@ -125,9 +128,13 @@ class OutputCleanupTests(unittest.TestCase):
             # newest run: age 0 days
             _write_run(target_root, "20260606-010101", age_days=0)
             # warm run: age 10 days, high significance so it's not pruned
-            warm_run = _write_run(target_root, "20260527-010101", counts={"critical": 2}, age_days=10)
+            warm_run = _write_run(
+                target_root, "20260527-010101", counts={"critical": 2}, age_days=10
+            )
             # cold run: age 100 days, high significance so it's not pruned
-            cold_run = _write_run(target_root, "20260226-010101", counts={"critical": 2}, age_days=100)
+            cold_run = _write_run(
+                target_root, "20260226-010101", counts={"critical": 2}, age_days=100
+            )
 
             prune_output_history(
                 output_root,

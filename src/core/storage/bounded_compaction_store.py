@@ -49,9 +49,7 @@ class BoundedCompactionStateStore:
     def list_run_ids(self) -> list[str]:
         return self.backend.list_run_ids()
 
-    def read_version_by_id(
-        self, run_id: str, version_id: VersionId
-    ) -> dict[str, Any] | None:
+    def read_version_by_id(self, run_id: str, version_id: VersionId) -> dict[str, Any] | None:
         return self.backend.read_version_by_id(run_id, version_id)
 
     def list_version_ids(self, run_id: str) -> list[VersionId]:
@@ -65,9 +63,7 @@ class BoundedCompactionStateStore:
     ) -> VersionId:
         return self.backend.write_context_snapshot(run_id, stage_name, payload)
 
-    def read_context_snapshot(
-        self, run_id: str, stage_name: str
-    ) -> dict[str, Any] | None:
+    def read_context_snapshot(self, run_id: str, stage_name: str) -> dict[str, Any] | None:
         return self.backend.read_context_snapshot(run_id, stage_name)
 
     def write_stage_delta(
@@ -79,9 +75,7 @@ class BoundedCompactionStateStore:
     ) -> VersionId:
         return self.backend.write_stage_delta(run_id, stage_name, sequence, payload)
 
-    def list_stage_deltas(
-        self, run_id: str, stage_name: str
-    ) -> list[dict[str, Any]]:
+    def list_stage_deltas(self, run_id: str, stage_name: str) -> list[dict[str, Any]]:
         return self.backend.list_stage_deltas(run_id, stage_name)
 
 

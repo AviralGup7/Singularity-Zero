@@ -30,7 +30,6 @@ async def list_forensic_exchanges(
     output_root = services.query.output_root
     target_dir = get_safe_target_dir(output_root, target)
 
-
     exchanges = []
     skipped_count = 0
 

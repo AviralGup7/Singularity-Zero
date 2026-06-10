@@ -40,7 +40,11 @@ def setup_websocket(
     )
     app.state.ws_services = ws_services
 
-    if hasattr(app.state, "services") and hasattr(app.state.services, "jobs") and hasattr(app.state.services, "lock"):
+    if (
+        hasattr(app.state, "services")
+        and hasattr(app.state.services, "jobs")
+        and hasattr(app.state.services, "lock")
+    ):
         integrate_with_pipeline_progress(
             ws_services,
             job_state_store=app.state.services.jobs,

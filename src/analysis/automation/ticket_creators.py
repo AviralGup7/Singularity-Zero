@@ -21,8 +21,8 @@ credentials via the configuration system.
 A registry helper :func:`create_ticket_creators_from_config` builds
 the full set of creators from a pipeline config dict.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -113,14 +113,10 @@ class TicketCreatorBase:
         order = ("info", "low", "medium", "high", "critical")
         return order.index(sev) >= self.severity_rank
 
-    def _do_create(
-        self, finding: Mapping[str, Any], review_brief: str
-    ) -> TicketResult:
+    def _do_create(self, finding: Mapping[str, Any], review_brief: str) -> TicketResult:
         raise NotImplementedError
 
-    def create_ticket(
-        self, finding: Mapping[str, Any], review_brief: str
-    ) -> TicketResult:
+    def create_ticket(self, finding: Mapping[str, Any], review_brief: str) -> TicketResult:
         if not self._should_create(finding):
             return TicketResult(
                 platform=self._platform_name(),
@@ -164,9 +160,7 @@ class HackerOneTicketCreator(TicketCreatorBase):
         TicketCreatorBase.__post_init__(self)
         self.platform_label = "hackerone"
 
-    def _do_create(
-        self, finding: Mapping[str, Any], review_brief: str
-    ) -> TicketResult:
+    def _do_create(self, finding: Mapping[str, Any], review_brief: str) -> TicketResult:
         if not self.api_token:
             return TicketResult(
                 platform="hackerone",
@@ -186,9 +180,7 @@ class HackerOneTicketCreator(TicketCreatorBase):
                 "type": "report",
                 "attributes": {
                     "title": str(finding.get("title", "Security finding"))[:140],
-                    "severity_rating": _severity_to_hackerone(
-                        finding.get("severity", "info")
-                    ),
+                    "severity_rating": _severity_to_hackerone(finding.get("severity", "info")),
                     "vulnerability_information": review_brief[:9_000],
                 },
             }
@@ -220,9 +212,7 @@ class BugcrowdTicketCreator(TicketCreatorBase):
         TicketCreatorBase.__post_init__(self)
         self.platform_label = "bugcrowd"
 
-    def _do_create(
-        self, finding: Mapping[str, Any], review_brief: str
-    ) -> TicketResult:
+    def _do_create(self, finding: Mapping[str, Any], review_brief: str) -> TicketResult:
         if not self.api_token:
             return TicketResult(
                 platform="bugcrowd",
@@ -272,9 +262,7 @@ class JiraTicketCreator(TicketCreatorBase):
         TicketCreatorBase.__post_init__(self)
         self.platform_label = "jira"
 
-    def _do_create(
-        self, finding: Mapping[str, Any], review_brief: str
-    ) -> TicketResult:
+    def _do_create(self, finding: Mapping[str, Any], review_brief: str) -> TicketResult:
         if not self.base_url or not self.project_key:
             return TicketResult(
                 platform="jira",
@@ -339,9 +327,7 @@ def _severity_to_hackerone(severity: Any) -> str:
     return "none"
 
 
-def _creator_from_config_block(
-    platform: str, block: Mapping[str, Any]
-) -> TicketCreatorBase:
+def _creator_from_config_block(platform: str, block: Mapping[str, Any]) -> TicketCreatorBase:
     enabled = bool(block.get("enabled", False))
     min_severity = str(block.get("min_severity", "high"))
     if platform == "hackerone":
@@ -367,9 +353,7 @@ def _creator_from_config_block(
             base_url=str(block.get("base_url", "")),
             project_key=str(block.get("project_key", "")),
             email=str(block.get("email") or os.environ.get("JIRA_EMAIL", "")),
-            api_token=str(
-                block.get("api_token") or os.environ.get("JIRA_API_TOKEN", "")
-            ),
+            api_token=str(block.get("api_token") or os.environ.get("JIRA_API_TOKEN", "")),
             issue_type=str(block.get("issue_type", "Bug")),
         )
     raise ValueError(f"unknown ticket_creator platform: {platform!r}")

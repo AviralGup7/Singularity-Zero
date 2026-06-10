@@ -76,9 +76,7 @@ class MeshBidder:
         self.local_capabilities = _normalize_caps(local_capabilities)
         if local_region is None:
             local_region = (
-                os.getenv("MESH_REGION")
-                or os.getenv("REGION")
-                or discover_manifest().region
+                os.getenv("MESH_REGION") or os.getenv("REGION") or discover_manifest().region
             )
         self.local_region = str(local_region or "")
         self.cross_region_penalty = max(0.0, float(cross_region_penalty))
@@ -188,18 +186,16 @@ class MeshBidder:
         # Both penalties are bounded in [0, 0.2] so a remote node can
         # still out-bid a local one when the local hardware is bad.
         region_penalty = 0.0
-        if (
-            peer_region
-            and self.local_region
-            and peer_region != self.local_region
-        ):
+        if peer_region and self.local_region and peer_region != self.local_region:
             region_penalty = self.cross_region_penalty
         bandwidth_penalty = 0.0
         if peer_bandwidth_mbps is not None and peer_bandwidth_mbps < self.min_bandwidth_mbps:
             deficit = max(
                 0.0, (self.min_bandwidth_mbps - peer_bandwidth_mbps) / self.min_bandwidth_mbps
             )
-            bandwidth_penalty = min(self.low_bandwidth_penalty, deficit * self.low_bandwidth_penalty)
+            bandwidth_penalty = min(
+                self.low_bandwidth_penalty, deficit * self.low_bandwidth_penalty
+            )
 
         # Final Frontier Bid
         final_bid: float = (

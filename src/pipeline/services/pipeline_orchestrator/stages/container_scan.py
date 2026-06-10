@@ -103,7 +103,9 @@ async def run_container_scan_stage(
                     for result_item in data:
                         if not isinstance(result_item, dict):
                             continue
-                        image_name = result_item.get("Target", "") or result_item.get("ImageName", "")
+                        image_name = result_item.get("Target", "") or result_item.get(
+                            "ImageName", ""
+                        )
                         for vuln in result_item.get("Vulnerabilities", []) or []:
                             image_vulns.append(
                                 {

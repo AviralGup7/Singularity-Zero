@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 MISP_DEFAULT_URL = os.environ.get("MISP_URL", "http://localhost")
 
 
-
 class MISPConfig(FeedConfig):
     """Configuration for the MISP feed connector.
 

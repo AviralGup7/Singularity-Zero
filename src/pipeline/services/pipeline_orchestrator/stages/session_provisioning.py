@@ -22,6 +22,7 @@ class SessionProvisioningStage:
             AlwaysTrue,
             StageNode,
         )
+
         return StageNode(
             name="session_provisioning",
             needs=(),
@@ -42,7 +43,9 @@ class SessionProvisioningStage:
                 reason="no_auth_config",
             )
         scan_id = getattr(stage_input.pipeline, "run_id", "default")
-        scan_session = ScanSession(scan_id=scan_id, base_url=getattr(auth_config, "base_url", "") or "")
+        scan_session = ScanSession(
+            scan_id=scan_id, base_url=getattr(auth_config, "base_url", "") or ""
+        )
         provisioned: list[str] = []
         providers = getattr(auth_config, "providers", []) or []
         for provider in providers:

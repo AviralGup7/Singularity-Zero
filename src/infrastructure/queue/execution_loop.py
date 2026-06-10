@@ -107,9 +107,7 @@ class WorkerExecutionLoopMixin:
                     run_id,
                     dead_worker_id,
                 )
-                success = await self.distributed_store.take_ownership(
-                    run_id, self.worker_id
-                )
+                success = await self.distributed_store.take_ownership(run_id, self.worker_id)
                 if success:
                     logger.info(
                         "Took ownership of checkpoint %s from dead worker %s",
@@ -117,8 +115,6 @@ class WorkerExecutionLoopMixin:
                         dead_worker_id,
                     )
                 else:
-                    logger.warning(
-                        "Failed to take ownership of checkpoint %s", run_id
-                    )
+                    logger.warning("Failed to take ownership of checkpoint %s", run_id)
         except Exception as exc:
             logger.error("Error handling stale checkpoints: %s", exc)

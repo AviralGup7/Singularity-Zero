@@ -15,10 +15,10 @@ from typing import Any
 from src.infrastructure.notifications.base import (
     BaseNotifier,
     NotificationConfig,
-    NotificationPayload,
-    NotificationResult,
     NotificationEvent,
+    NotificationPayload,
     NotificationPriority,
+    NotificationResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,9 +83,9 @@ class InAppNotifier(BaseNotifier):
             if entity_type == "job":
                 href = f"/jobs/{entity_id}"
             elif entity_type == "finding":
-                href = f"/findings"
+                href = "/findings"
             elif entity_type == "target":
-                href = f"/targets"
+                href = "/targets"
 
         # 1. Persist to database
         notif_id = ""

@@ -4,7 +4,6 @@ Extracted from ``src.intelligence.ml.llm_service`` so prompt text can be
 updated without touching the client transport or scoring logic.
 """
 
-
 __all__ = [
     "EXPLAIN_FINDING_SYSTEM",
     "GENERATE_EXECUTIVE_SUMMARY_SYSTEM",

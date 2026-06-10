@@ -95,10 +95,14 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             for e in exc.errors()
         ]
         _record_security_error(request, 422, detail)
-        return JSONResponse(status_code=422, content=_error_payload("Validation Error", detail, "validation_error"))
+        return JSONResponse(
+            status_code=422, content=_error_payload("Validation Error", detail, "validation_error")
+        )
 
     @app.exception_handler(ToolNotInstalledError)
-    async def tool_not_installed_handler(request: Request, exc: ToolNotInstalledError) -> JSONResponse:
+    async def tool_not_installed_handler(
+        request: Request, exc: ToolNotInstalledError
+    ) -> JSONResponse:
         _record_security_error(request, 503, str(exc))
         return JSONResponse(
             status_code=503,
@@ -110,19 +114,28 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         )
 
     @app.exception_handler(CircuitBreakerOpenError)
-    async def circuit_breaker_open_handler(request: Request, exc: CircuitBreakerOpenError) -> JSONResponse:
+    async def circuit_breaker_open_handler(
+        request: Request, exc: CircuitBreakerOpenError
+    ) -> JSONResponse:
         _record_security_error(request, 503, str(exc))
         return JSONResponse(
             status_code=503,
             content=_error_payload(
                 "Circuit Breaker Open",
-                {"message": str(exc), "tool": exc.tool, "breaker_state": exc.breaker_state, "code": exc.error_code},
+                {
+                    "message": str(exc),
+                    "tool": exc.tool,
+                    "breaker_state": exc.breaker_state,
+                    "code": exc.error_code,
+                },
                 exc.error_code,
             ),
         )
 
     @app.exception_handler(DatabaseUnavailableError)
-    async def database_unavailable_handler(request: Request, exc: DatabaseUnavailableError) -> JSONResponse:
+    async def database_unavailable_handler(
+        request: Request, exc: DatabaseUnavailableError
+    ) -> JSONResponse:
         _record_security_error(request, 503, str(exc))
         return JSONResponse(
             status_code=503,
@@ -159,16 +172,20 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     @app.exception_handler(Exception)
     async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
         import logging
+
         logging.getLogger(__name__).exception("Internal Server Error: %s", exc)
         _record_security_error(request, 500, "Internal Server Error")
         return JSONResponse(
             status_code=500,
-            content=_error_payload("Internal Server Error", "Internal Server Error", "internal_server_error"),
+            content=_error_payload(
+                "Internal Server Error", "Internal Server Error", "internal_server_error"
+            ),
         )
 
     @app.get("/api/health/live", tags=["System"])
     async def health_check_live() -> dict[str, Any]:
         from src.dashboard.fastapi.lifespan import _START_TIME
+
         return {"status": "ok", "uptime": time.time() - (_START_TIME or time.time())}
 
     @app.get("/api/health/ready", tags=["System"])
@@ -210,6 +227,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             status = "degraded"
 
         from src.dashboard.fastapi.lifespan import _START_TIME
+
         return {
             "status": status,
             "subsystems": subsystems,
@@ -220,6 +238,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     @app.get("/api/version", tags=["System"])
     async def get_version() -> dict[str, Any]:
         from src.dashboard.fastapi.lifespan import _START_TIME
+
         return {
             "version": "2.0.0",
             "build": os.getenv("BUILD_SHA", "dev"),
@@ -232,9 +251,11 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     async def get_metrics(request: Request) -> Any:
         from src.dashboard.fastapi.dependencies import _security_principal_from_request
         from src.dashboard.fastapi.security import api_security_enabled
+
         if api_security_enabled():
             from fastapi import HTTPException as _HTTPException
             from fastapi import status as _status
+
             api_key = request.headers.get("X-API-Key")
             principal = _security_principal_from_request(request, api_key)
             if principal is None or principal.role != "admin":
@@ -245,24 +266,40 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         try:
             from fastapi import Response
             from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
             registry_metrics = generate_latest()
             try:
-                from src.infrastructure.observability.metrics import get_metrics as get_cyber_metrics
+                from src.infrastructure.observability.metrics import (
+                    get_metrics as get_cyber_metrics,
+                )
+
                 central_text = get_cyber_metrics().expose_prometheus()
-                combined = registry_metrics + b"\n" + central_text.encode("utf-8") if registry_metrics else central_text.encode("utf-8")
+                combined = (
+                    registry_metrics + b"\n" + central_text.encode("utf-8")
+                    if registry_metrics
+                    else central_text.encode("utf-8")
+                )
             except Exception:  # noqa: BLE001
                 combined = registry_metrics
             return Response(content=combined, media_type=CONTENT_TYPE_LATEST)
         except ImportError:
             from fastapi import Response
+
             from src.infrastructure.observability.metrics import get_metrics as get_cyber_metrics
+
             central_text = get_cyber_metrics().expose_prometheus()
-            return Response(content=central_text.encode("utf-8") if central_text else b"# prometheus_client not installed", media_type="text/plain")
+            return Response(
+                content=central_text.encode("utf-8")
+                if central_text
+                else b"# prometheus_client not installed",
+                media_type="text/plain",
+            )
 
     @app.websocket("/ws/triage/{run_id}")
     async def ws_triage(websocket: Any, run_id: str) -> None:
         from src.dashboard.fastapi.collaboration import TriageCollaborationService
         from src.dashboard.fastapi.routers.triage import handle_triage_websocket
+
         service = getattr(app.state, "triage_collaboration", None)
         if service is None:
             service = TriageCollaborationService(config.output_root)
@@ -376,6 +413,7 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     async def report_frontend_telemetry(event: FrontendTelemetryEvent) -> dict[str, Any]:
         try:
             from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+
             _reg = _get_metrics()
             _reg.counter("frontend_events_total", labels={"event_type": event.event_type}).inc()
             if event.payload:
@@ -388,4 +426,3 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
 
     setup_spa_routes(app)
     return app
-

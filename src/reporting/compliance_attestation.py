@@ -24,7 +24,9 @@ def generate_compliance_attestation_html(
     Returns:
         HTML string for the attestation.
     """
-    generated_at = compliance_report.get("generated_at") or datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated_at = compliance_report.get("generated_at") or datetime.now(UTC).strftime(
+        "%Y-%m-%d %H:%M:%S UTC"
+    )
 
     # CSS for "Cyber" Professional Look
     css = """

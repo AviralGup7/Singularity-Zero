@@ -143,7 +143,9 @@ def nosql_redis_probe(
         all_payloads.append((payload_name, "CONFIG", payload_body, "config_get"))
 
     for payload_name, payload_body in _REDIS_KEY_INJECTION:
-        all_payloads.append((payload_name, payload_body.get("command", ""), payload_body, "key_injection"))
+        all_payloads.append(
+            (payload_name, payload_body.get("command", ""), payload_body, "key_injection")
+        )
 
     for url_entry in priority_urls:
         if len(findings) >= limit:
@@ -273,8 +275,7 @@ def nosql_redis_probe(
                     "threshold_ms": timing_threshold_ms,
                     "samples": len(timing_samples),
                     "anomalous_count": sum(
-                        1 for s in timing_samples
-                        if s["response_time_ms"] > timing_threshold_ms
+                        1 for s in timing_samples if s["response_time_ms"] > timing_threshold_ms
                     ),
                 }
             findings.append(finding)

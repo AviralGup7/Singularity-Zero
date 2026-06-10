@@ -20,7 +20,10 @@ from src.pipeline.services.pipeline_helpers import build_stage_input_from_contex
 logger = get_pipeline_logger(__name__)
 
 _AWS_KEY_RE = re.compile(r"(?:AKIA|ASIA)[0-9A-Z]{16}")
-_GENERIC_API_KEY_RE = re.compile(r"(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*[\"']([a-zA-Z0-9_\-]{20,})[\"']", re.IGNORECASE)
+_GENERIC_API_KEY_RE = re.compile(
+    r"(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*[\"']([a-zA-Z0-9_\-]{20,})[\"']",
+    re.IGNORECASE,
+)
 
 
 def _which(tool: str) -> bool:
@@ -62,7 +65,9 @@ def _regex_scan_path(path: Path) -> list[dict[str, Any]]:
 def _scan_repo_fallback(repo_path: Path) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for root, dirs, files in os.walk(repo_path):
-        dirs[:] = [d for d in dirs if d not in {".git", "node_modules", "__pycache__", ".venv", "venv"}]
+        dirs[:] = [
+            d for d in dirs if d not in {".git", "node_modules", "__pycache__", ".venv", "venv"}
+        ]
         for name in files:
             file_path = Path(root) / name
             findings.extend(_regex_scan_path(file_path))

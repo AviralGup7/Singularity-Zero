@@ -23,8 +23,8 @@ Usage:
         details={"method": "jwt"},
     )
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 import hashlib
 import hmac as hmac_module
@@ -355,7 +355,9 @@ class AuditLogger:
                                         ),
                                     )
                                 except (json.JSONDecodeError, KeyError, TypeError) as exc:
-                                    logger.debug("Skipping corrupt audit log line during re-index: %s", exc)
+                                    logger.debug(
+                                        "Skipping corrupt audit log line during re-index: %s", exc
+                                    )
                     self._db.commit()
                 except Exception as exc:
                     logger.error("Failed to re-index audit log into SQLite: %s", exc)
@@ -552,7 +554,9 @@ class AuditLogger:
                             self._counter = int(entry_data.get("id", 0))
                             self._last_hash = entry_data.get("entry_hash", "genesis")
             except Exception as exc:
-                logger.warning("Failed to read archived audit log for counter/hash recovery: %s", exc)
+                logger.warning(
+                    "Failed to read archived audit log for counter/hash recovery: %s", exc
+                )
 
     def verify_integrity(self) -> tuple[bool, list[int]]:
         """Verify the integrity of the audit log.
@@ -582,7 +586,9 @@ class AuditLogger:
                         # Fix #354: Use model_validate with extra='allow' to preserve unknown fields
                         entry = AuditEntry.model_validate(data, strict=False)
                     except Exception as exc:  # noqa: S110, S112
-                        logger.warning("Unparseable audit log entry during integrity check: %s", exc)
+                        logger.warning(
+                            "Unparseable audit log entry during integrity check: %s", exc
+                        )
                         compromised.append(-1)
                         continue
 

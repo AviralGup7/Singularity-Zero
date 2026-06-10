@@ -1,8 +1,8 @@
 import logging
 import re
 import secrets
-from typing import Any
 from enum import Enum
+from typing import Any
 
 import httpx
 
@@ -14,8 +14,10 @@ from src.core.utils.url_validation import is_safe_url_with_dns_check
 logger = logging.getLogger(__name__)
 
 _csrf_token_re = re.compile(r'name=["\']csrf_token["\']\s+value=["\']([^"\']+)["\']', re.IGNORECASE)
-_csrf_header_re = re.compile(r'X-CSRF-Token:\s*([^\s]+)', re.IGNORECASE)
-_csrf_meta_re = re.compile(r'<meta\s+name=["\']csrf-token["\']\s+content=["\']([^"\']+)["\']', re.IGNORECASE)
+_csrf_header_re = re.compile(r"X-CSRF-Token:\s*([^\s]+)", re.IGNORECASE)
+_csrf_meta_re = re.compile(
+    r'<meta\s+name=["\']csrf-token["\']\s+content=["\']([^"\']+)["\']', re.IGNORECASE
+)
 _STATE_CHAIN_MAX_STEPS = 5
 
 
@@ -29,10 +31,16 @@ class StateType(str, Enum):
 class StateNode:
     """A node in the state machine graph representing an application state."""
 
-    def __init__(self, state_id: str, state_type: StateType = StateType.UNKNOWN,
-                 url: str = "", method: str = "GET", body: str = "",
-                 headers: dict[str, str] | None = None,
-                 response_indicators: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        state_id: str,
+        state_type: StateType = StateType.UNKNOWN,
+        url: str = "",
+        method: str = "GET",
+        body: str = "",
+        headers: dict[str, str] | None = None,
+        response_indicators: list[str] | None = None,
+    ) -> None:
         self.state_id = state_id
         self.state_type = state_type
         self.url = url
@@ -92,7 +100,9 @@ def build_graph_from_openapi(openapi_spec: dict[str, Any]) -> StateMachineModel:
             if method.lower() in ("get", "post", "put", "delete", "patch"):
                 state_id = f"{method.upper()}:{path}"
                 tags = details.get("tags", [])
-                state_type = StateType.ADMIN if "admin" in [t.lower() for t in tags] else StateType.UNKNOWN
+                state_type = (
+                    StateType.ADMIN if "admin" in [t.lower() for t in tags] else StateType.UNKNOWN
+                )
                 node = StateNode(
                     state_id=state_id,
                     state_type=state_type,
@@ -108,7 +118,9 @@ def build_graph_from_openapi(openapi_spec: dict[str, Any]) -> StateMachineModel:
     # Build transitions: link endpoints within the same tag group
     for state_id, node in model.states.items():
         for other_id, other_node in model.states.items():
-            if state_id != other_id and set(node.response_indicators) & set(other_node.response_indicators):
+            if state_id != other_id and set(node.response_indicators) & set(
+                other_node.response_indicators
+            ):
                 model.add_transition(state_id, f"transition_to_{other_id}", other_id)
 
     return model
@@ -190,7 +202,9 @@ async def run_stateful_campaign_with_machine(
                 full_url = base_url.rstrip("/") + current_node.url
 
                 if not is_safe_url_with_dns_check(full_url):
-                    logger.warning("Stateful fuzzer: URL failed SSRF safety check, skipping: %s", full_url)
+                    logger.warning(
+                        "Stateful fuzzer: URL failed SSRF safety check, skipping: %s", full_url
+                    )
                     continue
 
                 # Send the request
@@ -211,21 +225,22 @@ async def run_stateful_campaign_with_machine(
                 # Check if response indicators match expected state
                 body_lower = resp.text.lower()
                 matched_indicators = [
-                    ind for ind in next_node.response_indicators
-                    if ind.lower() in body_lower
+                    ind for ind in next_node.response_indicators if ind.lower() in body_lower
                 ]
 
                 # Check for state inconsistencies
                 if resp.status_code >= 500:
-                    findings.append({
-                        "technique": "state_machine_error",
-                        "from_state": current_state_id,
-                        "to_state": next_state_id,
-                        "action": action,
-                        "status": resp.status_code,
-                        "severity": "medium",
-                        "hint": f"Transition {action} caused server error",
-                    })
+                    findings.append(
+                        {
+                            "technique": "state_machine_error",
+                            "from_state": current_state_id,
+                            "to_state": next_state_id,
+                            "action": action,
+                            "status": resp.status_code,
+                            "severity": "medium",
+                            "hint": f"Transition {action} caused server error",
+                        }
+                    )
 
                 if matched_indicators:
                     current_state_id = next_state_id
@@ -233,7 +248,6 @@ async def run_stateful_campaign_with_machine(
 
         # Check for state consistency issues (balance/role changes)
         balance = model.get_state_value("balance")
-        role = model.get_state_value("role")
         if balance is not None:
             try:
                 check_resp = await client.get(
@@ -242,19 +256,24 @@ async def run_stateful_campaign_with_machine(
                 )
                 if check_resp is not None:
                     import json
+
                     try:
                         user_data = json.loads(check_resp.text)
                         new_balance = user_data.get("balance")
                         if new_balance is not None and new_balance != balance:
-                            findings.append({
-                                "technique": "state_consistency_violation",
-                                "expected_balance": balance,
-                                "actual_balance": new_balance,
-                                "severity": "high",
-                                "hint": "Balance changed during state transitions",
-                            })
+                            findings.append(
+                                {
+                                    "technique": "state_consistency_violation",
+                                    "expected_balance": balance,
+                                    "actual_balance": new_balance,
+                                    "severity": "high",
+                                    "hint": "Balance changed during state transitions",
+                                }
+                            )
                     except Exception as exc:
-                        logger.warning("Operation failed in stateful_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
+                        logger.warning(
+                            "Operation failed in stateful_fuzzer.py: %s", exc, exc_info=True
+                        )  # noqa: BLE001
             except Exception as exc:
                 logger.warning("Operation failed in stateful_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
 
@@ -290,12 +309,18 @@ class StatefulFuzzingSession:
 
         return None
 
-    async def _execute_stateful_chain(self, url: str, session: Session, *, client: httpx.AsyncClient, timeout_seconds: float = 5.0) -> list[dict[str, Any]]:
+    async def _execute_stateful_chain(
+        self, url: str, session: Session, *, client: httpx.AsyncClient, timeout_seconds: float = 5.0
+    ) -> list[dict[str, Any]]:
         self.step_history = []
         self.csrf_token = None
 
-        request0 = session.attach(Request(method="GET", url=url, timeout_seconds=int(timeout_seconds)))
-        response0 = await client.get(request0.url, headers=request0.headers, timeout=timeout_seconds)
+        request0 = session.attach(
+            Request(method="GET", url=url, timeout_seconds=int(timeout_seconds))
+        )
+        response0 = await client.get(
+            request0.url, headers=request0.headers, timeout=timeout_seconds
+        )
 
         step0: dict[str, Any] = {
             "step": 0,
@@ -373,7 +398,9 @@ class StatefulFuzzingSession:
                     step_entry["finding"] = "stateful_session_fixation"
 
             base_status = response0.status_code
-            existing_state_errors = sum(1 for e in self.step_history if e.get("finding") == "stateful_state_error")
+            existing_state_errors = sum(
+                1 for e in self.step_history if e.get("finding") == "stateful_state_error"
+            )
             if base_status < 500 and response.status_code >= 500 and existing_state_errors == 0:
                 error_step: dict[str, Any] = {
                     "step": len(self.step_history),
@@ -386,7 +413,15 @@ class StatefulFuzzingSession:
 
         return self.step_history
 
-    async def run_stateful_fuzzing_campaign(self, url: str, client: httpx.AsyncClient | None = None, *, session: Session | None = None, timeout_seconds: float = 5.0, max_steps: int = 5) -> list[dict[str, Any]]:
+    async def run_stateful_fuzzing_campaign(
+        self,
+        url: str,
+        client: httpx.AsyncClient | None = None,
+        *,
+        session: Session | None = None,
+        timeout_seconds: float = 5.0,
+        max_steps: int = 5,
+    ) -> list[dict[str, Any]]:
         findings: list[dict[str, Any]] = []
 
         if not is_safe_url_with_dns_check(url):
@@ -405,7 +440,9 @@ class StatefulFuzzingSession:
         etype = classify_endpoint(url)
 
         try:
-            await self._execute_stateful_chain(url, active_session, client=client, timeout_seconds=timeout_seconds)
+            await self._execute_stateful_chain(
+                url, active_session, client=client, timeout_seconds=timeout_seconds
+            )
             issues: list[str] = []
             for entry in self.step_history:
                 finding = entry.get("finding")
@@ -414,19 +451,21 @@ class StatefulFuzzingSession:
 
             if issues:
                 severity = "high" if "stateful_csrf_bypass" in issues else "medium"
-                findings.append({
-                    "url": url,
-                    "endpoint_key": endpoint_key,
-                    "endpoint_base_key": ebase,
-                    "endpoint_type": etype,
-                    "issues": issues,
-                    "probe_type": "stateful_fuzzer",
-                    "severity": severity,
-                    "confidence": 0.85,
-                    "evidence": {
-                        "step_history": self.step_history,
-                    },
-                })
+                findings.append(
+                    {
+                        "url": url,
+                        "endpoint_key": endpoint_key,
+                        "endpoint_base_key": ebase,
+                        "endpoint_type": etype,
+                        "issues": issues,
+                        "probe_type": "stateful_fuzzer",
+                        "severity": severity,
+                        "confidence": 0.85,
+                        "evidence": {
+                            "step_history": self.step_history,
+                        },
+                    }
+                )
         except Exception as e:
             logger.warning("Stateful fuzzer campaign failed for %s: %s", url, e)
         finally:
@@ -436,7 +475,20 @@ class StatefulFuzzingSession:
         return findings
 
 
-async def run_stateful_fuzzing_campaign(url: str, client: httpx.AsyncClient | None = None, *, session: Session | None = None, timeout_seconds: float = 5.0, max_steps: int = 5) -> list[dict[str, Any]]:
+async def run_stateful_fuzzing_campaign(
+    url: str,
+    client: httpx.AsyncClient | None = None,
+    *,
+    session: Session | None = None,
+    timeout_seconds: float = 5.0,
+    max_steps: int = 5,
+) -> list[dict[str, Any]]:
     active_session = session if session is not None else SessionRegistry().ensure("fuzzer")
     fuzzer = StatefulFuzzingSession(session=active_session, max_steps=max_steps)
-    return await fuzzer.run_stateful_fuzzing_campaign(url, client=client, session=active_session, timeout_seconds=timeout_seconds, max_steps=max_steps)
+    return await fuzzer.run_stateful_fuzzing_campaign(
+        url,
+        client=client,
+        session=active_session,
+        timeout_seconds=timeout_seconds,
+        max_steps=max_steps,
+    )

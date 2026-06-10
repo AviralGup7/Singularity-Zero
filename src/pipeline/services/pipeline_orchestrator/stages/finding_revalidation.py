@@ -25,8 +25,8 @@ Behaviour:
 Gated by ``[revalidation] enabled = true`` in the pipeline config;
 defaults to enabled to preserve existing operator expectations.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 import json
 import time
@@ -74,9 +74,7 @@ def _finding_key(item: Mapping[str, Any]) -> str:
     if not isinstance(evidence, Mapping):
         evidence = {}
     endpoint_base = str(
-        evidence.get("endpoint_key")
-        or evidence.get("endpoint_base_key")
-        or item.get("url", "")
+        evidence.get("endpoint_key") or evidence.get("endpoint_base_key") or item.get("url", "")
     )
     return f"{item.get('category', '')}|{endpoint_base}|{item.get('title', '')}"
 
@@ -118,13 +116,21 @@ def _http_get(url: str, *, timeout: float = 5.0) -> dict[str, Any] | None:
     import urllib.request
 
     try:
-        req = urllib.request.Request(url, method="GET", headers={"User-Agent": "finding-revalidator/1.0"})  # noqa: S310
+        req = urllib.request.Request(
+            url, method="GET", headers={"User-Agent": "finding-revalidator/1.0"}
+        )  # noqa: S310
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
             return {
                 "status_code": int(getattr(resp, "status", 200) or 200),
                 "body": resp.read(2_000_000).decode("utf-8", errors="replace"),
             }
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError) as exc:
+    except (
+        urllib.error.URLError,
+        urllib.error.HTTPError,
+        TimeoutError,
+        OSError,
+        ValueError,
+    ) as exc:
         logger.debug("Revalidator HTTP probe failed for %s: %s", url, exc)
         return None
 
@@ -171,14 +177,9 @@ def _revalidate_one(finding: Mapping[str, Any]) -> RevalidationEntry:
     test_context = str(evidence.get("test_context", ""))
     if test_context == "no_auth":
         expected = {401, 403, 302, 301}
-        decision = (
-            "confirmed_resolved"
-            if revalidated_status in expected
-            else "regression_detected"
-        )
+        decision = "confirmed_resolved" if revalidated_status in expected else "regression_detected"
         detail = (
-            f"no_auth probe now returns {revalidated_status}; expected one of "
-            f"{sorted(expected)}"
+            f"no_auth probe now returns {revalidated_status}; expected one of {sorted(expected)}"
         )
     elif original_status_int is not None and revalidated_status == original_status_int:
         decision = "regression_detected"

@@ -136,11 +136,7 @@ class ReconnectionState:
         if resume_from is None:
             return [item.message_json for item in self.missed_messages]
 
-        return [
-            item.message_json
-            for item in self.missed_messages
-            if item.sequence > resume_from
-        ]
+        return [item.message_json for item in self.missed_messages if item.sequence > resume_from]
 
     def record_acknowledged_sequence(self, sequence: int) -> None:
         """Update the highest sequence number acked by the client.
@@ -435,9 +431,7 @@ class ReconnectionManager:
             none exists.
         """
         effective = fingerprint or self.derive_fingerprint()
-        return self._user_fingerprint_tokens.get(
-            self._fingerprint_key(user_id, effective), ""
-        )
+        return self._user_fingerprint_tokens.get(self._fingerprint_key(user_id, effective), "")
 
     def record_acknowledged_sequence(self, token: str, sequence: int) -> None:
         """Persist the highest sequence acked by the client.
@@ -489,9 +483,7 @@ class ReconnectionManager:
         """
         if fingerprint is None:
             prefix = f"{user_id}:"
-            for key in [
-                k for k in list(self._user_fingerprint_tokens) if k.startswith(prefix)
-            ]:
+            for key in [k for k in list(self._user_fingerprint_tokens) if k.startswith(prefix)]:
                 token = self._user_fingerprint_tokens.pop(key, None)
                 if token:
                     self._tokens.pop(token, None)

@@ -237,10 +237,7 @@ def _active_ssti_test(target_url: str, http_client: Any) -> dict[str, Any]:
         try:
             baseline_response = http_client.request(baseline_url)
             baseline_body = str(baseline_response.get("body", ""))
-            if any(
-                re.search(pattern, baseline_body)
-                for pattern, _ in MATH_EVALUATION_PATTERNS
-            ):
+            if any(re.search(pattern, baseline_body) for pattern, _ in MATH_EVALUATION_PATTERNS):
                 baseline_signals.append("baseline_math_indicators_present")
         except Exception as exc:  # noqa: BLE001
             logger.debug("SSTI baseline request failed for %s: %s", target_url, exc)

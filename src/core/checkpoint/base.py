@@ -87,7 +87,6 @@ class CheckpointState:
         return cls(**restored)
 
 
-
 def _serialize_sets(obj: Any) -> Any:
     """Recursively convert sets to sorted lists for JSON serialization."""
     if isinstance(obj, set):

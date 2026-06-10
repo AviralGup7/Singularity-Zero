@@ -28,31 +28,19 @@ logger = logging.getLogger(__name__)
 
 # Safe UDP MTU: leaves room for IPv6 + UDP + auth headers without
 # fragmentation at the IP layer.  Tunable via MESH_FRAGMENT_THRESHOLD.
-DEFAULT_FRAGMENT_THRESHOLD = int(
-    os.getenv("MESH_FRAGMENT_THRESHOLD", str(1300))
-)
+DEFAULT_FRAGMENT_THRESHOLD = int(os.getenv("MESH_FRAGMENT_THRESHOLD", str(1300)))
 # Each fragment is JSON-encoded before send, so reserve room for the
 # outer envelope fields (msg_id, frag_index, frag_total, sig, ...).
-DEFAULT_FRAGMENT_PAYLOAD = int(
-    os.getenv("MESH_FRAGMENT_PAYLOAD", str(1024))
-)
+DEFAULT_FRAGMENT_PAYLOAD = int(os.getenv("MESH_FRAGMENT_PAYLOAD", str(1024)))
 # Max reassembly window per msg_id (seconds).  After this we drop the
 # partial buffer and increment ``reassembly_timeouts_total``.
-DEFAULT_REASSEMBLY_TTL_SEC = float(
-    os.getenv("MESH_REASSEMBLY_TTL_SEC", "5.0")
-)
+DEFAULT_REASSEMBLY_TTL_SEC = float(os.getenv("MESH_REASSEMBLY_TTL_SEC", "5.0"))
 # Max number of in-flight reassemblies.  Caps memory under DoS.
-DEFAULT_REASSEMBLY_MAX_MESSAGES = int(
-    os.getenv("MESH_REASSEMBLY_MAX_MESSAGES", "256")
-)
+DEFAULT_REASSEMBLY_MAX_MESSAGES = int(os.getenv("MESH_REASSEMBLY_MAX_MESSAGES", "256"))
 # Per-peer packet rate limit (packets per second).
-DEFAULT_PEER_RATE_LIMIT_PPS = int(
-    os.getenv("MESH_PEER_RATE_LIMIT_PPS", "200")
-)
+DEFAULT_PEER_RATE_LIMIT_PPS = int(os.getenv("MESH_PEER_RATE_LIMIT_PPS", "200"))
 # Per-peer burst capacity.  Tokens refill at ``PEER_RATE_LIMIT_PPS``.
-DEFAULT_PEER_BURST = int(
-    os.getenv("MESH_PEER_BURST", str(max(50, DEFAULT_PEER_RATE_LIMIT_PPS)))
-)
+DEFAULT_PEER_BURST = int(os.getenv("MESH_PEER_BURST", str(max(50, DEFAULT_PEER_RATE_LIMIT_PPS))))
 # Message-id dedup window.  Anything older is forgotten.
 DEFAULT_DEDUP_WINDOW = int(os.getenv("MESH_DEDUP_WINDOW", "1024"))
 

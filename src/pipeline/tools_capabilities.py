@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class SubdomainReconProvider(ReconProvider):
-    def collect(self, scope_entries: list[str], context: ToolExecutionContext | None = None, **kwargs: Any) -> set[str]:
+    def collect(
+        self, scope_entries: list[str], context: ToolExecutionContext | None = None, **kwargs: Any
+    ) -> set[str]:
         ctx = context or ToolExecutionContext(config=kwargs.get("config"))
         config = ctx.config
         skip_crtsh = bool(kwargs.get("skip_crtsh", False))
@@ -32,7 +34,9 @@ class SubdomainReconProvider(ReconProvider):
 
 @dataclass(slots=True)
 class DefaultHttpProbeProvider(HttpProbeProvider):
-    def probe(self, hosts: list[str], context: ToolExecutionContext | None = None, **kwargs: Any) -> tuple[list[dict[str, Any]], set[str]]:
+    def probe(
+        self, hosts: list[str], context: ToolExecutionContext | None = None, **kwargs: Any
+    ) -> tuple[list[dict[str, Any]], set[str]]:
         ctx = context or ToolExecutionContext(config=kwargs.get("config"))
         config = ctx.config
         progress_callback = kwargs.get("progress_callback")
@@ -49,7 +53,9 @@ class DefaultHttpProbeProvider(HttpProbeProvider):
 
 @dataclass(slots=True)
 class DefaultCrawlerProvider(CrawlerProvider):
-    def crawl(self, seeds: list[str], context: ToolExecutionContext | None = None, **kwargs: Any) -> set[str]:
+    def crawl(
+        self, seeds: list[str], context: ToolExecutionContext | None = None, **kwargs: Any
+    ) -> set[str]:
         ctx = context or ToolExecutionContext(config=kwargs.get("config"))
         config = ctx.config
         scope_entries = kwargs.get("scope_entries") or seeds
@@ -71,7 +77,11 @@ class DefaultCrawlerProvider(CrawlerProvider):
 @dataclass(slots=True)
 class NoopTemplateScanner(TemplateScanner):
     def scan_templates(
-        self, targets: list[str], templates: list[str], context: ToolExecutionContext | None = None, **kwargs: Any
+        self,
+        targets: list[str],
+        templates: list[str],
+        context: ToolExecutionContext | None = None,
+        **kwargs: Any,
     ) -> list[dict[str, Any]]:
         return [
             {
@@ -155,6 +165,7 @@ class CapabilityRegistry:
         self._loaded_entry_points = True
         try:
             from importlib.metadata import entry_points
+
             eps = entry_points(group="cyber_security_pipeline.capabilities")
 
             for ep in eps:

@@ -10,8 +10,8 @@ import json
 import logging
 import threading
 import time
-from typing import Any, cast
 from collections import OrderedDict
+from typing import Any, cast
 
 import redis.asyncio as redis
 
@@ -38,7 +38,9 @@ class RedisFPRepository:
     Stores patterns in Redis for mesh-wide access and real-time synchronization.
     """
 
-    def __init__(self, redis_url: str, key_prefix: str = "cyber:fp_patterns", max_entries: int = 10000):
+    def __init__(
+        self, redis_url: str, key_prefix: str = "cyber:fp_patterns", max_entries: int = 10000
+    ):
         self._client = redis.from_url(
             redis_url,
             decode_responses=True,

@@ -87,9 +87,7 @@ async def test_real_probe_invocation_hits_local_server(
     monkeypatch.setattr(active_scan_adaptive, "emit_progress", lambda *a, **k: None)
 
     ctx = _make_ctx()
-    ctx.result.selected_priority_items = [
-        {"url": f"{_local_http_server}/test", "score": 0.9}
-    ]
+    ctx.result.selected_priority_items = [{"url": f"{_local_http_server}/test", "score": 0.9}]
 
     # Load real probe functions from the registry
     real_probes = active_scan._load_active_probe_functions()

@@ -467,7 +467,9 @@ class WorkerInfo(BaseModel):
             "total_processed": str(self.total_processed),
             "total_failed": str(self.total_failed),
             "metadata": json.dumps(self.metadata),
-            "resources": json.dumps(self.resources.model_dump() if hasattr(self.resources, "model_dump") else {}),
+            "resources": json.dumps(
+                self.resources.model_dump() if hasattr(self.resources, "model_dump") else {}
+            ),
             "capabilities": json.dumps(self.capabilities),
         }
 

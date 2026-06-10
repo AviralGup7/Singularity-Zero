@@ -62,9 +62,7 @@ def hash_api_key(raw_key: str, pepper: str | None = None) -> str:
             "API key hashes will not survive restarts. "
             "Set SEC_API_KEY_PEPPER for durable production hashing."
         )
-        effective_pepper = hashlib.sha256(
-            os.urandom(32)
-        ).hexdigest()
+        effective_pepper = hashlib.sha256(os.urandom(32)).hexdigest()
     return hmac.new(
         effective_pepper.encode("utf-8"),
         raw_key.encode("utf-8"),

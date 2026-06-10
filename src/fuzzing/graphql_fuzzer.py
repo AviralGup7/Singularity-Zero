@@ -117,7 +117,7 @@ _graphql_error_patterns_re = re.compile(r'"errors"\s*:\s*\[', re.IGNORECASE)
 
 def _detect_graphql_introspection(body: str) -> bool:
     # Limit search to first 10000 chars to avoid ReDoS on large responses
-    return bool(re.search(r'(?:__schema|__type|data\.__schema|data\.__type)', body[:10000]))
+    return bool(re.search(r"(?:__schema|__type|data\.__schema|data\.__type)", body[:10000]))
 
 
 async def run_graphql_fuzzing_campaign(

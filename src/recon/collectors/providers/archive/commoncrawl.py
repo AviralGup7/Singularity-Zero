@@ -260,9 +260,7 @@ def iter_for_hosts(
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         future_to_host = {
-            executor.submit(
-                _collect_for_host, host, timeout_seconds, per_host_limit, session
-            ): host
+            executor.submit(_collect_for_host, host, timeout_seconds, per_host_limit, session): host
             for host in hosts_list
         }
         idx = 0

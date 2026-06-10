@@ -1,6 +1,4 @@
 import hashlib
-import asyncio
-import hashlib
 import logging
 import os
 import random
@@ -104,7 +102,9 @@ class ForkServer:
 
         exit_code = result["exit_code"]
         output_len = len(result["output"])
-        output_hash = hashlib.md5(result["output"][:8192].encode("utf-8", errors="replace")).hexdigest()
+        output_hash = hashlib.md5(
+            result["output"][:8192].encode("utf-8", errors="replace")
+        ).hexdigest()
         payload_str = payload.decode("utf-8", errors="replace")
 
         # Record coverage edges based on exit code, output length, hash
@@ -118,26 +118,30 @@ class ForkServer:
         if edge_sig:
             logger.debug("ForkServer: new coverage edge: %s", edge_sig)
             self.corpus_manager.add(payload=payload_str, signature=edge_sig)
-            self._findings.append({
-                "type": "fork_coverage_new_edge",
-                "edge_signature": edge_sig,
-                "exit_code": exit_code,
-                "output_length": output_len,
-                "payload": payload_str[:100],
-            })
+            self._findings.append(
+                {
+                    "type": "fork_coverage_new_edge",
+                    "edge_signature": edge_sig,
+                    "exit_code": exit_code,
+                    "output_length": output_len,
+                    "payload": payload_str[:100],
+                }
+            )
 
         # Record crashes as branches
         if exit_code < 0 or exit_code >= 128:
-            branch_id = self.coverage_tracker.record_branch(
+            _ = self.coverage_tracker.record_branch(
                 endpoint="fork:" + " ".join(self.target_cmd),
                 path=f"crash_exit_{exit_code}",
             )
-            self._findings.append({
-                "type": "fork_crash_detected",
-                "exit_code": exit_code,
-                "payload": payload_str[:100],
-                "stderr": proc.stderr.decode("utf-8", errors="ignore")[:200],
-            })
+            self._findings.append(
+                {
+                    "type": "fork_crash_detected",
+                    "exit_code": exit_code,
+                    "payload": payload_str[:100],
+                    "stderr": proc.stderr.decode("utf-8", errors="ignore")[:200],
+                }
+            )
 
     async def run_fuzzing_loop(
         self,
@@ -199,7 +203,7 @@ class ForkServer:
             # Delete byte
             if len(arr) > 1:
                 idx = secrets.randbelow(len(arr))
-                arr = arr[:idx] + arr[idx + 1:]
+                arr = arr[:idx] + arr[idx + 1 :]
         return bytes(arr)
 
     async def get_corpus_stats(self) -> dict[str, Any]:
@@ -210,7 +214,9 @@ class ForkServer:
             "alive": self.alive,
         }
         if self.corpus_manager is not None:
-            stats["corpus_size"] = len(self.corpus_manager.entries) if hasattr(self.corpus_manager, "entries") else 0
+            stats["corpus_size"] = (
+                len(self.corpus_manager.entries) if hasattr(self.corpus_manager, "entries") else 0
+            )
         return stats
 
     async def stop(self) -> None:

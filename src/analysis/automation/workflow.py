@@ -222,9 +222,7 @@ class Workflow:
         return tuple(task for task in self.tasks if task.guard.evaluate(finding))
 
 
-def evaluate_workflow(
-    workflow: Workflow, finding: Mapping[str, Any]
-) -> list[dict[str, Any]]:
+def evaluate_workflow(workflow: Workflow, finding: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Return the task descriptors whose guards evaluate to ``True``."""
     selected = workflow.evaluate(finding)
     return [task.to_descriptor() for task in selected]

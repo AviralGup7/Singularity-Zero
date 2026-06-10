@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStorePluginStats:
     """Tests for plugin statistics operations."""
 

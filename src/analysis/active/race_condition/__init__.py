@@ -76,9 +76,7 @@ def race_condition_probe(
         if len(findings) >= limit:
             break
 
-        url = (
-            str(url_entry.get("url", "") if isinstance(url_entry, dict) else url_entry).strip()
-        )
+        url = str(url_entry.get("url", "") if isinstance(url_entry, dict) else url_entry).strip()
         if not url:
             continue
 
@@ -129,27 +127,20 @@ def race_condition_probe(
             evidence.extend(timing)
 
         if race_category == "auth_flow":
-            auth_success = sum(
-                1
-                for r in responses
-                if 200 <= int(r.get("status_code") or 0) < 300
-            )
+            auth_success = sum(1 for r in responses if 200 <= int(r.get("status_code") or 0) < 300)
             if auth_success > 1:
                 issues.append("auth_race_condition")
                 evidence.append(
                     {
                         "type": "auth_race_condition",
                         "concurrent_successes": auth_success,
-                        "description": (
-                            "Multiple concurrent authentication attempts succeeded"
-                        ),
+                        "description": ("Multiple concurrent authentication attempts succeeded"),
                     }
                 )
 
         if race_category == "state_transition":
             statuses = {
-                extract_json_value(str(r.get("body_text", "") or ""), "status")
-                for r in responses
+                extract_json_value(str(r.get("body_text", "") or ""), "status") for r in responses
             }
             statuses.discard(None)
             if len(statuses) > 1:
@@ -165,20 +156,14 @@ def race_condition_probe(
                 )
 
         if race_category == "resource_allocation":
-            success_count = sum(
-                1
-                for r in responses
-                if 200 <= int(r.get("status_code") or 0) < 300
-            )
+            success_count = sum(1 for r in responses if 200 <= int(r.get("status_code") or 0) < 300)
             if success_count > 1:
                 issues.append("resource_allocation_race")
                 evidence.append(
                     {
                         "type": "resource_allocation_race",
                         "concurrent_allocations": success_count,
-                        "description": (
-                            "Multiple concurrent resource allocations succeeded"
-                        ),
+                        "description": ("Multiple concurrent resource allocations succeeded"),
                     }
                 )
 
@@ -188,9 +173,7 @@ def race_condition_probe(
         confidence = calculate_confidence(issues)
         severity = calculate_severity(issues)
 
-        findings.append(
-            build_finding(url, race_type, issues, evidence, confidence, severity)
-        )
+        findings.append(build_finding(url, race_type, issues, evidence, confidence, severity))
 
     findings.sort(
         key=lambda item: (

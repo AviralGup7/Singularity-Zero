@@ -15,7 +15,6 @@ from pathlib import Path
 
 from src.cli.ui import console
 
-
 _FRONTEND_SRC = Path(__file__).resolve().parents[2] / "frontend"
 _FRONTEND_DIST = _FRONTEND_SRC / "dist"
 _FRONTEND_INDEX = _FRONTEND_DIST / "index.html"
@@ -25,7 +24,8 @@ _SENTINEL_SOURCE = _FRONTEND_SRC / "src" / "components" / "targets" / "ImportMod
 def _ensure_frontend_built() -> bool:
     """Ensure frontend/dist matches frontend/src. Run ``npm run build`` if stale or missing."""
     needs_build = not _FRONTEND_INDEX.exists() or (
-        _SENTINEL_SOURCE.exists() and _SENTINEL_SOURCE.stat().st_mtime > _FRONTEND_INDEX.stat().st_mtime
+        _SENTINEL_SOURCE.exists()
+        and _SENTINEL_SOURCE.stat().st_mtime > _FRONTEND_INDEX.stat().st_mtime
     )
     if not needs_build:
         return True
@@ -64,9 +64,7 @@ def _ensure_frontend_built() -> bool:
         console.print(f"[error]ERROR: npm run build failed (exit {result.returncode}).[/error]")
         if result.stderr:
             console.print(f"[dim]{result.stderr.strip()}[/dim]")
-        console.print(
-            "Please run: cd frontend && npm install && npm run build"
-        )
+        console.print("Please run: cd frontend && npm install && npm run build")
         return False
 
     if not _FRONTEND_INDEX.exists():
@@ -133,7 +131,6 @@ def handle_launch(args: argparse.Namespace) -> None:
         "[accent]██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████[/accent]"
     )
 
-    static_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if not _ensure_frontend_built():
         return
 

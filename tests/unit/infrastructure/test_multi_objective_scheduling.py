@@ -103,6 +103,7 @@ def test_runtime_resource_saturation_penalizes_contentious_bid() -> None:
 async def test_job_queue_claims_highest_bid_with_fallback_redis() -> None:
     import os
     from pathlib import Path
+
     db_path = Path("output/local_queue.db")
     if db_path.exists():
         try:

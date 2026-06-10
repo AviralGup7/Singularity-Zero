@@ -1,6 +1,5 @@
 """Tests for the detection handler adapters."""
 
-
 from src.detection.handlers import (
     csrf_entropy_analyzer,
     dom_runtime_analyzer,
@@ -81,16 +80,12 @@ def test_js_sink_source_analyzer_handles_no_body():
 
 def test_wasm_module_introspector_with_bytes():
     body = b"\x00asm\x01\x00\x00\x00"
-    findings = wasm_module_introspector(
-        [{"url": "https://e/app.wasm", "body": body}]
-    )
+    findings = wasm_module_introspector([{"url": "https://e/app.wasm", "body": body}])
     assert isinstance(findings, list)
 
 
 def test_wasm_module_introspector_with_string_body():
-    findings = wasm_module_introspector(
-        [{"url": "https://e/app.wasm", "body": "not bytes"}]
-    )
+    findings = wasm_module_introspector([{"url": "https://e/app.wasm", "body": "not bytes"}])
     assert isinstance(findings, list)
 
 
@@ -235,16 +230,12 @@ def test_csrf_entropy_analyzer_with_static_tokens():
 
 
 def test_csrf_entropy_analyzer_skips_no_tokens():
-    findings = csrf_entropy_analyzer(
-        [{"url": "https://e", "csrf_token_samples": []}]
-    )
+    findings = csrf_entropy_analyzer([{"url": "https://e", "csrf_token_samples": []}])
     assert findings == []
 
 
 def test_csrf_entropy_analyzer_supports_alternate_key():
-    findings = csrf_entropy_analyzer(
-        [{"url": "https://e", "csrf_tokens": ["static"]}]
-    )
+    findings = csrf_entropy_analyzer([{"url": "https://e", "csrf_tokens": ["static"]}])
     assert isinstance(findings, list)
 
 
@@ -298,16 +289,12 @@ def test_rate_limit_adaptive_prober_basic():
         {"interval_ms": 100, "status_code": 200},
         {"interval_ms": 500, "status_code": 429},
     ]
-    findings = rate_limit_adaptive_prober(
-        [{"url": "https://e", "rate_limit_samples": samples}]
-    )
+    findings = rate_limit_adaptive_prober([{"url": "https://e", "rate_limit_samples": samples}])
     assert any(f.get("indicator") == "rate_limit_adaptive_probe" for f in findings)
 
 
 def test_rate_limit_adaptive_prober_skips_no_samples():
-    findings = rate_limit_adaptive_prober(
-        [{"url": "https://e", "rate_limit_samples": []}]
-    )
+    findings = rate_limit_adaptive_prober([{"url": "https://e", "rate_limit_samples": []}])
     assert findings == []
 
 
@@ -360,7 +347,5 @@ def test_race_concurrent_mutator_skips_no_observation():
 
 
 def test_race_concurrent_mutator_skips_invalid_observation():
-    findings = race_concurrent_mutator(
-        [{"url": "https://e", "race_observation": "not a dict"}]
-    )
+    findings = race_concurrent_mutator([{"url": "https://e", "race_observation": "not a dict"}])
     assert findings == []

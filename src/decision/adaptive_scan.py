@@ -90,7 +90,9 @@ class AdaptiveScanCoordinator:
         self._results: list[ScanResult] = []
         self._total_findings: list[dict[str, Any]] = []
 
-    async def run(self, save_delta_fn: Callable[[list[str], list[dict[str, Any]]], None] | None = None) -> ScanBatchResult:
+    async def run(
+        self, save_delta_fn: Callable[[list[str], list[dict[str, Any]]], None] | None = None
+    ) -> ScanBatchResult:
         """Run the adaptive scan loop.
 
         Scans targets in priority order, boosting correlated targets
@@ -183,9 +185,10 @@ class AdaptiveScanCoordinator:
                     logger.warning("Adaptive scan: failed to save batch checkpoint delta: %s", exc)
 
             if cancelled:
-                logger.warning("Adaptive scan: execution cancelled, propagating cancellation after flushing batch delta")
+                logger.warning(
+                    "Adaptive scan: execution cancelled, propagating cancellation after flushing batch delta"
+                )
                 raise asyncio.CancelledError()
-
 
             if self._max_batches and batch_num >= self._max_batches:
                 logger.info("Adaptive scan: reached max batch limit (%d)", self._max_batches)

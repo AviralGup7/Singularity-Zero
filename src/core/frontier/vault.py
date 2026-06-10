@@ -271,7 +271,13 @@ class CyberVault:
                 secure_wipe(bytearray(dek))
 
                 return SecretLease(plaintext)
-        except (json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature) as exc:
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            ValueError,
+            AttributeError,
+            InvalidSignature,
+        ) as exc:
             logger.warning("Operation failed in vault.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         # Compatibility fallback for Argon2idAESGCM envelopes

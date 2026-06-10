@@ -1,4 +1,5 @@
 import logging
+
 """Findings repository - CRUD operations for findings table."""
 
 import threading
@@ -18,23 +19,52 @@ class FindingsRepo(BaseRepo):
     def _ensure_indexes(self) -> None:
         try:
             with self._cursor() as cur:
-                cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_run_id_confidence ON findings(run_id, confidence DESC)")
-                cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_endpoint ON findings(endpoint_base)")
-                cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_category ON findings(category)")
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_findings_run_id_confidence ON findings(run_id, confidence DESC)"
+                )
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_findings_endpoint ON findings(endpoint_base)"
+                )
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_findings_category ON findings(category)"
+                )
         except Exception as exc:
             logging.warning("Operation failed in findings_repo.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def record_finding(self, row: dict[str, Any]) -> None:
         """Record a finding."""
         expected_fields = [
-            "finding_id", "run_id", "category", "title", "url", "severity",
-            "confidence", "score", "decision", "lifecycle_state", "cvss_score",
-            "plugin_name", "endpoint_base", "host", "parameter_name",
-            "parameter_type", "evidence", "response_status", "response_body_hash",
-            "tech_stack", "asset_id", "asset_type", "asset_criticality",
-            "business_multiplier", "control_discount", "modern_risk_score",
-            "remediation_priority", "triaged_at", "remediation_started_at",
-            "fixed_at", "verified_at"
+            "finding_id",
+            "run_id",
+            "category",
+            "title",
+            "url",
+            "severity",
+            "confidence",
+            "score",
+            "decision",
+            "lifecycle_state",
+            "cvss_score",
+            "plugin_name",
+            "endpoint_base",
+            "host",
+            "parameter_name",
+            "parameter_type",
+            "evidence",
+            "response_status",
+            "response_body_hash",
+            "tech_stack",
+            "asset_id",
+            "asset_type",
+            "asset_criticality",
+            "business_multiplier",
+            "control_discount",
+            "modern_risk_score",
+            "remediation_priority",
+            "triaged_at",
+            "remediation_started_at",
+            "fixed_at",
+            "verified_at",
         ]
         params = {k: row.get(k) for k in expected_fields}
         if isinstance(params["tech_stack"], (list, set)):

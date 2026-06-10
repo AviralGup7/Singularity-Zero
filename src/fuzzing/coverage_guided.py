@@ -72,7 +72,9 @@ class CoverageTracker:
         self._edge_counter: int = 0
         self._branch_map: dict[str, str] = {}
 
-    def record_edge(self, endpoint: str, status_code: int, response_len: int, content_hash: str) -> str:
+    def record_edge(
+        self, endpoint: str, status_code: int, response_len: int, content_hash: str
+    ) -> str:
         len_band = response_len // 100
         hash_prefix = content_hash[:8]
         signature = f"edge:{status_code}:{len_band}:{hash_prefix}"
@@ -132,10 +134,10 @@ def interesting_values(data: str) -> str:
         byte_arr[idx] = val & 0xFF
     elif width == 2 and len(byte_arr) >= 2:
         val = secrets.choice(INTERESTING_16)
-        byte_arr[idx:idx + 2] = val.to_bytes(2, "little")
+        byte_arr[idx : idx + 2] = val.to_bytes(2, "little")
     elif width == 4 and len(byte_arr) >= 4:
         val = secrets.choice(INTERESTING_32)
-        byte_arr[idx:idx + 4] = val.to_bytes(4, "little")
+        byte_arr[idx : idx + 4] = val.to_bytes(4, "little")
     return byte_arr.decode("utf-8", errors="ignore")
 
 
@@ -152,7 +154,7 @@ def havoc_splice(data: str, dictionary: list[str]) -> str:
         return data
     start = secrets.randbelow(len(byte_arr))
     length = secrets.randbelow(min(len(donor_arr), max(1, len(byte_arr) - start)))
-    byte_arr[start:start + length] = donor_arr[:length]
+    byte_arr[start : start + length] = donor_arr[:length]
     return byte_arr.decode("utf-8", errors="ignore")
 
 
@@ -184,7 +186,7 @@ def havoc_delete(data: str) -> str:
         return data
     start = secrets.randbelow(len(byte_arr))
     length = secrets.randbelow(min(16, len(byte_arr) - start)) + 1
-    del byte_arr[start:start + length]
+    del byte_arr[start : start + length]
     return byte_arr.decode("utf-8", errors="ignore")
 
 
@@ -195,7 +197,7 @@ def havoc_clone(data: str) -> str:
         return data
     start = secrets.randbelow(len(byte_arr))
     length = secrets.randbelow(min(16, len(byte_arr) - start)) + 1
-    chunk = byte_arr[start:start + length]
+    chunk = byte_arr[start : start + length]
     insert_pos = secrets.randbelow(len(byte_arr) + 1)
     byte_arr[insert_pos:insert_pos] = chunk
     return byte_arr.decode("utf-8", errors="ignore")
@@ -210,7 +212,7 @@ def crossover(data: str, other: str) -> str:
     src_start = secrets.randbelow(len(other_arr))
     src_len = secrets.randbelow(min(len(other_arr) - src_start, max(1, len(byte_arr)))) + 1
     dst_start = secrets.randbelow(max(1, len(byte_arr) - src_len + 1))
-    byte_arr[dst_start:dst_start + src_len] = other_arr[src_start:src_start + src_len]
+    byte_arr[dst_start : dst_start + src_len] = other_arr[src_start : src_start + src_len]
     return byte_arr.decode("utf-8", errors="ignore")
 
 
@@ -284,7 +286,12 @@ def boundary_values(param_type: str) -> list[str]:
     if param_type == "id":
         return ["0", "-1", "999999", "00000000-0000-4000-8000-000000000000"]
     if param_type == "json":
-        return ['{"$ne": null}', "[]", "{}", '{"a":' * min(100, max(1, 1000 // 10)) + "1" + "}" * min(100, max(1, 1000 // 10))]
+        return [
+            '{"$ne": null}',
+            "[]",
+            "{}",
+            '{"a":' * min(100, max(1, 1000 // 10)) + "1" + "}" * min(100, max(1, 1000 // 10)),
+        ]
     return ["A" * 10000, "", " ", "null", "undefined"]
 
 
@@ -310,7 +317,9 @@ async def _execute_coverage_guided_fuzz(
 
     parsed = urlparse(url)
     base_payload = parsed.query or parsed.path or "/"
-    base_signature = f"seed:{hashlib.md5(base_payload.encode("utf-8", errors="ignore")).hexdigest()[:8]}"
+    base_signature = (
+        f"seed:{hashlib.md5(base_payload.encode('utf-8', errors='ignore')).hexdigest()[:8]}"
+    )
     corpus.add(payload=base_payload, signature=base_signature)
 
     findings: list[dict[str, Any]] = []
@@ -448,7 +457,6 @@ async def _execute_fork_server_rounds(
         if entry is None:
             break
 
-        payload_bytes = entry.payload.encode("utf-8", errors="ignore")
         mutated_payloads = [bit_flip(entry.payload)]
         for v in boundary_values("default"):
             mutated_payloads.append(v)
@@ -466,57 +474,63 @@ async def _execute_fork_server_rounds(
 
             edge_sig = tracker.record_edge(target_id, hash(exit_cat), output_len, output_hash)
             if edge_sig:
-                findings.append({
-                    "url": target_id,
-                    "endpoint_key": target_id,
-                    "endpoint_base_key": target_id,
-                    "endpoint_type": "native_binary",
-                    "issues": ["fork_new_edge_found"],
-                    "probe_type": "coverage_guided_fork",
-                    "severity": "info",
-                    "confidence": 0.7,
-                    "evidence": {
-                        "edge_signature": edge_sig,
-                        "payload": mutated,
-                        "exit_code_category": exit_cat,
-                        "output_length": output_len,
-                    },
-                })
+                findings.append(
+                    {
+                        "url": target_id,
+                        "endpoint_key": target_id,
+                        "endpoint_base_key": target_id,
+                        "endpoint_type": "native_binary",
+                        "issues": ["fork_new_edge_found"],
+                        "probe_type": "coverage_guided_fork",
+                        "severity": "info",
+                        "confidence": 0.7,
+                        "evidence": {
+                            "edge_signature": edge_sig,
+                            "payload": mutated,
+                            "exit_code_category": exit_cat,
+                            "output_length": output_len,
+                        },
+                    }
+                )
                 corpus.add(payload=mutated, signature=edge_sig)
 
             branch_id = tracker.record_branch(target_id, mutated)
             if branch_id:
-                findings.append({
-                    "url": target_id,
-                    "endpoint_key": target_id,
-                    "endpoint_base_key": target_id,
-                    "endpoint_type": "native_binary",
-                    "issues": ["fork_new_branch_found"],
-                    "probe_type": "coverage_guided_fork",
-                    "severity": "info",
-                    "confidence": 0.7,
-                    "evidence": {
-                        "branch_id": branch_id,
-                        "payload": mutated,
-                    },
-                })
+                findings.append(
+                    {
+                        "url": target_id,
+                        "endpoint_key": target_id,
+                        "endpoint_base_key": target_id,
+                        "endpoint_type": "native_binary",
+                        "issues": ["fork_new_branch_found"],
+                        "probe_type": "coverage_guided_fork",
+                        "severity": "info",
+                        "confidence": 0.7,
+                        "evidence": {
+                            "branch_id": branch_id,
+                            "payload": mutated,
+                        },
+                    }
+                )
 
             if result.get("exit_code", 0) < 0:
-                findings.append({
-                    "url": target_id,
-                    "endpoint_key": target_id,
-                    "endpoint_base_key": target_id,
-                    "endpoint_type": "native_binary",
-                    "issues": ["fork_triggered_crash"],
-                    "probe_type": "coverage_guided_fork",
-                    "severity": "high",
-                    "confidence": 0.9,
-                    "evidence": {
-                        "exit_code": result["exit_code"],
-                        "payload": mutated,
-                        "stderr": result.get("stderr", ""),
-                    },
-                })
+                findings.append(
+                    {
+                        "url": target_id,
+                        "endpoint_key": target_id,
+                        "endpoint_base_key": target_id,
+                        "endpoint_type": "native_binary",
+                        "issues": ["fork_triggered_crash"],
+                        "probe_type": "coverage_guided_fork",
+                        "severity": "high",
+                        "confidence": 0.9,
+                        "evidence": {
+                            "exit_code": result["exit_code"],
+                            "payload": mutated,
+                            "stderr": result.get("stderr", ""),
+                        },
+                    }
+                )
 
     return findings
 

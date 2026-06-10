@@ -79,9 +79,7 @@ def analyze_html_for_sinks(
     return findings
 
 
-def analyze_html_for_prototype_pollution(
-    html: str, *, url: str
-) -> list[dict[str, Any]]:
+def analyze_html_for_prototype_pollution(html: str, *, url: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for finding in _walk_pollution(html, url=url):
         findings.append(
@@ -103,9 +101,7 @@ def analyze_html_for_prototype_pollution(
     return findings
 
 
-def analyze_object_for_prototype_pollution(
-    obj: Any, *, url: str
-) -> list[dict[str, Any]]:
+def analyze_object_for_prototype_pollution(obj: Any, *, url: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for finding in analyze_json_string(json_dumps_if_needed(obj), url=url):
         findings.append(

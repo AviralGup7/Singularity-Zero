@@ -50,6 +50,9 @@ def run_business_logic_probes(
             findings.extend(results)
         except Exception as exc:
             import logging
-            logging.getLogger(__name__).warning("business logic probe %s failed: %s", probe_fn.__name__, exc)
+
+            logging.getLogger(__name__).warning(
+                "business logic probe %s failed: %s", probe_fn.__name__, exc
+            )
 
     return findings

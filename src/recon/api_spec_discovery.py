@@ -116,9 +116,7 @@ DEFAULT_THRIFT_PATHS: tuple[str, ...] = (
 )
 
 # Avro schema discovery paths
-DEFAULT_AVRO_PATHS: tuple[str, ...] = (
-    "/avro/schema.avsc",
-)
+DEFAULT_AVRO_PATHS: tuple[str, ...] = ("/avro/schema.avsc",)
 
 # gRPC reflection hints
 DEFAULT_GRPC_PATHS: tuple[str, ...] = (
@@ -130,7 +128,18 @@ DEFAULT_GRPC_PATHS: tuple[str, ...] = (
 # OpenAPI server variables to substitute when {var} placeholders are found
 DEFAULT_SERVER_VARIABLES: dict[str, list[str]] = {
     "env": ["prod", "staging", "dev", "qa", "uat", "test", "local"],
-    "region": ["us", "eu", "ap", "sa", "au", "ca", "us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"],
+    "region": [
+        "us",
+        "eu",
+        "ap",
+        "sa",
+        "au",
+        "ca",
+        "us-east-1",
+        "us-west-2",
+        "eu-west-1",
+        "ap-southeast-1",
+    ],
     "version": ["v1", "v2", "v3"],
     "stage": ["prod", "staging", "dev"],
 }
@@ -195,7 +204,10 @@ class SpecEndpoint:
         for path_item in paths.values():
             if isinstance(path_item, dict):
                 total += sum(
-                    1 for k in path_item if k.lower() in {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
+                    1
+                    for k in path_item
+                    if k.lower()
+                    in {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
                 )
         return total
 
@@ -208,6 +220,7 @@ class SpecEndpoint:
 def _yaml_parse_available() -> bool:
     try:
         import yaml  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -219,11 +232,16 @@ def _try_parse_yaml(text: str) -> Any | None:
     if _yaml_parse_available():
         try:
             import yaml
+
             return yaml.safe_load(text)
         except Exception:
             return None
     stripped = text.lstrip()
-    if "openapi:" in stripped[:512] or "asyncapi:" in stripped[:512] or "swagger:" in stripped[:512]:
+    if (
+        "openapi:" in stripped[:512]
+        or "asyncapi:" in stripped[:512]
+        or "swagger:" in stripped[:512]
+    ):
         return {"__yaml_raw__": stripped[:4096]}
     return None
 
@@ -251,7 +269,10 @@ def _looks_like_graphql_sdl(text: str) -> bool:
         except Exception as exc:
             logger.warning("Operation failed in api_spec_discovery.py: %s", exc, exc_info=True)  # noqa: BLE001
         return False
-    if any(kw in stripped[:1024] for kw in ["type query", "type mutation", "enum ", "input ", "scalar "]):
+    if any(
+        kw in stripped[:1024]
+        for kw in ["type query", "type mutation", "enum ", "input ", "scalar "]
+    ):
         return True
     return False
 
@@ -350,10 +371,14 @@ def _extract_base_urls_from_spec(spec: Any) -> list[str]:
     return urls
 
 
-_JS_AUTH_RE = re.compile(r"(?i)(bearer\s+[a-za-z0-9_\-.]+|api[_-]?key\s*[=:]\s*['\"]?[a-za-z0-9_\-]+['\"]?|authorization:\s*bearer\s+[a-za-z0-9_\-.]+|x-api-key:\s*['\"]?[a-za-z0-9_\-]+['\"]?)")
+_JS_AUTH_RE = re.compile(
+    r"(?i)(bearer\s+[a-za-z0-9_\-.]+|api[_-]?key\s*[=:]\s*['\"]?[a-za-z0-9_\-]+['\"]?|authorization:\s*bearer\s+[a-za-z0-9_\-.]+|x-api-key:\s*['\"]?[a-za-z0-9_\-]+['\"]?)"
+)
 
 
-def extract_auth_headers_from_js_parsers(js_parsers_result: dict[str, Any] | None) -> dict[str, str]:
+def extract_auth_headers_from_js_parsers(
+    js_parsers_result: dict[str, Any] | None,
+) -> dict[str, str]:
     auth_headers: dict[str, str] = {}
     if not isinstance(js_parsers_result, dict):
         return auth_headers
@@ -362,7 +387,9 @@ def extract_auth_headers_from_js_parsers(js_parsers_result: dict[str, Any] | Non
         if isinstance(node, dict):
             for key, val in node.items():
                 k = str(key).lower()
-                if k in {"authorization", "x-api-key", "api-key", "bearer", "auth"} and isinstance(val, str):
+                if k in {"authorization", "x-api-key", "api-key", "bearer", "auth"} and isinstance(
+                    val, str
+                ):
                     auth_headers[k] = val
                 elif isinstance(val, (dict, list)):
                     _walk(val)
@@ -377,7 +404,7 @@ def extract_auth_headers_from_js_parsers(js_parsers_result: dict[str, Any] | Non
         if token.startswith("bearer ") or token.startswith("Bearer "):
             auth_headers["authorization"] = token
         elif "api-key" in token.lower() or "apikey" in token.lower():
-            auth_headers["x-api-key"] = token.split(":")[-1].strip().strip("\"\'")
+            auth_headers["x-api-key"] = token.split(":")[-1].strip().strip("\"'")
     return auth_headers
 
 
@@ -425,7 +452,9 @@ def grpcurl_list_services(host: str, *, timeout_seconds: int = 10) -> list[str]:
     return services
 
 
-def grpcurl_describe_service(host: str, service: str, *, timeout_seconds: int = 10) -> dict[str, Any] | None:
+def grpcurl_describe_service(
+    host: str, service: str, *, timeout_seconds: int = 10
+) -> dict[str, Any] | None:
     if not _grpcurl_reflection_available():
         return None
     host = (host or "").strip()
@@ -434,7 +463,13 @@ def grpcurl_describe_service(host: str, service: str, *, timeout_seconds: int = 
     target = host if "://" in host else f"{host}:443"
     try:
         result = subprocess.run(
-            ["grpcurl", "-plaintext" if target.startswith("localhost") else "", target, "describe", service],
+            [
+                "grpcurl",
+                "-plaintext" if target.startswith("localhost") else "",
+                target,
+                "describe",
+                service,
+            ],
             capture_output=True,
             text=True,
             timeout=max(5, timeout_seconds),
@@ -713,7 +748,11 @@ def discover_api_specs(
         extracted = extract_auth_headers_from_js_parsers(js_parsers_v2_results)
         merged_auth.update(extracted)
 
-    _probe = _probe_spec_url_with_auth if (merged_auth or (enhanced and server_variable_overrides)) else _probe_spec_url
+    _probe = (
+        _probe_spec_url_with_auth
+        if (merged_auth or (enhanced and server_variable_overrides))
+        else _probe_spec_url
+    )
 
     candidate_urls: list[str] = []
     for host in hosts:

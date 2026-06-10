@@ -100,9 +100,9 @@ class TestCliSmoke:
         """Verify that --help exits with code 0."""
         result = subprocess.run(
             [
-                sys.executable, "-c",
-                "from src.cli import main; "
-                "import sys; sys.argv=['cstp','--help']; main()",
+                sys.executable,
+                "-c",
+                "from src.cli import main; import sys; sys.argv=['cstp','--help']; main()",
             ],
             capture_output=True,
             text=True,
@@ -124,6 +124,7 @@ class TestCliSmoke:
     def test_parser_all_subcommands_registered(self) -> None:
         """Verify all expected subcommands are registered."""
         import io
+
         parser = _build_parser()
         # Verify 'launch' (no extra required args)
         args = parser.parse_args(["launch"])

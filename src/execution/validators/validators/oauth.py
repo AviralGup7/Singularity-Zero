@@ -11,7 +11,8 @@ import logging
 import random
 import string
 import urllib.parse
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from src.core.scoring import ScoringConfig, bounded_confidence
 from src.execution.validators.status import ValidationStatus
@@ -130,7 +131,6 @@ def evaluate_oauth(
         Dict with status/confidence/signals/evidence.
     """
     signals: list[str] = []
-    bonuses: list[float] = []
     notes: list[str] = []
     responses: dict[str, Any] = {}
 
@@ -157,21 +157,23 @@ def evaluate_oauth(
                 )
                 try:
                     resp = http_request("GET", auth_url, None)
-                    responses.setdefault("redirect_uri_tests", []).append({
-                        "payload": payload,
-                        "status_code": resp.get("status_code", 0),
-                        "body_preview": str(resp.get("body", ""))[:150],
-                    })
+                    responses.setdefault("redirect_uri_tests", []).append(
+                        {
+                            "payload": payload,
+                            "status_code": resp.get("status_code", 0),
+                            "body_preview": str(resp.get("body", ""))[:150],
+                        }
+                    )
                     body = str(resp.get("body", "") or "")
                     location = str(resp.get("headers", {}).get("location", "") or "")
                     if "evil.com" in location or "attacker" in location:
                         signals.append(("redirect_uri_bypass", 0.18))
-                        notes.append(
-                            f"Redirect URI validation bypassed with: {payload}"
-                        )
+                        notes.append(f"Redirect URI validation bypassed with: {payload}")
                         break
                 except Exception as exc:
-                    logger.debug("Redirect URI bypass test failed for payload '%s': %s", payload, exc)
+                    logger.debug(
+                        "Redirect URI bypass test failed for payload '%s': %s", payload, exc
+                    )
                     continue
 
         # Test state parameter (CSRF) protection
@@ -191,7 +193,9 @@ def evaluate_oauth(
                 body = str(resp.get("body", "") or "")
                 if "code=" in body or "code=" in str(resp.get("headers", {}).get("location", "")):
                     signals.append(("state_missing", 0.15))
-                    notes.append("OAuth authorization request succeeded without state parameter - CSRF risk.")
+                    notes.append(
+                        "OAuth authorization request succeeded without state parameter - CSRF risk."
+                    )
             except Exception as exc:
                 logger.debug("State parameter test failed: %s", exc)
 
@@ -206,20 +210,24 @@ def evaluate_oauth(
                 )
                 try:
                     resp = http_request("GET", auth_url_elevated, None)
-                    responses.setdefault("scope_elevation_tests", []).append({
-                        "scope": elevated_scope,
-                        "status_code": resp.get("status_code", 0),
-                        "body_preview": str(resp.get("body", ""))[:150],
-                    })
+                    responses.setdefault("scope_elevation_tests", []).append(
+                        {
+                            "scope": elevated_scope,
+                            "status_code": resp.get("status_code", 0),
+                            "body_preview": str(resp.get("body", ""))[:150],
+                        }
+                    )
                     body = str(resp.get("body", "") or "")
-                    if "scope" in body.lower() and ("approved" in body.lower() or "granted" in body.lower()):
+                    if "scope" in body.lower() and (
+                        "approved" in body.lower() or "granted" in body.lower()
+                    ):
                         signals.append(("scope_elevation", 0.20))
-                        notes.append(
-                            f"Scope elevation possible: '{elevated_scope}' was accepted."
-                        )
+                        notes.append(f"Scope elevation possible: '{elevated_scope}' was accepted.")
                         break
                 except Exception as exc:
-                    logger.debug("Scope elevation test failed for scope '%s': %s", elevated_scope, exc)
+                    logger.debug(
+                        "Scope elevation test failed for scope '%s': %s", elevated_scope, exc
+                    )
                     continue
 
         # Check PKCE enforcement at token endpoint
@@ -263,7 +271,9 @@ def evaluate_oauth(
 
     # Determine status
     if signals:
-        high_risk = any(s[0] in ("redirect_uri_bypass", "scope_elevation", "state_missing") for s in signals)
+        high_risk = any(
+            s[0] in ("redirect_uri_bypass", "scope_elevation", "state_missing") for s in signals
+        )
         status = ValidationStatus.CONFIRMED.value if high_risk else ValidationStatus.HEURISTIC.value
     else:
         status = ValidationStatus.INCONCLUSIVE.value

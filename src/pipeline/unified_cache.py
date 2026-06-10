@@ -54,12 +54,24 @@ class NamespaceRouting:
 
 
 _NAMESPACE_ROUTING: dict[str, NamespaceRouting] = {
-    "resume": NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.CRITICAL),
-    "probe": NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL),
-    "subdomain": NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL),
-    "tool_output": NamespaceRouting(default_backend=Backend.FILE, default_priority=CachePriority.TRANSIENT),
-    "screenshot": NamespaceRouting(default_backend=Backend.FILE, default_priority=CachePriority.TRANSIENT),
-    "http_response": NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL),
+    "resume": NamespaceRouting(
+        default_backend=Backend.SQLITE, default_priority=CachePriority.CRITICAL
+    ),
+    "probe": NamespaceRouting(
+        default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL
+    ),
+    "subdomain": NamespaceRouting(
+        default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL
+    ),
+    "tool_output": NamespaceRouting(
+        default_backend=Backend.FILE, default_priority=CachePriority.TRANSIENT
+    ),
+    "screenshot": NamespaceRouting(
+        default_backend=Backend.FILE, default_priority=CachePriority.TRANSIENT
+    ),
+    "http_response": NamespaceRouting(
+        default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL
+    ),
 }
 
 NAMESPACE_ROUTING = _NAMESPACE_ROUTING
@@ -85,7 +97,9 @@ def _resolve_routing(namespace: str, strict: bool = False) -> NamespaceRouting:
 
 
 # Module-level constant aliases used throughout unified_cache
-_DEFAULT_ROUTING = NamespaceRouting(default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL)
+_DEFAULT_ROUTING = NamespaceRouting(
+    default_backend=Backend.SQLITE, default_priority=CachePriority.NORMAL
+)
 _ROUTING_PREFIX = ROUTING_PREFIX
 _DATA_PREFIX = DATA_PREFIX
 
@@ -165,10 +179,7 @@ class UnifiedCache:
         self._sqlite = sqlite_backend if sqlite_backend is not None else PersistentCache()
         if file_root is None:
             default_dir = (
-                Path(__file__).resolve().parent.parent
-                / "output"
-                / "cache"
-                / "unified_blobs"
+                Path(__file__).resolve().parent.parent / "output" / "cache" / "unified_blobs"
             )
             self._file_root = default_dir
         else:
@@ -239,15 +250,10 @@ class UnifiedCache:
         size = len(payload)
 
         backend = routing.default_backend
-        if (
-            routing.split_threshold_bytes is not None
-            and size >= routing.split_threshold_bytes
-        ):
+        if routing.split_threshold_bytes is not None and size >= routing.split_threshold_bytes:
             backend = Backend.FILE
 
-        chosen_priority = (
-            priority.value if priority is not None else routing.default_priority.value
-        )
+        chosen_priority = priority.value if priority is not None else routing.default_priority.value
         effective_mode = (ttl_mode or TTLMode.HARD_TTL).value
 
         with self._lock:
@@ -348,7 +354,7 @@ class UnifiedCache:
     def keys_with_prefix(self, prefix: str) -> list[str]:
         """Return keys (without the internal routing prefix) starting with ``prefix``."""
         raw = self._sqlite.keys_with_prefix(f"{_ROUTING_PREFIX}{prefix}")
-        return [key[len(_ROUTING_PREFIX):] for key in raw]
+        return [key[len(_ROUTING_PREFIX) :] for key in raw]
 
     def prune_prefix(self, prefix: str) -> int:
         """Delete every entry whose key starts with ``prefix``. Returns count."""
@@ -456,10 +462,12 @@ class UnifiedCache:
                     "created_at": record.get("created_at", 0.0),
                 }
             )
-        entries.sort(key=lambda entry: (
-            PRIORITY_RANK.get(entry["priority"], 1),
-            -(float(entry["created_at"])),
-        ))
+        entries.sort(
+            key=lambda entry: (
+                PRIORITY_RANK.get(entry["priority"], 1),
+                -(float(entry["created_at"])),
+            )
+        )
         return entries
 
     def partition_by_stage(self) -> dict[str, list[dict[str, Any]]]:
@@ -507,7 +515,9 @@ class CoalescingCacheWrapper:
         self._registry_lock = threading.Lock()
         # Hard cap at 16 threads to prevent resource exhaustion
         capped_workers = min(max_workers, 16)
-        self._executor = ThreadPoolExecutor(max_workers=capped_workers, thread_name_prefix="cache-coalesce")
+        self._executor = ThreadPoolExecutor(
+            max_workers=capped_workers, thread_name_prefix="cache-coalesce"
+        )
         self._pending_refreshes: dict[str, _PendingRefresh] = {}
         self._pending_lock = threading.Lock()
         self._bg_refresh_callbacks: list[Callable[[str, Any], Awaitable[None]]] = []
@@ -520,9 +530,7 @@ class CoalescingCacheWrapper:
         }
         self._metrics_lock = threading.Lock()
 
-    def register_background_refresh(
-        self, callback: Callable[[str, Any], Awaitable[None]]
-    ) -> None:
+    def register_background_refresh(self, callback: Callable[[str, Any], Awaitable[None]]) -> None:
         self._bg_refresh_callbacks.append(callback)
 
     def _get_key_lock(self, key: str) -> asyncio.Lock:
@@ -626,7 +634,9 @@ class CoalescingCacheWrapper:
             if cached is not None and ttl_mode == TTLMode.STALE_WHILE_REVALIDATE:
                 if response_cache_fresh(cached, stale_threshold_hours):
                     return cached
-                background = self._maybe_kick_off_refresh(key, cached, loader, refresh_ttl, priority)
+                background = self._maybe_kick_off_refresh(
+                    key, cached, loader, refresh_ttl, priority
+                )
                 if background is not None:
                     return cached
             value = await loop.run_in_executor(self._executor, loader)
@@ -636,7 +646,9 @@ class CoalescingCacheWrapper:
                 ttl=ttl,
                 priority=priority,
                 ttl_mode=ttl_mode,
-                stale_threshold_hours=stale_threshold_hours if ttl_mode == TTLMode.STALE_WHILE_REVALIDATE else None,
+                stale_threshold_hours=stale_threshold_hours
+                if ttl_mode == TTLMode.STALE_WHILE_REVALIDATE
+                else None,
             )
             with self._metrics_lock:
                 self._metrics["coalesced_hits"] += 1
@@ -660,7 +672,9 @@ class CoalescingCacheWrapper:
             def _kick() -> None:
                 nonlocal task
                 current = asyncio.get_running_loop()
-                task = current.create_task(self._background_refresh(key, cached, loader, refresh_ttl, priority))
+                task = current.create_task(
+                    self._background_refresh(key, cached, loader, refresh_ttl, priority)
+                )
 
             try:
                 loop = asyncio.get_running_loop()

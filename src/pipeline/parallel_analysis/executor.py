@@ -104,9 +104,7 @@ async def _run_layer_with_work_stealing(
                 if fn is None:
                     continue
                 async with bounded_slot:
-                    result = await _run_single_analyzer(
-                        name, fn, context, timeout, duration_cache
-                    )
+                    result = await _run_single_analyzer(name, fn, context, timeout, duration_cache)
                 async with results_lock:
                     results[name] = result
             finally:
@@ -157,9 +155,7 @@ async def run_parallel_analyzers(
             continue
 
         if duration_cache is not None:
-            pool_size = duration_cache.compute_pool_size(
-                scheduled, max_workers=max_workers
-            )
+            pool_size = duration_cache.compute_pool_size(scheduled, max_workers=max_workers)
         else:
             pool_size = min(max(1, max_workers), len(scheduled))
 
@@ -200,6 +196,7 @@ async def run_parallel_analyzers(
     if duration_cache is not None and outcome.results:
         try:
             from src.pipeline.unified_cache import get_unified_cache
+
             uc = get_unified_cache()
             duration_cache.save(uc)
         except Exception as exc:

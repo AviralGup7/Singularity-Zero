@@ -43,7 +43,9 @@ def find_previous_run(target_root: Path) -> Path | None:
     return cast(Path | None, _find_previous_run(target_root))
 
 
-def _merge_and_diff_scopes(ctx: PipelineContext, recovered_completed_stages: set[str], current_scope: list[str]) -> None:
+def _merge_and_diff_scopes(
+    ctx: PipelineContext, recovered_completed_stages: set[str], current_scope: list[str]
+) -> None:
     """Three-way merge/diff logic for scan scopes at resume start."""
     old_scope = set(ctx.result.scope_entries or [])
     new_scope = set(current_scope)
@@ -58,6 +60,7 @@ def _merge_and_diff_scopes(ctx: PipelineContext, recovered_completed_stages: set
 
     def _is_in_scope(item_str: str, active_scope: list[str]) -> bool:
         from urllib.parse import urlparse
+
         parsed = urlparse(item_str)
         host = parsed.netloc or parsed.path or item_str
         host = host.split(":")[0].strip().lower()
@@ -74,19 +77,38 @@ def _merge_and_diff_scopes(ctx: PipelineContext, recovered_completed_stages: set
         ctx.live_hosts = {h for h in ctx.live_hosts if _is_in_scope(h, current_scope)}
 
         # Filter findings
-        filtered_findings = [f for f in ctx.reportable_findings if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)]
-        ctx.result.waf_findings = [f for f in ctx.result.waf_findings if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)]
-        ctx.result.nuclei_findings = [f for f in ctx.result.nuclei_findings if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)]
-        ctx.result.merged_findings = [f for f in ctx.result.merged_findings if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)]
+        filtered_findings = [
+            f
+            for f in ctx.reportable_findings
+            if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)
+        ]
+        ctx.result.waf_findings = [
+            f
+            for f in ctx.result.waf_findings
+            if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)
+        ]
+        ctx.result.nuclei_findings = [
+            f
+            for f in ctx.result.nuclei_findings
+            if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)
+        ]
+        ctx.result.merged_findings = [
+            f
+            for f in ctx.result.merged_findings
+            if _is_in_scope(f.get("url", "") or f.get("target", ""), current_scope)
+        ]
 
         # Re-initialize the CRDT neural state from the filtered data
         from src.core.frontier.state import NeuralState
+
         new_state = NeuralState()
-        new_state.apply_delta({
-            "subdomains": list(filtered_subdomains),
-            "urls": list(filtered_urls),
-            "findings": list(filtered_findings),
-        })
+        new_state.apply_delta(
+            {
+                "subdomains": list(filtered_subdomains),
+                "urls": list(filtered_urls),
+                "findings": list(filtered_findings),
+            }
+        )
         ctx.result._neural_state = new_state
         ctx.subdomains = filtered_subdomains
         ctx.urls = filtered_urls

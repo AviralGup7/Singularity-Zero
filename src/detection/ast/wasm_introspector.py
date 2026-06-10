@@ -324,7 +324,9 @@ def _parse_import_section(payload: bytes, result: WasmIntrospection) -> None:
             return
         kind_byte = payload[cursor]
         cursor += 1
-        kind_label = {0: "func", 1: "table", 2: "memory", 3: "global"}.get(kind_byte, f"kind_{kind_byte}")
+        kind_label = {0: "func", 1: "table", 2: "memory", 3: "global"}.get(
+            kind_byte, f"kind_{kind_byte}"
+        )
         # Skip the kind-specific payload by jumping past the next LEB128.
         if kind_byte == 0:  # func — type index
             _, cursor = _decode_leb128(payload, cursor)
@@ -352,11 +354,11 @@ def _parse_export_section(payload: bytes, result: WasmIntrospection) -> None:
             return
         kind_byte = payload[cursor]
         cursor += 1
-        kind_label = {0: "func", 1: "table", 2: "memory", 3: "global"}.get(kind_byte, f"kind_{kind_byte}")
-        _, cursor = _decode_leb128(payload, cursor)
-        result.exports.append(
-            WasmExport(name=name, kind=kind_label, index=len(result.exports))
+        kind_label = {0: "func", 1: "table", 2: "memory", 3: "global"}.get(
+            kind_byte, f"kind_{kind_byte}"
         )
+        _, cursor = _decode_leb128(payload, cursor)
+        result.exports.append(WasmExport(name=name, kind=kind_label, index=len(result.exports)))
 
 
 def _parse_custom_section(payload: bytes, result: WasmIntrospection) -> None:

@@ -44,11 +44,23 @@ except Exception as exc:  # pragma: no cover - optional import
 
 
 _INTERACTION_TEMPLATES: tuple[tuple[str, str], ...] = (
-    ("click", "function() { document.querySelectorAll('a, button, input, [role=button]').forEach(function(el){ try { el.click(); } catch (e) {} }); }"),
+    (
+        "click",
+        "function() { document.querySelectorAll('a, button, input, [role=button]').forEach(function(el){ try { el.click(); } catch (e) {} }); }",
+    ),
     ("scroll", "function() { window.scrollTo(0, document.body.scrollHeight); }"),
-    ("type", "function() { var i = document.querySelector('input, textarea'); if (i) { i.focus(); i.value = 'test'; i.dispatchEvent(new Event('input', { bubbles: true })); } }"),
-    ("submit", "function() { var f = document.querySelector('form'); if (f) { f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); } }"),
-    ("hover", "function() { document.querySelectorAll('a, button').forEach(function(el) { el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); }); }"),
+    (
+        "type",
+        "function() { var i = document.querySelector('input, textarea'); if (i) { i.focus(); i.value = 'test'; i.dispatchEvent(new Event('input', { bubbles: true })); } }",
+    ),
+    (
+        "submit",
+        "function() { var f = document.querySelector('form'); if (f) { f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); } }",
+    ),
+    (
+        "hover",
+        "function() { document.querySelectorAll('a, button').forEach(function(el) { el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); }); }",
+    ),
 )
 
 
@@ -341,9 +353,7 @@ async def analyze_async(
 
     if mode == "headless":
         try:
-            return await _headless_analyze(
-                url, timeout_seconds=timeout_seconds, headless=headless
-            )
+            return await _headless_analyze(url, timeout_seconds=timeout_seconds, headless=headless)
         except Exception as exc:
             if html is not None:
                 result = static_analyze(html, url=url)

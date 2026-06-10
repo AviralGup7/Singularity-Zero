@@ -1,4 +1,3 @@
-
 from src.detection.coverage import (
     EXPLOIT_ENGINE_KEYS,
     _cwe_to_engines,
@@ -71,9 +70,7 @@ def test_url_hint_engines_upload_endpoint():
 
 
 def test_url_hint_engines_ssrf_endpoint():
-    assert _url_hint_engines("https://api.example.com/webhook", "") == (
-        "ssrfexploitationengine",
-    )
+    assert _url_hint_engines("https://api.example.com/webhook", "") == ("ssrfexploitationengine",)
 
 
 def test_url_hint_engines_template_renderer():
@@ -83,9 +80,7 @@ def test_url_hint_engines_template_renderer():
 
 
 def test_url_hint_engines_payment_checkout_race():
-    assert _url_hint_engines("https://example.com/checkout/pay", "") == (
-        "raceconditionengine",
-    )
+    assert _url_hint_engines("https://example.com/checkout/pay", "") == ("raceconditionengine",)
 
 
 def test_url_hint_engines_deserialization_indicator():

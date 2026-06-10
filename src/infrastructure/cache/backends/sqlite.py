@@ -201,7 +201,9 @@ class SQLiteBackend:
                 # Self-healing migration for tags
                 cursor = conn.execute("SELECT COUNT(*) FROM cache_entry_tags")
                 if cursor.fetchone()[0] == 0:
-                    cursor = conn.execute("SELECT key, tags FROM cache_entries WHERE tags IS NOT NULL AND tags != ''")
+                    cursor = conn.execute(
+                        "SELECT key, tags FROM cache_entries WHERE tags IS NOT NULL AND tags != ''"
+                    )
                     rows = cursor.fetchall()
                     for key, tags_str in rows:
                         tags_parsed = {t.strip() for t in tags_str.split(",") if t.strip()}

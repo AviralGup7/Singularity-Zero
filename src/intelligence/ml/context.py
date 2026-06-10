@@ -66,7 +66,9 @@ def render_user_prompt_triage(finding: dict, *, truncate: int = 4000) -> str:
 
 
 def render_user_prompt_summary(findings: list[dict], compliance_report: dict | None = None) -> str:
-    critical_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "critical")
+    critical_count = sum(
+        1 for f in findings if str(f.get("severity", "info")).lower() == "critical"
+    )
     high_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "high")
     med_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "medium")
     low_count = sum(1 for f in findings if str(f.get("severity", "info")).lower() == "low")

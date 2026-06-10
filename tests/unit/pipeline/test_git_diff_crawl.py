@@ -60,12 +60,8 @@ class TestUrlHelpers:
         assert _path_for_url(url) == expected
 
     def test_url_matches_changed_path_substring(self) -> None:
-        assert _url_matches_changed_path(
-            "https://example.com/api/users", ["api/users.py"]
-        )
-        assert not _url_matches_changed_path(
-            "https://example.com/api/users", ["src/api/posts.py"]
-        )
+        assert _url_matches_changed_path("https://example.com/api/users", ["api/users.py"])
+        assert not _url_matches_changed_path("https://example.com/api/users", ["src/api/posts.py"])
 
     def test_filter_url_set(self) -> None:
         urls = {
@@ -146,9 +142,7 @@ class TestRunGitDiffCrawl:
         run_dir.mkdir(parents=True)
         ctx = SimpleNamespace(output_store=SimpleNamespace(run_dir=run_dir))
         out = await run_git_diff_crawl(
-            SimpleNamespace(
-                incremental=True, base_ref="HEAD", repo_root=str(repo)
-            ),
+            SimpleNamespace(incremental=True, base_ref="HEAD", repo_root=str(repo)),
             config=SimpleNamespace(),
             ctx=ctx,
         )
@@ -162,10 +156,12 @@ class TestRunGitDiffCrawl:
         (repo / "api").mkdir()
         (repo / "api" / "users.py").write_text("def users(): pass", encoding="utf-8")
         subprocess.run(  # noqa: S603
-            ["git", "-C", str(repo), "add", "."], check=True  # noqa: S607
+            ["git", "-C", str(repo), "add", "."],
+            check=True,  # noqa: S607
         )
         subprocess.run(  # noqa: S603
-            ["git", "-C", str(repo), "commit", "-q", "-m", "users"], check=True  # noqa: S607
+            ["git", "-C", str(repo), "commit", "-q", "-m", "users"],
+            check=True,  # noqa: S607
         )
         # Create prior run data
         target_root = repo / "target"
@@ -199,9 +195,7 @@ class TestRunGitDiffCrawl:
             ),
         )
         out = await run_git_diff_crawl(
-            SimpleNamespace(
-                incremental=True, base_ref="HEAD~1", repo_root=str(repo)
-            ),
+            SimpleNamespace(incremental=True, base_ref="HEAD~1", repo_root=str(repo)),
             config=SimpleNamespace(),
             ctx=ctx,
         )
@@ -222,9 +216,7 @@ class TestRunGitDiffCrawl:
 
         ctx = SimpleNamespace(output_store=SimpleNamespace(run_dir=run_dir))
         out = await run_git_diff_crawl(
-            SimpleNamespace(
-                incremental=True, base_ref="HEAD", repo_root=str(non_repo)
-            ),
+            SimpleNamespace(incremental=True, base_ref="HEAD", repo_root=str(non_repo)),
             config=SimpleNamespace(),
             ctx=ctx,
         )

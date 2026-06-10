@@ -336,13 +336,21 @@ class URLValidator:
             from urllib.parse import parse_qs, urlencode
 
             SENSITIVE_QUERY_PARAMS = {
-                "password", "passwd", "pwd", "token", "access_token",
-                "api_key", "apikey", "secret", "key", "auth", "session",
+                "password",
+                "passwd",
+                "pwd",
+                "token",
+                "access_token",
+                "api_key",
+                "apikey",
+                "secret",
+                "key",
+                "auth",
+                "session",
             }
             query_params = parse_qs(parsed.query, keep_blank_values=True)
             filtered_params = {
-                k: v for k, v in query_params.items()
-                if k.lower() not in SENSITIVE_QUERY_PARAMS
+                k: v for k, v in query_params.items() if k.lower() not in SENSITIVE_QUERY_PARAMS
             }
             sanitized_query = urlencode(filtered_params, doseq=True)
 

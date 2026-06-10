@@ -76,7 +76,10 @@ class RetentionPolicy:
             score += 10
 
         # Validated exploits boost significance significantly
-        if counts.get("validated_leads", 0) > 0 or len(run_summary.get("verified_exploits", [])) > 0:
+        if (
+            counts.get("validated_leads", 0) > 0
+            or len(run_summary.get("verified_exploits", [])) > 0
+        ):
             score += 50
 
         return score
@@ -94,8 +97,10 @@ def _get_run_age_days(run_dir: Path, run_summary: dict[str, Any]) -> int:
             # Simple ISO parsing or prefix slicing
             # "2026-06-06T05:09:53+05:30" or similar
             dt_str = str(gen_time_str).split(".")[0].split("+")[0].rstrip("Z")
-            dt = datetime.datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=datetime.timezone.utc)
-            delta = datetime.datetime.now(datetime.timezone.utc) - dt
+            dt = datetime.datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S").replace(
+                tzinfo=datetime.UTC
+            )
+            delta = datetime.datetime.now(datetime.UTC) - dt
             return max(0, delta.days)
         except (ValueError, TypeError) as exc:
             logger.debug("ISO date parse failed for run %s: %s", run_dir, exc)
@@ -105,8 +110,8 @@ def _get_run_age_days(run_dir: Path, run_summary: dict[str, Any]) -> int:
     dir_name = run_dir.name
     if len(dir_name) >= 8 and dir_name[:8].isdigit():
         try:
-            dt = datetime.datetime.strptime(dir_name[:8], "%Y%m%d").replace(tzinfo=datetime.timezone.utc)
-            delta = datetime.datetime.now(datetime.timezone.utc) - dt
+            dt = datetime.datetime.strptime(dir_name[:8], "%Y%m%d").replace(tzinfo=datetime.UTC)
+            delta = datetime.datetime.now(datetime.UTC) - dt
             return max(0, delta.days)
         except (ValueError, TypeError) as exc:
             logger.debug("YYYYMMDD directory stamp parse failed for %s: %s", dir_name, exc)
@@ -114,7 +119,9 @@ def _get_run_age_days(run_dir: Path, run_summary: dict[str, Any]) -> int:
     # Fallback to filesystem mtime
     try:
         mtime = run_dir.stat().st_mtime
-        delta = datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc)
+        delta = datetime.datetime.now(datetime.UTC) - datetime.datetime.fromtimestamp(
+            mtime, tz=datetime.UTC
+        )
         return max(0, delta.days)
     except (OSError, ValueError) as exc:
         logger.warning("Failed to determine run age for %s: %s", run_dir, exc)
@@ -133,7 +140,6 @@ def _prune_launcher_dirs(launcher_root: Path, keep_launcher_runs: int) -> list[P
                 continue
             job_dirs.append((mtime, path.name, path))
     job_dirs.sort(key=lambda x: (x[0], x[1]))
-    dirs_by_path = [entry[2] for entry in job_dirs]
     if keep_launcher_runs <= 0:
         stale_dirs = list(job_dirs)
     elif len(job_dirs) > keep_launcher_runs:
@@ -212,6 +218,7 @@ class MaintenanceLock:
             conn = None
             try:
                 import sqlite3
+
                 conn = sqlite3.connect(str(self._sqlite_path), timeout=1)
                 cur = conn.execute("BEGIN EXCLUSIVE")
                 cur.fetchone()
@@ -225,7 +232,10 @@ class MaintenanceLock:
                     except Exception as exc:
                         logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
                 import sqlite3
-                if isinstance(exc, sqlite3.OperationalError) and any(k in str(exc).lower() for k in ("lock", "busy")):
+
+                if isinstance(exc, sqlite3.OperationalError) and any(
+                    k in str(exc).lower() for k in ("lock", "busy")
+                ):
                     raise RuntimeError("Maintenance task already running.") from exc
                 if self.lockfile_path.exists():
                     try:
@@ -239,10 +249,8 @@ class MaintenanceLock:
 
     def _acquire_pid_lock(self) -> "MaintenanceLock":
         try:
-            self._fd = os.open(
-                self.lockfile_path, os.O_CREAT | os.O_WRONLY | os.O_EXCL
-            )
-            os.write(self._fd, f"{os.getpid()}\n".encode("utf-8"))
+            self._fd = os.open(self.lockfile_path, os.O_CREAT | os.O_WRONLY | os.O_EXCL)
+            os.write(self._fd, f"{os.getpid()}\n".encode())
         except OSError:
             if self.lockfile_path.exists():
                 try:
@@ -254,10 +262,8 @@ class MaintenanceLock:
             try:
                 if self.lockfile_path.exists():
                     self.lockfile_path.unlink()
-                self._fd = os.open(
-                    self.lockfile_path, os.O_CREAT | os.O_WRONLY | os.O_EXCL
-                )
-                os.write(self._fd, f"{os.getpid()}\n".encode("utf-8"))
+                self._fd = os.open(self.lockfile_path, os.O_CREAT | os.O_WRONLY | os.O_EXCL)
+                os.write(self._fd, f"{os.getpid()}\n".encode())
             except OSError as exc:
                 raise RuntimeError("Failed to acquire maintenance lockfile.") from exc
         return self
@@ -293,6 +299,7 @@ class MaintenanceLock:
             return False
         if sys.platform == "win32":
             import ctypes
+
             PROCESS_QUERY_INFORMATION = 0x0400
             STILL_ACTIVE = 259
             handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, pid)
@@ -381,7 +388,9 @@ def prune_output_history(
         sorted_runs = sorted(run_dirs, key=lambda rd: rd.name)
 
         # Runs to evaluate for pruning (we preserve keep_target_runs newest runs regardless of score)
-        candidate_runs = sorted_runs[:-keep_target_runs] if len(sorted_runs) > keep_target_runs else []
+        candidate_runs = (
+            sorted_runs[:-keep_target_runs] if len(sorted_runs) > keep_target_runs else []
+        )
 
         runs_to_remove = []
         for run_dir in candidate_runs:
@@ -434,7 +443,9 @@ def prune_output_history(
                         try:
                             img_file.unlink()
                         except OSError as exc:
-                            logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
+                            logger.warning(
+                                "Operation failed in maintenance.py: %s", exc, exc_info=True
+                            )  # noqa: BLE001
 
         # 3. Perform actual pruning / removal
         for run_dir in runs_to_remove:
@@ -468,7 +479,9 @@ def prune_output_history(
     return summary
 
 
-def register_scheduler_task(task_name: str = "PipelineMaintenance", output_root: str = "output") -> bool:
+def register_scheduler_task(
+    task_name: str = "PipelineMaintenance", output_root: str = "output"
+) -> bool:
     """Register daily maintenance task with the OS scheduler."""
     script_path = Path(__file__).resolve()
     python_exe = sys.executable
@@ -478,7 +491,19 @@ def register_scheduler_task(task_name: str = "PipelineMaintenance", output_root:
         tr_value = f"{python_exe} {script_path} --output-root {output_root}"
         try:
             ret = subprocess.run(
-                ["schtasks", "/create", "/tn", task_name, "/tr", tr_value, "/sc", "daily", "/st", "02:00", "/f"],
+                [
+                    "schtasks",
+                    "/create",
+                    "/tn",
+                    task_name,
+                    "/tr",
+                    tr_value,
+                    "/sc",
+                    "daily",
+                    "/st",
+                    "02:00",
+                    "/f",
+                ],
                 capture_output=True,
                 timeout=30,
             )
@@ -488,7 +513,9 @@ def register_scheduler_task(task_name: str = "PipelineMaintenance", output_root:
             return False
     else:
         # Unix cron registration
-        cron_job = f"0 2 * * * {python_exe} {script_path} --output-root {output_root} > /dev/null 2>&1\n"
+        cron_job = (
+            f"0 2 * * * {python_exe} {script_path} --output-root {output_root} > /dev/null 2>&1\n"
+        )
         try:
             # Simple cron integration using crontab cli
             temp_cron = tempfile.NamedTemporaryFile(delete=False)

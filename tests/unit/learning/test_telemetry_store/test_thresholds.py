@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreThresholds:
     """Tests for threshold history operations."""
 

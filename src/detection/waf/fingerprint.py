@@ -15,7 +15,6 @@ from typing import Any
 from src.detection.waf.fingerprints import (
     BY_NAME,
     CATALOGUE,
-    GENERIC,
     WAFFingerprint,
     to_dict,
 )

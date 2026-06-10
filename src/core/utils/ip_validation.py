@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+
 """IP address validation helpers.
 
 A previous version of the project used a regex like

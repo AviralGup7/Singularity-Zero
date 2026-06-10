@@ -85,8 +85,7 @@ def decode_jwt(token: str, config: SecurityConfig) -> TokenPayload | None:
         # access and refresh types only.
         token_type = payload_data.get("type")
         if not isinstance(token_type, str) or not (
-            hmac.compare_digest(token_type, "access")
-            or hmac.compare_digest(token_type, "refresh")
+            hmac.compare_digest(token_type, "access") or hmac.compare_digest(token_type, "refresh")
         ):
             return None
 

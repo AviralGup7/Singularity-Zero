@@ -67,24 +67,15 @@ class ScoringConfig:
             "base": float(overrides.get("base", self.base)),
             "cap": float(overrides.get("cap", self.cap)),
             "floor": float(overrides.get("floor", self.floor)),
-            "max_total_bonus": float(
-                overrides.get("max_total_bonus", self.max_total_bonus)
-            ),
-            "max_total_penalty": float(
-                overrides.get("max_total_penalty", self.max_total_penalty)
-            ),
+            "max_total_bonus": float(overrides.get("max_total_bonus", self.max_total_bonus)),
+            "max_total_penalty": float(overrides.get("max_total_penalty", self.max_total_penalty)),
             "score_weight": float(overrides.get("score_weight", self.score_weight)),
-            "signal_weight": float(
-                overrides.get("signal_weight", self.signal_weight)
-            ),
+            "signal_weight": float(overrides.get("signal_weight", self.signal_weight)),
             "required_signals": tuple(
-                str(value)
-                for value in overrides.get("required_signals", self.required_signals)
+                str(value) for value in overrides.get("required_signals", self.required_signals)
             ),
             "min_independent_signals": int(
-                overrides.get(
-                    "min_independent_signals", self.min_independent_signals
-                )
+                overrides.get("min_independent_signals", self.min_independent_signals)
             ),
         }
         return ScoringConfig(**data)

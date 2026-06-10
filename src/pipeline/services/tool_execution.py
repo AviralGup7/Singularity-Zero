@@ -162,7 +162,8 @@ def get_circuit_breaker(tool_name: str) -> CircuitBreaker:
 def _prune_stale_circuit_breakers(now: float) -> None:
     """Remove expired circuit-breaker entries incrementally."""
     stale_keys = [
-        name for name, last_access in _CIRCUIT_BREAKER_LAST_ACCESS.items()
+        name
+        for name, last_access in _CIRCUIT_BREAKER_LAST_ACCESS.items()
         if now - last_access > _CIRCUIT_BREAKERS_TTL_SECONDS
     ]
     for name in stale_keys:
@@ -491,10 +492,7 @@ class ToolExecutionService:
 
         Suitable for telemetry, self-healing metrics, and the dashboard.
         """
-        return {
-            tool_name: breaker.stats()
-            for tool_name, breaker in self._circuit_breakers.items()
-        }
+        return {tool_name: breaker.stats() for tool_name, breaker in self._circuit_breakers.items()}
 
     def persist_breaker_states(self, cache: Any) -> None:
         persist_all_breakers(cache, self._circuit_breakers)
@@ -512,7 +510,10 @@ class ToolExecutionService:
                     failure_threshold=config.failure_threshold,
                     recovery_timeout=config.recovery_timeout,
                 )
-                if state_dict.get("forced_open") and state_dict.get("force_open_until", 0) > time.time():
+                if (
+                    state_dict.get("forced_open")
+                    and state_dict.get("force_open_until", 0) > time.time()
+                ):
                     remaining = state_dict["force_open_until"] - time.time()
                     breaker.force_open(
                         reason=str(state_dict.get("force_open_reason", "recovered")),
@@ -521,7 +522,10 @@ class ToolExecutionService:
                 self._circuit_breakers[name] = breaker
             else:
                 existing = self._circuit_breakers[name]
-                if state_dict.get("forced_open") and state_dict.get("force_open_until", 0) > time.time():
+                if (
+                    state_dict.get("forced_open")
+                    and state_dict.get("force_open_until", 0) > time.time()
+                ):
                     remaining = state_dict["force_open_until"] - time.time()
                     existing.force_open(
                         reason=str(state_dict.get("force_open_reason", "recovered")),
@@ -961,6 +965,7 @@ class ToolExecutionService:
     ) -> bool:
         from src.core.logging.pipeline_logging import emit_retry_warning
         from src.pipeline.retry import retry_ready, sleep_before_retry
+
         if not retry_ready(policy, attempt):
             return False
         delay = self._compute_retry_delay(policy, attempt + 1, stderr_text, waf_profile)

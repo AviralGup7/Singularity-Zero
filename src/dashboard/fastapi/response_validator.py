@@ -6,7 +6,7 @@ Guarantees no null/undefined responses and required keys always exist.
 
 import json
 import logging
-from typing import Any, cast
+from typing import Any
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -32,11 +32,7 @@ def _is_json_response(response: Response) -> bool:
     resp_url = getattr(response, "url", None)
     return (
         "application/json" in content_type or not content_type.startswith("text/event-stream")
-    ) and not any(
-        resp_url.path.startswith(p)
-        for p in NON_JSON_PATHS
-        if resp_url is not None
-    )
+    ) and not any(resp_url.path.startswith(p) for p in NON_JSON_PATHS if resp_url is not None)
 
 
 def _normalize_response_body(body: Any) -> Any:
@@ -60,20 +56,48 @@ def _normalize_response_body(body: Any) -> Any:
         return {"items": body, "total": len(body)}
     if isinstance(body, dict):
         # Fields that must never be None in documented API responses.
-        _KNOWN_COUNT_FIELDS = frozenset({
-            "total", "total_findings", "total_targets", "total_gaps",
-            "total_logs", "count", "runs_analyzed", "active_jobs",
-            "completed_jobs", "failed_jobs", "completed_targets",
-            "avg_progress", "pipeline_health_score",
-        })
-        _KNOWN_LIST_FIELDS = frozenset({
-            "findings", "gaps", "items", "logs", "targets", "notes",
-            "timeline", "jobs", "severity_counts", "stage_counts",
-        })
-        _KNOWN_STRING_FIELDS = frozenset({
-            "target", "error", "detail", "message", "status",
-            "pipeline_health_label", "target_name",
-        })
+        _KNOWN_COUNT_FIELDS = frozenset(
+            {
+                "total",
+                "total_findings",
+                "total_targets",
+                "total_gaps",
+                "total_logs",
+                "count",
+                "runs_analyzed",
+                "active_jobs",
+                "completed_jobs",
+                "failed_jobs",
+                "completed_targets",
+                "avg_progress",
+                "pipeline_health_score",
+            }
+        )
+        _KNOWN_LIST_FIELDS = frozenset(
+            {
+                "findings",
+                "gaps",
+                "items",
+                "logs",
+                "targets",
+                "notes",
+                "timeline",
+                "jobs",
+                "severity_counts",
+                "stage_counts",
+            }
+        )
+        _KNOWN_STRING_FIELDS = frozenset(
+            {
+                "target",
+                "error",
+                "detail",
+                "message",
+                "status",
+                "pipeline_health_label",
+                "target_name",
+            }
+        )
 
         normalized = {}
         for key, value in body.items():

@@ -1,4 +1,5 @@
 """Event schema, helpers, and EventBus subscription hooks for self-healing."""
+
 from __future__ import annotations
 
 import logging

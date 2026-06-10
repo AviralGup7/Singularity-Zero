@@ -1,4 +1,5 @@
 """Dampening window for suppressing duplicate corrective actions."""
+
 from __future__ import annotations
 
 import logging

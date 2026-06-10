@@ -296,8 +296,9 @@ class Broadcaster:
         self._scope_drop_counts.clear()
 
         try:
-            from pathlib import Path
             import tempfile
+            from pathlib import Path
+
             state_file = Path(tempfile.gettempdir()) / "redis_breaker_state.json"
             state_file.unlink(missing_ok=True)
         except Exception:  # noqa: S110
@@ -438,7 +439,9 @@ class Broadcaster:
             return 0
 
         # Validate envelope structure before processing
-        if not isinstance(envelope.get("scope"), str) or not isinstance(envelope.get("target"), str):
+        if not isinstance(envelope.get("scope"), str) or not isinstance(
+            envelope.get("target"), str
+        ):
             logger.warning("Malformed Redis envelope: missing scope or target")
             return 0
 

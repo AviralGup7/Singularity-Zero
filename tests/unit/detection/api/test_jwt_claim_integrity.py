@@ -29,18 +29,14 @@ def test_alg_none_is_critical() -> None:
 
 def test_hs_confusion_with_expected_rs() -> None:
     token = _make_token({"alg": "HS256", "typ": "JWT"}, {"sub": "1"})
-    finding = analyze_jwt_claim_integrity(
-        url="https://x", token=token, expected_alg="RS256"
-    )
+    finding = analyze_jwt_claim_integrity(url="https://x", token=token, expected_alg="RS256")
     assert "asymmetric_to_symmetric_confusion" in finding.findings
     assert finding.severity == "critical"
 
 
 def test_alg_mismatch_with_expected_alg() -> None:
     token = _make_token({"alg": "HS256", "typ": "JWT"}, {"sub": "1"})
-    finding = analyze_jwt_claim_integrity(
-        url="https://x", token=token, expected_alg="HS512"
-    )
+    finding = analyze_jwt_claim_integrity(url="https://x", token=token, expected_alg="HS512")
     assert "alg_mismatch" in finding.findings
     assert finding.severity == "high"
 

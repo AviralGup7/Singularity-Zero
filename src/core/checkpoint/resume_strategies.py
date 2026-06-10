@@ -64,7 +64,9 @@ class PartialResumePlanner:
         self.checkpoint_mgr = checkpoint_mgr
         self.resume_policy = resume_policy
 
-    def plan_resume(self, failed_stage: str | None = None, force_from_stage: str | None = None) -> list[str]:
+    def plan_resume(
+        self, failed_stage: str | None = None, force_from_stage: str | None = None
+    ) -> list[str]:
         if self.resume_policy == ResumePolicy.FULL:
             return list(_RESUME_STAGE_ORDER)
 

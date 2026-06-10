@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import random
-import secrets
 import struct
 from typing import Any
 
@@ -231,30 +230,41 @@ async def run_wasm_fuzzing_campaign(
 
             body = resp.text.lower()
             wasm_indicators = [
-                "compile", "wasm", "webassembly", "instantiate",
-                "linkerror", "runtimeerror", "compilerror",
-                "invalid", "unreachable", "out of memory",
+                "compile",
+                "wasm",
+                "webassembly",
+                "instantiate",
+                "linkerror",
+                "runtimeerror",
+                "compilerror",
+                "invalid",
+                "unreachable",
+                "out of memory",
             ]
             matched = [ind for ind in wasm_indicators if ind in body]
 
             if matched or resp.status_code in (400, 413, 422, 500):
                 severity = "medium" if resp.status_code in (500, 413) else "low"
-                findings.append({
-                    "url": url,
-                    "endpoint_key": endpoint_key,
-                    "endpoint_base_key": base_endpoint,
-                    "endpoint_type": endpoint_type,
-                    "issues": [f"wasm_{label}"],
-                    "probe_type": "wasm_fuzzer",
-                    "severity": severity,
-                    "confidence": 0.5 if not matched else 0.7,
-                    "evidence": {
-                        "scenario": label,
-                        "status_code": resp.status_code,
-                        "matched_indicators": matched,
-                        "response_preview": body[:200],
-                    },
-                })
-                logger.debug("WASM fuzzer: %s matched=%s status=%d", label, matched, resp.status_code)
+                findings.append(
+                    {
+                        "url": url,
+                        "endpoint_key": endpoint_key,
+                        "endpoint_base_key": base_endpoint,
+                        "endpoint_type": endpoint_type,
+                        "issues": [f"wasm_{label}"],
+                        "probe_type": "wasm_fuzzer",
+                        "severity": severity,
+                        "confidence": 0.5 if not matched else 0.7,
+                        "evidence": {
+                            "scenario": label,
+                            "status_code": resp.status_code,
+                            "matched_indicators": matched,
+                            "response_preview": body[:200],
+                        },
+                    }
+                )
+                logger.debug(
+                    "WASM fuzzer: %s matched=%s status=%d", label, matched, resp.status_code
+                )
 
     return findings

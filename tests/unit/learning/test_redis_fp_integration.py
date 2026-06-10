@@ -84,29 +84,29 @@ async def test_redis_fp_repo_fallback_lru_and_memory_bounds():
     repo._client = AsyncMock()
     # Mock upsert to force fallback path
     repo._degraded_until = time.time() + 3600.0  # Force degraded circuit open path
-    
+
     p1 = FPPattern.create(category="cat1")
     p2 = FPPattern.create(category="cat2")
     p3 = FPPattern.create(category="cat3")
     p4 = FPPattern.create(category="cat4")
-    
+
     # Upsert 3 patterns
     await repo.upsert_pattern(p1)
     await repo.upsert_pattern(p2)
     await repo.upsert_pattern(p3)
-    
+
     assert len(repo._fallback) == 3
-    
+
     # Access p1 to move it to MRU (most recently used)
     # Mock hget to fail and fall back to cache read
     repo._client.hget.side_effect = Exception("Redis failed")
     fetched = await repo.get_pattern(p1.pattern_id)
     assert fetched is not None
     assert fetched.pattern_id == p1.pattern_id
-    
+
     # Upsert p4 (should trigger eviction of p2, which is LRU because p1 was accessed)
     await repo.upsert_pattern(p4)
-    
+
     assert len(repo._fallback) == 3
     assert p2.pattern_id not in repo._fallback
     assert p1.pattern_id in repo._fallback

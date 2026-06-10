@@ -1,4 +1,3 @@
-
 """Template helper for scenario request rendering.
 
 Split out of ``scenario_engine.py`` so that variable interpolation can be

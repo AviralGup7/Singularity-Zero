@@ -1,4 +1,5 @@
 import logging
+
 """Base repository with connection management helpers."""
 
 import json

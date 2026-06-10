@@ -158,8 +158,9 @@ class TestDiscoverOriginsAsync:
             assert host == "mail.example.com"
             return ["203.0.113.10"]
 
-        with patch("src.recon.origin_discovery._query_dns", new=fake_query_dns), patch(
-            "src.recon.origin_discovery._resolve_a", new=fake_resolve_a
+        with (
+            patch("src.recon.origin_discovery._query_dns", new=fake_query_dns),
+            patch("src.recon.origin_discovery._resolve_a", new=fake_resolve_a),
         ):
             result = _run(
                 discover_origins_async(
@@ -183,8 +184,9 @@ class TestDiscoverOriginsAsync:
         def fake_resolve_a(host: str) -> list[str]:
             return [f"203.0.113.{10 if host == 'mail.example.com' else 20}"]
 
-        with patch("src.recon.origin_discovery._query_dns", new=fake_query_dns), patch(
-            "src.recon.origin_discovery._resolve_a", new=fake_resolve_a
+        with (
+            patch("src.recon.origin_discovery._query_dns", new=fake_query_dns),
+            patch("src.recon.origin_discovery._resolve_a", new=fake_resolve_a),
         ):
             result = _run(
                 discover_origins_async(
@@ -206,8 +208,9 @@ class TestDiscoverOriginsAsync:
         def fake_resolve_a(host: str) -> list[str]:
             return [f"198.51.100.{1 if '1' in host else 2}"]
 
-        with patch("src.recon.origin_discovery._query_dns", new=fake_query_dns), patch(
-            "src.recon.origin_discovery._resolve_a", new=fake_resolve_a
+        with (
+            patch("src.recon.origin_discovery._query_dns", new=fake_query_dns),
+            patch("src.recon.origin_discovery._resolve_a", new=fake_resolve_a),
         ):
             result = _run(
                 discover_origins_async(
@@ -257,11 +260,13 @@ class TestDiscoverOriginsAsync:
         async def fake_historical(domain: str, **kwargs: Any) -> list[str]:
             return ["192.0.2.99"]
 
-        with patch("src.recon.origin_discovery._query_dns", new=fake_query_dns), patch(
-            "src.recon.origin_discovery._resolve_a", new=fake_resolve_a
-        ), patch(
-            "src.recon.origin_discovery.query_securitytrails_historical_a",
-            new=fake_historical,
+        with (
+            patch("src.recon.origin_discovery._query_dns", new=fake_query_dns),
+            patch("src.recon.origin_discovery._resolve_a", new=fake_resolve_a),
+            patch(
+                "src.recon.origin_discovery.query_securitytrails_historical_a",
+                new=fake_historical,
+            ),
         ):
             result = _run(discover_origins_async("example.com"))
 
@@ -283,9 +288,12 @@ class TestDiscoverOriginsAsync:
         async def fake_historical(domain: str, **kwargs: Any) -> list[str]:
             return ["192.0.2.1"]
 
-        with patch("src.recon.origin_discovery._query_dns", new=fake_query_dns), patch(
-            "src.recon.origin_discovery.query_securitytrails_historical_a",
-            new=fake_historical,
+        with (
+            patch("src.recon.origin_discovery._query_dns", new=fake_query_dns),
+            patch(
+                "src.recon.origin_discovery.query_securitytrails_historical_a",
+                new=fake_historical,
+            ),
         ):
             result = _run(discover_origins_async("example.com"))
         # Patterns and historical still work; MX/NS were raised
@@ -308,11 +316,13 @@ class TestDiscoverOriginsSync:
         def fake_resolve_a(host: str) -> list[str]:
             return ["203.0.113.10"]
 
-        with patch("src.recon.origin_discovery._query_dns", new=fake_query_dns), patch(
-            "src.recon.origin_discovery._resolve_a", new=fake_resolve_a
-        ), patch(
-            "src.recon.origin_discovery.query_securitytrails_historical_a",
-            new=AsyncMock(return_value=[]),
+        with (
+            patch("src.recon.origin_discovery._query_dns", new=fake_query_dns),
+            patch("src.recon.origin_discovery._resolve_a", new=fake_resolve_a),
+            patch(
+                "src.recon.origin_discovery.query_securitytrails_historical_a",
+                new=AsyncMock(return_value=[]),
+            ),
         ):
             result = discover_origins_sync(
                 "example.com",
@@ -495,9 +505,7 @@ class TestRankUrlsOriginBypass:
             waf_findings=waf_findings,
             origin_hosts={"origin.example.com"},
         )
-        origin_items = [
-            item for item in with_bypass if item["url"] == "https://origin.example.com"
-        ]
+        origin_items = [item for item in with_bypass if item["url"] == "https://origin.example.com"]
         assert len(origin_items) == 1
         assert "cdn_protected" not in origin_items[0]["signals"]
         assert "origin_bypass" in origin_items[0]["signals"]

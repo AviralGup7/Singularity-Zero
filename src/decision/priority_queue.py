@@ -575,7 +575,10 @@ class CorrelationPriorityQueue:
         # still drain. The remaining-count check is performed under the lock
         # to avoid TOCTOU races with concurrent pops.
         with self._lock:
-            if len([t for t in self._targets if not t.scanned]) < min_items and self._pop_count >= min_items:
+            if (
+                len([t for t in self._targets if not t.scanned]) < min_items
+                and self._pop_count >= min_items
+            ):
                 return True
             max_base = max(t.base_priority for t in self._url_map.values())
             if max_base == 0:
@@ -633,12 +636,13 @@ class CorrelationPriorityQueue:
         short-circuit to ``True`` as soon as any of the configured
         budget axes (time / requests / findings) is exhausted.
         """
-        if enforcer is not None and HuntBudgetEnforcer is not None and not isinstance(
-            enforcer, HuntBudgetEnforcer
+        if (
+            enforcer is not None
+            and HuntBudgetEnforcer is not None
+            and not isinstance(enforcer, HuntBudgetEnforcer)
         ):
             raise TypeError(
-                "enforcer must be a HuntBudgetEnforcer instance, got "
-                f"{type(enforcer).__name__}"
+                f"enforcer must be a HuntBudgetEnforcer instance, got {type(enforcer).__name__}"
             )
         previous = self._budget_enforcer
         self._budget_enforcer = enforcer

@@ -85,7 +85,9 @@ def _pseudo_header_smuggle_payloads() -> list[dict[str, Any]]:
     ]
 
 
-async def send_h2_frame(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, frame_bytes: bytes) -> None:
+async def send_h2_frame(
+    reader: asyncio.StreamReader, writer: asyncio.StreamWriter, frame_bytes: bytes
+) -> None:
     writer.write(frame_bytes)
     await writer.drain()
 
@@ -98,7 +100,7 @@ async def _read_h2_response(reader: asyncio.StreamReader, timeout: float = 5.0) 
     while asyncio.get_running_loop().time() < deadline:
         try:
             hdr = await asyncio.wait_for(reader.readexactly(9), timeout=timeout)
-        except Exception:
+        except Exception as exc:
             logger.debug("H2 frame header read failed: %s", exc, exc_info=True)
             break
         length = (hdr[0] << 16) | (hdr[1] << 8) | hdr[2]
@@ -107,7 +109,7 @@ async def _read_h2_response(reader: asyncio.StreamReader, timeout: float = 5.0) 
         stream_id = struct.unpack(">I", hdr[5:9])[0] & 0x7FFFFFFF
         try:
             payload = await asyncio.wait_for(reader.readexactly(length), timeout=timeout)
-        except Exception:
+        except Exception as exc:
             logger.debug("H2 frame payload read failed: %s", exc, exc_info=True)
             break
         if ftype == 0x01 and stream_id == 1:
@@ -122,7 +124,9 @@ async def _read_h2_response(reader: asyncio.StreamReader, timeout: float = 5.0) 
                             try:
                                 status_code = int(value)
                             except ValueError as exc:
-                                logger.warning("Operation failed in h2_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
+                                logger.warning(
+                                    "Operation failed in h2_fuzzer.py: %s", exc, exc_info=True
+                                )  # noqa: BLE001
                         else:
                             headers[name] = value
                     i += 1
@@ -159,7 +163,11 @@ async def _fuzz_h2_continuation_on_socket(
 ) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     upgrade = await _attempt_h2c_upgrade(url, verify_tls)
-    if not upgrade.get("upgrade_accepted") or not upgrade.get("reader") or not upgrade.get("writer"):
+    if (
+        not upgrade.get("upgrade_accepted")
+        or not upgrade.get("reader")
+        or not upgrade.get("writer")
+    ):
         return findings
     reader = upgrade["reader"]
     writer = upgrade["writer"]
@@ -190,7 +198,11 @@ async def _fuzz_h2_continuation_on_socket(
             logger.warning("Operation failed in h2_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
     status_code = resp.get("status_code", 0)
     body = resp.get("body", b"")
-    body_text = body[:400].decode("latin-1", errors="replace") if isinstance(body, (bytes, bytearray)) else ""
+    body_text = (
+        body[:400].decode("latin-1", errors="replace")
+        if isinstance(body, (bytes, bytearray))
+        else ""
+    )
     evidence = {
         "status_code": status_code,
         "body_preview": body_text,
@@ -211,7 +223,9 @@ async def _fuzz_h2_continuation_on_socket(
                 "evidence": evidence,
             }
         )
-    elif status_code in (200, 201) and ("continuation" in body_text.lower() or "h2" in body_text.lower()):
+    elif status_code in (200, 201) and (
+        "continuation" in body_text.lower() or "h2" in body_text.lower()
+    ):
         findings.append(
             {
                 "url": url,
@@ -239,6 +253,7 @@ async def run_h2_fuzzing_campaign(
 
     from src.analysis.helpers import classify_endpoint, endpoint_base_key, endpoint_signature
     from src.core.utils.url_validation import is_safe_url_with_dns_check
+
     if not is_safe_url_with_dns_check(url):
         logger.warning("H2 fuzzer: URL failed SSRF safety check, skipping: %s", url)
         return findings
@@ -269,10 +284,11 @@ async def run_h2_fuzzing_campaign(
             resp = await client.get(url, headers=poison_headers)
             if resp is None:
                 continue
-            divergence = resp.status_code != (baseline.status_code if baseline else 200) or abs(
-                len(resp.text) - baseline_len
-            ) > 50
-        except Exception:
+            divergence = (
+                resp.status_code != (baseline.status_code if baseline else 200)
+                or abs(len(resp.text) - baseline_len) > 50
+            )
+        except Exception as exc:
             logger.debug("HPACK poison request failed: %s", exc, exc_info=True)
             divergence = False
         if divergence:
@@ -298,7 +314,7 @@ async def run_h2_fuzzing_campaign(
         smuggle_headers = {probe["header"]: probe["value"], "X-Pseudo-Probe": "1"}
         try:
             resp = await client.get(url, headers=smuggle_headers)
-        except Exception:
+        except Exception as exc:
             logger.debug("Pseudo-header request failed: %s", exc, exc_info=True)
             continue
         if resp is None:

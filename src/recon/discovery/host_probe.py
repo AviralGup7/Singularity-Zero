@@ -1,4 +1,3 @@
-
 """Host discovery and probing implementation.
 
 Owns the core ``probe_live_hosts`` implementation previously located directly

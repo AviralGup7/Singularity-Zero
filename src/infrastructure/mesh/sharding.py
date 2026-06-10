@@ -40,12 +40,8 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_REBALANCE_INTERVAL_SEC = float(
-    os.getenv("MESH_SHARD_REBALANCE_INTERVAL_SEC", "30.0")
-)
-DEFAULT_VIRTUAL_NODES_PER_WEIGHT = int(
-    os.getenv("MESH_SHARD_VNODES_PER_WEIGHT", "3")
-)
+DEFAULT_REBALANCE_INTERVAL_SEC = float(os.getenv("MESH_SHARD_REBALANCE_INTERVAL_SEC", "30.0"))
+DEFAULT_VIRTUAL_NODES_PER_WEIGHT = int(os.getenv("MESH_SHARD_VNODES_PER_WEIGHT", "3"))
 DEFAULT_MIN_VIRTUAL_NODES = int(os.getenv("MESH_SHARD_MIN_VNODES", "1"))
 
 
@@ -223,9 +219,7 @@ class MeshShardManager:
                 for nid in active_nodes
             }
             self._pending_deadline = time.time() + (
-                delay_seconds
-                if delay_seconds is not None
-                else self._rebalance_min_interval
+                delay_seconds if delay_seconds is not None else self._rebalance_min_interval
             )
 
     def run_maintenance(self) -> bool:
@@ -259,9 +253,7 @@ class MeshShardManager:
             return None
         h = self._hash(target_name)
         if local_region:
-            colocated = [
-                n.node_id for n in self._nodes.values() if n.region == local_region
-            ]
+            colocated = [n.node_id for n in self._nodes.values() if n.region == local_region]
             if colocated:
                 leader = self._lookup(h, allowed=colocated)
                 if leader is not None:
@@ -330,7 +322,10 @@ class MeshShardManager:
                         if prev_idx == -1:
                             continue
                         prev_hashes_target = list(prev_hashes)
-                        if prev_idx < len(prev_hashes_target) and prev_hashes_target[prev_idx] != leader:
+                        if (
+                            prev_idx < len(prev_hashes_target)
+                            and prev_hashes_target[prev_idx] != leader
+                        ):
                             moved += 1
                 stats.last_target_sample_moved = moved
                 self._last_target_sample = (sample, set(current.values()))

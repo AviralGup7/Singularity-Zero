@@ -12,13 +12,13 @@ Detects common authentication/authorization bypass vectors:
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
-import re
-import xml.etree.ElementTree as ET
+from datetime import UTC
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
+
+import defusedxml.ElementTree as ET
 
 from src.execution.validators.config.scoring_config import (
     DEFAULT_SCORING_CONFIG,
@@ -129,10 +129,11 @@ def _looks_like_saml_replay(body: str) -> bool:
         root = ET.fromstring(body)
         issue_instant = root.get("IssueInstant", "")
         if issue_instant:
-            from datetime import datetime, timezone
+            from datetime import datetime
+
             try:
                 parsed_time = datetime.fromisoformat(issue_instant.replace("Z", "+00:00"))
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 age = (now - parsed_time).total_seconds()
                 if age > 300:
                     return True
@@ -309,9 +310,7 @@ def evaluate_oauth_saml(
     }
 
 
-def validate(
-    target: dict[str, Any], context: dict[str, Any]
-) -> dict[str, Any]:
+def validate(target: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     target_url = str(target.get("url", ""))
     redirect_uri = str(context.get("oauth_redirect_uri", ""))
     state_value = context.get("oauth_state")
@@ -365,16 +364,15 @@ def summarize_findings(findings: list[dict[str, Any]]) -> dict[str, Any]:
     if not findings:
         return {"status": "no_findings", "count": 0}
     redirect_bypass = sum(
-        1 for f in findings
-        if "redirect_uri_bypass" in f.get("evidence", {}).get("signals", [])
+        1 for f in findings if "redirect_uri_bypass" in f.get("evidence", {}).get("signals", [])
     )
     state_empty = sum(
-        1 for f in findings
+        1
+        for f in findings
         if "oauth_state_empty_accepted" in f.get("evidence", {}).get("signals", [])
     )
     sig_bypass = sum(
-        1 for f in findings
-        if "saml_signature_bypass" in f.get("evidence", {}).get("signals", [])
+        1 for f in findings if "saml_signature_bypass" in f.get("evidence", {}).get("signals", [])
     )
     return {
         "status": "analyzed",

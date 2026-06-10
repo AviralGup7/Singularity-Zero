@@ -80,9 +80,7 @@ def _git_changed_files(base_ref: str, repo: Path) -> list[str]:
         timeout=20,
         cwd=str(repo),
     )
-    return [
-        line.strip() for line in out.stdout.splitlines() if line.strip()
-    ]
+    return [line.strip() for line in out.stdout.splitlines() if line.strip()]
 
 
 def _path_for_url(url: str) -> str | None:
@@ -153,9 +151,7 @@ async def run_git_diff_crawl(
         # from custom orchestrators) may pass a lightweight context.
         if hasattr(ctx, "scope_entries"):
             try:
-                stage_input = build_stage_input_from_context(
-                    "git_diff_crawl", config, ctx
-                )
+                stage_input = build_stage_input_from_context("git_diff_crawl", config, ctx)
             except Exception:  # noqa: BLE001
                 stage_input = None
 
@@ -214,9 +210,7 @@ async def run_git_diff_crawl(
         )
 
     prior_items = _read_priority_scores(prior_dir)
-    candidate_urls = {
-        str(item.get("url", "")).strip() for item in prior_items if item.get("url")
-    }
+    candidate_urls = {str(item.get("url", "")).strip() for item in prior_items if item.get("url")}
     candidate_urls.update(
         {
             str(item.get("canonical_key", "")).strip()

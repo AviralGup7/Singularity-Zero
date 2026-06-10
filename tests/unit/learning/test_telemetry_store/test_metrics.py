@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreMetrics:
     """Tests for performance metrics operations."""
 

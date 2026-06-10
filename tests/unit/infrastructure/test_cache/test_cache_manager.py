@@ -18,6 +18,7 @@ class CacheTestBase(unittest.TestCase):
 
         self.tmp_path = Path(tempfile.mkdtemp())
 
+
 class TestCacheManager(CacheTestBase):
     def test_set_and_get(self) -> None:
         config = CacheConfig(

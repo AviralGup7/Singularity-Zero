@@ -89,9 +89,7 @@ def configure_breaker(
     reset_existing: bool = False,
 ) -> CircuitBreaker:
     """Install a per-tool breaker config on the default service."""
-    return _DEFAULT_TOOL_SERVICE.configure_breaker(
-        tool_name, config, reset_existing=reset_existing
-    )
+    return _DEFAULT_TOOL_SERVICE.configure_breaker(tool_name, config, reset_existing=reset_existing)
 
 
 def force_open_breaker(

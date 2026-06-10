@@ -12,7 +12,8 @@ import hashlib
 import hmac
 import json
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from src.core.models import ValidationResult
 from src.core.scoring import ScoringConfig, bounded_confidence
@@ -63,7 +64,9 @@ def _create_jwt(header: dict, payload: dict, secret: str = "secret") -> str:
 
 def _create_jwt_none(payload: dict) -> str:
     """Create a JWT with alg=none (no signature)."""
-    header_b64 = _b64url_encode(json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode())
+    header_b64 = _b64url_encode(
+        json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode()
+    )
     payload_b64 = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode())
     return f"{header_b64}.{payload_b64}."
 
@@ -173,6 +176,7 @@ JWT_PAYLOADS: list[dict[str, Any]] = [
     },
 ]
 
+
 def parse_jwt(token: str) -> dict[str, Any] | None:
     """Parse a JWT into header/payload/signature segments."""
     if not token or not isinstance(token, str):
@@ -266,9 +270,7 @@ def crack_jwt_secret(
     new_payload = base64.urlsafe_b64encode(payload_bytes).rstrip(b"=").decode("ascii")
     signing_input = f"{new_header}.{new_payload}".encode("ascii")
     for secret in candidate_secrets or ():
-        signature = hmac.new(
-            secret.encode("utf-8"), signing_input, hashlib.sha256
-        ).digest()
+        signature = hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
         if _constant_time_compare(signature, expected_signature):
             return secret
     return None
@@ -324,7 +326,7 @@ def validate_jwt_token(target: dict[str, Any], context: dict[str, Any]) -> Valid
     token = str(target.get("token") or context.get("token") or "")
     target_url = str(target.get("url", ""))
     in_scope = bool(context.get("in_scope", True))
-    
+
     if token:
         candidate_secrets_raw = context.get("jwt_test_secrets")
         if isinstance(candidate_secrets_raw, (list, tuple)) and candidate_secrets_raw:
@@ -345,7 +347,7 @@ def validate_jwt_token(target: dict[str, Any], context: dict[str, Any]) -> Valid
             scoring=ScoringConfig(),
             in_scope=in_scope,
         )
-        
+
     item = {
         "url": target_url,
         "status": evaluation["status"],
@@ -355,6 +357,7 @@ def validate_jwt_token(target: dict[str, Any], context: dict[str, Any]) -> Valid
         "evidence": evaluation["evidence"],
     }
     from src.execution.validators.validators.shared import to_validation_result
+
     return to_validation_result(item, validator="jwt_weakness", category="jwt_weakness")
 
 
@@ -505,7 +508,9 @@ def evaluate_jwt(
             try:
                 if label == "jwt_key_confusion":
                     if known_public_key:
-                        token_val = _create_jwt_key_confusion(BASE_JWT_PAYLOAD, known_public_key.encode())
+                        token_val = _create_jwt_key_confusion(
+                            BASE_JWT_PAYLOAD, known_public_key.encode()
+                        )
                     else:
                         logger.debug("Skipping jwt_key_confusion: no known_public_key provided")
                         continue
@@ -522,7 +527,9 @@ def evaluate_jwt(
                     if resp.get("status_code") == 200:
                         signals.append(label)
                         bonuses.append(0.20)
-                        notes.append(f"JWT {case['description']} accepted - vulnerability confirmed.")
+                        notes.append(
+                            f"JWT {case['description']} accepted - vulnerability confirmed."
+                        )
                 else:
                     # Check for error messages revealing JWT parsing
                     jwt_error_indicators = ["jwt", "token", "signature", "alg", "kid"]
@@ -551,15 +558,16 @@ def evaluate_jwt(
 
     if signals:
         high_risk = any(
-            s in ("jwt_alg_none", "jwt_jwk_injection", "jwt_key_confusion")
-            for s in signals
+            s in ("jwt_alg_none", "jwt_jwk_injection", "jwt_key_confusion") for s in signals
         )
         status = ValidationStatus.CONFIRMED.value if high_risk else ValidationStatus.HEURISTIC.value
     else:
         status = ValidationStatus.INCONCLUSIVE.value
 
     total_bonus = sum(bonuses)
-    confidence = bounded_confidence(base=scoring.base, cap=scoring.cap, bonuses=[total_bonus] if total_bonus else None)
+    confidence = bounded_confidence(
+        base=scoring.base, cap=scoring.cap, bonuses=[total_bonus] if total_bonus else None
+    )
 
     evidence = {
         "endpoint": endpoint,
@@ -576,4 +584,3 @@ def evaluate_jwt(
         "evidence": evidence,
         "bonuses": bonuses,
     }
-

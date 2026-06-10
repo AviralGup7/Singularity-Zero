@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreScanRuns:
     """Tests for scan run operations."""
 

@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-import math
 import re
 import socket
 from collections.abc import Iterable
@@ -146,7 +145,9 @@ def _query_bgpview(ip: str, timeout: float) -> dict[str, Any] | None:
     best = pref[0]
     if not isinstance(best, dict):
         return None
-    asn_raw = best.get("asn", {}).get("asn") if isinstance(best.get("asn"), dict) else best.get("asn")
+    asn_raw = (
+        best.get("asn", {}).get("asn") if isinstance(best.get("asn"), dict) else best.get("asn")
+    )
     if asn_raw is None:
         return None
     asn = f"AS{asn_raw}"
@@ -168,9 +169,7 @@ def _query_ripestat(asn: str, timeout: float) -> dict[str, Any] | None:
     if not asn_digits.isdigit():
         return None
     try:
-        resp = requests.get(
-            _RIPESTAT_URL.format(asn=asn_digits), timeout=max(2.0, float(timeout))
-        )
+        resp = requests.get(_RIPESTAT_URL.format(asn=asn_digits), timeout=max(2.0, float(timeout)))
         if resp.status_code == 429:
             return {"_rate_limited": True}
         if resp.status_code != 200:
@@ -236,7 +235,7 @@ def ip_to_asn(
     timeout: float = 5.0,
 ) -> dict[str, Any] | None:
     try:
-        addr = ipaddress.ip_address(ip)
+        ipaddress.ip_address(ip)
     except ValueError:
         return None
     if not is_public_ip(ip):
@@ -271,9 +270,7 @@ def ip_to_asn(
         if result:
             return result
 
-    result = _query_ripestat(
-        _resolve_asn_for_ip(ip), timeout
-    )
+    result = _query_ripestat(_resolve_asn_for_ip(ip), timeout)
     if result:
         return result
 
@@ -282,7 +279,11 @@ def ip_to_asn(
 
 def _resolve_asn_for_ip(ip: str) -> str | None:
     try:
-        for name, fn in [("ipinfo", _query_ipinfo), ("ipapi", _query_ipapi), ("bgpview", _query_bgpview)]:
+        for name, fn in [
+            ("ipinfo", _query_ipinfo),
+            ("ipapi", _query_ipapi),
+            ("bgpview", _query_bgpview),
+        ]:
             r = fn(ip, 3.0)
             if isinstance(r, dict) and r.get("_rate_limited"):
                 continue
@@ -393,7 +394,6 @@ def expand_ips_to_cidrs(
 
     cidrs: set[str] = set()
     for asn in asns:
-        asn_digits = asn.upper().lstrip("AS").strip()
         cidrs.update(asn_to_cidrs_via_cymru(asn))
         for rir in ("arin", "ripe", "apnic", "lacnic", "afrinic"):
             cidrs.update(_asn_to_cidrs_via_rir_rdap(asn, rir))

@@ -167,7 +167,10 @@ def _analyze_proxy_response(
     elif any(ip in body for ip in ("10.0.", "10.", "172.16.", "192.168.")):
         indicators.append("internal_ip_response")
     elif status not in (404, 400, 403, 500, 502, 503) and len(body) > 50:
-        has_internal = any(ip in body for ip in ("127.0.0.1", "localhost", "169.254.169.254", "10.0.", "172.16.", "192.168."))
+        has_internal = any(
+            ip in body
+            for ip in ("127.0.0.1", "localhost", "169.254.169.254", "10.0.", "172.16.", "192.168.")
+        )
         if has_internal:
             indicators.append("non_error_response")
 

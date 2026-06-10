@@ -76,9 +76,7 @@ def main() -> int:
         print("Lockfile Policy Gate: [WARN] Missing lockfiles detected:")
         for v in lockfile_violations:
             print(f"  - {v}")
-        print(
-            "\nRecommendation: Generate and commit lockfiles for reproducible builds.\n"
-        )
+        print("\nRecommendation: Generate and commit lockfiles for reproducible builds.\n")
         # Warn but don't fail — lockfiles should be generated but this is advisory
         # in CI until a lockfile generation step is added to the pipeline.
         violations.extend(lockfile_violations)

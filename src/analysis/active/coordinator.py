@@ -11,11 +11,11 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 try:
+    from src.analysis.active.auth.credential_vault import CredentialVault
     from src.analysis.active.auth_bypass.analyzer import run_auth_bypass_probes
     from src.analysis.active.brute_force import brute_force_resistance_probe
     from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
     from src.analysis.active.cloud_metadata import cloud_metadata_active_probe
-    from src.analysis.active.auth.credential_vault import CredentialVault
     from src.analysis.active.graphql import graphql_active_probe
     from src.analysis.active.graphql_ws_probe import graphql_ws_injection_probe
     from src.analysis.active.http_methods import (
@@ -296,6 +296,7 @@ def oauth_flow_analyzer(
                 combined_params.update(dict(parse_qsl(body)))
             except Exception as exc:  # noqa: S110
                 import logging
+
                 logging.getLogger(__name__).debug(
                     "oauth_flow_analyzer: failed to parse request body for %s: %s", url, exc
                 )
@@ -407,9 +408,13 @@ def run_saml_attack_suite(
         run_xsw_attack,
     )
 
-    saml_replay_results = run_assertion_replay(priority_urls, response_cache, credential_vault, limit=limit)
+    saml_replay_results = run_assertion_replay(
+        priority_urls, response_cache, credential_vault, limit=limit
+    )
     xsw_results = run_xsw_attack(priority_urls, response_cache, credential_vault, limit=limit)
-    strip_results = run_signature_strip(priority_urls, response_cache, credential_vault, limit=limit)
+    strip_results = run_signature_strip(
+        priority_urls, response_cache, credential_vault, limit=limit
+    )
     return {
         "saml_assertion_replay": saml_replay_results,
         "saml_xsw_attack": xsw_results,
@@ -448,9 +453,7 @@ def run_prototype_pollution_walker(
         try:
             pp_findings = analyze_html_for_prototype_pollution(body, url=url)
         except Exception as exc:
-            logger.debug(
-                "prototype_pollution_walker failed for %s: %s", url, exc
-            )
+            logger.debug("prototype_pollution_walker failed for %s: %s", url, exc)
             continue
 
         for f in pp_findings:

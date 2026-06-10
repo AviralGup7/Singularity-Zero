@@ -67,7 +67,9 @@ def bulk_triage_findings(
     return len(finding_ids)
 
 
-def calculate_team_triage_metrics(events: list[dict[str, Any]], findings: list[dict[str, Any]]) -> dict[str, Any]:
+def calculate_team_triage_metrics(
+    events: list[dict[str, Any]], findings: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Compute triage team workload, aging backlog, and throughput telemetry."""
     analyst_workload: dict[str, int] = {}
     total_time_to_triage = 0.0
@@ -122,16 +124,18 @@ def export_triage_queue_csv(findings: list[dict[str, Any]], output_path: Path) -
         writer = csv.DictWriter(f, fieldnames=headers, quoting=csv.QUOTE_MINIMAL)
         writer.writeheader()
         for f_item in findings:
-            writer.writerow({
-                "ID": f_item.get("id", ""),
-                "Title": f_item.get("title", ""),
-                "Severity": f_item.get("severity", ""),
-                "Category": f_item.get("category", ""),
-                "URL": f_item.get("url", ""),
-                "Status": f_item.get("status", "OPEN"),
-                "Assignee": f_item.get("assignee", "Unassigned"),
-                "Triage_SLA": f_item.get("sla_status", "N/A"),
-            })
+            writer.writerow(
+                {
+                    "ID": f_item.get("id", ""),
+                    "Title": f_item.get("title", ""),
+                    "Severity": f_item.get("severity", ""),
+                    "Category": f_item.get("category", ""),
+                    "URL": f_item.get("url", ""),
+                    "Status": f_item.get("status", "OPEN"),
+                    "Assignee": f_item.get("assignee", "Unassigned"),
+                    "Triage_SLA": f_item.get("sla_status", "N/A"),
+                }
+            )
     return output_path
 
 

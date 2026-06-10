@@ -71,7 +71,9 @@ def is_sensitive_endpoint(url: str, response: dict[str, Any] | None = None) -> b
                         if keys & sensitive_tokens:
                             return True
                 except (json.JSONDecodeError, ValueError) as exc:
-                    logger.warning("Operation failed in cache_deception_helpers.py: %s", exc, exc_info=True)  # noqa: BLE001
+                    logger.warning(
+                        "Operation failed in cache_deception_helpers.py: %s", exc, exc_info=True
+                    )  # noqa: BLE001
     return False
 
 

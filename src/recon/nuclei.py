@@ -220,7 +220,11 @@ def _classify_url(
         if not category:
             # Try a relaxed suffix match (e.g. ``user_id_xyz`` → idor)
             for hint_name, hint_category in _PARAM_CATEGORY_HINTS.items():
-                if name == hint_name or name.endswith(f"_{hint_name}") or name.startswith(f"{hint_name}_"):
+                if (
+                    name == hint_name
+                    or name.endswith(f"_{hint_name}")
+                    or name.startswith(f"{hint_name}_")
+                ):
                     category = hint_category
                     break
         if not category:
@@ -362,9 +366,7 @@ def build_nuclei_plan(
     Returns:
         Dictionary mapping group names to URL lists (deduplicated).
     """
-    plan, _ = build_nuclei_plan_with_param_map(
-        priority_urls, config, adaptive_tags=adaptive_tags
-    )
+    plan, _ = build_nuclei_plan_with_param_map(priority_urls, config, adaptive_tags=adaptive_tags)
     return plan
 
 

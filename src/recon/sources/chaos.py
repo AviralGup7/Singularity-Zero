@@ -53,13 +53,9 @@ async def query_chaos(
         logger.debug("Chaos: invalid domain input")
         return set()
 
-    api_key = api_key or os.environ.get("CHAOS_API_KEY") or os.environ.get(
-        "PDCP_API_KEY"
-    )
+    api_key = api_key or os.environ.get("CHAOS_API_KEY") or os.environ.get("PDCP_API_KEY")
     if not api_key:
-        logger.debug(
-            "CHAOS_API_KEY / PDCP_API_KEY not set, skipping ProjectDiscovery Chaos"
-        )
+        logger.debug("CHAOS_API_KEY / PDCP_API_KEY not set, skipping ProjectDiscovery Chaos")
         return set()
 
     subdomains: set[str] = set()

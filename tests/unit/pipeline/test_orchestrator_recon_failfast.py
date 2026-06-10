@@ -80,8 +80,6 @@ class _DummyLearning:
         return None
 
 
-
-
 def _make_args(config: SimpleNamespace) -> argparse.Namespace:
     return argparse.Namespace(
         config="unused-config.json",
@@ -167,7 +165,9 @@ def _patch_runtime_environment(
         "_record_stage_post_run",
         AsyncMock(return_value=None),
     )
-    monkeypatch.setattr("src.pipeline.validation.validate_stage_artifact", lambda stage_name, ctx: (True, None))
+    monkeypatch.setattr(
+        "src.pipeline.validation.validate_stage_artifact", lambda stage_name, ctx: (True, None)
+    )
     monkeypatch.setattr(
         orch_mod, "STAGE_TIMEOUTS", {"subdomains": 5, "live_hosts": 5, "urls": 5}, raising=False
     )

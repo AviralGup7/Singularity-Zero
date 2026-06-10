@@ -1,7 +1,7 @@
 from __future__ import annotations
-import logging
 
 import json
+import logging
 from typing import Any
 
 try:
@@ -130,7 +130,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         for key in self._list_object_keys(prefix):
             if "/checkpoint_v" not in key:
                 continue
-            relative = key[len(prefix):] if prefix else key
+            relative = key[len(prefix) :] if prefix else key
             run_id = relative.split("/", 1)[0]
             if run_id:
                 run_ids.add(run_id)
@@ -140,16 +140,11 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         return f"{self._run_prefix(run_id)}/checkpoint_v{version}.json"
 
     def _context_snapshot_key(self, run_id: str, stage_name: str) -> str:
-        return (
-            f"{self._run_prefix(run_id)}/context_{_stage_safe_name(stage_name)}.json"
-        )
+        return f"{self._run_prefix(run_id)}/context_{_stage_safe_name(stage_name)}.json"
 
-    def _stage_delta_key(
-        self, run_id: str, stage_name: str, sequence: int
-    ) -> str:
+    def _stage_delta_key(self, run_id: str, stage_name: str, sequence: int) -> str:
         return (
-            f"{self._run_prefix(run_id)}"
-            f"/delta_{_stage_safe_name(stage_name)}_{sequence:06d}.json"
+            f"{self._run_prefix(run_id)}/delta_{_stage_safe_name(stage_name)}_{sequence:06d}.json"
         )
 
     def _list_object_keys(self, prefix: str) -> list[str]:
@@ -168,7 +163,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         if not (name.startswith("checkpoint_v") and name.endswith(".json")):
             return None
         try:
-            return f"v{_parse_version_id('v' + name[len('checkpoint_v'):-len('.json')])}"
+            return f"v{_parse_version_id('v' + name[len('checkpoint_v') : -len('.json')])}"
         except ValueError:
             return None
 
@@ -204,9 +199,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         except (ClientError, json.JSONDecodeError):
             return None
 
-    def read_version_by_id(
-        self, run_id: str, version_id: VersionId
-    ) -> dict[str, Any] | None:
+    def read_version_by_id(self, run_id: str, version_id: VersionId) -> dict[str, Any] | None:
         version = _parse_version_id(version_id)
         key = self._checkpoint_key(run_id, version)
         try:
@@ -228,9 +221,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
     def delete_version(self, run_id: str, version_id: VersionId) -> None:
         version = _parse_version_id(version_id)
         try:
-            self._s3.delete_object(
-                Bucket=self._bucket, Key=self._checkpoint_key(run_id, version)
-            )
+            self._s3.delete_object(Bucket=self._bucket, Key=self._checkpoint_key(run_id, version))
         except ClientError as exc:
             logging.warning("Operation failed in s3_backends.py: %s", exc, exc_info=True)  # noqa: BLE001
 
@@ -242,9 +233,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         self._s3.put_object(Bucket=self._bucket, Key=key, Body=body)
         return f"context:{_stage_safe_name(stage_name)}"
 
-    def read_context_snapshot(
-        self, run_id: str, stage_name: str
-    ) -> dict[str, Any] | None:
+    def read_context_snapshot(self, run_id: str, stage_name: str) -> dict[str, Any] | None:
         key = self._context_snapshot_key(run_id, stage_name)
         try:
             response = self._s3.get_object(Bucket=self._bucket, Key=key)
@@ -264,9 +253,7 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
         self._s3.put_object(Bucket=self._bucket, Key=key, Body=body)
         return f"delta:{_stage_safe_name(stage_name)}:{sequence:06d}"
 
-    def list_stage_deltas(
-        self, run_id: str, stage_name: str
-    ) -> list[dict[str, Any]]:
+    def list_stage_deltas(self, run_id: str, stage_name: str) -> list[dict[str, Any]]:
         safe = _stage_safe_name(stage_name)
         prefix = f"{self._run_prefix(run_id)}/delta_{safe}_"
         results: list[dict[str, Any]] = []

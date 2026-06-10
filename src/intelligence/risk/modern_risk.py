@@ -273,18 +273,12 @@ class ModernRiskCalculator:
         # ---- 1. Component scores (each on 0-10 scale) -----------------
         cvss_v4_component = _clamp(inputs.cvss_v4_base, 0.0, 10.0)
         epss_component = _clamp(inputs.epss_score, 0.0, 1.0) * 10.0
-        kev_component = (
-            10.0
-            if inputs.in_cisa_kev
-            else 0.0
-        )
+        kev_component = 10.0 if inputs.in_cisa_kev else 0.0
         if inputs.in_cisa_kev and inputs.cisa_kev_due_offset_days < 0:
             # Past the CISA-mandated remediation deadline.
             kev_component = min(10.0, kev_component + 1.0)
         asset_component = _clamp(inputs.asset_criticality, 0.0, 10.0)
-        business_component = _clamp(
-            (inputs.business_multiplier - 1.0) * 4.0 + 5.0, 0.0, 10.0
-        )
+        business_component = _clamp((inputs.business_multiplier - 1.0) * 4.0 + 5.0, 0.0, 10.0)
         # Control discount reduces residual; if the discount is 0.4
         # we report 6.0 (a moderate residual) so a 10/10 finding on
         # an asset with a strong WAF doesn't fully drop to 0.
@@ -459,7 +453,11 @@ def _chain_weight(finding: dict[str, Any]) -> float:
             mapping = {"critical": 2.5, "high": 2.0, "medium": 1.25, "low": 0.5}
             weights = []
             for chain in attack_chains:
-                severity = str(getattr(chain, "severity", None) or chain.get("severity", "")).lower() if isinstance(chain, dict) or hasattr(chain, "severity") else ""
+                severity = (
+                    str(getattr(chain, "severity", None) or chain.get("severity", "")).lower()
+                    if isinstance(chain, dict) or hasattr(chain, "severity")
+                    else ""
+                )
                 if not severity:
                     continue
                 weights.append(mapping.get(severity, 1.0))
@@ -490,11 +488,7 @@ def _threat_actor_capability(
     levels: dict[str, float],
 ) -> float:
     target_info = target_info or {}
-    actor = (
-        finding.get("threat_actor")
-        or target_info.get("threat_actor")
-        or "unknown"
-    )
+    actor = finding.get("threat_actor") or target_info.get("threat_actor") or "unknown"
     actor = str(actor).strip().lower()
     if actor in levels:
         return levels[actor]
@@ -531,9 +525,7 @@ def _extract_cvss_v4_threat_multiplier(finding: dict[str, Any]) -> float:
         return 1.0
 
 
-def _build_reason_codes(
-    inputs: ModernRiskInputs, asset_context: AssetContext | None
-) -> list[str]:
+def _build_reason_codes(inputs: ModernRiskInputs, asset_context: AssetContext | None) -> list[str]:
     codes: list[str] = []
     if inputs.cvss_v4_base >= 9.0:
         codes.append("critical_cvss_v4")

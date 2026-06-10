@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Heuristic patterns for detecting private/internal package names
 _INTERNAL_PACKAGE_PATTERNS: list[str] = [
     r"(?:internal|private|company|corp|org|my)?[-_]?(?:pkg|package|lib|module|sdk|api)[-_]?",
-    r"@[a-z]+/internal[-_]",  
+    r"@[a-z]+/internal[-_]",
     r"(?:acme|example|test|my|our)[-_]",
     r"[-_](?:internal|private|backend)",
     r"^internal[-_]",
@@ -63,12 +63,14 @@ def _parse_package_json(content: str) -> list[dict[str, Any]]:
         for section in ("dependencies", "devDependencies", "peerDependencies"):
             deps = data.get(section, {})
             for name, version in deps.items():
-                packages.append({
-                    "ecosystem": "npm",
-                    "name": name,
-                    "version": str(version),
-                    "section": section,
-                })
+                packages.append(
+                    {
+                        "ecosystem": "npm",
+                        "name": name,
+                        "version": str(version),
+                        "section": section,
+                    }
+                )
     except (json.JSONDecodeError, Exception) as exc:
         logger.warning("Operation failed in supply_chain.py: %s", exc, exc_info=True)  # noqa: BLE001
     return packages
@@ -86,12 +88,14 @@ def _parse_requirements_txt(content: str) -> list[dict[str, Any]]:
         if match:
             name = match.group(1)
             version = (match.group(2) or "").strip()
-            packages.append({
-                "ecosystem": "pypi",
-                "name": name,
-                "version": version,
-                "section": "dependencies",
-            })
+            packages.append(
+                {
+                    "ecosystem": "pypi",
+                    "name": name,
+                    "version": version,
+                    "section": "dependencies",
+                }
+            )
     return packages
 
 
@@ -127,31 +131,35 @@ def scan_dependency_confusion(
 
         # Check if package name looks internal
         if _is_internal_package_name(name) or name in known_private:
-            findings.append({
-                "type": "dependency_confusion",
-                "ecosystem": ecosystem,
-                "name": name,
-                "version": version,
-                "severity": "high",
-                "confidence": 0.6,
-                "evidence": f"Package '{name}' appears to be internal/private. "
-                           f"An attacker could register this name on public {ecosystem.upper()} registry.",
-            })
+            findings.append(
+                {
+                    "type": "dependency_confusion",
+                    "ecosystem": ecosystem,
+                    "name": name,
+                    "version": version,
+                    "severity": "high",
+                    "confidence": 0.6,
+                    "evidence": f"Package '{name}' appears to be internal/private. "
+                    f"An attacker could register this name on public {ecosystem.upper()} registry.",
+                }
+            )
 
         # Check if package uses a namespace that could be squatted
         if "@" in name:
             scope, pkg_name = name.split("/", 1)
             if _is_internal_package_name(pkg_name):
-                findings.append({
-                    "type": "namespace_confusion",
-                    "ecosystem": ecosystem,
-                    "name": name,
-                    "version": version,
-                    "severity": "medium",
-                    "confidence": 0.4,
-                    "evidence": f"Scoped package '{name}' uses internal name pattern. "
-                               f"Scope squatting risk on public registry.",
-                })
+                findings.append(
+                    {
+                        "type": "namespace_confusion",
+                        "ecosystem": ecosystem,
+                        "name": name,
+                        "version": version,
+                        "severity": "medium",
+                        "confidence": 0.4,
+                        "evidence": f"Scoped package '{name}' uses internal name pattern. "
+                        f"Scope squatting risk on public registry.",
+                    }
+                )
 
     return findings
 
@@ -182,14 +190,16 @@ def scan_ci_config_exposure(
 
         for pattern, secret_type in secret_patterns:
             for match in re.finditer(pattern, content, re.IGNORECASE):
-                findings.append({
-                    "type": "ci_secret_exposure",
-                    "path": path,
-                    "secret_type": secret_type,
-                    "severity": "critical",
-                    "confidence": 0.7,
-                    "evidence": f"Potential {secret_type} exposed in CI config: {path}",
-                })
+                findings.append(
+                    {
+                        "type": "ci_secret_exposure",
+                        "path": path,
+                        "secret_type": secret_type,
+                        "severity": "critical",
+                        "confidence": 0.7,
+                        "evidence": f"Potential {secret_type} exposed in CI config: {path}",
+                    }
+                )
                 break
 
     return findings

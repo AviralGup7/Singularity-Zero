@@ -124,36 +124,27 @@ class HuntMode:
         if not isinstance(section, Mapping):
             return cls()
         lhf = section.get("low_hanging_fruit") or {}
-        categories = tuple(
-            str(c).lower()
-            for c in section.get(
-                "high_value_categories", DEFAULT_HIGH_VALUE_CATEGORIES
+        categories = (
+            tuple(
+                str(c).lower()
+                for c in section.get("high_value_categories", DEFAULT_HIGH_VALUE_CATEGORIES)
+                if c
             )
-            if c
-        ) or DEFAULT_HIGH_VALUE_CATEGORIES
+            or DEFAULT_HIGH_VALUE_CATEGORIES
+        )
         return cls(
             enabled=bool(section.get("enabled", False)),
-            skip_subdomain_enumeration=bool(
-                section.get("skip_subdomain_enumeration", True)
-            ),
+            skip_subdomain_enumeration=bool(section.get("skip_subdomain_enumeration", True)),
             skip_passive_checks=bool(section.get("skip_passive_checks", False)),
             high_value_categories=categories,
             low_hanging_fruit_path_keywords=tuple(
                 str(k).lower()
-                for k in lhf.get(
-                    "path_keywords", cls().low_hanging_fruit_path_keywords
-                )
+                for k in lhf.get("path_keywords", cls().low_hanging_fruit_path_keywords)
             ),
-            low_hanging_fruit_min_severity=str(
-                lhf.get("min_severity", "medium")
-            ).lower(),
-            low_hanging_fruit_min_confidence=float(
-                lhf.get("min_confidence", 0.7)
-            ),
+            low_hanging_fruit_min_severity=str(lhf.get("min_severity", "medium")).lower(),
+            low_hanging_fruit_min_confidence=float(lhf.get("min_confidence", 0.7)),
             low_hanging_fruit_max_findings=int(lhf.get("max_findings", 50)),
-            deduplicate_against_history=bool(
-                section.get("deduplicate_against_history", True)
-            ),
+            deduplicate_against_history=bool(section.get("deduplicate_against_history", True)),
         )
 
     def is_high_value(self, category: str) -> bool:
@@ -234,8 +225,7 @@ class HuntBudget:
             return cls()
         return cls(
             max_duration_seconds=_coerce_optional_float(
-                payload.get("max_duration_seconds")
-                or payload.get("max_wall_clock_seconds")
+                payload.get("max_duration_seconds") or payload.get("max_wall_clock_seconds")
             ),
             max_requests=_coerce_optional_int(
                 payload.get("max_requests") or payload.get("max_http_requests")
@@ -245,9 +235,7 @@ class HuntBudget:
                 or payload.get("max_productive_findings")
                 or payload.get("stop_when_total_findings")
             ),
-            confidence_threshold=_coerce_optional_float(
-                payload.get("confidence_threshold")
-            ) or 0.7,
+            confidence_threshold=_coerce_optional_float(payload.get("confidence_threshold")) or 0.7,
             label=str(payload.get("label") or "default"),
             stop_when_high_confidence_count=_coerce_optional_int(
                 payload.get("stop_when_high_confidence_count")
@@ -260,10 +248,7 @@ class HuntBudget:
                 payload.get("high_confidence_threshold")
             )
             or 0.95,
-            max_concurrent_probes=_coerce_optional_int(
-                payload.get("max_concurrent_probes")
-            )
-            or 5,
+            max_concurrent_probes=_coerce_optional_int(payload.get("max_concurrent_probes")) or 5,
             countdown_visible=bool(payload.get("countdown_visible", True)),
         )
 
@@ -409,8 +394,7 @@ class HuntBudgetEnforcer:
             axes.append(BudgetAxis.FINDINGS)
         if (
             self._budget.stop_when_high_confidence_count is not None
-            and self._high_confidence_findings
-            >= self._budget.stop_when_high_confidence_count
+            and self._high_confidence_findings >= self._budget.stop_when_high_confidence_count
         ):
             # High-confidence short-circuit is folded into the FINDINGS
             # axis because the orchestrator polls for "exhausted axes",
@@ -456,9 +440,7 @@ class HuntBudgetEnforcer:
         """
         original = getattr(queue, "should_terminate_early", None)
         if not callable(original):
-            raise TypeError(
-                "queue does not expose a callable should_terminate_early()"
-            )
+            raise TypeError("queue does not expose a callable should_terminate_early()")
 
         enforcer = self
 

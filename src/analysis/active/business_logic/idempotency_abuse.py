@@ -23,11 +23,20 @@ logger = logging.getLogger(__name__)
 _IDEMPOTENCY_HEADER = "Idempotency-Key"
 _REPLAY_COUNT: int = 4
 
-_PATH_HINTS = {"/charge", "/payment", "/payment_intent", "/order", "/invoice", "/checkout", "/billing"}
+_PATH_HINTS = {
+    "/charge",
+    "/payment",
+    "/payment_intent",
+    "/order",
+    "/invoice",
+    "/checkout",
+    "/billing",
+}
 
 
 def _path_suffix(url: str) -> str:
     from urllib.parse import urlparse
+
     return urlparse(url).path.lower()
 
 

@@ -32,7 +32,9 @@ def _build_parallel_groups() -> list[tuple[str, tuple[str, ...]]]:
 
 PARALLEL_STAGE_GROUPS: list[tuple[str, tuple[str, ...]]] = _build_parallel_groups()
 
-_STAGE_GRAPH_DEP_MAP: dict[str, tuple[str, ...]] = {node.name: node.needs for node in STAGE_GRAPH.nodes}
+_STAGE_GRAPH_DEP_MAP: dict[str, tuple[str, ...]] = {
+    node.name: node.needs for node in STAGE_GRAPH.nodes
+}
 
 if TYPE_CHECKING:
     STAGE_DEPS: dict[str, tuple[str, ...]]
@@ -166,7 +168,9 @@ async def run_parallel_group(
                     orchestrator._stage_baseline(name),
                     status="running",
                     stage_status="running",
-                    stage_index=(STAGE_ORDER_INDEX.get(name, -1) + 1) if name in STAGE_ORDER_INDEX else 0,
+                    stage_index=(STAGE_ORDER_INDEX.get(name, -1) + 1)
+                    if name in STAGE_ORDER_INDEX
+                    else 0,
                     stage_total=len(STAGE_ORDER),
                     active_task_count=max(2, len(stages)),
                     event_trigger="stage_transition",

@@ -22,8 +22,8 @@ The module degrades gracefully when Playwright is not installed —
 in that case ``record()`` returns a no-op context manager and
 reports ``status="unavailable"`` in the result.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 import asyncio
 import contextlib

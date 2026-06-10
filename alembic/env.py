@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from src.core.models.pipeline_state import Base
+
     target_metadata = Base.metadata
 except Exception:
     target_metadata = None
@@ -38,15 +39,14 @@ def get_url() -> str:
             "Alembic must not silently default to SQLite for migrations."
         )
     if os.getenv("APP_ENV") == "production" and url and "sqlite" in url:
-        raise RuntimeError(
-            "DATABASE_URL is required in production; sqlite fallback is unsafe."
-        )
+        raise RuntimeError("DATABASE_URL is required in production; sqlite fallback is unsafe.")
     return url
 
 
 def verify_schema_versions() -> None:
     try:
         from sqlalchemy import text
+
         url = get_url()
         if url.startswith("postgresql+asyncpg://") or url.startswith("postgresql://"):
             import asyncio
@@ -56,7 +56,11 @@ def verify_schema_versions() -> None:
             async def _verify() -> None:
                 engine = create_async_engine(url)
                 async with engine.connect() as conn:
-                    result = await conn.execute(text("SELECT version_num FROM alembic_version ORDER BY version_num DESC LIMIT 1"))
+                    result = await conn.execute(
+                        text(
+                            "SELECT version_num FROM alembic_version ORDER BY version_num DESC LIMIT 1"
+                        )
+                    )
                     row = result.fetchone()
                     current = row[0] if row else None
                     logger.info("Current alembic_version: %s", current)
@@ -65,9 +69,14 @@ def verify_schema_versions() -> None:
             asyncio.run(_verify())
         else:
             from sqlalchemy import create_engine
+
             engine = create_engine(url)
             with engine.connect() as conn:
-                result = conn.execute(text("SELECT version_num FROM alembic_version ORDER BY version_num DESC LIMIT 1"))
+                result = conn.execute(
+                    text(
+                        "SELECT version_num FROM alembic_version ORDER BY version_num DESC LIMIT 1"
+                    )
+                )
                 row = result.fetchone()
                 current = row[0] if row else None
                 logger.info("Current alembic_version: %s", current)
