@@ -81,9 +81,7 @@ class CheckpointManager:
         """
         self._run_dir.mkdir(parents=True, exist_ok=True)
 
-    def _resolve_local_checkpoint_file(
-        self, version_id: VersionId
-    ) -> Path | None:
+    def _resolve_local_checkpoint_file(self, version_id: VersionId) -> Path | None:
         """Best-effort local file path for a given ``version_id``.
 
         Returns the local on-disk file when the store is a
@@ -188,7 +186,11 @@ class CheckpointManager:
                     _log_replication_failure(exc)
 
             self._state = state
-            local_marker = self.checkpoint_dir / state.pipeline_run_id / f"checkpoint_v{state.checkpoint_version}.json"
+            local_marker = (
+                self.checkpoint_dir
+                / state.pipeline_run_id
+                / f"checkpoint_v{state.checkpoint_version}.json"
+            )
             return local_marker
 
     def load(self) -> CheckpointState | None:
@@ -234,9 +236,7 @@ class CheckpointManager:
             logger.error("Failed to reconstruct checkpoint state: %s", exc)
             return None
 
-    def _load_from_version_id(
-        self, run_id: str, version_id: VersionId
-    ) -> CheckpointState | None:
+    def _load_from_version_id(self, run_id: str, version_id: VersionId) -> CheckpointState | None:
         try:
             data = self._store.read_version_by_id(run_id, version_id)
         except Exception as exc:

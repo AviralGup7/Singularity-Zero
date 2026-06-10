@@ -122,10 +122,7 @@ def _build_alias_bomb(mutation_key: str) -> dict[str, Any]:
     base_vars = dict(template["variables"])
     operation_name = template["operationName"]
     selection_set = base_query.split("{", 1)[1].rsplit("}", 1)[0].strip()
-    aliases = "".join(
-        f"alias{i}: {selection_set} "
-        for i in range(5)
-    )
+    aliases = "".join(f"alias{i}: {selection_set} " for i in range(5))
     bomb_query = f"mutation {operation_name}AliasBomb {{ {aliases}}}"
     return {
         "field": mutation_key,
@@ -146,10 +143,7 @@ def _build_fragment_duplication(mutation_key: str) -> dict[str, Any]:
     base_vars = dict(template["variables"])
     operation_name = template["operationName"]
     selection_set = base_query.split("{", 1)[1].rsplit("}", 1)[0].strip()
-    fragments = "".join(
-        f"fragment F{i} on Query {{ __typename }} "
-        for i in range(3)
-    )
+    fragments = "".join(f"fragment F{i} on Query {{ __typename }} " for i in range(3))
     dup_query = f"mutation {operation_name}FragmentDup {{ {fragments}{selection_set} }}"
     return {
         "field": mutation_key,

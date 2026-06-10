@@ -45,9 +45,7 @@ class Mode(Enum):
 class StateSchemaRegistry:
     """Registry of allowed state_delta keys and their types."""
 
-    def __init__(
-        self, *, mode: Mode = Mode.STRICT, validate_on_merge: bool = True
-    ) -> None:
+    def __init__(self, *, mode: Mode = Mode.STRICT, validate_on_merge: bool = True) -> None:
         self._schemas: dict[str, StateSchema] = {}
         self._mode = mode
         self.validate_on_merge = validate_on_merge

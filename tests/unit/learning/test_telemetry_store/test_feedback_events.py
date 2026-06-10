@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreFeedbackEvents:
     """Tests for feedback event operations."""
 

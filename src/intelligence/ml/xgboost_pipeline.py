@@ -113,9 +113,7 @@ class XGBoostSeverityPipeline:
             else:
                 weights = np.array(sample_weights, dtype=np.float32)
                 if len(weights) != len(labels):
-                    raise ValueError(
-                        "sample_weights length must match labels length"
-                    )
+                    raise ValueError("sample_weights length must match labels length")
 
             fit_kwargs: dict[str, Any] = {}
             try:

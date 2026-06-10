@@ -61,8 +61,7 @@ class RedisCheckpointStore(CheckpointStore):
         else:
             if redis is None:
                 raise ImportError(
-                    "redis is required for RedisCheckpointStore. "
-                    "Install with: pip install redis"
+                    "redis is required for RedisCheckpointStore. Install with: pip install redis"
                 )
             self._client = redis.from_url(
                 redis_url,
@@ -100,13 +99,8 @@ class RedisCheckpointStore(CheckpointStore):
     def _context_key(self, run_id: str, stage_name: str) -> str:
         return f"{self._prefix}:{run_id}:context:{_stage_safe_name(stage_name)}"
 
-    def _delta_key(
-        self, run_id: str, stage_name: str, sequence: int
-    ) -> str:
-        return (
-            f"{self._prefix}:{run_id}:delta:"
-            f"{_stage_safe_name(stage_name)}:{sequence:06d}"
-        )
+    def _delta_key(self, run_id: str, stage_name: str, sequence: int) -> str:
+        return f"{self._prefix}:{run_id}:delta:{_stage_safe_name(stage_name)}:{sequence:06d}"
 
     def _deltas_index_key(self, run_id: str, stage_name: str) -> str:
         return f"{self._prefix}:{run_id}:deltas:{_stage_safe_name(stage_name)}"
@@ -133,7 +127,9 @@ class RedisCheckpointStore(CheckpointStore):
             latest_id = self._client.get(self._latest_key(run_id))
             if latest_id is None:
                 return None
-            version_id = latest_id.decode("utf-8") if isinstance(latest_id, bytes) else str(latest_id)
+            version_id = (
+                latest_id.decode("utf-8") if isinstance(latest_id, bytes) else str(latest_id)
+            )
             version = _parse_version_id(version_id)
             body = self._client.get(self._version_key(run_id, version))
             if body is None:
@@ -151,9 +147,7 @@ class RedisCheckpointStore(CheckpointStore):
             run_id_match = run_id_key[len(self._prefix) + 1 : -len(":latest")]
             try:
                 version = _parse_version_id(
-                    latest_id.decode("utf-8")
-                    if isinstance(latest_id, bytes)
-                    else str(latest_id)
+                    latest_id.decode("utf-8") if isinstance(latest_id, bytes) else str(latest_id)
                 )
             except ValueError:
                 continue
@@ -166,9 +160,7 @@ class RedisCheckpointStore(CheckpointStore):
                 continue
         return None
 
-    def read_version_by_id(
-        self, run_id: str, version_id: VersionId
-    ) -> dict[str, Any] | None:
+    def read_version_by_id(self, run_id: str, version_id: VersionId) -> dict[str, Any] | None:
         version = _parse_version_id(version_id)
         body = self._client.get(self._version_key(run_id, version))
         if body is None:
@@ -204,9 +196,7 @@ class RedisCheckpointStore(CheckpointStore):
         self._client.set(self._context_key(run_id, stage_name), body)
         return f"context:{_stage_safe_name(stage_name)}"
 
-    def read_context_snapshot(
-        self, run_id: str, stage_name: str
-    ) -> dict[str, Any] | None:
+    def read_context_snapshot(self, run_id: str, stage_name: str) -> dict[str, Any] | None:
         body = self._client.get(self._context_key(run_id, stage_name))
         if body is None:
             return None
@@ -230,9 +220,7 @@ class RedisCheckpointStore(CheckpointStore):
         pipe.execute()
         return delta_id
 
-    def list_stage_deltas(
-        self, run_id: str, stage_name: str
-    ) -> list[dict[str, Any]]:
+    def list_stage_deltas(self, run_id: str, stage_name: str) -> list[dict[str, Any]]:
         ids = self._client.lrange(self._deltas_index_key(run_id, stage_name), 0, -1)
         results: list[dict[str, Any]] = []
         for member in ids:

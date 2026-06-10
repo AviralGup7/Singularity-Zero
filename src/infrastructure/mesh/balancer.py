@@ -174,9 +174,7 @@ class NeuralMeshBalancer:
                 metrics=node,
                 local_capabilities=remote_caps,
                 peer_region=str(node.get("region", "") or "") or None,
-                peer_bandwidth_mbps=(
-                    int(node.get("bandwidth_mbps", 0) or 0) or None
-                ),
+                peer_bandwidth_mbps=(int(node.get("bandwidth_mbps", 0) or 0) or None),
             )
 
         return self.select_best_worker(nodes, bids, local_region=local_region)

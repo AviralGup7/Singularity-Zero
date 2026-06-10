@@ -139,7 +139,9 @@ def fallback_triage(
             f"Confirmed reflection of vulnerability payload '{evidence}' directly in the HTTP response body."
         )
 
-    if any(err in resp_text.lower() for err in ["traceback", "stack trace", "sql syntax", "exception"]):
+    if any(
+        err in resp_text.lower() for err in ["traceback", "stack trace", "sql syntax", "exception"]
+    ):
         is_tp = True
         confidence = 0.98
         reasons.append(

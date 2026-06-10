@@ -1,10 +1,8 @@
 import hashlib
-import os
 import time
 from typing import Any
 
 from src.pipeline.unified_cache import UnifiedCache
-
 
 _TTL_SECONDS = 24 * 3600
 
@@ -42,7 +40,9 @@ class ScreenshotBaselineStore:
         key = self._get_blob_key(image_hash)
         self.cache.set(key, image_base64)
 
-    def _store_transactional(self, record_key: str, record: dict[str, Any], blob_key: str, blob_data: str) -> None:
+    def _store_transactional(
+        self, record_key: str, record: dict[str, Any], blob_key: str, blob_data: str
+    ) -> None:
         self.cache.set(blob_key, blob_data)
         if self.cache.get(blob_key) is None:
             raise RuntimeError("Baseline blob write verification failed")
@@ -74,7 +74,9 @@ class ScreenshotBaselineStore:
         }
         self._store_transactional(key, record, blob_key, image_base64)
 
-    def should_skip_capture(self, target: str, url: str, viewport: str, current_dom_hash: str) -> bool:
+    def should_skip_capture(
+        self, target: str, url: str, viewport: str, current_dom_hash: str
+    ) -> bool:
         baseline = self.get_baseline(target, url, viewport)
         if not baseline:
             return False

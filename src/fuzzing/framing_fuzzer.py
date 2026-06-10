@@ -40,7 +40,10 @@ logger = logging.getLogger(__name__)
 # because httpx enforces well-formed framing.
 # ---------------------------------------------------------------------------
 
-async def _open_raw(url: str, verify_tls: bool) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+
+async def _open_raw(
+    url: str, verify_tls: bool
+) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     parsed = urlparse(url)
     host = parsed.hostname or "localhost"
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
@@ -51,7 +54,9 @@ async def _open_raw(url: str, verify_tls: bool) -> tuple[asyncio.StreamReader, a
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
     if ssl_ctx is not None:
-        return await asyncio.open_connection(host=host, port=port, ssl=ssl_ctx, server_hostname=host)
+        return await asyncio.open_connection(
+            host=host, port=port, ssl=ssl_ctx, server_hostname=host
+        )
     return await asyncio.open_connection(host=host, port=port)
 
 
@@ -72,7 +77,7 @@ async def _read_http_response(reader: asyncio.StreamReader, timeout: float = 8.0
     while True:
         try:
             line = await asyncio.wait_for(reader.readline(), timeout=timeout)
-        except Exception:
+        except Exception as exc:
             logger.debug("Header read failed: %s", exc, exc_info=True)
             break
         if line in (b"\r\n", b"\n", b""):
@@ -91,7 +96,9 @@ async def _read_http_response(reader: asyncio.StreamReader, timeout: float = 8.0
     if in_body:
         if content_length is not None:
             try:
-                body_chunks.append(await asyncio.wait_for(reader.readexactly(content_length), timeout=timeout))
+                body_chunks.append(
+                    await asyncio.wait_for(reader.readexactly(content_length), timeout=timeout)
+                )
             except Exception as exc:
                 body_chunks.append(f"truncated:{exc}".encode())
         else:
@@ -111,16 +118,10 @@ async def _read_http_response(reader: asyncio.StreamReader, timeout: float = 8.0
 # CL/TE desync fuzz cases
 # ---------------------------------------------------------------------------
 
+
 def _cl_te_payloads() -> list[dict[str, Any]]:
     """CL/TE: front reads Content-Length, back reads Transfer-Encoding."""
-    smuggled = (
-        "0\r\n"
-        "\r\n"
-        "GET /admin HTTP/1.1\r\n"
-        "Host: localhost\r\n"
-        "X-Smuggled: cl-te\r\n"
-        "\r\n"
-    )
+    smuggled = "0\r\n\r\nGET /admin HTTP/1.1\r\nHost: localhost\r\nX-Smuggled: cl-te\r\n\r\n"
     return [
         {
             "label": "cl_te_chunked_smuggle",
@@ -191,6 +192,7 @@ def _cl_te_payloads() -> list[dict[str, Any]]:
 # Multipart boundary fuzz cases
 # ---------------------------------------------------------------------------
 
+
 def _multipart_payloads() -> list[dict[str, Any]]:
     boundary = "----WebKitFormBoundary" + secrets.token_hex(8)
     return [
@@ -199,7 +201,7 @@ def _multipart_payloads() -> list[dict[str, Any]]:
             "boundary": boundary,
             "body": (
                 f"--{boundary}\r\n"
-                "Content-Disposition: form-data; name=\"file\"; filename=\"a.txt\"\r\n"
+                'Content-Disposition: form-data; name="file"; filename="a.txt"\r\n'
                 "Content-Type: text/plain\r\n"
                 "\r\n"
                 "data-without-closing-boundary"
@@ -210,12 +212,12 @@ def _multipart_payloads() -> list[dict[str, Any]]:
             "boundary": boundary,
             "body": (
                 f"--{boundary}\r\n"
-                "Content-Disposition: form-data; name=\"a\"\r\n"
+                'Content-Disposition: form-data; name="a"\r\n'
                 "\r\n"
                 "1\r\n"
                 f"--{boundary}\r\n"
                 f"--{boundary}\r\n"
-                "Content-Disposition: form-data; name=\"b\"\r\n"
+                'Content-Disposition: form-data; name="b"\r\n'
                 "\r\n"
                 "2\r\n"
                 f"--{boundary}--\r\n"
@@ -224,16 +226,15 @@ def _multipart_payloads() -> list[dict[str, Any]]:
         {
             "label": "oversized_boundary",
             "boundary": "A" * 4096,
-            "body": "--" + ("A" * 4096) + "\r\nContent-Disposition: form-data; name=\"x\"\r\n\r\n1\r\n",
+            "body": "--"
+            + ("A" * 4096)
+            + '\r\nContent-Disposition: form-data; name="x"\r\n\r\n1\r\n',
         },
         {
             "label": "truncated_crlf",
             "boundary": boundary,
             "body": (
-                f"--{boundary}\r\n"
-                "Content-Disposition: form-data; name=\"x\"\r\n"
-                "\r"
-                "incomplete-crlf"
+                f'--{boundary}\r\nContent-Disposition: form-data; name="x"\r\n\rincomplete-crlf'
             ),
         },
     ]
@@ -242,6 +243,7 @@ def _multipart_payloads() -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Content-Range fuzz cases (target hosts that advertise Accept-Ranges)
 # ---------------------------------------------------------------------------
+
 
 def _content_range_payloads() -> list[dict[str, Any]]:
     return [
@@ -258,6 +260,7 @@ def _content_range_payloads() -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Chunked state machine fuzz cases
 # ---------------------------------------------------------------------------
+
 
 def _chunked_payloads() -> list[dict[str, Any]]:
     return [
@@ -276,6 +279,7 @@ def _chunked_payloads() -> list[dict[str, Any]]:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def _build_continuation_frame(stream_id: int, header_block: bytes) -> bytes:
     length = len(header_block) & 0x00FFFFFF
     header = struct.pack(">I", length)[1:]
@@ -287,7 +291,9 @@ def _build_continuation_frame(stream_id: int, header_block: bytes) -> bytes:
 
 def _h2_continuation_flood_payloads() -> list[dict[str, Any]]:
     p1_header_block = (":method GET\r\n:path /\r\n:scheme http\r\n" * 4).encode("latin-1")
-    p2_header_block = (":authority target\r\n:method GET\r\n:path /admin\r\n\r\n:method GET\r\n".encode("latin-1"))
+    p2_header_block = (
+        ":authority target\r\n:method GET\r\n:path /admin\r\n\r\n:method GET\r\n".encode("latin-1")
+    )
     return [
         {
             "label": "h2_continuation_flood_cve_2023_44487",
@@ -317,10 +323,12 @@ async def _fuzz_h2_continuation_flood(
         ssl_ctx = ssl.create_default_context()
     try:
         if ssl_ctx is not None:
-            reader, writer = await asyncio.open_connection(host=host, port=port, ssl=ssl_ctx, server_hostname=host)
+            reader, writer = await asyncio.open_connection(
+                host=host, port=port, ssl=ssl_ctx, server_hostname=host
+            )
         else:
             reader, writer = await asyncio.open_connection(host=host, port=port)
-    except Exception:
+    except Exception as exc:
         logger.debug("H2 continuation connection failed: %s", exc, exc_info=True)
         return findings
     try:
@@ -343,28 +351,42 @@ async def _fuzz_h2_continuation_flood(
             logger.warning("Operation failed in framing_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
     status_code = resp.get("status_code", 0)
     body = resp.get("body", b"")
-    body_text = body[:400].decode("latin-1", errors="replace") if isinstance(body, (bytes, bytearray)) else ""
+    body_text = (
+        body[:400].decode("latin-1", errors="replace")
+        if isinstance(body, (bytes, bytearray))
+        else ""
+    )
     evidence = {
         "status_code": status_code,
         "body_preview": body_text,
         "frames_sent": 120,
         "reason": "HTTP/2 CONTINUATION flood without END_HEADERS",
     }
-    if status_code >= 500 or "memory" in body_text.lower() or "overflow" in body_text.lower() or "continuation" in body_text.lower():
+    if (
+        status_code >= 500
+        or "memory" in body_text.lower()
+        or "overflow" in body_text.lower()
+        or "continuation" in body_text.lower()
+    ):
         findings.append(
             {
                 "url": url,
                 "endpoint_key": endpoint_key,
                 "endpoint_base_key": base_endpoint,
                 "endpoint_type": endpoint_type,
-                "issues": ["h2_continuation_flood_memory_exhaustion", "h2_cve_2023_44487_continuation_dos"],
+                "issues": [
+                    "h2_continuation_flood_memory_exhaustion",
+                    "h2_cve_2023_44487_continuation_dos",
+                ],
                 "probe_type": "framing_fuzzer",
                 "severity": "critical",
                 "confidence": 0.85,
                 "evidence": evidence,
             }
         )
-    elif status_code in (200, 201) and ("continuation" in body_text.lower() or "h2" in body_text.lower()):
+    elif status_code in (200, 201) and (
+        "continuation" in body_text.lower() or "h2" in body_text.lower()
+    ):
         findings.append(
             {
                 "url": url,
@@ -404,19 +426,41 @@ async def run_framing_fuzzing_campaign(
     endpoint_type = classify_endpoint(url)
 
     findings.extend(
-        await _fuzz_cl_te(url, host, endpoint_key, base_endpoint, endpoint_type, timeout_seconds=timeout_seconds)
+        await _fuzz_cl_te(
+            url, host, endpoint_key, base_endpoint, endpoint_type, timeout_seconds=timeout_seconds
+        )
     )
     findings.extend(
-        await _fuzz_multipart(url, host, endpoint_key, base_endpoint, endpoint_type, client=client, timeout_seconds=timeout_seconds)
+        await _fuzz_multipart(
+            url,
+            host,
+            endpoint_key,
+            base_endpoint,
+            endpoint_type,
+            client=client,
+            timeout_seconds=timeout_seconds,
+        )
     )
     findings.extend(
-        await _fuzz_content_range(url, host, endpoint_key, base_endpoint, endpoint_type, client=client, timeout_seconds=timeout_seconds)
+        await _fuzz_content_range(
+            url,
+            host,
+            endpoint_key,
+            base_endpoint,
+            endpoint_type,
+            client=client,
+            timeout_seconds=timeout_seconds,
+        )
     )
     findings.extend(
-        await _fuzz_chunked(url, host, endpoint_key, base_endpoint, endpoint_type, timeout_seconds=timeout_seconds)
+        await _fuzz_chunked(
+            url, host, endpoint_key, base_endpoint, endpoint_type, timeout_seconds=timeout_seconds
+        )
     )
     findings.extend(
-        await _fuzz_h2_continuation_flood(url, host, endpoint_key, base_endpoint, endpoint_type, timeout_seconds=timeout_seconds)
+        await _fuzz_h2_continuation_flood(
+            url, host, endpoint_key, base_endpoint, endpoint_type, timeout_seconds=timeout_seconds
+        )
     )
     return findings
 
@@ -424,6 +468,7 @@ async def run_framing_fuzzing_campaign(
 # ---------------------------------------------------------------------------
 # CL/TE
 # ---------------------------------------------------------------------------
+
 
 async def _fuzz_cl_te(
     url: str,
@@ -446,7 +491,7 @@ async def _fuzz_cl_te(
         raw = ("\r\n".join(rendered) + "\r\n").encode("latin-1") + body
         try:
             reader, writer = await _open_raw(url, verify_tls=True)
-        except Exception:
+        except Exception as exc:
             logger.debug("CL/TE raw open failed: %s", exc, exc_info=True)
             continue
         try:
@@ -507,6 +552,7 @@ async def _fuzz_cl_te(
 # Multipart boundary
 # ---------------------------------------------------------------------------
 
+
 async def _fuzz_multipart(
     url: str,
     host: str,
@@ -526,7 +572,7 @@ async def _fuzz_multipart(
     try:
         baseline = await client.get(url)
         baseline_len = len(baseline.text) if baseline else 0
-    except Exception:
+    except Exception as exc:
         logger.debug("Multipart baseline request failed: %s", exc, exc_info=True)
         baseline_len = 0
     for case in _multipart_payloads():
@@ -541,7 +587,7 @@ async def _fuzz_multipart(
                     "Content-Length": str(len(body)),
                 },
             )
-        except Exception:
+        except Exception as exc:
             logger.debug("Multipart post failed: %s", exc, exc_info=True)
             continue
         if resp is None:
@@ -592,6 +638,7 @@ async def _fuzz_multipart(
 # Content-Range
 # ---------------------------------------------------------------------------
 
+
 async def _fuzz_content_range(
     url: str,
     host: str,
@@ -613,17 +660,19 @@ async def _fuzz_content_range(
         # file/object resources.
         head = await client.head(url)
         accepts_ranges = (head.headers.get("accept-ranges") or "").lower() != "none"
-    except Exception:
+    except Exception as exc:
         logger.debug("Content-Range HEAD request failed: %s", exc, exc_info=True)
         accepts_ranges = False
-    if not accepts_ranges and not any(url.endswith(ext) for ext in (".zip", ".pdf", ".mp4", ".iso", ".bin")):
+    if not accepts_ranges and not any(
+        url.endswith(ext) for ext in (".zip", ".pdf", ".mp4", ".iso", ".bin")
+    ):
         if own:
             await client.aclose()
         return findings
     for case in _content_range_payloads():
         try:
             resp = await client.get(url, headers={"Range": case["range"]})
-        except Exception:
+        except Exception as exc:
             logger.debug("Content-Range GET failed: %s", exc, exc_info=True)
             continue
         if resp is None:
@@ -678,6 +727,7 @@ async def _fuzz_content_range(
 # Chunked encoding state machine
 # ---------------------------------------------------------------------------
 
+
 async def _fuzz_chunked(
     url: str,
     host: str,
@@ -691,7 +741,7 @@ async def _fuzz_chunked(
     for case in _chunked_payloads():
         try:
             reader, writer = await _open_raw(url, verify_tls=True)
-        except Exception:
+        except Exception as exc:
             logger.debug("Chunked raw open failed: %s", exc, exc_info=True)
             continue
         path = urlparse(url).path or "/"

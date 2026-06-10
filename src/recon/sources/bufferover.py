@@ -54,9 +54,7 @@ async def query_bufferover(
 
     headers = {"User-Agent": "cyber-pipeline/1.0"}
     subdomains: set[str] = set()
-    pattern = re.compile(
-        r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE
-    )
+    pattern = re.compile(r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE)
 
     try:
         async with httpx.AsyncClient(
@@ -86,9 +84,7 @@ async def query_bufferover(
     return subdomains
 
 
-def _extract_subdomains(
-    data: Any, pattern: re.Pattern[str]
-) -> set[str]:
+def _extract_subdomains(data: Any, pattern: re.Pattern[str]) -> set[str]:
     """Parse BufferOver's ``Results`` array of comma-joined strings."""
     found: set[str] = set()
     results = data.get("Results", []) if isinstance(data, dict) else []

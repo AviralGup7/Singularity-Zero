@@ -10,22 +10,17 @@ _DEFAULT_MODEL_PATH = ".ai/performance_model.json"
 _BUILTIN_DEFAULTS = {
     "version": "2.0",
     "description": "Built-in conservative fallback model",
-    "tool_profiles": {
-        "default": {
-            "base_ram_mb": 128,
-            "notes": "fallback for unlisted tools"
-        }
-    },
+    "tool_profiles": {"default": {"base_ram_mb": 128, "notes": "fallback for unlisted tools"}},
     "concurrent_tool_memory_multiplier": 1.4,
     "oom_guard": {
         "enabled": True,
         "reserve_ram_mb": 2048,
         "kill_ram_mb": 0.90,
         "action_on_oom": "skip_stage",
-        "check_interval_seconds": 30
+        "check_interval_seconds": 30,
     },
     "stage_baselines": {},
-    "stage_tools": {}
+    "stage_tools": {},
 }
 
 
@@ -34,8 +29,13 @@ class ResourceGuard:
         self.model = self._load_model(performance_model_path)
         self.oom_guard = self.model.get("oom_guard", _BUILTIN_DEFAULTS["oom_guard"])
         self.tool_profiles = self.model.get("tool_profiles", _BUILTIN_DEFAULTS["tool_profiles"])
-        self.multiplier = self.model.get("concurrent_tool_memory_multiplier", _BUILTIN_DEFAULTS["concurrent_tool_memory_multiplier"])
-        self.stage_baselines = self.model.get("stage_baselines", _BUILTIN_DEFAULTS["stage_baselines"])
+        self.multiplier = self.model.get(
+            "concurrent_tool_memory_multiplier",
+            _BUILTIN_DEFAULTS["concurrent_tool_memory_multiplier"],
+        )
+        self.stage_baselines = self.model.get(
+            "stage_baselines", _BUILTIN_DEFAULTS["stage_baselines"]
+        )
         self.stage_tools = self.model.get("stage_tools", _BUILTIN_DEFAULTS["stage_tools"])
 
     def _load_model(self, path: str) -> dict:
@@ -46,7 +46,10 @@ class ResourceGuard:
             candidate = path
 
         if not os.path.isfile(candidate):
-            logger.warning("ResourceGuard: performance_model.json not found at %s; using built-in defaults.", candidate)
+            logger.warning(
+                "ResourceGuard: performance_model.json not found at %s; using built-in defaults.",
+                candidate,
+            )
             return json.loads(json.dumps(_BUILTIN_DEFAULTS))
 
         try:
@@ -56,11 +59,15 @@ class ResourceGuard:
                 raise ValueError("performance_model.json root must be an object")
             return data
         except (json.JSONDecodeError, OSError, ValueError) as exc:
-            logger.warning("ResourceGuard: failed to load %s (%s); using built-in defaults.", candidate, exc)
+            logger.warning(
+                "ResourceGuard: failed to load %s (%s); using built-in defaults.", candidate, exc
+            )
             return json.loads(json.dumps(_BUILTIN_DEFAULTS))
 
     def _get_profile(self, tool_name: str) -> dict:
-        return self.tool_profiles.get(tool_name, self.tool_profiles.get("default", {"base_ram_mb": 128}))
+        return self.tool_profiles.get(
+            tool_name, self.tool_profiles.get("default", {"base_ram_mb": 128})
+        )
 
     def _tool_ram(self, tool_name: str, target_count: int, url_count: int) -> int:
         profile = self._get_profile(tool_name)
@@ -87,7 +94,13 @@ class ResourceGuard:
 
         return max(0, base)
 
-    def estimate_stage_ram(self, stage_name: str, target_count: int, url_count: int, active_tools: list[str] | None = None) -> int:
+    def estimate_stage_ram(
+        self,
+        stage_name: str,
+        target_count: int,
+        url_count: int,
+        active_tools: list[str] | None = None,
+    ) -> int:
         tools = active_tools if active_tools else self.stage_tools.get(stage_name, ["default"])
         total = sum(self._tool_ram(t, target_count, url_count) for t in tools)
         total = int(total * self.multiplier)
@@ -97,11 +110,14 @@ class ResourceGuard:
     def _get_available_ram_mb(self) -> int:
         try:
             import psutil
+
             return int(psutil.virtual_memory().available / (1024 * 1024))
         except ImportError as exc:
             logger.warning("Operation failed in resource_guard.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as exc:
-            logger.debug("ResourceGuard: psutil check failed (%s); falling back to disk usage.", exc)
+            logger.debug(
+                "ResourceGuard: psutil check failed (%s); falling back to disk usage.", exc
+            )
 
         try:
             usage = shutil.disk_usage("/")
@@ -114,7 +130,9 @@ class ResourceGuard:
         available = self._get_available_ram_mb()
         return available >= estimated_ram_mb
 
-    def should_skip_stage(self, stage_name: str, target_count: int, url_count: int) -> tuple[bool, str | None]:
+    def should_skip_stage(
+        self, stage_name: str, target_count: int, url_count: int
+    ) -> tuple[bool, str | None]:
         if not self.oom_guard.get("enabled", True):
             return False, None
 
@@ -130,6 +148,7 @@ class ResourceGuard:
         kill_percent = self.oom_guard.get("kill_ram_mb", 0.90)
         try:
             import psutil
+
             mem = psutil.virtual_memory()
             if mem.percent >= (kill_percent * 100):
                 raise RuntimeError(
@@ -146,9 +165,12 @@ class ResourceGuard:
         kill_percent = self.oom_guard.get("kill_ram_mb", 0.90)
         try:
             import psutil
+
             mem = psutil.virtual_memory()
             if mem.percent >= (kill_percent * 100):
-                return f"memory usage {mem.percent:.1f}% exceeds threshold {kill_percent * 100:.1f}%"
+                return (
+                    f"memory usage {mem.percent:.1f}% exceeds threshold {kill_percent * 100:.1f}%"
+                )
         except ImportError as exc:
             logger.warning("Operation failed in resource_guard.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as exc:

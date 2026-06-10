@@ -217,6 +217,7 @@ GRAPHQL_IDOR_ARGUMENTS = [
     "invoice_id",
 ]
 
+
 # GET-based query templates. We URL-encode the query string and embed it
 # in the path so we can confirm whether the server executes a GET GraphQL
 # request without a CSRF token or non-empty Content-Type.
@@ -559,9 +560,7 @@ def graphql_active_probe(
                         "Cache-Control": "no-cache",
                         "X-GraphQL-Probe": f"directive_{directive_name}",
                     },
-                    body=json.dumps(
-                        {"query": directive_query, "variables": {"cond": cond_value}}
-                    ),
+                    body=json.dumps({"query": directive_query, "variables": {"cond": cond_value}}),
                 )
                 if not dresp:
                     continue
@@ -641,7 +640,7 @@ def graphql_active_probe(
             probe_id = "1"
             probe_query = (
                 f"mutation ProbeIdor {{ "
-                f"delete{field.capitalize()}(id: \"{probe_id}\") {{ __typename }} "
+                f'delete{field.capitalize()}(id: "{probe_id}") {{ __typename }} '
                 f"}}"
             )
             idor_resp = response_cache.request(
@@ -664,13 +663,7 @@ def graphql_active_probe(
             idata = iparsed.get("data") if isinstance(iparsed, dict) else None
             ierrors = iparsed.get("errors") if isinstance(iparsed, dict) else None
             # Field-resolved successfully without an auth/forbidden error.
-            if (
-                isinstance(idata, dict)
-                and idata
-                and not ierrors
-                and istatus
-                and istatus < 400
-            ):
+            if isinstance(idata, dict) and idata and not ierrors and istatus and istatus < 400:
                 signals.append(f"idor_arg:{field}")
                 idor_result = {
                     "status_code": istatus,
@@ -682,7 +675,9 @@ def graphql_active_probe(
             # Surface "argument not defined" patterns -> tells us the
             # mutation root is reachable but takes different arguments.
             if isinstance(ierrors, list) and ierrors:
-                msgs = " ".join(str(e.get("message", "")).lower() for e in ierrors if isinstance(e, dict))
+                msgs = " ".join(
+                    str(e.get("message", "")).lower() for e in ierrors if isinstance(e, dict)
+                )
                 if "cannot query field" in msgs or "unknown field" in msgs:
                     continue
                 if "argument" in msgs and "required" in msgs:

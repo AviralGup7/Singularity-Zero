@@ -69,7 +69,11 @@ def _fetch_key_metadata(client: Any, keys: list[str], remaining: int) -> list[Ca
                 size: int | None = None
                 with contextlib.suppress(Exception):
                     size = client.memory_usage(k)
-                result.append(CacheKeyInfo(key=k, ttl=None if ttl == -1 else int(ttl), size=size, type=key_type))
+                result.append(
+                    CacheKeyInfo(
+                        key=k, ttl=None if ttl == -1 else int(ttl), size=size, type=key_type
+                    )
+                )
             except Exception:
                 continue
         return result[:remaining]
@@ -84,7 +88,9 @@ def _fetch_key_metadata(client: Any, keys: list[str], remaining: int) -> list[Ca
         size = responses[i * 3 + 2] if i * 3 + 2 < len(responses) else None
         if isinstance(size, Exception):
             size = None
-        result.append(CacheKeyInfo(key=k, ttl=None if ttl == -1 else int(ttl), size=size, type=key_type))
+        result.append(
+            CacheKeyInfo(key=k, ttl=None if ttl == -1 else int(ttl), size=size, type=key_type)
+        )
     return result[:remaining]
 
 

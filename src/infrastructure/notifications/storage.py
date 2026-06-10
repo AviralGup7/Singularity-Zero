@@ -16,7 +16,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from src.infrastructure.db.sqlite_utils import retrying_connect, safe_close
+from src.infrastructure.db.sqlite_utils import safe_close
 
 logger = logging.getLogger(__name__)
 

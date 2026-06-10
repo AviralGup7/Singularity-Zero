@@ -74,8 +74,12 @@ class TestBootstrapResourceValidation(unittest.TestCase):
         # We temporarily clear the IGNORE env var if it's set in this test run environment
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(ValueError) as context:
-                with patch("src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap.pipeline_flow_manifest"):
-                    with patch("src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap.build_tool_status"):
+                with patch(
+                    "src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap.pipeline_flow_manifest"
+                ):
+                    with patch(
+                        "src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap.build_tool_status"
+                    ):
                         bootstrap_pipeline(args)
 
             self.assertIn("Insufficient host memory", str(context.exception))
@@ -100,7 +104,11 @@ class TestBootstrapResourceValidation(unittest.TestCase):
 
         # Run with IGNORE_CAPABILITY_RESOURCE_BUDGET=1, should succeed without raising ValueError
         with patch.dict(os.environ, {"IGNORE_CAPABILITY_RESOURCE_BUDGET": "1"}):
-            with patch("src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap.pipeline_flow_manifest"):
-                with patch("src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap.build_tool_status"):
+            with patch(
+                "src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap.pipeline_flow_manifest"
+            ):
+                with patch(
+                    "src.pipeline.services.pipeline_orchestrator._orchestrator.bootstrap.build_tool_status"
+                ):
                     res_config, _, _, _ = bootstrap_pipeline(args)
                     self.assertEqual(res_config, config)

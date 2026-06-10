@@ -17,7 +17,9 @@ import requests
 logger = logging.getLogger(__name__)
 
 COOKIE_HEADER_PATTERN = re.compile(r"([^;,\s]+)=([^;,\s]*)(?:\s*;\s*|\s*$|(?=,))", re.IGNORECASE)
-SET_COOKIE_PATTERN = re.compile(r"Set-Cookie:\s*([^=]+)=([^;]*)(?:;[^:]*)*(?:\r?\n|$)", re.IGNORECASE)
+SET_COOKIE_PATTERN = re.compile(
+    r"Set-Cookie:\s*([^=]+)=([^;]*)(?:;[^:]*)*(?:\r?\n|$)", re.IGNORECASE
+)
 
 
 def _default_expiry() -> datetime | None:
@@ -72,10 +74,7 @@ class CredentialVault:
             return []
         captured: list[CapturedCredential] = []
         scope_url = (
-            response.get("final_url")
-            or response.get("url")
-            or response.get("requested_url")
-            or ""
+            response.get("final_url") or response.get("url") or response.get("requested_url") or ""
         )
         scope_netloc = _safe_netloc(scope_url) or ""
         self.add_scan_host(scope_url)
@@ -168,7 +167,9 @@ class CredentialVault:
         self._reconcile_session_map()
         return captured
 
-    def rotate_token(self, credential_id: str, refresh_url: str, refresh_token: str) -> CapturedCredential | None:
+    def rotate_token(
+        self, credential_id: str, refresh_url: str, refresh_token: str
+    ) -> CapturedCredential | None:
         with self._lock:
             credential = self._credentials.get(credential_id)
         if not credential:
@@ -178,13 +179,19 @@ class CredentialVault:
             payload["client_id"] = credential.name
             payload["client_secret"] = ""
         try:
-            resp = requests.post(refresh_url, data=payload, headers={"Accept": "application/json"}, timeout=10)
+            resp = requests.post(
+                refresh_url, data=payload, headers={"Accept": "application/json"}, timeout=10
+            )
         except (requests.TooManyRedirects, requests.RequestException):
             return credential
         new_access_token = _extract_access_token(resp)
         if not new_access_token:
             return credential
-        updated = dataclasses.replace(credential, value=new_access_token, expires_at=_parse_expires_at(resp) or _default_expiry())
+        updated = dataclasses.replace(
+            credential,
+            value=new_access_token,
+            expires_at=_parse_expires_at(resp) or _default_expiry(),
+        )
         with self._lock:
             self._credentials[credential_id] = updated
         self._reconcile_session_map()
@@ -205,14 +212,20 @@ class CredentialVault:
             if not scope_netloc or scope_netloc != target_netloc:
                 continue
             score = len(scope_netloc)
-            if cred.scope_url and target_path.startswith(cred.scope_url.split(scope_netloc, 1)[1] or "/"):
+            if cred.scope_url and target_path.startswith(
+                cred.scope_url.split(scope_netloc, 1)[1] or "/"
+            ):
                 score += 1_000.0
             if score > best_score:
                 best = cred
                 best_score = score
         if not best:
             return None
-        best_expires = best.expires_at.replace(tzinfo=UTC) if best.expires_at and best.expires_at.tzinfo is None else best.expires_at
+        best_expires = (
+            best.expires_at.replace(tzinfo=UTC)
+            if best.expires_at and best.expires_at.tzinfo is None
+            else best.expires_at
+        )
         if best_expires and best_expires < _now():
             return None
         return best
@@ -226,7 +239,9 @@ class CredentialVault:
         headers = request["headers"]
         if credential.type == "cookie":
             existing = headers.get("Cookie", "")
-            parts = [part.strip() for part in existing.split(";") if part.strip()] if existing else []
+            parts = (
+                [part.strip() for part in existing.split(";") if part.strip()] if existing else []
+            )
             if credential.value:
                 parts.append(f"{credential.name}={credential.value}")
             headers["Cookie"] = "; ".join(parts)
@@ -246,7 +261,14 @@ class CredentialVault:
         }
         return self.capture_from_response(response)
 
-    def record_saml_assertion(self, saml_response_b64: str, *, source_url: str, request_body: str = "", response_body: str = "") -> CapturedCredential | None:
+    def record_saml_assertion(
+        self,
+        saml_response_b64: str,
+        *,
+        source_url: str,
+        request_body: str = "",
+        response_body: str = "",
+    ) -> CapturedCredential | None:
         encoded = saml_response_b64 if isinstance(saml_response_b64, str) else ""
         try:
             base64.b64decode(encoded).decode("utf-8", errors="replace")
@@ -267,9 +289,24 @@ class CredentialVault:
         with self._lock:
             return [dataclasses.replace(credential) for credential in self._credentials.values()]
 
-    def _store_credential(self, name: str, cred_type: str, value: str, scope_url: str, scope_netloc: str, expires_at: datetime | None) -> CapturedCredential:
+    def _store_credential(
+        self,
+        name: str,
+        cred_type: str,
+        value: str,
+        scope_url: str,
+        scope_netloc: str,
+        expires_at: datetime | None,
+    ) -> CapturedCredential:
         credential_id = f"{cred_type}:{name}:{uuid.uuid4().hex[:8]}"
-        credential = CapturedCredential(credential_id=credential_id, name=name, type=cred_type, value=value, scope_url=scope_url, expires_at=expires_at)
+        credential = CapturedCredential(
+            credential_id=credential_id,
+            name=name,
+            type=cred_type,
+            value=value,
+            scope_url=scope_url,
+            expires_at=expires_at,
+        )
         with self._lock:
             self._credentials[credential_id] = credential
         return credential
@@ -287,9 +324,14 @@ class CredentialVault:
         lower_name = credential.name.lower()
         lower_value = credential.value.lower()
         lower_type = credential.type.lower()
-        if any(keyword in lower_name or keyword in lower_value for keyword in {"admin", "administrator"}):
+        if any(
+            keyword in lower_name or keyword in lower_value
+            for keyword in {"admin", "administrator"}
+        ):
             return "admin"
-        if any(keyword in lower_name or keyword in lower_value for keyword in {"editor", "editorial"}):
+        if any(
+            keyword in lower_name or keyword in lower_value for keyword in {"editor", "editorial"}
+        ):
             return "editor"
         if lower_type == "samlresponse":
             return "user"
@@ -299,7 +341,9 @@ class CredentialVault:
             return "user"
         return None
 
-    def _record_saml_assertion(self, credential: CapturedCredential, response: dict[str, Any]) -> None:
+    def _record_saml_assertion(
+        self, credential: CapturedCredential, response: dict[str, Any]
+    ) -> None:
         self._saml_assertion_history.append(
             {
                 "credential_id": credential.credential_id,
@@ -330,7 +374,17 @@ def _extract_access_token(response: requests.Response) -> str | None:
     try:
         payload = response.json()
         if isinstance(payload, dict):
-            return str((payload.get("access_token") or payload.get("accessToken") or payload.get("token")) or "").strip() or None
+            return (
+                str(
+                    (
+                        payload.get("access_token")
+                        or payload.get("accessToken")
+                        or payload.get("token")
+                    )
+                    or ""
+                ).strip()
+                or None
+            )
     except Exception:  # noqa: S110
         pass
     return None

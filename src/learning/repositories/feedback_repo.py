@@ -18,12 +18,30 @@ class FeedbackRepo(BaseRepo):
     def insert_feedback_event(self, row: dict[str, Any]) -> None:
         """Insert a feedback event."""
         expected_fields = [
-            "event_id", "run_id", "timestamp", "target_host", "target_endpoint",
-            "finding_category", "finding_severity", "finding_confidence",
-            "finding_decision", "plugin_name", "parameter_name", "parameter_type",
-            "was_validated", "was_false_positive", "validation_method",
-            "response_delta_score", "endpoint_type", "tech_stack", "scan_mode",
-            "feedback_weight", "override_source", "reviewer_id", "override_reason", "asset_type"
+            "event_id",
+            "run_id",
+            "timestamp",
+            "target_host",
+            "target_endpoint",
+            "finding_category",
+            "finding_severity",
+            "finding_confidence",
+            "finding_decision",
+            "plugin_name",
+            "parameter_name",
+            "parameter_type",
+            "was_validated",
+            "was_false_positive",
+            "validation_method",
+            "response_delta_score",
+            "endpoint_type",
+            "tech_stack",
+            "scan_mode",
+            "feedback_weight",
+            "override_source",
+            "reviewer_id",
+            "override_reason",
+            "asset_type",
         ]
         params = {k: row.get(k) for k in expected_fields}
 

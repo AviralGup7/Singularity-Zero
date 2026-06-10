@@ -12,6 +12,7 @@ Concrete helpers live in the ``_orchestrator`` sub-package:
 * Stage error collection   → ``_orchestrator.error_reporting``
 * Stage retry execution    → ``_orchestrator.retry``
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,6 +35,7 @@ from .graph_builder import build_pipeline_graph
 
 logger = get_pipeline_logger(__name__)
 
+
 # Exit-code taxonomy (kept stable across versions):
 #   0  pass             — run completed, no policy violation
 #   1  error            — legacy/unclassified failure
@@ -50,9 +52,17 @@ def _load_incremental_baseline(checkpoint_mgr: Any) -> list[dict[str, Any]]:
         state = checkpoint_mgr.load()
         if state is None:
             return []
-        findings = state.stage_outputs.get("reportable_findings") if hasattr(state, "stage_outputs") and isinstance(state.stage_outputs, dict) else None
+        findings = (
+            state.stage_outputs.get("reportable_findings")
+            if hasattr(state, "stage_outputs") and isinstance(state.stage_outputs, dict)
+            else None
+        )
         if not findings:
-            findings = state.context_snapshot.get("result", {}).get("reportable_findings", []) if hasattr(state, "context_snapshot") and isinstance(state.context_snapshot, dict) else []
+            findings = (
+                state.context_snapshot.get("result", {}).get("reportable_findings", [])
+                if hasattr(state, "context_snapshot") and isinstance(state.context_snapshot, dict)
+                else []
+            )
         if not isinstance(findings, list):
             return []
         return [f for f in findings if isinstance(f, dict)]
@@ -62,9 +72,25 @@ def _load_incremental_baseline(checkpoint_mgr: Any) -> list[dict[str, Any]]:
 
 def _fingerprint_finding(finding: dict[str, Any]) -> str:
     import hashlib
+
     tool = str(finding.get("tool") or finding.get("source") or "unknown").strip().lower()
-    target = str(finding.get("target_url") or finding.get("affected_url") or finding.get("url") or "unknown").strip().lower()
-    vuln_type = str(finding.get("vuln_type") or finding.get("category") or finding.get("title") or "unknown").strip().lower()
+    target = (
+        str(
+            finding.get("target_url")
+            or finding.get("affected_url")
+            or finding.get("url")
+            or "unknown"
+        )
+        .strip()
+        .lower()
+    )
+    vuln_type = (
+        str(
+            finding.get("vuln_type") or finding.get("category") or finding.get("title") or "unknown"
+        )
+        .strip()
+        .lower()
+    )
     affected = str(finding.get("affected_url") or finding.get("url") or "unknown").strip().lower()
     raw = "|".join([tool, target, vuln_type, affected])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -156,15 +182,15 @@ async def execute_remaining_stages(
     function — callers can still inspect it for telemetry if they
     wish.
     """
-    graph = build_pipeline_graph(stage_methods=stage_methods, tool_status=getattr(config, "tool_status", None))
+    graph = build_pipeline_graph(
+        stage_methods=stage_methods, tool_status=getattr(config, "tool_status", None)
+    )
     logger.info(
         "Neural-Mesh ActorScheduler: greedy readiness loop "
         "(%d nodes, %d remaining, %d pre-completed)",
         len(graph.nodes),
         len(remaining_stages),
-        len(checkpoint_mgr.completed_stages)
-        if hasattr(checkpoint_mgr, "completed_stages")
-        else 0,
+        len(checkpoint_mgr.completed_stages) if hasattr(checkpoint_mgr, "completed_stages") else 0,
     )
 
     completed_stages: set[str] = set()
@@ -207,8 +233,7 @@ async def execute_remaining_stages(
     # enforced here, before the orchestrator's own resolver runs.
     if (
         outcome.exit_code is None
-        and ctx.result.stage_status.get("recon_validation")
-        == StageStatus.FAILED.value
+        and ctx.result.stage_status.get("recon_validation") == StageStatus.FAILED.value
     ):
         if not getattr(args, "dry_run", False):
             logger.error("Recon validation failed: no discoverable URLs found.")
@@ -286,12 +311,16 @@ def resolve_pipeline_exit_code(
     evaluation: PolicyEvaluation
     findings_for_policy = list(getattr(ctx.result, "reportable_findings", []) or [])
     if args is not None and getattr(args, "incremental", False):
-        checkpoint_mgr_ref = getattr(orchestrator, "_checkpoint_mgr", None) if orchestrator else None
+        checkpoint_mgr_ref = (
+            getattr(orchestrator, "_checkpoint_mgr", None) if orchestrator else None
+        )
         baseline = _load_incremental_baseline(checkpoint_mgr_ref)
         if baseline:
             baseline_fps = {_fingerprint_finding(f) for f in baseline}
             current_total = list(findings_for_policy)
-            findings_for_policy = [f for f in current_total if _fingerprint_finding(f) not in baseline_fps]
+            findings_for_policy = [
+                f for f in current_total if _fingerprint_finding(f) not in baseline_fps
+            ]
             logger.info(
                 "Incremental mode: diffed %d current findings against %d baseline; %d new findings for policy evaluation.",
                 len(current_total),
@@ -307,10 +336,9 @@ def resolve_pipeline_exit_code(
             # ``subdomain_takeover`` stage and any user-supplied
             # ``active_scan`` consumers can still work on the
             # discovered subdomains.
-            salvaged_subdomains = (
-                ctx.result.stage_status.get("subdomains") == StageStatus.COMPLETED.value
-                and bool(ctx.result.subdomains)
-            )
+            salvaged_subdomains = ctx.result.stage_status.get(
+                "subdomains"
+            ) == StageStatus.COMPLETED.value and bool(ctx.result.subdomains)
             if salvaged_subdomains:
                 if isinstance(metrics, dict):
                     metrics["degraded"] = True
@@ -380,9 +408,7 @@ def resolve_pipeline_exit_code(
     # ``infra_failure``.  This consults the policy's
     # ``degraded_stages`` set rather than the legacy hard-coded
     # ``{"subdomains", "live_hosts", "urls"}`` triple.
-    _apply_recon_degradation(
-        orchestrator, ctx, policy, progress_emitter
-    )
+    _apply_recon_degradation(orchestrator, ctx, policy, progress_emitter)
 
     for stage_name in sorted(policy.infra.fatal_stages):
         if ctx.result.stage_status.get(stage_name) == StageStatus.FAILED.value:
@@ -564,9 +590,7 @@ def _apply_recon_degradation(
                 logger.debug("Failed to emit RECON_DEGRADED event: %s", exc)
 
 
-def _recon_degraded_salvage_stage(
-    ctx: PipelineContext, stage_name: str
-) -> str | None:
+def _recon_degraded_salvage_stage(ctx: PipelineContext, stage_name: str) -> str | None:
     """Return the name of a downstream stage that salvaged ``stage_name``.
 
     A stage is considered salvaged when:

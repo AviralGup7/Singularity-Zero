@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from src.core.scoring import ScoringConfig, bounded_confidence
 from src.execution.validators.status import ValidationStatus
@@ -148,7 +149,11 @@ def evaluate_saml(
             resp = http_request(
                 "POST",
                 acs_endpoint,
-                {"SAMLResponse": base64.b64encode(SAML_SIGNATURE_WRAPPING_RESPONSE.encode()).decode()},
+                {
+                    "SAMLResponse": base64.b64encode(
+                        SAML_SIGNATURE_WRAPPING_RESPONSE.encode()
+                    ).decode()
+                },
             )
             responses["signature_wrapping"] = {
                 "status_code": resp.get("status_code", 0),
@@ -167,9 +172,11 @@ def evaluate_saml(
             resp = http_request(
                 "POST",
                 acs_endpoint,
-                {"SAMLResponse": base64.b64encode(
-                    SAML_EMPTY_RESPONSE.replace('Destination="', 'Dest="').encode()
-                ).decode()},
+                {
+                    "SAMLResponse": base64.b64encode(
+                        SAML_EMPTY_RESPONSE.replace('Destination="', 'Dest="').encode()
+                    ).decode()
+                },
             )
             responses["missing_destination"] = {
                 "status_code": resp.get("status_code", 0),
@@ -184,7 +191,9 @@ def evaluate_saml(
             logger.debug("SAML missing Destination test failed for %s: %s", acs_endpoint, exc)
 
     if signals:
-        high_risk = any(s in ("saml_empty_response_accepted", "saml_signature_wrapping") for s in signals)
+        high_risk = any(
+            s in ("saml_empty_response_accepted", "saml_signature_wrapping") for s in signals
+        )
         status = ValidationStatus.CONFIRMED.value if high_risk else ValidationStatus.HEURISTIC.value
     else:
         status = ValidationStatus.INCONCLUSIVE.value

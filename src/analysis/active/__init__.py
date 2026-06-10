@@ -1,4 +1,5 @@
 import logging
+
 """Active analysis probes."""
 
 from .injection.grafana_ssrf import detect_grafana, scan_grafana_ssrf

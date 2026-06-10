@@ -76,7 +76,9 @@ class FeedConfig(BaseModel):
         if not v or len(v) < 8:
             raise ValueError(f"API key too short ({len(v)} chars, minimum 8)")
         if not all(c.isalnum() or c in "-_" for c in v):
-            raise ValueError("API key contains invalid characters (only alphanumeric, dash, underscore allowed)")
+            raise ValueError(
+                "API key contains invalid characters (only alphanumeric, dash, underscore allowed)"
+            )
         return v
 
 

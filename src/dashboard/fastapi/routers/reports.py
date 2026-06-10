@@ -98,7 +98,9 @@ async def get_ai_executive_summary(
         try:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
         except Exception:
-            logger.warning("Failed to parse findings.json for AI summary at %s", findings_path, exc_info=True)
+            logger.warning(
+                "Failed to parse findings.json for AI summary at %s", findings_path, exc_info=True
+            )
 
     # 4. Load compliance report if available
     compliance_report = None
@@ -107,7 +109,9 @@ async def get_ai_executive_summary(
         try:
             compliance_report = json.loads(compliance_path.read_text(encoding="utf-8"))
         except Exception:
-            logger.warning("Failed to parse compliance_coverage.json at %s", compliance_path, exc_info=True)
+            logger.warning(
+                "Failed to parse compliance_coverage.json at %s", compliance_path, exc_info=True
+            )
 
     # 5. Generate AI summary
     try:
@@ -116,11 +120,9 @@ async def get_ai_executive_summary(
         llm = LLMService.get_instance()
         summary_markdown = await llm.generate_executive_summary(findings, compliance_report)
         return {"target": target, "run_id": run_dir.name, "summary": summary_markdown}
-    except Exception as exc:
+    except Exception:
         logger.exception("AI executive summary generation failed")
-        raise HTTPException(
-            status_code=500, detail="Failed to generate AI executive summary"
-        )
+        raise HTTPException(status_code=500, detail="Failed to generate AI executive summary")
 
 
 @router.get(
@@ -237,7 +239,11 @@ async def get_sla_trending(
             try:
                 findings = json.loads(findings_path.read_text(encoding="utf-8"))
             except Exception:
-                logger.warning("Failed to parse findings.json for SLA trending at %s", findings_path, exc_info=True)
+                logger.warning(
+                    "Failed to parse findings.json for SLA trending at %s",
+                    findings_path,
+                    exc_info=True,
+                )
                 continue
 
             if not isinstance(findings, list):
@@ -352,7 +358,10 @@ async def get_sla_trending(
 
 
 class SubmitFindingPayload(BaseModel):
-    platform: str = Field(..., pattern=r"^(hackerone|bugcrowd|intigriti|synack|yeswehack|openbugbounty|googlevrp|meta|apple|aws|msrc|mozilla|govdefense)$")
+    platform: str = Field(
+        ...,
+        pattern=r"^(hackerone|bugcrowd|intigriti|synack|yeswehack|openbugbounty|googlevrp|meta|apple|aws|msrc|mozilla|govdefense)$",
+    )
     draft: bool = True
     additional_notes: str = ""
 
@@ -400,9 +409,19 @@ async def list_platforms(_auth: Any = Depends(require_auth)) -> dict[str, Any]:
     clients = _get_clients()
     out: list[dict[str, Any]] = []
     platforms = (
-        "hackerone", "bugcrowd", "intigriti", "synack", "yeswehack",
-        "openbugbounty", "googlevrp", "meta", "apple", "aws", "msrc",
-        "mozilla", "govdefense"
+        "hackerone",
+        "bugcrowd",
+        "intigriti",
+        "synack",
+        "yeswehack",
+        "openbugbounty",
+        "googlevrp",
+        "meta",
+        "apple",
+        "aws",
+        "msrc",
+        "mozilla",
+        "govdefense",
     )
     for platform in platforms:
         client = clients.get(platform)
@@ -412,9 +431,7 @@ async def list_platforms(_auth: Any = Depends(require_auth)) -> dict[str, Any]:
                     "platform": platform,
                     "ready": False,
                     "configured": False,
-                    "last_error": _PLATFORM_INIT_ERRORS.get(
-                        platform, "init_failed"
-                    ),
+                    "last_error": _PLATFORM_INIT_ERRORS.get(platform, "init_failed"),
                 }
             )
             continue
@@ -456,14 +473,14 @@ async def submit_finding_to_platform(
     target = (auth or {}).get("target")
     if not target:
         from src.dashboard.fastapi.routers.findings.crud import _locate_finding_on_disk
+
         tenant_id = (auth or {}).get("tenant_id", "default")
         located = _locate_finding_on_disk(services.query.output_root, finding_id, tenant_id)
         if not located:
-            raise HTTPException(
-                status_code=404, detail="Finding not found to resolve target name"
-            )
+            raise HTTPException(status_code=404, detail="Finding not found to resolve target name")
         target = located[0]
         from src.dashboard.fastapi.routers.targets.validation import is_target_owned_by_tenant
+
         if not is_target_owned_by_tenant(target, tenant_id):
             raise HTTPException(
                 status_code=403, detail="Access denied to requested target infrastructure"
@@ -474,26 +491,18 @@ async def submit_finding_to_platform(
 
     findings_path = run_dir / "findings.json"
     if not findings_path.is_file():
-        raise HTTPException(
-            status_code=404, detail="findings.json not present for this run"
-        )
+        raise HTTPException(status_code=404, detail="findings.json not present for this run")
 
     try:
         findings_list = json.loads(findings_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=500, detail=f"findings.json is corrupt: {exc}"
-        ) from exc
+        raise HTTPException(status_code=500, detail=f"findings.json is corrupt: {exc}") from exc
 
     if not isinstance(findings_list, list):
         raise HTTPException(status_code=500, detail="findings.json is malformed")
 
     finding: dict[str, Any] | None = next(
-        (
-            f
-            for f in findings_list
-            if isinstance(f, dict) and str(f.get("id")) == finding_id
-        ),
+        (f for f in findings_list if isinstance(f, dict) and str(f.get("id")) == finding_id),
         None,
     )
     if finding is None:
@@ -515,7 +524,7 @@ async def submit_finding_to_platform(
 
     try:
         result: SubmissionResult = await client.submit(finding)
-    except Exception as exc:
+    except Exception:
         logger.exception("Platform submission failed")
         raise HTTPException(
             status_code=502,

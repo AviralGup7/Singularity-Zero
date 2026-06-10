@@ -1,7 +1,7 @@
 from __future__ import annotations
-import logging
 
 import copy
+import logging
 import reprlib
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
@@ -210,7 +210,9 @@ class StageOutput:
         object.__setattr__(self, "metrics", _freeze_value(dict(self.metrics or {})))
         object.__setattr__(self, "artifacts", _freeze_value(dict(self.artifacts or {})))
         object.__setattr__(self, "state_delta", _freeze_value(dict(self.state_delta or {})))
-        object.__setattr__(self, "findings", tuple(_freeze_value(dict(f or {})) for f in (self.findings or ())))
+        object.__setattr__(
+            self, "findings", tuple(_freeze_value(dict(f or {})) for f in (self.findings or ()))
+        )
 
     @classmethod
     def from_stage_state(

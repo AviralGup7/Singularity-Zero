@@ -238,9 +238,7 @@ def cross_reference_ips(
         if enable_shodan:
             results.extend(_shodan_lookup(ip, api_key=shodan_api_key))
         if enable_censys:
-            results.extend(
-                _censys_lookup(ip, api_id=censys_api_id, api_secret=censys_api_secret)
-            )
+            results.extend(_censys_lookup(ip, api_id=censys_api_id, api_secret=censys_api_secret))
         if enable_leakix:
             results.extend(_leakix_lookup(ip))
         return results

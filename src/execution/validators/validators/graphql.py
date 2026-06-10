@@ -28,8 +28,7 @@ from src.execution.validators.validators.shared import (
 logger = logging.getLogger(__name__)
 
 INTROSPECTION_QUERY = (
-    "{__schema{queryType{name}mutationType{name}subscriptionType{name}"
-    "types{name}}}"
+    "{__schema{queryType{name}mutationType{name}subscriptionType{name}types{name}}}"
 )
 
 _DEPTH_PROBE_QUERY = (
@@ -70,34 +69,22 @@ PERSISTED_QUERY_IDS = [
 ]
 
 # Fragment-based DoS probe - circular fragment reference
-FRAGMENT_CIRCULAR_QUERY = (
-    "fragment A on Query { ...B } "
-    "fragment B on Query { ...A } "
-    "{ ...A }"
-)
+FRAGMENT_CIRCULAR_QUERY = "fragment A on Query { ...B } fragment B on Query { ...A } { ...A }"
 
 # Directive abuse probe - @include/@skip with always-true/always-false
-DIRECTIVE_ABUSE_QUERY = (
-    "{__typename @include(if:true) @skip(if:false){__typename}}"
-)
+DIRECTIVE_ABUSE_QUERY = "{__typename @include(if:true) @skip(if:false){__typename}}"
 
 # Auth bypass via batching - queries that may bypass per-field authorization
-AUTH_BYPASS_BATCH_QUERY = (
-    "[{__typename,secretField},{__typename,secretField}]"
-)
+AUTH_BYPASS_BATCH_QUERY = "[{__typename,secretField},{__typename,secretField}]"
 
 
 # Subscription abuse probe - tests if subscriptions can be created
 # without authentication
-SUBSCRIPTION_ABUSE_QUERY = (
-    "subscription { __typename }"
-)
+SUBSCRIPTION_ABUSE_QUERY = "subscription { __typename }"
 
 # Field suggestions probe - tests if the server leaks field names
 # in error messages (suggestions leak sensitive schema info)
-FIELD_SUGGESTIONS_QUERY = (
-    "{ __type }"
-)
+FIELD_SUGGESTIONS_QUERY = "{ __type }"
 
 _INTROSPECTION_MARKER = "__schema"
 
@@ -174,7 +161,10 @@ def _looks_like_subscription_response(body: str) -> bool:
     try:
         parsed = json.loads(body)
         if isinstance(parsed, list):
-            return any(isinstance(item, dict) and bool(item.get("data", {})) for item in parsed) and "__typename" in body
+            return (
+                any(isinstance(item, dict) and bool(item.get("data", {})) for item in parsed)
+                and "__typename" in body
+            )
         return isinstance(parsed, dict) and bool(parsed.get("data", {})) and "__typename" in body
     except (ValueError, TypeError):
         return False
@@ -185,7 +175,7 @@ def _looks_like_field_suggestions(body: str) -> bool:
     if not body:
         return False
     lowered = body.lower()
-    return bool(re.search(r'did you mean', lowered, re.IGNORECASE)) or (
+    return bool(re.search(r"did you mean", lowered, re.IGNORECASE)) or (
         "cannot query field" in lowered
     )
 
@@ -265,7 +255,10 @@ def evaluate_graphql(
             "depth" in depth_body.lower()
             or "complexity" in depth_body.lower()
             or "too deep" in depth_body.lower()
-            or (depth_status in (400, 413, 422, 500) and ("depth" in depth_body.lower() or "complexity" in depth_body.lower()))
+            or (
+                depth_status in (400, 413, 422, 500)
+                and ("depth" in depth_body.lower() or "complexity" in depth_body.lower())
+            )
         )
         if depth_value > max_acceptable_depth and not depth_rejected:
             signals.append("deeply_nested_accepted")
@@ -297,14 +290,18 @@ def evaluate_graphql(
         if _looks_like_batch_response(str(auth_bypass_response.get("body", ""))):
             signals.append("auth_bypass_batch_accepted")
             bonuses.append(0.18)
-            notes.append("Auth bypass via batched query succeeded - potential privilege escalation.")
+            notes.append(
+                "Auth bypass via batched query succeeded - potential privilege escalation."
+            )
 
         # Persisted query hijacking
         for pq_id in persisted_query_ids[:3]:
-            persisted_body = json.dumps({
-                "id": pq_id,
-                "variables": "{}",
-            })
+            persisted_body = json.dumps(
+                {
+                    "id": pq_id,
+                    "variables": "{}",
+                }
+            )
             pq_response = graphql_request(endpoint, persisted_body)
             responses[f"persisted_query_{pq_id}"] = pq_response
             if _looks_like_persisted_query(str(pq_response.get("body", ""))):
@@ -330,7 +327,11 @@ def evaluate_graphql(
             notes.append("Error messages leak field name suggestions - information disclosure.")
 
     if signals and in_scope:
-        if "introspection_exposed" in signals or "deeply_nested_accepted" in signals or "fragment_circular_accepted" in signals:
+        if (
+            "introspection_exposed" in signals
+            or "deeply_nested_accepted" in signals
+            or "fragment_circular_accepted" in signals
+        ):
             status = ValidationStatus.CONFIRMED.value
         elif "persisted_query_hijacking" in signals or "directive_abuse_accepted" in signals:
             status = ValidationStatus.HEURISTIC.value
@@ -391,14 +392,10 @@ def validate_graphql_endpoint(
         "status": evaluation["status"],
         "confidence": evaluation["confidence"],
         "in_scope": in_scope,
-        "scope_reason": "scope_evaluated"
-        if in_scope
-        else "scope_unavailable_or_out_of_scope",
+        "scope_reason": "scope_evaluated" if in_scope else "scope_unavailable_or_out_of_scope",
         "evidence": evaluation["evidence"],
     }
-    return to_validation_result(
-        item, validator="graphql_abuse", category="graphql_abuse"
-    ).__dict__
+    return to_validation_result(item, validator="graphql_abuse", category="graphql_abuse").__dict__
 
 
 def validate(target: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
@@ -448,9 +445,9 @@ def looks_like_graphql_endpoint(content_type: str, body: str) -> bool:
     return any(
         marker in lowered
         for marker in (
-            "\"__schema\"",
-            "\"querytype\"",
-            "\"mutationtype\"",
+            '"__schema"',
+            '"querytype"',
+            '"mutationtype"',
             "graphql",
         )
     ) or bool(re.search(r'"query"\s*:', lowered))

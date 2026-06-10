@@ -99,9 +99,7 @@ class WorkerLifecycleMixin:
         self._info.status = "idle"
 
         worker_key = f"queue:{self.queue.queue_name}:worker:{self.worker_id}"
-        self.queue.redis.execute_command(
-            "HSET", worker_key, mapping=self._info.to_redis_hash()
-        )
+        self.queue.redis.execute_command("HSET", worker_key, mapping=self._info.to_redis_hash())
         self.queue.redis.execute_command(
             "SADD", f"queue:{self.queue.queue_name}:workers", self.worker_id
         )
@@ -110,9 +108,7 @@ class WorkerLifecycleMixin:
             caps_key = f"queue:{self.queue.queue_name}:worker:{self.worker_id}:capabilities"
             for cap in self.capabilities:
                 self.queue.redis.execute_command("SADD", caps_key, cap)
-            self.queue.redis.execute_command(
-                "EXPIRE", caps_key, int(self.heartbeat_interval * 5)
-            )
+            self.queue.redis.execute_command("EXPIRE", caps_key, int(self.heartbeat_interval * 5))
 
         if self.discovery:
             self.discovery.register()
@@ -161,9 +157,7 @@ class WorkerLifecycleMixin:
         self._info.status = "dead"
 
         worker_key = f"queue:{self.queue.queue_name}:worker:{self.worker_id}"
-        self.queue.redis.execute_command(
-            "HSET", worker_key, mapping=self._info.to_redis_hash()
-        )
+        self.queue.redis.execute_command("HSET", worker_key, mapping=self._info.to_redis_hash())
         self.queue.redis.execute_command(
             "SREM", f"queue:{self.queue.queue_name}:workers", self.worker_id
         )

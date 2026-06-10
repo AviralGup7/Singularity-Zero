@@ -154,9 +154,7 @@ class RiskScoringEngine:
             category_scores["data_exposure_score"] = data_score
 
         # 4. Multi-dimensional exposure / context.
-        exposure_score, exposure_factors = self._calculate_exposure_score(
-            target_info, factors
-        )
+        exposure_score, exposure_factors = self._calculate_exposure_score(target_info, factors)
         if exposure_score > 0:
             category_scores["exposure_score"] = exposure_score
 
@@ -192,9 +190,7 @@ class RiskScoringEngine:
             uplift = float(modern_components.get("asset_criticality", 0.0)) / 20.0
             if uplift > 0:
                 final_score = min(10, final_score + uplift)
-                factors.append(
-                    f"Asset criticality uplift: +{round(uplift, 2)}"
-                )
+                factors.append(f"Asset criticality uplift: +{round(uplift, 2)}")
 
         # Generate recommendations
         recommendations = self._generate_recommendations(
@@ -461,9 +457,7 @@ class RiskScoringEngine:
         compliance = target_info.get("compliance_requirements")
         if compliance:
             score += 2
-            factor_strings.append(
-                f"Compliance requirements: {', '.join(compliance)}"
-            )
+            factor_strings.append(f"Compliance requirements: {', '.join(compliance)}")
 
         # Compensating control presence *reduces* the exposure score.
         # The score is the *gross* exposure; net residual is computed

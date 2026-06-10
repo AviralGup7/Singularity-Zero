@@ -1,6 +1,3 @@
-
-
-
 class DummyProcess:
     def __init__(self) -> None:
         self.terminated = False

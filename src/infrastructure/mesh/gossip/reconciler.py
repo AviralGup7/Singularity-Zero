@@ -56,9 +56,7 @@ def reconcile_payload(
         node_id = str(node_data.get("id", ""))
         if not node_id or node_id == local_node_id:
             continue
-        merged = _merge_node(
-            peers, dead_nodes, node_data, updated_leader, elect_leader_callback
-        )
+        merged = _merge_node(peers, dead_nodes, node_data, updated_leader, elect_leader_callback)
         if merged:
             partition_merges += 1
 
@@ -101,9 +99,7 @@ def _merge_node(
             return False
 
     incoming_clock = _clock_from_node_data(node_data)
-    existing_clock = (
-        VectorClock(existing.version_vector) if existing is not None else VectorClock()
-    )
+    existing_clock = VectorClock(existing.version_vector) if existing is not None else VectorClock()
 
     if existing is None:
         node = MeshNode(**node_data)
@@ -132,8 +128,7 @@ def _merge_node(
         node_data = {**node_data}
         node_data["version_vector"] = dict(merged_clock.versions)
         logger.info(
-            "Reconciler: partition merge for peer '%s' "
-            "(local=%s, remote=%s, merged=%s)",
+            "Reconciler: partition merge for peer '%s' (local=%s, remote=%s, merged=%s)",
             node_id,
             dict(existing_clock.versions),
             dict(incoming_clock.versions),

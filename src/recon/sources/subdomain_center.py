@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
 import httpx
 
@@ -23,9 +22,7 @@ async def query_subdomain_center(
     if not domain:
         return set()
     subdomains: set[str] = set()
-    pattern = re.compile(
-        r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE
-    )
+    pattern = re.compile(r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE)
     try:
         async with httpx.AsyncClient(
             timeout=timeout, follow_redirects=False, headers={"User-Agent": "cyber-pipeline/1.0"}
@@ -46,7 +43,9 @@ async def query_subdomain_center(
             if isinstance(payload, list):
                 items = payload
             elif isinstance(payload, dict):
-                items = payload.get("subdomains") or payload.get("data") or payload.get("result") or []
+                items = (
+                    payload.get("subdomains") or payload.get("data") or payload.get("result") or []
+                )
             else:
                 return set()
             for entry in items:

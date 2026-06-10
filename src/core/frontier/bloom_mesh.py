@@ -295,17 +295,13 @@ class NeuralBloomMesh:
             schema_int = int(schema_raw)
         except (TypeError, ValueError):
             schema_int = -1
-        if not (
-            BLOOM_SNAPSHOT_MIN_ACCEPTED <= schema_int <= BLOOM_SNAPSHOT_MAX_ACCEPTED
-        ):
+        if not (BLOOM_SNAPSHOT_MIN_ACCEPTED <= schema_int <= BLOOM_SNAPSHOT_MAX_ACCEPTED):
             self._snapshot_schema_rejected_total += 1
             _inc_metric(
                 "bloom_mesh_snapshot_schema_rejected_total",
                 "Total Bloom mesh snapshots rejected for unsupported schema",
             )
-            logger.warning(
-                "Ignoring Bloom snapshot with unsupported schema=%r", schema_raw
-            )
+            logger.warning("Ignoring Bloom snapshot with unsupported schema=%r", schema_raw)
             return False
 
         # Idempotency: drop replays of the same on-wire payload (e.g.

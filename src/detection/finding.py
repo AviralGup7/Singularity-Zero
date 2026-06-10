@@ -197,7 +197,9 @@ class DetectionFinding:
         body: dict[str, Any] = {
             "url": self.url,
             "indicator": self.indicator,
-            "category": self.metadata.get("category", infer_category_from_indicator(self.indicator)),
+            "category": self.metadata.get(
+                "category", infer_category_from_indicator(self.indicator)
+            ),
             "summary": self.summary,
             "severity": self.severity.value,
             "confidence": round(self.confidence, 3),
@@ -378,7 +380,10 @@ def _signature_from_dict(raw: Mapping[str, Any]) -> str:
         body = raw.get("body_text") or raw.get("body") or ""
         if isinstance(body, str):
             parts.append(f"body={hashlib.sha256(body.encode('utf-8')).hexdigest()[:8]}")
-    return "|".join(parts) or json.dumps({k: raw[k] for k in sorted(raw) if k != "url"}, default=str)[:120]
+    return (
+        "|".join(parts)
+        or json.dumps({k: raw[k] for k in sorted(raw) if k != "url"}, default=str)[:120]
+    )
 
 
 def _build_evidence_from_dict(raw: Mapping[str, Any]) -> tuple[Evidence, ...]:
@@ -394,11 +399,22 @@ def _build_evidence_from_dict(raw: Mapping[str, Any]) -> tuple[Evidence, ...]:
                         response_status=item.get("response_status") or item.get("status_code"),
                         response_length=item.get("response_length") or item.get("body_length"),
                         body_snippet=item.get("body_snippet") or item.get("body_preview"),
-                        extra={k: v for k, v in item.items() if k not in {
-                            "kind", "description", "payload", "response_status",
-                            "status_code", "response_length", "body_length",
-                            "body_snippet", "body_preview",
-                        }},
+                        extra={
+                            k: v
+                            for k, v in item.items()
+                            if k
+                            not in {
+                                "kind",
+                                "description",
+                                "payload",
+                                "response_status",
+                                "status_code",
+                                "response_length",
+                                "body_length",
+                                "body_snippet",
+                                "body_preview",
+                            }
+                        },
                     )
                 )
         return tuple(out)
@@ -418,9 +434,21 @@ def _build_evidence_from_dict(raw: Mapping[str, Any]) -> tuple[Evidence, ...]:
 
 def _metadata_from_dict(raw: Mapping[str, Any]) -> dict[str, Any]:
     skip = {
-        "url", "indicator", "summary", "description", "severity", "confidence",
-        "exploitability", "analyzer_key", "phase", "recommended_engines",
-        "remediation_hint", "cwe_id", "cve_id", "tags", "evidence",
+        "url",
+        "indicator",
+        "summary",
+        "description",
+        "severity",
+        "confidence",
+        "exploitability",
+        "analyzer_key",
+        "phase",
+        "recommended_engines",
+        "remediation_hint",
+        "cwe_id",
+        "cve_id",
+        "tags",
+        "evidence",
         "finding_id",
     }
     meta = {k: v for k, v in raw.items() if k not in skip and not isinstance(v, (list, dict))}

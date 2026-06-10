@@ -355,8 +355,8 @@ class TestStageIsolationBoundaries:
                                 if (stage, imp) in allowed_cross:
                                     continue
                                 violations.append(
-                                f"Isolated Stage {stage} ({py_file.relative_to(WORKSPACE)}) cross-imports other stage '{imp}'"
-                            )
+                                    f"Isolated Stage {stage} ({py_file.relative_to(WORKSPACE)}) cross-imports other stage '{imp}'"
+                                )
 
         assert violations == [], (
             "Stages must remain completely isolated from each other to allow parallel, out-of-order, "

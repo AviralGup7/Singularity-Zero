@@ -237,9 +237,7 @@ class WafAwareProbeAdapter:
             logger.debug("WafAwareProbeAdapter: URL rewrite failed for %s: %s", url, exc)
         return url
 
-    def adapt_body(
-        self, body: str | None, *, category: str | None = None
-    ) -> str | None:
+    def adapt_body(self, body: str | None, *, category: str | None = None) -> str | None:
         strategies = self.strategies_for(category)
         if not strategies or body is None:
             return body
@@ -335,6 +333,4 @@ def adapt_probe(
 ) -> dict[str, Any]:
     """Convenience wrapper around :class:`WafAwareProbeAdapter`."""
     adapter = WafAwareProbeAdapter(config or WafEvasionConfig())
-    return adapter.adapt_request(
-        url, headers=headers, body=body, category=category
-    )
+    return adapter.adapt_request(url, headers=headers, body=body, category=category)

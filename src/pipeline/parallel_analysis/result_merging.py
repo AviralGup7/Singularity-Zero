@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,11 +58,7 @@ class LayerResult:
         return [r.name for r in self.results.values() if not r.success]
 
     def successful_results(self) -> dict[str, Any]:
-        return {
-            name: r.result
-            for name, r in self.results.items()
-            if r.success
-        }
+        return {name: r.result for name, r in self.results.items() if r.success}
 
 
 @dataclass
@@ -172,7 +171,9 @@ class AnalyzerDurationCache:
             logger.warning("Operation failed in result_merging.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     @classmethod
-    def load(cls, cache: Any, namespace: str = "analysis:duration_histogram", key_id: int | None = None) -> AnalyzerDurationCache:
+    def load(
+        cls, cache: Any, namespace: str = "analysis:duration_histogram", key_id: int | None = None
+    ) -> AnalyzerDurationCache:
         inst = cls()
         if key_id is not None:
             try:

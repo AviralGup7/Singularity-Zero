@@ -235,9 +235,7 @@ def collect_urls(
                     50,
                 )
                 continue
-            future = executor.submit(
-                _invoke_provider, spec, hostnames, progress_callback
-            )
+            future = executor.submit(_invoke_provider, spec, hostnames, progress_callback)
             future_to_spec[future] = spec
 
         pending = set(future_to_spec.keys())
@@ -268,9 +266,7 @@ def collect_urls(
                         provider_name=spec.name,
                     )
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "%s collection failed: %s", spec.name, exc, exc_info=True
-                    )
+                    logger.warning("%s collection failed: %s", spec.name, exc, exc_info=True)
                     meta = CollectorMeta(
                         status=CollectorStatus.ERROR,
                         duration_seconds=0.0,
@@ -303,9 +299,7 @@ def collect_urls(
                 # provider's bookkeeping for ``new_urls``.  Real URL
                 # dedup happens in ``collect_urls_stream`` /
                 # ``collect_for_hosts`` callers.
-                collector_metrics.increment_urls(
-                    spec.name, int(meta.new_urls)
-                )
+                collector_metrics.increment_urls(spec.name, int(meta.new_urls))
                 collector_metrics.observe_duration(spec.name, float(meta.duration_seconds))
 
     emit_collection_progress(

@@ -268,7 +268,11 @@ def analyze_websocket_message_security(
     payload = frame.get("payload")
     if payload is None:
         payload = frame.get("data") or frame.get("body") or ""
-    payload_text = payload.decode("utf-8", errors="replace") if isinstance(payload, (bytes, bytearray)) else str(payload)
+    payload_text = (
+        payload.decode("utf-8", errors="replace")
+        if isinstance(payload, (bytes, bytearray))
+        else str(payload)
+    )
 
     observed_origin = frame.get("origin") or frame.get("handshake_origin")
     observed_subprotocol = frame.get("subprotocol") or frame.get("requested_subprotocol")
@@ -361,8 +365,10 @@ def analyze_websocket_message_security(
                 findings.append("server_frame_html_injection")
                 severity = max([severity, "high"], key=_rank)
                 confidence = max(confidence, 0.75)
-            if url_hosts and target_host and any(
-                host and host != target_host for host in url_hosts
+            if (
+                url_hosts
+                and target_host
+                and any(host and host != target_host for host in url_hosts)
             ):
                 findings.append("server_frame_cross_host_url")
                 severity = max([severity, "high"], key=_rank)
@@ -397,9 +403,8 @@ def analyze_websocket_message_security(
         severity = "info"
         confidence = 0.30
 
-    summary = (
-        f"WebSocket frame {frame_index} ({direction}/{frame_type}) on {url}: "
-        + ", ".join(findings[:3])
+    summary = f"WebSocket frame {frame_index} ({direction}/{frame_type}) on {url}: " + ", ".join(
+        findings[:3]
     )
     remediation_hint = None
     if severity in {"high", "critical"}:

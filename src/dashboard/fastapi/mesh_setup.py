@@ -97,7 +97,9 @@ def init_bloom_filter() -> NeuralBloomFilter:
     return NeuralBloomFilter(capacity=capacity, error_rate=error_rate)
 
 
-def init_bloom_mesh(bloom_filter: NeuralBloomFilter, node_id: str, redis_url: str | None) -> NeuralBloomMesh:
+def init_bloom_mesh(
+    bloom_filter: NeuralBloomFilter, node_id: str, redis_url: str | None
+) -> NeuralBloomMesh:
     return NeuralBloomMesh(bloom_filter, node_id=node_id, redis_url=redis_url)
 
 

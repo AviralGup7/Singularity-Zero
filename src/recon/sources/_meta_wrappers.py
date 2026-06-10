@@ -38,7 +38,9 @@ from src.recon.common import run_async_in_sync_context
 logger = logging.getLogger(__name__)
 
 
-def _build_wrapper(name: str, async_func: Callable[..., Any]) -> Callable[..., tuple[set[str], CollectorMeta]]:
+def _build_wrapper(
+    name: str, async_func: Callable[..., Any]
+) -> Callable[..., tuple[set[str], CollectorMeta]]:
     """Wrap an async ``query_<source>`` callable as a sync ``(set, meta)`` one."""
 
     def wrapper(*args: Any, **kwargs: Any) -> tuple[set[str], CollectorMeta]:

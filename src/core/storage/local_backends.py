@@ -91,11 +91,7 @@ class LocalCheckpointStore(CheckpointStore):
     def list_run_ids(self) -> list[str]:
         if not self._root.is_dir():
             return []
-        return sorted(
-            entry.name
-            for entry in self._root.iterdir()
-            if entry.is_dir()
-        )
+        return sorted(entry.name for entry in self._root.iterdir() if entry.is_dir())
 
     def _checkpoint_path(self, run_id: str, version: int) -> Path:
         return self._run_dir(run_id) / f"checkpoint_v{version}.json"
@@ -106,18 +102,13 @@ class LocalCheckpointStore(CheckpointStore):
         stem = path.stem
         if not stem.startswith("checkpoint_v"):
             raise ValueError(f"Not a checkpoint file: {path}")
-        return int(stem[len("checkpoint_v"):])
+        return int(stem[len("checkpoint_v") :])
 
     def _context_snapshot_path(self, run_id: str, stage_name: str) -> Path:
         return self._run_dir(run_id) / f"context_{_stage_safe_name(stage_name)}.json"
 
-    def _stage_delta_path(
-        self, run_id: str, stage_name: str, sequence: int
-    ) -> Path:
-        return (
-            self._run_dir(run_id)
-            / f"delta_{_stage_safe_name(stage_name)}_{sequence:06d}.json"
-        )
+    def _stage_delta_path(self, run_id: str, stage_name: str, sequence: int) -> Path:
+        return self._run_dir(run_id) / f"delta_{_stage_safe_name(stage_name)}_{sequence:06d}.json"
 
     def write(self, run_id: str, version: int, payload: dict[str, Any]) -> VersionId:
         target = self._checkpoint_path(run_id, version)
@@ -157,9 +148,7 @@ class LocalCheckpointStore(CheckpointStore):
                 latest = (version, mtime, payload)
         return latest[2] if latest else None
 
-    def read_version_by_id(
-        self, run_id: str, version_id: VersionId
-    ) -> dict[str, Any] | None:
+    def read_version_by_id(self, run_id: str, version_id: VersionId) -> dict[str, Any] | None:
         version = _parse_version_id(version_id)
         path = self._checkpoint_path(run_id, version)
         if not path.exists():
@@ -199,9 +188,7 @@ class LocalCheckpointStore(CheckpointStore):
         temp.replace(target)
         return target.name
 
-    def read_context_snapshot(
-        self, run_id: str, stage_name: str
-    ) -> dict[str, Any] | None:
+    def read_context_snapshot(self, run_id: str, stage_name: str) -> dict[str, Any] | None:
         path = self._context_snapshot_path(run_id, stage_name)
         if not path.exists():
             return None
@@ -223,9 +210,7 @@ class LocalCheckpointStore(CheckpointStore):
         temp.replace(target)
         return target.name
 
-    def list_stage_deltas(
-        self, run_id: str, stage_name: str
-    ) -> list[dict[str, Any]]:
+    def list_stage_deltas(self, run_id: str, stage_name: str) -> list[dict[str, Any]]:
         safe = _stage_safe_name(stage_name)
         run_dir = self._root / run_id
         if not run_dir.is_dir():

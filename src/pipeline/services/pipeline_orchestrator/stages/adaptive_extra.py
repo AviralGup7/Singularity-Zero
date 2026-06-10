@@ -111,9 +111,7 @@ async def run_threat_modeling(
         f["threat_modeled"] = True
         f["priority_score"] = f.get("score", 50) + 10
 
-    state_delta = {
-        "reportable_findings": reportable
-    }
+    state_delta = {"reportable_findings": reportable}
 
     duration = round(time.monotonic() - stage_started, 2)
     emit_progress("threat_modeling", "Threat modeling enrichment complete", 100, stage_percent=100)

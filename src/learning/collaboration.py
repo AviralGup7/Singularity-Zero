@@ -184,8 +184,14 @@ class FindingAssignment:
             )
         # Positional: (finding_id, assigned_to, assigned_at, assigned_by, locked_by, locked_at, notes, status)
         (
-            finding_id, assigned_to, assigned_at, assigned_by,
-            locked_by, locked_at, notes, status,
+            finding_id,
+            assigned_to,
+            assigned_at,
+            assigned_by,
+            locked_by,
+            locked_at,
+            notes,
+            status,
         ) = row
         return cls(
             finding_id=str(finding_id),
@@ -207,9 +213,7 @@ class AssignmentConflict(RuntimeError):
     def __init__(self, finding_id: str, locked_by: str) -> None:
         self.finding_id = finding_id
         self.locked_by = locked_by
-        super().__init__(
-            f"finding {finding_id!r} is currently being reviewed by {locked_by!r}"
-        )
+        super().__init__(f"finding {finding_id!r} is currently being reviewed by {locked_by!r}")
 
 
 _CREATE_ASSIGNMENT_TABLE = """
@@ -372,10 +376,7 @@ class AssignmentStore:
         """Delete assignments older than a threshold (durably in SQLite and in-memory)."""
         with self._lock:
             cutoff = time.time() - older_than_seconds
-            to_delete = [
-                fid for fid, fa in self._cache.items()
-                if fa.assigned_at < cutoff
-            ]
+            to_delete = [fid for fid, fa in self._cache.items() if fa.assigned_at < cutoff]
             for fid in to_delete:
                 del self._cache[fid]
 
@@ -390,7 +391,7 @@ class AssignmentStore:
                         placeholders = ",".join("?" for _ in chunk)
                         conn.execute(
                             f"DELETE FROM finding_assignments WHERE finding_id IN ({placeholders})",
-                            chunk
+                            chunk,
                         )
                     conn.commit()
                 finally:

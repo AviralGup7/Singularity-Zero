@@ -85,9 +85,7 @@ def probe_session_fixation(
 
         original_status = int(original_resp.get("status", 0))
         original_headers = original_resp.get("headers", {})
-        original_body = _to_str_body(
-            original_resp.get("body") or original_resp.get("body_text")
-        )
+        original_body = _to_str_body(original_resp.get("body") or original_resp.get("body_text"))
 
         existing_cookie = ""
         for key, val in original_headers.items():
@@ -139,7 +137,9 @@ def probe_session_fixation(
                                 "modified_status": status,
                             }
                         )
-                    elif status == 200 and original_status in (200,) and body != original_body[:8000]:
+                    elif (
+                        status == 200 and original_status in (200,) and body != original_body[:8000]
+                    ):
                         if "cookie_modified_accepted" not in url_issues:
                             url_issues.append("cookie_modified_accepted")
                         url_probes.append(
@@ -193,8 +193,10 @@ def probe_session_fixation(
                                 "deleted_status": status,
                             }
                         )
-                    elif status == 200 and original_status in (200,) and _has_auth_indicator(
-                        response.get("headers", {}), body
+                    elif (
+                        status == 200
+                        and original_status in (200,)
+                        and _has_auth_indicator(response.get("headers", {}), body)
                     ):
                         if "cookie_deleted_auth_still_valid" not in url_issues:
                             url_issues.append("cookie_deleted_auth_still_valid")
@@ -224,7 +226,11 @@ def probe_session_fixation(
                     if response:
                         status = int(response.get("status", 0))
                         body = _to_str_body(response.get("body") or "")
-                        if status == 200 and original_status in (200,) and body != original_body[:8000]:
+                        if (
+                            status == 200
+                            and original_status in (200,)
+                            and body != original_body[:8000]
+                        ):
                             url_issues.append("cookie_fixation_indicator")
                             url_probes.append(
                                 {

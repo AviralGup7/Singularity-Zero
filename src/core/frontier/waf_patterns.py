@@ -17,12 +17,24 @@ CDN_WAF_PATTERNS: dict[str, dict[str, Any]] = {
     "Cloudflare UAM": {
         "headers": ["cf-ray", "cf-cache-status", "server: cloudflare"],
         "cookies": ["__cfduid", "cf_use_info", "cf_clearance"],
-        "body": ["access denied", "attention required", "cloudflare ray id", "please wait", "under attack mode"],
+        "body": [
+            "access denied",
+            "attention required",
+            "cloudflare ray id",
+            "please wait",
+            "under attack mode",
+        ],
     },
     "Cloudflare WAFChallenge": {
         "headers": ["cf-ray", "server: cloudflare", "set-cookie: cf_clearance"],
         "cookies": ["cf_clearance", "__cfduid"],
-        "body": ["please wait", "challenge platform", "ray id", "cloudflare", "access to this site has been limited"],
+        "body": [
+            "please wait",
+            "challenge platform",
+            "ray id",
+            "cloudflare",
+            "access to this site has been limited",
+        ],
     },
     "AWS CloudFront": {
         "headers": ["x-amz-cf-id", "x-amz-cf-pop", "cloudfront", "via"],

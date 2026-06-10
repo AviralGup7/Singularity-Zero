@@ -24,7 +24,9 @@ from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig
 logger = logging.getLogger(__name__)
 
 MITRE_BASE_URL = os.environ.get("MITRE_BASE_URL", "https://attack.mitre.org")
-MITRE_API_URL = os.environ.get("MITRE_API_URL", "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack")
+MITRE_API_URL = os.environ.get(
+    "MITRE_API_URL", "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack"
+)
 
 
 class MitreConfig(FeedConfig):

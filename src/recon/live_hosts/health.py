@@ -1,4 +1,3 @@
-
 """Fallback / urllib3-based probing and health checks.
 
 Extracted from ``src.recon.live_hosts``.  Provides the urllib3-backed probing
@@ -160,6 +159,7 @@ def probe_live_hosts_fallback(
 def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] | None:
     """Fallback prober using urllib3 and explicit IPv6 connectivity checks."""
     import logging
+
     logger = logging.getLogger(__name__)
 
     candidates = [host] if "://" in host else [f"https://{host}", f"http://{host}"]

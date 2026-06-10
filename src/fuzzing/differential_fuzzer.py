@@ -19,7 +19,14 @@ class GoldenResponseStore:
         self.store: dict[str, str] = {}
         self.baselines: dict[str, dict[str, Any]] = {}
 
-    def capture(self, endpoint_key: str, body: str, status_code: int = 200, headers: dict | None = None, elapsed_ms: float = 0.0) -> None:
+    def capture(
+        self,
+        endpoint_key: str,
+        body: str,
+        status_code: int = 200,
+        headers: dict | None = None,
+        elapsed_ms: float = 0.0,
+    ) -> None:
         normalized = normalize_response(body)
         self.store[endpoint_key] = normalized
         self.baselines[endpoint_key] = {
@@ -128,17 +135,19 @@ async def _run_differential_probe(
 
     baseline_body = base_resp.text
     normalized_baseline = normalize_response(baseline_body)
-    golden.capture(endpoint_key, normalized_baseline, base_status, dict(base_resp.headers), base_elapsed)
+    golden.capture(
+        endpoint_key, normalized_baseline, base_status, dict(base_resp.headers), base_elapsed
+    )
 
     mutations: list[tuple[str, str]] = []
     for idx, (param_name, param_value) in enumerate(query_pairs):
-        bit_flipped = bytearray(param_value.encode('utf-8', errors='ignore'))
+        bit_flipped = bytearray(param_value.encode("utf-8", errors="ignore"))
         if len(bit_flipped) > 0:
             bit_index = secrets.randbelow(len(bit_flipped))
             bit_flipped[bit_index] ^= 1 << secrets.randbelow(8)
-            mutated_value = bit_flipped.decode('utf-8', errors='ignore')
+            mutated_value = bit_flipped.decode("utf-8", errors="ignore")
         else:
-            mutated_value = 'A'
+            mutated_value = "A"
         mutations.append((param_name, mutated_value))
 
     count = min(10, len(query_pairs))
@@ -149,7 +158,7 @@ async def _run_differential_probe(
         if mutation_num < len(mutations):
             mutated_pairs[idx] = (param_name, mutations[mutation_num][1])
         else:
-            mutated_pairs[idx] = (param_name, '0')
+            mutated_pairs[idx] = (param_name, "0")
         mutated_query = urlencode(mutated_pairs, doseq=True)
         mutated_url = urlunparse(parsed._replace(query=mutated_query))
 
@@ -170,92 +179,106 @@ async def _run_differential_probe(
         diff_ratio = compute_diff_ratio(normalized_baseline, normalized_candidate)
 
         if diff_ratio > _DIFF_THRESHOLD:
-            diffs = find_byte_level_diffs(normalized_baseline, normalized_candidate, context_bytes=32)
+            diffs = find_byte_level_diffs(
+                normalized_baseline, normalized_candidate, context_bytes=32
+            )
             top_diffs = diffs[:3]
 
-            findings.append({
-                'url': url,
-                'endpoint_key': endpoint_key,
-                'endpoint_base_key': endpoint_base,
-                'endpoint_type': endpoint_type,
-                'issues': ['differential_response_divergence'],
-                'probe_type': 'differential_fuzzer',
-                'severity': 'high',
-                'confidence': min(0.9, diff_ratio),
-                'evidence': {
-                    'ratio': diff_ratio,
-                    'diffs': top_diffs,
-                    'url': mutated_url,
-                    'payload': mutated_pairs[idx][1],
-                    'status_code': status,
-                    'parameter': param_name,
-                    'strategy': 'bit_flip',
-                },
-            })
-            logger.info("Differential fuzzer: divergence detected on %s (ratio=%.2f)", url, diff_ratio)
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base,
+                    "endpoint_type": endpoint_type,
+                    "issues": ["differential_response_divergence"],
+                    "probe_type": "differential_fuzzer",
+                    "severity": "high",
+                    "confidence": min(0.9, diff_ratio),
+                    "evidence": {
+                        "ratio": diff_ratio,
+                        "diffs": top_diffs,
+                        "url": mutated_url,
+                        "payload": mutated_pairs[idx][1],
+                        "status_code": status,
+                        "parameter": param_name,
+                        "strategy": "bit_flip",
+                    },
+                }
+            )
+            logger.info(
+                "Differential fuzzer: divergence detected on %s (ratio=%.2f)", url, diff_ratio
+            )
 
         # Structural diff: compare JSON field presence, absence, and type changes
         struct_diff = _structural_diff(baseline_body, body)
         if struct_diff["has_structural_diff"]:
-            findings.append({
-                'url': url,
-                'endpoint_key': endpoint_key,
-                'endpoint_base_key': endpoint_base,
-                'endpoint_type': endpoint_type,
-                'issues': ['differential_structural_change'],
-                'probe_type': 'differential_fuzzer',
-                'severity': 'medium',
-                'confidence': 0.75,
-                'evidence': {
-                    'structural_diff': struct_diff,
-                    'url': mutated_url,
-                    'parameter': param_name,
-                    'payload': mutated_pairs[idx][1],
-                },
-            })
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base,
+                    "endpoint_type": endpoint_type,
+                    "issues": ["differential_structural_change"],
+                    "probe_type": "differential_fuzzer",
+                    "severity": "medium",
+                    "confidence": 0.75,
+                    "evidence": {
+                        "structural_diff": struct_diff,
+                        "url": mutated_url,
+                        "parameter": param_name,
+                        "payload": mutated_pairs[idx][1],
+                    },
+                }
+            )
             logger.info("Differential fuzzer: structural change on %s", url)
 
         # Timing differential: detect response time changes that may indicate
         # timing side-channels (e.g., blind SQL injection with time-based payloads).
         timing = _timing_differential(base_elapsed, cand_elapsed)
         if timing["is_significant"]:
-            findings.append({
-                'url': url,
-                'endpoint_key': endpoint_key,
-                'endpoint_base_key': endpoint_base,
-                'endpoint_type': endpoint_type,
-                'issues': ['differential_timing_anomaly'],
-                'probe_type': 'differential_fuzzer',
-                'severity': 'medium',
-                'confidence': 0.7,
-                'evidence': {
-                    'timing': timing,
-                    'url': mutated_url,
-                    'parameter': param_name,
-                    'payload': mutated_pairs[idx][1],
-                },
-            })
-            logger.info("Differential fuzzer: timing anomaly on %s (delta=%.1fms)", url, timing["delta_ms"])
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base,
+                    "endpoint_type": endpoint_type,
+                    "issues": ["differential_timing_anomaly"],
+                    "probe_type": "differential_fuzzer",
+                    "severity": "medium",
+                    "confidence": 0.7,
+                    "evidence": {
+                        "timing": timing,
+                        "url": mutated_url,
+                        "parameter": param_name,
+                        "payload": mutated_pairs[idx][1],
+                    },
+                }
+            )
+            logger.info(
+                "Differential fuzzer: timing anomaly on %s (delta=%.1fms)", url, timing["delta_ms"]
+            )
 
         if status >= 500 and base_status < 500:
-            findings.append({
-                'url': url,
-                'endpoint_key': endpoint_key,
-                'endpoint_base_key': endpoint_base,
-                'endpoint_type': endpoint_type,
-                'issues': ['differential_crash_triggered'],
-                'probe_type': 'differential_fuzzer',
-                'severity': 'medium',
-                'confidence': 0.8,
-                'evidence': {
-                    'base_status_code': base_status,
-                    'status_code': status,
-                    'url': mutated_url,
-                    'parameter': param_name,
-                    'payload': mutated_pairs[idx][1],
-                    'strategy': 'bit_flip',
-                },
-            })
+            findings.append(
+                {
+                    "url": url,
+                    "endpoint_key": endpoint_key,
+                    "endpoint_base_key": endpoint_base,
+                    "endpoint_type": endpoint_type,
+                    "issues": ["differential_crash_triggered"],
+                    "probe_type": "differential_fuzzer",
+                    "severity": "medium",
+                    "confidence": 0.8,
+                    "evidence": {
+                        "base_status_code": base_status,
+                        "status_code": status,
+                        "url": mutated_url,
+                        "parameter": param_name,
+                        "payload": mutated_pairs[idx][1],
+                        "strategy": "bit_flip",
+                    },
+                }
+            )
             logger.info("Differential fuzzer: crash triggered on %s", url)
 
     return findings

@@ -17,6 +17,7 @@ party plugins that need to insert new graph nodes should call
 import time, before the first call to
 :func:`~pipeline.services.pipeline_orchestrator.graph_builder.build_pipeline_graph`.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -168,7 +169,15 @@ def resolve_stage_runner(stage_name: str) -> Callable[..., Any]:
     _register_defaults()
     _throttled_refresh()
     normalized = stage_name.strip().lower()
-    for kind in (RECON_PROVIDER, SCANNER, VALIDATOR, ENRICHMENT_PROVIDER, EXPORTER, BUG_BOUNTY, TICKET_CREATOR):
+    for kind in (
+        RECON_PROVIDER,
+        SCANNER,
+        VALIDATOR,
+        ENRICHMENT_PROVIDER,
+        EXPORTER,
+        BUG_BOUNTY,
+        TICKET_CREATOR,
+    ):
         try:
             return cast(Callable[..., Any], resolve_plugin(kind, normalized))
         except KeyError:

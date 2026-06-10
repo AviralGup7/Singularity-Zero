@@ -239,20 +239,14 @@ def run_blackbox_validation_engine(
         validation_config=validation_config,
         scope_policy=validation_config.scope_policy,
         replay_safety=replay_safety,
-        cors_probe_origin=str(
-            engine_settings.get("cors_probe_origin", "")
-        ),
+        cors_probe_origin=str(engine_settings.get("cors_probe_origin", "")),
         jwt_candidates=list(runtime_inputs.get("jwt_candidates", []) or []),
-        jwt_test_secrets=tuple(
-            validation_config.calibration.jwt_test_signatures
-        ),
+        jwt_test_secrets=tuple(validation_config.calibration.jwt_test_signatures),
         cache_poisoning_unkeyed_headers=tuple(
             validation_config.calibration.cache_poisoning_unkeyed_headers
         ),
         graphql_endpoints=list(runtime_inputs.get("graphql_endpoints", []) or []),
-        race_concurrency=int(
-            validation_config.calibration.max_concurrent_race_workers
-        ),
+        race_concurrency=int(validation_config.calibration.max_concurrent_race_workers),
     )
 
     registry = build_validator_registry()

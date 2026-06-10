@@ -25,6 +25,7 @@ _COUPON_PATH_HINTS = {"/cart", "/basket", "/checkout", "/apply-coupon", "/coupon
 
 def _path_suffix(url: str) -> str:
     from urllib.parse import urlparse
+
     return urlparse(url).path.lower()
 
 

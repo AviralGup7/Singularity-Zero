@@ -63,9 +63,7 @@ class BurpCollaboratorClient:
         url = f"{self.server_url}/{_BURP_POLL_ENDPOINT}"
         response = self._pool.request("GET", url)
         if response.status >= 400:
-            raise BurpCollaboratorError(
-                f"Collaborator poll returned HTTP {response.status}"
-            )
+            raise BurpCollaboratorError(f"Collaborator poll returned HTTP {response.status}")
         try:
             payload = json.loads(response.data.decode("utf-8"))
         except json.JSONDecodeError as exc:
@@ -82,15 +80,32 @@ class BurpCollaboratorClient:
         return OastInteraction(
             interaction_id=str(entry.get("id") or entry.get("interaction_id") or ""),
             interaction_type=str(entry.get("type") or entry.get("interaction_type") or "dns"),
-            client_ip=str(entry.get("client_ip") or entry.get("source") or entry.get("address") or ""),
+            client_ip=str(
+                entry.get("client_ip") or entry.get("source") or entry.get("address") or ""
+            ),
             timestamp=str(entry.get("timestamp") or entry.get("time") or ""),
             query_string=entry.get("query") or entry.get("parameters") or {},
             raw_request=str(entry.get("raw_request") or entry.get("request") or ""),
-            extra={k: v for k, v in entry.items() if k not in {
-                "id", "interaction_id", "type", "interaction_type",
-                "client_ip", "source", "address", "timestamp", "time",
-                "query", "parameters", "raw_request", "request",
-            }},
+            extra={
+                k: v
+                for k, v in entry.items()
+                if k
+                not in {
+                    "id",
+                    "interaction_id",
+                    "type",
+                    "interaction_type",
+                    "client_ip",
+                    "source",
+                    "address",
+                    "timestamp",
+                    "time",
+                    "query",
+                    "parameters",
+                    "raw_request",
+                    "request",
+                }
+            },
         )
 
     def register_payload(self, prefix: str = "pipeline") -> str:

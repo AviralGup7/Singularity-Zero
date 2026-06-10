@@ -494,7 +494,9 @@ def risk_score_section(risk_data: dict[str, Any]) -> str:
     if category_scores:
         parts.append("<h3>Risk by Category</h3><ul>")
         for cat, cat_score in list(category_scores.items())[:10]:
-            parts.append(f"<li><strong>{html.escape(cat)}</strong>: {html.escape(str(cat_score))}</li>")
+            parts.append(
+                f"<li><strong>{html.escape(cat)}</strong>: {html.escape(str(cat_score))}</li>"
+            )
         parts.append("</ul>")
 
     parts.append("</section>")

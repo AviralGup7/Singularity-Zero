@@ -64,8 +64,7 @@ class CalibrationConfig:
         "supersecret",
     )
     graphql_introspection_query: str = (
-        "{__schema{queryType{name}mutationType{name}subscriptionType{name}"
-        "types{name}}}"
+        "{__schema{queryType{name}mutationType{name}subscriptionType{name}types{name}}}"
     )
     per_validator_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
 

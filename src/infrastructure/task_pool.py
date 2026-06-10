@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+
 """Single-node asyncio task pool, filesystem run lock, and mesh compatibility shim."""
 
 
@@ -112,6 +114,7 @@ class RunLock:
             return None
         try:
             import redis
+
             self._redis_client = redis.Redis.from_url(
                 self._redis_url,
                 socket_timeout=5,
@@ -146,6 +149,7 @@ class RunLock:
             redis = self._get_redis()
             if redis is not None:
                 import uuid
+
                 self._lock_key = f"{self.REDIS_LOCK_PREFIX}{scan_id}"
                 self._lock_value = str(uuid.uuid4())
                 try:
@@ -166,7 +170,9 @@ class RunLock:
             self._cache_dir.mkdir(parents=True, exist_ok=True)
             self._lock_file = self._cache_dir / f"{scan_id}.lock"
             try:
-                self._file_handle = os.open(str(self._lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                self._file_handle = os.open(
+                    str(self._lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                )
                 os.write(self._file_handle, scan_id.encode())
                 self._acquired = True
                 return True

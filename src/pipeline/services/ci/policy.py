@@ -74,17 +74,13 @@ class SeverityThresholds:
     def violations(self, counts: Mapping[str, int]) -> list[str]:
         out: list[str] = []
         if counts.get("critical", 0) > self.critical:
-            out.append(
-                f"critical={counts.get('critical', 0)} > max_critical={self.critical}"
-            )
+            out.append(f"critical={counts.get('critical', 0)} > max_critical={self.critical}")
         if counts.get("high", 0) + counts.get("critical", 0) > self.high:
             out.append(
                 f"high+critical={counts.get('high', 0) + counts.get('critical', 0)} > max_high={self.high}"
             )
         if (
-            counts.get("medium", 0)
-            + counts.get("high", 0)
-            + counts.get("critical", 0)
+            counts.get("medium", 0) + counts.get("high", 0) + counts.get("critical", 0)
             > self.medium
         ):
             out.append(
@@ -139,9 +135,7 @@ class InfraRule:
             instead of aborting with ``infra_failure`` (exit 3).
     """
 
-    fatal_stages: frozenset[str] = field(
-        default_factory=lambda: frozenset({"live_hosts"})
-    )
+    fatal_stages: frozenset[str] = field(default_factory=lambda: frozenset({"live_hosts"}))
     degraded_stages: frozenset[str] = field(
         default_factory=lambda: frozenset({"subdomains", "urls"})
     )
@@ -325,9 +319,7 @@ def _as_str_tuple(value: Any, *, field_name: str) -> tuple[str, ...]:
 
 def _from_mapping(data: Mapping[str, Any]) -> ExitConditionPolicy:
     if not isinstance(data, Mapping):
-        raise PolicyLoadError(
-            f"Policy root must be a table, got {type(data).__name__}"
-        )
+        raise PolicyLoadError(f"Policy root must be a table, got {type(data).__name__}")
 
     findings_block = data.get("on_findings", {}) or {}
     if not isinstance(findings_block, Mapping):
@@ -582,18 +574,13 @@ def evaluate_policy(
     """
     failed_stage_names = tuple(sorted(failed_stages.keys()))
     degraded_salvaged = sorted(
-        name
-        for name, metrics in failed_stages.items()
-        if bool(metrics.get("degraded", False))
+        name for name, metrics in failed_stages.items() if bool(metrics.get("degraded", False))
     )
     infra_failures = sorted(
         name
         for name, metrics in failed_stages.items()
         if name in policy.infra.fatal_stages
-        or (
-            bool(metrics.get("fatal", False))
-            and not bool(metrics.get("degraded", False))
-        )
+        or (bool(metrics.get("fatal", False)) and not bool(metrics.get("degraded", False)))
     )
     partial_failures = sorted(
         set(failed_stage_names) - set(infra_failures) - set(degraded_salvaged)

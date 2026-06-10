@@ -332,7 +332,15 @@ class TestLiteWorkerRealConnection:
             socket_connect_timeout=0.5,
             socket_timeout=0.5,
         )
-        with pytest.raises((ConnectionError, OSError, asyncio.TimeoutError, redis_exc.TimeoutError, redis_exc.ConnectionError)):
+        with pytest.raises(
+            (
+                ConnectionError,
+                OSError,
+                asyncio.TimeoutError,
+                redis_exc.TimeoutError,
+                redis_exc.ConnectionError,
+            )
+        ):
             await worker._redis.ping()
 
     @pytest.mark.asyncio

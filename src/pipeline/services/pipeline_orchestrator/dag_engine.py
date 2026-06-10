@@ -96,8 +96,7 @@ class PipelineDAG:
             tier = [
                 node.name
                 for node in self._graph.nodes
-                if node.name in remaining
-                and all(dep in completed for dep in node.needs)
+                if node.name in remaining and all(dep in completed for dep in node.needs)
             ]
             if not tier:
                 break

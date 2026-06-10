@@ -85,7 +85,9 @@ class SLATracker:
                 try:
                     import datetime
 
-                    disc_ts = datetime.datetime.fromisoformat(disc_ts.replace("Z", "+00:00")).timestamp()
+                    disc_ts = datetime.datetime.fromisoformat(
+                        disc_ts.replace("Z", "+00:00")
+                    ).timestamp()
                 except (ValueError, TypeError) as exc:
                     logger.warning("Malformed SLA timestamp %r: %s", disc_ts, exc)
                     disc_ts = ref_time
@@ -159,8 +161,7 @@ class SLATracker:
                     triage_breach_count += 1
                     breaches.append(
                         {
-                            "finding_id": finding.get("id")
-                            or finding.get("finding_id"),
+                            "finding_id": finding.get("id") or finding.get("finding_id"),
                             "stage": "triage",
                             "lag_days": round(triage_lag, 2),
                             "target_days": cls.TRIAGE_SLA_DAYS,
@@ -180,8 +181,7 @@ class SLATracker:
                     verification_breach_count += 1
                     breaches.append(
                         {
-                            "finding_id": finding.get("id")
-                            or finding.get("finding_id"),
+                            "finding_id": finding.get("id") or finding.get("finding_id"),
                             "stage": "verification",
                             "lag_days": round(verification_days, 2),
                             "target_days": cls.VERIFICATION_SLA_DAYS,
@@ -193,9 +193,7 @@ class SLATracker:
             "total": len(findings),
             "by_state": by_state,
             "avg_triage_lag_days": round(triage_total / triage_count, 2) if triage_count else 0.0,
-            "avg_verification_days": round(
-                verification_total / verification_count, 2
-            )
+            "avg_verification_days": round(verification_total / verification_count, 2)
             if verification_count
             else 0.0,
             "worst_triage_lag_days": round(worst_triage_lag, 2),
@@ -275,17 +273,12 @@ class SLATracker:
             lag = breach.get("lag_days", 0)
             target = breach.get("target_days", 0)
             priority = (
-                NotificationPriority.HIGH
-                if stage == "TRIAGE"
-                else NotificationPriority.MEDIUM
+                NotificationPriority.HIGH if stage == "TRIAGE" else NotificationPriority.MEDIUM
             )
             await notification_manager.send(
                 event=NotificationEvent.COMPLIANCE_VIOLATION,
                 priority=priority,
-                title=(
-                    f"SLA STAGE BREACH: {stage} lag {round(float(lag), 1)}d "
-                    f"on {target_name}"
-                ),
+                title=(f"SLA STAGE BREACH: {stage} lag {round(float(lag), 1)}d on {target_name}"),
                 message=(
                     f"Finding {fid} breached its {stage.lower()} SLA: "
                     f"{round(float(lag), 1)} days (target {target})."
@@ -330,14 +323,10 @@ def _compute_lifecycle_metrics(finding: dict[str, Any], ref_time: float) -> dict
     verified_at = _coerce_ts(finding.get("verified_at"))
 
     if discovered_at is not None and triaged_at is not None:
-        metrics["triage_lag_days"] = round(
-            max(0.0, (triaged_at - discovered_at) / 86400.0), 3
-        )
+        metrics["triage_lag_days"] = round(max(0.0, (triaged_at - discovered_at) / 86400.0), 3)
     elif discovered_at is not None and triaged_at is None:
         # Triage is in-flight - report the time spent waiting.
-        metrics["triage_lag_days"] = round(
-            max(0.0, (ref_time - discovered_at) / 86400.0), 3
-        )
+        metrics["triage_lag_days"] = round(max(0.0, (ref_time - discovered_at) / 86400.0), 3)
     if remediation_started_at is not None and fixed_at is not None:
         metrics["remediation_days"] = round(
             max(0.0, (fixed_at - remediation_started_at) / 86400.0), 3
@@ -347,13 +336,9 @@ def _compute_lifecycle_metrics(finding: dict[str, Any], ref_time: float) -> dict
             max(0.0, (ref_time - remediation_started_at) / 86400.0), 3
         )
     if fixed_at is not None and verified_at is not None:
-        metrics["verification_days"] = round(
-            max(0.0, (verified_at - fixed_at) / 86400.0), 3
-        )
+        metrics["verification_days"] = round(max(0.0, (verified_at - fixed_at) / 86400.0), 3)
     elif fixed_at is not None and verified_at is None:
-        metrics["verification_days"] = round(
-            max(0.0, (ref_time - fixed_at) / 86400.0), 3
-        )
+        metrics["verification_days"] = round(max(0.0, (ref_time - fixed_at) / 86400.0), 3)
     return metrics
 
 

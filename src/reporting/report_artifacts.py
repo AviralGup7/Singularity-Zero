@@ -115,7 +115,10 @@ def build_structured_report(
                 "evidence": finding.get("evidence", {}),
                 "compliance": finding.get("compliance", {}),
                 "mitre_attack": finding.get("mitre_attack", []),
-                "timestamp": finding.get("timestamp") or finding.get("created_at") or finding.get("detected_at") or "",
+                "timestamp": finding.get("timestamp")
+                or finding.get("created_at")
+                or finding.get("detected_at")
+                or "",
                 "discovered_at": finding.get("discovered_at", ""),
                 "triaged_at": finding.get("triaged_at", ""),
                 "remediation_started_at": finding.get("remediation_started_at", ""),
@@ -195,7 +198,7 @@ def build_cyclonedx_sbom(
     return {
         "bomFormat": "CycloneDX",
         "specVersion": CYCLONEDX_VERSION,
-        "serialNumber": f"urn:uuid:{sha256_bytes(f'{target_name}:{run_id}'.encode('utf-8'))[:32]}",
+        "serialNumber": f"urn:uuid:{sha256_bytes(f'{target_name}:{run_id}'.encode())[:32]}",
         "version": 1,
         "metadata": {
             "timestamp": _now_iso(),

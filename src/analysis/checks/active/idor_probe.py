@@ -1,4 +1,5 @@
 import logging
+
 """IDOR (Insecure Direct Object Reference) active probe."""
 
 import json

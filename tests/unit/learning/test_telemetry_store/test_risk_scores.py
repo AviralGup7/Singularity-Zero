@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreRiskScores:
     """Tests for risk score operations."""
 

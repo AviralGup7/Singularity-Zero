@@ -26,7 +26,9 @@ from src.pipeline.tools import RetryPolicy, build_retry_policy, run_command
 logger = logging.getLogger(__name__)
 
 _ALLOW_INSECURE_TLS = os.environ.get("ALLOW_INSECURE_TLS", "0").strip().lower() in (
-    "1", "true", "yes",
+    "1",
+    "true",
+    "yes",
 )
 
 
@@ -87,7 +89,7 @@ def compute_phash(image_path: Path) -> str:
             processed = img.convert("L").resize((32, 32), Image.Resampling.BILINEAR)
             pixels = np.array(processed, dtype=float)
             # 2D Discrete Cosine Transform
-            dct_val = dct(dct(pixels, axis=0, norm='ortho'), axis=1, norm='ortho')
+            dct_val = dct(dct(pixels, axis=0, norm="ortho"), axis=1, norm="ortho")
             dct_low = dct_val[:8, :8]
             dct_low_flat = dct_low.flatten()
             median_val = np.median(dct_low_flat[1:])
@@ -102,7 +104,7 @@ def hamming_distance(hash1: str, hash2: str) -> int:
     try:
         b1 = bytes.fromhex(hash1)
         b2 = bytes.fromhex(hash2)
-        return sum(bin(x1 ^ x2).count('1') for x1, x2 in zip(b1, b2))
+        return sum(bin(x1 ^ x2).count("1") for x1, x2 in zip(b1, b2))
     except (ValueError, TypeError) as exc:
         emit_warning(f"Hamming distance computation failed: {exc}")
         return 999
@@ -200,12 +202,7 @@ def _capture_single(
                     with open(destination, "rb") as f:
                         img_b64 = base64.b64encode(f.read()).decode("ascii")
                     baseline_store.update_baseline(
-                        target_name,
-                        url,
-                        viewport,
-                        image_hash,
-                        dom_hash,
-                        img_b64
+                        target_name, url, viewport, image_hash, dom_hash, img_b64
                     )
                 except Exception as exc:
                     emit_warning(f"failed to update baseline store: {exc}")
@@ -213,7 +210,9 @@ def _capture_single(
     return {
         "url": url,
         "status": status,
-        "file": str(destination.relative_to(run_dir)) if (destination.exists() and status == "ok") else "",
+        "file": str(destination.relative_to(run_dir))
+        if (destination.exists() and status == "ok")
+        else "",
         "error": error,
         "image_hash": image_hash,
     }
@@ -277,4 +276,3 @@ def capture_screenshots(
     # Sort by URL for consistent output
     captures.sort(key=lambda c: c["url"])
     return captures
-

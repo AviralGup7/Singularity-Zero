@@ -1,4 +1,5 @@
 import logging
+
 """Graph repository - CRUD operations for graph_nodes and graph_edges tables."""
 
 import threading
@@ -18,10 +19,18 @@ class GraphRepo(BaseRepo):
     def _ensure_indexes(self) -> None:
         try:
             with self._cursor() as cur:
-                cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_nodes_node_type ON graph_nodes(node_type)")
-                cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_nodes_run_id ON graph_nodes(run_id)")
-                cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_node_id)")
-                cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_type ON graph_edges(edge_type)")
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_graph_nodes_node_type ON graph_nodes(node_type)"
+                )
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_graph_nodes_run_id ON graph_nodes(run_id)"
+                )
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_node_id)"
+                )
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_graph_edges_type ON graph_edges(edge_type)"
+                )
         except Exception as exc:
             logging.warning("Operation failed in graph_repo.py: %s", exc, exc_info=True)  # noqa: BLE001
 

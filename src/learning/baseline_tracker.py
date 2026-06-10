@@ -168,15 +168,11 @@ class BaselineTracker:
             asset_keys.update(baseline.asset_type_breakdown.keys())
         for asset_type in asset_keys:
             current_count = current.asset_type_breakdown.get(asset_type, 0)
-            historical_counts = [
-                b.asset_type_breakdown.get(asset_type, 0) for b in recent
-            ]
+            historical_counts = [b.asset_type_breakdown.get(asset_type, 0) for b in recent]
             if not historical_counts:
                 continue
             mean = sum(historical_counts) / len(historical_counts)
-            std = (
-                sum((v - mean) ** 2 for v in historical_counts) / len(historical_counts)
-            ) ** 0.5
+            std = (sum((v - mean) ** 2 for v in historical_counts) / len(historical_counts)) ** 0.5
             if std == 0:
                 z_score = 999.0 if current_count != mean else 0.0
             else:

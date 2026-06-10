@@ -28,9 +28,7 @@ from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig, FeedError
 
 logger = logging.getLogger(__name__)
 
-VT_BASE_URL = os.environ.get(
-    "VT_BASE_URL", "https://www.virustotal.com/api/v3"
-)
+VT_BASE_URL = os.environ.get("VT_BASE_URL", "https://www.virustotal.com/api/v3")
 
 
 class VirusTotalConfig(FeedConfig):

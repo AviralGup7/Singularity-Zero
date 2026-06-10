@@ -138,4 +138,3 @@ class JobQueueConsumerGroupsMixin:
                 except Exception as exc:  # pylint: disable=broad-exception-caught
                     logger.debug("Skipping malformed worker health record %s: %s", worker_id, exc)
         return workers
-

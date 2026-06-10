@@ -88,9 +88,7 @@ def test_observation_adapter_skips_invalid_rows() -> None:
 
 
 def test_repeated_query_parameters_collects_repeats() -> None:
-    repeated = repeated_query_parameters(
-        "https://api.example.com/items?tag=red&tag=blue&q=hello"
-    )
+    repeated = repeated_query_parameters("https://api.example.com/items?tag=red&tag=blue&q=hello")
     assert "tag" in repeated
     assert repeated["tag"] == ["red", "blue"]
     assert "q" not in repeated

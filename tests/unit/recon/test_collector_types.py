@@ -67,9 +67,7 @@ class TestCollectorMetaDictCompatibility:
         assert meta["status"] == "ok"
 
     def test_legacy_unknown_keys_go_to_extras(self) -> None:
-        meta = coerce_meta(
-            {"status": "ok", "new_urls": 1, "pages_fetched": 12, "scripts_found": 4}
-        )
+        meta = coerce_meta({"status": "ok", "new_urls": 1, "pages_fetched": 12, "scripts_found": 4})
         # The unknown fields live in ``extras`` AND are surfaced through
         # the dict-like API (``__getitem__`` / ``__contains__``) for
         # backwards compatibility.

@@ -86,7 +86,10 @@ def parse_issues_xml(path: str) -> list[Finding]:
     for issue in root.iter("issue"):
         name = (issue.findtext("name") or "").strip()
         issue_type = (
-            issue.findtext("issueType") or issue.findtext("type") or issue.findtext("issue_type") or ""
+            issue.findtext("issueType")
+            or issue.findtext("type")
+            or issue.findtext("issue_type")
+            or ""
         ).strip()
         severity = (issue.findtext("severity") or "").strip()
         confidence = (issue.findtext("confidence") or "").strip()

@@ -218,7 +218,9 @@ class SecurityStore:
         return "database is locked" in message or "database table is locked" in message
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=_CONNECT_TIMEOUT_SECONDS, check_same_thread=False)
+        conn = sqlite3.connect(
+            self.db_path, timeout=_CONNECT_TIMEOUT_SECONDS, check_same_thread=False
+        )
         try:
             conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
             conn.execute("PRAGMA foreign_keys=ON")

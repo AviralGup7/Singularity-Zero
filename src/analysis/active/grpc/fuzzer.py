@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 _STRING_FUZZ_VECTORS: tuple[str, ...] = (
     "' OR 1=1 --",
     "1' OR '1'='1",
-    "\"><script>alert(1)</script>",
+    '"><script>alert(1)</script>',
     "../../../../etc/passwd",
     "{{7*7}}",
     "${7*7}",
@@ -118,35 +118,43 @@ class GrpcFuzzer:
         name = str(method.get("name", "unknown"))
         field_types = list(method.get("field_types") or [])
         # 1) Empty/minimal payload.
-        inputs.append(FuzzInput(
-            method=name,
-            payload={f"f{i}": _default_for(t) for i, t in enumerate(field_types)} or {"_": 0},
-            label="empty-payload",
-        ))
+        inputs.append(
+            FuzzInput(
+                method=name,
+                payload={f"f{i}": _default_for(t) for i, t in enumerate(field_types)} or {"_": 0},
+                label="empty-payload",
+            )
+        )
         # 2) String-heavy inputs (XSS / SQLi / traversal / SSTI / nulls).
         for vec in _STRING_FUZZ_VECTORS:
             payload = self._build_payload(field_types, vec)
-            inputs.append(FuzzInput(
-                method=name,
-                payload=payload,
-                label=f"string:{vec[:24]!r}",
-            ))
+            inputs.append(
+                FuzzInput(
+                    method=name,
+                    payload=payload,
+                    label=f"string:{vec[:24]!r}",
+                )
+            )
         # 3) Integer boundaries.
         for vec in _INT_FUZZ_VECTORS:
             payload = self._build_payload(field_types, vec)
-            inputs.append(FuzzInput(
-                method=name,
-                payload=payload,
-                label=f"int:{vec}",
-            ))
+            inputs.append(
+                FuzzInput(
+                    method=name,
+                    payload=payload,
+                    label=f"int:{vec}",
+                )
+            )
         # 4) Boolean toggles.
         for vec in _BOOL_FUZZ_VECTORS:
             payload = self._build_payload(field_types, vec)
-            inputs.append(FuzzInput(
-                method=name,
-                payload=payload,
-                label=f"bool:{vec}",
-            ))
+            inputs.append(
+                FuzzInput(
+                    method=name,
+                    payload=payload,
+                    label=f"bool:{vec}",
+                )
+            )
         return inputs[: self.max_attempts_per_method]
 
     def _build_payload(
@@ -195,37 +203,45 @@ class GrpcFuzzer:
             for fuzz in self.generate_inputs(method):
                 start = time.monotonic()
                 if invoke is None:
-                    results.append(FuzzResult(
-                        method=method.get("name", "unknown"),
-                        payload=fuzz.payload,
-                        status="dry-run",
-                        latency_ms=(time.monotonic() - start) * 1000,
-                    ))
+                    results.append(
+                        FuzzResult(
+                            method=method.get("name", "unknown"),
+                            payload=fuzz.payload,
+                            status="dry-run",
+                            latency_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
                     continue
                 try:
                     response = await invoke(method.get("name", "unknown"), fuzz.payload)
-                    results.append(FuzzResult(
-                        method=method.get("name", "unknown"),
-                        payload=fuzz.payload,
-                        status="ok",
-                        response=response,
-                        latency_ms=(time.monotonic() - start) * 1000,
-                    ))
+                    results.append(
+                        FuzzResult(
+                            method=method.get("name", "unknown"),
+                            payload=fuzz.payload,
+                            status="ok",
+                            response=response,
+                            latency_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
                 except TimeoutError:
-                    results.append(FuzzResult(
-                        method=method.get("name", "unknown"),
-                        payload=fuzz.payload,
-                        status="timeout",
-                        latency_ms=(time.monotonic() - start) * 1000,
-                    ))
+                    results.append(
+                        FuzzResult(
+                            method=method.get("name", "unknown"),
+                            payload=fuzz.payload,
+                            status="timeout",
+                            latency_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
                 except Exception as exc:  # noqa: BLE001
-                    results.append(FuzzResult(
-                        method=method.get("name", "unknown"),
-                        payload=fuzz.payload,
-                        status="exception",
-                        error=f"{type(exc).__name__}: {exc}",
-                        latency_ms=(time.monotonic() - start) * 1000,
-                    ))
+                    results.append(
+                        FuzzResult(
+                            method=method.get("name", "unknown"),
+                            payload=fuzz.payload,
+                            status="exception",
+                            error=f"{type(exc).__name__}: {exc}",
+                            latency_ms=(time.monotonic() - start) * 1000,
+                        )
+                    )
         return results
 
 

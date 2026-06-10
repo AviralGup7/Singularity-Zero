@@ -72,7 +72,10 @@ class LLMService:
         cleaned = text.replace("\x00", "")
         # Remove raw script tags to prevent XSS if rendered as HTML
         import re
-        cleaned = re.sub(r"<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>", "", cleaned, flags=re.IGNORECASE)
+
+        cleaned = re.sub(
+            r"<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>", "", cleaned, flags=re.IGNORECASE
+        )
         return cleaned
 
     @staticmethod
@@ -103,7 +106,9 @@ class LLMService:
         half = max_chars // 2
         return text[:half] + "\n[... TRUNCATED ...]\n" + text[-half:]
 
-    def _validate_provider_response(self, data: Any, required_keys: list[str], provider: str) -> None:
+    def _validate_provider_response(
+        self, data: Any, required_keys: list[str], provider: str
+    ) -> None:
         """Validate that provider response matches expected schema."""
         if not isinstance(data, dict):
             raise ValueError(f"{provider} returned non-object response: {type(data).__name__}")

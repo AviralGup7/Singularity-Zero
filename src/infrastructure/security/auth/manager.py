@@ -391,6 +391,7 @@ class AuthManager:
             # Perform a dummy hash to prevent timing-based user enumeration.
             # The time taken should be indistinguishable from a real hash check.
             from .passwords import hash_password as _dummy_hash
+
             _dummy_hash(password)
             return False
         return _verify_password(password, pwd_hash)

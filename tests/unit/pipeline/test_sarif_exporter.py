@@ -70,9 +70,9 @@ class TestSarifExport:
         ]["primary"]
         assert a == b
         # Different url => different fingerprint
-        c = export_findings_to_sarif([_finding(url="https://x.example/other")]).document[
-            "runs"
-        ][0]["results"][0]["partialFingerprints"]["primary"]
+        c = export_findings_to_sarif([_finding(url="https://x.example/other")]).document["runs"][0][
+            "results"
+        ][0]["partialFingerprints"]["primary"]
         assert a != c
 
     def test_false_positive_excluded_by_default(self) -> None:
@@ -144,9 +144,10 @@ class TestSarifExport:
         props = result.document["runs"][0]["results"][0]["properties"]
         assert props["severity"] == "high"
         assert props["cwe"] == "CWE-79"
-        assert "security-severity" in result.document["runs"][0]["tool"]["driver"]["rules"][
-            0
-        ]["properties"]
+        assert (
+            "security-severity"
+            in result.document["runs"][0]["tool"]["driver"]["rules"][0]["properties"]
+        )
 
     def test_custom_tool_metadata(self) -> None:
         result = export_findings_to_sarif(

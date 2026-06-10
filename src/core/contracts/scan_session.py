@@ -24,6 +24,7 @@ class SessionCredential:
     expires_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class ScanSession:
     scan_id: str
@@ -33,7 +34,11 @@ class ScanSession:
     base_url: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_used: datetime = field(default_factory=lambda: datetime.now(UTC))
-    _encryption_key: str = field(default_factory=lambda: os.environ.get("SEC_ENCRYPTION_KEY", "") or Fernet.generate_key().decode("utf-8"))
+    _encryption_key: str = field(
+        default_factory=lambda: (
+            os.environ.get("SEC_ENCRYPTION_KEY", "") or Fernet.generate_key().decode("utf-8")
+        )
+    )
 
     def __post_init__(self) -> None:
         if not self._encryption_key:
@@ -80,7 +85,10 @@ class ScanSession:
             headers["Authorization"] = f"Bearer {value}"
         elif cred.type == "basic_auth":
             import base64
-            headers["Authorization"] = f"Basic {base64.b64encode(value.encode('utf-8')).decode('utf-8')}"
+
+            headers["Authorization"] = (
+                f"Basic {base64.b64encode(value.encode('utf-8')).decode('utf-8')}"
+            )
         elif cred.type == "api_key":
             safe_name = cred.name.upper().replace(" ", "_")
             headers[safe_name] = value
@@ -131,7 +139,9 @@ class ScanSession:
                 name=str(payload.get("name", name)),
                 value=str(payload.get("value", "")),
                 scope=frozenset(payload.get("scope", []) or []),
-                expires_at=datetime.fromisoformat(payload["expires_at"]) if payload.get("expires_at") else None,
+                expires_at=datetime.fromisoformat(payload["expires_at"])
+                if payload.get("expires_at")
+                else None,
                 metadata=dict(payload.get("metadata", {}) or {}),
             )
         session.cookies = dict(state.get("cookies", {}) or {})
@@ -145,18 +155,17 @@ class ScanSession:
             session.last_used = datetime.fromisoformat(last_used)
         return session
 
+
 class SessionStore(ABC):
     @abstractmethod
-    def save_session(self, session: ScanSession) -> str:
-        ...
+    def save_session(self, session: ScanSession) -> str: ...
 
     @abstractmethod
-    def load_session(self, scan_id: str) -> ScanSession | None:
-        ...
+    def load_session(self, scan_id: str) -> ScanSession | None: ...
 
     @abstractmethod
-    def delete_session(self, scan_id: str) -> None:
-        ...
+    def delete_session(self, scan_id: str) -> None: ...
+
 
 class LocalSessionStore(SessionStore):
     def __init__(self, checkpoint_dir: str | Path) -> None:
@@ -182,6 +191,7 @@ class LocalSessionStore(SessionStore):
         path = self._session_path(scan_id)
         if path.exists():
             path.unlink()
+
 
 @dataclass(frozen=True, slots=True)
 class SessionProvisioningOutput:

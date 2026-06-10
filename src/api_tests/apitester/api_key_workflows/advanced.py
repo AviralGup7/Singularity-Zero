@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .shared import (
     base_headers,
@@ -29,7 +29,7 @@ def advanced_api_key_test(
         [
             f"Target     : {base_url}",
             f"API Key    : {display_secret(api_key)}",
-            f"Time       : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n",
+            f"Time       : {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}\n",
         ],
         divider_width=100,
     )

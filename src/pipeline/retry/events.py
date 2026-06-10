@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+
 """Structured retry events, event emitter, and event-bus bridge helpers."""
 
 
@@ -51,6 +53,7 @@ def _retry_event_type_to_event_type(retry_type: RetryEventType) -> Any:
     if not _RETRY_TO_PIPELINE_EVENT_TYPE:
         try:
             from src.core.events import EventType
+
             _RETRY_TO_PIPELINE_EVENT_TYPE = {
                 RetryEventType.RETRY_ATTEMPT: EventType.STAGE_RETRY,
                 RetryEventType.RETRY_SUCCESS: EventType.STAGE_COMPLETED,
@@ -65,6 +68,7 @@ def _retry_event_type_to_event_type(retry_type: RetryEventType) -> Any:
 def _pipeline_event_from_retry_event(event: RetryEvent) -> Any:
     try:
         from src.core.events import PipelineEvent
+
         return PipelineEvent(
             event_type=_retry_event_type_to_event_type(event.event_type),
             source=f"retry.{event.stage}",
@@ -101,6 +105,7 @@ class RetryEventEmitter:
         )
         try:
             from src.core.events import get_event_bus
+
             get_event_bus().publish(_pipeline_event_from_retry_event(event))
         except Exception as exc:
             logging.warning("Operation failed in events.py: %s", exc, exc_info=True)  # noqa: BLE001

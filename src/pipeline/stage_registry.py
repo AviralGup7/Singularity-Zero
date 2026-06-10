@@ -3,6 +3,7 @@
 This module provides a registration API that allows plugins to declare
 new pipeline stages without modifying core graph-building code.
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class Condition(Protocol):
-    def is_satisfied(self, ctx, state) -> bool:
-        ...
+    def is_satisfied(self, ctx, state) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -66,7 +66,10 @@ def _condition_references_capability(condition, capability: str) -> bool:
     if type_name == "FlagSet":
         return getattr(condition, "flag", None) == capability
     if type_name in ("All", "AnyOf"):
-        return any(_condition_references_capability(c, capability) for c in getattr(condition, "conditions", []))
+        return any(
+            _condition_references_capability(c, capability)
+            for c in getattr(condition, "conditions", [])
+        )
     if type_name == "Not":
         return _condition_references_capability(getattr(condition, "condition", None), capability)
     return False
@@ -97,6 +100,7 @@ def get_by_capability(capability: str) -> list[StageNodeDefinition]:
 
 def _make_stage_node(defn: StageNodeDefinition) -> StageNode:
     from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
+
     return StageNode(
         name=defn.name,
         needs=tuple(defn.needs),
@@ -115,15 +119,116 @@ def _register_builtin_stages() -> None:
         StageCompleted,
     )
 
-    register(StageNodeDefinition(name="sca_scan", needs=[], weight=5, timeout_seconds=600, when=OutputNonEmpty("source_code_paths"), runner_name="sca_scan", produces=["sca_findings", "dependency_tree", "sbom_fragment"], group="scanner"))
-    register(StageNodeDefinition(name="container_scan", needs=[], weight=5, timeout_seconds=900, when=AnyOf(conditions=(OutputNonEmpty("container_images"), OutputNonEmpty("dockerfiles"))), runner_name="sca_scan", produces=["container_findings", "image_vulns", "sbom_fragment"], group="scanner"))
-    register(StageNodeDefinition(name="iac_scan", needs=[], weight=5, timeout_seconds=600, when=OutputNonEmpty("iac_paths"), runner_name="sca_scan", produces=["iac_findings", "misconfigurations"], group="scanner"))
-    register(StageNodeDefinition(name="sbom_generate", needs=[], weight=3, timeout_seconds=120, when=AnyOf(conditions=(StageCompleted("sca_scan"), StageCompleted("container_scan"))), runner_name="sca_scan", produces=["sbom", "sbom_cyclonedx", "sbom_spdx"], group="scanner"))
-    register(StageNodeDefinition(name="sbom_diff", needs=[], weight=2, timeout_seconds=120, when=OutputNonEmpty("previous_sbom"), runner_name="sca_scan", produces=["sbom_diff", "new_components", "removed_components", "changed_components"], group="scanner"))
-    register(StageNodeDefinition(name="git_secret_scan", needs=[], weight=3, timeout_seconds=600, when=AlwaysTrue(), runner_name="sca_scan", produces=["secret_findings", "exposed_credentials_count"], group="scanner"))
-    register(StageNodeDefinition(name="ci_export", needs=["reporting"], weight=1, timeout_seconds=120, when=AlwaysTrue(), runner_name="ci_export", produces=["junit_xml", "github_summary", "ci_artifacts", "exit_code_recommendation"], group="exporter"))
-    register(StageNodeDefinition(name="scope_stage", needs=["urls"], weight=1, timeout_seconds=120, when=OutputNonEmpty("target_urls"), runner_name="scope_stage", produces=["in_scope_urls", "out_of_scope_urls", "scope_metadata"], group="bug_bounty"))
-    register(StageNodeDefinition(name="dedup_stage", needs=["reporting"], weight=1, timeout_seconds=120, when=AlwaysTrue(), runner_name="dedup_stage", produces=["new_findings", "duplicate_findings"], group="bug_bounty"))
+    register(
+        StageNodeDefinition(
+            name="sca_scan",
+            needs=[],
+            weight=5,
+            timeout_seconds=600,
+            when=OutputNonEmpty("source_code_paths"),
+            runner_name="sca_scan",
+            produces=["sca_findings", "dependency_tree", "sbom_fragment"],
+            group="scanner",
+        )
+    )
+    register(
+        StageNodeDefinition(
+            name="container_scan",
+            needs=[],
+            weight=5,
+            timeout_seconds=900,
+            when=AnyOf(
+                conditions=(OutputNonEmpty("container_images"), OutputNonEmpty("dockerfiles"))
+            ),
+            runner_name="sca_scan",
+            produces=["container_findings", "image_vulns", "sbom_fragment"],
+            group="scanner",
+        )
+    )
+    register(
+        StageNodeDefinition(
+            name="iac_scan",
+            needs=[],
+            weight=5,
+            timeout_seconds=600,
+            when=OutputNonEmpty("iac_paths"),
+            runner_name="sca_scan",
+            produces=["iac_findings", "misconfigurations"],
+            group="scanner",
+        )
+    )
+    register(
+        StageNodeDefinition(
+            name="sbom_generate",
+            needs=[],
+            weight=3,
+            timeout_seconds=120,
+            when=AnyOf(conditions=(StageCompleted("sca_scan"), StageCompleted("container_scan"))),
+            runner_name="sca_scan",
+            produces=["sbom", "sbom_cyclonedx", "sbom_spdx"],
+            group="scanner",
+        )
+    )
+    register(
+        StageNodeDefinition(
+            name="sbom_diff",
+            needs=[],
+            weight=2,
+            timeout_seconds=120,
+            when=OutputNonEmpty("previous_sbom"),
+            runner_name="sca_scan",
+            produces=["sbom_diff", "new_components", "removed_components", "changed_components"],
+            group="scanner",
+        )
+    )
+    register(
+        StageNodeDefinition(
+            name="git_secret_scan",
+            needs=[],
+            weight=3,
+            timeout_seconds=600,
+            when=AlwaysTrue(),
+            runner_name="sca_scan",
+            produces=["secret_findings", "exposed_credentials_count"],
+            group="scanner",
+        )
+    )
+    register(
+        StageNodeDefinition(
+            name="ci_export",
+            needs=["reporting"],
+            weight=1,
+            timeout_seconds=120,
+            when=AlwaysTrue(),
+            runner_name="ci_export",
+            produces=["junit_xml", "github_summary", "ci_artifacts", "exit_code_recommendation"],
+            group="exporter",
+        )
+    )
+    register(
+        StageNodeDefinition(
+            name="scope_stage",
+            needs=["urls"],
+            weight=1,
+            timeout_seconds=120,
+            when=OutputNonEmpty("target_urls"),
+            runner_name="scope_stage",
+            produces=["in_scope_urls", "out_of_scope_urls", "scope_metadata"],
+            group="bug_bounty",
+        )
+    )
+    register(
+        StageNodeDefinition(
+            name="dedup_stage",
+            needs=["reporting"],
+            weight=1,
+            timeout_seconds=120,
+            when=AlwaysTrue(),
+            runner_name="dedup_stage",
+            produces=["new_findings", "duplicate_findings"],
+            group="bug_bounty",
+        )
+    )
 
 
 def list_registered_stage_definitions() -> list[StageNodeDefinition]:

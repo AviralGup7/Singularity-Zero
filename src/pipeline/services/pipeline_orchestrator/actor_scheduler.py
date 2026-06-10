@@ -19,6 +19,7 @@ The scheduler emits stage lifecycle events at the same boundaries
 the legacy tier runner did, so checkpoint files written by the old
 code are still loadable by the new one and vice-versa.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -188,7 +189,10 @@ class ActorScheduler:
 
         # Seed StagePlanner with learning integration
         from src.pipeline.services.pipeline_orchestrator.stage_planner import StagePlanner
-        planner = StagePlanner(self._config, self._ctx, self._orchestrator.observability_bus.learning_integration)
+
+        planner = StagePlanner(
+            self._config, self._ctx, self._orchestrator.observability_bus.learning_integration
+        )
 
         while True:
             if self._failed_critical is not None:
@@ -217,10 +221,13 @@ class ActorScheduler:
             if ready:
                 try:
                     from src.infrastructure.resource_guard import ResourceGuard
+
                     error_detail = ResourceGuard().check_and_halt_on_oom()
                     if error_detail:
                         logger.error("System resource check failed: %s", error_detail)
-                        self._error_emitter("resource_guard", f"Critical OOM detected: {error_detail}")
+                        self._error_emitter(
+                            "resource_guard", f"Critical OOM detected: {error_detail}"
+                        )
                         self._failed_critical = "resource_guard"
                         self._outcome.exit_code = 1
                         break
@@ -240,9 +247,7 @@ class ActorScheduler:
 
         re_sched_tasks = [st.task for st in self._in_flight.values()]
         if re_sched_tasks:
-            logger.info(
-                "ActorScheduler: awaiting %d re-scheduled tasks", len(re_sched_tasks)
-            )
+            logger.info("ActorScheduler: awaiting %d re-scheduled tasks", len(re_sched_tasks))
             await asyncio.wait(re_sched_tasks, return_when=asyncio.ALL_COMPLETED)
 
         self._finalize_unsatisfiable_nodes()
@@ -319,13 +324,9 @@ class ActorScheduler:
             dep in self._completed
             or dep in self._skipped
             or dep in self._outcome.skipped
-            or (
-                dep in self._outcome.failed
-                and not self._graph.require(dep).critical
-            )
+            or (dep in self._outcome.failed and not self._graph.require(dep).critical)
             for dep in node.needs
         )
-
 
     def _condition_holds(self, node: StageNode) -> bool:
         try:
@@ -407,9 +408,7 @@ class ActorScheduler:
         if not self._in_flight:
             return
         tasks = list(self._in_flight.keys())
-        done, _pending = await asyncio.wait(
-            tasks, return_when=asyncio.FIRST_COMPLETED
-        )
+        done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in done:
             scheduled = self._in_flight.pop(task, None)
             if scheduled is None:
@@ -483,7 +482,11 @@ class ActorScheduler:
         for node in self._graph.nodes:
             if node.name in self._completed or node.name not in self._remaining:
                 continue
-            if self._deps_satisfied(node) and self._condition_holds(node) and not self._is_large_debt_node(node):
+            if (
+                self._deps_satisfied(node)
+                and self._condition_holds(node)
+                and not self._is_large_debt_node(node)
+            ):
                 self._dispatch(node)
 
     def _record_re_schedule_decision(self, node: StageNode) -> None:

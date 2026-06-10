@@ -47,13 +47,24 @@ def to_envelope(finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionEn
         return finding
     return SubmissionEnvelope(
         title=str(finding.get("title", "Security finding")),
-        description=str(finding.get("description") or finding.get("vulnerability_information") or "Security finding description"),
+        description=str(
+            finding.get("description")
+            or finding.get("vulnerability_information")
+            or "Security finding description"
+        ),
         severity=str(finding.get("severity", "medium")),
         target_url=str(finding.get("url") or finding.get("target_url") or ""),
         target_name=str(finding.get("target") or finding.get("target_name") or ""),
         category=str(finding.get("category") or finding.get("type") or "general"),
-        request_payload=str(finding.get("request_payload") or finding.get("payload") or finding.get("evidence") or ""),
-        response_body=str(finding.get("response_body") or finding.get("response") or finding.get("body") or ""),
+        request_payload=str(
+            finding.get("request_payload")
+            or finding.get("payload")
+            or finding.get("evidence")
+            or ""
+        ),
+        response_body=str(
+            finding.get("response_body") or finding.get("response") or finding.get("body") or ""
+        ),
         draft=bool(finding.get("draft", True)),
     )
 
@@ -162,7 +173,9 @@ class HackerOneClient(_BaseClient):
                 headers={"Accept": "application/json"},
             )
         except (TimeoutError, httpx.RequestError) as exc:
-            safe_error = str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
+            safe_error = (
+                str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
+            )
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
@@ -323,7 +336,9 @@ class IntigritiClient(_BaseClient):
                 },
             )
         except (TimeoutError, httpx.RequestError) as exc:
-            safe_error = str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
+            safe_error = (
+                str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
+            )
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
@@ -403,7 +418,9 @@ class SynackClient(_BaseClient):
                 },
             )
         except (TimeoutError, httpx.RequestError) as exc:
-            safe_error = str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
+            safe_error = (
+                str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
+            )
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
@@ -458,7 +475,9 @@ class YesWeHackClient(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="YesWeHack credentials not configured")
+            return SubmissionResult(
+                platform=self.platform, ok=False, error="YesWeHack credentials not configured"
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/api/programs/{self.program_slug}/reports"
         payload = {
@@ -470,7 +489,9 @@ class YesWeHackClient(_BaseClient):
         }
         try:
             client = await self._http()
-            resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {self.api_token}"})
+            resp = await client.post(
+                url, json=payload, headers={"Authorization": f"Bearer {self.api_token}"}
+            )
         except Exception as exc:
             return SubmissionResult(platform=self.platform, ok=False, error=str(exc))
         if resp.status_code in {200, 201, 202}:
@@ -483,7 +504,9 @@ class YesWeHackClient(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -512,7 +535,9 @@ class OpenBugBountyClient(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="OpenBugBounty credentials not configured")
+            return SubmissionResult(
+                platform=self.platform, ok=False, error="OpenBugBounty credentials not configured"
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/api/v1/vulnerability"
         payload = {
@@ -537,7 +562,9 @@ class OpenBugBountyClient(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -554,7 +581,9 @@ class GoogleVRPClient(_BaseClient):
         self,
         api_key: str | None = None,
         tracker_id: str | None = None,
-        base_url: str = os.environ.get("GOOGLE_VRP_BASE_URL", "https://issuetracker.googleapis.com"),
+        base_url: str = os.environ.get(
+            "GOOGLE_VRP_BASE_URL", "https://issuetracker.googleapis.com"
+        ),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -568,7 +597,9 @@ class GoogleVRPClient(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="GoogleVRP credentials not configured")
+            return SubmissionResult(
+                platform=self.platform, ok=False, error="GoogleVRP credentials not configured"
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/v1/issues/{self.tracker_id}"
         payload = {
@@ -592,7 +623,9 @@ class GoogleVRPClient(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -621,7 +654,9 @@ class MetaClient(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="Meta credentials not configured")
+            return SubmissionResult(
+                platform=self.platform, ok=False, error="Meta credentials not configured"
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/v1/whitehat/report"
         payload = {
@@ -649,7 +684,9 @@ class MetaClient(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -682,7 +719,9 @@ class AppleClient(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="Apple credentials not configured")
+            return SubmissionResult(
+                platform=self.platform, ok=False, error="Apple credentials not configured"
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/api/v1/security-reports"
         payload = {
@@ -693,7 +732,9 @@ class AppleClient(_BaseClient):
         }
         try:
             client = await self._http()
-            resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {self.dev_token}"})
+            resp = await client.post(
+                url, json=payload, headers={"Authorization": f"Bearer {self.dev_token}"}
+            )
         except Exception as exc:
             return SubmissionResult(platform=self.platform, ok=False, error=str(exc))
         if resp.status_code in {200, 201, 202}:
@@ -706,7 +747,9 @@ class AppleClient(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -735,7 +778,9 @@ class AWSClient(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="AWS credentials not configured")
+            return SubmissionResult(
+                platform=self.platform, ok=False, error="AWS credentials not configured"
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/aws-vulnerability-report"
         payload = {
@@ -759,7 +804,9 @@ class AWSClient(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -788,7 +835,9 @@ class MSRCAgent(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="MSRC credentials not configured")
+            return SubmissionResult(
+                platform=self.platform, ok=False, error="MSRC credentials not configured"
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/api/msrc/v1/submissions"
         payload = {
@@ -812,7 +861,9 @@ class MSRCAgent(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -841,7 +892,9 @@ class MozillaClient(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="Mozilla credentials not configured")
+            return SubmissionResult(
+                platform=self.platform, ok=False, error="Mozilla credentials not configured"
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/api/v1/bug"
         payload = {
@@ -867,7 +920,9 @@ class MozillaClient(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -883,7 +938,9 @@ class GovDefenseClient(_BaseClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = os.environ.get("CISA_BASE_URL", "https://vulnerability-disclosure.cisa.gov"),
+        base_url: str = os.environ.get(
+            "CISA_BASE_URL", "https://vulnerability-disclosure.cisa.gov"
+        ),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -896,7 +953,11 @@ class GovDefenseClient(_BaseClient):
 
     async def submit(self, finding: Mapping[str, Any] | SubmissionEnvelope) -> SubmissionResult:
         if not self.ready:
-            return SubmissionResult(platform=self.platform, ok=False, error="Government/Defense credentials not configured")
+            return SubmissionResult(
+                platform=self.platform,
+                ok=False,
+                error="Government/Defense credentials not configured",
+            )
         env = to_envelope(finding)
         url = f"{self.base_url}/cisa/v1/submissions"
         payload = {
@@ -908,7 +969,9 @@ class GovDefenseClient(_BaseClient):
         }
         try:
             client = await self._http()
-            resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {self.api_key}"})
+            resp = await client.post(
+                url, json=payload, headers={"Authorization": f"Bearer {self.api_key}"}
+            )
         except Exception as exc:
             return SubmissionResult(platform=self.platform, ok=False, error=str(exc))
         if resp.status_code in {200, 201, 202}:
@@ -921,7 +984,9 @@ class GovDefenseClient(_BaseClient):
                 status_code=resp.status_code,
                 raw_response=body,
             )
-        return SubmissionResult(platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200])
+        return SubmissionResult(
+            platform=self.platform, ok=False, status_code=resp.status_code, error=resp.text[:200]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -965,15 +1030,11 @@ def _bugcrowd_payout(sev: Any) -> float:
 
 
 def _bugcrowd_priority(sev: Any) -> int:
-    return {"critical": 1, "high": 2, "medium": 3, "low": 4}.get(
-        str(sev or "").lower(), 5
-    )
+    return {"critical": 1, "high": 2, "medium": 3, "low": 4}.get(str(sev or "").lower(), 5)
 
 
 def _intigriti_severity(sev: Any) -> int:
-    return {"critical": 5, "high": 4, "medium": 3, "low": 2}.get(
-        str(sev or "").lower(), 1
-    )
+    return {"critical": 5, "high": 4, "medium": 3, "low": 2}.get(str(sev or "").lower(), 1)
 
 
 def _synack_severity(sev: Any) -> str:

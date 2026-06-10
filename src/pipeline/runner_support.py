@@ -207,7 +207,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-
 def build_tool_status(browser_paths: list[str]) -> dict[str, bool]:
     status = {tool: tool_available(tool) for tool in TOOL_NAMES}
     status["httpx"] = projectdiscovery_httpx_available()

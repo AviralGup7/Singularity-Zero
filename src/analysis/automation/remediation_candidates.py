@@ -51,99 +51,47 @@ CATEGORY_CWE_MAP: dict[str, dict[str, str]] = {
     "idor": {"cwe": "CWE-639", "owasp": "API1:2023", "owasp_top10": "A01:2021"},
     "bola": {"cwe": "CWE-639", "owasp": "API1:2023", "owasp_top10": "A01:2021"},
     "broken_object_level_authorization": {
-        "cwe": "CWE-639", "owasp": "API1:2023", "owasp_top10": "A01:2021"
+        "cwe": "CWE-639",
+        "owasp": "API1:2023",
+        "owasp_top10": "A01:2021",
     },
-    "access_control": {
-        "cwe": "CWE-284", "owasp": "API5:2023", "owasp_top10": "A01:2021"
-    },
-    "auth_bypass": {
-        "cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"
-    },
-    "auth_bypass_no_auth": {
-        "cwe": "CWE-306", "owasp": "API2:2023", "owasp_top10": "A07:2021"
-    },
+    "access_control": {"cwe": "CWE-284", "owasp": "API5:2023", "owasp_top10": "A01:2021"},
+    "auth_bypass": {"cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"},
+    "auth_bypass_no_auth": {"cwe": "CWE-306", "owasp": "API2:2023", "owasp_top10": "A07:2021"},
     "auth_bypass_invalid_token": {
-        "cwe": "CWE-345", "owasp": "API2:2023", "owasp_top10": "A02:2021"
+        "cwe": "CWE-345",
+        "owasp": "API2:2023",
+        "owasp_top10": "A02:2021",
     },
-    "authentication_bypass": {
-        "cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"
-    },
-    "broken_authentication": {
-        "cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"
-    },
-    "ssrf": {
-        "cwe": "CWE-918", "owasp": "API7:2023", "owasp_top10": "A10:2021"
-    },
+    "authentication_bypass": {"cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"},
+    "broken_authentication": {"cwe": "CWE-287", "owasp": "API2:2023", "owasp_top10": "A07:2021"},
+    "ssrf": {"cwe": "CWE-918", "owasp": "API7:2023", "owasp_top10": "A10:2021"},
     "xss": {"cwe": "CWE-79", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
     "reflected_xss": {"cwe": "CWE-79", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
     "stored_xss": {"cwe": "CWE-79", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
-    "sql_injection": {
-        "cwe": "CWE-89", "owasp": "API8:2023", "owasp_top10": "A03:2021"
-    },
-    "command_injection": {
-        "cwe": "CWE-78", "owasp": "API8:2023", "owasp_top10": "A03:2021"
-    },
-    "ssti": {
-        "cwe": "CWE-1336", "owasp": "API8:2023", "owasp_top10": "A03:2021"
-    },
-    "open_redirect": {
-        "cwe": "CWE-601", "owasp": "API1:2023", "owasp_top10": "A01:2021"
-    },
-    "unvalidated_redirect": {
-        "cwe": "CWE-601", "owasp": "API1:2023", "owasp_top10": "A01:2021"
-    },
+    "sql_injection": {"cwe": "CWE-89", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
+    "command_injection": {"cwe": "CWE-78", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
+    "ssti": {"cwe": "CWE-1336", "owasp": "API8:2023", "owasp_top10": "A03:2021"},
+    "open_redirect": {"cwe": "CWE-601", "owasp": "API1:2023", "owasp_top10": "A01:2021"},
+    "unvalidated_redirect": {"cwe": "CWE-601", "owasp": "API1:2023", "owasp_top10": "A01:2021"},
     "csrf": {"cwe": "CWE-352", "owasp": "API2:2023", "owasp_top10": "A01:2021"},
-    "race_condition": {
-        "cwe": "CWE-362", "owasp": "API4:2023", "owasp_top10": "A04:2021"
-    },
-    "file_upload": {
-        "cwe": "CWE-434", "owasp": "API4:2023", "owasp_top10": "A04:2021"
-    },
-    "path_traversal": {
-        "cwe": "CWE-22", "owasp": "API1:2023", "owasp_top10": "A01:2021"
-    },
-    "directory_listing": {
-        "cwe": "CWE-548", "owasp": "API3:2023", "owasp_top10": "A05:2021"
-    },
-    "information_disclosure": {
-        "cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A04:2021"
-    },
-    "info_disclosure": {
-        "cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A04:2021"
-    },
-    "token_leak": {
-        "cwe": "CWE-798", "owasp": "API2:2023", "owasp_top10": "A07:2021"
-    },
-    "hardcoded_credentials": {
-        "cwe": "CWE-798", "owasp": "API2:2023", "owasp_top10": "A07:2021"
-    },
-    "weak_credentials": {
-        "cwe": "CWE-521", "owasp": "API2:2023", "owasp_top10": "A07:2021"
-    },
-    "business_logic": {
-        "cwe": "CWE-840", "owasp": "API6:2023", "owasp_top10": "A04:2021"
-    },
-    "insecure_deserialization": {
-        "cwe": "CWE-502", "owasp": "API8:2023", "owasp_top10": "A08:2021"
-    },
-    "mass_assignment": {
-        "cwe": "CWE-915", "owasp": "API6:2023", "owasp_top10": "A08:2021"
-    },
-    "excessive_data_exposure": {
-        "cwe": "CWE-213", "owasp": "API3:2023", "owasp_top10": "A04:2021"
-    },
-    "graphql_introspection": {
-        "cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A05:2021"
-    },
-    "websocket": {
-        "cwe": "CWE-1385", "owasp": "API2:2023", "owasp_top10": "A07:2021"
-    },
-    "jwt": {
-        "cwe": "CWE-347", "owasp": "API2:2023", "owasp_top10": "A02:2021"
-    },
-    "smuggling": {
-        "cwe": "CWE-444", "owasp": "API8:2023", "owasp_top10": "A05:2021"
-    },
+    "race_condition": {"cwe": "CWE-362", "owasp": "API4:2023", "owasp_top10": "A04:2021"},
+    "file_upload": {"cwe": "CWE-434", "owasp": "API4:2023", "owasp_top10": "A04:2021"},
+    "path_traversal": {"cwe": "CWE-22", "owasp": "API1:2023", "owasp_top10": "A01:2021"},
+    "directory_listing": {"cwe": "CWE-548", "owasp": "API3:2023", "owasp_top10": "A05:2021"},
+    "information_disclosure": {"cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A04:2021"},
+    "info_disclosure": {"cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A04:2021"},
+    "token_leak": {"cwe": "CWE-798", "owasp": "API2:2023", "owasp_top10": "A07:2021"},
+    "hardcoded_credentials": {"cwe": "CWE-798", "owasp": "API2:2023", "owasp_top10": "A07:2021"},
+    "weak_credentials": {"cwe": "CWE-521", "owasp": "API2:2023", "owasp_top10": "A07:2021"},
+    "business_logic": {"cwe": "CWE-840", "owasp": "API6:2023", "owasp_top10": "A04:2021"},
+    "insecure_deserialization": {"cwe": "CWE-502", "owasp": "API8:2023", "owasp_top10": "A08:2021"},
+    "mass_assignment": {"cwe": "CWE-915", "owasp": "API6:2023", "owasp_top10": "A08:2021"},
+    "excessive_data_exposure": {"cwe": "CWE-213", "owasp": "API3:2023", "owasp_top10": "A04:2021"},
+    "graphql_introspection": {"cwe": "CWE-200", "owasp": "API3:2023", "owasp_top10": "A05:2021"},
+    "websocket": {"cwe": "CWE-1385", "owasp": "API2:2023", "owasp_top10": "A07:2021"},
+    "jwt": {"cwe": "CWE-347", "owasp": "API2:2023", "owasp_top10": "A02:2021"},
+    "smuggling": {"cwe": "CWE-444", "owasp": "API8:2023", "owasp_top10": "A05:2021"},
 }
 
 
@@ -268,11 +216,7 @@ def build_remediation_candidate(
     )
 
     evidence_keys = tuple(sorted(str(k) for k in evidence.keys()))
-    finding_key = str(
-        finding.get("endpoint_key")
-        or evidence.get("endpoint_key")
-        or endpoint
-    )
+    finding_key = str(finding.get("endpoint_key") or evidence.get("endpoint_key") or endpoint)
     fingerprint = _fingerprint(category, endpoint, method, severity)
 
     # CWE / OWASP resolution. The map key is matched case-insensitively
@@ -280,11 +224,7 @@ def build_remediation_candidate(
     # candidate. When the finding itself already carries a CWE (e.g. a
     # static-analysis result with ``cwe`` set), we prefer that value.
     cwe_info = CATEGORY_CWE_MAP.get(category, {})
-    cwe_id = str(
-        finding.get("cwe")
-        or finding.get("cwe_id")
-        or cwe_info.get("cwe", "")
-    )
+    cwe_id = str(finding.get("cwe") or finding.get("cwe_id") or cwe_info.get("cwe", ""))
     owasp_api = str(finding.get("owasp_api") or cwe_info.get("owasp", ""))
     owasp_top10 = str(finding.get("owasp_top10") or cwe_info.get("owasp_top10", ""))
 
@@ -293,9 +233,7 @@ def build_remediation_candidate(
     # ``source_function`` to the finding's evidence. We pass them
     # through so engineers can jump straight to the affected code.
     source_file = str(
-        evidence.get("source_file")
-        or evidence.get("file")
-        or finding.get("source_file", "")
+        evidence.get("source_file") or evidence.get("file") or finding.get("source_file", "")
     )
     try:
         source_line = int(evidence.get("source_line") or evidence.get("line") or 0)
@@ -346,9 +284,7 @@ def build_remediation_candidates(
     seen: set[str] = set()
     out: list[RemediationCandidate] = []
     for finding in findings:
-        candidate = build_remediation_candidate(
-            finding, confidence_threshold=confidence_threshold
-        )
+        candidate = build_remediation_candidate(finding, confidence_threshold=confidence_threshold)
         if candidate is None:
             continue
         if candidate.fingerprint in seen:
@@ -368,9 +304,7 @@ def attach_remediation_candidates_to_delta(
 
     Idempotent: replaces any previous ``remediation_candidates`` key.
     """
-    candidates = build_remediation_candidates(
-        findings, confidence_threshold=confidence_threshold
-    )
+    candidates = build_remediation_candidates(findings, confidence_threshold=confidence_threshold)
     state_delta["remediation_candidates"] = [c.to_dict() for c in candidates]
     return candidates
 

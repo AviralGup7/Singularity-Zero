@@ -1,4 +1,3 @@
-
 """Core discovery probing logic.
 
 Extracted from ``src.recon.live_hosts``.  Owns the httpx-based batch probing
@@ -241,6 +240,7 @@ def _run_httpx_batch(
     retry_policy: Any,
 ) -> tuple[list[dict[str, Any]], set[str], dict[str, Any]]:
     import logging
+
     logging.getLogger(__name__)
     outcome = execute_command(
         command,
@@ -292,6 +292,7 @@ def probe_live_hosts(
     effective_timeout = int(timeout_seconds or getattr(config, "http_timeout_seconds", None) or 30)
     if str(config.mode).lower() == "safe":
         from src.recon.live_hosts.health import probe_live_hosts_fallback
+
         return probe_live_hosts_fallback(
             subdomains,
             effective_timeout,
@@ -450,6 +451,7 @@ def probe_live_hosts(
             return records, live_hosts
 
         from src.recon.live_hosts.health import probe_live_hosts_fallback
+
         return probe_live_hosts_fallback(
             subdomains,
             config.http_timeout_seconds,
@@ -459,6 +461,7 @@ def probe_live_hosts(
         )
 
     from src.recon.live_hosts.health import probe_live_hosts_fallback
+
     return probe_live_hosts_fallback(
         subdomains,
         config.http_timeout_seconds,

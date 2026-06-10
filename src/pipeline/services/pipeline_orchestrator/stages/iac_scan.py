@@ -123,7 +123,9 @@ async def run_iac_scan_stage(
                         {
                             "type": finding_type,
                             "severity": finding.get("severity", "unknown"),
-                            "description": finding.get("check_name", finding.get("description", "")),
+                            "description": finding.get(
+                                "check_name", finding.get("description", "")
+                            ),
                             "file": finding.get("file_path", finding.get("file", "")),
                             "line": finding.get("line_number", finding.get("line", "")),
                             "evidence": finding,

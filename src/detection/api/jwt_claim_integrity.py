@@ -44,9 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 # Algorithms we want to flag.
-_INSECURE_ALGS: frozenset[str] = frozenset(
-    {"none", "None", "NONE", "HS1", "RS1"}
-)
+_INSECURE_ALGS: frozenset[str] = frozenset({"none", "None", "NONE", "HS1", "RS1"})
 _SYMMETRIC_ALGS: frozenset[str] = frozenset({"HS256", "HS384", "HS512"})
 _ASYMMETRIC_ALGS: frozenset[str] = frozenset(
     {"RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512", "EdDSA"}
@@ -65,9 +63,7 @@ _HEADER_INJECTION_FIELDS: tuple[str, ...] = (
 
 # JWT shape matchers — we accept tokens with and without the signature
 # segment, and tolerate the compact serialization only (JWS, not JWE).
-_JWT_PATTERN = re.compile(
-    r"^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]*$"
-)
+_JWT_PATTERN = re.compile(r"^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]*$")
 _JWT_NO_SIG_PATTERN = re.compile(r"^[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$")
 
 
@@ -288,12 +284,7 @@ def analyze_jwt_claim_integrity(
         severity = "high"
         confidence = max(confidence, 0.85)
 
-    if (
-        expected_alg
-        and alg
-        and expected_alg in _ASYMMETRIC_ALGS
-        and alg in _SYMMETRIC_ALGS
-    ):
+    if expected_alg and alg and expected_alg in _ASYMMETRIC_ALGS and alg in _SYMMETRIC_ALGS:
         findings.append("asymmetric_to_symmetric_confusion")
         severity = "critical"
         confidence = max(confidence, 0.90)
@@ -386,10 +377,7 @@ def analyze_jwt_claim_integrity(
         severity = "info"
         confidence = 0.30
 
-    summary = (
-        f"JWT manipulation surface at {url} (alg={alg or '?'}): "
-        + ", ".join(findings[:3])
-    )
+    summary = f"JWT manipulation surface at {url} (alg={alg or '?'}): " + ", ".join(findings[:3])
     remediation_hint = None
     if severity in {"critical", "high"}:
         remediation_hint = (

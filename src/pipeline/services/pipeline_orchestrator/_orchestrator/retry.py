@@ -237,7 +237,9 @@ async def run_stage_with_retry(
             },
         )
     metrics = RetryMetrics()
-    shutdown_event = orchestrator._shutdown_event if hasattr(orchestrator, "_shutdown_event") else None
+    shutdown_event = (
+        orchestrator._shutdown_event if hasattr(orchestrator, "_shutdown_event") else None
+    )
 
     async def _execute_stage() -> StageOutput | None:
         isolated_ctx = PipelineContext.restore(ctx.to_dict())
@@ -302,6 +304,7 @@ async def run_stage_with_retry(
 
         try:
             from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+
             _reg = _get_metrics()
             _reg.histogram("scan_duration_seconds", labels={"stage": stage_name}).observe(elapsed)
             _reg.counter("total_jobs").inc()
@@ -317,6 +320,7 @@ async def run_stage_with_retry(
 
             try:
                 from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+
                 _get_metrics().counter("completed_jobs").inc()
             except Exception:  # noqa: BLE001
                 pass
@@ -350,6 +354,7 @@ async def run_stage_with_retry(
 
         try:
             from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+
             _get_metrics().counter("completed_jobs").inc()
         except Exception:  # noqa: BLE001
             pass
@@ -420,7 +425,9 @@ async def run_stage_with_retry(
                 backoff_seconds=0.0,
                 total_backoff_seconds=metrics.total_backoff_seconds,
             )
-            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
+            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(
+                ctx, "run_id", ""
+            )
             stage_trace_id = getattr(stage_output, "trace_id", "") if stage_output else ""
             await _record_trace(
                 orchestrator=orchestrator,
@@ -478,6 +485,7 @@ async def run_stage_with_retry(
             metrics.record_failure()
             try:
                 from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+
                 _get_metrics().counter("failed_jobs").inc()
             except Exception:  # noqa: BLE001
                 pass
@@ -532,7 +540,9 @@ async def run_stage_with_retry(
                     )
                 },
             )
-            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
+            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(
+                ctx, "run_id", ""
+            )
             await _record_trace(
                 orchestrator=orchestrator,
                 stage_name=stage_name,
@@ -552,6 +562,7 @@ async def run_stage_with_retry(
 
         try:
             from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+
             _get_metrics().counter("retries_total").inc()
         except Exception:  # noqa: BLE001
             pass
@@ -610,7 +621,9 @@ async def run_stage_with_retry(
                     )
                 },
             )
-            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(ctx, "run_id", "")
+            run_id = getattr(orchestrator._pipeline_input, "run_id", "") or getattr(
+                ctx, "run_id", ""
+            )
             await _record_trace(
                 orchestrator=orchestrator,
                 stage_name=stage_name,

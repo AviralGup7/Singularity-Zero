@@ -170,9 +170,17 @@ class GhostMeshRegistry:
             logger.warning("Ghost-Registry degraded: clear migration applied locally: %s", exc)
 
     # Allowed Redis methods for the registry
-    _ALLOWED_REDIS_METHODS = frozenset({
-        "hset", "hget", "hdel", "expire", "get", "set", "delete",
-    })
+    _ALLOWED_REDIS_METHODS = frozenset(
+        {
+            "hset",
+            "hget",
+            "hdel",
+            "expire",
+            "get",
+            "set",
+            "delete",
+        }
+    )
 
     async def _call(self, method: str, *args: Any) -> Any:
         if self._redis is None:

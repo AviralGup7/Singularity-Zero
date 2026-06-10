@@ -69,14 +69,10 @@ class OAuthConfig:
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> OAuthConfig:
         if not isinstance(data, Mapping):
-            raise OAuthAuthenticatorError(
-                "oauth config must be a mapping"
-            )
+            raise OAuthAuthenticatorError("oauth config must be a mapping")
         for required in ("auth_url", "token_url", "client_id"):
             if not data.get(required):
-                raise OAuthAuthenticatorError(
-                    f"oauth config missing required field: {required!r}"
-                )
+                raise OAuthAuthenticatorError(f"oauth config missing required field: {required!r}")
 
         redirect_uri = str(data.get("redirect_uri") or "")
         if not redirect_uri:
@@ -99,15 +95,9 @@ class OAuthConfig:
             client_secret=str(data.get("client_secret") or "")
             if data.get("client_secret")
             else None,
-            username=str(data.get("username") or "")
-            if data.get("username")
-            else None,
-            password=str(data.get("password") or "")
-            if data.get("password")
-            else None,
-            scope=str(data.get("scope") or "")
-            if data.get("scope")
-            else None,
+            username=str(data.get("username") or "") if data.get("username") else None,
+            password=str(data.get("password") or "") if data.get("password") else None,
+            scope=str(data.get("scope") or "") if data.get("scope") else None,
             redirect_uri=redirect_uri,
             use_pkce=bool(data.get("use_pkce", True)),
             extra_auth_params=dict(data.get("extra_auth_params") or {}),
@@ -147,9 +137,7 @@ class OAuthToken:
             raise OAuthAuthenticatorError("token response must be a JSON object")
         access = payload.get("access_token")
         if not access:
-            raise OAuthAuthenticatorError(
-                "token response missing required 'access_token' field"
-            )
+            raise OAuthAuthenticatorError("token response missing required 'access_token' field")
         expires_in = payload.get("expires_in")
         expires_at = None
         try:
@@ -160,9 +148,7 @@ class OAuthToken:
         return cls(
             access_token=str(access),
             token_type=str(payload.get("token_type", "Bearer") or "Bearer"),
-            refresh_token=str(payload["refresh_token"])
-            if payload.get("refresh_token")
-            else None,
+            refresh_token=str(payload["refresh_token"]) if payload.get("refresh_token") else None,
             id_token=str(payload["id_token"]) if payload.get("id_token") else None,
             scope=str(payload["scope"]) if payload.get("scope") else None,
             expires_at=expires_at,
@@ -172,9 +158,7 @@ class OAuthToken:
 
 def _generate_pkce_pair() -> tuple[str, str]:
     """Return (code_verifier, code_challenge) using S256."""
-    verifier = base64.urlsafe_b64encode(secrets.token_bytes(64)).rstrip(b"=").decode(
-        "ascii"
-    )
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(64)).rstrip(b"=").decode("ascii")
     digest = hashlib.sha256(verifier.encode("ascii")).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
     return verifier, challenge
@@ -254,9 +238,7 @@ class OAuthAuthenticator:
                     verify=self._config.verify_ssl,
                     follow_redirects=False,
                 ) as submit_client:
-                    cookie_header = "; ".join(
-                        f"{k}={v}" for k, v in self._cookies.items()
-                    )
+                    cookie_header = "; ".join(f"{k}={v}" for k, v in self._cookies.items())
                     submit_headers = {"Cookie": cookie_header} if cookie_header else {}
                     login_response = submit_client.post(
                         login_url or auth_url,
@@ -265,9 +247,7 @@ class OAuthAuthenticator:
                         timeout=self._config.auth_timeout,
                     )
                     self._capture_cookies(login_response)
-                    code = self._extract_authorization_code(
-                        login_response, login_url or auth_url
-                    )
+                    code = self._extract_authorization_code(login_response, login_url or auth_url)
                     if not code:
                         code = self._try_extract_code_from_html(login_response)
             else:
@@ -300,9 +280,7 @@ class OAuthAuthenticator:
             try:
                 token_data = token_response.json()
             except json.JSONDecodeError as exc:
-                raise OAuthAuthenticatorError(
-                    f"token endpoint returned non-JSON: {exc}"
-                ) from exc
+                raise OAuthAuthenticatorError(f"token endpoint returned non-JSON: {exc}") from exc
         return OAuthToken.from_token_response(token_data)
 
     def _post_with_retry(
@@ -325,7 +303,7 @@ class OAuthAuthenticator:
                 if response.status_code < 500:
                     return response
                 if attempt < max_retries - 1:
-                    delay = min(10.0, self._config.timeout * (2 ** attempt))
+                    delay = min(10.0, self._config.timeout * (2**attempt))
                     logger.warning(
                         "OAuth token endpoint returned %d, retry %d/%d after %.1fs",
                         response.status_code,
@@ -339,7 +317,7 @@ class OAuthAuthenticator:
             except httpx.RequestError as exc:
                 last_exc = exc
                 if attempt < max_retries - 1:
-                    delay = min(10.0, self._config.timeout * (2 ** attempt))
+                    delay = min(10.0, self._config.timeout * (2**attempt))
                     logger.warning(
                         "OAuth token request failed (attempt %d/%d), retrying after %.1fs: %s",
                         attempt + 1,
@@ -365,21 +343,16 @@ class OAuthAuthenticator:
         if self._config.client_secret:
             payload["client_secret"] = self._config.client_secret
         payload.update(self._config.extra_token_params)
-        with httpx.Client(
-            timeout=self._config.timeout, verify=self._config.verify_ssl
-        ) as client:
+        with httpx.Client(timeout=self._config.timeout, verify=self._config.verify_ssl) as client:
             response = self._post_with_retry(client, payload)
             if response.status_code >= 400:
                 raise OAuthAuthenticatorError(
-                    f"refresh endpoint returned {response.status_code}: "
-                    f"{response.text[:200]}"
+                    f"refresh endpoint returned {response.status_code}: {response.text[:200]}"
                 )
             try:
                 data = response.json()
             except json.JSONDecodeError as exc:
-                raise OAuthAuthenticatorError(
-                    f"refresh endpoint returned non-JSON: {exc}"
-                ) from exc
+                raise OAuthAuthenticatorError(f"refresh endpoint returned non-JSON: {exc}") from exc
         return OAuthToken.from_token_response(data)
 
     def install_into_jar(self, token: OAuthToken, jar: CookieJar | None = None) -> CookieJar:
@@ -446,9 +419,7 @@ class OAuthAuthenticator:
             flags=re.IGNORECASE,
         ):
             inputs[name_match.group(1)] = name_match.group(2)
-        action_match = re.search(
-            r'<form[^>]+action="([^"]+)"', html, flags=re.IGNORECASE
-        )
+        action_match = re.search(r'<form[^>]+action="([^"]+)"', html, flags=re.IGNORECASE)
         if action_match:
             action = action_match.group(1)
         # Heuristic: if the form has no obvious username/password
@@ -461,9 +432,7 @@ class OAuthAuthenticator:
     def _fill_login_form(self, form: dict[str, str]) -> dict[str, str]:
         out = dict(form)
         if not self._config.username or not self._config.password:
-            raise OAuthAuthenticatorError(
-                "login form detected but no username/password configured"
-            )
+            raise OAuthAuthenticatorError("login form detected but no username/password configured")
         # Map common field names to the credentials
         for key in list(out.keys()):
             kl = key.lower()
@@ -473,12 +442,8 @@ class OAuthAuthenticator:
                 out[key] = self._config.password
         return out
 
-    def _extract_authorization_code(
-        self, response: httpx.Response, base_url: str
-    ) -> str | None:
-        location = response.headers.get("Location") or response.headers.get(
-            "location"
-        )
+    def _extract_authorization_code(self, response: httpx.Response, base_url: str) -> str | None:
+        location = response.headers.get("Location") or response.headers.get("location")
         if not location:
             return None
         parsed = urlparse(location)
@@ -495,7 +460,7 @@ class OAuthAuthenticator:
         except Exception as exc:
             logger.debug("Failed to extract HTML for code parsing: %s", exc)
             return None
-        match = re.search(r'code=([A-Za-z0-9._\-]+)', html)
+        match = re.search(r"code=([A-Za-z0-9._\-]+)", html)
         if match:
             return match.group(1)
         return None

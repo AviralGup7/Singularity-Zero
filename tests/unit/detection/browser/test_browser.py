@@ -1,6 +1,5 @@
 """Tests for the browser DOM-runtime detection module."""
 
-
 from src.detection.browser import (
     DOMMutationRecord,
     RuntimeDetectionResult,
@@ -154,8 +153,10 @@ def test_findings_from_response_none_body():
 
 def test_findings_from_response_html_with_no_script():
     findings = findings_from_response(
-        url="https://e", body_text="<html><body>Hello</body></html>",
-        content_type="text/html", force_mode="static",
+        url="https://e",
+        body_text="<html><body>Hello</body></html>",
+        content_type="text/html",
+        force_mode="static",
     )
     assert isinstance(findings, list)
 
@@ -224,8 +225,12 @@ def test_probe_url_returns_dict_with_expected_keys():
 
 def test_dom_mutation_record_to_dict_shape():
     rec = DOMMutationRecord(
-        url="https://e", kind="innerHTML", selector="#foo",
-        payload_preview="<img x=1>", interaction="click", confidence=0.8
+        url="https://e",
+        kind="innerHTML",
+        selector="#foo",
+        payload_preview="<img x=1>",
+        interaction="click",
+        confidence=0.8,
     )
     d = rec.to_dict()
     assert d["url"] == "https://e"
@@ -238,8 +243,12 @@ def test_dom_mutation_record_to_dict_shape():
 
 def test_dom_mutation_record_post_message_listener_severity():
     rec = DOMMutationRecord(
-        url="https://e", kind="postMessage_listener", selector="window",
-        payload_preview=None, interaction="event_listener", confidence=0.5
+        url="https://e",
+        kind="postMessage_listener",
+        selector="window",
+        payload_preview=None,
+        interaction="event_listener",
+        confidence=0.5,
     )
     d = rec.to_dict()
     assert d["severity"] == "medium"

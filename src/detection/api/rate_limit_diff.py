@@ -186,20 +186,14 @@ def build_endpoint_profiles(
     profiles: dict[str, RateLimitEndpointProfile] = {}
     for (endpoint_key, method), rows in buckets.items():
         limits = tuple(
-            sorted(
-                {
-                    int(obs.rate_limit_limit)
-                    for obs in rows
-                    if obs.rate_limit_limit is not None
-                }
-            )
+            sorted({int(obs.rate_limit_limit) for obs in rows if obs.rate_limit_limit is not None})
         )
         remaining = tuple(
-            int(obs.rate_limit_remaining)
-            for obs in rows
-            if obs.rate_limit_remaining is not None
+            int(obs.rate_limit_remaining) for obs in rows if obs.rate_limit_remaining is not None
         )
-        throttle_count = sum(1 for obs in rows if obs.throttled or _is_throttle_status(obs.status_code))
+        throttle_count = sum(
+            1 for obs in rows if obs.throttled or _is_throttle_status(obs.status_code)
+        )
         has_headers = any(obs.rate_limit_limit is not None for obs in rows) or any(
             obs.rate_limit_remaining is not None for obs in rows
         )
@@ -255,9 +249,7 @@ def endpoint_profiles_to_findings(
         return findings
 
     limits_present = [
-        profile.observed_limits[0]
-        for profile in profiles.values()
-        if profile.observed_limits
+        profile.observed_limits[0] for profile in profiles.values() if profile.observed_limits
     ]
     median_limit = _median(limits_present) if limits_present else 0
     weakest_limit = min(limits_present) if limits_present else None

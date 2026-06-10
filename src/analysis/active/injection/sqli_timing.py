@@ -33,12 +33,8 @@ class TimingComparator:
         Returns:
             Dict with t-statistic, degrees of freedom, p-value, and means.
         """
-        payload_times = [
-            float(r.get("response_time_ms", 0) or 0) for r in payload_responses if r
-        ]
-        baseline_times = [
-            float(r.get("response_time_ms", 0) or 0) for r in baseline_responses if r
-        ]
+        payload_times = [float(r.get("response_time_ms", 0) or 0) for r in payload_responses if r]
+        baseline_times = [float(r.get("response_time_ms", 0) or 0) for r in baseline_responses if r]
 
         self._payload_times = payload_times
         self._baseline_times = baseline_times
@@ -164,16 +160,12 @@ class TimingComparator:
             return 1.0
 
         lbeta_ab = TimingComparator._log_beta(a, b)
-        front = math.exp(
-            a * math.log(x) + b * math.log(1.0 - x) - lbeta_ab
-        )
+        front = math.exp(a * math.log(x) + b * math.log(1.0 - x) - lbeta_ab)
 
         if x < (a + 1.0) / (a + b + 2.0):
             return front * TimingComparator._betainc_cf(x, a, b, max_iter, tol)
         else:
-            return 1.0 - front * TimingComparator._betainc_cf(
-                1.0 - x, b, a, max_iter, tol
-            )
+            return 1.0 - front * TimingComparator._betainc_cf(1.0 - x, b, a, max_iter, tol)
 
     @staticmethod
     def _betainc_cf(

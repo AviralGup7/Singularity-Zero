@@ -345,9 +345,7 @@ class AssetCriticalityService:
             return AssetContext(
                 asset=None,
                 criticality_score=float(hint.get("criticality", 5.0)),
-                business_multiplier=float(
-                    hint.get("multiplier", 1.0)
-                ),
+                business_multiplier=float(hint.get("multiplier", 1.0)),
                 control_discount=float(target_info.get("control_discount", 1.0) or 1.0),
                 asset_type=str(hint.get("asset_type", "unknown")),
                 entity_type=str(hint.get("entity_type", "unknown")),
@@ -386,12 +384,9 @@ class AssetCriticalityService:
             compliance_requirements=list(asset.compliance_requirements)
             or list(target_info.get("compliance_requirements", []) or []),
             is_public=bool(target_info.get("is_public", False)),
-            has_pii=bool(
-                target_info.get("has_pii", False) or asset.entity_type == "pii_store"
-            ),
+            has_pii=bool(target_info.get("has_pii", False) or asset.entity_type == "pii_store"),
             has_financial=bool(
-                target_info.get("has_financial", False)
-                or asset.entity_type == "payment_processor"
+                target_info.get("has_financial", False) or asset.entity_type == "payment_processor"
             ),
             derived_from="registry",
         )
@@ -434,9 +429,7 @@ def _host_matches(pattern: str, host: str) -> bool:
     return fnmatch.fnmatchcase(host, pat)
 
 
-def _match_business_hint(
-    host: str, business_context: dict[str, Any]
-) -> dict[str, Any] | None:
+def _match_business_hint(host: str, business_context: dict[str, Any]) -> dict[str, Any] | None:
     """Match a host (or empty) against a business_context.hosts block."""
     if not business_context:
         return None

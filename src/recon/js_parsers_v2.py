@@ -29,8 +29,6 @@ from src.recon.js_fetcher import _fetch_text_content
 from src.recon.url_validation import is_safe_url
 
 
-
-
 def _is_in_scope_url(url: str, scope_roots: set[str]) -> bool:
     """Check if URL hostname matches any scope root or subdomain thereof."""
     if not scope_roots:
@@ -62,10 +60,8 @@ def _candidate_to_absolute_url(candidate: str, base_url: str) -> str | None:
         return None
     return resolved
 
+
 logger = logging.getLogger(__name__)
-
-
-
 
 
 _STRING_RE = re.compile(
@@ -94,6 +90,7 @@ def _strip_strings_and_comments(content: str) -> str:
     placeholder is spaces so byte offsets stay aligned with the
     original.
     """
+
     def _blank(match: re.Match[str]) -> str:
         return " " * len(match.group(0))
 
@@ -101,9 +98,6 @@ def _strip_strings_and_comments(content: str) -> str:
     content = _LINE_COMMENT_RE.sub(_blank, content)
     content = _STRING_RE.sub(_blank, content)
     return content
-
-
-
 
 
 _HTMX_RE = re.compile(
@@ -139,9 +133,6 @@ def extract_html_attribute_endpoints(html: str) -> set[str]:
     return candidates
 
 
-
-
-
 _WEBSOCKET_RE = re.compile(
     r"""(?:new\s+(?:WebSocket|EventSource|SSE)\s*\(\s*['"`]|io\s*\(\s*['"`]|socket\s*\(\s*['"`])(wss?://[^'"`\s]+)""",
     re.IGNORECASE,
@@ -172,9 +163,6 @@ def extract_websocket_endpoints(content: str) -> set[str]:
         if url and is_safe_url(url.replace("wss://", "https://").replace("ws://", "http://")):
             candidates.add(url)
     return candidates
-
-
-
 
 
 _FETCH_LIKE_RE = re.compile(
@@ -275,9 +263,6 @@ def extract_tokens_and_keys(content: str) -> list[dict[str, str]]:
     secrets.extend(extract_jwt_tokens(content))
     secrets.extend(extract_api_keys(content))
     return secrets
-
-
-
 
 
 def _find_balanced_arg(content: str, start: int) -> tuple[str, int] | None:
@@ -390,12 +375,7 @@ def _split_args(args_blob: str) -> list[str]:
             depth_brace += 1
         elif ch == "}":
             depth_brace -= 1
-        if (
-            ch == ","
-            and depth_paren == 0
-            and depth_bracket == 0
-            and depth_brace == 0
-        ):
+        if ch == "," and depth_paren == 0 and depth_bracket == 0 and depth_brace == 0:
             args.append("".join(current).strip())
             current = []
             continue
@@ -427,9 +407,6 @@ def extract_endpoint_calls(content: str) -> list[str]:
         if first:
             candidates.append(first)
     return candidates
-
-
-
 
 
 _SOURCE_MAP_RE = re.compile(
@@ -470,8 +447,6 @@ def extract_sources_content(map_body: str) -> list[str]:
     if not isinstance(contents, list):
         return []
     return [c for c in contents if isinstance(c, str) and c]
-
-
 
 
 _NODE_MODULES_SEG = re.compile(r"(?:^|/)node_modules/", re.IGNORECASE)
@@ -538,6 +513,7 @@ def follow_source_map_chain(
         for ep in body_disc:
             proven[ep] = resolved_map
     from src.recon.js_parsers import _extract_js_candidate_urls
+
     cand = _extract_js_candidate_urls(map_body, resolved_map, scope_roots)
     discovered.update(cand)
     for ep in cand:
@@ -559,7 +535,9 @@ def follow_source_map_chain(
         discovered.update(src_disc)
         for ep in src_disc:
             proven[ep] = abs_src
-        next_disc, proven = follow_source_map_chain(abs_src, src_body, base_url, scope_roots, depth + 1, proven)
+        next_disc, proven = follow_source_map_chain(
+            abs_src, src_body, base_url, scope_roots, depth + 1, proven
+        )
         discovered.update(next_disc)
     return discovered, proven
 
@@ -662,12 +640,20 @@ def discover_and_analyze_manifest(
     }
     candidates: list[str] = []
     if html_body:
-        for match in re.finditer(r'<link[^>]+rel\s*=\s*["\'][^"\']*manifest[^"\']*["\'][^>]+href\s*=\s*["\']([^"\']+)["\']', html_body, re.IGNORECASE):
+        for match in re.finditer(
+            r'<link[^>]+rel\s*=\s*["\'][^"\']*manifest[^"\']*["\'][^>]+href\s*=\s*["\']([^"\']+)["\']',
+            html_body,
+            re.IGNORECASE,
+        ):
             candidates.append(match.group(1))
     candidates.append(base_url.rstrip("/") + "/manifest.json")
     seen: set[str] = set()
     for candidate in candidates:
-        absolute = candidate if candidate.startswith(("http://", "https://")) else urljoin(base_url, candidate)
+        absolute = (
+            candidate
+            if candidate.startswith(("http://", "https://"))
+            else urljoin(base_url, candidate)
+        )
         if absolute in seen:
             continue
         seen.add(absolute)
@@ -688,12 +674,16 @@ def discover_and_analyze_manifest(
         result["related_applications"] = data.get("related_applications", []) or []
         result["shortcuts"] = data.get("shortcuts", []) or []
         if result["start_url"]:
-            if result["start_url"].startswith("http://") or result["start_url"].startswith("https://"):
+            if result["start_url"].startswith("http://") or result["start_url"].startswith(
+                "https://"
+            ):
                 start_netloc = urlparse(result["start_url"]).netloc.lower()
                 base_netloc = urlparse(base_url).netloc.lower()
                 if start_netloc != base_netloc:
                     result["external_start_url"] = True
-                    result["warnings"].append(f"start_url {result['start_url']} is on a different origin")
+                    result["warnings"].append(
+                        f"start_url {result['start_url']} is on a different origin"
+                    )
         break
     return result
 
@@ -726,9 +716,7 @@ def _resolve_call_endpoint(arg_expr: str, base_url: str) -> str | None:
         inner = string_match.group(2)
         normalized = _resolve_template_to_pattern(inner)
         return _candidate_to_absolute_url(normalized, base_url)
-    concat_match = re.match(
-        r"^(['\"`])([^'\"`]+)\1\s*\+\s*[A-Za-z_$][\w$]*", arg_expr
-    )
+    concat_match = re.match(r"^(['\"`])([^'\"`]+)\1\s*\+\s*[A-Za-z_$][\w$]*", arg_expr)
     if concat_match:
         prefix = concat_match.group(2)
         normalized = _resolve_template_to_pattern(prefix) + "{param}"

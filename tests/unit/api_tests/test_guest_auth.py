@@ -6,9 +6,6 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from src.dashboard.fastapi.app import create_app
-from src.dashboard.fastapi.config import DashboardConfig
-
 
 def _app(tmp_path, monkeypatch, guest_access_enabled: bool, enable_api_security: str = "true"):
     monkeypatch.setenv("ENABLE_API_SECURITY", enable_api_security)

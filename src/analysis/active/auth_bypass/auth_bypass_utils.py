@@ -123,9 +123,7 @@ def probe_severity_from_auth_bypass_map(
         return default
     normalized = [_normalize_issue_key(issue) for issue in issues]
     valid_severities = [
-        AUTH_BYPASS_SEVERITY.get(issue)
-        for issue in normalized
-        if issue in AUTH_BYPASS_SEVERITY
+        AUTH_BYPASS_SEVERITY.get(issue) for issue in normalized if issue in AUTH_BYPASS_SEVERITY
     ]
     if not valid_severities:
         return default

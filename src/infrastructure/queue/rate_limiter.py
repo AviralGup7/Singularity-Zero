@@ -117,7 +117,10 @@ class JobQueueRateLimiterMixin:
                 if int(cursor) == 0:
                     break
             if iteration >= max_iterations:
-                logger.warning("SCAN loop hit max_iterations=%d during stale lease cleanup; partial scan only", max_iterations)
+                logger.warning(
+                    "SCAN loop hit max_iterations=%d during stale lease cleanup; partial scan only",
+                    max_iterations,
+                )
 
         for w_key in worker_keys:
             w_key_str = w_key.decode("utf-8") if isinstance(w_key, bytes) else str(w_key)
@@ -137,4 +140,3 @@ class JobQueueRateLimiterMixin:
                     await self.release_lease(job_id, job.worker_id or "unknown")
                     released += 1
         return released
-

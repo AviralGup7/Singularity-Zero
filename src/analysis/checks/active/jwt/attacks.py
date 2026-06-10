@@ -57,7 +57,7 @@ def create_jwt(header: dict, payload: dict, secret: bytes) -> str:
         raise ValueError("JWT signing secret exceeds maximum length of 4096 bytes")
     header_b64 = b64url_encode(json.dumps(header, separators=(",", ":")).encode())
     payload_b64 = b64url_encode(json.dumps(payload, separators=(",", ":")).encode())
-    signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
+    signing_input = f"{header_b64}.{payload_b64}".encode()
     signature = hmac.new(secret, signing_input, hashlib.sha256).digest()
     sig_b64 = b64url_encode(signature)
     return f"{header_b64}.{payload_b64}.{sig_b64}"

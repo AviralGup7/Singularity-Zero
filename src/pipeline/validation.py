@@ -1,4 +1,5 @@
 import logging
+
 """Pre-flight configuration validation and mid-flight continuous validation for the security pipeline.
 
 Validates pipeline configuration before execution starts, and performs continuous checks
@@ -41,6 +42,7 @@ class ToolsConfigModel(BaseModel):
     katana: bool | None = True
     nuclei: bool | None = True
 
+
 class HuntModeConfigModel(BaseModel):
     model_config = {"extra": "allow"}
 
@@ -74,6 +76,7 @@ class ConfigModel(BaseModel):
     tools: ToolsConfigModel | None = Field(default_factory=ToolsConfigModel)
     hunt_mode: HuntModeConfigModel | None = Field(default_factory=HuntModeConfigModel)
     hunt_budget: HuntBudgetConfigModel | None = Field(default_factory=HuntBudgetConfigModel)
+
 
 REQUIRED_FIELDS = ("target_name", "output_dir", "mode")
 
@@ -233,7 +236,10 @@ def validate_scope_rfc1918(entry: str) -> tuple[bool, str]:
                 resolved_ip = socket.gethostbyname(resolve_target)
                 ip = ipaddress.ip_address(resolved_ip)
                 if ip.is_private:
-                    return False, f"Scope entry '{entry}' resolves to a private RFC1918 IP: {resolved_ip}"
+                    return (
+                        False,
+                        f"Scope entry '{entry}' resolves to a private RFC1918 IP: {resolved_ip}",
+                    )
             except Exception as exc:
                 logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
     return True, ""
@@ -264,6 +270,7 @@ def validate_scope_wildcard_resolution(entry: str) -> tuple[bool, str]:
 
 def validate_scope_threat_intel(entry: str) -> tuple[bool, str]:
     from src.intelligence.threat_intel import ThreatIntelCorrelator
+
     correlator = ThreatIntelCorrelator(enable_threat_intel=True)
     query_target = entry
     if query_target.startswith("*."):
@@ -271,13 +278,18 @@ def validate_scope_threat_intel(entry: str) -> tuple[bool, str]:
     try:
         res = correlator.match_ioc(query_target)
         if res.get("malicious"):
-            return False, f"Scope entry '{entry}' intersects with threat-intel IOC/sinkhole: {res.get('matched_feeds')}"
+            return (
+                False,
+                f"Scope entry '{entry}' intersects with threat-intel IOC/sinkhole: {res.get('matched_feeds')}",
+            )
     except Exception as exc:
         logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
     return True, ""
 
 
-def validate_scope_max_prefix(entry: str, max_prefix_v4: int = 24, max_prefix_v6: int = 64) -> tuple[bool, str]:
+def validate_scope_max_prefix(
+    entry: str, max_prefix_v4: int = 24, max_prefix_v6: int = 64
+) -> tuple[bool, str]:
     """Reject overly-broad CIDR blocks (e.g. /0, /16).
 
     Wildcard hostnames (``*.example.com``) are also checked: their
@@ -300,8 +312,7 @@ def validate_scope_max_prefix(entry: str, max_prefix_v4: int = 24, max_prefix_v6
                     ip = ipaddress.ip_address(resolved_ip)
                     if ip.is_private:
                         return False, (
-                            f"Wildcard scope entry '{entry}' resolves to "
-                            f"private IP {resolved_ip}"
+                            f"Wildcard scope entry '{entry}' resolves to private IP {resolved_ip}"
                         )
                 except Exception as exc:
                     logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
@@ -315,14 +326,20 @@ def validate_scope_max_prefix(entry: str, max_prefix_v4: int = 24, max_prefix_v6
         if prefix > max_prefix_v4:
             return True, ""
         if prefix < max_prefix_v4:
-            return False, f"Scope CIDR '{entry}' is too broad (/{prefix}, max /{max_prefix_v4} for IPv4)"
+            return (
+                False,
+                f"Scope CIDR '{entry}' is too broad (/{prefix}, max /{max_prefix_v4} for IPv4)",
+            )
     else:
         # IPv6Network
         prefix = net.prefixlen
         if prefix > max_prefix_v6:
             return True, ""
         if prefix < max_prefix_v6:
-            return False, f"Scope CIDR '{entry}' is too broad (/{prefix}, max /{max_prefix_v6} for IPv6)"
+            return (
+                False,
+                f"Scope CIDR '{entry}' is too broad (/{prefix}, max /{max_prefix_v6} for IPv6)",
+            )
         # IPv6 ULA (fc00::/7) and link-local (fe80::/10) are also
         # rejected explicitly so they don't slip through ``is_private``
         # checks on every Python version.
@@ -402,24 +419,31 @@ def validate_config(
             schema_path = schema_dir / "config.schema.json"
             if schema_dir.exists():
                 schema_json = json.dumps(ConfigModel.model_json_schema(), indent=2)
-                if not schema_path.exists() or schema_path.read_text(encoding="utf-8") != schema_json:
+                if (
+                    not schema_path.exists()
+                    or schema_path.read_text(encoding="utf-8") != schema_json
+                ):
                     schema_path.write_text(schema_json, encoding="utf-8")
         except Exception as exc:
             logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         ConfigModel.model_validate(config_dict)
-        report["checks"].append({
-            "name": "structural_validation",
-            "passed": True,
-            "details": "Pydantic structural configuration validation passed.",
-        })
+        report["checks"].append(
+            {
+                "name": "structural_validation",
+                "passed": True,
+                "details": "Pydantic structural configuration validation passed.",
+            }
+        )
     except Exception as exc:
         all_ok = False
-        report["checks"].append({
-            "name": "structural_validation",
-            "passed": False,
-            "details": f"Pydantic structural configuration validation failed: {exc}",
-        })
+        report["checks"].append(
+            {
+                "name": "structural_validation",
+                "passed": False,
+                "details": f"Pydantic structural configuration validation failed: {exc}",
+            }
+        )
 
     # Legacy check 1: Required config fields (kept for backward compatibility reports)
     missing_fields = [f for f in REQUIRED_FIELDS if f not in config_dict]
@@ -569,6 +593,7 @@ def validate_config(
 
     try:
         from src.pipeline.tools_capabilities import CAPABILITY_REGISTRY
+
         for cap_name in CAPABILITY_REGISTRY.list_capabilities():
             manifest = CAPABILITY_REGISTRY.get_manifest(cap_name)
             for tool_req, version_spec in (manifest.version_requirements or {}).items():

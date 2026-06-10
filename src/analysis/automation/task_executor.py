@@ -110,9 +110,7 @@ class AutomationTaskExecutor:
         if self.per_task_timeout_seconds < 0:
             raise ValueError("per_task_timeout_seconds must be >= 0")
 
-    async def execute_all(
-        self, tasks: Sequence[Mapping[str, Any]]
-    ) -> list[TaskExecutionResult]:
+    async def execute_all(self, tasks: Sequence[Mapping[str, Any]]) -> list[TaskExecutionResult]:
         """Execute every supported task, returning one result per task.
 
         Tasks with unsupported ``kind`` values are returned as failed
@@ -175,7 +173,10 @@ class AutomationTaskExecutor:
     def _truncate(self, text: str) -> str:
         if len(text) <= self.max_stdout_bytes:
             return text
-        return text[: self.max_stdout_bytes] + f"... [truncated {len(text) - self.max_stdout_bytes} bytes]"
+        return (
+            text[: self.max_stdout_bytes]
+            + f"... [truncated {len(text) - self.max_stdout_bytes} bytes]"
+        )
 
     def _invocation_from_command(
         self, *, tool_name: str, command: str, timeout: int | None
@@ -343,9 +344,7 @@ class AutomationTaskExecutor:
             metadata={"url": full_url, "auth_mode": auth_mode},
         )
 
-    async def _collect_api_baseline(
-        self, task: Mapping[str, Any]
-    ) -> TaskExecutionResult:
+    async def _collect_api_baseline(self, task: Mapping[str, Any]) -> TaskExecutionResult:
         kind = "collect_api_baseline"
         title = str(task.get("title", "Collect API baseline"))
         target_url = str(task.get("url", "") or "").strip()
@@ -356,7 +355,9 @@ class AutomationTaskExecutor:
                 ok=False,
                 error="collect_api_baseline task missing 'url' attribute",
             )
-        command = f"curl -sS -o /dev/null -w '%{{http_code}}' --max-time 20 {shlex.quote(target_url)}"
+        command = (
+            f"curl -sS -o /dev/null -w '%{{http_code}}' --max-time 20 {shlex.quote(target_url)}"
+        )
         try:
             invocation = self._invocation_from_command(
                 tool_name="curl", command=command, timeout=None

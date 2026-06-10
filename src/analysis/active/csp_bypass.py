@@ -61,7 +61,11 @@ class CspBypassProbe:
         script = " ".join(policy.get("script-src", []))
         nonce_matches = re.findall(r"'nonce-([A-Za-z0-9+/=]+)'", script)
         if not nonce_matches:
-            return {"nonce_bruteforce_possible": False, "reason": "no_nonce_found", "max_attempts": 0}
+            return {
+                "nonce_bruteforce_possible": False,
+                "reason": "no_nonce_found",
+                "max_attempts": 0,
+            }
         weakest = min((len(m) for m in nonce_matches), default=0)
         return {
             "nonce_bruteforce_possible": weakest < 16,

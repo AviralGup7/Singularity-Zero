@@ -52,9 +52,7 @@ async def query_certspotter(
         headers["Authorization"] = f"Bearer {api_key}"
 
     subdomains: set[str] = set()
-    pattern = re.compile(
-        r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE
-    )
+    pattern = re.compile(r"^([a-z0-9*.\-]+\." + re.escape(domain) + r")$", re.IGNORECASE)
 
     try:
         async with httpx.AsyncClient(

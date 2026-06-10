@@ -9,7 +9,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, Request
 
 from src.dashboard.fastapi.dependencies import get_cache_manager, get_config
-from src.dashboard.fastapi.schemas import HealthResponse, MeshNodeSchema, ReadinessResponse
+from src.dashboard.fastapi.schemas import HealthResponse, MeshNodeSchema
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,9 @@ async def readiness_check(
         if dep.status.value == "down":
             degraded_reasons.append(f"{name} is unavailable")
         elif dep.status.value == "degraded":
-            degraded_reasons.append(f"{name} is degraded: {dep.error or 'operating in limited mode'}")
+            degraded_reasons.append(
+                f"{name} is degraded: {dep.error or 'operating in limited mode'}"
+            )
 
     all_healthy = all(checks.values()) if checks else True
 

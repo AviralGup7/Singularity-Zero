@@ -108,7 +108,9 @@ class RemediationPriorityCalculator:
             "modern_risk": _clamp(_numeric(finding.get("modern_risk_score")), 0.0, 10.0),
             "attack_chain": _clamp(_numeric(finding.get("attack_chain_weight")), 0.0, 10.0),
             "epss": _clamp(_numeric(_epss_for_finding(finding)), 0.0, 1.0) * 10.0,
-            "asset_criticality": _clamp(_numeric(finding.get("asset_criticality_score")), 0.0, 10.0),
+            "asset_criticality": _clamp(
+                _numeric(finding.get("asset_criticality_score")), 0.0, 10.0
+            ),
             "analyst_tp_rate": _clamp(_numeric(finding.get("analyst_tp_rate")), 0.0, 1.0) * 10.0,
         }
         weights = self.weights.to_dict()
@@ -130,9 +132,7 @@ class RemediationPriorityCalculator:
             priority.rank = index
         return scored
 
-    def attach_to_findings(
-        self, findings: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def attach_to_findings(self, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         ranked = self.rank_findings(findings)
         by_id = {p.finding_id: p for p in ranked}
         enriched: list[dict[str, Any]] = []
@@ -201,9 +201,7 @@ def _epss_for_finding(finding: dict[str, Any]) -> float:
     return _numeric(raw)
 
 
-def _priority_reason_codes(
-    finding: dict[str, Any], components: dict[str, float]
-) -> list[str]:
+def _priority_reason_codes(finding: dict[str, Any], components: dict[str, float]) -> list[str]:
     codes: list[str] = []
     if components["epss"] >= 5.0:
         codes.append("epss_high")

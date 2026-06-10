@@ -6,14 +6,13 @@ previously stored only in browser sessionStorage.
 
 from __future__ import annotations
 
+import logging
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from src.dashboard.fastapi.dependencies import require_auth
@@ -35,7 +34,7 @@ class AccessLogEntry(BaseModel):
     """Single access-log record."""
 
     id: str = Field(default_factory=lambda: f"al-{uuid.uuid4()}")
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     user: str = "anonymous"
     action: str
     resource: str
@@ -95,14 +94,14 @@ async def create_access_log(
     """Record a new access-log entry."""
     entry = payload.model_dump()
     entry["id"] = f"al-{uuid.uuid4()}"
-    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+    entry["timestamp"] = datetime.now(UTC).isoformat()
 
     with _access_log_lock:
         _access_log_entries.append(entry)
 
     # Also forward to the audit logger if available (for dual-write)
     try:
-        request = Request(scope={"type": "http", "app": None})  # type: ignore[call-arg]
+        _ = Request(scope={"type": "http", "app": None})  # type: ignore[call-arg]
     except Exception:
         logger.debug("Failed to forward access log entry to audit logger", exc_info=True)
         pass
@@ -138,7 +137,7 @@ async def export_access_logs(
         entries = list(_access_log_entries)
 
     return {
-        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_at": datetime.now(UTC).isoformat(),
         "total_entries": len(entries),
         "entries": entries,
     }

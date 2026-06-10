@@ -106,7 +106,11 @@ _PROTOTYPE_POLLUTION_PATTERNS: tuple[tuple[str, str, str], ...] = (
     (r"\bsetProp\s*\(.*\b(target|dest)\b", "setProp", "medium"),
     (r"\bset(?:Property|In)\s*\(.*\b__proto__\b", "setProperty on __proto__", "high"),
     (r"\bset(?:Property|In)\s*\(.*\bprototype\b", "setProperty on prototype", "high"),
-    (r"\bReflect\.set\s*\(\s*[^,]+,\s*[^,]+,\s*[^,)]+,\s*[^)]*\.prototype", "Reflect.set prototype", "high"),
+    (
+        r"\bReflect\.set\s*\(\s*[^,]+,\s*[^,]+,\s*[^,)]+,\s*[^)]*\.prototype",
+        "Reflect.set prototype",
+        "high",
+    ),
     (r"\bdefineProperty\s*\([^,]+,\s*['\"]__proto__['\"]", "defineProperty __proto__", "high"),
     (r"\bfor\s*\(\s*var\s+\w+\s+in\s+", "for...in (unfiltered)", "info"),
 )

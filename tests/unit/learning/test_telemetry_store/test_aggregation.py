@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreAggregation:
     """Tests for aggregation helper methods."""
 

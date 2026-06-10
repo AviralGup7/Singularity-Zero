@@ -76,7 +76,12 @@ class TraceStore:
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
         except OSError as exc:
-            logger.warning("TraceStore write failed for run=%s stage=%s: %s", trace.run_id, trace.stage_name, exc)
+            logger.warning(
+                "TraceStore write failed for run=%s stage=%s: %s",
+                trace.run_id,
+                trace.stage_name,
+                exc,
+            )
         return trace.trace_id
 
     async def record_trace_async(self, trace: StageTrace) -> str:

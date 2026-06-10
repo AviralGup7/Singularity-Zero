@@ -73,7 +73,13 @@ class TierManager:
 
         if self._config.enable_l2:
             if self._config.l2_backend == "redis":
-                import os; self._l2 = RedisBackend(url=self._config.redis_url or os.environ.get("REDIS_URL") or "redis://localhost:6379/0")
+                import os
+
+                self._l2 = RedisBackend(
+                    url=self._config.redis_url
+                    or os.environ.get("REDIS_URL")
+                    or "redis://localhost:6379/0"
+                )
                 logger.debug("L2 (redis) backend initialized")
             else:
                 self._l2 = SQLiteBackend(

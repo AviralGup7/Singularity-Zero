@@ -1,4 +1,3 @@
-
 """Scenario step execution wave helper.
 
 Split out of ``scenario_engine.py`` so that the sequential / parallel runner

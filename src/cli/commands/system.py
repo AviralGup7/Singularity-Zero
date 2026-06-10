@@ -45,7 +45,9 @@ def handle_status() -> None:
         str(output),
     )
 
-    table.add_row("Python Engine", "[success]OK[/success]", f"v{__import__('sys').version.split()[0]}")
+    table.add_row(
+        "Python Engine", "[success]OK[/success]", f"v{__import__('sys').version.split()[0]}"
+    )
 
     console.print(table)
 

@@ -394,7 +394,9 @@ class FrontierWAL:
                 last_id = raw_items[-1][0]
                 cursor = f"({_decode_text(last_id)}"
             if iteration >= max_deltas:
-                logger.warning("WAL Redis xrange recovery hit max_deltas=%d; partial recovery only", max_deltas)
+                logger.warning(
+                    "WAL Redis xrange recovery hit max_deltas=%d; partial recovery only", max_deltas
+                )
         except (redis.exceptions.RedisError, Exception) as exc:
             logger.error("WAL Redis xrange recovery failed, falling back to AOF: %s", exc)
             return [], True

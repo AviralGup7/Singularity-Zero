@@ -86,16 +86,10 @@ def replay_safety_from_settings(
     """Build a ReplaySafetyConfig from raw validation_settings dict."""
     if not validation_settings:
         return ReplaySafetyConfig()
-    blackbox = validation_settings.get("extensions", {}).get(
-        "blackbox_validation", {}
-    )
+    blackbox = validation_settings.get("extensions", {}).get("blackbox_validation", {})
     replay_cfg = blackbox.get("token_replay_safety", {}) if blackbox else {}
     return ReplaySafetyConfig(
         authorized_replay=bool(replay_cfg.get("authorized_replay", False)),
-        max_replay_attempts_per_token=int(
-            replay_cfg.get("max_replay_attempts_per_token", 3)
-        ),
-        max_replay_attempts_per_host=int(
-            replay_cfg.get("max_replay_attempts_per_host", 5)
-        ),
+        max_replay_attempts_per_token=int(replay_cfg.get("max_replay_attempts_per_token", 3)),
+        max_replay_attempts_per_host=int(replay_cfg.get("max_replay_attempts_per_host", 5)),
     )

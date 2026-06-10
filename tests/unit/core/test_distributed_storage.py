@@ -250,9 +250,7 @@ def test_storage_config_env_backfill_preserves_explicit_values(
 
     monkeypatch.setenv("PIPELINE_STORAGE_BACKEND", "redis")
     monkeypatch.setenv("PIPELINE_STORAGE_REDIS_URL", "redis://broker:6379/0")
-    result = loader._resolve_storage_config(
-        {"backend": "s3", "bucket": "explicit-bucket"}
-    )
+    result = loader._resolve_storage_config({"backend": "s3", "bucket": "explicit-bucket"})
     assert result["backend"] == "s3"
     assert result["bucket"] == "explicit-bucket"
     assert result["redis_url"] == "redis://broker:6379/0"

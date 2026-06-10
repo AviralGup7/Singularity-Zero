@@ -58,11 +58,17 @@ async def run_sbom_diff_stage(
     emit_progress("sbom_diff", "Diffing current SBOM against previous", 50)
 
     try:
-        prev_components = {_component_key(c): c for c in previous_sbom.get("components", []) if isinstance(c, dict)}
-        curr_components = {_component_key(c): c for c in sbom.get("components", []) if isinstance(c, dict)}
+        prev_components = {
+            _component_key(c): c for c in previous_sbom.get("components", []) if isinstance(c, dict)
+        }
+        curr_components = {
+            _component_key(c): c for c in sbom.get("components", []) if isinstance(c, dict)
+        }
 
         new_components = [curr_components[k] for k in curr_components if k not in prev_components]
-        removed_components = [prev_components[k] for k in prev_components if k not in curr_components]
+        removed_components = [
+            prev_components[k] for k in prev_components if k not in curr_components
+        ]
         changed_components = []
         for key in curr_components:
             if key in prev_components and curr_components[key] != prev_components[key]:

@@ -40,8 +40,8 @@ class TimingComparator:
         if n1 < 2 or n2 < 2:
             return 1.0
         mean1, mean2 = self._baseline_mean, self._payload_mean
-        var1 = self._baseline_std ** 2
-        var2 = self._payload_std ** 2
+        var1 = self._baseline_std**2
+        var2 = self._payload_std**2
         if var1 == 0 and var2 == 0:
             return 1.0 if mean1 == mean2 else 0.0
         se = math.sqrt(var1 / n1 + var2 / n2)
@@ -68,12 +68,8 @@ class TimingComparator:
         if x > (a + 1.0) / (a + b + 2.0):
             return 1.0 - TimingComparator._betainc(b, a, 1.0 - x)
         ln = math.log
-        lbeta = (
-            math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
-        )
-        front = math.exp(
-            a * ln(x) + b * ln(1.0 - x) - lbeta
-        )
+        lbeta = math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
+        front = math.exp(a * ln(x) + b * ln(1.0 - x) - lbeta)
         f = 1.0
         c = 1.0
         d = 1.0e-30 if x > 0.0 else 0.0
@@ -139,9 +135,7 @@ class TimingComparator:
         log_sum = log_term + math.log(math.sqrt(math.pi)) - math.lgamma(0.5)
         return base * math.exp(log_sum) / (math.sqrt(2.0 * k))
 
-    def confidence_interval(
-        self, confidence: float = 0.95
-    ) -> tuple[float, float]:
+    def confidence_interval(self, confidence: float = 0.95) -> tuple[float, float]:
         """Return (mean - margin, mean + margin) for payload responses."""
         n = len(self.payload)
         if n == 0:

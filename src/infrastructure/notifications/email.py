@@ -232,9 +232,7 @@ class EmailNotifier(BaseNotifier):
             "critical": "1",
         }.get(payload.priority.value, "3")
 
-    def _resolve_attachments(
-        self, payload: NotificationPayload
-    ) -> list[Path]:
+    def _resolve_attachments(self, payload: NotificationPayload) -> list[Path]:
         """Return the attachment paths declared in ``payload.metadata``.
 
         Supported keys (in priority order):

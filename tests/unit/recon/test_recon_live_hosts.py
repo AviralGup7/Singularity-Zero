@@ -67,7 +67,9 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
+            patch(
+                "src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True
+            ),
             patch(
                 "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
@@ -111,7 +113,9 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
+            patch(
+                "src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True
+            ),
             patch(
                 "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
@@ -156,7 +160,9 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
+            patch(
+                "src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True
+            ),
             patch(
                 "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
@@ -209,12 +215,16 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
+            patch(
+                "src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True
+            ),
             patch(
                 "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,
             ),
-            patch("src.recon.live_hosts.health.probe_live_hosts_fallback", return_value=([], set())),
+            patch(
+                "src.recon.live_hosts.health.probe_live_hosts_fallback", return_value=([], set())
+            ),
         ):
             first_records, first_live_hosts = probe_live_hosts(hosts, config)
             second_records, second_live_hosts = probe_live_hosts(hosts, config)
@@ -257,7 +267,9 @@ class ReconLiveHostsTests(unittest.TestCase):
             )
 
         with (
-            patch("src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True),
+            patch(
+                "src.recon.live_hosts.discovery.projectdiscovery_httpx_available", return_value=True
+            ),
             patch(
                 "src.recon.live_hosts.discovery.execute_command",
                 side_effect=fake_execute_command,

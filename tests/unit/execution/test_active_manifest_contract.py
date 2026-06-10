@@ -9,6 +9,7 @@ unhandled KeyError — both are unacceptable in a security scanner.
 Run with:
     pytest tests/unit/execution/test_active_manifest_contract.py -v
 """
+
 from __future__ import annotations
 
 import pytest
@@ -93,9 +94,7 @@ class TestActiveManifestValidatorContract:
             "race_condition_alias",
         }
         missing = expected_validator_backed - manifest_check_ids
-        assert not missing, (
-            f"Expected validator-backed check_ids missing from manifest: {missing}"
-        )
+        assert not missing, f"Expected validator-backed check_ids missing from manifest: {missing}"
 
     @pytest.mark.architecture
     def test_manifest_entries_have_capability_declaration(
@@ -108,6 +107,7 @@ class TestActiveManifestValidatorContract:
         for check_id, manifest in active_registry.all().items():
             if check_id == "wasm_verifier":
                 from src.execution.active_manifest import ActiveCapability
+
                 assert ActiveCapability.WASM in manifest.required_capabilities, (
-                    f"wasm_verifier must declare WASM capability"
+                    "wasm_verifier must declare WASM capability"
                 )

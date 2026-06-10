@@ -279,8 +279,7 @@ def nosql_mongodb_probe(
                     "threshold_ms": timing_threshold_ms,
                     "samples": len(timing_samples),
                     "anomalous_count": sum(
-                        1 for s in timing_samples
-                        if s["response_time_ms"] > timing_threshold_ms
+                        1 for s in timing_samples if s["response_time_ms"] > timing_threshold_ms
                     ),
                 }
             findings.append(finding)

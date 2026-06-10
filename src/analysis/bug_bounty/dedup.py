@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import logging
+
 """Bug bounty finding deduplication.
 
 Loads previously submitted findings from a JSON store and fingerprints
@@ -47,14 +49,29 @@ class FindingDedup:
 
     def fingerprint_finding(self, finding: dict[str, Any]) -> str:
         tool = str(finding.get("tool") or finding.get("source") or "unknown").strip().lower()
-        target = str(
-            finding.get("target_url")
-            or finding.get("affected_url")
-            or finding.get("url")
-            or "unknown"
-        ).strip().lower()
-        vuln_type = str(finding.get("vuln_type") or finding.get("category") or finding.get("title") or "unknown").strip().lower()
-        affected = str(finding.get("affected_url") or finding.get("url") or "unknown").strip().lower()
+        target = (
+            str(
+                finding.get("target_url")
+                or finding.get("affected_url")
+                or finding.get("url")
+                or "unknown"
+            )
+            .strip()
+            .lower()
+        )
+        vuln_type = (
+            str(
+                finding.get("vuln_type")
+                or finding.get("category")
+                or finding.get("title")
+                or "unknown"
+            )
+            .strip()
+            .lower()
+        )
+        affected = (
+            str(finding.get("affected_url") or finding.get("url") or "unknown").strip().lower()
+        )
         raw = "|".join([tool, target, vuln_type, affected])
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 

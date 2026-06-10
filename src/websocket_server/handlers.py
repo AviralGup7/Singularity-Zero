@@ -43,9 +43,7 @@ class WebSocketHook:
     async def on_message(self, info: ConnectionInfo, msg: BaseMessage) -> BaseMessage | None:
         return msg
 
-    async def on_subscribe(
-        self, info: ConnectionInfo, message: SubscribeMessage
-    ) -> bool:
+    async def on_subscribe(self, info: ConnectionInfo, message: SubscribeMessage) -> bool:
         """Decide whether a connection may subscribe to a channel.
 
         Returning ``False`` rejects the subscription and the connection
@@ -508,9 +506,7 @@ class WebSocketHandler:
         # ----------------------------------------------------------
         if not await self._authorize_subscription(info, message):
             try:
-                WS_AUTHZ_REJECTIONS.labels(
-                    reason="forbidden", channel=channel or "-"
-                ).inc()
+                WS_AUTHZ_REJECTIONS.labels(reason="forbidden", channel=channel or "-").inc()
             except Exception:  # noqa: BLE001
                 pass
             try:
@@ -558,9 +554,7 @@ class WebSocketHandler:
             token = self.reconnect.get_token_for_user(info.user_id)
             replay: list[str] = []
             if token:
-                replay = self.reconnect.get_replay_messages(
-                    token, resume_from=message.resume_from
-                )
+                replay = self.reconnect.get_replay_messages(token, resume_from=message.resume_from)
             for msg_json in replay:
                 try:
                     await info.message_queue.put(msg_json)
@@ -631,9 +625,7 @@ class WebSocketHandler:
 
         for jid in job_ids_to_check:
             try:
-                permitted = bool(
-                    self.job_ownership_checker(info.user_id, jid)
-                )
+                permitted = bool(self.job_ownership_checker(info.user_id, jid))
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "job_ownership_checker raised for user=%s job=%s: %s",

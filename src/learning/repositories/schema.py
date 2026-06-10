@@ -497,9 +497,7 @@ def _existing_columns(conn: sqlite3.Connection, table: str) -> set[str]:
 
 def _existing_tables(conn: sqlite3.Connection) -> set[str]:
     try:
-        rows = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table'"
-        ).fetchall()
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
     except sqlite3.Error:
         return set()
     return {row[0] for row in rows}
@@ -531,14 +529,10 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
                 logger.warning("Schema migration: blocked invalid column name '%s'", name)
                 continue
             try:
-                conn.execute(
-                    f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
-                )
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
                 executed += 1
             except sqlite3.Error as exc:  # noqa: BLE001
-                logger.warning(
-                    "Schema migration: failed to add %s.%s: %s", table, name, exc
-                )
+                logger.warning("Schema migration: failed to add %s.%s: %s", table, name, exc)
     conn.commit()
 
     # Schema versioning sequential upgrades
@@ -576,6 +570,7 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
 
             # Populate it from existing attack_chains
             import json
+
             cursor = conn.execute("SELECT chain_id, finding_ids FROM attack_chains")
             rows = cursor.fetchall()
             for chain_id, finding_ids_raw in rows:
@@ -585,9 +580,9 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
                 try:
                     parsed = json.loads(finding_ids_raw)
                     if isinstance(parsed, list):
-                       finding_ids = [str(x) for x in parsed]
+                        finding_ids = [str(x) for x in parsed]
                     else:
-                       finding_ids = [str(finding_ids_raw)]
+                        finding_ids = [str(finding_ids_raw)]
                 except (json.JSONDecodeError, TypeError):
                     finding_ids = [x.strip() for x in finding_ids_raw.split(",") if x.strip()]
                 for fid in finding_ids:
@@ -615,11 +610,21 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
     # Version 2 migration: Composite indexes
     if current_version < 2:
         try:
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_controls_finding_active ON compensating_controls(finding_id, is_active)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sla_events_finding_time ON sla_events(finding_id, timestamp DESC)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_risk_acceptances_finding_state ON risk_acceptances(finding_id, state)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_findings_endpoint_category ON findings(endpoint_base, category)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_findings_category_tech ON findings(category, tech_stack)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_controls_finding_active ON compensating_controls(finding_id, is_active)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sla_events_finding_time ON sla_events(finding_id, timestamp DESC)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_risk_acceptances_finding_state ON risk_acceptances(finding_id, state)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_findings_endpoint_category ON findings(endpoint_base, category)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_findings_category_tech ON findings(category, tech_stack)"
+            )
             conn.execute("INSERT INTO schema_version (version) VALUES (2)")
             conn.commit()
             executed += 1

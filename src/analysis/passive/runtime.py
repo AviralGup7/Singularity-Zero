@@ -360,7 +360,12 @@ class ResponseCache:
 
         active_key = (normalized, method.upper(), header_key, body_key)
 
-        if method.upper() == "GET" and not merged_headers and body is None and not capture_forensics:
+        if (
+            method.upper() == "GET"
+            and not merged_headers
+            and body is None
+            and not capture_forensics
+        ):
             return self.get(normalized)
 
         with self._lock:

@@ -165,7 +165,12 @@ class FuzzingOrchestrator:
         if param_type == "id":
             return ["0", "-1", "999999", "00000000-0000-4000-8000-000000000000"]
         if param_type == "json":
-            return ['{"$ne": null}', "[]", "{}", '{"a":' * min(100, max(1, 1000 // 10)) + "1" + "}" * min(100, max(1, 1000 // 10))]
+            return [
+                '{"$ne": null}',
+                "[]",
+                "{}",
+                '{"a":' * min(100, max(1, 1000 // 10)) + "1" + "}" * min(100, max(1, 1000 // 10)),
+            ]
         return ["A" * 10000, "", " ", "null", "undefined"]
 
     def dictionary_attack(self) -> list[str]:
@@ -203,7 +208,9 @@ class FuzzingOrchestrator:
         history = self._coverage_feedback[endpoint]
         if signature not in history:
             history.add(signature)
-            logger.info("Fuzzer: Discovered new coverage feedback path on %s: %s", endpoint, signature)
+            logger.info(
+                "Fuzzer: Discovered new coverage feedback path on %s: %s", endpoint, signature
+            )
             return True
         return False
 

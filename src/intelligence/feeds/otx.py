@@ -27,9 +27,7 @@ from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig
 
 logger = logging.getLogger(__name__)
 
-OTX_BASE_URL = os.environ.get(
-    "OTX_BASE_URL", "https://otx.alienvault.com/api/v1"
-)
+OTX_BASE_URL = os.environ.get("OTX_BASE_URL", "https://otx.alienvault.com/api/v1")
 
 
 class OTXConfig(FeedConfig):

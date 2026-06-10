@@ -1,4 +1,5 @@
 """Job persistence and delayed-queue operations for the job queue."""
+
 from __future__ import annotations
 
 import asyncio

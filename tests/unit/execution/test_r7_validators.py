@@ -88,36 +88,48 @@ class TestCorsValidator(unittest.TestCase):
 class TestJwtValidator(unittest.TestCase):
     def _token(self) -> str:
         return sign_jwt_hmac(
-            sign_jwt_hmac("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.signature", "secret"),
+            sign_jwt_hmac(
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.signature", "secret"
+            ),
             "secret",
         )
 
     def test_parse_jwt(self) -> None:
-        token = sign_jwt_hmac("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "secret")
+        token = sign_jwt_hmac(
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "secret"
+        )
         parsed = parse_jwt(token)
         self.assertIsNotNone(parsed)
         self.assertEqual(parsed["header"]["alg"], "HS256")
 
     def test_detect_alg_none(self) -> None:
         token = build_alg_none_token(
-            sign_jwt_hmac("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "secret")
+            sign_jwt_hmac(
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "secret"
+            )
         )
         self.assertIsNotNone(token)
         self.assertTrue(detect_alg_none(token))
 
     def test_crack_known_secret(self) -> None:
-        token = sign_jwt_hmac("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "supersecret")
+        token = sign_jwt_hmac(
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "supersecret"
+        )
         self.assertEqual(
             crack_jwt_secret(token, candidate_secrets=["nope", "supersecret"]), "supersecret"
         )
 
     def test_evaluate_jwt_offline_inconclusive(self) -> None:
-        token = sign_jwt_hmac("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "nope")
+        token = sign_jwt_hmac(
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "nope"
+        )
         result = evaluate_jwt(token=token, scoring=_StubScoring(), in_scope=False)
         self.assertIn(result["status"], {"INCONCLUSIVE", "HEURISTIC"})
 
     def test_evaluate_jwt_alg_none_accepted(self) -> None:
-        token = sign_jwt_hmac("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "secret")
+        token = sign_jwt_hmac(
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSJ9.AAAA", "secret"
+        )
         result = evaluate_jwt(
             token=token,
             scoring=_StubScoring(),

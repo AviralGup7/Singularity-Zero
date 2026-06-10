@@ -206,7 +206,7 @@ def _guess_project_name_from_inputs(
         if remote:
             for prefix in ("https://github.com/", "git@github.com:", "https://gitlab.com/"):
                 if remote.startswith(prefix):
-                    remote = remote[len(prefix):]
+                    remote = remote[len(prefix) :]
                     break
             remote = remote.split("/")[-1]
             if remote.endswith(".git"):
@@ -215,7 +215,7 @@ def _guess_project_name_from_inputs(
                 return remote
     if package_json_path and os.path.isfile(package_json_path):
         try:
-            with open(package_json_path, "r", encoding="utf-8") as fh:
+            with open(package_json_path, encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, dict) and isinstance(data.get("name"), str):
                 name = data["name"].strip().lower().split("/")[-1].replace("_", "-")
@@ -262,7 +262,6 @@ def _probe_preview_host(
 def _extract_title(html: str) -> str:
     if not html:
         return ""
-    import re
 
     match = re.search(r"<title[^>]*>([^<]+)</title>", html, re.IGNORECASE)
     return match.group(1).strip() if match else ""
@@ -331,9 +330,11 @@ def all_candidates_for_project(
     fly_regions: Iterable[str] | None = None,
 ) -> set[str]:
     """Return the union of preview hostnames for *project* across providers."""
-    branch_list = list(dict.fromkeys(
-        [b for b in branches or () if b and str(b).strip()] or list(_DETERMINISTIC_BRANCHES)
-    ))
+    branch_list = list(
+        dict.fromkeys(
+            [b for b in branches or () if b and str(b).strip()] or list(_DETERMINISTIC_BRANCHES)
+        )
+    )
     candidates: set[str] = set()
     candidates.update(vercel_preview_candidates(project, branch_list, users))
     candidates.update(netlify_preview_candidates(project, branch_list, netlify_hashes))

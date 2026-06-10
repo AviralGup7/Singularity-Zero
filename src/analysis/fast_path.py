@@ -270,8 +270,7 @@ class FastPathDispatcher:
         if not self._scope_enforcer.is_in_scope(url):
             self._scope_violations += 1
             logger.warning(
-                "FastPathDispatcher: blocking out-of-scope request %s "
-                "(total violations: %d)",
+                "FastPathDispatcher: blocking out-of-scope request %s (total violations: %d)",
                 url,
                 self._scope_violations,
             )

@@ -132,9 +132,7 @@ def collect_urls_stream(
 
     seen: set[str] = set()
     start = time.monotonic()
-    budget_total = sum(
-        int(_resolve_provider_timeout(spec.timeout_seconds)) for spec in providers
-    )
+    budget_total = sum(int(_resolve_provider_timeout(spec.timeout_seconds)) for spec in providers)
     deadline_at = start + budget_total
 
     with ThreadPoolExecutor(max_workers=max(1, len(providers))) as executor:
@@ -184,19 +182,25 @@ def collect_urls_stream(
                 try:
                     discovered, meta = fut.result()
                 except concurrent.futures.TimeoutError:  # pragma: no cover
-                    discovered, meta = set(), CollectorMeta(
-                        status=CollectorStatus.TIMEOUT,
-                        new_urls=0,
-                        errors=1,
-                        provider_name=spec.name,
+                    discovered, meta = (
+                        set(),
+                        CollectorMeta(
+                            status=CollectorStatus.TIMEOUT,
+                            new_urls=0,
+                            errors=1,
+                            provider_name=spec.name,
+                        ),
                     )
                 except Exception:  # noqa: BLE001
-                    discovered, meta = set(), CollectorMeta(
-                        status=CollectorStatus.ERROR,
-                        duration_seconds=0.0,
-                        new_urls=0,
-                        errors=1,
-                        provider_name=spec.name,
+                    discovered, meta = (
+                        set(),
+                        CollectorMeta(
+                            status=CollectorStatus.ERROR,
+                            duration_seconds=0.0,
+                            new_urls=0,
+                            errors=1,
+                            provider_name=spec.name,
+                        ),
                     )
 
                 if not isinstance(meta, CollectorMeta):

@@ -36,7 +36,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS "@detectSQLi" \\\n'
-                    '    "id:10001,phase:2,deny,status:403,log,msg:\'SQL Injection attempt blocked\'"'
+                    "    \"id:10001,phase:2,deny,status:403,log,msg:'SQL Injection attempt blocked'\""
                 ),
             },
             "sqli": {
@@ -48,7 +48,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS "@detectSQLi" \\\n'
-                    '    "id:10001,phase:2,deny,status:403,log,msg:\'SQL Injection attempt blocked\'"'
+                    "    \"id:10001,phase:2,deny,status:403,log,msg:'SQL Injection attempt blocked'\""
                 ),
             },
             "xss": {
@@ -60,7 +60,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS "@detectXSS" \\\n'
-                    '    "id:10002,phase:2,deny,status:403,log,msg:\'Cross-site Scripting attempt blocked\'"'
+                    "    \"id:10002,phase:2,deny,status:403,log,msg:'Cross-site Scripting attempt blocked'\""
                 ),
             },
             "cross_site_scripting": {
@@ -72,7 +72,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS "@detectXSS" \\\n'
-                    '    "id:10002,phase:2,deny,status:403,log,msg:\'Cross-site Scripting attempt blocked\'"'
+                    "    \"id:10002,phase:2,deny,status:403,log,msg:'Cross-site Scripting attempt blocked'\""
                 ),
             },
             "cors": {
@@ -85,7 +85,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule RESPONSE_HEADERS:Access-Control-Allow-Origin "\\*" \\\n'
-                    '    "id:10003,phase:3,deny,status:403,log,msg:\'Wildcard CORS header detected\'"'
+                    "    \"id:10003,phase:3,deny,status:403,log,msg:'Wildcard CORS header detected'\""
                 ),
             },
             "cross_origin": {
@@ -98,7 +98,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule RESPONSE_HEADERS:Access-Control-Allow-Origin "\\*" \\\n'
-                    '    "id:10003,phase:3,deny,status:403,log,msg:\'Wildcard CORS header detected\'"'
+                    "    \"id:10003,phase:3,deny,status:403,log,msg:'Wildcard CORS header detected'\""
                 ),
             },
             "csrf": {
@@ -122,7 +122,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS:url "@rx (169\\.254\\.169\\.254|localhost|127\\.0\\.0\\.1)" \\\n'
-                    '    "id:10004,phase:2,deny,status:403,log,msg:\'SSRF internal target blocked\'"'
+                    "    \"id:10004,phase:2,deny,status:403,log,msg:'SSRF internal target blocked'\""
                 ),
             },
             "idor": {
@@ -151,9 +151,7 @@ class RemediationPatchGenerator:
                 "title": "Multi-Factor Authentication & Multi-Role Guarding",
                 "description": "Ensure endpoints carry strict multi-role checks and validate authorization tokens securely.",
                 "remediation_code": (
-                    "@requires_role('admin')\n"
-                    "def perform_admin_action():\n"
-                    "    pass"
+                    "@requires_role('admin')\ndef perform_admin_action():\n    pass"
                 ),
                 "waf_rule": "",
             },
@@ -161,9 +159,7 @@ class RemediationPatchGenerator:
                 "title": "Multi-Factor Authentication & Multi-Role Guarding",
                 "description": "Ensure endpoints carry strict multi-role checks and validate authorization tokens securely.",
                 "remediation_code": (
-                    "@requires_role('admin')\n"
-                    "def perform_admin_action():\n"
-                    "    pass"
+                    "@requires_role('admin')\ndef perform_admin_action():\n    pass"
                 ),
                 "waf_rule": "",
             },
@@ -179,7 +175,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS "@rx \\.\\./" \\\n'
-                    '    "id:10005,phase:2,deny,status:403,log,msg:\'Path Traversal attempt blocked\'"'
+                    "    \"id:10005,phase:2,deny,status:403,log,msg:'Path Traversal attempt blocked'\""
                 ),
             },
             "lfi": {
@@ -194,7 +190,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS "@rx \\.\\./" \\\n'
-                    '    "id:10005,phase:2,deny,status:403,log,msg:\'Path Traversal attempt blocked\'"'
+                    "    \"id:10005,phase:2,deny,status:403,log,msg:'Path Traversal attempt blocked'\""
                 ),
             },
             "command_injection": {
@@ -207,7 +203,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS "@rx (\\||;|\\&|\\`|\\$\\()" \\\n'
-                    '    "id:10006,phase:2,deny,status:403,log,msg:\'Shell Command Injection attempt blocked\'"'
+                    "    \"id:10006,phase:2,deny,status:403,log,msg:'Shell Command Injection attempt blocked'\""
                 ),
             },
             "rce": {
@@ -220,7 +216,7 @@ class RemediationPatchGenerator:
                 ),
                 "waf_rule": (
                     'SecRule ARGS "@rx (\\||;|\\&|\\`|\\$\\()" \\\n'
-                    '    "id:10006,phase:2,deny,status:403,log,msg:\'Shell Command Injection attempt blocked\'"'
+                    "    \"id:10006,phase:2,deny,status:403,log,msg:'Shell Command Injection attempt blocked'\""
                 ),
             },
             "race_condition": {
@@ -237,8 +233,7 @@ class RemediationPatchGenerator:
                 "title": "Upgrade Vulnerable Dependency",
                 "description": "Upgrade components to latest patched semantic version via package managers.",
                 "remediation_code": (
-                    "# Pipfile / requirements.txt configuration patch\n"
-                    "requests>=2.31.0"
+                    "# Pipfile / requirements.txt configuration patch\nrequests>=2.31.0"
                 ),
                 "waf_rule": "",
             },
@@ -246,8 +241,7 @@ class RemediationPatchGenerator:
                 "title": "Upgrade Vulnerable Dependency",
                 "description": "Upgrade components to latest patched semantic version via package managers.",
                 "remediation_code": (
-                    "# Pipfile / requirements.txt configuration patch\n"
-                    "requests>=2.31.0"
+                    "# Pipfile / requirements.txt configuration patch\nrequests>=2.31.0"
                 ),
                 "waf_rule": "",
             },
@@ -308,7 +302,9 @@ class RemediationPatchGenerator:
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         for finding in findings:
-            category = finding.get("category") or finding.get("type") or finding.get("title") or "general"
+            category = (
+                finding.get("category") or finding.get("type") or finding.get("title") or "general"
+            )
             cat_key = category.strip().lower()
             if cat_key in seen_categories:
                 continue
@@ -332,7 +328,9 @@ class RemediationPatchGenerator:
 
                     patch_data = run_async_in_sync_context(coro)
                 except Exception as exc:
-                    logger.debug("Failed to compile AI patch, falling back to static template: %s", exc)
+                    logger.debug(
+                        "Failed to compile AI patch, falling back to static template: %s", exc
+                    )
 
             if not patch_data:
                 template = self.get_patch_template(category)
@@ -403,17 +401,31 @@ class RemediationPatchGenerator:
             }
 
             if jira_token:
-                ticket_info["integrations"].append({"system": "Jira", "ticket_id": f"SEC-{fid[:6]}", "status": "Created"})
+                ticket_info["integrations"].append(
+                    {"system": "Jira", "ticket_id": f"SEC-{fid[:6]}", "status": "Created"}
+                )
             if github_token:
-                ticket_info["integrations"].append({"system": "GitHub Issues", "ticket_id": f"gh-issue-{fid[:6]}", "status": "Created"})
+                ticket_info["integrations"].append(
+                    {
+                        "system": "GitHub Issues",
+                        "ticket_id": f"gh-issue-{fid[:6]}",
+                        "status": "Created",
+                    }
+                )
             if linear_key:
-                ticket_info["integrations"].append({"system": "Linear", "ticket_id": f"LIN-{fid[:6]}", "status": "Created"})
+                ticket_info["integrations"].append(
+                    {"system": "Linear", "ticket_id": f"LIN-{fid[:6]}", "status": "Created"}
+                )
             if snow_pass:
-                ticket_info["integrations"].append({"system": "ServiceNow", "ticket_id": f"INC-{fid[:6]}", "status": "Created"})
+                ticket_info["integrations"].append(
+                    {"system": "ServiceNow", "ticket_id": f"INC-{fid[:6]}", "status": "Created"}
+                )
 
             if not ticket_info["integrations"]:
                 # Default mock export when no API keys are present
-                ticket_info["integrations"].append({"system": "MockITSM", "ticket_id": f"MOCK-{fid[:6]}", "status": "Draft"})
+                ticket_info["integrations"].append(
+                    {"system": "MockITSM", "ticket_id": f"MOCK-{fid[:6]}", "status": "Draft"}
+                )
 
             tickets.append(ticket_info)
 

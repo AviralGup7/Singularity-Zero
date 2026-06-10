@@ -100,7 +100,9 @@ class TestScreenshotsUpgrades(unittest.TestCase):
 
         # Check skip capture conditions
         self.assertTrue(self.store.should_skip_capture(target, url, viewport, dom_hash))
-        self.assertFalse(self.store.should_skip_capture(target, url, viewport, "different_dom_hash"))
+        self.assertFalse(
+            self.store.should_skip_capture(target, url, viewport, "different_dom_hash")
+        )
 
     def test_windowed_ssim_accuracy(self) -> None:
         # SSIM between identical images must be exactly 1.0
@@ -118,9 +120,7 @@ class TestScreenshotsUpgrades(unittest.TestCase):
     def test_compute_screenshot_diff_with_tiled_highlights(self) -> None:
         diff_out_path = self.test_path / "diff.png"
         result = compute_screenshot_diff(
-            self.content_img_path,
-            self.modified_img_path,
-            save_path=diff_out_path
+            self.content_img_path, self.modified_img_path, save_path=diff_out_path
         )
 
         self.assertIsNotNone(result.diff_image_base64)

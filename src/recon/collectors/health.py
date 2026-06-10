@@ -76,9 +76,7 @@ class ProviderHealth:
     last_error: str | None = None
     ema_duration_seconds: float = 0.0
 
-    def is_circuit_open(
-        self, *, cool_down_seconds: float, now: float | None = None
-    ) -> bool:
+    def is_circuit_open(self, *, cool_down_seconds: float, now: float | None = None) -> bool:
         if self.circuit_opened_at <= 0:
             return False
         current = now if now is not None else time.time()
@@ -126,9 +124,7 @@ class ProviderHealthRegistry:
             record = self._records.get(provider)
             if record is None:
                 return False
-            opened = record.is_circuit_open(
-                cool_down_seconds=self._cool_down_seconds, now=now
-            )
+            opened = record.is_circuit_open(cool_down_seconds=self._cool_down_seconds, now=now)
             if not opened and record.circuit_opened_at > 0:
                 # Cool-down elapsed: half-open the breaker so the next
                 # call has a chance to fully reset it.
@@ -172,8 +168,8 @@ class ProviderHealthRegistry:
             if record.ema_duration_seconds <= 0:
                 record.ema_duration_seconds = float(duration_seconds)
             else:
-                record.ema_duration_seconds = (
-                    0.7 * record.ema_duration_seconds + 0.3 * float(duration_seconds)
+                record.ema_duration_seconds = 0.7 * record.ema_duration_seconds + 0.3 * float(
+                    duration_seconds
                 )
             self._save_unlocked()
 

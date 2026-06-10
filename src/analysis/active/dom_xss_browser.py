@@ -15,8 +15,12 @@ _async_playwright: Any = None
 def _load_playwright() -> bool:
     global _playwright, _async_playwright
     try:
-        _playwright = __import__("playwright.sync_api", fromlist=["sync_playwright"]).sync_playwright
-        _async_playwright = __import__("playwright.async_api", fromlist=["async_playwright"]).async_playwright
+        _playwright = __import__(
+            "playwright.sync_api", fromlist=["sync_playwright"]
+        ).sync_playwright
+        _async_playwright = __import__(
+            "playwright.async_api", fromlist=["async_playwright"]
+        ).async_playwright
         return True
     except ImportError:
         return False

@@ -418,7 +418,7 @@ class FrontierProcessPool:
                 raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
 
             # Send task to pre-warmed process stdin
-            p.process.stdin.write(f"{task_data}\n".encode("utf-8"))
+            p.process.stdin.write(f"{task_data}\n".encode())
             await p.process.stdin.drain()
 
             # Read response (assuming tool supports JSON-RPC line-by-line)

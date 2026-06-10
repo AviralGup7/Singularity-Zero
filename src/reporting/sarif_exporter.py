@@ -143,9 +143,11 @@ _RULE_ID_CLEAN_RE = re.compile(r"[^a-zA-Z0-9_.:/=+-]")
 
 
 def _rule_id(finding: Mapping[str, Any]) -> str:
-    raw = _coerce_str(finding.get("rule_id")) or _coerce_str(
-        finding.get("vuln_type")
-    ) or _coerce_str(finding.get("category"), "unknown-finding")
+    raw = (
+        _coerce_str(finding.get("rule_id"))
+        or _coerce_str(finding.get("vuln_type"))
+        or _coerce_str(finding.get("category"), "unknown-finding")
+    )
     cleaned = _RULE_ID_CLEAN_RE.sub("-", raw).strip("-")
     return cleaned or "unknown-finding"
 
@@ -195,9 +197,7 @@ def export_findings_to_sarif(
                     "shortDescription": {
                         "text": _coerce_str(finding.get("category"), rule_id)[:200]
                     },
-                    "fullDescription": {
-                        "text": _coerce_str(finding.get("description")) or rule_id
-                    },
+                    "fullDescription": {"text": _coerce_str(finding.get("description")) or rule_id},
                     "helpUri": info_uri,
                     "defaultConfiguration": {"level": level},
                     "properties": {
@@ -217,9 +217,7 @@ def export_findings_to_sarif(
                 "cwe": finding.get("cwe_id") or finding.get("cwe"),
             }
             if finding.get("ai_triage_decision"):
-                properties["ai_triage_decision"] = _coerce_str(
-                    finding["ai_triage_decision"]
-                )
+                properties["ai_triage_decision"] = _coerce_str(finding["ai_triage_decision"])
             if finding.get("ai_confidence_score") is not None:
                 properties["ai_confidence_score"] = finding["ai_confidence_score"]
 
@@ -239,9 +237,7 @@ def export_findings_to_sarif(
                         }
                     }
                 ],
-                "partialFingerprints": {
-                    "primary": _fingerprint(finding, url=url, rule_id=rule_id)
-                },
+                "partialFingerprints": {"primary": _fingerprint(finding, url=url, rule_id=rule_id)},
                 "properties": {k: v for k, v in properties.items() if v is not None},
             }
             full = _full_message(finding)
@@ -283,9 +279,7 @@ def export_findings_to_sarif(
                         for bid in {
                             _uri_base_id(
                                 _coerce_str(
-                                    r["locations"][0]["physicalLocation"][
-                                        "artifactLocation"
-                                    ]["uri"]
+                                    r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
                                 )
                             )
                             for r in results
@@ -366,7 +360,10 @@ def sarif_to_finding(sarif_result: Mapping[str, Any]) -> dict[str, Any]:
     rule_id = str(sarif_result.get("ruleId", "unknown"))
     severity = str(properties.get("severity") or sarif_result.get("level") or "medium").lower()
     return {
-        "id": str(properties.get("finding_id") or sarif_result.get("partialFingerprints", {}).get("primary", "")),
+        "id": str(
+            properties.get("finding_id")
+            or sarif_result.get("partialFingerprints", {}).get("primary", "")
+        ),
         "title": text.split("\n", 1)[0][:240] if text else rule_id,
         "description": text,
         "severity": severity,
@@ -410,38 +407,46 @@ def sarif_to_platform_report(
     shaped: list[dict[str, Any]] = []
     for f in findings:
         if platform == "hackerone":
-            shaped.append({
-                "data": {
-                    "type": "report",
-                    "attributes": {
-                        "title": f.get("title", "Security finding")[:140],
-                        "severity_rating": _h1_severity(f.get("severity")),
-                        "vulnerability_information": f.get("description", ""),
-                    },
+            shaped.append(
+                {
+                    "data": {
+                        "type": "report",
+                        "attributes": {
+                            "title": f.get("title", "Security finding")[:140],
+                            "severity_rating": _h1_severity(f.get("severity")),
+                            "vulnerability_information": f.get("description", ""),
+                        },
+                    }
                 }
-            })
+            )
         elif platform == "bugcrowd":
-            shaped.append({
-                "title": f.get("title", "Security finding")[:140],
-                "description": f.get("description", ""),
-                "severity": int(_bugcrowd_payout(f.get("severity"))),
-                "priority": _bugcrowd_priority(f.get("severity")),
-                "category": f.get("type", "other"),
-            })
+            shaped.append(
+                {
+                    "title": f.get("title", "Security finding")[:140],
+                    "description": f.get("description", ""),
+                    "severity": int(_bugcrowd_payout(f.get("severity"))),
+                    "priority": _bugcrowd_priority(f.get("severity")),
+                    "category": f.get("type", "other"),
+                }
+            )
         elif platform == "intigriti":
-            shaped.append({
-                "title": f.get("title", "Security finding")[:140],
-                "description": f.get("description", ""),
-                "severity": _intigriti_severity(f.get("severity")),
-                "weakness": {"id": _intigriti_weakness_id(f.get("type"))},
-            })
+            shaped.append(
+                {
+                    "title": f.get("title", "Security finding")[:140],
+                    "description": f.get("description", ""),
+                    "severity": _intigriti_severity(f.get("severity")),
+                    "weakness": {"id": _intigriti_weakness_id(f.get("type"))},
+                }
+            )
         else:  # synack
-            shaped.append({
-                "title": f.get("title", "Security finding")[:200],
-                "description": f.get("description", ""),
-                "severity": _synack_severity(f.get("severity")),
-                "vulnerability_category": f.get("type", "other"),
-            })
+            shaped.append(
+                {
+                    "title": f.get("title", "Security finding")[:200],
+                    "description": f.get("description", ""),
+                    "severity": _synack_severity(f.get("severity")),
+                    "vulnerability_category": f.get("type", "other"),
+                }
+            )
     return shaped
 
 

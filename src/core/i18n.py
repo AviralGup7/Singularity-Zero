@@ -1,7 +1,5 @@
-import os
 import json
 from pathlib import Path
-from typing import Any
 
 _CURRENT_LANGUAGE = "en"
 _TRANSLATIONS: dict[str, dict[str, str]] = {}
@@ -9,15 +7,19 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {}
 # Locate locales directory relative to this file
 LOCALES_DIR = Path(__file__).parent / "locales"
 
+
 def set_language(lang: str) -> None:
     global _CURRENT_LANGUAGE
     _CURRENT_LANGUAGE = lang.strip().lower()
 
+
 def get_language() -> str:
     return _CURRENT_LANGUAGE
 
+
 def load_translations(lang: str, catalog: dict[str, str]) -> None:
     _TRANSLATIONS.setdefault(lang.strip().lower(), {}).update(catalog)
+
 
 def load_locale_files() -> None:
     if LOCALES_DIR.exists():
@@ -31,6 +33,7 @@ def load_locale_files() -> None:
             except Exception:
                 pass
 
+
 def t(text: str) -> str:
     lang = get_language()
     if lang == "en":
@@ -40,6 +43,7 @@ def t(text: str) -> str:
     if translated is not None:
         return translated
     return text
+
 
 # Auto-initialize
 load_locale_files()

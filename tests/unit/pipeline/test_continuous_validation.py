@@ -16,10 +16,7 @@ def test_structural_validation_pydantic():
         "target_name": "test-target",
         "output_dir": "output/test",
         "mode": "fast",
-        "tools": {
-            "retry_jitter": 0.5,
-            "subfinder": True
-        }
+        "tools": {"retry_jitter": 0.5, "subfinder": True},
     }
     ok, report = validate_config(valid_config, ["example.com"])
     assert ok is True
@@ -32,7 +29,7 @@ def test_structural_validation_pydantic():
         "mode": "fast",
         "tools": {
             "retry_jitter": 2.5,  # out of bounds [0, 1]
-        }
+        },
     }
     ok, report = validate_config(invalid_config, ["example.com"])
     assert ok is False
@@ -45,7 +42,7 @@ def test_structural_validation_pydantic():
         "mode": "fast",
         "tools": {
             "retry_jitter": "fast",  # not a float
-        }
+        },
     }
     ok, report = validate_config(invalid_type_config, ["example.com"])
     assert ok is False
@@ -88,13 +85,19 @@ def test_semantic_scope_rfc1918():
 
 def test_semantic_scope_threat_intel():
     # Intersects with threat intel
-    with patch("src.intelligence.threat_intel.ThreatIntelCorrelator.match_ioc", return_value={"malicious": True, "matched_feeds": ["VirusTotal"]}):
+    with patch(
+        "src.intelligence.threat_intel.ThreatIntelCorrelator.match_ioc",
+        return_value={"malicious": True, "matched_feeds": ["VirusTotal"]},
+    ):
         ok, msg = validate_scope_threat_intel("malicious-c2.com")
         assert ok is False
         assert "intersects with threat-intel" in msg
 
     # Safe domain
-    with patch("src.intelligence.threat_intel.ThreatIntelCorrelator.match_ioc", return_value={"malicious": False}):
+    with patch(
+        "src.intelligence.threat_intel.ThreatIntelCorrelator.match_ioc",
+        return_value={"malicious": False},
+    ):
         ok, msg = validate_scope_threat_intel("safe-domain.com")
         assert ok is True
 

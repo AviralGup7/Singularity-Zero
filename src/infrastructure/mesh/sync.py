@@ -180,9 +180,7 @@ class MeshSync:
             schema_int = int(schema)
         except (TypeError, ValueError):
             schema_int = -1
-        if not (
-            MESH_SYNC_MIN_ACCEPTED_SCHEMA <= schema_int <= MESH_SYNC_MAX_ACCEPTED_SCHEMA
-        ):
+        if not (MESH_SYNC_MIN_ACCEPTED_SCHEMA <= schema_int <= MESH_SYNC_MAX_ACCEPTED_SCHEMA):
             self._schema_rejected_total += 1
             _inc_metric(
                 "mesh_sync_schema_rejected_total",

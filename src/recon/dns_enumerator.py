@@ -22,11 +22,13 @@ Improvements (v2):
 from __future__ import annotations
 
 import asyncio
-import httpx
 import ipaddress
 import logging
 import socket
-from typing import Any, Iterable, cast
+from collections.abc import Iterable
+from typing import Any, cast
+
+import httpx
 
 try:
     import dns.asyncresolver
@@ -84,7 +86,19 @@ async def enumerate_dns_records(
         return []
 
     if record_types is None:
-        record_types = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA", "SRV", "CAA", "TLSA", "MTA-STS"]
+        record_types = [
+            "A",
+            "AAAA",
+            "CNAME",
+            "MX",
+            "NS",
+            "TXT",
+            "SOA",
+            "SRV",
+            "CAA",
+            "TLSA",
+            "MTA-STS",
+        ]
 
     sem = asyncio.Semaphore(_DNS_CONCURRENCY)
 

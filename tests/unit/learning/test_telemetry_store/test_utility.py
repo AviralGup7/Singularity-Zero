@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreUtility:
     """Tests for utility operations."""
 

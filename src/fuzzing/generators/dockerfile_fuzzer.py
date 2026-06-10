@@ -1,6 +1,5 @@
 """Dockerfile / CI config secret scanner."""
 
-
 _SECRET_PATTERNS: list[tuple[str, str]] = [
     (r"GH_TOKEN|GITHUB_TOKEN|GITHUB_PAT", "GitHub token"),
     (r"DOCKER_PASSWORD|DOCKERHUB_TOKEN", "Docker Hub token"),

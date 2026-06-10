@@ -318,9 +318,7 @@ class ThreatIntelCorrelator:
                                 host,
                             )
                     except Exception as e:
-                        logger.debug(
-                            "Failed to match finding target against IoC feeds: %s", e
-                        )
+                        logger.debug("Failed to match finding target against IoC feeds: %s", e)
 
             for cve in cves:
                 self._attach_epss(f_copy, cve)

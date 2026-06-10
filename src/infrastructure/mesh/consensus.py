@@ -226,8 +226,7 @@ class MeshConsensus:
         current = await self._read_lease(client)
         if current is not None:
             holder_alive = (
-                current.node_id == self.gossip.local_node.id
-                or current.node_id in self.gossip.peers
+                current.node_id == self.gossip.local_node.id or current.node_id in self.gossip.peers
             )
             ttl_remaining_ms = await self._ttl_ms(client)
             lease_still_fresh = (
@@ -292,9 +291,7 @@ class MeshConsensus:
         winner = max(candidates, key=lambda n: n.id)
         self.leader_id = winner.id
         self.term += 1
-        self._lease = _LeaderRecord(
-            node_id=winner.id, term=self.term, acquired_at=time.time()
-        )
+        self._lease = _LeaderRecord(node_id=winner.id, term=self.term, acquired_at=time.time())
         return winner.id == self.gossip.local_node.id
 
     def _publish_leader_to_gossip(self) -> None:

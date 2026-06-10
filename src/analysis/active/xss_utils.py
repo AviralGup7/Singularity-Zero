@@ -1,4 +1,5 @@
 import logging
+
 """XSS analysis utilities for passive and active checks.
 
 Contains XSS signal detection, reflection probe mutation building,

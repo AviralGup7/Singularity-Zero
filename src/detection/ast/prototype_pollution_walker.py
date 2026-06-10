@@ -160,7 +160,9 @@ def walk_script(
                         url=url,
                         line=line_no,
                         pattern=name,
-                        pattern_type="merge" if name == "custom_merge" or name == "deepMerge" else "pattern",
+                        pattern_type="merge"
+                        if name == "custom_merge" or name == "deepMerge"
+                        else "pattern",
                         severity=severity,
                         context=_truncate_context(line),
                     )

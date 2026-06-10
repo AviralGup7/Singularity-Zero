@@ -110,20 +110,25 @@ def mock_resource_guard(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
     interfere with the code under test."""
     try:
         from src.infrastructure.resource_guard import ResourceGuard
+
         monkeypatch.setattr(
-            ResourceGuard, "should_skip_stage",
+            ResourceGuard,
+            "should_skip_stage",
             lambda *args, **kwargs: (False, None),
         )
         monkeypatch.setattr(
-            ResourceGuard, "check_critical_oom",
+            ResourceGuard,
+            "check_critical_oom",
             lambda *args, **kwargs: None,
         )
         monkeypatch.setattr(
-            ResourceGuard, "check_and_halt_on_oom",
+            ResourceGuard,
+            "check_and_halt_on_oom",
             lambda *args, **kwargs: None,
         )
         monkeypatch.setattr(
-            ResourceGuard, "get_concurrency_cap",
+            ResourceGuard,
+            "get_concurrency_cap",
             lambda self, stage_name, default: default,
         )
     except ImportError:
@@ -136,11 +141,11 @@ def _mock_run_lock_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Gener
     """Mock the RunLock cache directory to use a temporary path per test to avoid pollution."""
     try:
         import src.infrastructure.task_pool
+
         monkeypatch.setattr(src.infrastructure.task_pool, "_CACHE_DIR", tmp_path / "run_lock")
     except ImportError:
         pass
     yield
-
 
 
 @pytest.fixture

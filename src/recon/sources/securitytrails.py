@@ -120,9 +120,7 @@ async def query_securitytrails(
     except httpx.RequestError as exc:
         logger.debug("SecurityTrails request failed: %s", exc)
 
-    logger.info(
-        "SecurityTrails: found %d subdomains for %s", len(subdomains), domain
-    )
+    logger.info("SecurityTrails: found %d subdomains for %s", len(subdomains), domain)
     return subdomains
 
 
@@ -157,9 +155,7 @@ async def query_securitytrails_historical_a(
 
     api_key = api_key or os.environ.get("SECURITYTRAILS_API_KEY")
     if not api_key:
-        logger.debug(
-            "SECURITYTRAILS_API_KEY not set, skipping SecurityTrails historical A"
-        )
+        logger.debug("SECURITYTRAILS_API_KEY not set, skipping SecurityTrails historical A")
         return []
 
     seen: set[str] = set()
@@ -191,9 +187,7 @@ async def query_securitytrails_historical_a(
                     logger.debug("SecurityTrails historical A: no data for %s", domain)
                     return list(seen)
                 if resp.status_code != 200:
-                    logger.debug(
-                        "SecurityTrails historical A returned HTTP %d", resp.status_code
-                    )
+                    logger.debug("SecurityTrails historical A returned HTTP %d", resp.status_code)
                     return list(seen)
 
                 try:
@@ -220,13 +214,15 @@ async def query_securitytrails_historical_a(
 
                 # Historical endpoint does not paginate by default; bail
                 # out unless an explicit next-page marker is present.
-                pages = data.get("meta", {}).get("pages") if isinstance(data.get("meta"), dict) else None
+                pages = (
+                    data.get("meta", {}).get("pages")
+                    if isinstance(data.get("meta"), dict)
+                    else None
+                )
                 if not pages or pages <= 1:
                     break
     except httpx.RequestError as exc:
         logger.debug("SecurityTrails historical A request failed: %s", exc)
 
-    logger.info(
-        "SecurityTrails historical A: found %d IPs for %s", len(ordered), domain
-    )
+    logger.info("SecurityTrails historical A: found %d IPs for %s", len(ordered), domain)
     return ordered

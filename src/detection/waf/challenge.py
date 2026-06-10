@@ -40,7 +40,11 @@ _BODY_CHALLENGE_PATTERNS: tuple[tuple[str, str, float], ...] = (
     (r"imperva incident", "imperva_incident", 0.6),
     (r"wallarm-challenge", "wallarm_challenge", 0.6),
     (r"x-amzn-errortype", "aws_error", 0.3),
-    (r"<noscript>.*?(?:enable javascript|javascript is required).*?</noscript>", "js_required", 0.4),
+    (
+        r"<noscript>.*?(?:enable javascript|javascript is required).*?</noscript>",
+        "js_required",
+        0.4,
+    ),
 )
 
 
@@ -138,7 +142,8 @@ def detect_challenge(
 
     # Heuristic: tiny bodies (< 4 KB) with a JS challenge script
     if 0 < len(body_text) < 4096 and any(
-        token in body_text for token in ("var a=function()", "setTimeout(function()", "pow(", "BigInteger")
+        token in body_text
+        for token in ("var a=function()", "setTimeout(function()", "pow(", "BigInteger")
     ):
         score += 0.40
         matched.append("body:js_arithmetic_challenge")

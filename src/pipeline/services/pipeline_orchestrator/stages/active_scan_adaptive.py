@@ -90,7 +90,6 @@ async def run_active_scanning_adaptive(
 
     emit_progress("active_scan", f"Starting adaptive scan on {len(all_urls)} targets", 75)
 
-
     # 2. Resource Initialization
     try:
         probes = probe_loader()
@@ -207,7 +206,6 @@ async def run_active_scanning_adaptive(
     for result in batch_result.results:
         if result.findings:
             all_findings.extend(result.findings)
-
 
     # 5. Result Consolidation
     duration = round(time.monotonic() - stage_started, 2)

@@ -99,7 +99,10 @@ async def list_run_traces(
 
 @router.get(
     "/{run_id}/{stage_name}/causal-chain/{finding_id}",
-    responses={404: {"description": "Finding or trace not found"}, 401: {"description": "Unauthorized"}},
+    responses={
+        404: {"description": "Finding or trace not found"},
+        401: {"description": "Unauthorized"},
+    },
     summary="Get all stages that contributed to a specific finding",
 )
 async def get_finding_causal_chain(

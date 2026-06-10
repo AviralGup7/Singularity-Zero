@@ -260,17 +260,13 @@ def decompress_bytes(data: bytes) -> bytes:
     if _HAS_ZSTD:
         result = _zstd_decompressor.decompress(data, max_output_size=max_decompressed)
         if len(result) >= max_decompressed:
-            raise ValueError(
-                f"Decompressed payload exceeds {max_decompressed} byte limit"
-            )
+            raise ValueError(f"Decompressed payload exceeds {max_decompressed} byte limit")
         return cast(bytes, result)
     import zlib
 
     result = zlib.decompress(data)
     if len(result) > max_decompressed:
-        raise ValueError(
-            f"Decompressed payload exceeds {max_decompressed} byte limit"
-        )
+        raise ValueError(f"Decompressed payload exceeds {max_decompressed} byte limit")
     return result
 
 

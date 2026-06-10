@@ -371,9 +371,7 @@ class VulnCorrelationEngine:
             if not starting:
                 continue
             for start_index in starting:
-                path = self._bfs_pattern(
-                    start_index, pattern, adjacency, by_type
-                )
+                path = self._bfs_pattern(start_index, pattern, adjacency, by_type)
                 if path is None:
                     continue
                 steps = [findings[i] for i in path]
@@ -400,9 +398,7 @@ class VulnCorrelationEngine:
         used: set[int] = {start}
         for depth, expected_type in enumerate(pattern[1:]):
             candidates = [
-                neighbor
-                for neighbor in adjacency.get(current, set())
-                if neighbor not in used
+                neighbor for neighbor in adjacency.get(current, set()) if neighbor not in used
             ]
             chosen: int | None = None
             # Resolve by index scan (small N).
@@ -423,9 +419,7 @@ class VulnCorrelationEngine:
                 break
         return path
 
-    def _build_finding_graph(
-        self, findings: list[dict[str, Any]]
-    ) -> dict[int, set[int]]:
+    def _build_finding_graph(self, findings: list[dict[str, Any]]) -> dict[int, set[int]]:
         """Build an undirected graph of findings that share context."""
         edges: dict[int, set[int]] = defaultdict(set)
         n = len(findings)
@@ -579,10 +573,7 @@ class VulnCorrelationEngine:
             key = (
                 chain.name,
                 chain.chain_kind,
-                tuple(
-                    s.get("id") or s.get("finding_id") or s.get("url", "")
-                    for s in chain.steps
-                ),
+                tuple(s.get("id") or s.get("finding_id") or s.get("url", "") for s in chain.steps),
             )
             if key in seen:
                 continue

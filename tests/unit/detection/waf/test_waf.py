@@ -1,6 +1,5 @@
 """Tests for the WAF detection + bypass module."""
 
-
 from src.detection.waf import (
     CATALOGUE,
     STRATEGY_DESCRIPTIONS,
@@ -107,7 +106,16 @@ def test_smuggling_probes_returns_four_variants():
 def test_smuggling_probe_to_dict_shape():
     probe = smuggling_probes()[0]
     d = probe.to_dict()
-    assert {"name", "description", "method", "path", "headers", "body", "variant", "notes"} <= d.keys()
+    assert {
+        "name",
+        "description",
+        "method",
+        "path",
+        "headers",
+        "body",
+        "variant",
+        "notes",
+    } <= d.keys()
 
 
 def test_h2_header_lowercase_split_returns_two_dicts():
@@ -271,7 +279,9 @@ def test_challenge_assessment_to_dict():
 
 
 def test_is_challenge_response_convenience():
-    assert is_challenge_response({}, "please complete the hcaptcha challenge", status_code=200) is True
+    assert (
+        is_challenge_response({}, "please complete the hcaptcha challenge", status_code=200) is True
+    )
     assert is_challenge_response({}, "<html>hello</html>", status_code=200) is False
 
 

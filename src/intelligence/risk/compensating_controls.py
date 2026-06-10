@@ -166,15 +166,9 @@ class CompensatingControlEngine:
 
     # -- discount computation -------------------------------------------
 
-    def combined_discount(
-        self, finding_id: str, *, now: float | None = None
-    ) -> float:
+    def combined_discount(self, finding_id: str, *, now: float | None = None) -> float:
         """Return the combined discount factor (0.0 - 1.0) for a finding."""
-        controls = [
-            c
-            for c in self.for_finding(finding_id)
-            if c.active and not c.is_expired(now)
-        ]
+        controls = [c for c in self.for_finding(finding_id) if c.active and not c.is_expired(now)]
         if not controls:
             return 1.0
         combined = 1.0
@@ -183,7 +177,9 @@ class CompensatingControlEngine:
             combined *= factor
         return _clamp(combined, self.DISCOUNT_FLOOR, 1.0)
 
-    def apply_to_score(self, finding_id: str, raw_score: float, *, now: float | None = None) -> float:
+    def apply_to_score(
+        self, finding_id: str, raw_score: float, *, now: float | None = None
+    ) -> float:
         return float(raw_score) * self.combined_discount(finding_id, now=now)
 
     def breakdown(self, finding_id: str, *, now: float | None = None) -> dict[str, Any]:

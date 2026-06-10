@@ -117,12 +117,12 @@ def _decode_frame_header(header: bytes) -> tuple[bool, int, int, int] | None:
     if length == 126:
         if len(header) < offset + 2:
             return None
-        length = struct.unpack("!H", header[offset:offset + 2])[0]
+        length = struct.unpack("!H", header[offset : offset + 2])[0]
         offset += 2
     elif length == 127:
         if len(header) < offset + 8:
             return None
-        length = struct.unpack("!Q", header[offset:offset + 8])[0]
+        length = struct.unpack("!Q", header[offset : offset + 8])[0]
         offset += 8
     return fin, opcode, length, offset + (4 if masked else 0)
 
@@ -217,9 +217,7 @@ class WebSocketActiveProbe:
         if probe.origin:
             request_lines.append(f"Origin: {probe.origin}")
         if probe.subprotocols:
-            request_lines.append(
-                "Sec-WebSocket-Protocol: " + ", ".join(probe.subprotocols)
-            )
+            request_lines.append("Sec-WebSocket-Protocol: " + ", ".join(probe.subprotocols))
         for k, v in probe.extra_headers.items():
             request_lines.append(f"{k}: {v}")
         request = ("\r\n".join(request_lines) + "\r\n\r\n").encode("ascii")
@@ -267,7 +265,9 @@ class WebSocketActiveProbe:
                 if not decoded:
                     continue
                 _, _, length, header_end = decoded
-                body = await asyncio.wait_for(reader.readexactly(length), timeout=self.frame_timeout)
+                body = await asyncio.wait_for(
+                    reader.readexactly(length), timeout=self.frame_timeout
+                )
                 received.append((_OP_TEXT, body))
             except TimeoutError as exc:
                 logger.warning("Operation failed in active_probe.py: %s", exc, exc_info=True)  # noqa: BLE001

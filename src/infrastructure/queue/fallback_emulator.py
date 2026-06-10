@@ -400,7 +400,7 @@ class FallbackEmulator:
 
         numkeys = int(args[1]) if len(args) > 1 else 0
         keys = [args[2 + i] for i in range(numkeys)]
-        script_args = list(args[2 + numkeys:])
+        script_args = list(args[2 + numkeys :])
 
         # Resolve script name from the hash or direct name
         script_name = script_or_sha

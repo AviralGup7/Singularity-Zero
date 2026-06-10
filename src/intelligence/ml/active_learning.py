@@ -184,9 +184,10 @@ class ActiveLearningController:
                         # review from automated lifecycle events. We
                         # surface it on the training example so the
                         # pipeline can weight analyst labels higher.
-                        override_source = str(
-                            item.get("override_source") or "automated"
-                        ).strip().lower() or "automated"
+                        override_source = (
+                            str(item.get("override_source") or "automated").strip().lower()
+                            or "automated"
+                        )
                         finding = {
                             "category": item.get("finding_category"),
                             "severity": item.get("finding_severity"),
@@ -279,9 +280,7 @@ class ActiveLearningController:
         sample_weights: list[float] = []
         for finding in train_findings:
             base = float(finding.get("feedback_weight") or 1.0)
-            sample_weights.append(
-                base * _override_source_weight(finding.get("override_source"))
-            )
+            sample_weights.append(base * _override_source_weight(finding.get("override_source")))
 
         # Fit model pipeline
         new_pipeline = XGBoostSeverityPipeline()

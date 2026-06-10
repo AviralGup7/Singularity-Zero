@@ -307,8 +307,7 @@ class GhostMeshCoordinator:
 
             if not isinstance(pending_work, list):
                 logger.debug(
-                    "Actor did not return pending work as a list; "
-                    "cannot hand off to queue"
+                    "Actor did not return pending work as a list; cannot hand off to queue"
                 )
                 return []
 
@@ -348,9 +347,7 @@ class GhostMeshCoordinator:
                     len(enqueued_jobs),
                 )
         except Exception as exc:
-            logger.debug(
-                "Failed to query/hand off pending work from actor: %s", exc
-            )
+            logger.debug("Failed to query/hand off pending work from actor: %s", exc)
 
         return enqueued_jobs
 

@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 SIGNATURE_PATTERN = re.compile(r"<Signature[^>]*>.*?</Signature>", re.IGNORECASE | re.DOTALL)
 
 
-
-
 def _strip_signature(xml_text: str) -> str | None:
     if SIGNATURE_PATTERN.search(xml_text) is None:
         return None
@@ -31,7 +29,11 @@ def _to_base64(xml_text: str) -> str:
 
 
 def _submit_unsigned(url: str, saml_response_b64: str) -> dict[str, Any] | None:
-    body = "SAMLResponse=" + saml_response_b64 + "&RelayState=&SigAlg=http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+    body = (
+        "SAMLResponse="
+        + saml_response_b64
+        + "&RelayState=&SigAlg=http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+    )
     return _safe_request(url, method="POST", body=body.encode("utf-8"), timeout=12)
 
 
@@ -76,6 +78,7 @@ def _is_web_target(host: str) -> bool:
     if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
         return False
     import re
+
     if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
         return False
     return True

@@ -103,9 +103,19 @@ def _has_sensitive_headers_exposed(response_headers: dict[str, str]) -> list[str
     expose_val = headers_lower.get(ACA_EXPOSE_HEADERS.lower(), "")
     if not expose_val:
         return []
-    sensitive = {"set-cookie", "authorization", "x-api-key", "x-auth-token",
-                 "x-csrftoken", "x-session-id", "x-access-token", "token",
-                 "api-key", "secret", "private-token"}
+    sensitive = {
+        "set-cookie",
+        "authorization",
+        "x-api-key",
+        "x-auth-token",
+        "x-csrftoken",
+        "x-session-id",
+        "x-access-token",
+        "token",
+        "api-key",
+        "secret",
+        "private-token",
+    }
     exposed = {h.strip().lower() for h in expose_val.split(",")}
     return sorted(sensitive & exposed)
 
@@ -147,21 +157,20 @@ def evaluate_cors(
         and _normalize_origin(allow_origin) == _normalize_origin(request_origin)
     )
     null_allowed = _is_null_origin(allow_origin)
-    wildcard_with_credentials = (
-        _is_wildcard(allow_origin) and allow_credentials in {"true", "yes", "1"}
-    )
-    wildcard_with_state_changing_methods = (
-        _is_wildcard(allow_origin)
-        and any(
-            method in allow_methods.upper()
-            for method in ("PUT", "DELETE", "PATCH")
-        )
+    wildcard_with_credentials = _is_wildcard(allow_origin) and allow_credentials in {
+        "true",
+        "yes",
+        "1",
+    }
+    wildcard_with_state_changing_methods = _is_wildcard(allow_origin) and any(
+        method in allow_methods.upper() for method in ("PUT", "DELETE", "PATCH")
     )
 
     # Detect sensitive headers exposed via Access-Control-Expose-Headers
     expose_headers_val = headers_lower.get(ACA_EXPOSE_HEADERS.lower(), "")
     sensitive_exposed = [
-        h.strip() for h in expose_headers_val.split(",")
+        h.strip()
+        for h in expose_headers_val.split(",")
         if any(sh.lower() == h.strip().lower() for sh in SENSITIVE_EXPOSED_HEADERS)
     ]
 
@@ -175,7 +184,9 @@ def evaluate_cors(
     if reflected_with_credentials:
         signals.append("reflected_origin_with_credentials")
         bonuses.append(0.25)
-        notes.append("CORS reflects the request Origin WITH credentials - critical data exfiltration risk.")
+        notes.append(
+            "CORS reflects the request Origin WITH credentials - critical data exfiltration risk."
+        )
     if null_allowed:
         signals.append("null_origin_allowed")
         bonuses.append(0.18)
@@ -204,14 +215,12 @@ def evaluate_cors(
             if origin_domain != allow_domain and parsed_allow.hostname.endswith(origin_domain):
                 signals.append("subdomain_origin_bypass")
                 bonuses.append(0.15)
-                notes.append(f"Origin reflects a subdomain: {parsed_allow.hostname} vs {parsed_origin.hostname}")
+                notes.append(
+                    f"Origin reflects a subdomain: {parsed_allow.hostname} vs {parsed_origin.hostname}"
+                )
 
     if signals and in_scope:
-        if (
-            reflected_with_credentials
-            or null_allowed
-            or wildcard_with_credentials
-        ):
+        if reflected_with_credentials or null_allowed or wildcard_with_credentials:
             status = ValidationStatus.CONFIRMED.value
         elif reflected or sensitive_exposed or wildcard_with_state_changing_methods:
             status = ValidationStatus.HEURISTIC.value
@@ -267,19 +276,13 @@ def validate_cors_endpoint(
         "status": evaluation["status"],
         "confidence": evaluation["confidence"],
         "in_scope": in_scope,
-        "scope_reason": "scope_evaluated"
-        if in_scope
-        else "scope_unavailable_or_out_of_scope",
+        "scope_reason": "scope_evaluated" if in_scope else "scope_unavailable_or_out_of_scope",
         "evidence": evaluation["evidence"],
     }
-    return to_validation_result(
-        item, validator="cors", category="cors_misconfiguration"
-    ).__dict__
+    return to_validation_result(item, validator="cors", category="cors_misconfiguration").__dict__
 
 
-def validate(
-    target: dict[str, Any], context: dict[str, Any]
-) -> ValidationResult:
+def validate(target: dict[str, Any], context: dict[str, Any]) -> ValidationResult:
     """R1 facade entry point matching the ``Validator`` Protocol.
 
     The active probing is performed in the engine class
@@ -338,9 +341,7 @@ def summarize_cors_findings(findings: list[dict[str, Any]]) -> dict[str, Any]:
     if not findings:
         return {"status": "no_findings", "count": 0}
     reflected = sum(
-        1
-        for f in findings
-        if "reflected_origin" in f.get("evidence", {}).get("signals", [])
+        1 for f in findings if "reflected_origin" in f.get("evidence", {}).get("signals", [])
     )
     reflected_with_creds = sum(
         1
@@ -348,9 +349,7 @@ def summarize_cors_findings(findings: list[dict[str, Any]]) -> dict[str, Any]:
         if "reflected_origin_with_credentials" in f.get("evidence", {}).get("signals", [])
     )
     null_allowed = sum(
-        1
-        for f in findings
-        if "null_origin_allowed" in f.get("evidence", {}).get("signals", [])
+        1 for f in findings if "null_origin_allowed" in f.get("evidence", {}).get("signals", [])
     )
     wildcard_creds = sum(
         1

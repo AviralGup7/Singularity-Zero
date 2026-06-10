@@ -32,11 +32,15 @@ class TemplateScanner(Protocol):
 
 
 class ReconProvider(Protocol):
-    def collect(self, scope_entries: list[str], context: ToolExecutionContext, **kwargs: Any) -> set[str]: ...
+    def collect(
+        self, scope_entries: list[str], context: ToolExecutionContext, **kwargs: Any
+    ) -> set[str]: ...
 
 
 class HttpProbeProvider(Protocol):
-    def probe(self, hosts: list[str], context: ToolExecutionContext, **kwargs: Any) -> tuple[list[dict[str, Any]], set[str]]: ...
+    def probe(
+        self, hosts: list[str], context: ToolExecutionContext, **kwargs: Any
+    ) -> tuple[list[dict[str, Any]], set[str]]: ...
 
 
 class CrawlerProvider(Protocol):
@@ -103,4 +107,3 @@ def generate_capability_manifest() -> SystemPluginManifest:
         invalid_dynamic_plugins=payload["invalid"],
         watched_dirs=payload["watched_dirs"],
     )
-

@@ -363,9 +363,7 @@ async def stream_cockpit_graph(
                 _auth=_auth,
                 services=services,
             )
-            signature = (
-                f"{graph_data['metadata'].get('node_count', 0)}:{graph_data['metadata'].get('edge_count', 0)}"
-            )
+            signature = f"{graph_data['metadata'].get('node_count', 0)}:{graph_data['metadata'].get('edge_count', 0)}"
             if signature != last_signature:
                 payload = json.dumps(
                     {

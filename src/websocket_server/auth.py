@@ -140,8 +140,7 @@ async def authenticate_websocket(
         is_secure = scheme == "wss" or forwarded_proto == "https"
         if not is_secure:
             logger.warning(
-                "WebSocket upgrade rejected: insecure transport "
-                "(scheme=%s forwarded_proto=%s)",
+                "WebSocket upgrade rejected: insecure transport (scheme=%s forwarded_proto=%s)",
                 scheme,
                 forwarded_proto,
             )

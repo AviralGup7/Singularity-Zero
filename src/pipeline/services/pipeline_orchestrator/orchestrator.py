@@ -103,7 +103,9 @@ class ExecutionContext:
 class ObservabilityBus:
     """Manages registering of subscribers (event metrics, progress, audit, notification, learning) and emitting events."""
 
-    def __init__(self, event_bus: EventBus, notification_manager: NotificationManager | None = None) -> None:
+    def __init__(
+        self, event_bus: EventBus, notification_manager: NotificationManager | None = None
+    ) -> None:
         self._event_bus = event_bus
         register_event_metrics_subscribers(self._event_bus)
         register_progress_subscriber(self._event_bus)
@@ -160,11 +162,13 @@ class StageDispatcher:
 
     # Stages that should never be dispatched to the queue because they
     # require direct access to the local pipeline context or filesystem.
-    _LOCAL_ONLY_STAGES: frozenset[str] = frozenset({
-        "reporting",
-        "sarif_export",
-        "report_distribution",
-    })
+    _LOCAL_ONLY_STAGES: frozenset[str] = frozenset(
+        {
+            "reporting",
+            "sarif_export",
+            "report_distribution",
+        }
+    )
 
     def __init__(self, queue: Any | None = None) -> None:
         self._queue = queue
@@ -266,6 +270,7 @@ class StageDispatcher:
             state = _decode(job_data.get(b"state", b""))
             if state == "completed":
                 import json
+
                 result_raw = _decode(job_data.get(b"result", b"{}"))
                 try:
                     return json.loads(result_raw)
@@ -273,7 +278,9 @@ class StageDispatcher:
                     return {"status": "ok"}
             elif state in ("dead_letter", "cancelled"):
                 error = _decode(job_data.get(b"error", b"unknown"))
-                logger.warning("Stage '%s' job %s ended in %s: %s", stage_name, job_id, state, error)
+                logger.warning(
+                    "Stage '%s' job %s ended in %s: %s", stage_name, job_id, state, error
+                )
                 return {"status": "failed", "error": error}
 
             await asyncio.sleep(1.0)
@@ -381,7 +388,9 @@ class PipelineOrchestrator:
     ) -> None:
         log_live_hosts_timeout_diagnostics(ctx, timeout)
 
-    def _emit_event(self, event_type: EventType, source: str, data: dict[str, Any], trace_id: str | None = None) -> None:
+    def _emit_event(
+        self, event_type: EventType, source: str, data: dict[str, Any], trace_id: str | None = None
+    ) -> None:
         """Emit a pipeline domain event while keeping orchestration failure-safe."""
         self.observability_bus.emit_event(
             event_type,
@@ -460,8 +469,10 @@ class PipelineOrchestrator:
 
         if loop and loop.is_running():
             import threading
+
             if threading.current_thread() is threading.main_thread() or (
-                hasattr(loop, '_thread') and threading.current_thread() is getattr(loop, '_thread', None)
+                hasattr(loop, "_thread")
+                and threading.current_thread() is getattr(loop, "_thread", None)
             ):
                 raise RuntimeError(
                     "Cannot call run_sync() from the event loop thread while the loop is running; "
@@ -691,7 +702,9 @@ class PipelineOrchestrator:
 
     # ------------------------------------------------------------------ stage execution --
 
-    async def _replay_single_stage(self, run_id: str, stage_name: str, trace_dir: str = ".ai/traces") -> StageOutput | None:
+    async def _replay_single_stage(
+        self, run_id: str, stage_name: str, trace_dir: str = ".ai/traces"
+    ) -> StageOutput | None:
         from src.infrastructure.observability.trace_store import get_trace_store
         from src.pipeline.services.pipeline_helpers import build_stage_input_from_context
 
@@ -751,7 +764,9 @@ class PipelineOrchestrator:
             previous_deltas=[],
         )
 
-    async def _replay_traces(self, run_id: str, trace_dir: str = ".ai/traces") -> list[StageOutput | None]:
+    async def _replay_traces(
+        self, run_id: str, trace_dir: str = ".ai/traces"
+    ) -> list[StageOutput | None]:
         from src.infrastructure.observability.trace_store import get_trace_store
 
         trace_store = get_trace_store(trace_dir=trace_dir)
@@ -888,6 +903,7 @@ class PipelineOrchestrator:
                     self._merge_stage_output(ctx, stage_name, stage_output)
                     ctx.compact_state()
                     from src.pipeline.validation import validate_stage_artifact
+
                     is_valid, err_msg = validate_stage_artifact(stage_name, ctx)
                     if not is_valid:
                         raise RuntimeError(f"Stage output integrity validation failed: {err_msg}")

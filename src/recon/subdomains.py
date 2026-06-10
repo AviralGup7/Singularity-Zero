@@ -10,7 +10,6 @@ import asyncio
 import json
 import logging
 import os
-import time
 from collections.abc import Mapping
 from typing import Any
 
@@ -114,6 +113,7 @@ def _fetch_findomain_subdomains(
         return set()
     try:
         from src.pipeline.tools import try_command
+
         output = try_command(
             ["findomain", "-t", clean, "-q"],
             timeout=timeout_seconds,
@@ -163,8 +163,8 @@ async def _fetch_github_code_search(
             if resp.status_code != 200:
                 return set()
             data = resp.json()
-            for item in (data.get("items") or []):
-                for match in (item.get("text_matches") or []):
+            for item in data.get("items") or []:
+                for match in item.get("text_matches") or []:
                     frag = match.get("fragment") or ""
                     for line in frag.splitlines():
                         for token in line.split():
@@ -276,6 +276,7 @@ class _SubdomainCenterBackend:
     @staticmethod
     def query(domain: str) -> set[str]:
         from src.recon.sources.subdomain_center import query_subdomain_center as _q
+
         return run_async_in_sync_context(_q(domain))
 
 
@@ -305,30 +306,30 @@ except Exception as exc:
     logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
-    register_plugin(
-        SUBDOMAIN_ENUMERATOR, "subdomain_center", contract=SubdomainEnumeratorProtocol
-    )(_SubdomainCenterBackend.query)
+    register_plugin(SUBDOMAIN_ENUMERATOR, "subdomain_center", contract=SubdomainEnumeratorProtocol)(
+        _SubdomainCenterBackend.query
+    )
 except Exception as exc:
     logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
-    register_plugin(
-        SUBDOMAIN_ENUMERATOR, "github_search", contract=SubdomainEnumeratorProtocol
-    )(_GitHubSearchBackend.query)
+    register_plugin(SUBDOMAIN_ENUMERATOR, "github_search", contract=SubdomainEnumeratorProtocol)(
+        _GitHubSearchBackend.query
+    )
 except Exception as exc:
     logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
-    register_plugin(
-        SUBDOMAIN_ENUMERATOR, "gitlab_search", contract=SubdomainEnumeratorProtocol
-    )(_GitLabSearchBackend.query)
+    register_plugin(SUBDOMAIN_ENUMERATOR, "gitlab_search", contract=SubdomainEnumeratorProtocol)(
+        _GitLabSearchBackend.query
+    )
 except Exception as exc:
     logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
-    register_plugin(
-        SUBDOMAIN_ENUMERATOR, "binaryedge", contract=SubdomainEnumeratorProtocol
-    )(_BinaryEdgeBackend.query)
+    register_plugin(SUBDOMAIN_ENUMERATOR, "binaryedge", contract=SubdomainEnumeratorProtocol)(
+        _BinaryEdgeBackend.query
+    )
 except Exception as exc:
     logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 

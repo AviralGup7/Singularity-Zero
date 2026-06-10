@@ -46,7 +46,11 @@ def _collect_katana_flags(config: Config) -> tuple[list[str], str | None]:
         flags.extend(["-har", har_path])
     extra_args = [str(a) for a in (katana_cfg.get("extra_args") or []) if str(a).strip()]
     flags.extend(extra_args)
-    proxy = (getattr(config, "proxy", None) or {}).get("http") if isinstance(getattr(config, "proxy", None), dict) else None
+    proxy = (
+        (getattr(config, "proxy", None) or {}).get("http")
+        if isinstance(getattr(config, "proxy", None), dict)
+        else None
+    )
     if not proxy:
         proxy = (katana_cfg.get("proxy") or "").strip()
     if proxy:
@@ -117,7 +121,6 @@ def run_katana(
         batch = sorted_hosts[start : start + batch_size]
     katana_bin = _resolve_katana_path(config)
     common_flags, _har_flag_used = _collect_katana_flags(config)
-    proxy = _collect_katana_flags(config)[1]
     for start in range(0, total_hosts, batch_size):
         elapsed = time.monotonic() - katana_started
         if elapsed >= katana_time_budget_seconds:

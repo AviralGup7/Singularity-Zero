@@ -367,7 +367,9 @@ class SelfHealingController:
             return CorrectiveAction.NOOP
         return action
 
-    async def _maybe_notify(self, finding: HealthFinding, correction: CorrectionEvent | None) -> None:
+    async def _maybe_notify(
+        self, finding: HealthFinding, correction: CorrectionEvent | None
+    ) -> None:
         manager = self._notification_manager
         if manager is None:
             return

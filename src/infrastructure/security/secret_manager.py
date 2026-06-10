@@ -166,9 +166,7 @@ class SecretManager:
         except Exception as exc:
             logger.error("Failed to decrypt secret %s: %s", name, exc)
             if strict:
-                raise ValueError(
-                    f"Failed to decrypt secret '{name}': {exc}"
-                ) from exc
+                raise ValueError(f"Failed to decrypt secret '{name}': {exc}") from exc
             return default
 
     def set_secret(self, name: str, value: str) -> None:

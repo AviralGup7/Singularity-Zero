@@ -157,6 +157,7 @@ def _asn_cidrs_for_hosts(hosts: Iterable[str]) -> set[str]:
             continue
         try:
             import ipaddress
+
             ipaddress.ip_address(host)
             cidrs.add(host + "/32")
         except ValueError as exc:
@@ -167,13 +168,16 @@ def _asn_cidrs_for_hosts(hosts: Iterable[str]) -> set[str]:
 def _looks_like_ip(value: str) -> bool:
     try:
         import ipaddress
+
         ipaddress.ip_address(value.strip().lower())
         return True
     except Exception:
         return False
 
 
-def _reprobe_origin_hosts(scope_entries: list[str], progress_callback: Any | None = None) -> set[str]:
+def _reprobe_origin_hosts(
+    scope_entries: list[str], progress_callback: Any | None = None
+) -> set[str]:
     reprobed_hosts: set[str] = set()
     try:
         from src.recon.origin_discovery import discover_origins_for_findings
@@ -187,7 +191,9 @@ def _reprobe_origin_hosts(scope_entries: list[str], progress_callback: Any | Non
             findings.append({"domain": root, "source": "scope"})
         if not findings:
             return reprobed_hosts
-        result_map = discover_origins_for_findings(findings, timeout=6.0, max_domains=len(scope_entries) or 1)
+        result_map = discover_origins_for_findings(
+            findings, timeout=6.0, max_domains=len(scope_entries) or 1
+        )
         for domain, result in (result_map or {}).items():
             reprobed_hosts.update(result.candidate_hosts)
             reprobed_hosts.update(result.candidate_ips)
@@ -333,12 +339,15 @@ def run_enhanced_recon_layer(
 
     extras: dict[str, Any] = {}
     extras.setdefault("origin_reprobe", {})
-    reprobed_hosts = _safe_call(
-        "origin-reprobe",
-        _reprobe_origin_hosts,
-        scope_entries,
-        progress_callback=progress_callback,
-    ) or set()
+    reprobed_hosts = (
+        _safe_call(
+            "origin-reprobe",
+            _reprobe_origin_hosts,
+            scope_entries,
+            progress_callback=progress_callback,
+        )
+        or set()
+    )
     if reprobed_hosts:
         extras["origin_reprobe"] = {
             "hosts": sorted(reprobed_hosts),
@@ -366,14 +375,15 @@ def run_enhanced_recon_layer(
             asn_cidrs: set[str] = set()
             if run_asn_expansion:
                 try:
-                    from src.recon.asn_expansion import expand_ips_to_cidrs
                     asn_cidrs = _asn_cidrs_for_hosts(port_hosts)
                     port_hosts = list(set(port_hosts) | asn_cidrs)
                 except Exception:  # noqa: BLE001
                     pass
             for source_hosts in (extras.get("probed_ips"), extras.get("waf_cdn_ips")):
                 if isinstance(source_hosts, set) and source_hosts:
-                    port_hosts = list(set(port_hosts) | {str(h) for h in source_hosts if str(h).strip()})
+                    port_hosts = list(
+                        set(port_hosts) | {str(h) for h in source_hosts if str(h).strip()}
+                    )
             return await run_port_scan_async(port_hosts)
 
         extras["port_scan"] = _run_async(_port_scan)
@@ -483,12 +493,15 @@ def run_enhanced_recon_layer(
     if getattr(config, "run_waf_cdn_detection", False):
         from src.recon.waf_cdn_detector import build_waf_cdn_report, detect_waf_cdn
 
-        waf_findings = _safe_call(
-            "waf-cdn-detection",
-            detect_waf_cdn,
-            _host_strings(live_hosts),
-            max_urls=int(config.filters.get("waf_max_urls", 50) or 50),
-        ) or []
+        waf_findings = (
+            _safe_call(
+                "waf-cdn-detection",
+                detect_waf_cdn,
+                _host_strings(live_hosts),
+                max_urls=int(config.filters.get("waf_max_urls", 50) or 50),
+            )
+            or []
+        )
         waf_ips: set[str] = set()
         waf_hosts: set[str] = set()
         for finding in waf_findings:

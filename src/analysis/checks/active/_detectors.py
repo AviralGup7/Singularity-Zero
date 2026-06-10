@@ -1,5 +1,5 @@
-import logging
 import json
+import logging
 from typing import Any
 
 from src.analysis.active.injection.dom_xss import scan_dom_xss

@@ -4,6 +4,7 @@ Automatically registers all pipeline plugin runners as queue job handlers,
 so that enqueued ``TaskEnvelope`` instances are routed to the correct
 plugin runner at dispatch time.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -114,9 +115,7 @@ def register_all_plugin_handlers(queue: Any) -> int:
     return count
 
 
-def resolve_handler_for_job_type(
-    queue: Any, job_type: str
-) -> Callable[[Job], Any] | None:
+def resolve_handler_for_job_type(queue: Any, job_type: str) -> Callable[[Job], Any] | None:
     """Look up a handler for *job_type*, trying canonical then legacy forms."""
     canonical = normalize_job_type(job_type)
     handler = queue.get_handler(canonical)

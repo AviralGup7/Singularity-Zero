@@ -288,6 +288,7 @@ class RetryPolicyState:
         heuristic = None
         if adaptive:
             from src.pipeline.retry.strategies import AdaptiveBackoffHeuristic
+
             heuristic = AdaptiveBackoffHeuristic()
         return cls(base_policy=base, adaptive_heuristic=heuristic)
 
@@ -303,6 +304,7 @@ class StageRetryPolicy(RetryPolicyState):
     def __post_init__(self) -> None:
         if self.adaptive_heuristic is None:
             from src.pipeline.retry.strategies import AdaptiveBackoffHeuristic
+
             object.__setattr__(self, "adaptive_heuristic", AdaptiveBackoffHeuristic())
 
     def budget_remaining(self) -> float:
@@ -337,9 +339,7 @@ class StageRetryPolicy(RetryPolicyState):
         backoff_profile: str | None = None,
         adaptive: bool = False,
     ) -> StageRetryPolicy:
-        state = RetryPolicyState.from_settings(
-            global_settings, tool_settings, adaptive=adaptive
-        )
+        state = RetryPolicyState.from_settings(global_settings, tool_settings, adaptive=adaptive)
         return cls(
             base_policy=state.base_policy,
             adaptive_heuristic=state.adaptive_heuristic,
@@ -347,8 +347,9 @@ class StageRetryPolicy(RetryPolicyState):
             backoff_profile=backoff_profile,
         )
 
-    def _make_event(self, event_type: RetryEventType, attempt: int,
-                    error: str, backoff_seconds: float) -> RetryEvent:
+    def _make_event(
+        self, event_type: RetryEventType, attempt: int, error: str, backoff_seconds: float
+    ) -> RetryEvent:
         return RetryEvent(
             event_type=event_type,
             stage=cast_to_stage_name(self),
@@ -363,6 +364,7 @@ class StageRetryPolicy(RetryPolicyState):
     def emit_retry_event(self, event: RetryEvent) -> None:
         try:
             from src.core.events import get_event_bus
+
             get_event_bus().publish(_pipeline_event_from_retry_event(event))
         except Exception as exc:
             logger.warning("Operation failed in policy.py: %s", exc, exc_info=True)  # noqa: BLE001
@@ -393,6 +395,7 @@ class ToolRetryPolicy(StageRetryPolicy):
     def __post_init__(self) -> None:
         if self.adaptive_heuristic is None:
             from src.pipeline.retry.strategies import AdaptiveBackoffHeuristic
+
             object.__setattr__(self, "adaptive_heuristic", AdaptiveBackoffHeuristic())
 
     def budget_remaining(self) -> float:
@@ -408,7 +411,11 @@ class ToolRetryPolicy(StageRetryPolicy):
     def consume_budget(self, seconds: float) -> None:
         if self._stage_parent is not None:
             self._stage_parent.consume_budget(seconds)
-            object.__setattr__(self, "_total_retry_seconds_consumed", self._stage_parent._total_retry_seconds_consumed)
+            object.__setattr__(
+                self,
+                "_total_retry_seconds_consumed",
+                self._stage_parent._total_retry_seconds_consumed,
+            )
             return
         super().consume_budget(seconds)
 
@@ -432,8 +439,9 @@ class ToolRetryPolicy(StageRetryPolicy):
             _stage_parent=self._stage_parent,
         )
 
-    def _make_event(self, event_type: RetryEventType, attempt: int,
-                    error: str, backoff_seconds: float) -> RetryEvent:
+    def _make_event(
+        self, event_type: RetryEventType, attempt: int, error: str, backoff_seconds: float
+    ) -> RetryEvent:
         return RetryEvent(
             event_type=event_type,
             stage=cast_to_stage_name(self),

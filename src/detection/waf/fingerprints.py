@@ -49,7 +49,13 @@ CLOUDFLARE = WAFFingerprint(
         "checking your browser before accessing",
         "please enable cookies",
     ),
-    bypass_strategies=("double_encoding", "http2_header_split", "unicode_normalization", "case_swap", "comment_injection"),
+    bypass_strategies=(
+        "double_encoding",
+        "http2_header_split",
+        "unicode_normalization",
+        "case_swap",
+        "comment_injection",
+    ),
     notes="Challenge pages return 200/403 with changed CL — naive delta detection flags false positives.",
 )
 
@@ -100,7 +106,12 @@ AKAMAI = WAFFingerprint(
     name="Akamai",
     vendor="Akamai Technologies",
     category="cdn",
-    headers=("x-akamai-request-id", "x-akamai-config-log", "akamai-origin-hop", "x-akamai-pragma-debug"),
+    headers=(
+        "x-akamai-request-id",
+        "x-akamai-config-log",
+        "akamai-origin-hop",
+        "x-akamai-pragma-debug",
+    ),
     server_tokens=("akamai", "akamaighost"),
     cookies=("akamai_generated_sensor_data", "bm_sz", "ak_bmsc"),
     body_signals=("akamai", "reference number", "edgeworker blocked"),
@@ -124,7 +135,12 @@ MODSECURITY = WAFFingerprint(
         "anomaly score",
     ),
     challenge_markers=("blocked by mod_security",),
-    bypass_strategies=("comment_injection", "double_encoding", "unicode_normalization", "h2_pseudo_header_smuggling"),
+    bypass_strategies=(
+        "comment_injection",
+        "double_encoding",
+        "unicode_normalization",
+        "h2_pseudo_header_smuggling",
+    ),
     notes="OWASP CRS v4 uses REQUEST-950 and REQUEST-949 for anomaly scoring; scoring compounds.",
 )
 

@@ -204,7 +204,9 @@ class FindingLifecycleManager:
 
     # -- mutations -------------------------------------------------------
 
-    def ensure(self, finding_id: str, *, discovered_at: float | None = None) -> FindingLifecycleRecord:
+    def ensure(
+        self, finding_id: str, *, discovered_at: float | None = None
+    ) -> FindingLifecycleRecord:
         record = self._records.get(finding_id)
         if record is None:
             record = FindingLifecycleRecord(
@@ -270,11 +272,11 @@ class FindingLifecycleManager:
         finding_id = str(finding.get("id") or finding.get("finding_id") or "")
         if not finding_id:
             raise ValueError("seed_from_finding requires an id/finding_id")
-        record = self.ensure(
-            finding_id, discovered_at=_coerce_ts(finding.get("discovered_at"))
-        )
+        record = self.ensure(finding_id, discovered_at=_coerce_ts(finding.get("discovered_at")))
         new_triaged = _coerce_ts(finding.get("triaged_at"))
-        if new_triaged is not None and (record.triaged_at is None or new_triaged > record.triaged_at):
+        if new_triaged is not None and (
+            record.triaged_at is None or new_triaged > record.triaged_at
+        ):
             record.triaged_at = new_triaged
         new_remediation = _coerce_ts(finding.get("remediation_started_at"))
         if new_remediation is not None and (
@@ -285,7 +287,9 @@ class FindingLifecycleManager:
         if new_fixed is not None and (record.fixed_at is None or new_fixed > record.fixed_at):
             record.fixed_at = new_fixed
         new_verified = _coerce_ts(finding.get("verified_at"))
-        if new_verified is not None and (record.verified_at is None or new_verified > record.verified_at):
+        if new_verified is not None and (
+            record.verified_at is None or new_verified > record.verified_at
+        ):
             record.verified_at = new_verified
         if "lifecycle_state" in finding:
             record.current_state = FindingState.parse(finding.get("lifecycle_state"))
@@ -326,14 +330,10 @@ class FindingLifecycleManager:
             "total": len(self._records),
             "by_state": states,
             "avg_triage_lag_days": _round(triage_total / triage_count) if triage_count else 0.0,
-            "avg_remediation_days": _round(
-                remediation_total / remediation_count
-            )
+            "avg_remediation_days": _round(remediation_total / remediation_count)
             if remediation_count
             else 0.0,
-            "avg_verification_days": _round(
-                verification_total / verification_count
-            )
+            "avg_verification_days": _round(verification_total / verification_count)
             if verification_count
             else 0.0,
             "sla_targets_days": dict(DEFAULT_STAGE_TARGETS_DAYS),

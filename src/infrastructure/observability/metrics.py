@@ -13,8 +13,8 @@ Usage:
     metrics.histogram("job_duration").observe(150.5)
     metrics.summary("error_rate").observe(0.05)
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 import math
 import threading

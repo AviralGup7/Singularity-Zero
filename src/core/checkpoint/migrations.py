@@ -43,7 +43,14 @@ def migrate_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
         if isinstance(obj, dict):
             migrated = {}
             for key, val in obj.items():
-                if key in {"findings", "merged_findings", "reportable_findings", "vulnerabilities", "active_scan_findings", "nuclei_findings"} and isinstance(val, list):
+                if key in {
+                    "findings",
+                    "merged_findings",
+                    "reportable_findings",
+                    "vulnerabilities",
+                    "active_scan_findings",
+                    "nuclei_findings",
+                } and isinstance(val, list):
                     migrated[key] = [migrate_finding(item) for item in val]
                 else:
                     migrated[key] = migrate_finding_lists(val)

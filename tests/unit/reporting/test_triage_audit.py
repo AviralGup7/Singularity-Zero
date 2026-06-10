@@ -139,7 +139,7 @@ def test_bulk_triage_and_team_metrics(tmp_path):
         status="DEFERRED",
         analyst_name="Security Lead Alice",
         role="Lead",
-        reason="Low priority backlog items"
+        reason="Low priority backlog items",
     )
 
     events = load_triage_events(tmp_path)
@@ -149,8 +149,20 @@ def test_bulk_triage_and_team_metrics(tmp_path):
     assert events[0]["analyst_role"] == "Lead"
 
     findings = [
-        {"id": "F1", "status": "DEFERRED", "assignee": "Security Lead Alice", "discovered_at": 1000, "triaged_at": 1500},
-        {"id": "F2", "status": "DEFERRED", "assignee": "Security Lead Alice", "discovered_at": 1000, "triaged_at": 2500},
+        {
+            "id": "F1",
+            "status": "DEFERRED",
+            "assignee": "Security Lead Alice",
+            "discovered_at": 1000,
+            "triaged_at": 1500,
+        },
+        {
+            "id": "F2",
+            "status": "DEFERRED",
+            "assignee": "Security Lead Alice",
+            "discovered_at": 1000,
+            "triaged_at": 2500,
+        },
         {"id": "F3", "status": "OPEN", "assignee": None, "discovered_at": 1000},
     ]
 
@@ -165,7 +177,16 @@ def test_triage_queue_exports(tmp_path):
     from src.reporting.triage_audit import export_triage_queue_csv, export_triage_queue_json
 
     findings = [
-        {"id": "F1", "title": "SQL Injection", "severity": "CRITICAL", "category": "sqli", "url": "http://a", "status": "OPEN", "assignee": "Bob", "sla_status": "COMPLIANT"},
+        {
+            "id": "F1",
+            "title": "SQL Injection",
+            "severity": "CRITICAL",
+            "category": "sqli",
+            "url": "http://a",
+            "status": "OPEN",
+            "assignee": "Bob",
+            "sla_status": "COMPLIANT",
+        },
     ]
 
     csv_path = tmp_path / "triage.csv"
@@ -177,4 +198,3 @@ def test_triage_queue_exports(tmp_path):
     export_triage_queue_json(findings, json_path)
     assert json_path.exists()
     assert "CRITICAL" in json_path.read_text(encoding="utf-8")
-

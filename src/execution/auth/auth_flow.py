@@ -112,7 +112,9 @@ class AuthFlowRunner:
     with a stub ``invoke`` function.
     """
 
-    def __init__(self, invoke: Callable[[AuthStep], Awaitable[tuple[int, dict[str, str], str, list[str]]]]):
+    def __init__(
+        self, invoke: Callable[[AuthStep], Awaitable[tuple[int, dict[str, str], str, list[str]]]]
+    ):
         self._invoke = invoke
 
     async def run(self, spec: AuthSpec) -> SessionContext:
@@ -216,7 +218,10 @@ class OAuthAuthenticator:
         scope: str = "",
         client_secret: str | None = None,
         use_pkce: bool = True,
-        invoke: Callable[[str, str, dict[str, str], dict[str, str]], Awaitable[tuple[int, dict[str, str], str]]] | None = None,
+        invoke: Callable[
+            [str, str, dict[str, str], dict[str, str]], Awaitable[tuple[int, dict[str, str], str]]
+        ]
+        | None = None,
     ) -> None:
         self.client_id = client_id
         self.authorization_url = authorization_url
@@ -323,7 +328,7 @@ def _parse_set_cookie(raw: str) -> tuple[str | None, str]:
 def _extract_value(spec_str: str, body: str, headers: dict[str, str]) -> str | None:
     """Apply an extraction spec to the response body / headers."""
     if spec_str.startswith("json:"):
-        path = spec_str[len("json:"):]
+        path = spec_str[len("json:") :]
         try:
             payload = json.loads(body)
         except (json.JSONDecodeError, TypeError):
@@ -332,12 +337,12 @@ def _extract_value(spec_str: str, body: str, headers: dict[str, str]) -> str | N
     if spec_str.startswith("cookie:"):
         return None  # handled by Set-Cookie parser
     if spec_str.startswith("header:"):
-        name = spec_str[len("header:"):].strip().lower()
+        name = spec_str[len("header:") :].strip().lower()
         return headers.get(name)
     if spec_str.startswith("form:"):
         import re
 
-        pattern = spec_str[len("form:"):]
+        pattern = spec_str[len("form:") :]
         m = re.search(pattern, body, re.IGNORECASE | re.DOTALL)
         return m.group(1) if m and m.groups() else (m.group(0) if m else None)
     return None

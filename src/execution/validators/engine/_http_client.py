@@ -34,9 +34,7 @@ class ValidationHttpConfig:
     retry_policy: RetryPolicy
 
 
-def _cache_key_for(
-    method: str, url: str, headers: dict[str, str] | None, body: Any
-) -> str:
+def _cache_key_for(method: str, url: str, headers: dict[str, str] | None, body: Any) -> str:
     """Return a stable cache key for an HTTP probe.
 
     Includes normalized ``Authorization``/``Cookie`` (Bug G fix) and a
@@ -215,9 +213,7 @@ class ValidationHttpClient:
             "headers": response.get("headers", {}) or {},
         }
 
-    def cache_poison_probe(
-        self, target_url: str, unkeyed_header: str
-    ) -> dict[str, Any]:
+    def cache_poison_probe(self, target_url: str, unkeyed_header: str) -> dict[str, Any]:
         """Send a cache poisoning probe (R7) and return both responses."""
         import uuid
 
@@ -243,9 +239,7 @@ class ValidationHttpClient:
             },
         }
 
-    def race_probe(
-        self, target_url: str, *, concurrency: int = 5
-    ) -> list[dict[str, Any]]:
+    def race_probe(self, target_url: str, *, concurrency: int = 5) -> list[dict[str, Any]]:
         """Send ``concurrency`` concurrent requests to ``target_url``."""
         from concurrent.futures import ThreadPoolExecutor
 

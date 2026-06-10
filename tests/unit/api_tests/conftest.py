@@ -14,6 +14,7 @@ from src.api_tests.apitester.models import (
 @pytest.fixture(autouse=True)
 def _reset_dashboard_config_singleton():
     from src.dashboard.fastapi import dependencies as _dep
+
     _dep._config_instance = None
     yield
     _dep._config_instance = None

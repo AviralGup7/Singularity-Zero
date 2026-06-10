@@ -37,9 +37,7 @@ def test_persisted_query_signal_is_medium() -> None:
     body = json.dumps(
         {
             "data": {"__typename": "Query"},
-            "extensions": {
-                "persistedQuery": {"version": 1, "sha256Hash": "deadbeef"}
-            },
+            "extensions": {"persistedQuery": {"version": 1, "sha256Hash": "deadbeef"}},
         }
     )
     finding = analyze_graphql_introspection(
@@ -98,9 +96,7 @@ def test_observation_adapter_uses_optional_query_field() -> None:
         [
             {
                 "url": "https://api.example.com/graphql",
-                "body_text": json.dumps(
-                    {"data": {"__schema": {"queryType": {"name": "Query"}}}}
-                ),
+                "body_text": json.dumps({"data": {"__schema": {"queryType": {"name": "Query"}}}}),
                 "headers": {"X-Apollo-Operation-Name": "IntrospectionQuery"},
                 "query": "{ __schema { types { name } } }",
                 "status_code": 200,

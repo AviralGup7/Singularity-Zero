@@ -172,7 +172,12 @@ class CISAKEVClient:
             )
             with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
                 payload = json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+        except (
+            urllib.error.URLError,
+            urllib.error.HTTPError,
+            TimeoutError,
+            json.JSONDecodeError,
+        ) as exc:
             logger.debug("CISAKEVClient: catalogue fetch failed: %s", exc)
             return
         self._update_catalogue(payload)
@@ -229,9 +234,7 @@ class CISAKEVClient:
             try:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
 
-                cves.extend(
-                    ThreatIntelCorrelator().correlate_cve(str(finding.get("category", "")))
-                )
+                cves.extend(ThreatIntelCorrelator().correlate_cve(str(finding.get("category", ""))))
             except Exception:  # noqa: BLE001
                 pass
         return [c for c in cves if c]

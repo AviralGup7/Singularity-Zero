@@ -1,4 +1,3 @@
-
 """Host fingerprinting utilities.
 
 Extracted from ``src.recon.live_hosts``.  Provides host metadata extraction

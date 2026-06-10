@@ -192,9 +192,7 @@ class AuthFlowRunner:
             except AuthFlowError:
                 raise
             except Exception as exc:
-                raise AuthFlowError(
-                    f"auth step #{i + 1} ({step.step}) failed: {exc}"
-                ) from exc
+                raise AuthFlowError(f"auth step #{i + 1} ({step.step}) failed: {exc}") from exc
             result.steps_executed = i + 1
         result.variables.update(self._variables)
         result.cookies.update(cookies)
@@ -272,9 +270,7 @@ class AuthFlowRunner:
         with httpx.Client(
             timeout=self._timeout, verify=self._verify_ssl, follow_redirects=True
         ) as client:
-            response = client.request(
-                method, url, headers=headers, content=body
-            )
+            response = client.request(method, url, headers=headers, content=body)
         # Capture cookies set on this response
         self._capture_cookies(response, cookies)
         if step.save_as:
@@ -290,9 +286,7 @@ class AuthFlowRunner:
             raise AuthFlowError("extract_cookie step requires 'from' and 'name'")
         response = self._responses.get(step.from_step)
         if response is None:
-            raise AuthFlowError(
-                f"extract_cookie: no response captured for step {step.from_step!r}"
-            )
+            raise AuthFlowError(f"extract_cookie: no response captured for step {step.from_step!r}")
         for header_value in response.headers.get_list("set-cookie"):
             try:
                 parts = header_value.split(";", 1)[0].strip()
@@ -318,23 +312,17 @@ class AuthFlowRunner:
                 if step.name == "session":
                     result.session_cookie = value
             return
-        raise AuthFlowError(
-            f"extract_cookie: cookie {step.name!r} not found in response"
-        )
+        raise AuthFlowError(f"extract_cookie: cookie {step.name!r} not found in response")
 
     def _do_extract_header(self, step: AuthFlowStep, result: AuthFlowResult) -> None:
         if not step.from_step or not step.name:
             raise AuthFlowError("extract_header step requires 'from' and 'name'")
         response = self._responses.get(step.from_step)
         if response is None:
-            raise AuthFlowError(
-                f"extract_header: no response captured for step {step.from_step!r}"
-            )
+            raise AuthFlowError(f"extract_header: no response captured for step {step.from_step!r}")
         value = response.headers.get(step.name)
         if value is None:
-            raise AuthFlowError(
-                f"extract_header: header {step.name!r} not found in response"
-            )
+            raise AuthFlowError(f"extract_header: header {step.name!r} not found in response")
         if step.save_as:
             self._variables[step.save_as] = value
             result.headers[step.name] = value
@@ -344,23 +332,17 @@ class AuthFlowRunner:
             raise AuthFlowError("extract_regex step requires 'from' and 'pattern'")
         response = self._responses.get(step.from_step)
         if response is None:
-            raise AuthFlowError(
-                f"extract_regex: no response captured for step {step.from_step!r}"
-            )
+            raise AuthFlowError(f"extract_regex: no response captured for step {step.from_step!r}")
         match = re.search(step.pattern, response.text)
         if not match:
-            raise AuthFlowError(
-                f"extract_regex: pattern {step.pattern!r} did not match"
-            )
+            raise AuthFlowError(f"extract_regex: pattern {step.pattern!r} did not match")
         value = match.group(1) if match.groups() else match.group(0)
         if step.save_as:
             self._variables[step.save_as] = value
 
     def _do_extract_jsonpath(self, step: AuthFlowStep, result: AuthFlowResult) -> None:
         if not step.from_step or not step.jsonpath:
-            raise AuthFlowError(
-                "extract_jsonpath step requires 'from' and 'jsonpath'"
-            )
+            raise AuthFlowError("extract_jsonpath step requires 'from' and 'jsonpath'")
         response = self._responses.get(step.from_step)
         if response is None:
             raise AuthFlowError(
@@ -369,27 +351,17 @@ class AuthFlowRunner:
         try:
             data = response.json()
         except json.JSONDecodeError as exc:
-            raise AuthFlowError(
-                f"extract_jsonpath: response is not valid JSON: {exc}"
-            ) from exc
+            raise AuthFlowError(f"extract_jsonpath: response is not valid JSON: {exc}") from exc
         value = _resolve_jsonpath(data, step.jsonpath)
         if value is None:
-            raise AuthFlowError(
-                f"extract_jsonpath: path {step.jsonpath!r} did not resolve"
-            )
+            raise AuthFlowError(f"extract_jsonpath: path {step.jsonpath!r} did not resolve")
         if step.save_as:
             self._variables[step.save_as] = str(value)
 
-    def _do_refresh_token(
-        self, step: AuthFlowStep, result: AuthFlowResult
-    ) -> None:
+    def _do_refresh_token(self, step: AuthFlowStep, result: AuthFlowResult) -> None:
         if not step.token_url or not step.client_id or not step.client_secret:
-            raise AuthFlowError(
-                "refresh_token step requires token_url, client_id, client_secret"
-            )
-        refresh_token = self._variables.get("refresh_token") or step.extras.get(
-            "refresh_token"
-        )
+            raise AuthFlowError("refresh_token step requires token_url, client_id, client_secret")
+        refresh_token = self._variables.get("refresh_token") or step.extras.get("refresh_token")
         if not refresh_token:
             raise AuthFlowError(
                 "refresh_token: no refresh_token variable or step.refresh_token set"
@@ -402,16 +374,12 @@ class AuthFlowRunner:
         }
         if step.scope:
             payload["scope"] = step.scope
-        with httpx.Client(
-            timeout=self._timeout, verify=self._verify_ssl
-        ) as client:
+        with httpx.Client(timeout=self._timeout, verify=self._verify_ssl) as client:
             response = client.post(step.token_url, data=payload)
         try:
             data = response.json()
         except json.JSONDecodeError as exc:
-            raise AuthFlowError(
-                f"refresh_token: token endpoint returned non-JSON: {exc}"
-            ) from exc
+            raise AuthFlowError(f"refresh_token: token endpoint returned non-JSON: {exc}") from exc
         if "access_token" not in data:
             raise AuthFlowError(
                 f"refresh_token: token endpoint did not return access_token "
@@ -438,17 +406,14 @@ class AuthFlowRunner:
             headers.setdefault("Authorization", result.headers["Authorization"])
         if cookies:
             headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
-        with httpx.Client(
-            timeout=self._timeout, verify=self._verify_ssl
-        ) as client:
+        with httpx.Client(timeout=self._timeout, verify=self._verify_ssl) as client:
             response = client.get(url, headers=headers)
         if response.status_code == step.expect_status:
             result.validated = True
             return
         result.validated = False
         result.failure_reason = (
-            f"validate: {url} returned {response.status_code} "
-            f"(expected {step.expect_status})"
+            f"validate: {url} returned {response.status_code} (expected {step.expect_status})"
         )
         raise AuthFlowError(result.failure_reason)
 
@@ -456,9 +421,7 @@ class AuthFlowRunner:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _capture_cookies(
-        self, response: httpx.Response, cookies: dict[str, str]
-    ) -> None:
+    def _capture_cookies(self, response: httpx.Response, cookies: dict[str, str]) -> None:
         for cookie in response.cookies.jar:
             cookies[cookie.name] = cookie.value
 

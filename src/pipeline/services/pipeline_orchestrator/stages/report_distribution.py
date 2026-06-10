@@ -132,9 +132,7 @@ class ReportDistributor:
                         getattr(section, "attachment_filenames", ())
                         or ("report.html", "report.json", "attestation.pdf")
                     ),
-                    "smtp_timeout_seconds": float(
-                        getattr(section, "smtp_timeout_seconds", 30.0)
-                    ),
+                    "smtp_timeout_seconds": float(getattr(section, "smtp_timeout_seconds", 30.0)),
                     "max_attachment_bytes": int(
                         getattr(section, "max_attachment_bytes", 25 * 1024 * 1024)
                     ),
@@ -149,8 +147,7 @@ class ReportDistributor:
                 smtp_port=int(block.get("smtp_port", 587)),
                 smtp_user=str(block.get("smtp_user", "")),
                 smtp_password=str(
-                    block.get("smtp_password")
-                    or os.environ.get("DISTRIBUTION_SMTP_PASSWORD", "")
+                    block.get("smtp_password") or os.environ.get("DISTRIBUTION_SMTP_PASSWORD", "")
                 ),
                 use_tls=bool(block.get("use_tls", True)),
                 from_address=str(
@@ -171,9 +168,7 @@ class ReportDistributor:
                     )
                 ),
                 smtp_timeout_seconds=float(block.get("smtp_timeout_seconds", 30.0)),
-                max_attachment_bytes=int(
-                    block.get("max_attachment_bytes", 25 * 1024 * 1024)
-                ),
+                max_attachment_bytes=int(block.get("max_attachment_bytes", 25 * 1024 * 1024)),
             )
         except (TypeError, ValueError) as exc:
             logger.warning("Invalid distribution config, defaulting to disabled: %s", exc)
@@ -321,7 +316,9 @@ async def run_report_distribution(
         except (AttributeError, TypeError):
             target_name = ""
 
-        run_name = run_dir.name if run_dir is not None else datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_name = (
+            run_dir.name if run_dir is not None else datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        )
         records = await distributor.send(run_dir, target_name=target_name, run_name=run_name)
         summary = _summary_block(records)
         state_delta["distribution_summary"] = summary

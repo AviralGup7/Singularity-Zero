@@ -1,4 +1,3 @@
-
 import pytest
 
 from src.detection.finding import (
@@ -188,7 +187,12 @@ def test_from_dict_exploitability_confirmed():
 
 def test_from_dict_exploitability_probable_from_confidence():
     finding = from_dict(
-        {"url": "https://e", "indicator": "ssrf_candidate_finder", "status_code": 500, "error": "oops"},
+        {
+            "url": "https://e",
+            "indicator": "ssrf_candidate_finder",
+            "status_code": 500,
+            "error": "oops",
+        },
         analyzer_key="ak",
         phase="p",
     )
@@ -265,7 +269,14 @@ def test_finding_overrides_dataclass_construction():
 
 
 def test_evidence_to_dict_strips_empty_extra():
-    ev = Evidence(kind="k", description="d", payload="p", response_status=200, response_length=42, body_snippet="snip")
+    ev = Evidence(
+        kind="k",
+        description="d",
+        payload="p",
+        response_status=200,
+        response_length=42,
+        body_snippet="snip",
+    )
     d = ev.__dict__ if hasattr(ev, "__dict__") else None
     assert d is None or isinstance(d, dict)
 

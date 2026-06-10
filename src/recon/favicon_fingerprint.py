@@ -22,8 +22,8 @@ This module:
 The function degrades gracefully: any HTTP failure returns an empty
 result for the host; the rest of the scan continues.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 import hashlib
 import json

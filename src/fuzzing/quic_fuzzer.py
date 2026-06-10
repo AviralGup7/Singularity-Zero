@@ -102,11 +102,7 @@ def _quic_crypto_overload_payload(data: bytes, num_frames: int = 30) -> bytes:
 
 
 _CRYPTO_FLOOD_DATA = (
-    b"A" * 1200
-    + b"\x01" * 1200
-    + b"\x02" * 1200
-    + b"\x03" * 1200
-    + b"GET / HTTP/3\r\n\r\n" * 20
+    b"A" * 1200 + b"\x01" * 1200 + b"\x02" * 1200 + b"\x03" * 1200 + b"GET / HTTP/3\r\n\r\n" * 20
 )
 
 
@@ -123,7 +119,7 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
             ),
             timeout=timeout,
         )
-    except (OSError, asyncio.TimeoutError, ConnectionRefusedError) as exc:
+    except (TimeoutError, OSError, ConnectionRefusedError) as exc:
         logger.debug("QUIC UDP connect failed: %s", exc)
         return {
             "reachable": False,
@@ -159,7 +155,7 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
             response_bytes = len(protocol.response)
             if response_bytes > 0:
                 response_preview = protocol.response[:200].decode("utf-8", errors="replace")
-        except (asyncio.TimeoutError, ConnectionError, OSError) as exc:
+        except (TimeoutError, ConnectionError, OSError) as exc:
             logger.warning("Operation failed in quic_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
     except Exception as exc:
         logger.debug("QUIC send failed: %s", exc)

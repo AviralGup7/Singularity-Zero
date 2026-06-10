@@ -156,7 +156,6 @@ def evaluate_cache_poison(
     # probe data via context.
     reversed_params = probe_response.get("reversed_params_response")
     if reversed_params:
-        rp_body = str(reversed_params.get("body", "") or "")
         rp_status = int(reversed_params.get("status_code", 0) or 0)
         if rp_status != probe_status:
             signals.append("poet_parameter_order_caching")
@@ -169,7 +168,6 @@ def evaluate_cache_poison(
     # may receive the poisoned content.
     fat_get_response = probe_response.get("fat_get_response")
     if fat_get_response:
-        fg_body = str(fat_get_response.get("body", "") or "")
         fg_status = int(fat_get_response.get("status_code", 0) or 0)
         fg_cache_hit = _is_cache_hit(fat_get_response.get("headers", {}))
         if fg_status == 200 and fg_cache_hit:
@@ -246,9 +244,7 @@ def validate_cache_poison(
         "status": evaluation["status"],
         "confidence": evaluation["confidence"],
         "in_scope": in_scope,
-        "scope_reason": "scope_evaluated"
-        if in_scope
-        else "scope_unavailable_or_out_of_scope",
+        "scope_reason": "scope_evaluated" if in_scope else "scope_unavailable_or_out_of_scope",
         "evidence": evaluation["evidence"],
     }
     return to_validation_result(
@@ -302,6 +298,7 @@ def default_probe_cache(
     If ``request_fn`` is None, returns a callable that always reports
     ``missing_probe_or_followup`` and lets the caller iterate.
     """
+
     def _probe(
         target_url: str,
         unkeyed_header: str,

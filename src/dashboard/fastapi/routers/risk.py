@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+
 """Risk score endpoints for historical CSI views."""
 
 import hashlib
@@ -142,18 +143,12 @@ def _normalize_top_findings(
         # is not provided.
         sorted_findings = sorted(
             findings,
-            key=lambda item: (
-                -float(
-                    priority_calculator.for_finding(item).priority
-                )
-            ),
+            key=lambda item: -float(priority_calculator.for_finding(item).priority),
         )
     else:
         sorted_findings = sorted(
             findings,
-            key=lambda item: SEVERITY_WEIGHTS.get(
-                str(item.get("severity", "info")).lower(), 0
-            ),
+            key=lambda item: SEVERITY_WEIGHTS.get(str(item.get("severity", "info")).lower(), 0),
             reverse=True,
         )
     top_items = sorted_findings[:5]

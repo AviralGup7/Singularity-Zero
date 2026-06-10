@@ -105,9 +105,11 @@ def test_jwt_claim_integrity_handler_emits_finding() -> None:
     import json
 
     def _b64(value: dict) -> str:
-        return base64.urlsafe_b64encode(
-            json.dumps(value, separators=(",", ":")).encode()
-        ).rstrip(b"=").decode()
+        return (
+            base64.urlsafe_b64encode(json.dumps(value, separators=(",", ":")).encode())
+            .rstrip(b"=")
+            .decode()
+        )
 
     token = f"{_b64({'alg': 'none', 'typ': 'JWT'})}.{_b64({'sub': '1'})}.deadbeef"
     findings = api_jwt_claim_integrity(

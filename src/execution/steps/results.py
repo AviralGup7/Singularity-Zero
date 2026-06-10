@@ -1,4 +1,3 @@
-
 """Step results container.
 
 Re-implements ``StepResultsDict`` from ``scenario_engine.py`` so it can be

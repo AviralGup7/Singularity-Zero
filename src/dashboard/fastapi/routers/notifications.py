@@ -66,6 +66,7 @@ def _get_storage(request: Request) -> Any:
     storage = getattr(request.app.state, "notification_storage", None)
     if storage is None:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=503, detail="Notification storage not initialized")
     return storage
 
@@ -113,7 +114,7 @@ async def mark_notification_read(
 async def mark_all_read(request: Request) -> dict[str, Any]:
     """Mark all notifications as read."""
     storage = _get_storage(request)
-    updated = storage.mark_all_read()
+    storage.mark_all_read()
     unread_count = storage.count_unread()
     return {"success": True, "unread_count": unread_count}
 

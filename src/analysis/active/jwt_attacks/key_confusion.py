@@ -57,8 +57,12 @@ def _extract_public_key_from_jku(header: dict, session: Any) -> bytes | None:
                 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
                 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-                n = int.from_bytes(base64.urlsafe_b64decode(key["n"] + "=" * (-len(key["n"]) % 4)), "big")
-                e = int.from_bytes(base64.urlsafe_b64decode(key["e"] + "=" * (-len(key["e"]) % 4)), "big")
+                n = int.from_bytes(
+                    base64.urlsafe_b64decode(key["n"] + "=" * (-len(key["n"]) % 4)), "big"
+                )
+                e = int.from_bytes(
+                    base64.urlsafe_b64decode(key["e"] + "=" * (-len(key["e"]) % 4)), "big"
+                )
                 pub_numbers = RSAPublicNumbers(e, n)
                 pub_key = pub_numbers.public_key()
                 return pub_key.public_bytes(

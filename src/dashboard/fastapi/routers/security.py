@@ -23,7 +23,7 @@ from src.dashboard.fastapi.schemas import (
     TokenRequest,
     TokenResponse,
 )
-from src.dashboard.fastapi.security import api_security_enabled, create_jwt, Principal
+from src.dashboard.fastapi.security import Principal, api_security_enabled, create_jwt
 from src.dashboard.rate_limiter import get_rate_limit_status
 
 router = APIRouter(tags=["Security"])
@@ -77,7 +77,9 @@ async def create_dashboard_token(
     config: DashboardConfig = getattr(request.app.state, "config", get_config())
     principal: Principal | None = None
     if body.mode and body.mode.lower() == "guest":
-        guest_enabled = bool(getattr(config, "guest_access_enabled", False)) and api_security_enabled()
+        guest_enabled = (
+            bool(getattr(config, "guest_access_enabled", False)) and api_security_enabled()
+        )
         if not guest_enabled:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

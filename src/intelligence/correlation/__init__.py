@@ -4,8 +4,8 @@ Re-exports finding merge, history annotation, and insight-building functions
 from the analysis layer for use by the intelligence package.
 Also provides cross-finding correlation for attack chain detection and compound risk scoring.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 

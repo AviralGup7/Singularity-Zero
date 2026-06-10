@@ -11,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 class CloudAssetInventory(ABC):
     @abstractmethod
-    async def discover_assets(self) -> set[str]:
-        ...
+    async def discover_assets(self) -> set[str]: ...
 
 
 class AWSAssetInventory(CloudAssetInventory):
@@ -49,10 +48,16 @@ class AWSAssetInventory(CloudAssetInventory):
                 for cluster_arn in clusters:
                     services = ecs.list_services(cluster=cluster_arn).get("serviceArns", [])
                     for svc_arn in services:
-                        svc = ecs.describe_services(cluster=cluster_arn, services=[svc_arn]).get("services", [{}])[0]
-                        tasks = ecs.list_tasks(cluster=cluster_arn, serviceName=svc.get("serviceName", "")).get("taskArns", [])
+                        svc = ecs.describe_services(cluster=cluster_arn, services=[svc_arn]).get(
+                            "services", [{}]
+                        )[0]
+                        tasks = ecs.list_tasks(
+                            cluster=cluster_arn, serviceName=svc.get("serviceName", "")
+                        ).get("taskArns", [])
                         for task_arn in tasks:
-                            task = ecs.describe_tasks(cluster=cluster_arn, tasks=[task_arn]).get("tasks", [{}])[0]
+                            task = ecs.describe_tasks(cluster=cluster_arn, tasks=[task_arn]).get(
+                                "tasks", [{}]
+                            )[0]
                             for container in task.get("containers", []):
                                 for net_if in container.get("networkInterfaces", []):
                                     ip = net_if.get("privateIpv4Address")
@@ -65,7 +70,9 @@ class AWSAssetInventory(CloudAssetInventory):
                 for api in page.get("items", []):
                     endpoint = api.get("endpointConfiguration", {}).get("types", [])
                     if endpoint:
-                        assets.add(f"https://{api['id']}.execute-api.{boto3.Session().region_name or 'us-east-1'}.amazonaws.com")
+                        assets.add(
+                            f"https://{api['id']}.execute-api.{boto3.Session().region_name or 'us-east-1'}.amazonaws.com"
+                        )
         except Exception as exc:
             logger.warning("AWS asset discovery failed: %s", exc)
         return assets
@@ -83,7 +90,9 @@ class GCPAssetInventory(CloudAssetInventory):
         try:
             instances_client = compute_v1.InstancesClient()
             compute_v1.ForwardingRulesClient()
-            for zone in compute_v1.ZonesClient().list(project=compute_v1.ProjectsClient().get("").project):
+            for zone in compute_v1.ZonesClient().list(
+                project=compute_v1.ProjectsClient().get("").project
+            ):
                 for instance in instances_client.list(zone=zone.name, project=zone.project):
                     for nic in instance.network_interfaces:
                         for ip in nic.access_configs or []:
@@ -101,17 +110,23 @@ class AzureAssetInventory(CloudAssetInventory):
             from azure.identity import DefaultAzureCredential
             from azure.mgmt.compute import ComputeManagementClient
         except ImportError:
-            logger.warning("azure-identity or azure-mgmt-compute not installed; skipping Azure asset discovery")
+            logger.warning(
+                "azure-identity or azure-mgmt-compute not installed; skipping Azure asset discovery"
+            )
             return set()
 
         assets: set[str] = set()
         try:
             credential = DefaultAzureCredential()
-            subscription_id = (credential.get_token("https://management.azure.com/.default").token or "")
+            subscription_id = (
+                credential.get_token("https://management.azure.com/.default").token or ""
+            )
             compute_client = ComputeManagementClient(credential, subscription_id)
             for vm in compute_client.virtual_machines.list_all():
                 for nic_ref in vm.network_profile.network_interfaces or []:
-                    nic = compute_client.network_interfaces.get(vm.id.split("/")[4], nic_ref.id.split("/")[-1])
+                    nic = compute_client.network_interfaces.get(
+                        vm.id.split("/")[4], nic_ref.id.split("/")[-1]
+                    )
                     for ip_config in nic.ip_configurations or []:
                         public_ip = ip_config.public_ip_address
                         if public_ip:

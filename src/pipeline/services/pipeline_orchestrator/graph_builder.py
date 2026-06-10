@@ -10,6 +10,7 @@ The builder takes the runtime method map (so the ``startup`` node is
 injected only when a startup method is actually registered) and
 returns an immutable, cycle-checked :class:`Graph`.
 """
+
 from __future__ import annotations
 
 import json
@@ -306,5 +307,7 @@ def build_pipeline_graph(
 def register_plugin_stages() -> None:
     """Register plugin stages at import time. Plugins may call this to
     inject their stage definitions into the global registry."""
-    logger.debug("register_plugin_stages called; global registry contains %d entries",
-                 len(_global_stage_registry.get_all()))
+    logger.debug(
+        "register_plugin_stages called; global registry contains %d entries",
+        len(_global_stage_registry.get_all()),
+    )

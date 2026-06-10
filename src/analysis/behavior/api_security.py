@@ -1,4 +1,5 @@
 import logging
+
 """API endpoint security analysis.
 
 Analyzes API endpoints for common security issues including:

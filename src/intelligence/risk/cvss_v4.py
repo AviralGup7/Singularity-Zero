@@ -315,9 +315,7 @@ def score_finding_cvss_v4(
     if evidence.get("user_interaction") and ui == "N":
         ui = "P"
 
-    base_score = _calculate_cvss_v4_base_score(
-        av, ac, pr, ui, vc, vi, va, sc, si, sa
-    )
+    base_score = _calculate_cvss_v4_base_score(av, ac, pr, ui, vc, vi, va, sc, si, sa)
 
     # Threat intel driven exploit maturity. EPSS / KEV are *hints* and
     # never override an explicit caller-supplied exploit_maturity.
@@ -327,8 +325,10 @@ def score_finding_cvss_v4(
         exploit_maturity = _infer_exploit_maturity(epss_score, in_cisa_kev)
         kev_applied_to_inference = True
     threat_multiplier = _threat_intel_multiplier(
-        exploit_maturity, epss_score, in_cisa_kev and not kev_applied_to_inference,
-        kev_due_date_offset
+        exploit_maturity,
+        epss_score,
+        in_cisa_kev and not kev_applied_to_inference,
+        kev_due_date_offset,
     )
 
     env_score = _apply_environmental_modifiers(
@@ -342,8 +342,7 @@ def score_finding_cvss_v4(
     severity_label = _severity_from_score(env_score)
 
     vector = (
-        f"CVSS:4.0/AV:{av}/AC:{ac}/PR:{pr}/UI:{ui}/VC:{vc}/VI:{vi}/VA:{va}"
-        f"/SC:{sc}/SI:{si}/SA:{sa}"
+        f"CVSS:4.0/AV:{av}/AC:{ac}/PR:{pr}/UI:{ui}/VC:{vc}/VI:{vi}/VA:{va}/SC:{sc}/SI:{si}/SA:{sa}"
     )
     if exploit_maturity != "X":
         vector += f"/E:{exploit_maturity}"
@@ -384,9 +383,7 @@ def enrich_findings_with_cvss_v4(findings: list[dict[str, Any]]) -> list[dict[st
             continue
         threat_intel = finding.get("threat_intel") or {}
         epss_score = _coerce_float(threat_intel.get("epss_score") or finding.get("epss_score"))
-        in_cisa_kev = bool(
-            threat_intel.get("cisa_kev") or finding.get("cisa_kev")
-        )
+        in_cisa_kev = bool(threat_intel.get("cisa_kev") or finding.get("cisa_kev"))
         score = score_finding_cvss_v4(
             category,
             severity=str(finding.get("severity", "")),
@@ -449,7 +446,7 @@ def _calculate_cvss_v4_base_score(
         impact = 7.52 * (iss + iss_sub)
         impact = min(impact, 10.0)
 
-    scope_changed = sc != 'N' or si != 'N' or sa != 'N'
+    scope_changed = sc != "N" or si != "N" or sa != "N"
     pr_key = f"{pr}_scope_{'C' if scope_changed else 'U'}"
     pr_default = 0.55 if (scope_changed and pr == "H") else 0.4
     pr_value = PRIVILEGES_REQUIRED_V4.get(pr_key, pr_default)
@@ -467,9 +464,7 @@ def _calculate_cvss_v4_base_score(
     return float(base)
 
 
-def _impact_component(
-    vc: str, vi: str, va: str, sc: str, si: str, sa: str
-) -> float:
+def _impact_component(vc: str, vi: str, va: str, sc: str, si: str, sa: str) -> float:
     iss = 1.0 - (
         (1.0 - VULNERABLE_SYSTEM_CONFIDENTIALITY[vc])
         * (1.0 - VULNERABLE_SYSTEM_INTEGRITY[vi])

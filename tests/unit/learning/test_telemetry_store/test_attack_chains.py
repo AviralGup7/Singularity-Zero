@@ -1,6 +1,3 @@
-
-
-
 class TestTelemetryStoreAttackChains:
     """Tests for attack chain operations."""
 

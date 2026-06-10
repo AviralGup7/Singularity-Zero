@@ -301,12 +301,30 @@ class JSONFormatter(logging.Formatter):
         }
         # Allowlist of known-safe extra keys to prevent accidental leakage of
         # sensitive data through developer-added log record attributes.
-        _EXTRA_KEY_ALLOWLIST = frozenset({
-            "stage", "target", "duration_ms", "job_id", "request_id",
-            "user_id", "trace_id", "span_id", "worker_id", "correlation_id",
-            "error", "result", "count", "status", "latency_ms",
-            "host", "port", "version", "attempt", "max_retries",
-        })
+        _EXTRA_KEY_ALLOWLIST = frozenset(
+            {
+                "stage",
+                "target",
+                "duration_ms",
+                "job_id",
+                "request_id",
+                "user_id",
+                "trace_id",
+                "span_id",
+                "worker_id",
+                "correlation_id",
+                "error",
+                "result",
+                "count",
+                "status",
+                "latency_ms",
+                "host",
+                "port",
+                "version",
+                "attempt",
+                "max_retries",
+            }
+        )
         for key, value in record.__dict__.items():
             if key not in skip_keys and key in _EXTRA_KEY_ALLOWLIST:
                 extra_fields[key] = value

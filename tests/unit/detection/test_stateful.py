@@ -58,7 +58,7 @@ def test_analyze_csrf_entropy_static_tokens_flagged():
 
 
 def test_analyze_csrf_entropy_unique_tokens():
-    samples = [f"tok{i:04d}{i*7:04d}" for i in range(10)]
+    samples = [f"tok{i:04d}{i * 7:04d}" for i in range(10)]
     finding = analyze_csrf_entropy(url="https://e", tokens=samples)
     assert finding.is_static is False
     assert finding.unique_token_ratio == pytest.approx(1.0)
@@ -73,9 +73,7 @@ def test_analyze_csrf_entropy_empty_tokens():
 
 
 def test_analyze_csrf_entropy_field_passthrough():
-    finding = analyze_csrf_entropy(
-        url="https://e", tokens=["a", "b"], field="custom_field"
-    )
+    finding = analyze_csrf_entropy(url="https://e", tokens=["a", "b"], field="custom_field")
     assert finding.field == "custom_field"
     assert finding.to_dict()["field"] == "custom_field"
 
@@ -103,16 +101,12 @@ def test_detect_session_fixation_safe():
 
 
 def test_detect_session_fixation_missing_token_returns_safe():
-    finding = detect_session_fixation(
-        url="https://e", pre_auth_token=None, post_auth_token="x"
-    )
+    finding = detect_session_fixation(url="https://e", pre_auth_token=None, post_auth_token="x")
     assert finding.is_fixation is False
 
 
 def test_detect_session_fixation_both_missing():
-    finding = detect_session_fixation(
-        url="https://e", pre_auth_token="", post_auth_token=""
-    )
+    finding = detect_session_fixation(url="https://e", pre_auth_token="", post_auth_token="")
     assert finding.is_fixation is False
     assert finding.token_length == 0
 
@@ -203,9 +197,7 @@ def test_fire_concurrent_requests_all_success():
 
         return FakeResp()
 
-    result = asyncio.run(
-        fire_concurrent_requests(factory, url="https://e", concurrency=4)
-    )
+    result = asyncio.run(fire_concurrent_requests(factory, url="https://e", concurrency=4))
     assert result.fired_concurrent == 4
     assert result.success_count == 4
     assert result.failure_count == 0
@@ -233,9 +225,7 @@ def test_fire_concurrent_requests_drift_detected():
             return factory()
         return mixed_factory()
 
-    result = asyncio.run(
-        fire_concurrent_requests(rotating_factory, url="https://e", concurrency=4)
-    )
+    result = asyncio.run(fire_concurrent_requests(rotating_factory, url="https://e", concurrency=4))
     assert result.fired_concurrent == 4
     assert result.success_count == 2
     assert result.failure_count == 2
@@ -246,9 +236,7 @@ def test_fire_concurrent_requests_handles_exceptions():
     async def factory():
         raise RuntimeError("boom")
 
-    result = asyncio.run(
-        fire_concurrent_requests(factory, url="https://e", concurrency=3)
-    )
+    result = asyncio.run(fire_concurrent_requests(factory, url="https://e", concurrency=3))
     assert result.fired_concurrent == 3
     assert result.success_count == 0
     assert result.failure_count == 3
@@ -262,9 +250,7 @@ def test_fire_concurrent_requests_to_dict_shape():
 
         return FakeResp()
 
-    result = asyncio.run(
-        fire_concurrent_requests(factory, url="https://e", concurrency=2)
-    )
+    result = asyncio.run(fire_concurrent_requests(factory, url="https://e", concurrency=2))
     payload = result.to_dict()
     assert payload["indicator"] == "race_condition_concurrent_probe"
     assert payload["fired_concurrent"] == 2

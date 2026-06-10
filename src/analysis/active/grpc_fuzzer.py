@@ -272,11 +272,13 @@ class GrpcFuzzer:
             status_codes.add(response.status_code)
             if 500 <= response.status_code < 600:
                 five_xx += 1
-                findings.append({
-                    "message": message,
-                    "status": response.status_code,
-                    "body_preview": response.text[:300],
-                })
+                findings.append(
+                    {
+                        "message": message,
+                        "status": response.status_code,
+                        "body_preview": response.text[:300],
+                    }
+                )
             if elapsed > slowest:
                 slowest = elapsed
             if elapsed < fastest:

@@ -63,7 +63,9 @@ class BusinessContext:
     """Resolved business context for the current run / target."""
 
     hosts: list[dict[str, Any]] = field(default_factory=list)
-    entity_multipliers: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_ENTITY_MULTIPLIERS))
+    entity_multipliers: dict[str, float] = field(
+        default_factory=lambda: dict(DEFAULT_ENTITY_MULTIPLIERS)
+    )
     compliance_requirements: list[str] = field(default_factory=list)
     source_path: str = ""
     version: int = 1

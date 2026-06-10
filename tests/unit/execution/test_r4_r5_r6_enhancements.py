@@ -101,9 +101,7 @@ class TestR5XssBaseline(unittest.TestCase):
         from src.execution.validators.validators.xss import _active_xss_test
 
         client = _StubHttpClient()
-        result = _active_xss_test(
-            "https://example.com/search?q=test", client
-        )
+        result = _active_xss_test("https://example.com/search?q=test", client)
         self.assertIn(
             "baseline_reflection_present",
             result.get("baseline_signals", []),
@@ -116,12 +114,8 @@ class TestR5SstiBaseline(unittest.TestCase):
 
         from src.execution.validators.validators.ssti import _active_ssti_test
 
-        client = _StubHttpClient(
-            body_for=lambda _url: "Order total: 49 items. Subtotal 343.00"
-        )
-        result = _active_ssti_test(
-            "https://example.com/profile?name=alice&page=1", client
-        )
+        client = _StubHttpClient(body_for=lambda _url: "Order total: 49 items. Subtotal 343.00")
+        result = _active_ssti_test("https://example.com/profile?name=alice&page=1", client)
         self.assertIn(
             "baseline_math_indicators_present",
             result.get("baseline_signals", []),
@@ -137,9 +131,7 @@ class TestR5SstiBaseline(unittest.TestCase):
             return "Hello {{7*7}} -> 49. Thanks."
 
         client = _StubHttpClient(body_for=_body_for)
-        result = _active_ssti_test(
-            "https://example.com/profile?name=alice&page=1", client
-        )
+        result = _active_ssti_test("https://example.com/profile?name=alice&page=1", client)
         self.assertEqual(result["status"], "potential")
 
 
@@ -258,9 +250,7 @@ class TestEngineWiring(unittest.TestCase):
                         }
                     ]
                 },
-                ranked_priority_urls=[
-                    {"url": "https://example.com/api/users/1", "score": 5}
-                ],
+                ranked_priority_urls=[{"url": "https://example.com/api/users/1", "score": 5}],
                 callback_context={},
                 token_replay={
                     "grouped_by_endpoint": [
@@ -287,9 +277,7 @@ class TestEngineWiring(unittest.TestCase):
         # because the validator's validate() returned passive_only.
         token_key = "token_reuse_validation"
         self.assertIn(token_key, result["results"])
-        self.assertFalse(
-            result["settings"].get("replay_authorized", True)
-        )
+        self.assertFalse(result["settings"].get("replay_authorized", True))
 
 
 if __name__ == "__main__":

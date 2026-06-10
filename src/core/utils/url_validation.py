@@ -1,4 +1,5 @@
 import logging
+
 """URL validation for SSRF prevention."""
 
 import ipaddress

@@ -70,11 +70,7 @@ def attempt_recovery(
         if not _validate_checkpoint_state(state):
             logger.warning("Skipping corrupted checkpoint: run=%s", run_id)
             continue
-        completed_count = (
-            len(state.completed_stages)
-            if hasattr(state, "completed_stages")
-            else 0
-        )
+        completed_count = len(state.completed_stages) if hasattr(state, "completed_stages") else 0
         candidates.append(
             (
                 completed_count,
@@ -88,8 +84,5 @@ def attempt_recovery(
 
     candidates.sort(key=lambda c: (c[0], c[1]), reverse=True)
     best_state = candidates[0][2]
-    has_incomplete = (
-        best_state.current_stage is not None
-        or len(best_state.completed_stages) > 0
-    )
+    has_incomplete = best_state.current_stage is not None or len(best_state.completed_stages) > 0
     return has_incomplete, best_state
