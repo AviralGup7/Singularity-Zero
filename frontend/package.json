@@ -44,7 +44,7 @@
     "minimatch": "^3.1.2",
     "micromatch": "^4.0.8",
     "nth-check": "^2.1.1",
-    "postcss": "^8.4.47",
+    "postcss": "^8.5.8",
     "ws": "^8.18.0",
     "cookie": "^0.7.0",
     "path-to-regexp": "^6.3.0",
