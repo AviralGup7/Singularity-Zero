@@ -80,3 +80,29 @@ export async function resetCircuitBreaker(
   );
   return data;
 }
+
+export interface ToolAvailabilityResult {
+  available: boolean;
+  path: string | null;
+  circuit_breaker_state: string;
+  circuit_breaker_open: boolean;
+}
+
+export interface ToolAvailabilityResponse {
+  tools: Record<string, ToolAvailabilityResult>;
+  all_available: boolean;
+  any_breaker_open: boolean;
+  can_scan: boolean;
+}
+
+export async function checkToolAvailability(
+  tools: string[],
+  signal?: AbortSignal,
+): Promise<ToolAvailabilityResponse> {
+  const { data } = await apiClient.post<ToolAvailabilityResponse>(
+    '/api/health/self-healing/tools/check',
+    { tools },
+    { signal },
+  );
+  return data;
+}
