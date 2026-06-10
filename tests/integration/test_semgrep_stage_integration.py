@@ -3,10 +3,13 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from src.core.models.stage_result import PipelineContext
 from src.pipeline.services.pipeline_orchestrator.stages.semgrep import run_semgrep_stage
 
 
+@pytest.mark.integration
 def test_semgrep_stage_parses_and_merges(tmp_path: Path):
     """Integration-style test: write a sample `semgrep.json` and run the stage.
 

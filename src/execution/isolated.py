@@ -20,6 +20,13 @@ from src.execution.active_manifest import ActiveCheckManifest
 
 logger = logging.getLogger(__name__)
 
+_PICKLE_SAFETY_NOTE = (
+    "SECURITY: pickle is used here ONLY for internal IPC between parent/child "
+    "processes within the same trust boundary. NEVER pickle.loads() data from "
+    "external or untrusted sources - this can lead to remote code execution."
+)
+logger.debug(_PICKLE_SAFETY_NOTE)
+
 # Process join timeout configurable via environment variable (default: 0.5s)
 PROCESS_JOIN_TIMEOUT = float(os.getenv("PROCESS_JOIN_TIMEOUT", "0.5"))
 
@@ -149,12 +156,14 @@ def _terminate_process(process: Any) -> bool:
                 process.name,
                 process.pid,
             )
-            process.kill()
+            try:
+                process.kill()
+            except (ProcessLookupError, OSError) as exc:
+                logger.warning("Operation failed in isolated.py: %s", exc, exc_info=True)  # noqa: BLE001
             process.join(timeout=PROCESS_JOIN_TIMEOUT)
         return True
-    finally:
-        if process.is_alive():
-            process.kill()
+    except (ProcessLookupError, OSError):
+        return False
 
 
 def run_callable_isolated(
@@ -181,7 +190,12 @@ def run_callable_isolated(
     import sys
 
     try:
-        ctx = mp.get_context("fork") if sys.platform != "win32" else mp.get_context("spawn")
+        if sys.platform == "win32":
+            ctx = mp.get_context("spawn")
+        elif sys.platform == "darwin":
+            ctx = mp.get_context("spawn")
+        else:
+            ctx = mp.get_context("fork")
     except ValueError:
         ctx = mp.get_context("spawn")
     output: mp.Queue = ctx.Queue(maxsize=1)

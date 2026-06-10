@@ -8,6 +8,7 @@ gzip compression.
 import builtins
 import gzip
 import hashlib
+import io
 import json
 import logging
 import os
@@ -18,6 +19,9 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Maximum uncompressed size for cached gzip payloads (64 MiB).
+_MAX_DECOMPRESSED_BYTES: int = 64 * 1024 * 1024
 
 
 class FileBackend:
@@ -81,13 +85,13 @@ class FileBackend:
             if tmp_fd is not None:
                 try:
                     os.close(tmp_fd)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in file.py: %s", exc, exc_info=True)  # noqa: BLE001
             if tmp_path:
                 try:
                     os.unlink(tmp_path)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in file.py: %s", exc, exc_info=True)  # noqa: BLE001
             pass
 
     def _file_path(self, key: str) -> Path:
@@ -133,12 +137,26 @@ class FileBackend:
                 continue
             try:
                 if path.suffix == ".gz":
-                    data = gzip.decompress(path.read_bytes())
+                    raw = path.read_bytes()
+                    decompressor = gzip.GzipFile(fileobj=io.BytesIO(raw))
+                    chunks: list[bytes] = []
+                    total = 0
+                    while True:
+                        chunk = decompressor.read(8192)
+                        if not chunk:
+                            break
+                        total += len(chunk)
+                        if total > _MAX_DECOMPRESSED_BYTES:
+                            raise ValueError(
+                                f"Gzip payload exceeds {_MAX_DECOMPRESSED_BYTES} byte limit"
+                            )
+                        chunks.append(chunk)
+                    data = b"".join(chunks)
                     entry = json.loads(data.decode("utf-8"))
                 else:
                     entry = json.loads(path.read_text(encoding="utf-8"))
                 break
-            except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError):
+            except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError, ValueError):
                 continue
 
         if entry is None:
@@ -196,13 +214,13 @@ class FileBackend:
             if tmp_fd is not None:
                 try:
                     os.close(tmp_fd)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in file.py: %s", exc, exc_info=True)  # noqa: BLE001
             if tmp_path:
                 try:
                     os.unlink(tmp_path)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in file.py: %s", exc, exc_info=True)  # noqa: BLE001
             try:
                 from src.infrastructure.observability.metrics import get_metrics
 
@@ -226,8 +244,8 @@ class FileBackend:
                 if path.exists():
                     path.unlink()
                     deleted = True
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Operation failed in file.py: %s", exc, exc_info=True)  # noqa: BLE001
         return deleted
 
     def delete(self, key: str) -> bool:
@@ -284,8 +302,8 @@ class FileBackend:
                     if path.is_file() and path.name != ".cache_index.json":
                         try:
                             path.unlink()
-                        except OSError:
-                            pass
+                        except OSError as exc:
+                            logger.warning("Operation failed in file.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._save_index()
             return count
 

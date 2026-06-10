@@ -97,7 +97,10 @@ class JobQueueRateLimiterMixin:
         else:
             worker_keys = []
             cursor = 0
-            while True:
+            max_iterations = 1000
+            iteration = 0
+            while iteration < max_iterations:
+                iteration += 1
                 scan_result = await asyncio.to_thread(
                     self.redis.execute_command,
                     "SCAN",
@@ -113,6 +116,8 @@ class JobQueueRateLimiterMixin:
                 worker_keys.extend(keys)
                 if int(cursor) == 0:
                     break
+            if iteration >= max_iterations:
+                logger.warning("SCAN loop hit max_iterations=%d during stale lease cleanup; partial scan only", max_iterations)
 
         for w_key in worker_keys:
             w_key_str = w_key.decode("utf-8") if isinstance(w_key, bytes) else str(w_key)

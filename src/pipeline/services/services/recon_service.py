@@ -86,12 +86,27 @@ async def run_url_collection_service(
             "url_count": len(urls),
         }
 
+        # GAP 8: Capture CollectorMeta if available from the collector result.
+        # The collector may return a tuple (urls, meta) for structured metadata.
+        collector_meta = None
+        if isinstance(urls, tuple) and len(urls) == 2:
+            urls, collector_meta = urls
+        state_delta: dict[str, Any] = {"urls": set(urls) if not isinstance(urls, set) else urls}
+        if collector_meta is not None:
+            state_delta["collector_meta"] = (
+                collector_meta.to_dict()
+                if hasattr(collector_meta, "to_dict")
+                else dict(collector_meta)
+                if isinstance(collector_meta, dict)
+                else {}
+            )
+
         return StageOutput(
             stage_name=stage_input.stage_name,
             outcome=StageOutcome.COMPLETED,
             duration_seconds=duration,
             metrics=metrics,
-            state_delta={"urls": set(urls)},
+            state_delta=state_delta,
         )
     except Exception as exc:
         return StageOutput(

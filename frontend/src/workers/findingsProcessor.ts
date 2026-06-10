@@ -109,8 +109,12 @@ self.onmessage = (event: MessageEvent<ProcessRequest<FindingLike> & { findings?:
     const { type, findings, filters, sort } = event.data;
 
     if (type === 'PROCESS_FINDINGS') {
-      if (findings) {
+      if (findings && findings.length > 0) {
         storedFindings = findings;
+      }
+      if (!storedFindings || storedFindings.length === 0) {
+        (self as unknown as Worker).postMessage({ type: 'PROCESS_COMPLETE', result: [] });
+        return;
       }
       let result = [...storedFindings];
 

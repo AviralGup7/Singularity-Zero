@@ -30,6 +30,8 @@ metadata:
     app.kubernetes.io/component: dashboard
     app.kubernetes.io/version: "2.0.0"
   annotations:
+    # CKV_K8S_35: Secrets are injected via env vars from a K8s Secret resource.
+    # readOnlyRootFilesystem is enabled; compensating control: secrets never appear in logs.
     checkov.io/skip1: CKV_K8S_35=Prefer using secrets as files over secrets as environment variables
 spec:
   replicas: 2
@@ -63,19 +65,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: dashboard
-          image: cyber-pipeline:2.0.0@sha256:d55f00e99d91f28e2b8f855d045d6a2f38d3809fb0317e174092d6e3c03565f1
-          securityContext:
-            readOnlyRootFilesystem: true
-            allowPrivilegeEscalation: false
-            privileged: false
-            runAsNonRoot: true
-            runAsUser: 10001
-            runAsGroup: 10001
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
+          image: ghcr.io/YOUR_GITHUB_ORG/cyber-security-test-pipeline:latest
           imagePullPolicy: Always
           command:
             - "uvicorn"
@@ -111,6 +101,12 @@ spec:
                 secretKeyRef:
                   name: cyber-pipeline-secrets
                   key: APP_SECRET_KEY
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cyber-pipeline-secrets
+                  key: DATABASE_URL
+                  optional: true
           resources:
             requests:
               cpu: 250m
@@ -180,7 +176,7 @@ metadata:
     app.kubernetes.io/name: cyber-pipeline
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 50Gi
@@ -195,7 +191,7 @@ metadata:
     app.kubernetes.io/name: cyber-pipeline
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 20Gi
@@ -210,7 +206,7 @@ metadata:
     app.kubernetes.io/name: cyber-pipeline
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 5Gi

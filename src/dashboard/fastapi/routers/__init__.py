@@ -14,6 +14,7 @@ from .cockpit import router as cockpit_router
 from .defaults import router as defaults_router
 from .evasion import router as evasion_router
 from .export import router as export_router
+from .compliance import router as compliance_router
 from .findings import router as findings_router
 from .forensics_trace import router as forensics_trace_router
 from .gap_analysis import router as gap_analysis_router
@@ -23,6 +24,7 @@ from .launcher import router as launcher_router
 from .learning import router as learning_router
 from .mesh import router as mesh_router
 from .notes import router as notes_router
+from .notifications import router as notifications_router
 from .registry import router as registry_router
 from .remediated import router as remediated_router
 from .remediation import router as remediation_router
@@ -36,6 +38,8 @@ from .targets import router as targets_router
 from .tracing import router as tracing_router
 from .triage import router as triage_router
 from .webhooks import router as webhooks_router
+from .access_logs import router as access_logs_router
+from .evidence_custody import router as evidence_custody_router
 
 imports_router: Any = None
 try:
@@ -58,6 +62,7 @@ api_router.include_router(learning_router, tags=["Learning"])
 api_router.include_router(mesh_router, tags=["Mesh"])
 api_router.include_router(targets_router, tags=["Targets"])
 api_router.include_router(findings_router, tags=["Findings"])
+api_router.include_router(notifications_router, tags=["Notifications"])
 api_router.include_router(cache_router, tags=["Cache"])
 api_router.include_router(defaults_router, tags=["Defaults"])
 api_router.include_router(notes_router, tags=["Notes"])
@@ -77,4 +82,7 @@ api_router.include_router(launcher_router, tags=["Launcher"])
 api_router.include_router(tracing_router, tags=["Tracing"])
 api_router.include_router(triage_router, tags=["Triage Collaboration"])
 api_router.include_router(evasion_router, tags=["Evasion Telemetry"])
+api_router.include_router(compliance_router, tags=["Compliance"])
 api_router.include_router(forensics_trace_router, tags=["Forensics Trace"])
+api_router.include_router(access_logs_router, tags=["Access Logs"])
+api_router.include_router(evidence_custody_router, tags=["Evidence Custody"])

@@ -114,6 +114,7 @@ export function useLiveTerminal(options: {
   const logBufferRef = useRef<string[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const esRef = useRef<EventSource | null>(null);
+  const currentJobIdRef = useRef(currentJobId);
 
   // --- High-Performance Batching ---
   const flushBuffer = useCallback(() => {
@@ -188,7 +189,8 @@ export function useLiveTerminal(options: {
    
       if (!currentJobId && running.length > 0) setCurrentJobId(running[0].id);
       setIsLoading(false);
-    } catch (_e) {
+    } catch (e) {
+      console.error('Failed to sync mesh workers:', e);
       setError('Failed to sync mesh workers');
     }
    
@@ -207,7 +209,8 @@ export function useLiveTerminal(options: {
    
         if (parsed.data?.line) addLinesToBuffer([parsed.data.line]);
         setConnectionMode('sse');
-      } catch (_e) {
+      } catch (err) {
+        console.error('SSE log parse error:', err);
         setConnectionMode('polling');
       }
     });
@@ -217,7 +220,8 @@ export function useLiveTerminal(options: {
         const parsed = JSON.parse(e.data) as { job_id?: string; data?: PipelineTelemetryEvent };
         if (parsed.data?.event_id) addTelemetryEvents([parsed.data], parsed.job_id || id);
         setConnectionMode('sse');
-      } catch (_e) {
+      } catch (err) {
+        console.error('SSE telemetry parse error:', err);
         setConnectionMode('polling');
       }
     });
@@ -228,7 +232,8 @@ export function useLiveTerminal(options: {
         const telemetry = parsed.data?.telemetry_events ?? [];
         addTelemetryEvents(telemetry, parsed.job_id || id);
         setConnectionMode('sse');
-      } catch (_e) {
+      } catch (err) {
+        console.error('SSE progress parse error:', err);
         setConnectionMode('polling');
       }
     });
@@ -246,11 +251,17 @@ export function useLiveTerminal(options: {
   }, [addLinesToBuffer, addTelemetryEvents]);
 
   useEffect(() => {
+    currentJobIdRef.current = currentJobId;
+  }, [currentJobId]);
+
+  useEffect(() => {
     if (isRunning && currentJobId) {
       connectSSE(currentJobId);
       const interval = setInterval(async () => {
+        const activeId = currentJobIdRef.current;
+        if (!activeId) return;
         try {
-          const logs = await getJobLogs(currentJobId);
+          const logs = await getJobLogs(activeId);
           if (logs?.logs) addLinesToBuffer(logs.logs);
         } catch (_e) {
           addLinesToBuffer([]);

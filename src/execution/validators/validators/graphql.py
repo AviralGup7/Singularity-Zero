@@ -60,6 +60,13 @@ PERSISTED_QUERY_IDS = [
     "persisted-query-1",
     "query-001",
     "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "1",
+    "0",
+    "00000000-0000-4000-8000-000000000000",
+    "ecosse",
+    "persistedQuery",
+    "sha256hash",
+    "1a2b3c4d5e6f",
 ]
 
 # Fragment-based DoS probe - circular fragment reference
@@ -79,16 +86,6 @@ AUTH_BYPASS_BATCH_QUERY = (
     "[{__typename,secretField},{__typename,secretField}]"
 )
 
-# Persisted query hijacking probe - common persisted query IDs
-PERSISTED_QUERY_IDS = [
-    "1",
-    "0",
-    "00000000-0000-4000-8000-000000000000",
-    "ecosse",
-    "persistedQuery",
-    "sha256hash",
-    "1a2b3c4d5e6f",
-]
 
 # Subscription abuse probe - tests if subscriptions can be created
 # without authentication
@@ -99,7 +96,7 @@ SUBSCRIPTION_ABUSE_QUERY = (
 # Field suggestions probe - tests if the server leaks field names
 # in error messages (suggestions leak sensitive schema info)
 FIELD_SUGGESTIONS_QUERY = (
-    "{ __typ }"
+    "{ __type }"
 )
 
 _INTROSPECTION_MARKER = "__schema"
@@ -268,8 +265,7 @@ def evaluate_graphql(
             "depth" in depth_body.lower()
             or "complexity" in depth_body.lower()
             or "too deep" in depth_body.lower()
-            or depth_status in (400, 413, 422, 500)
-            and ("depth" in depth_body.lower() or "complexity" in depth_body.lower())
+            or (depth_status in (400, 413, 422, 500) and ("depth" in depth_body.lower() or "complexity" in depth_body.lower()))
         )
         if depth_value > max_acceptable_depth and not depth_rejected:
             signals.append("deeply_nested_accepted")

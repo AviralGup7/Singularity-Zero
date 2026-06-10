@@ -391,6 +391,7 @@ class RedisClient:
             self._pool = None
             self._client = None
             self._healthy = False
+        self._scripts.clear()
         try:
             self._fallback_db.close()
         except Exception as exc:

@@ -219,8 +219,8 @@ class TelemetryStore:
         if hasattr(self._local, "conn") and self._local.conn:
             try:
                 self._local.conn.close()
-            except sqlite3.ProgrammingError:
-                pass
+            except sqlite3.ProgrammingError as exc:
+                logger.warning("Operation failed in telemetry_store.py: %s", exc, exc_info=True)  # noqa: BLE001
             except Exception:  # noqa: S110
                 pass
             self._local.conn = None
@@ -512,10 +512,10 @@ class TelemetryStore:
 
     def run_maintenance(self, retention_policies: dict[str, int] | None = None) -> dict[str, Any]:
         """Run database maintenance.
-        
+
         This automatically deletes expired records based on retention policies,
         then performs VACUUM and ANALYZE.
-        
+
         Args:
             retention_policies: Dict mapping table name to retention age in days.
                                 If None, defaults are applied:
@@ -547,7 +547,7 @@ class TelemetryStore:
             "plugin_stats": 30,
             "threshold_history": 60,
         }
-        
+
         for table, days in policies.items():
             try:
                 cutoff = (now - datetime.timedelta(days=days)).isoformat()
@@ -558,7 +558,10 @@ class TelemetryStore:
 
         # 3. Compact & optimize
         conn = self._get_conn()
-        conn.execute("VACUUM")
+        try:
+            conn.execute("VACUUM")
+        except sqlite3.OperationalError as exc:
+            logger.warning("Telemetry store maintenance: VACUUM failed (may be SQLITE_FULL or SQLITE_BUSY): %s", exc)
         conn.execute("ANALYZE")
         return {
             "status": "completed",

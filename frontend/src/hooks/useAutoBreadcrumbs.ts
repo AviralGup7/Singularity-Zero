@@ -34,17 +34,14 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
 
     if (segments.length === 0) return [];
 
-   
     const items: BreadcrumbItem[] = [];
 
-   
     if (segments[0] === 'targets') {
       items.push({
         label: 'Targets',
         href: '/targets',
         isCurrent: segments.length === 1,
       });
-   
     } else if (segments[0] === 'jobs') {
       items.push({
         label: 'Jobs',
@@ -57,24 +54,63 @@ export function useAutoBreadcrumbs(): BreadcrumbItem[] {
           isCurrent: true,
         });
       }
-   
     } else if (segments[0] === 'replay') {
       items.push({
         label: 'Replay',
         href: '/replay',
         isCurrent: true,
       });
-   
     } else if (segments[0] === 'settings') {
       items.push({
         label: 'Settings',
         href: '/settings',
         isCurrent: true,
       });
+    } else if (segments[0] === 'findings') {
+      items.push({
+        label: 'Findings',
+        href: '/findings',
+        isCurrent: true,
+      });
+    } else if (segments[0] === 'pipeline') {
+      items.push({
+        label: 'Pipeline',
+        href: '/pipeline',
+        isCurrent: true,
+      });
+    } else if (segments[0] === 'cockpit') {
+      items.push({
+        label: 'Cockpit',
+        href: '/cockpit',
+        isCurrent: true,
+      });
+    } else if (segments[0] === 'risk-score') {
+      items.push({
+        label: 'Risk Score',
+        href: '/risk-score',
+        isCurrent: true,
+      });
+    } else if (segments[0] === 'reports') {
+      items.push({
+        label: 'Reports',
+        href: '/reports',
+        isCurrent: segments.length === 1,
+      });
+      if (segments.length > 1) {
+        items.push({
+          label: segments.slice(1).join(' / '),
+          isCurrent: true,
+        });
+      }
+    } else if (segments[0] === 'security') {
+      items.push({
+        label: 'Security',
+        href: '/security',
+        isCurrent: true,
+      });
     }
 
     return items;
-   
   }, [pathname, jobName]);
 
   return crumbs;

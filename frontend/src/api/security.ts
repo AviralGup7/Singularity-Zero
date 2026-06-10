@@ -83,3 +83,56 @@ export async function createToken(apiKey: string): Promise<TokenResponse> {
   const response = await apiClient.post<TokenResponse>('/api/auth/token', { api_key: apiKey });
   return response.data;
 }
+
+/**
+ * Verify the current auth token is still valid by hitting a lightweight
+ * authenticated endpoint. Returns the server response if valid, or null
+ * if the token is expired/revoked (401).
+ */
+export async function verifyAuthToken(signal?: AbortSignal): Promise<{ valid: boolean; user?: Record<string, unknown> }> {
+  try {
+    const { data } = await apiClient.get<{ user?: Record<string, unknown> }>('/api/auth/me', { signal, timeout: 5000 });
+    return { valid: true, user: data?.user };
+  } catch (err: unknown) {
+    const status = (err as { status?: number })?.status;
+    if (status === 401 || status === 403) {
+      return { valid: false };
+    }
+    // Network error or other issue — treat as "can't verify" rather than "invalid"
+    return { valid: true };
+  }
+}
+
+export async function createGuestToken(baseUrl?: string): Promise<{ ok: boolean; data?: TokenResponse; error?: Error }> {
+  try {
+    const { default: axios } = await import('axios');
+    const client = baseUrl
+      ? axios.create({ ...apiClient.defaults, baseURL: baseUrl })
+      : apiClient;
+    const response = await client.post<TokenResponse>('/api/auth/token', { mode: 'guest' });
+    return { ok: true, data: response.data };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+
+export interface CsrfTokenResponse {
+  csrf_token: string;
+}
+
+export async function getCsrfToken(signal?: AbortSignal): Promise<CsrfTokenResponse> {
+  const { data } = await apiClient.get<CsrfTokenResponse>('/api/csrf-token', {
+    signal,
+    withCredentials: true,
+  });
+  return data;
+}
+
+export interface CspReportPayload {
+  'csp-report': Record<string, unknown>;
+}
+
+export async function submitCspReport(report: Record<string, unknown>, signal?: AbortSignal): Promise<{ status: string }> {
+  const { data } = await apiClient.post<{ status: string }>('/api/csp-report', { 'csp-report': report }, { signal });
+  return data;
+}

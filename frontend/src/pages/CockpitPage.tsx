@@ -12,7 +12,7 @@ import type { Note } from '@/api/notes';
 import type { AttackChain, MeshHealth, Job, MigrationEvent } from '@/types/api';
 import { useSSEProgress } from '@/hooks/useSSEProgress';
 import { useToast } from '@/hooks/useToast';
-import { startJob, stopJob, restartJob, getJob } from '@/api/jobs';
+import { startJob, stopJob, restartJob, pauseJob, resumeJob, getJob } from '@/api/jobs';
 import { useCockpitData, useActiveJob } from '@/hooks/useCockpitData';
 import { useCockpitGraph } from '@/hooks/useCockpitGraph';
 import { ScanControlDeck } from '@/components/cockpit/ScanControlDeck';
@@ -22,6 +22,11 @@ import { IntelSidebar } from '@/components/cockpit/IntelSidebar';
 import { GraphLegend } from '@/components/cockpit/GraphLegend';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { ScopeWarningBanner } from '@/components/scope/ScopeComplianceBadge';
+import { validateUrl } from '@/lib/utils';
+
+function sanitizeHtml(str: string): string {
+  return str.replace(/[<>&"']/g, (m) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[m]!));
+}
 
 function metadataText(metadata: CockpitNode['metadata'], key: string): string {
   const value = metadata ? Reflect.get(metadata, key) : undefined;
@@ -34,10 +39,16 @@ export function CockpitPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const target = searchParams.get('target') || '';
-  const run = searchParams.get('run') || undefined;
-  const jobId = searchParams.get('job_id') || undefined;
-  const focusFindingId = searchParams.get('focus') || '';
+  const rawTarget = searchParams.get('target') || '';
+  const rawRun = searchParams.get('run') || '';
+  const rawJobId = searchParams.get('job_id') || '';
+  const rawFocus = searchParams.get('focus') || '';
+
+  // Sanitize query params to prevent DOM XSS when rendering into UI
+  const target = sanitizeHtml(rawTarget);
+  const run = rawRun ? sanitizeHtml(rawRun) : undefined;
+  const jobId = rawJobId ? sanitizeHtml(rawJobId) : undefined;
+  const focusFindingId = sanitizeHtml(rawFocus);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -76,6 +87,8 @@ export function CockpitPage() {
   const [launchingScan, setLaunchingScan] = useState(false);
   const [stoppingScan, setStoppingScan] = useState(false);
   const [restartingScan, setRestartingScan] = useState(false);
+  const [pausingScan, setPausingScan] = useState(false);
+  const [resumingScan, setResumingScan] = useState(false);
   const [inputTarget, setInputTarget] = useState(target);
 
   // High-level scan tuning knobs (P1-3). These were previously buried in the
@@ -115,6 +128,16 @@ export function CockpitPage() {
     }
   }, [focusFindingId, nodes]);
 
+  const targetRef = useRef(target);
+  const runRef = useRef(run);
+  const jobIdRef = useRef(jobId);
+  const activeJobIdRef = useRef(activeJobId);
+
+  useEffect(() => { targetRef.current = target; }, [target]);
+  useEffect(() => { runRef.current = run; }, [run]);
+  useEffect(() => { jobIdRef.current = jobId; }, [jobId]);
+  useEffect(() => { activeJobIdRef.current = activeJobId; }, [activeJobId]);
+
   useSSEProgress({
     jobId: activeJobId,
     enabled: Boolean(activeJobId),
@@ -124,15 +147,15 @@ export function CockpitPage() {
       } else if (event.event_type === 'migration_event') {
         const data = event.data as Record<string, unknown>;
         const migration = handleMigrationEvent(event.id, data);
-        toast.info(`Distributed Agent Migration: ${migration.actor_id} moved to ${migration.target_node}`);
-        requestGraphUpdate(target, run, activeJobId || jobId);
+        toast.info(`Distributed Agent Migration: ${sanitizeHtml(migration.actor_id)} moved to ${sanitizeHtml(migration.target_node)}`);
+        requestGraphUpdate(targetRef.current, runRef.current, activeJobIdRef.current || jobIdRef.current);
       } else if (
         event.event_type === 'finding_batch' ||
         event.event_type === 'stage_change' ||
         event.event_type === 'progress_update' ||
         event.event_type === 'completed'
       ) {
-        requestGraphUpdate(target, run, activeJobId || jobId);
+        requestGraphUpdate(targetRef.current, runRef.current, activeJobIdRef.current || jobIdRef.current);
       }
     },
   });
@@ -205,6 +228,11 @@ export function CockpitPage() {
       toast.error('Please enter a target URL/host');
       return;
     }
+    const validation = validateUrl(inputTarget);
+    if (!validation.valid) {
+      toast.error(validation.error!);
+      return;
+    }
     try {
       setLaunchingScan(true);
       const newJob = await startJob({
@@ -258,6 +286,34 @@ export function CockpitPage() {
     }
   };
 
+  const handlePauseScan = async () => {
+    if (!activeJobId) return;
+    try {
+      setPausingScan(true);
+      await pauseJob(activeJobId);
+      toast.success('Scan pause requested');
+    } catch (error) {
+      console.error(error);
+      toast.error('Pause request failed');
+    } finally {
+      setPausingScan(false);
+    }
+  };
+
+  const handleResumeScan = async () => {
+    if (!activeJobId) return;
+    try {
+      setResumingScan(true);
+      await resumeJob(activeJobId);
+      toast.success('Scan resumed');
+    } catch (error) {
+      console.error(error);
+      toast.error('Resume failed');
+    } finally {
+      setResumingScan(false);
+    }
+  };
+
   const handleClearScan = () => {
     setActiveJobId(undefined);
     const params = new URLSearchParams(window.location.search);
@@ -308,8 +364,12 @@ export function CockpitPage() {
           handleStartScan={handleStartScan}
           stoppingScan={stoppingScan}
           restartingScan={restartingScan}
+          pausingScan={pausingScan}
+          resumingScan={resumingScan}
           handleStopScan={handleStopScan}
           handleRestartScan={handleRestartScan}
+          handlePauseScan={handlePauseScan}
+          handleResumeScan={handleResumeScan}
           inputTarget={inputTarget}
           setInputTarget={setInputTarget}
           onClearScan={handleClearScan}

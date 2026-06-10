@@ -1,12 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { listAccessLogs, type AccessLogEntry } from '@/api/accessLogs';
 import { getComplianceLogs, exportComplianceReport, type ComplianceLogEntry } from '@/utils/complianceLogger';
 import { Button } from '@/components/ui/Button';
 
+type LogEntry = ComplianceLogEntry | AccessLogEntry;
+
 export function ComplianceLogViewer() {
-   
-  const [logs] = useState<ComplianceLogEntry[]>(() => getComplianceLogs());
-   
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'success' | 'failure' | 'denied'>('all');
+
+  const loadLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const serverLogs = await listAccessLogs({ limit: 200 });
+      setLogs(serverLogs);
+    } catch {
+      // Fallback to client-side localStorage if backend unavailable
+      setLogs(getComplianceLogs());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLogs();
+  }, [loadLogs]);
 
   const filteredLogs = filter === 'all' ? logs : logs.filter((l) => l.outcome === filter);
 
@@ -59,7 +78,9 @@ export function ComplianceLogViewer() {
       </div>
 
       <div className="max-h-96 overflow-y-auto space-y-2 pr-2 scrollbar-cyber">
-        {filteredLogs.length === 0 ? (
+        {loading ? (
+          <p className="text-muted text-xs italic">Loading access logs...</p>
+        ) : filteredLogs.length === 0 ? (
           <p className="text-muted text-xs italic">No compliance entries.</p>
         ) : (
           filteredLogs.map((entry) => (

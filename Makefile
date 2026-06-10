@@ -23,18 +23,18 @@ format: install
 	. $(VENV)/bin/activate && ruff check --fix .
 
 run-dashboard: install
-	. $(VENV)/bin/activate && cyber start dashboard --port 8000
+	. $(VENV)/bin/activate && uvicorn src.dashboard.fastapi.main:app --host 127.0.0.1 --port 8000
 
 run-pipeline: install
-	. $(VENV)/bin/activate && cyber start pipeline --config configs/config.json
+	. $(VENV)/bin/activate && cyber-pipeline run --config configs/config.json
 
 security-check: install
 	. $(VENV)/bin/activate && pip-audit
 	cd frontend && npm audit
 
 clean:
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
+	powershell -Command "Get-ChildItem -Path . -Directory -Recurse -Filter __pycache__ | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
+	powershell -Command "Get-ChildItem -Path . -File -Recurse -Filter *.pyc | Remove-Item -Force -ErrorAction SilentlyContinue"
 	rm -rf .mypy_cache .pytest_cache .ruff_cache .hypothesis
 	rm -rf output/logs/* output/bandit-report.json output/lint_output.txt output/test_*.txt output/security_*.txt output/head_version.txt
 	cd frontend && rm -rf node_modules dist coverage

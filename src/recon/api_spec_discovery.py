@@ -248,8 +248,8 @@ def _looks_like_graphql_sdl(text: str) -> bool:
             data = json.loads(text)
             if isinstance(data, dict) and ("data" in data or "__schema" in data):
                 return True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Operation failed in api_spec_discovery.py: %s", exc, exc_info=True)  # noqa: BLE001
         return False
     if any(kw in stripped[:1024] for kw in ["type query", "type mutation", "enum ", "input ", "scalar "]):
         return True
@@ -290,8 +290,8 @@ def _looks_like_avro(text: str) -> bool:
             return True
         if isinstance(data, dict) and "fields" in data:
             return True
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Operation failed in api_spec_discovery.py: %s", exc, exc_info=True)  # noqa: BLE001
     return False
 
 
@@ -580,8 +580,8 @@ def _parse_spec_body_enhanced(text: str, content_type: str) -> tuple[str, Any] |
                 inner = data.get("data", {})
                 if isinstance(inner, dict) and inner.get("__schema"):
                     return "graphql-sdl-json", data
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Operation failed in api_spec_discovery.py: %s", exc, exc_info=True)  # noqa: BLE001
         return None
     parsed_yaml = _try_parse_yaml(text)
     if parsed_yaml is not None:

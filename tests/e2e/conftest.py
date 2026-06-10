@@ -204,8 +204,11 @@ def e2e_output_store(e2e_workspace: Path):
     return store
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def mock_slow_stages():
+    """Non-autouse fixture: patches slow scanning stages for E2E tests that
+    only need to verify orchestration wiring.  Tests that exercise real
+    scanning, nuclei, or enrichment logic should NOT use this fixture."""
     from unittest.mock import AsyncMock, patch
 
     with (

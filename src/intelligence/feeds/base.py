@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any, Self
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,8 @@ def _parse_retry_after_seconds(raw_value: str | None, fallback: float) -> float:
         if seconds <= 0:
             return max(1.0, fallback)
         return max(1.0, seconds)
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as exc:
+        logger.warning("Operation failed in base.py: %s", exc, exc_info=True)  # noqa: BLE001
     try:
         retry_at = datetime.fromisoformat(text.replace("Z", "+00:00"))
         seconds = (retry_at - datetime.now(UTC)).total_seconds()
@@ -69,6 +69,15 @@ class FeedConfig(BaseModel):
     verify_ssl: bool = Field(default=True)
     user_agent: str = Field(default="CyberSecurityPipeline/1.0")
     extra_headers: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key_format(cls, v: str) -> str:
+        if not v or len(v) < 8:
+            raise ValueError(f"API key too short ({len(v)} chars, minimum 8)")
+        if not all(c.isalnum() or c in "-_" for c in v):
+            raise ValueError("API key contains invalid characters (only alphanumeric, dash, underscore allowed)")
+        return v
 
 
 class FeedError(Exception):

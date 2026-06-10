@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDisplay } from '@/hooks/useDisplay';
 
 interface TourStep {
@@ -60,9 +61,9 @@ const STORAGE_KEY = 'cyber-pipeline-onboarding-complete';
 
 function useOnboardingTour() {
   const { display } = useDisplay();
-   
+  const navigate = useNavigate();
+
   const [active, setActive] = useState(false);
-   
   const [currentStep, setCurrentStep] = useState(0);
   const initialized = useRef(false);
 
@@ -76,23 +77,20 @@ function useOnboardingTour() {
         setActive(true);
       });
     }
-   
   }, [display.reduceMotion]);
 
   const next = useCallback(() => {
     if (currentStep < TOUR_STEPS.length - 1) {
-   
       const step = TOUR_STEPS[currentStep + 1];
       setCurrentStep(s => s + 1);
       if (step.path && window.location.pathname !== step.path) {
-        window.history.pushState({}, '', step.path);
+        navigate(step.path, { replace: true });
       }
     } else {
       setActive(false);
       localStorage.setItem(STORAGE_KEY, 'true');
     }
-   
-  }, [currentStep]);
+  }, [currentStep, navigate]);
 
   const skip = useCallback(() => {
     setActive(false);
@@ -107,7 +105,6 @@ function useOnboardingTour() {
 
   return {
     active,
-    // eslint-disable-next-line security/detect-object-injection
     step: TOUR_STEPS[currentStep],
     currentStep,
     totalSteps: TOUR_STEPS.length,
@@ -125,14 +122,9 @@ export function OnboardingTour() {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') skip();
     };
-    const handlePopState = () => {
-      skip();
-    };
     window.addEventListener('keydown', handleEsc);
-    window.addEventListener('popstate', handlePopState);
     return () => {
       window.removeEventListener('keydown', handleEsc);
-      window.removeEventListener('popstate', handlePopState);
     };
   }, [active, skip]);
 

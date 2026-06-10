@@ -310,7 +310,7 @@ class ScenarioExecutionEngine:
                     if source_step.publish_barrier:
                         barrier_times[source_step.publish_barrier] = result.completed_at
                     continue
-                with ThreadPoolExecutor(max_workers=len(group_steps)) as pool:
+                with ThreadPoolExecutor(max_workers=min(len(group_steps), 8)) as pool:
                     futures = [
                         pool.submit(
                             self._execute_step,
@@ -532,7 +532,7 @@ class ScenarioExecutionEngine:
         with state_lock:
             variables.update(extracted_values)
             timing_snapshot = timeline.get_timing_snapshot(context_step=step)
-        timing_snapshot[step.name] = {"started_at": started_at, "completed_at": completed_at}
+            timing_snapshot[step.name] = {"started_at": started_at, "completed_at": completed_at}
 
         assertion_errors: list[str] = []
         for assertion in step.assertions:

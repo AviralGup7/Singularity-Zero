@@ -155,9 +155,9 @@ def tenant_isolation_check(
                 if resp:
                     resp["url"] = url
                     responses_for_detection.append(resp)
-            except Exception:
+            except Exception as exc:
                 logger.warning("Detection probe failed for an endpoint")
-                pass
+                logger.warning("Operation failed in tenant_isolation_check.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     detection = detect_tenant_parameters(urls_for_detection, responses_for_detection)
     multi_tenant = detection.get("multi_tenant_detected", False)

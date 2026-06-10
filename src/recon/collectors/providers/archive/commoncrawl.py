@@ -70,8 +70,8 @@ def _resolve_recent_index_count() -> int:
             n = int(raw)
             if n > 0:
                 return n
-        except ValueError:
-            pass
+        except ValueError as exc:
+            logger.warning("Operation failed in commoncrawl.py: %s", exc, exc_info=True)  # noqa: BLE001
     return _DEFAULT_RECENT_INDEXES
 
 

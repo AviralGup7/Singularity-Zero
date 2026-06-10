@@ -1,0 +1,61 @@
+{
+  "brand": {
+    "name": "Cyber Pipeline"
+  },
+  "navigation": {
+    "dashboard": "Tablero",
+    "targets": "Objetivos",
+    "jobs": "Trabajos",
+    "findings": "Hallazgos",
+    "settings": "Ajustes",
+    "compare": "Comparar",
+    "gapAnalysis": "Análisis de Brechas",
+    "replay": "Reproducir",
+    "overview": "Resumen",
+    "testing": "Pruebas",
+    "tools": "Herramientas",
+    "system": "Sistema"
+  },
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "noResultsFound": "No se encontraron resultados",
+    "tryAgain": "Intentar de nuevo",
+    "goHome": "Ir al inicio",
+    "search": "Buscar",
+    "export": "Exportar",
+    "import": "Importar",
+    "reset": "Restablecer",
+    "confirm": "Confirmar",
+    "close": "Cerrar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "refresh": "Actualizar",
+    "edit": "Editar",
+    "view": "Ver",
+    "actions": "Acciones",
+    "status": "Estado",
+    "name": "Nombre",
+    "description": "Descripción",
+    "type": "Tipo",
+    "date": "Fecha",
+    "time": "Hora",
+    "details": "Detalles",
+    "summary": "Resumen",
+    "total": "Total",
+    "active": "Activo",
+    "all": "Todos",
+    "none": "Ninguno",
+    "yes": "Sí",
+    "no": "No"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "language": "Idioma",
+    "languageSelector": "Selector de idioma"
+  }
+}

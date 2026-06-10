@@ -60,7 +60,6 @@ export {
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
-  ChartStyle,
 } from './chart'
 
 export { Checkbox } from './checkbox'

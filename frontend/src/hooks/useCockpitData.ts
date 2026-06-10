@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CockpitNode, CockpitEdge, ForensicExchange } from '@/api/cockpit';
 import { cockpitApi } from '@/api/cockpit';
 import { getNotes } from '@/api/notes';
@@ -11,6 +11,10 @@ interface UseCockpitDataOptions {
   run: string | undefined;
   jobId: string | undefined;
 }
+
+const COCKPIT_MIN_DELAY = 1000;
+const COCKPIT_MAX_DELAY = 30000;
+const COCKPIT_BACKOFF_FACTOR = 1.5;
 
 export function useCockpitData({
   target,
@@ -26,12 +30,10 @@ export function useCockpitData({
   const [meshHealth, setMeshHealth] = useState<MeshHealth | null>(null);
   const [migrations, setMigrations] = useState<MigrationEvent[]>([]);
 
-  // R6: use the shared mounted-ref so every async callback (EventSource
-  // messages, fetch responses, polling intervals) can guard against
-  // setState-after-unmount. Previously the raw `EventSource` handler had
-  // no such guard — the most likely memory-leak / setState-on-unmounted
-  // path in the codebase.
   const { mountedRef } = useMountedRef();
+  const streamRef = useRef<EventSource | null>(null);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backoffRef = useRef(COCKPIT_MIN_DELAY);
 
   const applyGraph = useCallback((data: { nodes: CockpitNode[]; edges: CockpitEdge[] }) => {
     setNodes(data.nodes);
@@ -48,7 +50,10 @@ export function useCockpitData({
           cockpitApi.getGraph(target, run, jobId, { signal: controller.signal }),
           cockpitApi
             .getAttackChains(target, { signal: controller.signal })
-            .catch(() => ({ data: [] })),
+            .catch((err) => {
+              console.error('Failed to fetch attack chains:', err);
+              return { data: [] };
+            }),
         ]);
         applyGraph(graphRes.data);
         setChains(chainsRes.data || []);
@@ -64,33 +69,76 @@ export function useCockpitData({
     return () => controller.abort();
   }, [target, run, jobId, applyGraph]);
 
+  // Cockpit EventSource with reconnection backoff
   useEffect(() => {
     if (!target) return;
-    const stream = new EventSource(cockpitApi.graphStreamUrl(target, run, jobId));
-    const handleSnapshot = (event: MessageEvent) => {
-      if (!mountedRef.current) {
-        // Component unmounted between event dispatch and handler invocation.
-        // Close the stream immediately so the runtime doesn't keep dispatching.
-        stream.close();
-        return;
+
+    const cleanupStream = () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
       }
-      try {
-        const parsed = JSON.parse(event.data) as {
-          data?: { nodes: CockpitNode[]; edges: CockpitEdge[] };
-        };
-        if (parsed.data) {
-          applyGraph(parsed.data);
-          setLoading(false);
-        }
-      } catch {
-        // Keep the previous scene if a partial SSE frame arrives.
+      if (streamRef.current) {
+        streamRef.current.onclose = null;
+        streamRef.current.onerror = null;
+        streamRef.current.close();
+        streamRef.current = null;
       }
     };
-    stream.addEventListener('graph_snapshot', handleSnapshot);
-    stream.onerror = () => stream.close();
+
+    const connectStream = () => {
+      if (!mountedRef.current) return;
+
+      cleanupStream();
+
+      const stream = new EventSource(cockpitApi.graphStreamUrl(target, run, jobId));
+      streamRef.current = stream;
+
+      stream.onopen = () => {
+        if (!mountedRef.current) return;
+        backoffRef.current = COCKPIT_MIN_DELAY;
+      };
+
+      const handleSnapshot = (event: MessageEvent) => {
+        if (!mountedRef.current) {
+          stream.close();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(event.data) as {
+            data?: { nodes: CockpitNode[]; edges: CockpitEdge[] };
+          };
+          if (parsed.data) {
+            applyGraph(parsed.data);
+            setLoading(false);
+          }
+        } catch {
+          // Keep the previous scene if a partial SSE frame arrives.
+        }
+      };
+
+      stream.addEventListener('graph_snapshot', handleSnapshot);
+
+      stream.onerror = () => {
+        if (!mountedRef.current) return;
+        stream.close();
+
+        // Reconnect with exponential backoff
+        const delay = backoffRef.current;
+        backoffRef.current = Math.min(backoffRef.current * COCKPIT_BACKOFF_FACTOR, COCKPIT_MAX_DELAY);
+        retryTimeoutRef.current = setTimeout(() => {
+          if (mountedRef.current) {
+            connectStream();
+          }
+        }, delay);
+      };
+    };
+
+    connectStream();
+
     return () => {
-      stream.removeEventListener('graph_snapshot', handleSnapshot);
-      stream.close();
+      mountedRef.current = false;
+      cleanupStream();
     };
   }, [target, run, jobId, applyGraph, mountedRef]);
 

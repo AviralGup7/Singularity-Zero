@@ -149,7 +149,7 @@ export function jobMonitorReducer(state: JobMonitorState, action: JobMonitorActi
       const idx = state.stageProgress.findIndex((s) => s.stage === entry.stage);
       const nextStages = [...state.stageProgress];
       if (idx >= 0) {
-        nextStages.splice(idx, 1, { ...nextStages.at(idx)!, ...entry });
+        nextStages.splice(idx, 1, { ...(nextStages.at(idx) ?? entry), ...entry });
       } else {
         nextStages.push(entry);
       }

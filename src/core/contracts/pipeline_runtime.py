@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 
 import copy
 import reprlib
@@ -22,8 +23,8 @@ def _freeze_value(value: Any) -> Any:
             return tuple(_freeze_value(x) for x in value.tolist())
         if isinstance(value, (np.integer, np.floating)):
             return value.item()
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logging.warning("Operation failed in pipeline_runtime.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     if isinstance(value, MappingProxyType):
         return value

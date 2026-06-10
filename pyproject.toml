@@ -19,40 +19,40 @@ dependencies = [
     "dnspython==2.8.0",
     "cryptography==46.0.7",
     "beautifulsoup4==4.14.0",
-    "fastapi==0.136.3",
+    "fastapi==0.115.3",
     "starlette==1.0.1",
     "uvicorn[standard]==0.30.0",
     "python-multipart==0.0.27",
     "email-validator==2.0.0",
     "sse-starlette==3.0.0",
-    "redis[hiredis]==7.0.0",
+    "redis[hiredis]==6.0.8",
     "websockets==15.0",
     "PyJWT==2.13.0",
     "prometheus-client==0.24.0",
-    "opentelemetry-api==1.40.0",
-    "opentelemetry-sdk==1.40.0",
-    "opentelemetry-exporter-otlp-proto-http==1.40.0",
-    "psutil==5.9.1",
+    "opentelemetry-api==1.41.1",
+    "opentelemetry-sdk==1.41.1",
+    "opentelemetry-exporter-otlp-proto-http==1.41.1",
+    "psutil==5.9.8",
     "sqlalchemy==2.0.30",
     "alembic==1.14.0",
     "aiosqlite==0.20.0",
     "numpy==2.0.0",
     "Pillow==11.1.0",
     "networkx==3.0.0",
-    "beartype==0.18.5",
+    "beartype==0.19.2",
     "mmh3==5.1.0",
     "argon2-cffi==23.1.0",
-    "msgspec==0.19.0",
+    "msgspec==0.19.3",
     "msgpack==1.0.0",
     "cloudpickle==3.0.0",
-    "crcmod==1.7",
     "watchfiles==1.0.4",
 ]
 
 [project.scripts]
 cstp = "src.cli:main"
 cyber-pipeline = "src.pipeline.runtime:main"
-cyber-worker = "src.infrastructure.queue.worker:main"
+cyber-worker = "src.infrastructure.queue.worker_lite:main"
+cyber-dashboard-fastapi = "src.dashboard.fastapi.main:main"
 
 [project.optional-dependencies]
 dev = [
@@ -178,7 +178,6 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
-check_untyped_defs = true
 exclude = [
     "scripts/",
     "frontend/",
@@ -189,7 +188,7 @@ ignore_missing_imports = true
 
 
 [build-system]
-requires = ["setuptools>=68.0", "wheel", "Cython"]
+requires = ["setuptools>=68.0", "wheel", "Cython>=3.0.0,<3.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

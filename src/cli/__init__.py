@@ -69,9 +69,6 @@ def _build_parser() -> argparse.ArgumentParser:
     worker.add_argument("--queue", default="security-pipeline", help="Target queue name")
     worker.add_argument("--concurrency", type=int, default=2, help="Parallel job slots")
     worker.add_argument("--worker-id", help="Explicit worker identifier (default: UUID)")
-    worker.add_argument(
-        "--replication", action="store_true", help="Enable Redis checkpoint replication"
-    )
 
     scan = subparsers.add_parser("scan", help="Execute security scan workflows.")
     scan_sub = scan.add_subparsers(dest="command", required=True)

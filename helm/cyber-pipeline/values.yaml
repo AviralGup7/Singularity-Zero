@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/YOUR_ORG/cyber-security-test-pipeline  # TODO: Replace with your actual GitHub org
+  repository: ghcr.io/YOUR_GITHUB_ORG/cyber-security-test-pipeline  # REQUIRED: Replace with your GitHub org before deploying
   pullPolicy: IfNotPresent
   tag: ""
 
@@ -60,13 +60,16 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
+persistence:
+  enabled: true
+  size: 8Gi
+  storageClassName: ""
+
 redis:
   enabled: true
   architecture: standalone
   auth:
-    enabled: true
-    existingSecret: cyber-pipeline-redis-secret
-    existingSecretPasswordKey: redis-password
+    enabled: false
   master:
     persistence:
       enabled: true

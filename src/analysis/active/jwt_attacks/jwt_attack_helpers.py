@@ -14,7 +14,7 @@ from src.analysis._core.http_request import _safe_request
 
 logger = logging.getLogger(__name__)
 
-JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
+JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", re.IGNORECASE)
 
 JWT_AUTH_HEADERS = [
     "Authorization",
@@ -513,7 +513,7 @@ def _b64url_encode(data: bytes) -> str:
 
 
 def _b64url_decode(s: str) -> bytes:
-    s = s + "=" * (4 - len(s) % 4)
+    s = s + "=" * (-len(s) % 4)
     return base64.urlsafe_b64decode(s)
 
 
@@ -538,7 +538,7 @@ def _extract_jwt(url: str, session: Any) -> str | None:
     for header_name in JWT_AUTH_HEADERS:
         if hasattr(session, "headers") and header_name in session.headers:
             val = session.headers[header_name]
-            if isinstance(val, str) and val.startswith("Bearer "):
+            if isinstance(val, str) and val.lower().startswith("bearer "):
                 val = val[7:]
             match = JWT_RE.match(val)
             if match:

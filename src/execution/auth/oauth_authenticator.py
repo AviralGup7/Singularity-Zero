@@ -56,12 +56,15 @@ class OAuthConfig:
     username: str | None = None
     password: str | None = None
     scope: str | None = None
-    redirect_uri: str = "https://localhost/callback"
+    redirect_uri: str = ""
     use_pkce: bool = True
     extra_auth_params: dict[str, str] = field(default_factory=dict)
     extra_token_params: dict[str, str] = field(default_factory=dict)
     timeout: float = 10.0
     verify_ssl: bool = True
+    allowed_redirect_uris: list[str] = field(default_factory=list)
+    auth_timeout: float = 30.0
+    token_timeout: float = 10.0
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> OAuthConfig:
@@ -74,6 +77,21 @@ class OAuthConfig:
                 raise OAuthAuthenticatorError(
                     f"oauth config missing required field: {required!r}"
                 )
+
+        redirect_uri = str(data.get("redirect_uri") or "")
+        if not redirect_uri:
+            raise OAuthAuthenticatorError(
+                "oauth config missing required field: 'redirect_uri'. "
+                "An explicit redirect_uri is required for security."
+            )
+
+        allowed_redirect_uris = list(data.get("allowed_redirect_uris") or [])
+        if allowed_redirect_uris and redirect_uri not in allowed_redirect_uris:
+            raise OAuthAuthenticatorError(
+                f"redirect_uri '{redirect_uri}' is not in the allowed "
+                f"redirect URIs allow-list: {allowed_redirect_uris}"
+            )
+
         return cls(
             auth_url=str(data["auth_url"]),
             token_url=str(data["token_url"]),
@@ -90,12 +108,15 @@ class OAuthConfig:
             scope=str(data.get("scope") or "")
             if data.get("scope")
             else None,
-            redirect_uri=str(data.get("redirect_uri") or "https://localhost/callback"),
+            redirect_uri=redirect_uri,
             use_pkce=bool(data.get("use_pkce", True)),
             extra_auth_params=dict(data.get("extra_auth_params") or {}),
             extra_token_params=dict(data.get("extra_token_params") or {}),
             timeout=float(data.get("timeout", 10.0)),
             verify_ssl=bool(data.get("verify_ssl", True)),
+            allowed_redirect_uris=allowed_redirect_uris,
+            auth_timeout=float(data.get("auth_timeout", 30.0)),
+            token_timeout=float(data.get("token_timeout", 10.0)),
         )
 
 
@@ -218,9 +239,7 @@ class OAuthAuthenticator:
             verify=self._config.verify_ssl,
             follow_redirects=True,
         ) as client:
-            # Step 1: GET the auth URL. The IdP may render a login
-            # form (HTML) or redirect to an SSO.
-            auth_response = client.get(full_auth_url)
+            auth_response = client.get(full_auth_url, timeout=self._config.auth_timeout)
             self._capture_cookies(auth_response)
             login_url, form_fields = self._extract_login_form(auth_response, auth_url)
             if not form_fields and not self._config.username:
@@ -235,7 +254,6 @@ class OAuthAuthenticator:
                     verify=self._config.verify_ssl,
                     follow_redirects=False,
                 ) as submit_client:
-                    # Carry the cookies forward
                     cookie_header = "; ".join(
                         f"{k}={v}" for k, v in self._cookies.items()
                     )
@@ -244,22 +262,15 @@ class OAuthAuthenticator:
                         login_url or auth_url,
                         data=form_fields,
                         headers=submit_headers,
+                        timeout=self._config.auth_timeout,
                     )
                     self._capture_cookies(login_response)
-                    # Step 2: extract the authorization code from the
-                    # redirect Location or from the consent page form.
                     code = self._extract_authorization_code(
                         login_response, login_url or auth_url
                     )
                     if not code:
-                        # Some providers render a consent form on the
-                        # login response itself. Try to auto-approve.
                         code = self._try_extract_code_from_html(login_response)
             else:
-                # No form: assume the user has already authorised and
-                # the code is in the redirect Location. We can't
-                # follow that without browser interaction, so we
-                # surface a clear error.
                 code = self._try_extract_code_from_html(auth_response)
             if not code:
                 raise OAuthAuthenticatorError(
@@ -268,7 +279,6 @@ class OAuthAuthenticator:
                     "consenting form that can be auto-submitted"
                 )
 
-            # Step 3: exchange the authorization code for a token.
             token_payload = {
                 "grant_type": "authorization_code",
                 "code": code,
@@ -280,7 +290,8 @@ class OAuthAuthenticator:
             if self._config.client_secret:
                 token_payload["client_secret"] = self._config.client_secret
             token_payload.update(self._config.extra_token_params)
-            token_response = client.post(self._config.token_url, data=token_payload)
+
+            token_response = self._post_with_retry(client, token_payload)
             if token_response.status_code >= 400:
                 raise OAuthAuthenticatorError(
                     f"token endpoint returned {token_response.status_code}: "
@@ -293,6 +304,54 @@ class OAuthAuthenticator:
                     f"token endpoint returned non-JSON: {exc}"
                 ) from exc
         return OAuthToken.from_token_response(token_data)
+
+    def _post_with_retry(
+        self,
+        client: httpx.Client,
+        payload: dict[str, Any],
+        max_retries: int = 3,
+    ) -> httpx.Response:
+        """POST to the token URL with exponential backoff retry."""
+        import time as _time
+
+        last_exc: Exception | None = None
+        for attempt in range(max_retries):
+            try:
+                response = client.post(
+                    self._config.token_url,
+                    data=payload,
+                    timeout=self._config.token_timeout,
+                )
+                if response.status_code < 500:
+                    return response
+                if attempt < max_retries - 1:
+                    delay = min(10.0, self._config.timeout * (2 ** attempt))
+                    logger.warning(
+                        "OAuth token endpoint returned %d, retry %d/%d after %.1fs",
+                        response.status_code,
+                        attempt + 1,
+                        max_retries,
+                        delay,
+                    )
+                    _time.sleep(delay)
+                    continue
+                return response
+            except httpx.RequestError as exc:
+                last_exc = exc
+                if attempt < max_retries - 1:
+                    delay = min(10.0, self._config.timeout * (2 ** attempt))
+                    logger.warning(
+                        "OAuth token request failed (attempt %d/%d), retrying after %.1fs: %s",
+                        attempt + 1,
+                        max_retries,
+                        delay,
+                        exc,
+                    )
+                    _time.sleep(delay)
+                    continue
+        raise OAuthAuthenticatorError(
+            f"Token endpoint unreachable after {max_retries} attempts: {last_exc}"
+        )
 
     def refresh(self, token: OAuthToken) -> OAuthToken:
         """Exchange a refresh token for a new access token."""
@@ -309,7 +368,7 @@ class OAuthAuthenticator:
         with httpx.Client(
             timeout=self._config.timeout, verify=self._config.verify_ssl
         ) as client:
-            response = client.post(self._config.token_url, data=payload)
+            response = self._post_with_retry(client, payload)
             if response.status_code >= 400:
                 raise OAuthAuthenticatorError(
                     f"refresh endpoint returned {response.status_code}: "
@@ -378,7 +437,8 @@ class OAuthAuthenticator:
         action: str | None = None
         try:
             html = response.text
-        except Exception:
+        except Exception as exc:
+            logger.debug("Failed to extract HTML from auth response: %s", exc)
             return None, {}
         for name_match in re.finditer(
             r'<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"',
@@ -432,7 +492,8 @@ class OAuthAuthenticator:
     def _try_extract_code_from_html(self, response: httpx.Response) -> str | None:
         try:
             html = response.text
-        except Exception:
+        except Exception as exc:
+            logger.debug("Failed to extract HTML for code parsing: %s", exc)
             return None
         match = re.search(r'code=([A-Za-z0-9._\-]+)', html)
         if match:

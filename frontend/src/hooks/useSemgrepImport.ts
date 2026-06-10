@@ -21,9 +21,6 @@ export function useSemgrepImport() {
     async (onSuccess: () => void) => {
       if (!importFile || !importTargetName.trim()) return;
       setIsImporting(true);
-      const formData = new FormData();
-      formData.append('file', importFile);
-
       try {
         await importSemgrepReport({
           targetName: importTargetName,

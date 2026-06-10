@@ -1,5 +1,6 @@
 """HTTP client and configuration for validation probes."""
 
+import logging
 import threading
 import time
 from collections import OrderedDict
@@ -8,6 +9,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 from src.pipeline.retry import RetryPolicy
+
+logger = logging.getLogger(__name__)
 
 # Module-level reference to ``fetch_response``. Tests patch this attribute
 # via ``patch.object(_http_client, "fetch_response", ...)`` so the symbol
@@ -263,7 +266,8 @@ class ValidationHttpClient:
             for future in futures:
                 try:
                     responses.append(future.result(timeout=30) or {})
-                except Exception:  # noqa: BLE001
+                except Exception as exc:  # noqa: BLE001 — broad catch intentional for concurrent future isolation
+                    logger.debug("Race probe concurrent request failed: %s", exc)
                     responses.append({"status_code": 0, "body": "", "headers": {}})
         return responses
 

@@ -21,6 +21,7 @@ import { ImportModal } from '@/components/targets/ImportModal';
 import { useSemgrepImport } from '@/hooks/useSemgrepImport';
 import { ScopeImportModal } from '@/components/scope/ScopeImportModal';
 import { useScopeStore } from '@/stores/scopeStore';
+import { validateUrl } from '@/lib/utils';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -32,7 +33,7 @@ export function TargetsPage() {
   const { filter, setFilter, debouncedFilter } = useDebouncedFilter();
   const { isScanning, progressList, startScan, updateProgress } =
     useScanProgress();
-  const { importTargetName, setImportTargetName, importFile, handleFileChange, executeImport, resetImport, isImporting } =
+  const { showImportModal, importTargetName, setImportTargetName, importFile, handleFileChange, executeImport, resetImport, isImporting } =
     useSemgrepImport();
 
   const [scopeModalOpen, setScopeModalOpen] = useState(false);
@@ -58,7 +59,7 @@ export function TargetsPage() {
   }, []);
 
   const clearSelection = useCallback(() => {
-    setSelectedTargets(new Set());
+    setSelectedTargets(() => new Set());
   }, []);
 
   const allOnPageSelected = useMemo(() => {
@@ -86,6 +87,11 @@ export function TargetsPage() {
       const { startJob } = await import('@/api/jobs');
       for (const name of targetsArray) {
         try {
+          const validation = validateUrl(name);
+          if (!validation.valid) {
+            updateProgress(name, { status: 'failed', progress: 0 });
+            continue;
+          }
           const job = await startJob({ base_url: name, mode: 'safe', modules: ['subdomain_enum', 'url_discovery', 'port_scan', 'httpx'] });
           updateProgress(name, { jobId: job.id, status: 'running', progress: 10 });
         } catch {
@@ -305,6 +311,7 @@ export function TargetsPage() {
       )}
 
       <ImportModal
+        showImportModal={showImportModal}
         importFile={importFile}
         importTargetName={importTargetName}
         setImportTargetName={setImportTargetName}

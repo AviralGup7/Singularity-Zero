@@ -117,7 +117,7 @@ def command_injection_active_probe(
                 if not response:
                     continue
 
-                body = str(response.get("body_text", "") or "")[:8000]
+                body = str(response.get("body_text") or response.get("body") or "")[:8000]
                 status = int(response.get("status_code") or 0)
 
                 issues_for_hit: list[str] = []

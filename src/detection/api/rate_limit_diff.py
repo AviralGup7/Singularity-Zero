@@ -137,11 +137,8 @@ def _cost_class(url: str) -> str:
     lowered = url.lower()
     sensitive_tokens = (
         "login",
-        "signin",
         "auth",
-        "token",
-        "password",
-        "reset",
+        "signin",
         "register",
         "signup",
         "checkout",
@@ -154,7 +151,6 @@ def _cost_class(url: str) -> str:
         "2fa",
         "verify",
         "otp",
-        "graphql",
     )
     if any(token in lowered for token in sensitive_tokens):
         return "sensitive"

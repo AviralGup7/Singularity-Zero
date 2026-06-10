@@ -77,7 +77,7 @@ class DashboardQueryService:
                 exc_info=True,
             )
             # Reconciliation should never fail request handling.
-            pass
+            logger.warning("Operation failed in query_service.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def _mark_running_stage_entries_completed(self, job: dict[str, Any], now: float) -> None:
         mark_running_stage_entries_completed(job, now, stage_labels=STAGE_LABELS)

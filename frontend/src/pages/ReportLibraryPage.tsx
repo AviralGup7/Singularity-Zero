@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield, Plus } from 'lucide-react';
+import { ExternalLink, FileText, ShieldCheck, RefreshCw, Library, Package, Shield, Plus, Sparkles, TrendingUp } from 'lucide-react';
 
-import { getReportLibrary, type ReportLibraryItem } from '@/api/reports';
+import { getReportLibrary, type ReportLibraryItem, getAiExecutiveSummary, type AiExecutiveSummary, getSlaTrending, type SlaTrendingResponse } from '@/api/reports';
 import { ApiError } from '@/api/core';
 import { GlassCard, AnimatedCounter, PageHeader, SkeletonTable } from '@/components/ui';
 
@@ -25,6 +25,10 @@ export function ReportLibraryPage() {
   const [reports, setReports] = useState<ReportLibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [aiSummary, setAiSummary] = useState<AiExecutiveSummary | null>(null);
+  const [aiTarget, setAiTarget] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [slaData, setSlaData] = useState<SlaTrendingResponse | null>(null);
 
   const loadReports = async (signal?: AbortSignal) => {
     setLoading(true);
@@ -43,8 +47,25 @@ export function ReportLibraryPage() {
   useEffect(() => {
     const controller = new AbortController();
     void loadReports(controller.signal);
+    // Load SLA trending data in parallel
+    getSlaTrending(controller.signal)
+      .then(setSlaData)
+      .catch(() => {});
     return () => controller.abort();
   }, []);
+
+  const handleLoadAiSummary = async () => {
+    if (!aiTarget.trim()) return;
+    setAiLoading(true);
+    try {
+      const result = await getAiExecutiveSummary(aiTarget.trim());
+      setAiSummary(result);
+    } catch {
+      setAiSummary(null);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const signed = reports.filter(report => report.signature_valid).length;
@@ -98,6 +119,83 @@ export function ReportLibraryPage() {
           <AnimatedCounter value={stats.targets} className="text-2xl font-semibold text-[var(--text-primary)]" />
         </GlassCard>
       </div>
+
+      {/* ── SLA Trending Card ──────────────────────────────────── */}
+      {slaData && (
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.15 }}
+        >
+          <GlassCard variant="glow" hoverable={false}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp size={16} className="text-accent" />
+                <h3 className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">SLA Compliance Trending</h3>
+              </div>
+              <span className="text-[10px] font-mono text-muted uppercase">{slaData.sla_compliance_rate}% compliant</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+              <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted block mb-0.5">MTTR</span>
+                <span className="font-mono font-bold text-[var(--text-primary)]">{slaData.mttr_days}d</span>
+              </div>
+              <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted block mb-0.5">Active Breaches</span>
+                <span className={`font-mono font-bold ${slaData.active_breaches > 0 ? 'text-bad' : 'text-ok'}`}>{slaData.active_breaches}</span>
+              </div>
+              <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted block mb-0.5">Open</span>
+                <span className="font-mono font-bold text-warn">{slaData.open_findings_count}</span>
+              </div>
+              <div className="p-2 rounded-lg bg-white/5 border border-white/5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted block mb-0.5">Remediated</span>
+                <span className="font-mono font-bold text-ok">{slaData.remediated_findings_count}</span>
+              </div>
+            </div>
+          </GlassCard>
+        </motion.section>
+      )}
+
+      {/* ── AI Executive Summary ──────────────────────────────── */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.25 }}
+      >
+        <GlassCard variant="glow" hoverable={false}>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={16} className="text-accent" />
+            <h3 className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]">AI Executive Summary</h3>
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              type="text"
+              placeholder="Enter target name..."
+              value={aiTarget}
+              onChange={e => setAiTarget(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleLoadAiSummary(); }}
+              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] font-mono text-text focus:border-accent/50 outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleLoadAiSummary}
+              disabled={aiLoading || !aiTarget.trim()}
+              className="btn btn-primary btn-sm text-[10px] uppercase tracking-wider"
+            >
+              {aiLoading ? 'Generating...' : 'Generate'}
+            </button>
+          </div>
+          {aiSummary && (
+            <div className="p-4 rounded-xl bg-black/30 border border-white/5 text-xs text-muted/80 font-mono leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto scrollbar-cyber">
+              <div className="text-[9px] text-accent uppercase tracking-widest mb-2">
+                Target: {aiSummary.target} · Run: {aiSummary.run_id}
+              </div>
+              {aiSummary.summary}
+            </div>
+          )}
+        </GlassCard>
+      </motion.section>
 
       {/* ── Error Banner ───────────────────────────────────────── */}
       {error && (

@@ -274,9 +274,12 @@ class CalibratedSeverityModel:
         score = round(_clamp((calibrated_tp * 0.72) + (impact * 0.28)) * 10.0, 2)
         severity = severity_from_score(score)
         confidence = round(
-            _clamp(
-                (self.training_samples / (self.training_samples + 40.0)) * 0.65
-                + calibration["support"] * 0.35
+            max(
+                0.15,
+                _clamp(
+                    (self.training_samples / (self.training_samples + 40.0)) * 0.65
+                    + calibration["support"] * 0.35
+                ),
             ),
             3,
         )
@@ -389,10 +392,13 @@ class CalibratedSeverityModel:
     def aggregate_score(self, findings: list[dict[str, Any]]) -> float:
         if not findings:
             return 0.0
-        scores = [
-            self.predict(f).score if "severity_score" not in f else _numeric(f["severity_score"])
-            for f in findings
-        ]
+        scores = []
+        for f in findings:
+            existing = f.get("severity_score")
+            if existing is not None:
+                scores.append(_numeric(existing))
+            else:
+                scores.append(self.predict(f).score)
         return round(sum(scores) / len(scores), 2)
 
     def _train(self) -> None:

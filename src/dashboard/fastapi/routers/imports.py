@@ -19,10 +19,14 @@ router = APIRouter(prefix="/api/imports", tags=["Imports"])
 # ...
 @router.post(
     "/semgrep",
+    response_model=dict[str, str],
     responses={
+        400: {"model": ErrorResponse},
         401: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         409: {"model": ErrorResponse},
+        413: {"model": ErrorResponse},
+        415: {"model": ErrorResponse},
     },
     summary="Import Semgrep JSON for a target",
 )

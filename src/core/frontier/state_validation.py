@@ -1,8 +1,9 @@
+from __future__ import annotations
+import logging
 """Cyber Security Test Pipeline - State Validation
 HLC clocks, VectorClock, LWW CRDT set primitives, and utility functions.
 """
 
-from __future__ import annotations
 
 import copy
 import hashlib
@@ -326,8 +327,8 @@ class LWWset[T]:
                     ).hexdigest()
                     try:
                         item["id"] = generated_fid
-                    except TypeError:
-                        pass
+                    except TypeError as exc:
+                        logging.warning("Operation failed in state_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
                     return generated_fid
                 return fid
             return repr(item)

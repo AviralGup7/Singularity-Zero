@@ -23,8 +23,8 @@ Usage:
         details={"method": "jwt"},
     )
 """
-
 from __future__ import annotations
+
 
 import hashlib
 import hmac as hmac_module
@@ -189,6 +189,8 @@ class AuditEntry(BaseModel):
         entry_hash: Hash of this entry (computed after creation).
     """
 
+    model_config = {"extra": "allow"}
+
     id: int = Field(..., ge=0)
     timestamp: str = Field(...)
     event: str = Field(..., min_length=1)
@@ -222,6 +224,11 @@ class AuditEntry(BaseModel):
             "details": self.details,
             "previous_hash": self.previous_hash,
         }
+        # Include any extra fields that were preserved during validation
+        extra = getattr(self, "model_extra", None) or {}
+        for key in sorted(extra.keys()):
+            if key not in data:
+                data[key] = extra[key]
         payload = json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
         if hmac_secret:
@@ -295,8 +302,8 @@ class AuditLogger:
         if self._file_handle is not None:
             try:
                 self._file_handle.close()
-            except Exception:  # noqa: S110, S112
-                pass
+            except Exception as exc:  # noqa: S110, S112
+                logger.warning("Failed to close existing audit log handle: %s", exc)
 
         self._file_handle = open(log_path, "a", encoding="utf-8")
 
@@ -347,11 +354,11 @@ class AuditLogger:
                                             line,
                                         ),
                                     )
-                                except Exception:  # noqa: S110, S112
-                                    pass
+                                except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                                    logger.debug("Skipping corrupt audit log line during re-index: %s", exc)
                     self._db.commit()
-                except Exception:  # noqa: S110, S112
-                    pass
+                except Exception as exc:
+                    logger.error("Failed to re-index audit log into SQLite: %s", exc)
 
     def _read_last_hash(self) -> str:
         """Read the hash of the last entry from the log file.
@@ -381,8 +388,8 @@ class AuditLogger:
                     entry = json.loads(last_line.decode("utf-8"))
                     self._counter = int(entry.get("id", 0))
                     return cast(str, entry.get("entry_hash", "genesis"))
-        except Exception:  # noqa: S110, S112
-            pass
+        except Exception as exc:
+            logger.error("Failed to read last audit log hash, resetting to genesis: %s", exc)
         return "genesis"
 
     def log(
@@ -518,8 +525,34 @@ class AuditLogger:
             logger.error("Failed to rotate audit log: %s", exc)
 
         # Fix #299: Re-initialize logger state and SQLite index after rotation
-        self._counter = 0
+        # SECURITY: Read the last counter from the archived log to maintain
+        # sequential ID chain across rotation boundaries. Resetting to 0
+        # would break the tamper-evident hash chain at the archive boundary.
+        self._last_hash = "genesis"
         self._ensure_log_file()
+        # _ensure_log_file -> _read_last_hash will set self._counter from
+        # the new (empty) log file, which is correct. But we need to read
+        # the archived counter to continue the sequence.
+        if archive_path.exists():
+            try:
+                with open(archive_path, "rb") as f:
+                    f.seek(0, 2)
+                    size = f.tell()
+                    if size > 0:
+                        pos = size - 1
+                        while pos >= 0:
+                            f.seek(pos)
+                            if f.read(1) == b"\n" and pos != size - 1:
+                                break
+                            pos -= 1
+                        f.seek(max(0, pos + 1))
+                        last_line = f.readline().strip()
+                        if last_line:
+                            entry_data = json.loads(last_line.decode("utf-8"))
+                            self._counter = int(entry_data.get("id", 0))
+                            self._last_hash = entry_data.get("entry_hash", "genesis")
+            except Exception as exc:
+                logger.warning("Failed to read archived audit log for counter/hash recovery: %s", exc)
 
     def verify_integrity(self) -> tuple[bool, list[int]]:
         """Verify the integrity of the audit log.
@@ -546,9 +579,10 @@ class AuditLogger:
 
                     try:
                         data = json.loads(line)
-                        # Fix #354: Use model_validate with strict=False
+                        # Fix #354: Use model_validate with extra='allow' to preserve unknown fields
                         entry = AuditEntry.model_validate(data, strict=False)
-                    except Exception:  # noqa: S110, S112
+                    except Exception as exc:  # noqa: S110, S112
+                        logger.warning("Unparseable audit log entry during integrity check: %s", exc)
                         compromised.append(-1)
                         continue
 
@@ -602,7 +636,8 @@ class AuditLogger:
                 try:
                     data = json.loads(line)
                     entry_id = data.get("id", 0)
-                except Exception:  # noqa: S110, S112
+                except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                    logger.debug("Skipping unparseable audit log line during export: %s", exc)
                     continue
 
                 if start_id is not None and entry_id < start_id:
@@ -628,8 +663,8 @@ class AuditLogger:
         """Get audit entries with high-performance filtering via SQLite.
 
         Args:
-            limit: Maximum number of entries to return.
-            offset: Number of entries to skip.
+            limit: Maximum number of entries to return (1-10000).
+            offset: Number of entries to skip (must be >= 0).
             event: Filter by event type.
             user_id: Filter by user ID.
             severity: Filter by severity level.
@@ -637,6 +672,10 @@ class AuditLogger:
         Returns:
             List of matching AuditEntry instances.
         """
+        # SECURITY: Validate bounds to prevent excessive queries or
+        # unexpected behavior from negative/very large values.
+        limit = max(1, min(limit, 10000))
+        offset = max(0, offset)
         # Fix #300: Prioritize SQLite for high-performance queries
         if hasattr(self, "_db"):
             query = "SELECT data FROM audit_log WHERE 1=1"
@@ -682,7 +721,8 @@ class AuditLogger:
 
                     try:
                         data = json.loads(line)
-                    except Exception:  # noqa: S110, S112
+                    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                        logger.debug("Skipping unparseable audit log line during scan: %s", exc)
                         continue
 
                     if event and data.get("event") != event:

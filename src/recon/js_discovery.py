@@ -194,11 +194,13 @@ def _collect_js_discovery_urls(
             if not js_body:
                 continue
             fetched += 1
-            host_discovered.update(extract_endpoints_v2(js_body, js_url, scope_roots))
-            host_discovered.update(_extract_js_candidate_urls(js_body, js_url, scope_roots))
-            for ep in extract_endpoints_v2(js_body, js_url, scope_roots):
+            js_endpoints = extract_endpoints_v2(js_body, js_url, scope_roots)
+            js_candidates = _extract_js_candidate_urls(js_body, js_url, scope_roots)
+            host_discovered.update(js_endpoints)
+            host_discovered.update(js_candidates)
+            for ep in js_endpoints:
                 host_provenance[ep] = js_url
-            for ep in _extract_js_candidate_urls(js_body, js_url, scope_roots):
+            for ep in js_candidates:
                 host_provenance[ep] = js_url
             extracted_secrets = _extract_secrets(js_body, redact_prefix_len=4)
             extracted_secrets.extend(extract_tokens_and_keys(js_body))
@@ -248,8 +250,9 @@ def _collect_js_discovery_urls(
                     host_discovered.update(chain_disc)
                     host_provenance.update(chain_prov)
                 else:
-                    host_discovered.update(extract_endpoints_v2(map_body, map_url, scope_roots))
-                    for ep in extract_endpoints_v2(map_body, map_url, scope_roots):
+                    map_endpoints = extract_endpoints_v2(map_body, map_url, scope_roots)
+                    host_discovered.update(map_endpoints)
+                    for ep in map_endpoints:
                         host_provenance[ep] = map_url
                 fetched += 1
 

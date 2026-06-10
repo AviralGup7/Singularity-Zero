@@ -63,6 +63,7 @@ class CacheManager:
         )
         self._bloom_synchronizer: NeuralBloomMesh | None = None
         self._bloom_filter: NeuralBloomFilter | None = None
+        self._closed = False
 
         if self._config.warm_on_init:
             self._warm_cache()
@@ -376,9 +377,10 @@ class CacheManager:
 
     def close(self) -> None:
         """Close all backend connections and persist state."""
+        self._closed = True
         self._tiers.close()
 
-    def acquire_recon_lock(
+    async def acquire_recon_lock(
         self,
         target: str,
         *,
@@ -386,15 +388,15 @@ class CacheManager:
         wait_timeout: float = 0.0,
     ) -> str | None:
         """Acquire the standard target-scoped recon lock."""
-        return self._tiers.acquire_recon_lock(
+        return await self._tiers.acquire_recon_lock(
             target,
             ttl=ttl,
             wait_timeout=wait_timeout,
         )
 
-    def release_recon_lock(self, target: str, token: str) -> bool:
+    async def release_recon_lock(self, target: str, token: str) -> bool:
         """Release the standard target-scoped recon lock."""
-        return self._tiers.release_recon_lock(target, token)
+        return await self._tiers.release_recon_lock(target, token)
 
     def __enter__(self) -> CacheManager:
         return self
@@ -403,7 +405,10 @@ class CacheManager:
         self.close()
 
     def __del__(self) -> None:
+        if getattr(self, "_closed", False):
+            return
         try:
+            self._closed = True
             self.close()
         except Exception as exc:
             logger.debug("CacheManager.__del__ close failed: %s", exc)

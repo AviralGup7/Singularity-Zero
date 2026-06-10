@@ -102,10 +102,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Cache-Control"] = self._cache_control_sensitive
             response.headers["Pragma"] = "no-cache"
 
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        if "X-Frame-Options" not in response.headers:
-            response.headers["X-Frame-Options"] = "DENY"
-
         if "X-Permitted-Cross-Domain-Policies" not in response.headers:
             response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
 

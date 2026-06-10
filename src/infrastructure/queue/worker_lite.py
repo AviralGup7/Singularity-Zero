@@ -134,6 +134,17 @@ def setup_tools(dest_dir: str | None = None) -> None:
                     with zipfile.ZipFile(tmp_archive) as z:
                         for name in z.namelist():
                             if Path(name).name == bin_name:
+                                info = z.getinfo(name)
+                                if info.compress_size > 100 * 1024 * 1024:
+                                    raise ValueError(
+                                        f"Zip entry '{name}' compressed size "
+                                        f"({info.compress_size}) exceeds 100 MiB limit"
+                                    )
+                                if info.file_size > 500 * 1024 * 1024:
+                                    raise ValueError(
+                                        f"Zip entry '{name}' uncompressed size "
+                                        f"({info.file_size}) exceeds 500 MiB limit"
+                                    )
                                 with z.open(name) as source, open(tool_dest, "wb") as target:
                                     shutil.copyfileobj(source, target)
                                 break
@@ -194,6 +205,7 @@ class LiteWorker:
         heartbeat_interval: float = 15.0,
         lease_seconds: float = 300.0,
         capabilities: list[str] | None = None,
+        namespace: str = "queue",
     ) -> None:
         self.worker_id = worker_id
         self.redis_url = redis_url
@@ -203,6 +215,7 @@ class LiteWorker:
         self.heartbeat_interval = heartbeat_interval
         self.lease_seconds = lease_seconds
         self.capabilities = capabilities or ["recon", "lite"]
+        self._namespace = namespace
 
         self._redis: Any = None
         self._running = False
@@ -216,6 +229,13 @@ class LiteWorker:
 
         # Lua script SHAs
         self._shas: dict[str, str] = {}
+
+    def _key(self, suffix: str) -> str:
+        """Build a namespace-prefixed Redis key matching JobQueueCore conventions."""
+        return f"{self._namespace}:{self.queue_name}:{suffix}"
+
+    def _job_key(self, job_id: str) -> str:
+        return f"{self._namespace}:{self.queue_name}:job:{job_id}"
 
     def _setup_signal_handlers(self) -> None:
         """Register signal handlers for graceful shutdown."""
@@ -234,8 +254,8 @@ class LiteWorker:
 
     async def _register(self) -> None:
         """Register worker node identity in Redis."""
-        worker_key = f"queue:{self.queue_name}:worker:{self.worker_id}"
-        workers_set = f"queue:{self.queue_name}:workers"
+        worker_key = self._key(f"worker:{self.worker_id}")
+        workers_set = self._key("workers")
 
         # Build WorkerInfo compatible hash dictionary
         worker_info = {
@@ -269,7 +289,7 @@ class LiteWorker:
         await self._redis.sadd(workers_set, self.worker_id)
 
         # Register capabilities
-        caps_key = f"queue:{self.queue_name}:worker:{self.worker_id}:capabilities"
+        caps_key = self._key(f"worker:{self.worker_id}:capabilities")
         await self._redis.delete(caps_key)
         for cap in self.capabilities:
             await self._redis.sadd(caps_key, cap)
@@ -284,7 +304,7 @@ class LiteWorker:
 
     async def _heartbeat(self) -> None:
         """Send periodic heartbeats to Redis to prove liveness."""
-        worker_key = f"queue:{self.queue_name}:worker:{self.worker_id}"
+        worker_key = self._key(f"worker:{self.worker_id}")
         while self._running and not self._shutdown_requested:
             try:
                 now = time.time()
@@ -342,10 +362,10 @@ class LiteWorker:
 
     async def _process_job(self, job_id: str, job_type: str, payload: dict[str, Any]) -> None:
         """Process a claimed job with clean subprocess execution and error isolation."""
-        job_key = f"queue:{self.queue_name}:job:{job_id}"
-        worker_jobs_key = f"queue:{self.queue_name}:worker:{self.worker_id}:jobs"
-        metrics_key = f"queue:{self.queue_name}:metrics"
-        dlq_key = f"queue:{self.queue_name}:dead_letter"
+        job_key = self._job_key(job_id)
+        worker_jobs_key = self._key(f"worker:{self.worker_id}:jobs")
+        metrics_key = self._key("metrics")
+        dlq_key = self._key("dead_letter")
 
         # Update state in Redis to 'running'
         await self._redis.hset(
@@ -360,14 +380,24 @@ class LiteWorker:
         try:
             logger.info("Starting execution for job %s (type=%s)", job_id, job_type)
 
-            # Determine task targets and scope entries
-            task_envelope = payload
+            # Normalize payload: core.enqueue stores the full TaskEnvelope dict
+            # in the "payload" Redis hash field.  The envelope has keys like
+            # {"type": ..., "payload": {...}, "metadata": ...}.
+            # We extract the inner payload dict for target resolution.
+            inner_payload: dict[str, Any] = {}
+            if "payload" in payload and isinstance(payload["payload"], dict):
+                inner_payload = payload["payload"]
+            elif "schema_version" in payload:
+                inner_payload = payload.get("payload", {}) if isinstance(payload.get("payload"), dict) else {}
+            else:
+                inner_payload = payload
+
             target = str(
-                task_envelope.get("payload", {}).get("target_name")
-                or task_envelope.get("payload", {}).get("target")
+                inner_payload.get("target_name")
+                or inner_payload.get("target")
                 or ""
             ).strip()
-            scope_entries = task_envelope.get("payload", {}).get("scope_entries", [])
+            scope_entries = inner_payload.get("scope_entries", [])
 
             if not target and scope_entries:
                 target = scope_entries[0]
@@ -375,24 +405,32 @@ class LiteWorker:
             if not target:
                 raise ValueError("Job payload is missing a valid target or scope_entries.")
 
+            # Resolve canonical job type (handles legacy aliases)
+            from src.infrastructure.queue.plugin_handler_bridge import normalize_job_type
+
+            canonical_type = normalize_job_type(job_type)
+
             # Route to correct Go scanning tool command
             results = []
-            if job_type in ("subdomains", "subdomain_enum"):
+            if canonical_type in ("recon_provider.subdomains",) or job_type in ("subdomains", "subdomain_enum"):
                 cmd = ["subfinder", "-d", target, "-silent"]
                 results = await self._execute_recon_command(cmd)
-            elif job_type in ("live_hosts", "port_probe"):
+            elif canonical_type in ("recon_provider.live_hosts",) or job_type in ("live_hosts", "port_probe"):
                 cmd = ["httpx", "-u", target, "-silent"]
                 results = await self._execute_recon_command(cmd)
-            elif job_type in ("urls", "katana"):
+            elif canonical_type in ("recon_provider.urls",) or job_type in ("urls", "katana"):
                 cmd = ["katana", "-u", target, "-silent"]
                 results = await self._execute_recon_command(cmd)
             else:
                 # Custom/Generic command payload support
-                custom_cmd = task_envelope.get("payload", {}).get("command")
+                custom_cmd = inner_payload.get("command")
                 if isinstance(custom_cmd, list):
                     results = await self._execute_recon_command(custom_cmd)
                 else:
-                    raise ValueError(f"Job type '{job_type}' is not supported by LiteWorker.")
+                    raise ValueError(
+                        f"Job type '{job_type}' (canonical: '{canonical_type}') is not "
+                        f"supported by LiteWorker."
+                    )
 
             # Job succeeded! Format output and complete the job.
             result_payload = {"status": "ok", "results": results, "count": len(results)}
@@ -423,7 +461,7 @@ class LiteWorker:
                 5,
                 job_key,
                 worker_jobs_key,
-                f"queue:{self.queue_name}:queue",
+                self._key("queue"),
                 dlq_key,
                 metrics_key,
                 error_msg,
@@ -437,8 +475,8 @@ class LiteWorker:
 
     async def _poll_and_process(self) -> None:
         """Poll Redis queue, atomically claiming jobs using the Lua engine."""
-        queue_key = f"queue:{self.queue_name}:queue"
-        worker_jobs_key = f"queue:{self.queue_name}:worker:{self.worker_id}:jobs"
+        queue_key = self._key("queue")
+        worker_jobs_key = self._key(f"worker:{self.worker_id}:jobs")
 
         while self._running and not self._shutdown_requested:
             try:
@@ -520,22 +558,22 @@ class LiteWorker:
     async def _cleanup(self) -> None:
         """Gracefully release job leases and remove worker metadata from Redis."""
         logger.info("Cleaning up worker metadata and active leases...")
-        worker_key = f"queue:{self.queue_name}:worker:{self.worker_id}"
-        workers_set = f"queue:{self.queue_name}:workers"
-        worker_jobs_key = f"queue:{self.queue_name}:worker:{self.worker_id}:jobs"
+        worker_key = self._key(f"worker:{self.worker_id}")
+        workers_set = self._key("workers")
+        worker_jobs_key = self._key(f"worker:{self.worker_id}:jobs")
 
         # Release active job leases back to the queue
         active_jobs = list(self._active_tasks)
         for task in active_jobs:
             job_id = task.get_name()
-            job_key = f"queue:{self.queue_name}:job:{job_id}"
+            job_key = self._job_key(job_id)
             try:
                 await self._redis.evalsha(
                     self._shas["release_lease"],
                     3,
                     job_key,
                     worker_jobs_key,
-                    f"queue:{self.queue_name}:queue",
+                    self._key("queue"),
                 )
                 logger.info("Released lease for job %s cleanly", job_id)
             except Exception as exc:
@@ -555,20 +593,29 @@ class LiteWorker:
             return
         self._running = True
 
-        # Initialize Redis
-        import redis.asyncio as aioredis
+        # Initialize Redis via RedisClient for circuit breaker, tenant prefix,
+        # and fallback support (fixes Gap 4-B).
+        from src.infrastructure.queue.redis_client import RedisClient
 
-        # SECURITY: log the *redacted* URL. ``self.redis_url`` can contain
-        # an embedded password (``redis://:secret@host:port/0``) which
-        # would otherwise leak into operator logs.
         logger.info(
             "Connecting to Redis Backplane at %s",
             _redact_redis_url(self.redis_url),
         )
+        self._redis_client = RedisClient(url=self.redis_url)
+        # Keep a direct async reference for operations that need it
+        import redis.asyncio as aioredis
+
         self._redis = aioredis.from_url(self.redis_url)
         await self._redis.ping()
 
-        # Pre-register Lua scripts and fetch their SHAs
+        # Pre-register Lua scripts and fetch their SHAs (unified with core, Gap 8-C)
+        from src.infrastructure.queue.lua_scripts import (
+            CLAIM_JOB_SCRIPT,
+            COMPLETE_JOB_SCRIPT,
+            FAIL_JOB_SCRIPT,
+            RELEASE_LEASE_SCRIPT,
+        )
+
         self._shas["claim_job"] = await self._redis.script_load(CLAIM_JOB_SCRIPT)
         self._shas["complete_job"] = await self._redis.script_load(COMPLETE_JOB_SCRIPT)
         self._shas["fail_job"] = await self._redis.script_load(FAIL_JOB_SCRIPT)
@@ -588,6 +635,8 @@ class LiteWorker:
             poll_task.cancel()
             await self._cleanup()
             await self._redis.aclose()
+            if hasattr(self, "_redis_client"):
+                self._redis_client.close()
             self._running = False
             logger.info("LiteWorker stopped cleanly.")
 

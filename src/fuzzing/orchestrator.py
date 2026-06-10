@@ -165,7 +165,7 @@ class FuzzingOrchestrator:
         if param_type == "id":
             return ["0", "-1", "999999", "00000000-0000-4000-8000-000000000000"]
         if param_type == "json":
-            return ['{"$ne": null}', "[]", "{}", '{"a":' * 100 + "1" + "}" * 100]
+            return ['{"$ne": null}', "[]", "{}", '{"a":' * min(100, max(1, 1000 // 10)) + "1" + "}" * min(100, max(1, 1000 // 10))]
         return ["A" * 10000, "", " ", "null", "undefined"]
 
     def dictionary_attack(self) -> list[str]:
@@ -331,7 +331,8 @@ class FuzzingOrchestrator:
             r"(?i)(?:sql\s*syntax|mysql_fetch|pg_query|ociexecute|ora-|traceback|stack\s*trace|"
             r"exception|syntax\s*error|unexpected\s+token|unterminated|string\s+literal|"
             r"unclosed\s+quotation|invalid\s*column|invalid\s*object|invalid\s*table|"
-            r"division\s+by\s+zero|out\s+of\s+range|constraint\s+violation|duplicate\s*key)"
+            r"division\s+by\s+zero|out\s+of\s+range|constraint\s+violation|duplicate\s*key)",
+            re.IGNORECASE,
         )
 
         endpoint_key = endpoint_signature(url)

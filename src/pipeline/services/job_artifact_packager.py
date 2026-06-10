@@ -10,6 +10,7 @@ Run with: python -m src.pipeline.services.job_artifact_packager <job_id> <output
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -20,8 +21,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 # Allowlisted characters for tar member names: alphanumeric, dot, hyphen, underscore, forward slash
 _SAFE_MEMBER_NAME_RE = re.compile(r"^[a-zA-Z0-9_\-./]+$")
+
+# Maximum total uncompressed bytes when extracting tar archives (256 MiB).
+_MAX_TOTAL_UNCOMPRESSED_BYTES: int = 256 * 1024 * 1024
 
 
 def _safe_extract(tar: tarfile.TarFile, extract_dir: Path) -> None:
@@ -36,6 +42,7 @@ def _safe_extract(tar: tarfile.TarFile, extract_dir: Path) -> None:
     # Python 3.12+ provides a built-in data_filter that mitigates path traversal.
     use_data_filter = sys.version_info >= (3, 12)
 
+    total_uncompressed = 0
     for member in tar.getmembers():
         # Reject absolute paths
         if os.path.isabs(member.name):
@@ -52,6 +59,13 @@ def _safe_extract(tar: tarfile.TarFile, extract_dir: Path) -> None:
         member_path = (extract_dir_abs / member.name).resolve()
         if str(member_path) != str(extract_dir_abs) and extract_dir_abs not in member_path.parents:
             raise ValueError(f"Path traversal attempt detected: {member.name}")
+
+        # Enforce total uncompressed size limit to prevent tar bombs
+        total_uncompressed += member.size
+        if total_uncompressed > _MAX_TOTAL_UNCOMPRESSED_BYTES:
+            raise ValueError(
+                f"Total uncompressed tar size exceeds {_MAX_TOTAL_UNCOMPRESSED_BYTES} byte limit"
+            )
 
         # Use data_filter on Python 3.12+; otherwise extract with validated path
         if use_data_filter:
@@ -279,6 +293,7 @@ class JobArtifactPackager:
 
             return commit_hash, is_dirty
         except Exception:
+            logger.debug("Failed to capture git commit info", exc_info=True)
             return "unknown", False
 
     def _capture_env(self) -> dict[str, str]:

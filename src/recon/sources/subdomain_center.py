@@ -59,7 +59,7 @@ async def query_subdomain_center(
                     cand = name.strip().lower().lstrip("*.").rstrip(".")
                     if cand and pattern.match(cand):
                         subdomains.add(cand)
-    except httpx.RequestError:
-        pass
+    except httpx.RequestError as exc:
+        logger.warning("Operation failed in subdomain_center.py: %s", exc, exc_info=True)  # noqa: BLE001
     logger.info("SubdomainCenter: found %d subdomains for %s", len(subdomains), domain)
     return subdomains

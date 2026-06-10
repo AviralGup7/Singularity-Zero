@@ -105,4 +105,21 @@ export const cockpitApi = {
 
   getForensicExchange: (target: string, exchangeId: string) =>
     apiClient.get<ForensicExchange>(`/api/cockpit/forensics/${exchangeId}`, { params: { target } }),
+
+  launchSandbox: (targetNode: string, image?: string) =>
+    apiClient.post<{ sandbox_id: string; status: string; target_node: string; image: string }>(
+      '/api/cockpit/sandbox/launch',
+      { target_node: targetNode, ...(image ? { image } : {}) },
+    ),
+
+  getSandboxState: (sandboxId: string) =>
+    apiClient.get<{ sandbox_id: string; status: string; container_id?: string; uptime_seconds?: number; logs?: string[] }>(
+      `/api/cockpit/sandbox/${encodeURIComponent(sandboxId)}/state`,
+    ),
+
+  executeSandboxTerminal: (sandboxId: string, command: string) =>
+    apiClient.post<{ sandbox_id: string; command: string; output: string; exit_code: number }>(
+      `/api/cockpit/sandbox/${encodeURIComponent(sandboxId)}/terminal`,
+      { command },
+    ),
 };

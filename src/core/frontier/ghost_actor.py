@@ -32,6 +32,8 @@ import weakref
 _LOGIC_REGISTRY: weakref.WeakValueDictionary[
     str, Callable[[dict[str, Any], dict[str, Any]], Any]
 ] = weakref.WeakValueDictionary()
+# Strong references to prevent GC of registered logic functions
+_LOGIC_STRONG_REFS: dict[str, Callable[[dict[str, Any], dict[str, Any]], Any]] = {}
 
 
 def _copy_mailbox_value(value: Any) -> Any:
@@ -39,7 +41,7 @@ def _copy_mailbox_value(value: Any) -> Any:
     return deepcopy(value)
 
 
-class ScanActor(pykka.ThreadingActor):
+class ScanActor(pykka.Actor):
     """Frontier Task Actor.
 
     Encapsulates logic and state, capable of migrating across the mesh.
@@ -60,6 +62,7 @@ class ScanActor(pykka.ThreadingActor):
         # Register logic function name for mesh-wide serialization & network rehydration
         if hasattr(logic_fn, "__name__"):
             _LOGIC_REGISTRY[logic_fn.__name__] = logic_fn
+            _LOGIC_STRONG_REFS[logic_fn.__name__] = logic_fn
 
     def dehydrate(self, migration_id: str = "") -> bytes:
         """Freeze actor mutating work and dehydrate its state to packed bytes."""
@@ -142,6 +145,7 @@ class ScanActor(pykka.ThreadingActor):
             self.logic_fn = restored_logic
             if hasattr(restored_logic, "__name__"):
                 _LOGIC_REGISTRY[restored_logic.__name__] = restored_logic
+                _LOGIC_STRONG_REFS[restored_logic.__name__] = restored_logic
         elif unpacked.logic_fn_name:
             reg_logic = _LOGIC_REGISTRY.get(unpacked.logic_fn_name)
             if reg_logic:

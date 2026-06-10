@@ -47,7 +47,7 @@ pip install -e ".[dev]"
 cd frontend && npm install && npm run build && cd ..
 
 # 3. Start the dashboard (Redis recommended; falls back to in-memory)
-python -m src.dashboard.fastapi.app --host 0.0.0.0 --port 8000
+python -m src.dashboard.fastapi.main --host 0.0.0.0 --port 8000
 `
 
 Then open http://localhost:8000/ for the operator console.

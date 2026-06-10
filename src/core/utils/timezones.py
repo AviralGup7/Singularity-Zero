@@ -74,7 +74,7 @@ def format_iso_to_ist(value: str | None) -> str:
     if not value:
         return ""
     try:
-        parsed = datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return value
     if parsed.tzinfo is None:

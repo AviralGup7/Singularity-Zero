@@ -7,12 +7,8 @@ import pytest
 from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
 
 
-@pytest.mark.integration
-@pytest.mark.slow
-class TestFullPipelineE2E:
-    def test_dry_run_returns_zero_exit_code(self, pipeline_runner):
-        result = pipeline_runner(dry_run=True)
-        assert result == 0
+class TestPipelineConfigValidation:
+    """Pure config/schema validation tests — no network, no scanning."""
 
     def test_pipeline_instantiation(self):
         orchestrator = PipelineOrchestrator()
@@ -31,15 +27,6 @@ class TestFullPipelineE2E:
         for stage in PIPELINE_STAGES:
             assert stage in STAGE_ORDER
 
-    def test_full_pipeline_with_mocks(
-        self,
-        pipeline_runner,
-        mock_target_server,
-        e2e_workspace: Path,
-    ):
-        exit_code = pipeline_runner(dry_run=False)
-        assert isinstance(exit_code, int)
-
     def test_pipeline_config_loads_correctly(self, e2e_pipeline_config: dict[str, Any]):
         assert e2e_pipeline_config["target_name"] == "e2e-test.example.com"
         assert "scope" in e2e_pipeline_config
@@ -55,16 +42,6 @@ class TestFullPipelineE2E:
         config = json.loads(content)
         assert "target_name" in config
         assert "output_dir" in config
-
-    def test_output_directory_structure_created(
-        self,
-        pipeline_runner,
-        mock_target_server,
-        e2e_workspace: Path,
-    ):
-        pipeline_runner(dry_run=False)
-        output_dir = e2e_workspace / "output"
-        assert output_dir.exists()
 
     def test_pipeline_context_restoration(self, e2e_workspace: Path):
         from src.core.checkpoint import generate_run_id
@@ -98,14 +75,11 @@ class TestFullPipelineE2E:
         }
         stage_keys = {stage.key for stage in PIPELINE_STAGES}
 
-        # Verify all expected modules appear as actual pipeline stages
         assert expected_keys.issubset(stage_keys), (
             f"Missing pipeline stages: {expected_keys - stage_keys}"
         )
-        # Verify stages have valid percentage ranges and no gaps
         for stage in PIPELINE_STAGES:
             assert 0 <= stage.percent_start < stage.percent_end <= 100
-        # Verify stages chain without gaps or overlaps
         for i, stage in enumerate(PIPELINE_STAGES[:-1]):
             next_stage = PIPELINE_STAGES[i + 1]
             assert stage.percent_end <= next_stage.percent_start, (
@@ -175,3 +149,34 @@ class TestFullPipelineE2E:
         from src.analysis.behavior.service import run_service_enrichment
 
         assert callable(run_service_enrichment)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestFullPipelineExecution:
+    """Integration tests that actually run pipeline stages (with mocked slow stages)."""
+
+    def test_dry_run_returns_zero_exit_code(self, pipeline_runner):
+        result = pipeline_runner(dry_run=True)
+        assert result == 0
+
+    def test_full_pipeline_with_mocks(
+        self,
+        pipeline_runner,
+        mock_slow_stages,
+        mock_target_server,
+        e2e_workspace: Path,
+    ):
+        exit_code = pipeline_runner(dry_run=False)
+        assert isinstance(exit_code, int)
+
+    def test_output_directory_structure_created(
+        self,
+        pipeline_runner,
+        mock_slow_stages,
+        mock_target_server,
+        e2e_workspace: Path,
+    ):
+        pipeline_runner(dry_run=False)
+        output_dir = e2e_workspace / "output"
+        assert output_dir.exists()

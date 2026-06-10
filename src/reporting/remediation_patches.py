@@ -24,8 +24,10 @@ class RemediationPatchGenerator:
         """Fetch patch configurations matching a vulnerability category."""
         cat_lower = category.strip().lower()
 
-        if "sql_injection" in cat_lower or "sqli" in cat_lower:
-            return {
+        # Exact match first to avoid substring false positives (e.g.
+        # "xss_auth_bypass" should not match the "auth" template).
+        exact_map: dict[str, dict[str, str]] = {
+            "sql_injection": {
                 "title": "Parameterize SQL Queries",
                 "description": "Ensure all database inputs are parameterized instead of using dynamic string concatenation.",
                 "remediation_code": (
@@ -36,9 +38,20 @@ class RemediationPatchGenerator:
                     'SecRule ARGS "@detectSQLi" \\\n'
                     '    "id:10001,phase:2,deny,status:403,log,msg:\'SQL Injection attempt blocked\'"'
                 ),
-            }
-        elif "xss" in cat_lower or "cross_site_scripting" in cat_lower:
-            return {
+            },
+            "sqli": {
+                "title": "Parameterize SQL Queries",
+                "description": "Ensure all database inputs are parameterized instead of using dynamic string concatenation.",
+                "remediation_code": (
+                    "# Python DB-API Parameterized Query Patch Example\n"
+                    'cursor.execute("SELECT * FROM users WHERE username = %s AND role = %s", (user_input, role))'
+                ),
+                "waf_rule": (
+                    'SecRule ARGS "@detectSQLi" \\\n'
+                    '    "id:10001,phase:2,deny,status:403,log,msg:\'SQL Injection attempt blocked\'"'
+                ),
+            },
+            "xss": {
                 "title": "Context-aware Output Encoding",
                 "description": "Escape all dynamic user inputs before rendering them inside HTML views.",
                 "remediation_code": (
@@ -49,9 +62,20 @@ class RemediationPatchGenerator:
                     'SecRule ARGS "@detectXSS" \\\n'
                     '    "id:10002,phase:2,deny,status:403,log,msg:\'Cross-site Scripting attempt blocked\'"'
                 ),
-            }
-        elif "cors" in cat_lower or "cross_origin" in cat_lower:
-            return {
+            },
+            "cross_site_scripting": {
+                "title": "Context-aware Output Encoding",
+                "description": "Escape all dynamic user inputs before rendering them inside HTML views.",
+                "remediation_code": (
+                    "<!-- HTML Output Escaping Patch Example -->\n"
+                    "<div><%= html_escape(user_input) %></div>"
+                ),
+                "waf_rule": (
+                    'SecRule ARGS "@detectXSS" \\\n'
+                    '    "id:10002,phase:2,deny,status:403,log,msg:\'Cross-site Scripting attempt blocked\'"'
+                ),
+            },
+            "cors": {
                 "title": "Restrict CORS Access Control Origin",
                 "description": "Configure explicit domain boundaries instead of utilizing wildcard headers.",
                 "remediation_code": (
@@ -63,9 +87,21 @@ class RemediationPatchGenerator:
                     'SecRule RESPONSE_HEADERS:Access-Control-Allow-Origin "\\*" \\\n'
                     '    "id:10003,phase:3,deny,status:403,log,msg:\'Wildcard CORS header detected\'"'
                 ),
-            }
-        elif "csrf" in cat_lower:
-            return {
+            },
+            "cross_origin": {
+                "title": "Restrict CORS Access Control Origin",
+                "description": "Configure explicit domain boundaries instead of utilizing wildcard headers.",
+                "remediation_code": (
+                    "# Secure Web Server Header Configuration Patch Example\n"
+                    "Access-Control-Allow-Origin: https://trusted-origin.example.com\n"
+                    "Access-Control-Allow-Credentials: true"
+                ),
+                "waf_rule": (
+                    'SecRule RESPONSE_HEADERS:Access-Control-Allow-Origin "\\*" \\\n'
+                    '    "id:10003,phase:3,deny,status:403,log,msg:\'Wildcard CORS header detected\'"'
+                ),
+            },
+            "csrf": {
                 "title": "Validate Anti-CSRF Tokens",
                 "description": "Enforce strict state-changing Anti-CSRF token verification and SameSite cookie policies.",
                 "remediation_code": (
@@ -73,9 +109,8 @@ class RemediationPatchGenerator:
                     "Set-Cookie: session_id=abc123; Secure; HttpOnly; SameSite=Strict"
                 ),
                 "waf_rule": "",
-            }
-        elif "ssrf" in cat_lower:
-            return {
+            },
+            "ssrf": {
                 "title": "SSRF Boundary Validation",
                 "description": "Enforce strict target URL allowlisting and block internal metadata/IP ranges (e.g. 169.254.169.254).",
                 "remediation_code": (
@@ -89,9 +124,8 @@ class RemediationPatchGenerator:
                     'SecRule ARGS:url "@rx (169\\.254\\.169\\.254|localhost|127\\.0\\.0\\.1)" \\\n'
                     '    "id:10004,phase:2,deny,status:403,log,msg:\'SSRF internal target blocked\'"'
                 ),
-            }
-        elif "idor" in cat_lower or "bola" in cat_lower:
-            return {
+            },
+            "idor": {
                 "title": "Object-Level Access Controls",
                 "description": "Perform authorization check comparing the authenticated caller's claims against the requested resource ownership.",
                 "remediation_code": (
@@ -101,9 +135,19 @@ class RemediationPatchGenerator:
                     "    raise PermissionError('Unauthorized access to resource')"
                 ),
                 "waf_rule": "",
-            }
-        elif "auth" in cat_lower or "privilege" in cat_lower:
-            return {
+            },
+            "bola": {
+                "title": "Object-Level Access Controls",
+                "description": "Perform authorization check comparing the authenticated caller's claims against the requested resource ownership.",
+                "remediation_code": (
+                    "# Authorization Check\n"
+                    "resource = db.get_resource(resource_id)\n"
+                    "if resource.owner_id != current_user.id:\n"
+                    "    raise PermissionError('Unauthorized access to resource')"
+                ),
+                "waf_rule": "",
+            },
+            "auth": {
                 "title": "Multi-Factor Authentication & Multi-Role Guarding",
                 "description": "Ensure endpoints carry strict multi-role checks and validate authorization tokens securely.",
                 "remediation_code": (
@@ -112,9 +156,18 @@ class RemediationPatchGenerator:
                     "    pass"
                 ),
                 "waf_rule": "",
-            }
-        elif "path_traversal" in cat_lower or "lfi" in cat_lower:
-            return {
+            },
+            "privilege": {
+                "title": "Multi-Factor Authentication & Multi-Role Guarding",
+                "description": "Ensure endpoints carry strict multi-role checks and validate authorization tokens securely.",
+                "remediation_code": (
+                    "@requires_role('admin')\n"
+                    "def perform_admin_action():\n"
+                    "    pass"
+                ),
+                "waf_rule": "",
+            },
+            "path_traversal": {
                 "title": "Sanitize Path Traversals",
                 "description": "Verify file paths do not escape the root directory using canonical path resolution.",
                 "remediation_code": (
@@ -128,9 +181,23 @@ class RemediationPatchGenerator:
                     'SecRule ARGS "@rx \\.\\./" \\\n'
                     '    "id:10005,phase:2,deny,status:403,log,msg:\'Path Traversal attempt blocked\'"'
                 ),
-            }
-        elif "command_injection" in cat_lower or "rce" in cat_lower:
-            return {
+            },
+            "lfi": {
+                "title": "Sanitize Path Traversals",
+                "description": "Verify file paths do not escape the root directory using canonical path resolution.",
+                "remediation_code": (
+                    "import os\n"
+                    "base_dir = os.path.abspath('/safe/root/')\n"
+                    "target_path = os.path.abspath(os.path.join(base_dir, user_input))\n"
+                    "if not target_path.startswith(base_dir):\n"
+                    "    raise ValueError('Path traversal attempt detected')"
+                ),
+                "waf_rule": (
+                    'SecRule ARGS "@rx \\.\\./" \\\n'
+                    '    "id:10005,phase:2,deny,status:403,log,msg:\'Path Traversal attempt blocked\'"'
+                ),
+            },
+            "command_injection": {
                 "title": "Avoid Shell Execution",
                 "description": "Pass arguments directly to process spawners without invoking the system shell.",
                 "remediation_code": (
@@ -142,9 +209,21 @@ class RemediationPatchGenerator:
                     'SecRule ARGS "@rx (\\||;|\\&|\\`|\\$\\()" \\\n'
                     '    "id:10006,phase:2,deny,status:403,log,msg:\'Shell Command Injection attempt blocked\'"'
                 ),
-            }
-        elif "race_condition" in cat_lower:
-            return {
+            },
+            "rce": {
+                "title": "Avoid Shell Execution",
+                "description": "Pass arguments directly to process spawners without invoking the system shell.",
+                "remediation_code": (
+                    "# Command Injection Fix\n"
+                    "import subprocess\n"
+                    "subprocess.run(['ls', '-l', directory], shell=False)"
+                ),
+                "waf_rule": (
+                    'SecRule ARGS "@rx (\\||;|\\&|\\`|\\$\\()" \\\n'
+                    '    "id:10006,phase:2,deny,status:403,log,msg:\'Shell Command Injection attempt blocked\'"'
+                ),
+            },
+            "race_condition": {
                 "title": "Atomic Operations & Locks",
                 "description": "Use transaction locking or atomic instructions to ensure critical state modifications are safe.",
                 "remediation_code": (
@@ -153,9 +232,8 @@ class RemediationPatchGenerator:
                     "    account.balance -= amount"
                 ),
                 "waf_rule": "",
-            }
-        elif "vulnerable_components" in cat_lower or "outdated" in cat_lower:
-            return {
+            },
+            "vulnerable_components": {
                 "title": "Upgrade Vulnerable Dependency",
                 "description": "Upgrade components to latest patched semantic version via package managers.",
                 "remediation_code": (
@@ -163,7 +241,44 @@ class RemediationPatchGenerator:
                     "requests>=2.31.0"
                 ),
                 "waf_rule": "",
-            }
+            },
+            "outdated": {
+                "title": "Upgrade Vulnerable Dependency",
+                "description": "Upgrade components to latest patched semantic version via package managers.",
+                "remediation_code": (
+                    "# Pipfile / requirements.txt configuration patch\n"
+                    "requests>=2.31.0"
+                ),
+                "waf_rule": "",
+            },
+        }
+
+        if cat_lower in exact_map:
+            return exact_map[cat_lower]
+
+        # Substring fallback for compound categories
+        if "sql_injection" in cat_lower or "sqli" in cat_lower:
+            return exact_map["sql_injection"]
+        elif "xss" in cat_lower or "cross_site_scripting" in cat_lower:
+            return exact_map["xss"]
+        elif "cors" in cat_lower or "cross_origin" in cat_lower:
+            return exact_map["cors"]
+        elif "csrf" in cat_lower:
+            return exact_map["csrf"]
+        elif "ssrf" in cat_lower:
+            return exact_map["ssrf"]
+        elif "idor" in cat_lower or "bola" in cat_lower:
+            return exact_map["idor"]
+        elif "auth" in cat_lower or "privilege" in cat_lower:
+            return exact_map["auth"]
+        elif "path_traversal" in cat_lower or "lfi" in cat_lower:
+            return exact_map["path_traversal"]
+        elif "command_injection" in cat_lower or "rce" in cat_lower:
+            return exact_map["command_injection"]
+        elif "race_condition" in cat_lower:
+            return exact_map["race_condition"]
+        elif "vulnerable_components" in cat_lower or "outdated" in cat_lower:
+            return exact_map["vulnerable_components"]
 
         # Default fallback
         return {

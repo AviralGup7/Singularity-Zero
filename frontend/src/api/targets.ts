@@ -11,7 +11,7 @@ export async function getDefaults(signal?: AbortSignal, ttl?: number): Promise<D
 }
 
 export async function deleteTarget(id: string, signal?: AbortSignal): Promise<void> {
-  await apiClient.delete(`/api/targets/${id}`, { signal });
+  await apiClient.delete(`/api/targets/${encodeURIComponent(id)}`, { signal });
   apiCache.invalidatePrefix('/api/targets');
 }
 
@@ -24,6 +24,18 @@ export async function compareTargets(
     params: { target_a: targetA, target_b: targetB },
     signal,
   });
+  return data;
+}
+
+export async function getTargetFindings(
+  targetName: string,
+  run?: string,
+  signal?: AbortSignal,
+): Promise<{ target: string; findings: import('@/types/api').Finding[]; total: number }> {
+  const { data } = await apiClient.get<{ target: string; findings: import('@/types/api').Finding[]; total: number }>(
+    `/api/targets/${encodeURIComponent(targetName)}/findings`,
+    { params: run ? { run } : undefined, signal },
+  );
   return data;
 }
 

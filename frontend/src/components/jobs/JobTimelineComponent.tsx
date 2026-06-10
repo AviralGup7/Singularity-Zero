@@ -24,6 +24,10 @@ export function JobTimelineComponent({ jobId }: { jobId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!jobId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
    

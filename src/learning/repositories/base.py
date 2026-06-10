@@ -1,3 +1,4 @@
+import logging
 """Base repository with connection management helpers."""
 
 import json
@@ -7,6 +8,8 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
+
+logger = logging.getLogger(__name__)
 
 
 class BaseRepo:
@@ -24,16 +27,18 @@ class BaseRepo:
             conn = sqlite3.connect(
                 str(self.db_path),
                 check_same_thread=False,
+                isolation_level=None,
             )
             conn.row_factory = sqlite3.Row
             try:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("PRAGMA foreign_keys=ON")
             except Exception:
+                logger.debug("PRAGMA setup failed", exc_info=True)
                 try:
                     conn.close()
-                except sqlite3.ProgrammingError:
-                    pass
+                except sqlite3.ProgrammingError as exc:
+                    logging.warning("Operation failed in base.py: %s", exc, exc_info=True)  # noqa: BLE001
                 raise
             self._local.conn = conn
         return cast(sqlite3.Connection, self._local.conn)
@@ -44,10 +49,12 @@ class BaseRepo:
         conn = self._get_conn()
         cur = conn.cursor()
         try:
+            conn.execute("BEGIN")
             yield cur
-            conn.commit()
+            conn.execute("COMMIT")
         except Exception:
-            conn.rollback()
+            logger.debug("Cursor operation failed, rolling back", exc_info=True)
+            conn.execute("ROLLBACK")
             raise
 
     def _ensure_connection(self) -> None:

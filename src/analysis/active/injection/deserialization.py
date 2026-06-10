@@ -81,6 +81,13 @@ def deserialization_probe(
         ),
     ]
 
+    content_type_map = {
+        "java_serialized": "application/octet-stream",
+        "java_rce": "application/octet-stream",
+        "yaml_exploit": "text/yaml",
+        "yaml_generic": "text/yaml",
+    }
+
     for url_entry in priority_urls:
         if len(findings) >= limit:
             break
@@ -120,12 +127,16 @@ def deserialization_probe(
                     urlunparse(parsed._replace(query=urlencode(updated, doseq=True)))
                 )
 
+                deser_headers: dict[str, str] = {
+                    "Cache-Control": "no-cache",
+                    "X-Deser-Probe": "1",
+                }
+                ct = content_type_map.get(payload_name)
+                if ct:
+                    deser_headers["Content-Type"] = ct
                 response = response_cache.request(
                     test_url,
-                    headers={
-                        "Cache-Control": "no-cache",
-                        "X-Deser-Probe": "1",
-                    },
+                    headers=deser_headers,
                 )
                 if not response:
                     continue

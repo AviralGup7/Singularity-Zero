@@ -76,8 +76,8 @@ class GossipProtocol:
                     "dropped_gossip_packets_rate_total",
                     "Total gossip packets dropped due to per-peer rate limit",
                 )
-            except (OSError, ValueError, TypeError, AttributeError):
-                pass
+            except (OSError, ValueError, TypeError, AttributeError) as exc:
+                logger.warning("Operation failed in protocol.py: %s", exc, exc_info=True)  # noqa: BLE001
             return
 
         try:
@@ -129,8 +129,8 @@ class GossipProtocol:
                     "dropped_gossip_packets_duplicate_total",
                     "Total gossip packets dropped as duplicate msg_id",
                 )
-            except (OSError, ValueError, TypeError, AttributeError):
-                pass
+            except (OSError, ValueError, TypeError, AttributeError) as exc:
+                logger.warning("Operation failed in protocol.py: %s", exc, exc_info=True)  # noqa: BLE001
             return
 
         try:

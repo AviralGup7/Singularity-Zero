@@ -144,6 +144,15 @@ class ResourcePool:
             self._health.max_concurrent = new_max
             logger.info("Resource pool '%s' resized to %d", self.name, new_max)
 
+    async def await_drain_tasks(self) -> None:
+        """Await all pending shrink/drain background tasks.
+
+        Call this during graceful shutdown to ensure no dangling tasks remain.
+        """
+        if self._shrink_drain_tasks:
+            await asyncio.gather(*self._shrink_drain_tasks, return_exceptions=True)
+            self._shrink_drain_tasks.clear()
+
     async def acquire(self, timeout: float | None = None) -> bool:
         """Acquire a resource permit from the pool.
 
@@ -203,8 +212,11 @@ class ResourcePool:
         return self._health
 
     async def close(self) -> None:
-        """Close the pool, preventing further acquisitions."""
+        """Close the pool, preventing further acquisitions and awaiting pending drain tasks."""
         self._closed = True
+        if self._shrink_drain_tasks:
+            await asyncio.gather(*self._shrink_drain_tasks, return_exceptions=True)
+            self._shrink_drain_tasks.clear()
         logger.info("Resource pool '%s' closed", self.name)
 
     async def __aenter__(self) -> ResourcePool:
@@ -386,8 +398,8 @@ class ResourcePoolManager:
                             await self.dynamic_resize(name, load)
                 except asyncio.CancelledError:
                     break
-                except Exception:
-                    logger.exception("Error during pool health monitoring")
+                except Exception as exc:
+                    logger.exception("Error during pool health monitoring: %s", exc)
 
                 await asyncio.sleep(interval_seconds)
 
@@ -400,8 +412,8 @@ class ResourcePoolManager:
             self._monitor_task.cancel()
             try:
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in resource_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._monitor_task = None
 
     async def close_all(self) -> None:
@@ -409,4 +421,12 @@ class ResourcePoolManager:
         await self.stop_monitoring()
         for pool in self._pools.values():
             await pool.close()
+        self._pools.clear()
+
+    async def shutdown(self) -> None:
+        """Graceful shutdown: stop monitoring, close all pools, await pending tasks."""
+        await self.stop_monitoring()
+        close_tasks = [pool.close() for pool in self._pools.values()]
+        if close_tasks:
+            await asyncio.gather(*close_tasks, return_exceptions=True)
         self._pools.clear()

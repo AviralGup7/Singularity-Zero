@@ -15,7 +15,10 @@ export function useJobRemediation(jobId: string | undefined, isFailedJob: boolea
     const tid = setTimeout(() => setRemediationLoading(true), 0);
     getJobRemediation(jobId, controller.signal)
       .then((response) => setRemediation(response.suggestions ?? []))
-      .catch(() => setRemediation([]))
+      .catch((err) => {
+        console.error('Failed to fetch remediation suggestions:', err);
+        setRemediation([]);
+      })
       .finally(() => {
         clearTimeout(tid);
         setRemediationLoading(false);

@@ -28,7 +28,7 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: 'python -m src.dashboard.fastapi.app --port 8000',
+        command: 'uvicorn src.dashboard.fastapi.main:app --host 0.0.0.0 --port 8000',
         url: 'http://localhost:8000/api/health',
         reuseExistingServer: !process.env.CI,
         timeout: 120000,

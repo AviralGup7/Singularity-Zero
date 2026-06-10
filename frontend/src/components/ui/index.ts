@@ -29,11 +29,16 @@ export * from '../ui-shadcn';
 export * from './Toast';
 export * from './FormField';
 export * from './CopyButton';
+
+// ── Overhaul Auto-exports ──────────────────────────────────
+export * from './Toast';
+export * from './FormField';
+export * from './CopyButton';
 export * from './AccessibleEmoji';
 export * from './Icon';
 export * from './FocusTrap';
-export * from './PageTransition';
 export * from './RouteFocus';
 export * from './RouteFocusManager';
 export * from './ErrorBoundary';
 export * from './ErrorOverlayView';
+export { SafeResponsiveContainer } from './SafeResponsiveContainer';

@@ -107,12 +107,28 @@ def build_structured_report(
                     finding.get("title") or finding.get("type") or finding.get("category")
                 ),
                 "category": _safe_text(finding.get("category") or finding.get("type")),
-                "severity": _safe_text(finding.get("severity") or "info").lower(),
+                "severity": _safe_text(finding.get("severity") or "UNKNOWN"),
                 "confidence": finding.get("confidence"),
                 "url": _safe_text(finding.get("url")),
-                "status": _safe_text(finding.get("status") or "open").lower(),
+                "status": _safe_text(finding.get("status") or "UNKNOWN"),
+                "description": finding.get("description", ""),
                 "evidence": finding.get("evidence", {}),
                 "compliance": finding.get("compliance", {}),
+                "mitre_attack": finding.get("mitre_attack", []),
+                "timestamp": finding.get("timestamp") or finding.get("created_at") or finding.get("detected_at") or "",
+                "discovered_at": finding.get("discovered_at", ""),
+                "triaged_at": finding.get("triaged_at", ""),
+                "remediation_started_at": finding.get("remediation_started_at", ""),
+                "fixed_at": finding.get("fixed_at", ""),
+                "verified_at": finding.get("verified_at", ""),
+                "assignee": finding.get("assignee", ""),
+                "score": finding.get("score"),
+                "severity_score": finding.get("severity_score"),
+                "true_positive_probability": finding.get("true_positive_probability"),
+                "false_positive_probability": finding.get("false_positive_probability"),
+                "severity_model": finding.get("severity_model"),
+                "threat_intel": finding.get("threat_intel"),
+                "lifecycle_state": finding.get("lifecycle_state", ""),
             }
         )
 
@@ -179,7 +195,7 @@ def build_cyclonedx_sbom(
     return {
         "bomFormat": "CycloneDX",
         "specVersion": CYCLONEDX_VERSION,
-        "serialNumber": f"urn:uuid:{sha256_bytes(f'{target_name}:{run_id}'.encode())[:32]}",
+        "serialNumber": f"urn:uuid:{sha256_bytes(f'{target_name}:{run_id}'.encode(\"utf-8\"))[:32]}",
         "version": 1,
         "metadata": {
             "timestamp": _now_iso(),
@@ -241,7 +257,10 @@ def _previous_manifest_hash(run_dir: Path) -> str:
     )
     if not previous_runs:
         return ""
-    return sha256_file(previous_runs[-1] / "report_manifest.json")
+    try:
+        return sha256_file(previous_runs[-1] / "report_manifest.json")
+    except (FileNotFoundError, OSError):
+        return ""
 
 
 def _pdf_escape(text: str) -> str:
@@ -257,8 +276,9 @@ def _pdf_escape(text: str) -> str:
 
 def _write_simple_pdf(path: Path, lines: list[str]) -> None:
     content_lines = ["BT", "/F1 12 Tf", "72 760 Td", "14 TL"]
-    for line in lines[:44]:
-        content_lines.append(f"({_pdf_escape(line[:100])}) Tj")
+    max_lines = 500  # ~11 pages worth of lines at 44 lines/page
+    for line in lines[:max_lines]:
+        content_lines.append(f"({_pdf_escape(line[:200])}) Tj")
         content_lines.append("T*")
     content_lines.append("ET")
     stream = "\n".join(content_lines).encode("latin-1", errors="replace")

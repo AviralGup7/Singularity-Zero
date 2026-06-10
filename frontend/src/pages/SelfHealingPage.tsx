@@ -10,9 +10,19 @@ import {
   XCircle, 
   ShieldCheck, 
   Heart, 
-  Activity 
+  Activity,
+  Power,
+  RotateCcw
 } from 'lucide-react';
-import { getSelfHealingSnapshot, evaluateSelfHealing, type SelfHealingSnapshot } from '@/api/selfHealing';
+import {
+  getSelfHealingSnapshot,
+  evaluateSelfHealing,
+  getCircuitBreakers,
+  forceOpenCircuitBreaker,
+  resetCircuitBreaker,
+  type SelfHealingSnapshot,
+  type CircuitBreakerSnapshot,
+} from '@/api/selfHealing';
 import { useToast } from '@/hooks/useToast';
 
 interface StatBlockProps {
@@ -97,6 +107,8 @@ export function SelfHealingPage() {
   const [snapshot, setSnapshot] = useState<SelfHealingSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
+  const [cbData, setCbData] = useState<CircuitBreakerSnapshot | null>(null);
+  const [cbAction, setCbAction] = useState<string | null>(null);
   const toast = useToast();
 
   const loadData = useCallback(async () => {
@@ -112,9 +124,45 @@ export function SelfHealingPage() {
     }
   }, [toast]);
 
+  const loadCircuitBreakers = useCallback(async () => {
+    try {
+      const data = await getCircuitBreakers();
+      setCbData(data);
+    } catch {
+      // Circuit breakers may not be available
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    loadCircuitBreakers();
+  }, [loadData, loadCircuitBreakers]);
+
+  const handleForceOpen = async (toolName: string) => {
+    setCbAction(toolName);
+    try {
+      await forceOpenCircuitBreaker(toolName, 'dashboard-operator');
+      toast.success(`Circuit breaker for ${toolName} tripped`);
+      await loadCircuitBreakers();
+    } catch {
+      toast.error(`Failed to trip circuit breaker for ${toolName}`);
+    } finally {
+      setCbAction(null);
+    }
+  };
+
+  const handleResetBreaker = async (toolName: string) => {
+    setCbAction(toolName);
+    try {
+      await resetCircuitBreaker(toolName);
+      toast.success(`Circuit breaker for ${toolName} reset`);
+      await loadCircuitBreakers();
+    } catch {
+      toast.error(`Failed to reset circuit breaker for ${toolName}`);
+    } finally {
+      setCbAction(null);
+    }
+  };
 
   const handleEvaluate = async () => {
     setEvaluating(true);
@@ -133,6 +181,7 @@ export function SelfHealingPage() {
   const activeFindingsCount = useMemo(() => snapshot?.findings?.length || 0, [snapshot]);
   const isDegraded = snapshot?.status === 'degraded';
   const isHealthy = snapshot?.status === 'healthy';
+  const cbTools = useMemo(() => (cbData ? Object.entries(cbData.tools) : []), [cbData]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -326,6 +375,55 @@ export function SelfHealingPage() {
               </AnimatePresence>
             </section>
           </div>
+
+          {/* --- Circuit Breakers Section --- */}
+          {cbTools.length > 0 && (
+            <section className="glass-panel p-6 rounded-2xl relative overflow-hidden group cyber-glow-card border-l-3 border-l-bad/20">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-white/[0.01] -rotate-45 translate-x-12 -translate-y-12 pointer-events-none" />
+              <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-white/5 pb-3 text-text">
+                <Power size={16} className="text-bad" />
+                Tool Circuit Breakers
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {cbTools.map(([name, state]) => (
+                  <div key={name} className="bg-black/30 p-4 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] font-mono font-black uppercase tracking-wider text-text truncate" title={name}>
+                        {name}
+                      </span>
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                        state.state === 'open' ? 'bg-bad/10 text-bad border border-bad/25'
+                          : state.state === 'half-open' ? 'bg-warn/10 text-warn border border-warn/25'
+                          : 'bg-ok/10 text-ok border border-ok/25'
+                      }`}>
+                        {state.state}
+                      </span>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => handleForceOpen(name)}
+                        disabled={cbAction === name}
+                        className="flex-1 text-[9px] font-black uppercase tracking-wider px-2 py-1.5 rounded border border-bad/20 bg-bad/5 text-bad hover:bg-bad/10 transition-colors disabled:opacity-40"
+                        title="Force-open circuit breaker"
+                      >
+                        <Power size={10} className="inline -mt-0.5 mr-1" />
+                        Trip
+                      </button>
+                      <button
+                        onClick={() => handleResetBreaker(name)}
+                        disabled={cbAction === name}
+                        className="flex-1 text-[9px] font-black uppercase tracking-wider px-2 py-1.5 rounded border border-ok/20 bg-ok/5 text-ok hover:bg-ok/10 transition-colors disabled:opacity-40"
+                        title="Reset circuit breaker"
+                      >
+                        <RotateCcw size={10} className="inline -mt-0.5 mr-1" />
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </motion.div>
       )}
     </div>

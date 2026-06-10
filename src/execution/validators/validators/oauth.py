@@ -14,7 +14,7 @@ import urllib.parse
 from typing import Any, Callable
 
 from src.core.scoring import ScoringConfig, bounded_confidence
-from src.core.status import ValidationStatus
+from src.execution.validators.status import ValidationStatus
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,8 @@ def evaluate_oauth(
                             f"Redirect URI validation bypassed with: {payload}"
                         )
                         break
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Redirect URI bypass test failed for payload '%s': %s", payload, exc)
                     continue
 
         # Test state parameter (CSRF) protection
@@ -191,8 +192,8 @@ def evaluate_oauth(
                 if "code=" in body or "code=" in str(resp.get("headers", {}).get("location", "")):
                     signals.append(("state_missing", 0.15))
                     notes.append("OAuth authorization request succeeded without state parameter - CSRF risk.")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("State parameter test failed: %s", exc)
 
         # Test scope elevation
         if authorize_endpoint:
@@ -217,7 +218,8 @@ def evaluate_oauth(
                             f"Scope elevation possible: '{elevated_scope}' was accepted."
                         )
                         break
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Scope elevation test failed for scope '%s': %s", elevated_scope, exc)
                     continue
 
         # Check PKCE enforcement at token endpoint
@@ -241,8 +243,8 @@ def evaluate_oauth(
                 if _check_pkce_bypass_possible(body):
                     signals.append(("pkce_not_enforced", 0.12))
                     notes.append("PKCE (code_challenge) was not enforced at token endpoint.")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("PKCE enforcement test failed: %s", exc)
 
         # Check userinfo endpoint exposure
         if userinfo_endpoint:
@@ -256,8 +258,8 @@ def evaluate_oauth(
                 if resp.get("status_code") == 200 and "sub" in body:
                     signals.append(("userinfo_unprotected", 0.10))
                     notes.append("Userinfo endpoint accessed without valid token.")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Userinfo endpoint test failed: %s", exc)
 
     # Determine status
     if signals:

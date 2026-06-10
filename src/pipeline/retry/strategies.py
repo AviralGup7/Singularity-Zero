@@ -27,8 +27,8 @@ def parse_retry_after(stderr_text: str) -> int | None:
     if m:
         try:
             return max(1, int(m.group(1)))
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as exc:
+            logger.warning("Operation failed in strategies.py: %s", exc, exc_info=True)  # noqa: BLE001
     return None
 
 

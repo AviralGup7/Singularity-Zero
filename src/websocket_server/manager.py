@@ -8,7 +8,6 @@ stale connections, and configurable connection limits.
 import asyncio
 import itertools
 import os
-import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -50,7 +49,7 @@ class ConnectionInfo:
     groups: set[str] = field(default_factory=set)
     _message_queue: asyncio.Queue[str] | None = field(default=None, repr=False)  # Fix #309
     sequence_generator: Any = field(default_factory=itertools.count)  # Fix #310
-    _sequence_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _sequence_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
     max_queue_size: int = field(default=256)
     closed: bool = field(default=False)
     rate_limit_tokens: float = field(default=100.0)
@@ -62,13 +61,13 @@ class ConnectionInfo:
             self._message_queue = asyncio.Queue(maxsize=self.max_queue_size)
         return self._message_queue
 
-    def next_sequence(self) -> int:
+    async def next_sequence(self) -> int:
         """Get and increment the next outbound message sequence number.
 
         Returns:
             Monotonically increasing sequence number.
         """
-        with self._sequence_lock:
+        async with self._sequence_lock:
             return cast(int, next(self.sequence_generator))
 
     def touch(self) -> None:
@@ -96,7 +95,7 @@ class ConnectionInfo:
         from src.websocket_server.protocol import AckMessage
 
         ack = AckMessage(ack_id=ack_id, accepted=accepted)
-        ack.sequence = self.next_sequence()
+        ack.sequence = await self.next_sequence()
         try:
             await self.message_queue.put(ack.to_json())
         except asyncio.QueueFull:
@@ -129,7 +128,7 @@ class ConnectionManager:
         self,
         max_connections_per_user: int = 10,
         max_connections_per_ip: int = 20,
-        stale_timeout: float = 300.0,
+        stale_timeout: float = 120.0,
     ) -> None:
         """Initialize the connection manager.
 
@@ -182,7 +181,12 @@ class ConnectionManager:
             # IP rate limiting on connection attempts
             now = time.time()
             attempts = self.ip_connection_attempts.setdefault(client_ip, [])
+            # Use bounded list to prevent unbounded growth under DDoS
+            now = time.time()
             attempts[:] = [t for t in attempts if t > now - 60.0]
+            if len(attempts) > self.max_connection_attempts_per_minute * 2:
+                # Hard cap to prevent memory exhaustion
+                attempts[:] = attempts[-self.max_connection_attempts_per_minute:]
             if len(attempts) >= self.max_connection_attempts_per_minute:
                 logger.warning(
                     "Connection attempt rate limit exceeded for IP %s (%d attempts in last minute)",
@@ -337,10 +341,9 @@ class ConnectionManager:
         Returns:
             List of ConnectionInfo for the user.
         """
-        # Fix #353: Snapshot under the lock to prevent race with concurrent disconnect().
         async with self._lock:
             conn_ids = set(self.user_connections.get(user_id, set()))
-        return [self.connections[cid] for cid in conn_ids if cid in self.connections]
+            return [self.connections[cid] for cid in conn_ids if cid in self.connections]
 
     async def get_group_connections(self, group: str) -> list[ConnectionInfo]:
         """Get all active connections in a group.
@@ -351,16 +354,9 @@ class ConnectionManager:
         Returns:
             List of ConnectionInfo in the group.
         """
-        # Bug #38 fix: previously the read of ``self.group_connections``
-        # happened WITHOUT the lock, mirroring the race that was fixed
-        # for ``get_user_connections`` in fix #353. A concurrent
-        # ``disconnect()`` / ``remove_from_group()`` could mutate the
-        # dict mid-iteration, raising ``RuntimeError: dictionary
-        # changed size during iteration``. Snapshot the set under the
-        # lock first, then iterate outside.
         async with self._lock:
             conn_ids = set(self.group_connections.get(group, set()))
-        return [self.connections[cid] for cid in conn_ids if cid in self.connections]
+            return [self.connections[cid] for cid in conn_ids if cid in self.connections]
 
     async def get_active_count(self) -> int:
         """Get the total number of active connections.
@@ -420,6 +416,16 @@ class ConnectionManager:
         if stale_ids:
             logger.info("Cleaned up %d stale connections", len(stale_ids))
 
+        # Prune ip_connection_attempts for IPs that stopped connecting
+        # to prevent unbounded memory growth.
+        now = time.time()
+        stale_ips = [
+            ip for ip, attempts in self.ip_connection_attempts.items()
+            if not attempts or all(t <= now - 120.0 for t in attempts)
+        ]
+        for ip in stale_ips:
+            del self.ip_connection_attempts[ip]
+
         return stale_ids
 
     async def close_all(self, timeout: float = 5.0) -> None:
@@ -450,8 +456,18 @@ class ConnectionManager:
                     drain_tasks.append(
                         asyncio.wait_for(wait_for_drain(info.message_queue), timeout=timeout)
                     )
-            if drain_tasks:
-                await asyncio.gather(*drain_tasks, return_exceptions=True)
+            # Process drain tasks in batches to avoid task-queue exhaustion
+            batch_size = 100
+            for i in range(0, len(drain_tasks), batch_size):
+                batch = drain_tasks[i:i + batch_size]
+                if batch:
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.gather(*batch, return_exceptions=True),
+                            timeout=timeout,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning("Drain batch timed out after %.1fs", timeout)
 
         for info in conns:
             if info.websocket.client_state == WebSocketState.CONNECTED:

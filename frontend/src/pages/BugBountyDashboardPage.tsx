@@ -8,9 +8,10 @@ import {
 
 import { getFindings, updateFinding } from '@/api/findings';
 import type { Finding } from '@/types/api';
-import { GlassCard, PageHeader } from '@/components/ui';
+import { GlassCard, PageHeader, EmptyState } from '@/components/ui';
 import { SubmitToPlatformDialog } from '@/pages/findings/components/SubmitToPlatformDialog';
 import { useToast } from '@/hooks/useToast';
+import { useDebouncedFilter } from '@/hooks/useDebouncedFilter';
 
 function getCVSSScore(f: Finding): number {
   return (f.cvss_v4_score ?? f.cvss_score ?? (typeof f.cvss === 'number' ? f.cvss : parseFloat(String(f.cvss)))) || 0;
@@ -30,7 +31,7 @@ export function BugBountyDashboardPage() {
   const toast = useToast();
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { filter: searchQuery, setFilter: setSearchQuery, debouncedFilter: debouncedSearch } = useDebouncedFilter(300);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('all');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -42,7 +43,7 @@ export function BugBountyDashboardPage() {
   // Edit Bounty Value state
   const [editingFinding, setEditingFinding] = useState<Finding | null>(null);
   const [editBountyVal, setEditBountyVal] = useState<number>(0);
-  const [editSource, setEditSource] = useState<string>('estimate');
+  const [editSource, setEditSource] = useState<'hackerone' | 'bugcrowd' | 'intigriti' | 'manual' | 'estimate'>('estimate');
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -111,8 +112,7 @@ export function BugBountyDashboardPage() {
   // Filtered findings for triage
   const filteredFindings = useMemo(() => {
     return findings.filter(f => {
-      // Search filter
-      const q = searchQuery.toLowerCase().trim();
+      const q = debouncedSearch.toLowerCase().trim();
       if (q) {
         const titleMatch = (f.title || '').toLowerCase().includes(q);
         const targetMatch = (f.target || '').toLowerCase().includes(q);
@@ -120,16 +120,13 @@ export function BugBountyDashboardPage() {
         if (!titleMatch && !targetMatch && !typeMatch) return false;
       }
 
-      // Platform filter
       if (selectedPlatform !== 'all') {
         const source = f.bounty_source || 'estimate';
         if (source !== selectedPlatform) return false;
       }
 
-      // Severity filter
       if (selectedSeverity !== 'all' && f.severity !== selectedSeverity) return false;
 
-      // Status filter
       if (selectedStatus !== 'all') {
         const isReported = !!f.already_reported;
         if (selectedStatus === 'reported' && !isReported) return false;
@@ -138,7 +135,7 @@ export function BugBountyDashboardPage() {
 
       return true;
     });
-  }, [findings, searchQuery, selectedPlatform, selectedSeverity, selectedStatus]);
+  }, [findings, debouncedSearch, selectedPlatform, selectedSeverity, selectedStatus]);
 
   const handleToggleReported = async (f: Finding) => {
     const nextVal = !f.already_reported;
@@ -167,9 +164,9 @@ export function BugBountyDashboardPage() {
     try {
       await updateFinding(editingFinding.id, {
         bounty_value: editBountyVal,
-        bounty_source: editSource as any,
+        bounty_source: editSource,
       });
-      setFindings(prev => prev.map(item => item.id === editingFinding.id ? { ...item, bounty_value: editBountyVal, bounty_source: editSource as any } : item));
+      setFindings(prev => prev.map(item => item.id === editingFinding.id ? { ...item, bounty_value: editBountyVal, bounty_source: editSource } : item));
       toast.success('Bounty details updated');
       setEditingFinding(null);
     } catch {
@@ -275,6 +272,7 @@ export function BugBountyDashboardPage() {
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search leads..."
                 className="form-input pl-8 w-full text-xs font-mono"
+                aria-label="Search leads"
               />
             </div>
 
@@ -343,7 +341,13 @@ export function BugBountyDashboardPage() {
                 </tr>
               ) : filteredFindings.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-muted">No bounty leads match your filters.</td>
+                  <td colSpan={8} className="text-center py-12">
+                    <EmptyState
+                      title="No bounty leads match your filters"
+                      description="Try adjusting your search query, platform, severity, or status filters."
+                      icon="shield"
+                    />
+                  </td>
                 </tr>
               ) : (
                 filteredFindings.map(f => {

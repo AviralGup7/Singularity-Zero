@@ -8,6 +8,7 @@ import { EmptyState, SkeletonTable, PageHeader, GlassCard, AnimatedCounter } fro
 
 const SEVERITIES = ['', 'critical', 'high', 'medium', 'low', 'info'];
 const PAGE_SIZE = 30;
+const MAX_EVENTS = 1000;
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -78,11 +79,12 @@ export function FindingsTimelinePage() {
       setEvents((current) => {
         const merged = offset === 0 ? incoming : [...current, ...incoming];
         const seen = new Set<string>();
-        return merged.filter((event) => {
+        const deduped = merged.filter((event) => {
           if (seen.has(event.id)) return false;
           seen.add(event.id);
           return true;
         });
+        return deduped.length > MAX_EVENTS ? deduped.slice(-MAX_EVENTS) : deduped;
       });
     }
   }, [timeline.data, timeline.events, offset]);

@@ -94,11 +94,12 @@ async def _read_h2_response(reader: asyncio.StreamReader, timeout: float = 5.0) 
     status_code = 0
     headers: dict[str, str] = {}
     body_chunks: list[bytes] = []
-    deadline = asyncio.get_event_loop().time() + timeout
-    while asyncio.get_event_loop().time() < deadline:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
         try:
             hdr = await asyncio.wait_for(reader.readexactly(9), timeout=timeout)
         except Exception:
+            logger.debug("H2 frame header read failed: %s", exc, exc_info=True)
             break
         length = (hdr[0] << 16) | (hdr[1] << 8) | hdr[2]
         ftype = hdr[3]
@@ -107,6 +108,7 @@ async def _read_h2_response(reader: asyncio.StreamReader, timeout: float = 5.0) 
         try:
             payload = await asyncio.wait_for(reader.readexactly(length), timeout=timeout)
         except Exception:
+            logger.debug("H2 frame payload read failed: %s", exc, exc_info=True)
             break
         if ftype == 0x01 and stream_id == 1:
             i = 0
@@ -119,8 +121,8 @@ async def _read_h2_response(reader: asyncio.StreamReader, timeout: float = 5.0) 
                         if name == ":status":
                             try:
                                 status_code = int(value)
-                            except ValueError:
-                                pass
+                            except ValueError as exc:
+                                logger.warning("Operation failed in h2_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
                         else:
                             headers[name] = value
                     i += 1
@@ -184,8 +186,8 @@ async def _fuzz_h2_continuation_on_socket(
     finally:
         try:
             writer.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Operation failed in h2_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
     status_code = resp.get("status_code", 0)
     body = resp.get("body", b"")
     body_text = body[:400].decode("latin-1", errors="replace") if isinstance(body, (bytes, bytearray)) else ""
@@ -271,6 +273,7 @@ async def run_h2_fuzzing_campaign(
                 len(resp.text) - baseline_len
             ) > 50
         except Exception:
+            logger.debug("HPACK poison request failed: %s", exc, exc_info=True)
             divergence = False
         if divergence:
             findings.append(
@@ -296,6 +299,7 @@ async def run_h2_fuzzing_campaign(
         try:
             resp = await client.get(url, headers=smuggle_headers)
         except Exception:
+            logger.debug("Pseudo-header request failed: %s", exc, exc_info=True)
             continue
         if resp is None:
             continue

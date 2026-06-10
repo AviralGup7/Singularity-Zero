@@ -105,7 +105,7 @@ When connecting standalone sub-nodes (e.g., Android devices running Termux) to a
   Ensure you allow inbound traffic on port `16379` in your Windows Defender Firewall.
   Then connect the worker using:
   ```bash
-  python worker_lite.py --redis-url redis://<YOUR_PC_IP>:16379/0
+  python -m src.infrastructure.queue.worker_lite --redis-url redis://<YOUR_PC_IP>:16379/0
   ```
 
 ### 2. WSL2 vs Host Network Binding

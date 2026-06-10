@@ -43,11 +43,11 @@ class AttackChainsRepo(BaseRepo):
             )
             # Delete old mappings for this chain_id to keep referential integrity
             cur.execute("DELETE FROM attack_chain_findings WHERE chain_id = ?", (row["chain_id"],))
-            # Insert new mappings
-            for fid in finding_ids:
-                cur.execute(
+            # Insert new mappings in batch
+            if finding_ids:
+                cur.executemany(
                     "INSERT OR IGNORE INTO attack_chain_findings (chain_id, finding_id) VALUES (?, ?)",
-                    (row["chain_id"], fid),
+                    [(row["chain_id"], fid) for fid in finding_ids],
                 )
 
     def get_attack_chains(

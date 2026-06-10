@@ -82,6 +82,12 @@ class ScenarioEngineTests(unittest.TestCase):
         self.assertEqual(observed_requests[1].headers.get("X-Client"), "scenario")
         self.assertEqual(result.active_session, "default")
 
+        # Verify step-level outcomes for expect_success=True
+        login_step = result.steps[0]
+        self.assertTrue(login_step.passed)
+        self.assertEqual(login_step.response.status_code, 200)
+        self.assertGreaterEqual(len(login_step.extracted_values), 2)
+
     def test_step_assertion_failure_stops_execution(self) -> None:
         call_count = 0
 
@@ -172,6 +178,12 @@ class ScenarioEngineTests(unittest.TestCase):
         self.assertIn("sid=sid-a", observed_requests[1].headers.get("Cookie", ""))
         self.assertEqual(observed_requests[2].headers.get("X-Actor"), "B")
         self.assertEqual(observed_requests[2].headers.get("Authorization"), "Bearer token-b")
+
+        # Verify step-level outcomes for expect_success=True
+        login_step = result.steps[0]
+        self.assertTrue(login_step.passed)
+        self.assertEqual(login_step.response.status_code, 200)
+        self.assertIn("auth_token", result.variables)
 
     def test_parallel_groups_barriers_branching_and_temporal_assertions(self) -> None:
         observed_requests: list[tuple[str, float]] = []
@@ -287,6 +299,15 @@ class ScenarioEngineTests(unittest.TestCase):
 
         parallel_a = result_by_name["parallel-a"]
         parallel_b = result_by_name["parallel-b"]
+        self.assertTrue(parallel_a.passed)
+        self.assertTrue(parallel_b.passed)
+        self.assertEqual(parallel_a.response.status_code, 200)
+        self.assertEqual(parallel_b.response.status_code, 200)
+
+        final_step = result_by_name["final"]
+        self.assertTrue(final_step.passed)
+        self.assertEqual(final_step.response.status_code, 200)
+
         self.assertLess(abs(parallel_a.started_at - parallel_b.started_at), 0.08)
         self.assertGreaterEqual(
             result_by_name["final"].started_at,

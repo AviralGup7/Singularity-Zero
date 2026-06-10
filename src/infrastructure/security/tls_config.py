@@ -33,7 +33,7 @@ class TLSConfig:
             self.min_version = config.encryption.tls_min_version
             self.ciphers = config.encryption.tls_ciphers
         else:
-            self.min_version = "1.2"
+            self.min_version = "1.3"
             self.ciphers = self.RECOMMENDED_CIPHERS
 
     def get_ssl_context(self) -> Any:

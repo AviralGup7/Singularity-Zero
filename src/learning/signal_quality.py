@@ -353,15 +353,15 @@ def score_signal_quality(
     if weights:
         coef = ml_pipeline.coef_.copy()
         if "confidence" in weights:
-            coef[0, 0] = weights["confidence"]
+            coef[0, 0] = max(-100.0, min(100.0, weights["confidence"]))
         if "model_tp" in weights:
-            coef[0, 1] = weights["model_tp"]
+            coef[0, 1] = max(-100.0, min(100.0, weights["model_tp"]))
         if "model_fp" in weights:
-            coef[0, 2] = weights["model_fp"]
+            coef[0, 2] = max(-100.0, min(100.0, weights["model_fp"]))
         if "fp_pattern_probability" in weights:
-            coef[0, 3] = weights["fp_pattern_probability"]
+            coef[0, 3] = max(-100.0, min(100.0, weights["fp_pattern_probability"]))
         if "reproducible" in weights:
-            coef[0, 8] = weights["reproducible"]
+            coef[0, 8] = max(-100.0, min(100.0, weights["reproducible"]))
 
         X = np.array([features])
         scores = np.dot(X, coef.T) + ml_pipeline.intercept_
@@ -371,8 +371,16 @@ def score_signal_quality(
         fp_probability = _clamp(float(1.0 - tp_probability))
     else:
         probs = ml_pipeline.predict_proba(np.array([features]))[0]
-        tp_probability = _clamp(float(probs[1]))
-        fp_probability = _clamp(float(probs[0]))
+        # Use model.classes_ to determine correct class ordering
+        if ml_pipeline.classes_ is not None and len(ml_pipeline.classes_) >= 2:
+            # classes_ may be [0, 1] or [1, 0] depending on fitting order
+            tp_idx = 1 if ml_pipeline.classes_[-1] == 1 else 0
+            fp_idx = 1 - tp_idx
+        else:
+            tp_idx = 1
+            fp_idx = 0
+        tp_probability = _clamp(float(probs[tp_idx]))
+        fp_probability = _clamp(float(probs[fp_idx]))
 
     if fp_pattern_probability >= HIGH_CONFIDENCE_FP_THRESHOLD and not (
         evidence.get("reproducible")

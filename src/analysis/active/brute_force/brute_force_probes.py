@@ -247,6 +247,13 @@ def check_progressive_delays(
         elapsed_ms = (time.monotonic() - start_time) * 1000
         response_times.append(round(elapsed_ms, 1))
 
+    if max_attempts < 4:
+        return {
+            "progressive_delay_detected": False,
+            "response_times_ms": response_times,
+            "delay_evidence": ["Insufficient attempts (< 4) to detect progressive delays"],
+        }
+
     if len(response_times) >= 4:
         first_half_avg = sum(response_times[: len(response_times) // 2]) / (
             len(response_times) // 2
@@ -433,11 +440,15 @@ def check_timing_attack(
         invalid_avg = sum(invalid_user_times) / len(invalid_user_times)
         time_diff = abs(valid_avg - invalid_avg)
 
-        if time_diff > 50:
+        baseline_latency = max(valid_avg, invalid_avg)
+        timing_threshold = max(50, baseline_latency * 0.3)
+
+        if time_diff > timing_threshold:
             timing_vulnerable = True
             timing_evidence.append(
                 f"Timing difference detected: valid user avg {valid_avg:.2f}ms, "
-                f"invalid user avg {invalid_avg:.2f}ms (diff: {time_diff:.2f}ms)"
+                f"invalid user avg {invalid_avg:.2f}ms (diff: {time_diff:.2f}ms, "
+                f"threshold: {timing_threshold:.2f}ms)"
             )
 
     return {

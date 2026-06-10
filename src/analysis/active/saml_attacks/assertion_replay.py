@@ -34,7 +34,12 @@ def _replay_endpoints(base_url: str, scan_hosts: set[str]) -> list[str]:
     netlocs.update(_clean(host) for host in scan_hosts if _is_web_target(host))
     if not netlocs:
         return [base_url]
-    return [f"https://{netloc}/saml/acs" for netloc in netlocs]
+    try:
+        scheme = urlparse(base_url).scheme or "https"
+    except (ValueError, TypeError) as exc:
+        logger.debug("URL parse failed for %s: %s", base_url, exc)
+        scheme = "https"
+    return [f"{scheme}://{netloc}/saml/acs" for netloc in netlocs]
 
 
 def _netloc(url: str) -> str:
@@ -68,7 +73,14 @@ def _is_web_target(host: str) -> bool:
     host = _clean(host)
     if not host:
         return False
-    return host.endswith((".com", ".io", ".co", ".org", ".net", ".app")) or (not host.endswith((".local", ".lan", ".internal")))
+    if host.endswith((".local", ".lan", ".internal")):
+        return False
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return False
+    import re
+    if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
+        return False
+    return True
 
 
 def run_assertion_replay(

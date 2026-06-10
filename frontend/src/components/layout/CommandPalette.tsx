@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../ui/Icon';
+import { globalSearch, type GlobalSearchResult } from '@/api/search';
 
 export interface SearchableItem {
   id: string;
@@ -47,6 +48,9 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
    
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [backendResults, setBackendResults] = useState<GlobalSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const navigate = useNavigate();
@@ -57,19 +61,61 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
       setQuery('');
       setSelectedIndex(0);
       setRecentSearches(getRecentSearches());
+      setBackendResults([]);
     }, 0);
     return () => clearTimeout(tid);
    
   }, [open]);
 
-  const filtered = useMemo(() => query.length > 0
-    ? items.filter(item =>
-        item.title.toLowerCase().includes(query.toLowerCase()) ||
-        (item.subtitle && item.subtitle.toLowerCase().includes(query.toLowerCase())) ||
-        (item.meta && item.meta.toLowerCase().includes(query.toLowerCase()))
-      )
-   
-    : [], [items, query]);
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    
+    if (query.length < 2) {
+      setBackendResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const response = await globalSearch({ q: query, limit: 15 });
+        setBackendResults(response.results);
+      } catch {
+        setBackendResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [query]);
+
+  const filtered = useMemo(() => {
+    const localItems = query.length > 0
+      ? items.filter(item =>
+          item.title.toLowerCase().includes(query.toLowerCase()) ||
+          (item.subtitle && item.subtitle.toLowerCase().includes(query.toLowerCase())) ||
+          (item.meta && item.meta.toLowerCase().includes(query.toLowerCase()))
+        )
+      : [];
+
+    const backendItems: SearchableItem[] = backendResults.map(r => ({
+      id: `backend-${r.id}`,
+      type: r.type,
+      title: r.title,
+      subtitle: r.subtitle,
+      href: r.href,
+      meta: r.meta,
+    }));
+
+    const seenIds = new Set(localItems.map(i => i.id));
+    const uniqueBackend = backendItems.filter(i => !seenIds.has(i.id));
+
+    return [...localItems, ...uniqueBackend];
+  }, [items, query, backendResults]);
 
   const grouped = useMemo(() => {
     const result = new Map<string, SearchableItem[]>();
@@ -231,10 +277,17 @@ export function CommandPalette({ open, onClose, items }: CommandPaletteProps) {
             </div>
           )}
 
-          {query.length > 0 && flatResults.length === 0 && (
+          {query.length > 0 && flatResults.length === 0 && !isSearching && (
             <div className="command-palette-empty">
               <Icon name="search" size={24} />
               <p>No results for "{query}"</p>
+            </div>
+          )}
+
+          {isSearching && (
+            <div className="command-palette-empty">
+              <Icon name="search" size={24} className="animate-pulse" />
+              <p>Searching...</p>
             </div>
           )}
 

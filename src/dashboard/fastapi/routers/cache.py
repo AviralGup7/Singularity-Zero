@@ -45,6 +45,49 @@ router = APIRouter(prefix="/api/cache", tags=["Cache"])
 _PERFORMANCE_HISTORY: deque[dict[str, Any]] = deque(maxlen=60)
 
 
+def _fetch_key_metadata(client: Any, keys: list[str], remaining: int) -> list[CacheKeyInfo]:
+    """Batch-fetch TTL/TYPE/MEMORY USAGE for a list of keys using a pipeline."""
+    if not keys or remaining <= 0:
+        return []
+    result: list[CacheKeyInfo] = []
+    try:
+        pipe = client.pipeline(transaction=False)
+        for k in keys:
+            pipe.ttl(k)
+            pipe.type(k)
+            pipe.memory_usage(k)
+        responses = pipe.execute(restore_pushbacks=True)
+    except Exception:
+        for k in keys[:remaining]:
+            try:
+                ttl = client.ttl(k)
+                if ttl == -2:
+                    continue
+                key_type: str | None = None
+                with contextlib.suppress(Exception):
+                    key_type = str(client.type(k))
+                size: int | None = None
+                with contextlib.suppress(Exception):
+                    size = client.memory_usage(k)
+                result.append(CacheKeyInfo(key=k, ttl=None if ttl == -1 else int(ttl), size=size, type=key_type))
+            except Exception:
+                continue
+        return result[:remaining]
+
+    for i, k in enumerate(keys):
+        if len(result) >= remaining:
+            break
+        ttl = responses[i * 3] if i * 3 < len(responses) else -2
+        if ttl == -2:
+            continue
+        key_type = str(responses[i * 3 + 1]) if i * 3 + 1 < len(responses) else None
+        size = responses[i * 3 + 2] if i * 3 + 2 < len(responses) else None
+        if isinstance(size, Exception):
+            size = None
+        result.append(CacheKeyInfo(key=k, ttl=None if ttl == -1 else int(ttl), size=size, type=key_type))
+    return result[:remaining]
+
+
 def _format_bytes(size: int | float | None) -> str:
     value = float(size or 0)
     for unit in ("B", "KB", "MB", "GB", "TB"):
@@ -231,7 +274,16 @@ async def cache_analytics_loop(app: Any) -> None:
 
 def start_cache_analytics(app: Any) -> asyncio.Task[None]:
     """Start the background cache analytics sampler."""
-    return asyncio.create_task(cache_analytics_loop(app), name="cache-analytics")
+    task = asyncio.create_task(cache_analytics_loop(app), name="cache-analytics")
+    app.state._cache_analytics_task = task
+    return task
+
+
+def stop_cache_analytics(app: Any) -> None:
+    """Cancel the background cache analytics sampler on shutdown."""
+    task = getattr(app.state, "_cache_analytics_task", None)
+    if task is not None and not task.done():
+        task.cancel()
 
 
 @router.get(
@@ -305,27 +357,18 @@ async def list_cache_keys(
         keys: list[CacheKeyInfo] = []
         truncated = False
         try:
+            batch_size = 50
+            batch: list[str] = []
             for raw_key in client.scan_iter(match=pattern, count=100):
                 if len(keys) >= limit:
                     truncated = True
                     break
-                ttl = client.ttl(raw_key)
-                if ttl == -2:
-                    continue
-                key_type: str | None = None
-                with contextlib.suppress(Exception):
-                    key_type = str(client.type(raw_key))
-                size: int | None = None
-                with contextlib.suppress(Exception):
-                    size = client.memory_usage(raw_key)
-                keys.append(
-                    CacheKeyInfo(
-                        key=str(raw_key),
-                        ttl=None if ttl == -1 else int(ttl),
-                        size=size,
-                        type=key_type,
-                    )
-                )
+                batch.append(str(raw_key))
+                if len(batch) >= batch_size:
+                    keys.extend(_fetch_key_metadata(client, batch, limit - len(keys)))
+                    batch.clear()
+            if batch and len(keys) < limit:
+                keys.extend(_fetch_key_metadata(client, batch, limit - len(keys)))
             return CacheKeysResponse(
                 pattern=pattern,
                 limit=limit,

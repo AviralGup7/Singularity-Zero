@@ -265,28 +265,21 @@ def detection_gap_section(
     category_counts = detection_coverage.get("coverage_by_category", {})
     signal_dist = detection_coverage.get("signal_distribution", {})
 
-    # Known vulnerability categories that should be tested
-    expected_categories = {
-        "idor",
-        "ssrf",
-        "open_redirect",
-        "token_leak",
-        "xss",
-        "access_control",
-        "business_logic",
-        "authentication_bypass",
-        "broken_authentication",
-        "session",
-        "payment",
-        "server_side_injection",
-        "misconfiguration",
-        "exposure",
-        "anomaly",
-        "redirect",
-        "race_condition",
-        "ai_surface",
-    }
+    # Derive expected categories from what categories are actually present
+    # in the findings data, falling back to the covered categories if no
+    # broader context is available.
     covered_categories = set(category_counts.keys())
+    # Also include categories that appeared in analysis results if available
+    all_known_categories: set[str] = set(covered_categories)
+    if analysis_results and isinstance(analysis_results, dict):
+        for _module, module_findings in analysis_results.items():
+            if isinstance(module_findings, list):
+                for finding in module_findings:
+                    if isinstance(finding, dict):
+                        cat = finding.get("category") or finding.get("type")
+                        if cat:
+                            all_known_categories.add(str(cat).lower())
+    expected_categories = all_known_categories if all_known_categories else covered_categories
     gap_categories = expected_categories - covered_categories
 
     parts: list[str] = []
@@ -501,7 +494,7 @@ def risk_score_section(risk_data: dict[str, Any]) -> str:
     if category_scores:
         parts.append("<h3>Risk by Category</h3><ul>")
         for cat, cat_score in list(category_scores.items())[:10]:
-            parts.append(f"<li><strong>{html.escape(cat)}</strong>: {cat_score}</li>")
+            parts.append(f"<li><strong>{html.escape(cat)}</strong>: {html.escape(str(cat_score))}</li>")
         parts.append("</ul>")
 
     parts.append("</section>")

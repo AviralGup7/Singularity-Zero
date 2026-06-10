@@ -2,6 +2,8 @@ import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
 import { cn } from "@/lib/utils"
+import { SafeResponsiveContainer } from "@/components/ui/SafeResponsiveContainer"
+
 
 // Sanitize CSS values derived from runtime config to prevent CSS/style injection
 const sanitizeCssValue = (v: unknown) => {
@@ -68,6 +70,26 @@ const ChartContainer = React.forwardRef<
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
 
+  const colorConfig = Object.entries(config).filter(
+    ([, c]) => c.theme || c.color
+  )
+
+  const cssVars: React.CSSProperties = {}
+  if (colorConfig.length) {
+    const isDark =
+      typeof document !== 'undefined' &&
+      document.documentElement.classList.contains('dark')
+    for (const [key, itemConfig] of colorConfig) {
+      const rawColor = isDark
+        ? itemConfig.theme?.dark
+        : itemConfig.theme?.light
+      const color = rawColor ? sanitizeCssValue(rawColor) : rawColor
+      if (color) {
+        cssVars[`--color-${key}` as keyof React.CSSProperties] = color as never
+      }
+    }
+  }
+
   return (
     <ChartContext.Provider value={{ config }}>
       <div
@@ -77,51 +99,18 @@ const ChartContainer = React.forwardRef<
           "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
           className
         )}
+        style={{ ...cssVars, ...props.style }}
         {...props}
       >
-        <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
+        <SafeResponsiveContainer>
           {children}
-        </RechartsPrimitive.ResponsiveContainer>
+        </SafeResponsiveContainer>
+
       </div>
     </ChartContext.Provider>
   )
 })
 ChartContainer.displayName = "Chart"
-
-const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme || config.color
-  )
-
-  if (!colorConfig.length) {
-    return null
-  }
-
-  // Sanitize id to prevent CSS injection
-  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '')
-
-  return (
-    <style
-        dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(([theme, prefix]) => {
-            const body = `${prefix} [data-chart=${safeId}] {\n${colorConfig
-              .map(([key, itemConfig]) => {
-                const rawColor =
-                  itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-                  itemConfig.color
-                const color = rawColor ? sanitizeCssValue(rawColor) : rawColor
-                return color ? `  --color-${key}: ${color};` : null
-              })
-              .join("\n")}\n}`
-            return body
-          })
-          .join("\n"),
-      }}
-    />
-  )
-}
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
@@ -390,5 +379,4 @@ export {
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
-  ChartStyle,
 }

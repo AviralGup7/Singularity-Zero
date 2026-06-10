@@ -8,14 +8,15 @@ from src.analysis.helpers import (
     classify_endpoint,
     endpoint_base_key,
     endpoint_signature,
-    probe_confidence,
-    probe_severity,
 )
 from src.analysis.passive.runtime import ResponseCache
 
 from .auth_bypass_utils import (
     AUTH_HEADERS,
     _extract_jwt_from_headers,
+    _to_str_body,
+    probe_confidence_from_auth_bypass_map,
+    probe_severity_from_auth_bypass_map,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,27 +66,31 @@ def probe_token_manipulation(
         if not original_resp or original_resp.get("status") in (404, 410, 503):
             continue
 
-        original_status = original_resp.get("status", 0)
+        original_status = int(original_resp.get("status", 0))
         original_headers = original_resp.get("headers", {})
-        original_body = str(original_resp.get("body") or original_resp.get("body_text") or "")
+        original_body = _to_str_body(original_resp.get("body") or original_resp.get("body_text"))
 
         jwt_token = _extract_jwt_from_headers(original_headers)
         if not jwt_token:
             continue
 
         stripped_headers = {
-            k: v
+            (str(k) if not isinstance(k, str) else k): (str(v) if not isinstance(v, str) else v)
             for k, v in original_headers.items()
             if k.lower() not in {h.lower() for h in AUTH_HEADERS}
         }
 
-        logger.debug("Probing JWT stripping on %s", url)
-        response = _safe_request(url, headers=stripped_headers, timeout=10)
+        try:
+            logger.debug("Probing JWT stripping on %s", url)
+            response = _safe_request(url, headers=stripped_headers, timeout=10)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("JWT stripping request failed for %s: %s", url, exc)
+            continue
         if not response:
             continue
 
-        status = response.get("status", 0)
-        body = str(response.get("body") or "")
+        status = int(response.get("status", 0))
+        body = _to_str_body(response.get("body") or "")
 
         if status == 200 and original_status in (401, 403):
             issues = ["jwt_stripping_bypass"]
@@ -104,16 +109,16 @@ def probe_token_manipulation(
                         "stripped_status": status,
                         "body_length_delta": len(body) - len(original_body[:8000]),
                     },
-                    "confidence": probe_confidence(issues),
-                    "severity": probe_severity(issues),
+                    "confidence": probe_confidence_from_auth_bypass_map(issues),
+                    "severity": probe_severity_from_auth_bypass_map(issues),
                 }
             )
-        elif status == 200 and original_status in (200, 301, 302, 0):
-            body_similarity = 1.0
+        elif status == 200 and original_status in (200, 301, 302):
+            body_similarity = 0.0
             if original_body and body:
                 orig_len = len(original_body[:8000])
                 stripped_len = len(body[:8000])
-                if orig_len > 0:
+                if orig_len > 0 and stripped_len > 0:
                     body_similarity = min(orig_len, stripped_len) / max(orig_len, stripped_len)
             if body_similarity > 0.7:
                 issues = ["jwt_stripping_partial_access"]
@@ -133,8 +138,8 @@ def probe_token_manipulation(
                             "stripped_status": status,
                             "body_similarity": round(body_similarity, 2),
                         },
-                        "confidence": probe_confidence(issues),
-                        "severity": probe_severity(issues),
+                        "confidence": probe_confidence_from_auth_bypass_map(issues),
+                        "severity": probe_severity_from_auth_bypass_map(issues),
                     }
                 )
 

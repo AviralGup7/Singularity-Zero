@@ -3,9 +3,36 @@
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 
 logger = logging.getLogger(__name__)
+
+_VALID_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+_VALID_TABLE_NAMES: set[str] = {
+    "findings",
+    "feedback_events",
+    "fp_patterns",
+    "scan_runs",
+    "risk_scores",
+    "graph_nodes",
+    "graph_edges",
+    "threshold_history",
+    "plugin_stats",
+    "performance_metrics",
+    "session_states",
+    "attack_chains",
+    "attack_chain_findings",
+    "confidence_models",
+    "assets",
+    "risk_acceptances",
+    "compensating_controls",
+    "sla_events",
+    "threat_intel_cache",
+    "reviewer_actions",
+    "schema_version",
+    "parameter_profiles",
+}
 
 _SCHEMA_DDL = """
 -- Scan runs
@@ -85,8 +112,8 @@ CREATE TABLE IF NOT EXISTS feedback_events (
     plugin_name         TEXT NOT NULL,
     parameter_name      TEXT,
     parameter_type      TEXT,
-    was_validated       BOOLEAN NOT NULL,
-    was_false_positive  BOOLEAN NOT NULL,
+    was_validated       INTEGER NOT NULL DEFAULT 0,
+    was_false_positive  INTEGER NOT NULL DEFAULT 0,
     validation_method   TEXT,
     response_delta_score INTEGER,
     endpoint_type       TEXT,
@@ -263,6 +290,8 @@ CREATE TABLE IF NOT EXISTS session_states (
     is_active           INTEGER DEFAULT 1,
     token_expiry        TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_session_states_expiry ON session_states(token_expiry);
+CREATE INDEX IF NOT EXISTS idx_session_states_tenant ON session_states(tenant_id, is_active);
 
 -- Attack chains
 CREATE TABLE IF NOT EXISTS attack_chains (
@@ -319,7 +348,7 @@ CREATE INDEX IF NOT EXISTS idx_assets_criticality ON assets(criticality DESC);
 -- Risk acceptances (governance workflow)
 CREATE TABLE IF NOT EXISTS risk_acceptances (
     acceptance_id          TEXT PRIMARY KEY,
-    finding_id             TEXT NOT NULL,
+    finding_id             TEXT NOT NULL REFERENCES findings(finding_id),
     asset_id               TEXT,
     accepted_until         TIMESTAMP,
     accepted_by            TEXT NOT NULL,
@@ -340,7 +369,7 @@ CREATE INDEX IF NOT EXISTS idx_risk_acceptances_asset ON risk_acceptances(asset_
 -- Compensating controls
 CREATE TABLE IF NOT EXISTS compensating_controls (
     control_id             TEXT PRIMARY KEY,
-    finding_id             TEXT NOT NULL,
+    finding_id             TEXT NOT NULL REFERENCES findings(finding_id),
     control_type           TEXT NOT NULL,
     description            TEXT,
     discount_factor        REAL NOT NULL DEFAULT 0.85,
@@ -358,7 +387,7 @@ CREATE INDEX IF NOT EXISTS idx_controls_type ON compensating_controls(control_ty
 -- SLA lifecycle events
 CREATE TABLE IF NOT EXISTS sla_events (
     event_id               TEXT PRIMARY KEY,
-    finding_id             TEXT NOT NULL,
+    finding_id             TEXT NOT NULL REFERENCES findings(finding_id),
     from_state             TEXT NOT NULL,
     to_state               TEXT NOT NULL,
     timestamp              TIMESTAMP NOT NULL,
@@ -389,7 +418,7 @@ CREATE INDEX IF NOT EXISTS idx_threat_intel_expiry ON threat_intel_cache(expires
 -- Reviewer actions (FindingReviewPanel)
 CREATE TABLE IF NOT EXISTS reviewer_actions (
     action_id              TEXT PRIMARY KEY,
-    finding_id             TEXT NOT NULL,
+    finding_id             TEXT NOT NULL REFERENCES findings(finding_id),
     action_type            TEXT NOT NULL,
     reviewer_id            TEXT,
     structured_note        TEXT,
@@ -401,6 +430,7 @@ CREATE TABLE IF NOT EXISTS reviewer_actions (
 CREATE INDEX IF NOT EXISTS idx_reviewer_finding ON reviewer_actions(finding_id);
 CREATE INDEX IF NOT EXISTS idx_reviewer_action ON reviewer_actions(action_type, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_reviewer_reviewer ON reviewer_actions(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_reviewer_timestamp ON reviewer_actions(timestamp DESC);
 
 -- Attack chain findings (junction table for many-to-many relationship)
 CREATE TABLE IF NOT EXISTS attack_chain_findings (
@@ -456,6 +486,8 @@ _COLUMN_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
 
 
 def _existing_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    if not _VALID_IDENTIFIER_RE.match(table):
+        return set()
     try:
         rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
     except sqlite3.Error:
@@ -488,9 +520,15 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
             # ``CREATE TABLE IF NOT EXISTS`` will create the modern
             # version on the next ``initialize()`` call.
             continue
+        if table not in _VALID_TABLE_NAMES:
+            logger.warning("Schema migration: blocked unknown table name '%s'", table)
+            continue
         existing = _existing_columns(conn, table)
         for name, definition in columns:
             if name in existing:
+                continue
+            if not _VALID_IDENTIFIER_RE.match(name):
+                logger.warning("Schema migration: blocked invalid column name '%s'", name)
                 continue
             try:
                 conn.execute(
@@ -535,7 +573,7 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_attack_chain_findings_finding ON attack_chain_findings(finding_id)"
             )
-            
+
             # Populate it from existing attack_chains
             import json
             cursor = conn.execute("SELECT chain_id, finding_ids FROM attack_chains")
@@ -550,7 +588,7 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
                        finding_ids = [str(x) for x in parsed]
                     else:
                        finding_ids = [str(finding_ids_raw)]
-                except Exception:
+                except (json.JSONDecodeError, TypeError):
                     finding_ids = [x.strip() for x in finding_ids_raw.split(",") if x.strip()]
                 for fid in finding_ids:
                     conn.execute(
@@ -560,12 +598,19 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
             conn.execute("INSERT INTO schema_version (version) VALUES (1)")
             conn.commit()
             executed += 1
+            # Re-read version after successful migration
+            try:
+                cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+                row = cursor.fetchone()
+                current_version = row[0] if row and row[0] is not None else 0
+            except sqlite3.Error as exc:
+                logger.warning("Operation failed in schema.py: %s", exc, exc_info=True)  # noqa: BLE001
         except sqlite3.Error as exc:
             logger.warning("Schema migration version 1 failed: %s", exc)
             try:
                 conn.rollback()
-            except sqlite3.Error:
-                pass
+            except sqlite3.Error as exc:
+                logger.warning("Operation failed in schema.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     # Version 2 migration: Composite indexes
     if current_version < 2:
@@ -578,12 +623,19 @@ def apply_migrations(conn: sqlite3.Connection) -> int:
             conn.execute("INSERT INTO schema_version (version) VALUES (2)")
             conn.commit()
             executed += 1
+            # Re-read version after successful migration
+            try:
+                cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+                row = cursor.fetchone()
+                current_version = row[0] if row and row[0] is not None else 0
+            except sqlite3.Error as exc:
+                logger.warning("Operation failed in schema.py: %s", exc, exc_info=True)  # noqa: BLE001
         except sqlite3.Error as exc:
             logger.warning("Schema migration version 2 failed: %s", exc)
             try:
                 conn.rollback()
-            except sqlite3.Error:
-                pass
+            except sqlite3.Error as exc:
+                logger.warning("Operation failed in schema.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     return executed
 

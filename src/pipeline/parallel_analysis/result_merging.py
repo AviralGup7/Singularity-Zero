@@ -168,8 +168,8 @@ class AnalyzerDurationCache:
         try:
             snapshot = self.snapshot()
             cache.set(f"{namespace}:{id(self)}", snapshot, ttl=86400 * 30)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Operation failed in result_merging.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     @classmethod
     def load(cls, cache: Any, namespace: str = "analysis:duration_histogram", key_id: int | None = None) -> AnalyzerDurationCache:
@@ -180,8 +180,8 @@ class AnalyzerDurationCache:
                 if isinstance(snapshot, dict):
                     for name, dur in snapshot.items():
                         inst.record(name, dur)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Operation failed in result_merging.py: %s", exc, exc_info=True)  # noqa: BLE001
         return inst
 
 

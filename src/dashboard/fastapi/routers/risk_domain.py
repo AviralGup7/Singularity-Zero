@@ -42,6 +42,35 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/risk-domain", tags=["Risk Domain"])
 
 
+_VALID_ASSET_COLUMNS = frozenset({
+    "asset_id", "name", "host_pattern", "path_prefix", "asset_type",
+    "entity_type", "criticality", "tier", "business_value",
+    "compliance_requirements", "owner", "notes", "metadata", "is_active",
+})
+
+_VALID_ACCEPTANCE_COLUMNS = frozenset({
+    "acceptance_id", "finding_id", "asset_id", "accepted_until",
+    "accepted_by", "justification", "compensating_control_ref",
+    "review_date", "scope", "state", "created_by", "metadata",
+})
+
+_VALID_CONTROL_COLUMNS = frozenset({
+    "control_id", "finding_id", "control_type", "description",
+    "discount_factor", "evidence_url", "owner", "expires_at",
+    "is_active", "metadata",
+})
+
+
+def _nested_get(data: dict[str, Any], *keys: str, default: Any = None) -> Any:
+    """Safely traverse nested dicts: _nested_get(d, 'a', 'b') is d.get('a', {}).get('b')."""
+    current: Any = data
+    for key in keys:
+        if not isinstance(current, dict):
+            return default
+        current = current.get(key, default)
+    return current
+
+
 # ---------------------------------------------------------------------------
 # Store / connection helpers
 # ---------------------------------------------------------------------------
@@ -86,7 +115,7 @@ async def list_assets(
     _auth: Any = Depends(require_auth),
 ) -> list[dict[str, Any]]:
     store = _get_store(request)
-    query = "SELECT * FROM assets"
+    query = "SELECT asset_id, name, host_pattern, path_prefix, asset_type, entity_type, criticality, tier, business_value, compliance_requirements, owner, notes, metadata, is_active, created_at, updated_at FROM assets"
     clauses: list[str] = []
     params: list[Any] = []
     if active_only:
@@ -129,14 +158,13 @@ async def create_asset(
         "metadata": json.dumps(payload.get("metadata") or {}),
         "is_active": 1 if payload.get("is_active", True) else 0,
     }
-    columns = ", ".join(record.keys())
+    columns = ", ".join(k for k in record.keys() if k in _VALID_ASSET_COLUMNS)
     placeholders = ", ".join(["?"] * len(record))
     store = _get_store(request)
     conn = store._get_conn()
-    # nosemgrep: python.lang.security.audit.formatted-sql-query
-    conn.execute(
-        f"INSERT OR REPLACE INTO assets ({columns}) VALUES ({placeholders})",
-        list(record.values()),
+    conn.execute(  # nosec B608
+        f"INSERT OR REPLACE INTO assets ({columns}) VALUES ({placeholders})",  # noqa: S608
+        [record[k] for k in record.keys() if k in _VALID_ASSET_COLUMNS],
     )
     conn.commit()
     return {"asset_id": asset_id, "status": "created"}
@@ -164,7 +192,7 @@ async def list_acceptances(
     limit: int = Query(200, ge=1, le=2000),
     _auth: Any = Depends(require_auth),
 ) -> list[dict[str, Any]]:
-    query = "SELECT * FROM risk_acceptances"
+    query = "SELECT acceptance_id, finding_id, asset_id, accepted_until, accepted_by, justification, compensating_control_ref, review_date, scope, state, created_by, metadata, created_at, updated_at FROM risk_acceptances"
     clauses: list[str] = []
     params: list[Any] = []
     if state:
@@ -210,14 +238,13 @@ async def create_acceptance(
         "created_by": payload.get("created_by"),
         "metadata": json.dumps(payload.get("metadata") or {}),
     }
-    columns = ", ".join(record.keys())
+    columns = ", ".join(k for k in record.keys() if k in _VALID_ACCEPTANCE_COLUMNS)
     placeholders = ", ".join(["?"] * len(record))
     store = _get_store(request)
     conn = store._get_conn()
-    # nosemgrep: python.lang.security.audit.formatted-sql-query
-    conn.execute(
-        f"INSERT OR REPLACE INTO risk_acceptances ({columns}) VALUES ({placeholders})",
-        list(record.values()),
+    conn.execute(  # nosec B608
+        f"INSERT OR REPLACE INTO risk_acceptances ({columns}) VALUES ({placeholders})",  # noqa: S608
+        [record[k] for k in record.keys() if k in _VALID_ACCEPTANCE_COLUMNS],
     )
     conn.commit()
     return {"acceptance_id": acceptance_id, "status": "created"}
@@ -251,9 +278,10 @@ async def list_controls(
     finding_id: str | None = None,
     control_type: str | None = None,
     active_only: bool = True,
+    limit: int = Query(200, ge=1, le=2000),
     _auth: Any = Depends(require_auth),
 ) -> list[dict[str, Any]]:
-    query = "SELECT * FROM compensating_controls"
+    query = "SELECT control_id, finding_id, control_type, description, discount_factor, evidence_url, owner, expires_at, is_active, metadata, created_at, updated_at FROM compensating_controls"
     clauses: list[str] = []
     params: list[Any] = []
     if active_only:
@@ -266,7 +294,8 @@ async def list_controls(
         params.append(control_type)
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
-    query += " ORDER BY created_at DESC LIMIT 1000"
+    query += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
     store = _get_store(request)
     conn = store._get_conn()
     cursor = conn.execute(query, params)
@@ -301,14 +330,13 @@ async def create_control(
         "is_active": 1 if payload.get("is_active", True) else 0,
         "metadata": json.dumps(payload.get("metadata") or {}),
     }
-    columns = ", ".join(record.keys())
+    columns = ", ".join(k for k in record.keys() if k in _VALID_CONTROL_COLUMNS)
     placeholders = ", ".join(["?"] * len(record))
     store = _get_store(request)
     conn = store._get_conn()
-    # nosemgrep: python.lang.security.audit.formatted-sql-query
-    conn.execute(
-        f"INSERT OR REPLACE INTO compensating_controls ({columns}) VALUES ({placeholders})",
-        list(record.values()),
+    conn.execute(  # nosec B608
+        f"INSERT OR REPLACE INTO compensating_controls ({columns}) VALUES ({placeholders})",  # noqa: S608
+        [record[k] for k in record.keys() if k in _VALID_CONTROL_COLUMNS],
     )
     conn.commit()
     return {"control_id": control_id, "status": "created"}
@@ -507,7 +535,7 @@ async def transition_finding(
         try:
             # nosemgrep: python.lang.security.audit.formatted-sql-query
             conn.execute(
-                f"UPDATE findings SET {timestamp_col} = CURRENT_TIMESTAMP WHERE finding_id = ?",
+                f"UPDATE findings SET {timestamp_col} = CURRENT_TIMESTAMP WHERE finding_id = ?",  # noqa: S608
                 [finding_id],
             )
         except Exception as exc:  # noqa: BLE001

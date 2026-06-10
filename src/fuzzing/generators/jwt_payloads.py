@@ -39,7 +39,7 @@ def generate_malformed_jwt() -> list[str]:
     )
     payloads.append("header." + "x" * 1024 + ".sig")
     payloads.append(
-        b64url({"alg": "RS256", "kid": "0" * 8192})
+        b64url({"alg": "RS256", "kid": "0" * min(8192, max(1, 4096))})
         + "." + b64url({"sub": "admin"}) + "." + "sig"
     )
     claims_massive = {"data": "A" * 70000}
@@ -84,7 +84,6 @@ def fuzz_jwt_claims() -> list[dict]:
         {"role": None},
         {"exp": "not_a_timestamp"},
         {"x": "A" * 100000},
-        {"sub": 1 / 0},
         {"payload": {"__proto__": {"admin": True}}},
         {"aud": None},
         {"iss": "\u0000\u0001\u0002"},

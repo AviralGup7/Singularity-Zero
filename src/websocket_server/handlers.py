@@ -145,7 +145,7 @@ class WebSocketHandler:
 
         import os
 
-        self.max_message_size = int(os.environ.get("WS_MAX_MESSAGE_SIZE", "131072"))
+        self.max_message_size = int(os.environ.get("WS_MAX_MESSAGE_SIZE", "65536"))
         self.rate_limit_capacity = float(os.environ.get("WS_RATE_LIMIT_CAPACITY", "100.0"))
         self.rate_limit_refill_rate = float(os.environ.get("WS_RATE_LIMIT_REFILL_RATE", "50.0"))
 
@@ -312,8 +312,8 @@ class WebSocketHandler:
             import structlog
 
             structlog.context_var.bind_contextvars(connection_id=connection_id)
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.warning("Operation failed in handlers.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         # Execute on_connect hooks
         for hook in self.hooks:
@@ -356,8 +356,8 @@ class WebSocketHandler:
 
         try:
             await self._message_loop(info, auth.user_id)
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as exc:
+            logger.warning("Operation failed in handlers.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as exc:
             logger.error("Error in WebSocket %s handler for %s: %s", endpoint, connection_id, exc)
         finally:
@@ -538,8 +538,11 @@ class WebSocketHandler:
         await self.manager.add_to_group(info.connection_id, channel)
 
         if message.job_id:
-            job_channel = f"job:{message.job_id}"
-            await self.manager.add_to_group(info.connection_id, job_channel)
+            # Sanitize job_id to prevent channel injection
+            safe_job_id = message.job_id.replace(":", "").replace("\r", "").replace("\n", "")[:256]
+            if safe_job_id:
+                job_channel = f"job:{safe_job_id}"
+                await self.manager.add_to_group(info.connection_id, job_channel)
 
         if message.target:
             target_channel = f"target:{message.target}"

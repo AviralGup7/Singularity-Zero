@@ -364,8 +364,8 @@ class StageRetryPolicy(RetryPolicyState):
         try:
             from src.core.events import get_event_bus
             get_event_bus().publish(_pipeline_event_from_retry_event(event))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Operation failed in policy.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def tool_policy(self, tool_identifier: str) -> ToolRetryPolicy:
         return ToolRetryPolicy(

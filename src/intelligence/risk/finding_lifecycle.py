@@ -150,10 +150,10 @@ class FindingLifecycleRecord:
     finding_id: str
     current_state: FindingState = FindingState.OPEN
     discovered_at: float = field(default_factory=time.time)
-    triaged_at: float = 0.0
-    remediation_started_at: float = 0.0
-    fixed_at: float = 0.0
-    verified_at: float = 0.0
+    triaged_at: float | None = None
+    remediation_started_at: float | None = None
+    fixed_at: float | None = None
+    verified_at: float | None = None
     events: list[SLAEvent] = field(default_factory=list)
 
     @property
@@ -209,7 +209,7 @@ class FindingLifecycleManager:
         if record is None:
             record = FindingLifecycleRecord(
                 finding_id=finding_id,
-                discovered_at=float(discovered_at) if discovered_at else time.time(),
+                discovered_at=discovered_at if discovered_at is not None else time.time(),
             )
             self._records[finding_id] = record
         return record
@@ -273,12 +273,20 @@ class FindingLifecycleManager:
         record = self.ensure(
             finding_id, discovered_at=_coerce_ts(finding.get("discovered_at"))
         )
-        record.triaged_at = _coerce_ts(finding.get("triaged_at")) or record.triaged_at
-        record.remediation_started_at = (
-            _coerce_ts(finding.get("remediation_started_at")) or record.remediation_started_at
-        )
-        record.fixed_at = _coerce_ts(finding.get("fixed_at")) or record.fixed_at
-        record.verified_at = _coerce_ts(finding.get("verified_at")) or record.verified_at
+        new_triaged = _coerce_ts(finding.get("triaged_at"))
+        if new_triaged is not None and (record.triaged_at is None or new_triaged > record.triaged_at):
+            record.triaged_at = new_triaged
+        new_remediation = _coerce_ts(finding.get("remediation_started_at"))
+        if new_remediation is not None and (
+            record.remediation_started_at is None or new_remediation > record.remediation_started_at
+        ):
+            record.remediation_started_at = new_remediation
+        new_fixed = _coerce_ts(finding.get("fixed_at"))
+        if new_fixed is not None and (record.fixed_at is None or new_fixed > record.fixed_at):
+            record.fixed_at = new_fixed
+        new_verified = _coerce_ts(finding.get("verified_at"))
+        if new_verified is not None and (record.verified_at is None or new_verified > record.verified_at):
+            record.verified_at = new_verified
         if "lifecycle_state" in finding:
             record.current_state = FindingState.parse(finding.get("lifecycle_state"))
         for event in events or []:
@@ -488,9 +496,9 @@ class FindingLifecycleManager:
         }
 
 
-def _coerce_ts(value: Any) -> float:
-    if value is None or value == "":
-        return 0.0
+def _coerce_ts(value: Any) -> float | None:
+    if value is None or value is False or value == "":
+        return None
     if isinstance(value, (int, float)):
         return float(value)
     try:
@@ -498,7 +506,7 @@ def _coerce_ts(value: Any) -> float:
 
         return datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
     except (TypeError, ValueError):
-        return 0.0
+        return None
 
 
 def _round(value: float | None) -> float | None:

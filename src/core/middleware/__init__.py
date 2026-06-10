@@ -182,8 +182,8 @@ class ScopeValidator:
             try:
                 network = ipaddress.ip_network(normalized, strict=False)
                 self._cidr_networks.append((network, normalized))
-            except ValueError:
-                pass
+            except ValueError as exc:
+                logger.warning("Operation failed in __init__.py: %s", exc, exc_info=True)  # noqa: BLE001
         elif self._is_ip_address(normalized):
             self._exact_ips.add(normalized)
         elif normalized.startswith("*."):
@@ -209,8 +209,8 @@ class ScopeValidator:
             try:
                 ipaddress.ip_address(ipv6_match.group(1))
                 return True
-            except ValueError:
-                pass
+            except ValueError as exc:
+                logger.warning("Operation failed in __init__.py: %s", exc, exc_info=True)  # noqa: BLE001
         return False
 
     @staticmethod
@@ -440,8 +440,8 @@ class ScopeValidator:
                 try:
                     network = ipaddress.ip_network(normalized, strict=False)
                     self._cidr_networks = [(n, r) for n, r in self._cidr_networks if n != network]
-                except ValueError:
-                    pass
+                except ValueError as exc:
+                    logger.warning("Operation failed in __init__.py: %s", exc, exc_info=True)  # noqa: BLE001
             elif self._is_ip_address(normalized):
                 self._exact_ips.discard(normalized)
 

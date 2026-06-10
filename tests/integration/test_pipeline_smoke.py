@@ -170,6 +170,7 @@ class TestPipelineStagesDefined:
 
 @pytest.mark.slow
 @pytest.mark.integration
+@pytest.mark.mock_heavy
 class TestPipelineRunWithMockConfig:
     """Tests that the pipeline can run with minimal/mock configuration."""
 

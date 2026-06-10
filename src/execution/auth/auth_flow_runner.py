@@ -235,6 +235,8 @@ class AuthFlowRunner:
         try:
             return value.format(**self._variables)
         except (KeyError, IndexError):
+            if "{{" in value or "}}" in value:
+                return value.replace("{{", "{").replace("}}", "}")
             return value
 
     def _render_headers(self, headers: dict[str, str]) -> dict[str, str]:
@@ -292,19 +294,23 @@ class AuthFlowRunner:
                 f"extract_cookie: no response captured for step {step.from_step!r}"
             )
         for header_value in response.headers.get_list("set-cookie"):
-            for morsel in CookieJar()._cookies_for_domain(response.url, header_value):
-                # ``_cookies_for_domain`` returns (rest, morsel) pairs in
-                # some Python versions and morsels in others; normalise.
-                morsel_obj = morsel[1] if isinstance(morsel, tuple) else morsel
-                if morsel_obj.name == step.name:
-                    value = morsel_obj.value
+            try:
+                parts = header_value.split(";", 1)[0].strip()
+                if "=" not in parts:
+                    continue
+                cookie_name, cookie_value = parts.split("=", 1)
+                cookie_name = cookie_name.strip()
+                if cookie_name == step.name:
+                    value = cookie_value.strip()
                     cookies[step.name] = value
                     if step.save_as:
                         self._variables[step.save_as] = value
                         if step.name == "session":
                             result.session_cookie = value
                     return
-        # Fall back to the jar populated by httpx
+            except Exception as exc:
+                logger.debug("Cookie extraction failed for %s: %s", step.name, exc)
+                continue
         if step.name in cookies:
             value = cookies[step.name]
             if step.save_as:

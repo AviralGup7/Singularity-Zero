@@ -14,6 +14,10 @@ __all__ = [
     "CacheError",
     "ExternalToolError",
     "ScopeViolationError",
+    "ToolNotInstalledError",
+    "CircuitBreakerOpenError",
+    "DatabaseUnavailableError",
+    "RedisDegradedError",
 ]
 
 
@@ -94,3 +98,57 @@ class ScopeViolationError(PipelineError):
         self.target_url = target_url
         self.reason = reason
         self.scope_hosts = scope_hosts or []
+
+
+class ToolNotInstalledError(PipelineError):
+    """Raised when a required external tool binary is not found on the system."""
+
+    def __init__(
+        self,
+        message: str,
+        tool: str | None = None,
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(message, details)
+        self.tool = tool
+        self.error_code = "tool_not_installed"
+
+
+class CircuitBreakerOpenError(PipelineError):
+    """Raised when a tool execution is skipped because the circuit breaker is open."""
+
+    def __init__(
+        self,
+        message: str,
+        tool: str | None = None,
+        breaker_state: str | None = None,
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(message, details)
+        self.tool = tool
+        self.breaker_state = breaker_state
+        self.error_code = "circuit_breaker_open"
+
+
+class DatabaseUnavailableError(PipelineError):
+    """Raised when the database is locked or unavailable after retry exhaustion."""
+
+    def __init__(
+        self,
+        message: str = "Database is temporarily unavailable. Please retry.",
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(message, details)
+        self.error_code = "database_unavailable"
+
+
+class RedisDegradedError(PipelineError):
+    """Raised when Redis is down and the system is operating in degraded mode."""
+
+    def __init__(
+        self,
+        message: str = "Redis is unavailable. Operating in degraded mode with local cache.",
+        details: dict | None = None,
+    ) -> None:
+        super().__init__(message, details)
+        self.error_code = "redis_degraded"

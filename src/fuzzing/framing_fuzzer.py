@@ -73,6 +73,7 @@ async def _read_http_response(reader: asyncio.StreamReader, timeout: float = 8.0
         try:
             line = await asyncio.wait_for(reader.readline(), timeout=timeout)
         except Exception:
+            logger.debug("Header read failed: %s", exc, exc_info=True)
             break
         if line in (b"\r\n", b"\n", b""):
             in_body = True
@@ -100,8 +101,8 @@ async def _read_http_response(reader: asyncio.StreamReader, timeout: float = 8.0
                     if not chunk:
                         break
                     body_chunks.append(chunk)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Operation failed in framing_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
     body = b"".join(body_chunks)
     return {"status_code": status_code, "reason": reason, "headers": headers, "body": body}
 
@@ -320,6 +321,7 @@ async def _fuzz_h2_continuation_flood(
         else:
             reader, writer = await asyncio.open_connection(host=host, port=port)
     except Exception:
+        logger.debug("H2 continuation connection failed: %s", exc, exc_info=True)
         return findings
     try:
         frames = b""
@@ -337,8 +339,8 @@ async def _fuzz_h2_continuation_flood(
     finally:
         try:
             writer.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Operation failed in framing_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
     status_code = resp.get("status_code", 0)
     body = resp.get("body", b"")
     body_text = body[:400].decode("latin-1", errors="replace") if isinstance(body, (bytes, bytearray)) else ""
@@ -445,6 +447,7 @@ async def _fuzz_cl_te(
         try:
             reader, writer = await _open_raw(url, verify_tls=True)
         except Exception:
+            logger.debug("CL/TE raw open failed: %s", exc, exc_info=True)
             continue
         try:
             writer.write(raw)
@@ -456,8 +459,8 @@ async def _fuzz_cl_te(
         finally:
             try:
                 writer.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Operation failed in framing_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
         if resp.get("status_code", 0) in (200, 201) and resp.get("body"):
             preview = resp["body"][:200].decode("latin-1", errors="replace")
             if "X-Smuggled" in preview or "smuggled" in preview.lower():
@@ -524,6 +527,7 @@ async def _fuzz_multipart(
         baseline = await client.get(url)
         baseline_len = len(baseline.text) if baseline else 0
     except Exception:
+        logger.debug("Multipart baseline request failed: %s", exc, exc_info=True)
         baseline_len = 0
     for case in _multipart_payloads():
         boundary = case["boundary"]
@@ -538,6 +542,7 @@ async def _fuzz_multipart(
                 },
             )
         except Exception:
+            logger.debug("Multipart post failed: %s", exc, exc_info=True)
             continue
         if resp is None:
             continue
@@ -609,6 +614,7 @@ async def _fuzz_content_range(
         head = await client.head(url)
         accepts_ranges = (head.headers.get("accept-ranges") or "").lower() != "none"
     except Exception:
+        logger.debug("Content-Range HEAD request failed: %s", exc, exc_info=True)
         accepts_ranges = False
     if not accepts_ranges and not any(url.endswith(ext) for ext in (".zip", ".pdf", ".mp4", ".iso", ".bin")):
         if own:
@@ -618,6 +624,7 @@ async def _fuzz_content_range(
         try:
             resp = await client.get(url, headers={"Range": case["range"]})
         except Exception:
+            logger.debug("Content-Range GET failed: %s", exc, exc_info=True)
             continue
         if resp is None:
             continue
@@ -685,6 +692,7 @@ async def _fuzz_chunked(
         try:
             reader, writer = await _open_raw(url, verify_tls=True)
         except Exception:
+            logger.debug("Chunked raw open failed: %s", exc, exc_info=True)
             continue
         path = urlparse(url).path or "/"
         request = (
@@ -705,8 +713,8 @@ async def _fuzz_chunked(
         finally:
             try:
                 writer.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Operation failed in framing_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
         if resp.get("status_code", 0) in (200, 201) and resp.get("body"):
             findings.append(
                 {

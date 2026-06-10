@@ -15,6 +15,13 @@ from .token_manipulation import probe_token_manipulation
 logger = logging.getLogger(__name__)
 
 
+def _safe_int(value: Any, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def run_auth_bypass_probes(
     priority_urls: list[dict[str, Any]],
     response_cache: ResponseCache,
@@ -34,12 +41,12 @@ def run_auth_bypass_probes(
         Dict keyed by probe family, each containing a list of findings.
     """
     config = config or {}
-    jwt_limit = int(config.get("jwt_stripping_limit", 12))
-    cookie_limit = int(config.get("cookie_manipulation_limit", 12))
-    bypass_limit = int(config.get("auth_bypass_limit", 12))
-    credential_limit = int(config.get("credential_stuffing_limit", 12))
-    mfa_limit = int(config.get("mfa_bypass_limit", 12))
-    password_reset_limit = int(config.get("password_reset_abuse_limit", 12))
+    jwt_limit = _safe_int(config.get("jwt_stripping_limit"), 12)
+    cookie_limit = _safe_int(config.get("cookie_manipulation_limit"), 12)
+    bypass_limit = _safe_int(config.get("auth_bypass_limit"), 12)
+    credential_limit = _safe_int(config.get("credential_stuffing_limit"), 12)
+    mfa_limit = _safe_int(config.get("mfa_bypass_limit"), 12)
+    password_reset_limit = _safe_int(config.get("password_reset_abuse_limit"), 12)
 
     logger.info("Running auth bypass probes on %d URLs", len(priority_urls))
 
@@ -73,10 +80,10 @@ def run_auth_bypass_probes(
     logger.info("Auth bypass probes complete: %d total findings", total)
 
     return {
-        "jwt_stripping": jwt_results,
-        "cookie_manipulation": cookie_results,
-        "auth_bypass_patterns": bypass_results,
-        "credential_stuffing": credential_results,
-        "mfa_bypass": mfa_results,
-        "password_reset_abuse": password_reset_results,
+        "probe_jwt_stripping": jwt_results,
+        "probe_cookie_manipulation": cookie_results,
+        "probe_auth_bypass_patterns": bypass_results,
+        "probe_credential_stuffing": credential_results,
+        "probe_mfa_bypass": mfa_results,
+        "probe_password_reset_abuse": password_reset_results,
     }

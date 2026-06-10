@@ -15,6 +15,8 @@ export interface SeverityTrendDataPoint {
 
 interface SeverityTrendChartProps {
   data: SeverityTrendDataPoint[];
+  onSeverityClick?: (severity: string) => void;
+  onDateRangeClick?: (startDate: string, endDate: string) => void;
 }
 
 type SeverityKey = 'critical' | 'high' | 'medium' | 'low' | 'info';
@@ -30,7 +32,7 @@ const COLORS: Record<SeverityKey, string> = {
   info: 'var(--severity-info, #00aaff)',
 };
 
-export const SeverityTrendChart = memo(function SeverityTrendChart({ data }: SeverityTrendChartProps) {
+export const SeverityTrendChart = memo(function SeverityTrendChart({ data, onSeverityClick, onDateRangeClick }: SeverityTrendChartProps) {
   const { state: visualState } = useVisual();
    
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -185,6 +187,13 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data }: Sev
                     fill="transparent"
                     onMouseEnter={() => setHoveredIndex(index)}
                     onMouseLeave={() => setHoveredIndex(null)}
+                    onClick={() => {
+                      if (onDateRangeClick && point.date) {
+                        const nextDate = chartData[index + 1]?.date || point.date;
+                        onDateRangeClick(point.date, nextDate);
+                      }
+                    }}
+                    style={{ cursor: onDateRangeClick ? 'pointer' : 'default' }}
                   />
                   {hoveredIndex === index && (
                     <line
@@ -232,7 +241,19 @@ export const SeverityTrendChart = memo(function SeverityTrendChart({ data }: Sev
 
       <div className="chart-summary">
         {SEVERITY_KEYS.map((severity) => (
-          <span key={severity} className="chart-summary-item">
+          <span
+            key={severity}
+            className={`chart-summary-item ${onSeverityClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+            onClick={() => onSeverityClick?.(severity)}
+            role={onSeverityClick ? 'button' : undefined}
+            tabIndex={onSeverityClick ? 0 : undefined}
+            onKeyDown={onSeverityClick ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSeverityClick(severity);
+              }
+            } : undefined}
+          >
             <span className="chart-summary-dot" style={{ backgroundColor: Reflect.get(COLORS, severity) }} />
             {severity}
           </span>

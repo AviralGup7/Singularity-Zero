@@ -4,9 +4,13 @@ Provides a thread-safe singleton PoolManager with configurable
 connection pooling, retries, and keep-alive timeouts.
 """
 
+import atexit
+import logging
 import threading
 
 import urllib3
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_POOL_CONNECTIONS = 10
 _DEFAULT_MAX_RETRIES = 3
@@ -15,6 +19,7 @@ _DEFAULT_TIMEOUT = 10.0
 
 _pool_manager: urllib3.PoolManager | None = None
 _pool_lock = threading.Lock()
+_pool_config: dict[str, object] | None = None
 
 
 def get_pooled_connection(
@@ -34,9 +39,24 @@ def get_pooled_connection(
     Returns:
         A configured urllib3.PoolManager instance.
     """
-    global _pool_manager
+    global _pool_manager, _pool_config
+
+    requested_config = {
+        "pool_connections": pool_connections,
+        "max_retries": max_retries,
+        "block": block,
+        "timeout": timeout,
+    }
 
     if _pool_manager is not None:
+        if _pool_config is not None and _pool_config != requested_config:
+            logger.warning(
+                "get_pooled_connection() called with different config than the "
+                "existing pool (requested=%s, existing=%s). Returning existing pool. "
+                "Call reset_pool() first to create a pool with new config.",
+                requested_config,
+                _pool_config,
+            )
         return _pool_manager
 
     with _pool_lock:
@@ -62,8 +82,22 @@ def get_pooled_connection(
             retries=retry,
             timeout=timeout_config,
         )
+        _pool_config = requested_config
 
     return _pool_manager
+
+
+def _cleanup_pool_on_exit() -> None:
+    """Release persistent urllib3 connections at process shutdown."""
+    with _pool_lock:
+        if _pool_manager is not None:
+            try:
+                _pool_manager.clear()
+            except Exception:  # noqa: S110
+                pass
+
+
+atexit.register(_cleanup_pool_on_exit)
 
 
 def reset_pool() -> None:

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_admin, require_auth
 from src.dashboard.fastapi.routers.targets.validation import (
+    TargetFindingsResponse,
     _normalize_finding_payload,
     is_target_owned_by_tenant,
 )
@@ -78,7 +79,7 @@ async def delete_target(
 
 @router.get(
     "/{target_name}/findings",
-    response_model=Any,
+    response_model=TargetFindingsResponse,
     responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
     summary="Get findings for a target",
 )
@@ -88,7 +89,7 @@ async def get_target_findings(
     run: str | None = Query(None, description="Specific run name"),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
-) -> Any:
+) -> TargetFindingsResponse:
     """Retrieve findings for a specific target with traversal protection. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
     user_id = (_auth or {}).get("user", "unknown")
@@ -126,13 +127,13 @@ async def get_target_findings(
                             f.setdefault("timestamp", run_dir.name)
                             all_findings.append(f)
             except Exception:
-                pass
+                logger.warning("Failed to parse findings.json at %s", findings_path, exc_info=True)
 
-    return {
-        "findings": all_findings,
-        "total": len(all_findings),
-        "target": target_name,
-    }
+    return TargetFindingsResponse(
+        findings=all_findings,
+        total=len(all_findings),
+        target=target_name,
+    )
 
 
 @router.get(
@@ -143,13 +144,16 @@ async def get_target_findings(
 )
 async def get_timeline(
     target_name: str,
+    request: Request,
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> TimelineResponse:
     """Retrieve timeline with traversal protection. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
-    if not is_target_owned_by_tenant(target_name, tenant_id):
-        raise HTTPException(status_code=403, detail="Access denied to this target")
+    user_id = (_auth or {}).get("user", "unknown")
+    from src.dashboard.fastapi.routers.targets.validation import verify_tenant_boundary
+
+    verify_tenant_boundary(request, target_name, tenant_id, user_id)
 
     output_root = services.query.output_root
     get_safe_target_dir(output_root, target_name)
@@ -169,13 +173,16 @@ async def get_timeline(
 )
 async def get_target_compliance(
     target_name: str,
+    request: Request,
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
 ) -> dict[str, Any]:
     """Get the latest compliance report with traversal protection. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
-    if not is_target_owned_by_tenant(target_name, tenant_id):
-        raise HTTPException(status_code=403, detail="Access denied to this target")
+    user_id = (_auth or {}).get("user", "unknown")
+    from src.dashboard.fastapi.routers.targets.validation import verify_tenant_boundary
+
+    verify_tenant_boundary(request, target_name, tenant_id, user_id)
 
     output_root = services.query.output_root
     target_dir = get_safe_target_dir(output_root, target_name)
@@ -207,7 +214,7 @@ async def get_target_compliance(
         try:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
         except Exception:
-            pass
+            logger.warning("Failed to parse findings.json at %s", findings_path, exc_info=True)
 
     return build_compliance_report(findings)
 
@@ -219,7 +226,7 @@ async def get_target_compliance(
 )
 async def list_all_findings(
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
+    page_size: int = Query(50, ge=1, le=1000, description="Items per page"),
     severity: str | None = Query(None, description="Filter by severity"),
     target: str | None = Query(None, description="Filter by target name"),
     _auth: Any = Depends(require_auth),
@@ -257,6 +264,7 @@ async def list_all_findings(
                     if isinstance(parsed_summary, dict):
                         summary_data = parsed_summary
                 except Exception:
+                    logger.warning("Failed to parse run_summary.json at %s", summary_path, exc_info=True)
                     summary_data = {}
 
             run_generated_at = str(
@@ -272,6 +280,7 @@ async def list_all_findings(
                     if isinstance(data, list):
                         run_findings = [item for item in data if isinstance(item, dict)]
             except Exception:
+                logger.warning("Failed to parse findings.json at %s", findings_path, exc_info=True)
                 run_findings = []
 
             if not run_findings:

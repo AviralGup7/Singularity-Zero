@@ -172,7 +172,7 @@ def http_smuggling_probe(
                         "response_time_ms": round(response_time, 1),
                         "time_delta_ms": round(time_delta, 1),
                         "status_changed": status_changed,
-                        "significant_delay": time_delta > 2000,
+                        "significant_delay": significant_delay,
                         "body_indicates_smuggling": body_indicates_smuggling,
                     }
                 )

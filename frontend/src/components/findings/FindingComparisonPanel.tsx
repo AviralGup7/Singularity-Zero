@@ -10,7 +10,8 @@ interface FindingComparisonPanelProps {
 }
 
 function getCVSS(f: Finding): number {
-  return f.cvss_v4_score ?? f.cvss_score ?? (typeof f.cvss === 'number' ? f.cvss : 0) || 0;
+  const val = f.cvss_v4_score ?? f.cvss_score ?? (typeof f.cvss === 'number' ? f.cvss : null);
+  return val || 0;
 }
 
 function getEpss(f: Finding): number {

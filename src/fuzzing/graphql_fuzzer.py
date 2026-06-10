@@ -112,11 +112,12 @@ fragment TypeRef on __Type {
 }
 """
 
-_graphql_error_patterns_re = re.compile(r'"errors"\s*:\s*\[')
+_graphql_error_patterns_re = re.compile(r'"errors"\s*:\s*\[', re.IGNORECASE)
 
 
 def _detect_graphql_introspection(body: str) -> bool:
-    return bool(re.search(r'(?:__schema|__type|data\.__schema|data\.__type)', body))
+    # Limit search to first 10000 chars to avoid ReDoS on large responses
+    return bool(re.search(r'(?:__schema|__type|data\.__schema|data\.__type)', body[:10000]))
 
 
 async def run_graphql_fuzzing_campaign(
@@ -148,6 +149,7 @@ async def run_graphql_fuzzing_campaign(
             return findings
 
         if _detect_graphql_introspection(body):
+            # Only report once — introspection enabled is the actual vulnerability
             findings.append(
                 {
                     "url": url,
@@ -165,24 +167,6 @@ async def run_graphql_fuzzing_campaign(
                     },
                 }
             )
-            if '"types"' in body and '"fields"' in body:
-                findings.append(
-                    {
-                        "url": url,
-                        "endpoint_key": endpoint_key,
-                        "endpoint_base_key": endpoint_base,
-                        "endpoint_type": endpoint_type,
-                        "issues": ["graphql_schema_exposed"],
-                        "probe_type": "graphql_fuzzer",
-                        "severity": "high",
-                        "confidence": 0.95,
-                        "evidence": {
-                            "status_code": resp.status_code,
-                            "body_preview": body[:500],
-                            "reason": "Introspection response includes types and fields",
-                        },
-                    }
-                )
 
         mutation_payloads = generate_graphql_introspection_payloads(url)
         for payload_item in mutation_payloads:
@@ -193,7 +177,7 @@ async def run_graphql_fuzzing_campaign(
                 logger.debug("GraphQL mutation request failed for %s: %s", url, exc)
                 continue
 
-            if _graphql_error_patterns_re.search(mut_body):
+            if _graphql_error_patterns_re.search(mut_body[:50000]):
                 findings.append(
                     {
                         "url": url,

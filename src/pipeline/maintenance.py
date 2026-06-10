@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import zipfile
@@ -93,39 +94,46 @@ def _get_run_age_days(run_dir: Path, run_summary: dict[str, Any]) -> int:
             # Simple ISO parsing or prefix slicing
             # "2026-06-06T05:09:53+05:30" or similar
             dt_str = str(gen_time_str).split(".")[0].split("+")[0].rstrip("Z")
-            dt = datetime.datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S")
-            delta = datetime.datetime.utcnow() - dt
+            dt = datetime.datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+            delta = datetime.datetime.now(datetime.timezone.utc) - dt
             return max(0, delta.days)
-        except Exception:
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.debug("ISO date parse failed for run %s: %s", run_dir, exc)
 
     # Fallback to directory stamp name
     # Format: 20260329-010101 -> YYYYMMDD
     dir_name = run_dir.name
     if len(dir_name) >= 8 and dir_name[:8].isdigit():
         try:
-            dt = datetime.datetime.strptime(dir_name[:8], "%Y%m%d")
-            delta = datetime.datetime.utcnow() - dt
+            dt = datetime.datetime.strptime(dir_name[:8], "%Y%m%d").replace(tzinfo=datetime.timezone.utc)
+            delta = datetime.datetime.now(datetime.timezone.utc) - dt
             return max(0, delta.days)
-        except Exception:
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.debug("YYYYMMDD directory stamp parse failed for %s: %s", dir_name, exc)
 
     # Fallback to filesystem mtime
     try:
         mtime = run_dir.stat().st_mtime
-        delta = datetime.datetime.now() - datetime.datetime.fromtimestamp(mtime)
+        delta = datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromtimestamp(mtime, tz=datetime.timezone.utc)
         return max(0, delta.days)
-    except Exception:
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to determine run age for %s: %s", run_dir, exc)
         return 0
 
 
 def _prune_launcher_dirs(launcher_root: Path, keep_launcher_runs: int) -> list[Path]:
     if not launcher_root.exists():
         return []
-    job_dirs = sorted(
-        (path for path in launcher_root.iterdir() if path.is_dir()),
-        key=lambda path: (path.stat().st_mtime, path.name),
-    )
+    job_dirs = []
+    for path in launcher_root.iterdir():
+        if path.is_dir():
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue
+            job_dirs.append((mtime, path.name, path))
+    job_dirs.sort(key=lambda x: (x[0], x[1]))
+    dirs_by_path = [entry[2] for entry in job_dirs]
     if keep_launcher_runs <= 0:
         stale_dirs = list(job_dirs)
     elif len(job_dirs) > keep_launcher_runs:
@@ -150,8 +158,8 @@ def _list_generated_run_dirs(target_root: Path) -> list[Path]:
 def _remove_tree(path: Path) -> None:
     try:
         shutil.rmtree(path)
-    except FileNotFoundError:
-        pass
+    except FileNotFoundError as exc:
+        logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 
 def run_cache_maintenance(cache: PersistentCache | None = None) -> dict[str, Any]:
@@ -214,8 +222,8 @@ class MaintenanceLock:
                 if conn is not None:
                     try:
                         conn.close()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
                 import sqlite3
                 if isinstance(exc, sqlite3.OperationalError) and any(k in str(exc).lower() for k in ("lock", "busy")):
                     raise RuntimeError("Maintenance task already running.") from exc
@@ -224,8 +232,8 @@ class MaintenanceLock:
                         content = self.lockfile_path.read_text().strip()
                         if content == "sqlite-lock":
                             raise RuntimeError("Maintenance task already running.") from exc
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
                 self._use_sqlite = False
         return self._acquire_pid_lock()
 
@@ -234,22 +242,22 @@ class MaintenanceLock:
             self._fd = os.open(
                 self.lockfile_path, os.O_CREAT | os.O_WRONLY | os.O_EXCL
             )
-            os.write(self._fd, f"{os.getpid()}\n".encode())
+            os.write(self._fd, f"{os.getpid()}\n".encode("utf-8"))
         except OSError:
             if self.lockfile_path.exists():
                 try:
                     pid = int(self.lockfile_path.read_text().strip())
                     if self._is_pid_running(pid):
                         raise RuntimeError(f"Maintenance task already running with PID {pid}")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
             try:
                 if self.lockfile_path.exists():
                     self.lockfile_path.unlink()
                 self._fd = os.open(
                     self.lockfile_path, os.O_CREAT | os.O_WRONLY | os.O_EXCL
                 )
-                os.write(self._fd, f"{os.getpid()}\n".encode())
+                os.write(self._fd, f"{os.getpid()}\n".encode("utf-8"))
             except OSError as exc:
                 raise RuntimeError("Failed to acquire maintenance lockfile.") from exc
         return self
@@ -259,25 +267,25 @@ class MaintenanceLock:
             try:
                 self._conn.rollback()
                 self._conn.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._conn = None
         if self._fd is not None:
             try:
                 os.close(self._fd)
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._fd = None
         if self.lockfile_path.exists():
             try:
                 self.lockfile_path.unlink()
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
         if hasattr(self, "_sqlite_path") and self._sqlite_path.exists():
             try:
                 self._sqlite_path.unlink()
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     @staticmethod
     def _is_pid_running(pid: int) -> bool:
@@ -365,8 +373,8 @@ def prune_output_history(
             if summary_file.exists():
                 try:
                     run_data = json.loads(summary_file.read_text(encoding="utf-8"))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
             run_summaries[run_dir] = run_data
 
         # Sort run directories by age/name (oldest first)
@@ -418,15 +426,15 @@ def prune_output_history(
                     try:
                         screenshots_file.unlink()
                         summary["tiered_warm_runs"].append(str(run_dir))
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
                 # If there are actual screenshot images/files, strip them
                 for ext in ("*.png", "*.jpg", "*.jpeg", "*.webp"):
                     for img_file in run_dir.glob(ext):
                         try:
                             img_file.unlink()
-                        except OSError:
-                            pass
+                        except OSError as exc:
+                            logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         # 3. Perform actual pruning / removal
         for run_dir in runs_to_remove:
@@ -454,37 +462,47 @@ def prune_output_history(
             if index_file.exists():
                 try:
                     index_file.unlink()
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in maintenance.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     return summary
 
 
-def register_scheduler_task(task_name: str = "PipelineMaintenance") -> bool:
+def register_scheduler_task(task_name: str = "PipelineMaintenance", output_root: str = "output") -> bool:
     """Register daily maintenance task with the OS scheduler."""
     script_path = Path(__file__).resolve()
     python_exe = sys.executable
 
     if sys.platform == "win32":
         # Windows Task Scheduler registration via schtasks CLI
-        cmd = f'schtasks /create /tn "{task_name}" /tr "{python_exe} {script_path} --output-root output" /sc daily /st 02:00 /f'
+        tr_value = f"{python_exe} {script_path} --output-root {output_root}"
         try:
-            ret = os.system(cmd)
-            return ret == 0
+            ret = subprocess.run(
+                ["schtasks", "/create", "/tn", task_name, "/tr", tr_value, "/sc", "daily", "/st", "02:00", "/f"],
+                capture_output=True,
+                timeout=30,
+            )
+            return ret.returncode == 0
         except Exception as e:
             logger.error("Failed to register Windows Task Scheduler job: %s", e)
             return False
     else:
         # Unix cron registration
-        cron_job = f"0 2 * * * {python_exe} {script_path} --output-root output > /dev/null 2>&1\n"
+        cron_job = f"0 2 * * * {python_exe} {script_path} --output-root {output_root} > /dev/null 2>&1\n"
         try:
             # Simple cron integration using crontab cli
             temp_cron = tempfile.NamedTemporaryFile(delete=False)
-            temp_cron.write(cron_job.encode())
+            temp_cron.write(cron_job.encode("utf-8"))
             temp_cron.close()
-            ret = os.system(f"crontab {temp_cron.name}")
-            os.unlink(temp_cron.name)
-            return ret == 0
+            try:
+                ret = subprocess.run(
+                    ["crontab", temp_cron.name],
+                    capture_output=True,
+                    timeout=30,
+                )
+                return ret.returncode == 0
+            finally:
+                os.unlink(temp_cron.name)
         except Exception as e:
             logger.error("Failed to register cron job: %s", e)
             return False
@@ -529,7 +547,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     if args.schedule:
-        success = register_scheduler_task()
+        success = register_scheduler_task(output_root=args.output_root)
         if success:
             emit_info("Successfully registered daily maintenance with OS scheduler.")
             return 0

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { AppSettingsSchema } from '@/api/schemas';
-import { safeStorage } from '@/utils/storage';
 import type { AppSettings, SettingsUpdater } from '@/context/settings-context';
+import { tenantSafeStorage } from '@/utils/tenantStorage';
+import { apiClient } from '@/api/core';
 import { useAuthStore } from './authStore';
 
 const defaultSettings: AppSettings = AppSettingsSchema.parse({});
@@ -32,16 +33,15 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
 const STORAGE_KEY = 'cyber-pipeline-settings';
 const DEBOUNCE_MS = 300;
 
-const getScopedStorageKey = () => {
-  const tenantId = useAuthStore.getState().user?.tenantId || 'tenant-default';
-  return `${STORAGE_KEY}:${tenantId}`;
-};
-
 let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 const persistSettingsDebounced = (settings: AppSettings) => {
   if (debounceTimeout) clearTimeout(debounceTimeout);
   debounceTimeout = setTimeout(() => {
-    safeStorage.set(getScopedStorageKey(), JSON.stringify(settings));
+    tenantSafeStorage.set(STORAGE_KEY, JSON.stringify(settings));
+    // Also persist to backend (fire-and-forget, non-blocking)
+    apiClient.post('/api/settings', settings).catch(() => {
+      // Backend persistence is best-effort; local storage is the source of truth
+    });
   }, DEBOUNCE_MS);
 };
 
@@ -53,8 +53,7 @@ const clearSettingsDebounce = () => {
 };
 
 function getInitialSettings(): AppSettings {
-  const key = getScopedStorageKey();
-  const stored = safeStorage.get(key) || safeStorage.get(STORAGE_KEY);
+  const stored = tenantSafeStorage.get(STORAGE_KEY);
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
@@ -185,10 +184,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => {
 });
 
 let currentTenantId = useAuthStore.getState().user?.tenantId;
+let tenantDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 useAuthStore.subscribe((state) => {
   const nextTenantId = state.user?.tenantId;
   if (nextTenantId !== currentTenantId) {
     currentTenantId = nextTenantId;
-    useSettingsStore.setState({ settings: getInitialSettings() });
+    if (tenantDebounceTimer) clearTimeout(tenantDebounceTimer);
+    tenantDebounceTimer = setTimeout(() => {
+      useSettingsStore.setState({ settings: getInitialSettings() });
+    }, 100);
   }
 });

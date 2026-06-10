@@ -51,8 +51,8 @@ def _effective_large_threshold(config: Any) -> int:
         candidate = getattr(config, "large_output_threshold", None)
         if isinstance(candidate, int) and candidate > 0:
             return candidate
-    except Exception:  # noqa: BLE001
-        pass
+    except (AttributeError, TypeError) as exc:  # noqa: BLE001 — broad catch intentional, config may be any type
+        logger.debug("Failed to read large_output_threshold from config: %s", exc)
     return DEFAULT_LARGE_OUTPUT_THRESHOLD
 
 
@@ -65,13 +65,14 @@ def _is_large_output(stage_name: str, config: Any, ctx: Any) -> bool:
         return False
     try:
         threshold = _effective_large_threshold(config)
-    except Exception:  # noqa: BLE001
+    except (AttributeError, TypeError) as exc:  # noqa: BLE001 — broad catch intentional, config may be any type
+        logger.debug("Failed to compute large output threshold: %s", exc)
         return False
     try:
         if hasattr(value, "__len__"):
             return len(value) >= threshold
-    except TypeError:
-        pass
+    except TypeError as exc:
+        logger.warning("Operation failed in actor_scheduler.py: %s", exc, exc_info=True)  # noqa: BLE001
     return False
 
 
@@ -223,7 +224,7 @@ class ActorScheduler:
                         self._failed_critical = "resource_guard"
                         self._outcome.exit_code = 1
                         break
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:  # noqa: BLE001 — broad catch intentional, ResourceGuard may raise arbitrary errors
                     logger.debug("ResourceGuard early check failed (%s).", exc)
                 for node in ready:
                     self._dispatch(node)
@@ -236,6 +237,13 @@ class ActorScheduler:
             await self._await_any_completion()
 
         self._apply_re_scheduling()
+
+        re_sched_tasks = [st.task for st in self._in_flight.values()]
+        if re_sched_tasks:
+            logger.info(
+                "ActorScheduler: awaiting %d re-scheduled tasks", len(re_sched_tasks)
+            )
+            await asyncio.wait(re_sched_tasks, return_when=asyncio.ALL_COMPLETED)
 
         self._finalize_unsatisfiable_nodes()
 
@@ -322,7 +330,7 @@ class ActorScheduler:
     def _condition_holds(self, node: StageNode) -> bool:
         try:
             return bool(node.when.is_satisfied(self._ctx, self._runtime_flags))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — broad catch intentional, condition predicates may raise arbitrary errors
             logger.warning(
                 "Condition evaluation failed for stage '%s' (%s); treating as deferred",
                 node.name,
@@ -412,7 +420,7 @@ class ActorScheduler:
                 logger.warning("Stage '%s' was cancelled", scheduled.node.name)
                 self._mark_skipped(scheduled.node, reason="cancelled")
                 continue
-            except BaseException as exc:  # noqa: BLE001
+            except BaseException as exc:  # noqa: BLE001 — broad catch intentional, must not let stage exceptions escape actor loop
                 logger.exception(
                     "Stage '%s' raised in actor scheduler: %s",
                     scheduled.node.name,
@@ -514,8 +522,8 @@ class ActorScheduler:
             factor = getattr(self._config, "rebalance_group_factor", None)
             if isinstance(factor, int) and factor > 0:
                 return factor
-        except Exception:  # noqa: BLE001
-            pass
+        except (AttributeError, TypeError) as exc:  # noqa: BLE001 — broad catch intentional, config may be any type
+            logger.debug("Failed to read rebalance_group_factor from config: %s", exc)
         return DEFAULT_REBALANCE_THRESHOLD_FACTOR
 
     def _is_large_debt_node(self, node: StageNode) -> bool:
@@ -533,7 +541,7 @@ class ActorScheduler:
             return
         try:
             hook(self._ctx)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — broad catch intentional, hook may raise arbitrary errors
             logger.warning(
                 "Post-completion hook for '%s' raised: %s",
                 node.name,
@@ -613,7 +621,7 @@ class ActorScheduler:
                 self._outcome.exit_code = 7
                 self._failed_critical = node.name
                 return False
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — broad catch intentional, suspend check must not crash scheduler
             logger.debug("Suspend check failed for '%s': %s", node.name, exc)
         return True
 

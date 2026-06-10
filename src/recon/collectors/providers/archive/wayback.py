@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from collections.abc import Generator, Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -30,9 +31,15 @@ from src.recon.common import normalize_url
 
 logger = logging.getLogger(__name__)
 
-CDX_ENDPOINT = "https://web.archive.org/cdx/search/cdx"
+CDX_ENDPOINT = os.environ.get("WAYBACK_CDX_ENDPOINT", "https://web.archive.org/cdx/search/cdx")
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_BACKOFF_SECONDS = 0.5
+
+# Circuit breaker state
+_cb_failures: int = 0
+_cb_open_until: float = 0.0
+_CB_THRESHOLD = 10  # Open after 10 consecutive failures
+_CB_OPEN_SECONDS = 60.0  # Stay open for 60 seconds
 
 
 def _parse_cdx_json(text: str) -> list[str]:
@@ -77,6 +84,10 @@ def _collect_for_host(
     session: requests.Session | None = None,
 ) -> set[str]:
     """Single-host CDX lookup.  Network failures return an empty set."""
+    global _cb_failures, _cb_open_until
+    if _cb_failures >= _CB_THRESHOLD and time.monotonic() < _cb_open_until:
+        return set()
+
     params = {
         "url": f"{host}/*",
         "output": "json",
@@ -96,10 +107,19 @@ def _collect_for_host(
         ssrf_check_once=True,
     )
     if not result.ok or result.response is None:
+        _cb_failures += 1
+        if _cb_failures >= _CB_THRESHOLD:
+            _cb_open_until = time.monotonic() + _CB_OPEN_SECONDS
         return set()
 
     originals = _parse_cdx_json(result.response.text or "")
     normalized = {normalize_url(u) for u in originals if normalize_url(u)}
+    if normalized:
+        _cb_failures = 0
+    else:
+        _cb_failures += 1
+        if _cb_failures >= _CB_THRESHOLD:
+            _cb_open_until = time.monotonic() + _CB_OPEN_SECONDS
     return normalized
 
 

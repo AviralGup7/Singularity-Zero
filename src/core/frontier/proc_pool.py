@@ -46,7 +46,7 @@ except ImportError:
 MAX_PAYLOAD_BYTES = 10_000_000
 
 
-def _decode(value: bytes | str, encoding: str = "utf-8", errors: str = "replace") -> str:
+def _decode(value: bytes | str, encoding: str = "utf-8", errors: str = "backslashreplace") -> str:
     return value.decode(encoding, errors) if isinstance(value, bytes) else value
 
 
@@ -99,8 +99,8 @@ class ResourceWatchdog:
             self._task.cancel()
             try:
                 await self._task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in proc_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     async def _monitor_loop(self) -> None:
         while True:
@@ -184,15 +184,13 @@ class ResourceWatchdog:
 
                             # Safely replace process in the REAL pool
                             async with self.pool._lock:
-                                # Find the actual object in self.pool._processes
-                                for real_p in self.pool._processes:
-                                    if real_p.id == p.id:
-                                        real_p.process = new_proc
-                                        real_p.busy = False
-                                        real_p.current_task_id = None
-                                        break
-                    except psutil.NoSuchProcess:
-                        pass
+                                real_p = self.pool._process_map.get(p.id)
+                                if real_p is not None:
+                                    real_p.process = new_proc
+                                    real_p.busy = False
+                                    real_p.current_task_id = None
+                    except psutil.NoSuchProcess as exc:
+                        logger.warning("Operation failed in proc_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
             except Exception as e:
                 logger.error("ResourceWatchdog monitor error: %s", e)
 
@@ -216,6 +214,7 @@ class FrontierProcessPool:
             self.pool_size = pool_size
 
         self._processes: list[ToolProcess] = []
+        self._process_map: dict[int, ToolProcess] = {}
         self._lock = asyncio.Lock()
         self._task_receipts: dict[str, ProcessTaskReceipt] = {}
         self._last_receipt_prune: float = 0.0
@@ -264,6 +263,18 @@ class FrontierProcessPool:
             k: v for k, v in self._binary_task_cache.items() if k in alive_ids
         }
 
+    def _cap_task_receipts(self) -> None:
+        """Hard-cap _task_receipts to prevent unbounded growth between prune windows."""
+        _MAX_RECEIPTS = 10_000
+        if len(self._task_receipts) > _MAX_RECEIPTS:
+            sorted_keys = sorted(
+                self._task_receipts,
+                key=lambda k: self._task_receipts[k].timestamp,
+            )
+            for k in sorted_keys[: len(sorted_keys) - _MAX_RECEIPTS]:
+                self._task_receipts.pop(k, None)
+                self._binary_task_cache.pop(k, None)
+
     async def warm_pool(self, tool_name: str, base_args: list[str]) -> None:
         """Spawn initial process set."""
         self._ensure_watchdog_started()
@@ -285,7 +296,9 @@ class FrontierProcessPool:
 
         for i in range(self.pool_size):
             proc = await asyncio.create_subprocess_exec(tool_name, *base_args, **spawn_kwargs)
-            self._processes.append(ToolProcess(tool_name, proc, i))
+            tp = ToolProcess(tool_name, proc, i)
+            self._processes.append(tp)
+            self._process_map[tp.id] = tp
         logger.info("Warmed Frontier Pool for '%s' (Size: %d)", tool_name, self.pool_size)
 
     async def acquire_process(self, task_id: str | None = None) -> ToolProcess | None:
@@ -301,11 +314,10 @@ class FrontierProcessPool:
     async def release_process(self, p_id: int) -> None:
         """Mark a process as idle."""
         async with self._lock:
-            for p in self._processes:
-                if p.id == p_id:
-                    p.busy = False
-                    p.current_task_id = None
-                    break
+            p = self._process_map.get(p_id)
+            if p is not None:
+                p.busy = False
+                p.current_task_id = None
 
     async def execute_task(
         self,
@@ -321,6 +333,7 @@ class FrontierProcessPool:
         """
         stable_task_id = task_id or stable_digest({"tool": tool_name, "task": task_data})
         self._prune_stale_receipts()
+        self._cap_task_receipts()
         receipt = self._task_receipts.get(stable_task_id)
         if receipt and receipt.status == "completed":
             return receipt.output
@@ -405,7 +418,7 @@ class FrontierProcessPool:
                 raise RuntimeError(f"ToolExecutionError: pooled process {tool_name} missing pipes")
 
             # Send task to pre-warmed process stdin
-            p.process.stdin.write(f"{task_data}\n".encode())
+            p.process.stdin.write(f"{task_data}\n".encode("utf-8"))
             await p.process.stdin.drain()
 
             # Read response (assuming tool supports JSON-RPC line-by-line)
@@ -460,6 +473,7 @@ class FrontierProcessPool:
         """
         stable_task_id = task_id or stable_digest({"tool": tool_name, "task": repr(task_obj)})
         self._prune_stale_receipts()
+        self._cap_task_receipts()
         receipt = self._task_receipts.get(stable_task_id)
         if receipt and receipt.status == "completed":
             return self._binary_task_cache.get(stable_task_id)
@@ -529,6 +543,7 @@ class FrontierProcessPool:
             if len(self._binary_task_cache) >= _BINARY_CACHE_MAX:
                 oldest_key = next(iter(self._binary_task_cache))
                 del self._binary_task_cache[oldest_key]
+                self._task_receipts.pop(oldest_key, None)
             self._binary_task_cache[stable_task_id] = output
             async with self._lock:
                 self._task_receipts[stable_task_id] = self._make_receipt(
@@ -594,6 +609,7 @@ class FrontierProcessPool:
             if len(self._binary_task_cache) >= _BINARY_CACHE_MAX:
                 oldest_key = next(iter(self._binary_task_cache))
                 del self._binary_task_cache[oldest_key]
+                self._task_receipts.pop(oldest_key, None)
             self._binary_task_cache[stable_task_id] = output
             async with self._lock:
                 self._task_receipts[stable_task_id] = self._make_receipt(
@@ -647,3 +663,4 @@ class FrontierProcessPool:
             except Exception as e:
                 logger.debug("Failed to terminate process %d: %s", p.id, e)
         self._processes = []
+        self._process_map.clear()

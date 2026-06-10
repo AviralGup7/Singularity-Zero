@@ -26,8 +26,8 @@ from src.recon.domain_validation import normalize_domain as _normalize_domain
 logger = logging.getLogger(__name__)
 
 _CSRF_RE = re.compile(
-    r'name=["\']csrfmiddlewaretoken["\'][^>]*?value=["\']([a-zA-Z0-9]+)["\']',
-    re.IGNORECASE | re.DOTALL,
+    r'name=["\']csrfmiddlewaretoken["\'][^>]*value=["\']([a-zA-Z0-9]+)["\']',
+    re.IGNORECASE,
 )
 
 

@@ -149,8 +149,8 @@ async def test_datasource_ssrf(
                         "details": f"Proxy returned {resp.status_code} (not 502/404) — possible SSRF",
                     }
                 )
-        except (httpx.RequestError, ValueError):
-            pass
+        except (httpx.RequestError, ValueError) as exc:
+            logger.warning("Operation failed in grafana_ssrf.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         if datasource_id:
             try:

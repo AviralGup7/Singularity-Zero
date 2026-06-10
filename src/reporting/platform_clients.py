@@ -21,6 +21,8 @@ from typing import Any
 
 import httpx
 
+from src.reporting.sarif_exporter import _intigriti_weakness_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,7 +122,7 @@ class HackerOneClient(_BaseClient):
         self,
         api_token: str | None = None,
         program_handle: str | None = None,
-        base_url: str = "https://api.hackerone.com",
+        base_url: str = os.environ.get("HACKERONE_BASE_URL", "https://api.hackerone.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -160,10 +162,11 @@ class HackerOneClient(_BaseClient):
                 headers={"Accept": "application/json"},
             )
         except (TimeoutError, httpx.RequestError) as exc:
+            safe_error = str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
-                error=f"{type(exc).__name__}: {exc}",
+                error=f"{type(exc).__name__}: {safe_error}",
             )
         if resp.status_code in {200, 201, 202}:
             try:
@@ -200,7 +203,7 @@ class BugcrowdClient(_BaseClient):
         self,
         api_token: str | None = None,
         program_code: str | None = None,
-        base_url: str = "https://api.bugcrowd.com",
+        base_url: str = os.environ.get("BUGCROWD_BASE_URL", "https://api.bugcrowd.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -281,7 +284,7 @@ class IntigritiClient(_BaseClient):
         self,
         api_token: str | None = None,
         program_id: str | None = None,
-        base_url: str = "https://api.intigriti.com",
+        base_url: str = os.environ.get("INTIGRITI_BASE_URL", "https://api.intigriti.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -320,10 +323,11 @@ class IntigritiClient(_BaseClient):
                 },
             )
         except (TimeoutError, httpx.RequestError) as exc:
+            safe_error = str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
-                error=f"{type(exc).__name__}: {exc}",
+                error=f"{type(exc).__name__}: {safe_error}",
             )
         try:
             body = resp.json()
@@ -360,7 +364,7 @@ class SynackClient(_BaseClient):
         self,
         api_token: str | None = None,
         assessment_id: str | None = None,
-        base_url: str = "https://api.synack.com",
+        base_url: str = os.environ.get("SYNACK_BASE_URL", "https://api.synack.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -399,10 +403,11 @@ class SynackClient(_BaseClient):
                 },
             )
         except (TimeoutError, httpx.RequestError) as exc:
+            safe_error = str(exc).replace(self.api_token, "[REDACTED]") if self.api_token else str(exc)
             return SubmissionResult(
                 platform=self.platform,
                 ok=False,
-                error=f"{type(exc).__name__}: {exc}",
+                error=f"{type(exc).__name__}: {safe_error}",
             )
         try:
             body = resp.json()
@@ -439,7 +444,7 @@ class YesWeHackClient(_BaseClient):
         self,
         api_token: str | None = None,
         program_slug: str | None = None,
-        base_url: str = "https://api.yeswehack.com",
+        base_url: str = os.environ.get("YESWEHACK_BASE_URL", "https://api.yeswehack.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -494,7 +499,7 @@ class OpenBugBountyClient(_BaseClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://www.openbugbounty.org",
+        base_url: str = os.environ.get("OPENBUGBOUNTY_BASE_URL", "https://www.openbugbounty.org"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -549,7 +554,7 @@ class GoogleVRPClient(_BaseClient):
         self,
         api_key: str | None = None,
         tracker_id: str | None = None,
-        base_url: str = "https://issuetracker.googleapis.com",
+        base_url: str = os.environ.get("GOOGLE_VRP_BASE_URL", "https://issuetracker.googleapis.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -603,7 +608,7 @@ class MetaClient(_BaseClient):
     def __init__(
         self,
         access_token: str | None = None,
-        base_url: str = "https://graph.facebook.com",
+        base_url: str = os.environ.get("META_BASE_URL", "https://graph.facebook.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -624,11 +629,14 @@ class MetaClient(_BaseClient):
             "description": env.description,
             "severity": env.severity,
             "target": env.target_name,
-            "access_token": self.access_token,
         }
         try:
             client = await self._http()
-            resp = await client.post(url, json=payload)
+            resp = await client.post(
+                url,
+                json=payload,
+                headers={"Authorization": f"Bearer {self.access_token}"},
+            )
         except Exception as exc:
             return SubmissionResult(platform=self.platform, ok=False, error=str(exc))
         if resp.status_code in {200, 201, 202}:
@@ -658,7 +666,9 @@ class AppleClient(_BaseClient):
         self,
         dev_token: str | None = None,
         program_id: str | None = None,
-        base_url: str = "https://api.apple-security.com",
+        # NOTE: Verify this base URL against Apple's actual Security
+        # Research submission endpoint before production use.
+        base_url: str = os.environ.get("APPLE_BASE_URL", "https://api.apple-security.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -712,7 +722,7 @@ class AWSClient(_BaseClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://security-report.aws.amazon.com",
+        base_url: str = os.environ.get("AWS_BASE_URL", "https://security-report.aws.amazon.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -765,7 +775,7 @@ class MSRCAgent(_BaseClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://api.msrc.microsoft.com",
+        base_url: str = os.environ.get("MSRC_BASE_URL", "https://api.msrc.microsoft.com"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -818,7 +828,7 @@ class MozillaClient(_BaseClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://bugzilla.mozilla.org",
+        base_url: str = os.environ.get("MOZILLA_BASE_URL", "https://bugzilla.mozilla.org"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -873,7 +883,7 @@ class GovDefenseClient(_BaseClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://vulnerability-disclosure.cisa.gov",
+        base_url: str = os.environ.get("CISA_BASE_URL", "https://vulnerability-disclosure.cisa.gov"),
         timeout: float = 20.0,
     ) -> None:
         super().__init__(timeout=timeout)
@@ -964,23 +974,6 @@ def _intigriti_severity(sev: Any) -> int:
     return {"critical": 5, "high": 4, "medium": 3, "low": 2}.get(
         str(sev or "").lower(), 1
     )
-
-
-def _intigriti_weakness_id(finding_type: Any) -> str:
-    t = str(finding_type or "").lower()
-    if "xss" in t:
-        return "xss"
-    if "sql" in t:
-        return "sqli"
-    if "ssrf" in t:
-        return "server_side_request_forgery"
-    if "rce" in t or "command" in t:
-        return "rce"
-    if "auth" in t or "broken" in t:
-        return "broken_authentication"
-    if "idor" in t or "bola" in t:
-        return "idor"
-    return "other"
 
 
 def _synack_severity(sev: Any) -> str:

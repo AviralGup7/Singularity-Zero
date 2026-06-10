@@ -75,6 +75,7 @@ def _get_dynamic_thresholds(target_profile: dict[str, Any] | None = None) -> dic
     if str(target_profile.get("mode", "")).lower() in {"idor", "ssrf", "xss", "auth"}:
         low -= 0.05
         medium -= 0.04
+        high -= 0.03
 
     low = max(0.25, min(low, 0.70))
     medium = max(low + 0.08, min(medium, 0.80))

@@ -25,6 +25,7 @@ from src.analysis.active.injection.xxe import xxe_active_probe
 from src.analysis.active.param_mining import param_mining_probe
 from src.analysis.behavior.flow_prober import run_cognitive_flow_analysis
 from src.analysis.checks.active._detectors import (
+    ai_endpoint_exposure_analyzer,
     dom_xss_signal_detector,
     reflected_xss_probe,
     server_side_injection_surface_analyzer,
@@ -226,7 +227,7 @@ def _register_bindings() -> None:
         "auth_boundary_redirect_detection": _binding("priority_urls_and_cache"),
         "graphql_error_leakage_checker": _binding("responses_only"),
         "openapi_swagger_spec_checker": _binding("urls_and_responses"),
-        "ai_endpoint_exposure_analyzer": _binding("urls_and_responses"),
+        "ai_endpoint_exposure_analyzer": _binding("urls_and_responses", ai_endpoint_exposure_analyzer),
         "grpc_reflection_exposure_checker": _binding("urls_and_responses"),
         "cloud_storage_exposure_checker": _binding("responses_only"),
         "cloud_metadata_exposure_checker": _binding("urls_and_responses"),

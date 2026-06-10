@@ -43,7 +43,7 @@ HPP_FORMAT_PAYLOADS = [
 
 HPP_WAF_BYPASS_PAYLOADS = [
     ("waf_split_1", "param1=val&param1=ue"),
-    ("waf_split_2", "param=evil&param=;id"),
+    ("waf_split_2", "param=evil&param=admin"),
     ("waf_case", "PARAM=val&param=evil"),
     ("waf_space", "param =val&param=evil"),
 ]

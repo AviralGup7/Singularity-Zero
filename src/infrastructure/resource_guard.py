@@ -98,8 +98,8 @@ class ResourceGuard:
         try:
             import psutil
             return int(psutil.virtual_memory().available / (1024 * 1024))
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.warning("Operation failed in resource_guard.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as exc:
             logger.debug("ResourceGuard: psutil check failed (%s); falling back to disk usage.", exc)
 
@@ -135,8 +135,8 @@ class ResourceGuard:
                 raise RuntimeError(
                     f"Critical OOM: memory usage {mem.percent:.1f}% exceeds threshold {kill_percent * 100:.1f}%"
                 )
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.warning("Operation failed in resource_guard.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as exc:
             logger.debug("ResourceGuard: psutil-based OOM check failed (%s).", exc)
 
@@ -149,8 +149,8 @@ class ResourceGuard:
             mem = psutil.virtual_memory()
             if mem.percent >= (kill_percent * 100):
                 return f"memory usage {mem.percent:.1f}% exceeds threshold {kill_percent * 100:.1f}%"
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.warning("Operation failed in resource_guard.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as exc:
             logger.debug("ResourceGuard: OOM check failed (%s).", exc)
         return None

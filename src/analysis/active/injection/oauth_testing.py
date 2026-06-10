@@ -30,8 +30,13 @@ DANGEROUS_REDIRECT_PATTERNS = [
     r"^https?://localhost[:/]",
     r"^https?://127\.0\.0\.1[:/]",
     r"^https?://0\.0\.0\.0[:/]",
+    r"^https?://\[::1\][:/]",
     r"data:",
     r"javascript:",
+    r"^file://",
+    r"^ftp://",
+    r"^gopher://",
+    r"^\\\\",
 ]
 
 
@@ -69,7 +74,8 @@ async def discover_oauth_config(
                             }
                         )
                         break
-                except (httpx.RequestError, ValueError):
+                except (httpx.RequestError, ValueError) as exc:
+                    logger.debug("OAuth metadata fetch failed for %s: %s", origin + endpoint, exc)
                     continue
     return configs
 

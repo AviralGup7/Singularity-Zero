@@ -308,3 +308,54 @@ class TestSetupTools(unittest.TestCase):
         assert mock_copy.call_count >= 3
         if sys.platform != "win32":
             assert mock_chmod.call_count == 3
+
+
+@pytest.mark.unit
+class TestLiteWorkerRealConnection:
+    """Tests that exercise real Redis connection failure paths
+    without fully mocking the Redis client."""
+
+    @pytest.mark.asyncio
+    async def test_worker_connects_to_unreachable_redis_raises(self) -> None:
+        """Verify that connecting to a non-existent Redis raises a connection error."""
+        import redis.asyncio as aioredis
+
+        worker = LiteWorker(
+            worker_id="test-unreachable",
+            redis_url="redis://192.0.2.1:1/0",  # TEST-NET, guaranteed unreachable
+            queue_name="security-pipeline",
+        )
+        import redis.exceptions as redis_exc
+
+        worker._redis = aioredis.from_url(
+            "redis://192.0.2.1:1/0",
+            socket_connect_timeout=0.5,
+            socket_timeout=0.5,
+        )
+        with pytest.raises((ConnectionError, OSError, asyncio.TimeoutError, redis_exc.TimeoutError, redis_exc.ConnectionError)):
+            await worker._redis.ping()
+
+    @pytest.mark.asyncio
+    async def test_worker_register_without_connection_raises(self) -> None:
+        """Verify that _register fails gracefully when Redis is unavailable."""
+        worker = LiteWorker(
+            worker_id="test-no-conn",
+            redis_url="redis://192.0.2.1:1/0",
+            queue_name="security-pipeline",
+        )
+        with pytest.raises((ConnectionError, OSError, asyncio.TimeoutError, AttributeError)):
+            await worker._register()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_without_redis_does_not_raise(self) -> None:
+        """Verify that _cleanup is safe even when _redis is None."""
+        worker = LiteWorker(
+            worker_id="test-cleanup-safe",
+            redis_url="redis://192.0.2.1:1/0",
+            queue_name="security-pipeline",
+        )
+        worker._redis = None
+        worker._shas = {}
+        worker._active_tasks = set()
+        # Should not raise
+        await worker._cleanup()

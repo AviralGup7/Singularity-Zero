@@ -22,7 +22,7 @@ async def get_findings_summary(
     target: str | None = Query(None),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
-) -> dict[str, Any]:
+) -> FindingsSummaryResponse:
     """Return a global summary of findings across all targets."""
     output_root = services.query.output_root
     total_findings = 0
@@ -34,16 +34,16 @@ async def get_findings_summary(
     all_findings_list: list[dict[str, Any]] = []
 
     if not output_root.exists():
-        return {
-            "total_findings": 0,
-            "severity_totals": severity_totals,
-            "by_severity": severity_totals,
-            "by_module": {},
-            "findings": [],
-            "targets": [],
-            "targets_with_findings": 0,
-            "total_targets": 0,
-        }
+        return FindingsSummaryResponse(
+            total_findings=0,
+            severity_totals=severity_totals,
+            by_severity=severity_totals,
+            by_module={},
+            findings=[],
+            targets=[],
+            targets_with_findings=0,
+            total_targets=0,
+        )
 
     tenant_id = (_auth or {}).get("tenant_id", "default")
     from src.dashboard.fastapi.routers.targets import is_target_owned_by_tenant
@@ -98,13 +98,13 @@ async def get_findings_summary(
                 }
             )
 
-    return {
-        "total_findings": total_findings,
-        "severity_totals": severity_totals,
-        "by_severity": severity_totals,
-        "by_module": by_module,
-        "findings": all_findings_list,
-        "targets": target_summaries,
-        "targets_with_findings": targets_with_findings,
-        "total_targets": total_targets,
-    }
+    return FindingsSummaryResponse(
+        total_findings=total_findings,
+        severity_totals=severity_totals,
+        by_severity=severity_totals,
+        by_module=by_module,
+        findings=all_findings_list,
+        targets=target_summaries,
+        targets_with_findings=targets_with_findings,
+        total_targets=total_targets,
+    )

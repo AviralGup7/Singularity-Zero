@@ -22,7 +22,10 @@ class CorpusEntry:
         self.payload: str = payload
         self.signature: str = signature
         self.energy: int = energy
-        self.birth_time: float = asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0.0
+        try:
+            self.birth_time: float = asyncio.get_running_loop().time()
+        except RuntimeError:
+            self.birth_time = 0.0
         self.hits: int = 0
 
 
@@ -281,7 +284,7 @@ def boundary_values(param_type: str) -> list[str]:
     if param_type == "id":
         return ["0", "-1", "999999", "00000000-0000-4000-8000-000000000000"]
     if param_type == "json":
-        return ['{"$ne": null}', "[]", "{}", '{"a":' * 100 + "1" + "}" * 100]
+        return ['{"$ne": null}', "[]", "{}", '{"a":' * min(100, max(1, 1000 // 10)) + "1" + "}" * min(100, max(1, 1000 // 10))]
     return ["A" * 10000, "", " ", "null", "undefined"]
 
 
@@ -307,7 +310,7 @@ async def _execute_coverage_guided_fuzz(
 
     parsed = urlparse(url)
     base_payload = parsed.query or parsed.path or "/"
-    base_signature = f"seed:{hashlib.md5(base_payload.encode()).hexdigest()[:8]}"
+    base_signature = f"seed:{hashlib.md5(base_payload.encode("utf-8", errors="ignore")).hexdigest()[:8]}"
     corpus.add(payload=base_payload, signature=base_signature)
 
     findings: list[dict[str, Any]] = []
@@ -344,18 +347,24 @@ async def _execute_coverage_guided_fuzz(
 
         for mutated in mutated_payloads:
             try:
+                # Cap payload length to avoid exceeding URL size limits (8KB typical)
+                capped = mutated[:4096] if len(mutated) > 4096 else mutated
                 if "?" in url:
-                    mutated_url = url + "&fuzz=" + mutated
+                    mutated_url = url + "&fuzz=" + capped
                 else:
-                    mutated_url = url + "?fuzz=" + mutated
+                    mutated_url = url + "?fuzz=" + capped
+                if len(mutated_url) > 8192:
+                    continue
                 resp = await client.get(mutated_url, timeout=timeout_seconds)
                 status = resp.status_code
                 body = resp.text
                 resp_len = len(body)
-            except Exception:
+            except Exception as exc:
+                logger.debug("URL fuzz request failed for %s: %s", mutated_url, exc)
                 continue
 
-            content_hash = hashlib.md5(body[:8192].encode("utf-8", errors="ignore")).hexdigest()
+            # Use a fixed-size slice to avoid materializing large copies
+            content_hash = hashlib.md5(body[:8192].encode("utf-8", errors="replace")).hexdigest()
             edge_signature = tracker.record_edge(url, status, resp_len, content_hash)
 
             if edge_signature:

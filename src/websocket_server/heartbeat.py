@@ -103,8 +103,8 @@ class HeartbeatMonitor:
             task.cancel()
             try:
                 await task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in heartbeat.py: %s", exc, exc_info=True)  # noqa: BLE001
         logger.debug("Heartbeat stopped for connection %s", connection_id)
 
     async def stop_all(self) -> None:
@@ -129,8 +129,8 @@ class HeartbeatMonitor:
                     await asyncio.wait_for(stop_event.wait(), timeout=self.interval_seconds)
                     # stop_event was set — exit cleanly
                     break
-                except TimeoutError:
-                    pass  # Normal: interval elapsed, proceed with heartbeat
+                except TimeoutError as exc:
+                    logger.warning("Operation failed in heartbeat.py: %s", exc, exc_info=True)  # noqa: BLE001
 
                 info = await self.manager.get_connection(connection_id)
                 if info is None or info.closed:

@@ -1,6 +1,4 @@
-import { useState, useEffect } from 'react';
-import { getHealth } from '../api/client';
-import type { HealthStatus } from '@/types/api';
+import { useHealthStatus } from '@/hooks/useHealthStatus';
 
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${Math.floor(seconds)}s`;
@@ -11,31 +9,9 @@ function formatUptime(seconds: number): string {
 }
 
 export default function HealthIndicator() {
-   
-  const [health, setHealth] = useState<HealthStatus | null>(null);
-   
-  const [error, setError] = useState(false);
+  const { ready, status, degradedReasons, loading, error, lastChecked } = useHealthStatus();
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function checkHealth(signal?: AbortSignal) {
-      try {
-        const data = await getHealth(signal);
-        setHealth(data);
-        setError(false);
-      } catch {
-        if (signal?.aborted) return;
-        setError(true);
-      }
-    }
-    checkHealth(controller.signal);
-    const interval = setInterval(() => checkHealth(controller.signal), 30000);
-    return () => {
-      controller.abort();
-      clearInterval(interval);
-    };
-  }, []);
+  if (loading) return null;
 
   if (error) {
     return (
@@ -46,18 +22,23 @@ export default function HealthIndicator() {
     );
   }
 
-  if (!health) return null;
+  if (!ready || status === 'degraded') {
+    const reason = degradedReasons.length > 0 ? degradedReasons[0] : 'Some subsystems unavailable';
+    return (
+      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--warning-text, #eab308)' }} role="status" aria-label="Backend is degraded">
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--warning, #eab308)', display: 'inline-block' }} aria-hidden="true" />
+        <span>Degraded</span>
+        <span className="text-[var(--text-tertiary)]" title={reason}>· {reason}</span>
+      </div>
+    );
+  }
 
-  const rawUptime = health.uptime_seconds ?? (health as unknown as Record<string, unknown>).uptime;
-  const uptime = typeof rawUptime === 'number'
-    ? formatUptime(rawUptime)
-    : null;
+  const uptimeMs = lastChecked?.getTime();
 
   return (
     <div className="flex items-center gap-2 text-xs text-ok" role="status" aria-label="Backend is online">
       <span className="pulse-dot" aria-hidden="true" />
       <span>Online</span>
-      {uptime && <span className="text-muted">· {uptime}</span>}
     </div>
   );
 }

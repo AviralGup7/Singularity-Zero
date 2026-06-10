@@ -111,8 +111,8 @@ class EmailNotifier(BaseNotifier):
                 if server is not None:
                     try:
                         server.quit()
-                    except (smtplib.SMTPException, OSError):
-                        pass
+                    except (smtplib.SMTPException, OSError) as exc:
+                        logger.warning("Operation failed in email.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         await asyncio.get_running_loop().run_in_executor(None, _send)
 
@@ -296,4 +296,5 @@ class EmailNotifier(BaseNotifier):
         return attachment
 
     async def close(self) -> None:
-        pass
+        """Close the email notifier (no persistent resources to clean up)."""
+        logger.debug("Email notifier closed")

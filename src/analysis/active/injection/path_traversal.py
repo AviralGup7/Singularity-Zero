@@ -76,7 +76,7 @@ def path_traversal_active_probe(
         ("dot_dot_dot_slash", "....//....//etc/passwd"),
         ("backslash", "..\\..\\windows\\win.ini"),
         ("encoded_backslash", "..%5c..%5cwindows%5cwin.ini"),
-        ("null_byte", "../../etc/passwd%00"),
+        ("null_byte", "../../etc/passwd\x00"),
         ("traversal_simple", "../../../etc/passwd"),
     ]
 

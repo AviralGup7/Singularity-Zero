@@ -107,7 +107,7 @@ export const RegistrySchema = z.object({
 });
 
 export const AppSettingsSchema = z.object({
-  language: z.string().default('en'),
+  language: z.string().default(typeof navigator !== 'undefined' ? (navigator.language.split('-')[0] === 'es' ? 'es' : 'en') : 'en'),
   dashboard: z.object({
     autoRefresh: z.boolean().default(false),
     refreshInterval: z.number().default(30),
@@ -180,10 +180,12 @@ export const AppSettingsSchema = z.object({
     baseUrl: z.string().default('http://localhost:8000'),
     timeout: z.number().default(30),
     apiKey: z.string().default(''),
+    enableGuestLogin: z.boolean().default(true),
   }).default({
     baseUrl: 'http://localhost:8000',
     timeout: 30,
     apiKey: '',
+    enableGuestLogin: true,
   }),
   reports: z.object({
    

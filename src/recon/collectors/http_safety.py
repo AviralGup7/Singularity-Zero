@@ -149,6 +149,7 @@ _DEFAULT_SESSION: requests.Session | None = None
 _DEFAULT_SESSION_LOCK = threading.Lock()
 
 
+
 def _build_default_session() -> requests.Session:
     session = requests.Session()
     adapter = requests.adapters.HTTPAdapter(
@@ -188,6 +189,11 @@ def reset_default_session() -> None:
             except Exception:  # pragma: no cover - defensive
                 pass
         _DEFAULT_SESSION = None
+
+
+import atexit as _atexit
+_atexit.register(reset_default_session)
+
 
 
 # ---------------------------------------------------------------------------

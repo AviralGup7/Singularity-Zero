@@ -7,6 +7,7 @@ and handles top-level errors gracefully.
 import argparse
 import asyncio
 import json
+import logging
 import os
 import shutil
 import signal
@@ -17,6 +18,8 @@ import traceback
 from pathlib import Path
 
 from src.core.logging.pipeline_logging import emit_error, emit_warning
+
+logger = logging.getLogger(__name__)
 from src.core.security.secret_validator import validate_or_raise
 from src.pipeline.runner_support import parse_args
 from src.pipeline.services.pipeline_orchestrator import PipelineOrchestrator
@@ -44,7 +47,14 @@ def _is_shutdown_requested() -> bool:
 def request_shutdown() -> None:
     """Public hook for in-process callers to trigger a graceful shutdown."""
     if _shutdown_event is not None:
-        _shutdown_event.set()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None and loop.is_running():
+            loop.call_soon_threadsafe(_shutdown_event.set)
+        else:
+            _shutdown_event.set()
 
 
 # Backwards-compatible alias used by tests / external callers that
@@ -126,7 +136,7 @@ def _preflight_checks(args: argparse.Namespace) -> bool:
         if resume_from:
             if not hasattr(config, "_resume_from"):
                 config._resume_from = resume_from
-        with open(scope_path) as f:
+        with open(scope_path, encoding="utf-8") as f:
             scope_entries = [line.strip() for line in f if line.strip()]
 
         all_ok, report = validate_config(config.to_dict(), scope_entries, str(config.output_dir))
@@ -240,9 +250,9 @@ async def _run_replay(args: argparse.Namespace) -> int:
 
     tmp_output = _make_secure_tempdir()
     try:
-        with open(config_file) as f:
+        with open(config_file, encoding="utf-8") as f:
             config = json.load(f)
-        with open(scope_file) as f:
+        with open(scope_file, encoding="utf-8") as f:
             scope_entries = [line.strip() for line in f if line.strip()]
 
         replay_args = argparse.Namespace(
@@ -316,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
             from src.pipeline.validation import format_validation_report, validate_config
 
             config = load_config(Path(args.config).resolve())
-            with open(args.scope) as f:
+            with open(args.scope, encoding="utf-8") as f:
                 scope_entries = [line.strip() for line in f if line.strip()]
             all_ok, report = validate_config(
                 config.to_dict(), scope_entries, str(config.output_dir)
@@ -330,6 +340,11 @@ def main(argv: list[str] | None = None) -> int:
 
         loop = asyncio.new_event_loop()
         try:
+            global _shutdown_event
+            _shutdown_event = asyncio.Event()
+            global shutdown_flag
+            shutdown_flag = _shutdown_event
+
             for sig in (signal.SIGINT, signal.SIGTERM):
                 try:
                     loop.add_signal_handler(sig, handle_signal, sig)

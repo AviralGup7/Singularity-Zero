@@ -1,5 +1,7 @@
 """Authentication manager that composes JWT, API keys, sessions, and passwords."""
 
+import ipaddress
+import re
 import threading
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
@@ -31,6 +33,16 @@ class AuthManager:
     Manages JWT token generation/validation, API key lifecycle,
     session management, and password hashing.
 
+    SECURITY NOTE: The following stores are in-memory and do NOT
+    survive process restarts:
+    - _sessions: Active sessions are lost on restart.
+    - _revoked_tokens: Token revocations are lost on restart.
+    - _passwords: Password hashes are lost on restart.
+
+    For production deployments, these MUST be backed by a durable
+    store (Redis, SQLite, or a database) with the same atomicity
+    guarantees as the AuditLogger's SQLite index.
+
     Attributes:
         config: Security configuration.
         _api_key_store: API key store and lifecycle manager.
@@ -50,6 +62,7 @@ class AuthManager:
         self._sessions: dict[str, Session] = {}
         self._passwords: dict[str, PasswordHash] = {}
         self._revoked_tokens: set[str] = set()
+        self._revoked_tokens_lock = threading.Lock()
         self._session_lock = threading.Lock()
 
     # JWT Token Management
@@ -94,6 +107,7 @@ class AuthManager:
         """
         return _create_refresh_token(
             subject=user_id,
+            role=role,
             config=self.config,
         )
 
@@ -108,8 +122,10 @@ class AuthManager:
         """
         payload = _validate_token(token, self.config)
         # Additional revocation check
-        if payload is not None and payload.jti in self._revoked_tokens:
-            return None
+        if payload is not None:
+            with self._revoked_tokens_lock:
+                if payload.jti in self._revoked_tokens:
+                    return None
         return payload
 
     def refresh_access_token(self, refresh_token: str) -> tuple[str, str] | None:
@@ -139,7 +155,8 @@ class AuthManager:
         Args:
             token_id: JWT ID (jti) to revoke.
         """
-        self._revoked_tokens.add(token_id)
+        with self._revoked_tokens_lock:
+            self._revoked_tokens.add(token_id)
 
     # API Key Management
 
@@ -233,8 +250,8 @@ class AuthManager:
         Args:
             user_id: User identifier.
             role: User role.
-            ip_address: Client IP address.
-            user_agent: Client user agent string.
+            ip_address: Client IP address (validated and sanitized).
+            user_agent: Client user agent string (truncated and sanitized).
 
         Returns:
             New Session instance.
@@ -242,16 +259,49 @@ class AuthManager:
         now = datetime.now(UTC)
         expires_at = now + timedelta(minutes=self.config.session.timeout_minutes)
 
+        # SECURITY: Validate and sanitize IP address to prevent injection
+        # into logs or JSON serialization.
+        sanitized_ip = self._sanitize_ip(ip_address)
+        # SECURITY: Truncate and sanitize user agent to prevent log injection
+        # and excessive memory usage from malicious headers.
+        sanitized_ua = self._sanitize_user_agent(user_agent)
+
         session = Session(
             user_id=user_id,
             role=role,
             expires_at=expires_at.timestamp(),
-            ip_address=ip_address,
-            user_agent=user_agent,
+            ip_address=sanitized_ip,
+            user_agent=sanitized_ua,
         )
 
         self._sessions[session.id] = session
         return session
+
+    @staticmethod
+    def _sanitize_ip(ip: str) -> str:
+        """Validate and sanitize an IP address string.
+
+        Returns the validated IP or empty string if invalid.
+        """
+        if not ip:
+            return ""
+        try:
+            addr = ipaddress.ip_address(ip)
+            return str(addr)
+        except ValueError:
+            return ""
+
+    @staticmethod
+    def _sanitize_user_agent(ua: str, max_length: int = 512) -> str:
+        """Sanitize a User-Agent string.
+
+        Truncates to max_length and removes control characters.
+        """
+        if not ua:
+            return ""
+        # Remove control characters except common whitespace
+        sanitized = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", ua)
+        return sanitized[:max_length]
 
     def get_session(self, session_id: str) -> Session | None:
         """Get a session by ID.
@@ -326,6 +376,9 @@ class AuthManager:
     def verify_password(self, user_id: str, password: str) -> bool:
         """Verify a user's password.
 
+        Uses constant-time dummy hash comparison when the user does not
+        exist to prevent user enumeration via timing side-channel.
+
         Args:
             user_id: User identifier.
             password: Plaintext password to verify.
@@ -335,11 +388,20 @@ class AuthManager:
         """
         pwd_hash = self._passwords.get(user_id)
         if pwd_hash is None:
+            # Perform a dummy hash to prevent timing-based user enumeration.
+            # The time taken should be indistinguishable from a real hash check.
+            from .passwords import hash_password as _dummy_hash
+            _dummy_hash(password)
             return False
         return _verify_password(password, pwd_hash)
 
     def has_user(self, user_id: str) -> bool:
         """Check if a user exists (has a password set).
+
+        SECURITY NOTE: This method is intentionally NOT timing-safe.
+        Use verify_password() for authentication flows. This method
+        should only be used for administrative operations where the
+        caller already has authorization context.
 
         Args:
             user_id: User identifier.

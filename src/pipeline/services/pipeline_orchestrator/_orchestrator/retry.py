@@ -117,8 +117,8 @@ async def _record_trace(
         retry_count=retry_count,
     )
     try:
-        asyncio.create_task(trace_store.record_trace_async(trace))
-    except RuntimeError:
+        await trace_store.record_trace_async(trace)
+    except Exception:
         trace_store.record_trace(trace)
 
 
@@ -300,12 +300,26 @@ async def run_stage_with_retry(
             and not key.startswith("_")
         }
 
+        try:
+            from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+            _reg = _get_metrics()
+            _reg.histogram("scan_duration_seconds", labels={"stage": stage_name}).observe(elapsed)
+            _reg.counter("total_jobs").inc()
+        except Exception:  # noqa: BLE001
+            pass
+
         if isinstance(result, StageOutput):
             import dataclasses
 
             merged_delta = {**state_delta, **(result.state_delta or {})}
             result = dataclasses.replace(result, state_delta=merged_delta)
             tracer.record_stage_result(span, result)
+
+            try:
+                from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+                _get_metrics().counter("completed_jobs").inc()
+            except Exception:  # noqa: BLE001
+                pass
 
             orchestrator._emit_event(
                 EventType.STAGE_COMPLETED,
@@ -333,6 +347,12 @@ async def run_stage_with_retry(
             state_delta=state_delta,
         )
         tracer.record_stage_result(span, output)
+
+        try:
+            from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+            _get_metrics().counter("completed_jobs").inc()
+        except Exception:  # noqa: BLE001
+            pass
 
         orchestrator._emit_event(
             EventType.STAGE_COMPLETED,
@@ -456,6 +476,11 @@ async def run_stage_with_retry(
 
         if not retryable:
             metrics.record_failure()
+            try:
+                from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+                _get_metrics().counter("failed_jobs").inc()
+            except Exception:  # noqa: BLE001
+                pass
             stage_error = _format_stage_error(last_exc, timed_out=is_timeout)
             ctx.result.stage_status[stage_name] = StageStatus.FAILED.value
             ctx.result.module_metrics[stage_name] = {
@@ -524,6 +549,12 @@ async def run_stage_with_retry(
             return None
 
         backoff = policy.delay_for_attempt(attempt + 1, jitter=policy.jitter_factor)
+
+        try:
+            from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+            _get_metrics().counter("retries_total").inc()
+        except Exception:  # noqa: BLE001
+            pass
 
         if policy.is_budget_exhausted():
             err = "Stage retry budget exhausted"

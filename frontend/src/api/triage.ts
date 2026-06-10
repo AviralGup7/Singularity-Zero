@@ -191,6 +191,38 @@ export async function getTriageAudit(
   return data;
 }
 
+export async function verifyTriageAudit(
+  runId?: string,
+  signal?: AbortSignal,
+): Promise<{ valid: boolean; chain_length: number; latest_hash: string; error?: string }> {
+  const { data } = await apiClient.get<{ valid: boolean; chain_length: number; latest_hash: string; error?: string }>(
+    '/api/triage/audit/verify',
+    { params: runId ? { run_id: runId } : undefined, signal },
+  );
+  return data;
+}
+
+export interface AiReviewResponse {
+  finding_id: string;
+  review: string;
+  confidence?: number;
+  recommendations?: string[];
+  model_version?: string;
+}
+
+export async function triggerAiReview(
+  runId: string,
+  findingId: string,
+  signal?: AbortSignal,
+): Promise<AiReviewResponse> {
+  const { data } = await apiClient.post<AiReviewResponse>(
+    `/api/triage/runs/${encodeURIComponent(runId)}/findings/${encodeURIComponent(findingId)}/ai-review`,
+    undefined,
+    { signal },
+  );
+  return data;
+}
+
 export function triageWebSocketUrl(runId: string, analyst: { analyst_id: string; analyst_name: string }): string {
   const base = import.meta.env.VITE_API_BASE || window.location.origin;
   const url = new URL(`/ws/triage/${encodeURIComponent(runId)}`, base);

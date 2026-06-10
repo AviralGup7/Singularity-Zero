@@ -32,6 +32,8 @@ from src.recon.domain_validation import is_safe_domain
 
 SUBDOMAIN_ENUMERATOR = "subdomain_enumerator"
 
+logger = logging.getLogger(__name__)
+
 
 def fetch_crtsh_subdomains(
     domain: str,
@@ -77,8 +79,11 @@ def fetch_crtsh_subdomains(
     for record in records:
         for item in record.get("name_value", "").splitlines():
             candidate = item.strip().lower()
-            if candidate.startswith("*."):
+            # Strip leading wildcard prefixes (e.g., *., *.*., *..)
+            while candidate.startswith("*."):
                 candidate = candidate[2:]
+            # Also strip any remaining leading dot or asterisk
+            candidate = candidate.lstrip("*.")
             if candidate:
                 names.add(candidate)
     return names
@@ -94,8 +99,8 @@ try:
     register_plugin(SUBDOMAIN_ENUMERATOR, "subdomain_center", contract=SubdomainEnumeratorProtocol)(
         query_subdomain_center
     )
-except ImportError:
-    pass
+except ImportError as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 
 def _fetch_findomain_subdomains(
@@ -113,8 +118,13 @@ def _fetch_findomain_subdomains(
             ["findomain", "-t", clean, "-q"],
             timeout=timeout_seconds,
         )
-        return {line.strip().lower() for line in (output or "").splitlines() if line.strip()}
+        return {
+            line.strip().lower()
+            for line in (output or "").splitlines()
+            if line.strip() and not any(c.isspace() for c in line.strip())
+        }
     except Exception:
+        logger.debug("findomain failed for %s", domain, exc_info=True)
         return set()
 
 
@@ -161,8 +171,8 @@ async def _fetch_github_code_search(
                             tok = token.strip().rstrip(".,;\"'`")
                             if tok.endswith(f".{clean}") and tok != clean:
                                 subdomains.add(tok.lower())
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
     return subdomains
 
 
@@ -204,8 +214,8 @@ async def _fetch_gitlab_search(
                         tok = token.strip().rstrip(".,;\"'`")
                         if tok.endswith(f".{clean}") and tok != clean:
                             subdomains.add(tok.lower())
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
     return subdomains
 
 
@@ -251,8 +261,8 @@ async def _fetch_binaryedge_passive(
                         continue
                     if cand and cand.endswith(f".{clean}") and cand != clean:
                         subdomains.add(cand)
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
     return subdomains
 
 
@@ -291,36 +301,36 @@ try:
     register_plugin(
         SUBDOMAIN_ENUMERATOR, "findomain", type="command", args=["findomain", "-t", "{root}", "-q"]
     )(_FindomainBackend.query)
-except Exception:
-    pass
+except Exception as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
     register_plugin(
         SUBDOMAIN_ENUMERATOR, "subdomain_center", contract=SubdomainEnumeratorProtocol
     )(_SubdomainCenterBackend.query)
-except Exception:
-    pass
+except Exception as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
     register_plugin(
         SUBDOMAIN_ENUMERATOR, "github_search", contract=SubdomainEnumeratorProtocol
     )(_GitHubSearchBackend.query)
-except Exception:
-    pass
+except Exception as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
     register_plugin(
         SUBDOMAIN_ENUMERATOR, "gitlab_search", contract=SubdomainEnumeratorProtocol
     )(_GitLabSearchBackend.query)
-except Exception:
-    pass
+except Exception as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
     register_plugin(
         SUBDOMAIN_ENUMERATOR, "binaryedge", contract=SubdomainEnumeratorProtocol
     )(_BinaryEdgeBackend.query)
-except Exception:
-    pass
+except Exception as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
     from src.recon.sources.virustotal import query_virustotal_passive
@@ -328,8 +338,8 @@ try:
     register_plugin(SUBDOMAIN_ENUMERATOR, "virustotal", contract=SubdomainEnumeratorProtocol)(
         query_virustotal_passive
     )
-except ImportError:
-    pass
+except ImportError as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 try:
     from src.recon.sources.rapiddns import query_rapiddns
@@ -337,8 +347,8 @@ try:
     register_plugin(SUBDOMAIN_ENUMERATOR, "rapiddns", contract=SubdomainEnumeratorProtocol)(
         query_rapiddns
     )
-except ImportError:
-    pass
+except ImportError as exc:
+    logging.warning("Operation failed in subdomains.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 import importlib
 import logging as _logging
@@ -471,6 +481,7 @@ def enumerate_subdomains(
                     src_subs, _src_meta = wrapper(root)
                     merged.update(src_subs)
                 except Exception:
+                    logger.debug("Meta wrapper failed for %s/%s", source, root, exc_info=True)
                     errors += 1
             if source in stage_meta and isinstance(stage_meta[source], Mapping):
                 existing = stage_meta[source]

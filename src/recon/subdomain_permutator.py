@@ -230,6 +230,8 @@ def generate_permutations(
 
     words = tuple(wordlist) if wordlist is not None else DEFAULT_WORDLIST
     candidates: set[str] = set()
+    # Early bail-out threshold to prevent memory exhaustion on large seed sets.
+    candidate_cap = max_results * 10
     for tokens in tokenised:
         for word in words:
             for perm in _replace_token(tokens, word):
@@ -238,8 +240,14 @@ def generate_permutations(
                 candidates.add(_join_tokens(perm) + "." + clean)
             for perm in _prefix_wrap(tokens, word):
                 candidates.add(_join_tokens(perm) + "." + clean)
+            if len(candidates) > candidate_cap:
+                break
+        if len(candidates) > candidate_cap:
+            break
         for perm in _swap_adjacent(tokens):
             candidates.add(_join_tokens(perm) + "." + clean)
+        if len(candidates) > candidate_cap:
+            break
 
     # Strip the seed set itself; we only want *new* candidates.
     candidates -= seed_set

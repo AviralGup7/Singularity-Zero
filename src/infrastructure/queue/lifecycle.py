@@ -66,7 +66,7 @@ class WorkerLifecycleMixin:
         self._running = False
         self._shutdown_requested = False
         self._active_tasks: set[asyncio.Task[Any]] = set()
-        self._lock = __import__("threading").Lock()
+        self._active_tasks_lock = asyncio.Lock()
         self._restart_requested = False
 
     @property
@@ -171,16 +171,18 @@ class WorkerLifecycleMixin:
         if self.discovery:
             self.discovery.shutdown()
 
-        if self._active_tasks:
-            logger.info("Waiting for %d active tasks to complete", len(self._active_tasks))
+        async with self._active_tasks_lock:
+            tasks_snapshot = list(self._active_tasks)
+        if tasks_snapshot:
+            logger.info("Waiting for %d active tasks to complete", len(tasks_snapshot))
             try:
                 await asyncio.wait_for(
-                    asyncio.gather(*self._active_tasks, return_exceptions=True),
+                    asyncio.gather(*tasks_snapshot, return_exceptions=True),
                     timeout=self.shutdown_timeout,
                 )
             except TimeoutError:
                 logger.warning("Shutdown timeout reached, cancelling remaining tasks")
-                for task in self._active_tasks:
+                for task in tasks_snapshot:
                     task.cancel()
 
     async def stop(self) -> None:

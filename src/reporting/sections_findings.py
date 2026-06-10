@@ -55,7 +55,7 @@ def top_findings_section(summary: dict[str, Any]) -> str:
             f"{render_model_badge(item)} "
             f"{render_cvss_badge(item)}"
             f"{render_attack_chain_badge(item)}"
-            f"<span class='muted'>score {html.escape(str(item.get('score', 0)))} | confidence {html.escape(str(round(float(item.get('confidence', 0)) * 100)))}% | {html.escape(str(item.get('history_status', 'new')))}</span><br>"
+            f"<span class='muted'>score {html.escape(str(item.get('score', 0)))} | confidence {html.escape(str(min(99.9, round(float(item.get('confidence', 0)) * 100, 1))))}% | {html.escape(str(item.get('history_status', 'new')))}</span><br>"
             f"{html.escape(item.get('url', ''))}<br>"
             f"<span class='muted'>{html.escape(explanation_text)}</span>"
             f"{render_mitre_badges(item.get('mitre_attack', []))}"
@@ -77,7 +77,7 @@ def high_confidence_shortlist_section(summary: dict[str, Any]) -> str:
         f"<strong>{html.escape(str(item.get('severity', 'info')).upper())}</strong> "
         f"{html.escape(item.get('title', 'Shortlist item'))} "
         f"{render_model_badge(item)}"
-        f"<span class='muted'>{html.escape(str(item.get('category', 'unknown')))} | confidence {html.escape(str(round(float(item.get('confidence', 0)) * 100)))}% | {html.escape(str(item.get('history_status', 'new')))}</span><br>"
+        f"<span class='muted'>{html.escape(str(item.get('category', 'unknown')))} | confidence {html.escape(str(min(99.9, round(float(item.get('confidence', 0)) * 100, 1))))}% | {html.escape(str(item.get('history_status', 'new')))}</span><br>"
         f"{html.escape(item.get('url', ''))}<br>"
         f"<span class='muted'>{html.escape(item.get('explanation', item.get('next_step', '')))}</span>"
         "</li>"
@@ -146,7 +146,7 @@ def manual_verification_section(summary: dict[str, Any]) -> str:
             f"<span class='ui-badge {tone}'>{html.escape(str(item.get('severity', 'info')))}</span>"
             f"{render_model_badge(item)} "
             f"<strong>{html.escape(item.get('title', 'Review finding'))}</strong> "
-            f"<span class='muted'>confidence {html.escape(str(round(float(item.get('confidence', 0)) * 100)))}% | {html.escape(str(item.get('history_status', 'new')))}</span>"
+            f"<span class='muted'>confidence {html.escape(str(min(99.9, round(float(item.get('confidence', 0)) * 100, 1))))}% | {html.escape(str(item.get('history_status', 'new')))}</span>"
             "</div>"
             f"{html.escape(item.get('url', ''))}<br>"
             f"<span class='muted'>{html.escape(item.get('explanation', item.get('next_step', '')))}</span>"
@@ -228,7 +228,7 @@ def auth_bypass_findings_section(analysis_results: dict[str, list[dict[str, Any]
     for item in items[:20]:
         category = str(item.get("category", "auth_bypass")).replace("_", " ")
         severity = str(item.get("severity", "info")).upper()
-        confidence = round(float(item.get("confidence", 0)) * 100)
+        confidence = min(99.9, round(float(item.get("confidence", 0)) * 100, 1))
         signals = item.get("signals", [])
         evidence = item.get("evidence", {})
         probe_type = evidence.get("probe_type", "unknown")
@@ -261,7 +261,7 @@ def access_control_findings_section(analysis_results: dict[str, list[dict[str, A
     rows = []
     for item in items[:20]:
         severity = str(item.get("severity", "info")).upper()
-        confidence = round(float(item.get("confidence", 0)) * 100)
+        confidence = min(99.9, round(float(item.get("confidence", 0)) * 100, 1))
         evidence = item.get("evidence", {})
         test_context = evidence.get("test_context", "unknown")
         result = evidence.get("result", "unknown")
@@ -290,7 +290,7 @@ def jwt_findings_section(analysis_results: dict[str, list[dict[str, Any]]]) -> s
     rows = []
     for item in items[:20]:
         severity = str(item.get("severity", "info")).upper()
-        confidence = round(float(item.get("confidence", 0)) * 100)
+        confidence = min(99.9, round(float(item.get("confidence", 0)) * 100, 1))
         signals = item.get("signals", [])
         evidence = item.get("evidence", {})
         token_preview = evidence.get("token_preview", "N/A")
@@ -337,7 +337,7 @@ def tenant_isolation_findings_section(analysis_results: dict[str, list[dict[str,
     rows = []
     for item in items[:20]:
         severity = str(item.get("severity", "info")).upper()
-        confidence = round(float(item.get("confidence", 0)) * 100)
+        confidence = min(99.9, round(float(item.get("confidence", 0)) * 100, 1))
         signals = item.get("signals", [])
         evidence = item.get("evidence", {})
         probe_type = evidence.get("probe_type", evidence.get("test_type", "unknown"))
@@ -375,7 +375,7 @@ def graphql_findings_section(analysis_results: dict[str, list[dict[str, Any]]]) 
     rows = []
     for item in items[:20]:
         severity = str(item.get("severity", "info")).upper()
-        confidence = round(float(item.get("confidence", 0)) * 100)
+        confidence = min(99.9, round(float(item.get("confidence", 0)) * 100, 1))
         signals = item.get("signals", [])
         evidence = item.get("evidence", {})
         type_count = evidence.get("type_count", "N/A")

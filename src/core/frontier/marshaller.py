@@ -255,11 +255,23 @@ def compress_bytes(data: bytes) -> bytes:
 
 
 def decompress_bytes(data: bytes) -> bytes:
+    # Maximum uncompressed size for decompressed payloads (64 MiB).
+    max_decompressed = 64 * 1024 * 1024
     if _HAS_ZSTD:
-        return cast(bytes, _zstd_decompressor.decompress(data))
+        result = _zstd_decompressor.decompress(data, max_output_size=max_decompressed)
+        if len(result) >= max_decompressed:
+            raise ValueError(
+                f"Decompressed payload exceeds {max_decompressed} byte limit"
+            )
+        return cast(bytes, result)
     import zlib
 
-    return zlib.decompress(data)
+    result = zlib.decompress(data)
+    if len(result) > max_decompressed:
+        raise ValueError(
+            f"Decompressed payload exceeds {max_decompressed} byte limit"
+        )
+    return result
 
 
 class FrontierMarshaller:

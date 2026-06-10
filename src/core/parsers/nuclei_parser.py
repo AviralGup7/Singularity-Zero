@@ -94,6 +94,32 @@ MITRE_TAG_MAP: dict[str, str] = {
     "open-redirect": "T1036",
 }
 
+# Mapping from Nuclei tags/template patterns to pipeline vulnerability categories.
+# Used to populate the ``category`` field so that ThreatIntelCorrelator can
+# match findings against its CVE knowledge base.
+_TAG_TO_VULN_CATEGORY: dict[str, str] = {
+    "sqli": "sql_injection",
+    "sql-injection": "sql_injection",
+    "xss": "xss",
+    "ssrf": "ssrf",
+    "command-injection": "command_injection",
+    "rce": "command_injection",
+    "lfi": "path_traversal",
+    "path-traversal": "path_traversal",
+    "idor": "idor",
+    "xxe": "xxe",
+    "ssti": "xss",
+    "open-redirect": "open_redirect",
+    "csrf": "broken_access_control",
+    "cors": "broken_access_control",
+    "auth": "broken_access_control",
+    "jwt": "broken_access_control",
+    "deserialization": "deserialization",
+    "race-condition": "race_condition",
+    "file-upload": "file_upload",
+    "smuggling": "smuggling",
+}
+
 
 class NucleiSeverityMapper:
     """Maps Nuclei severity strings to the pipeline's SeverityLevel type.
@@ -369,7 +395,8 @@ class NucleiFindingParser:
         Each resulting dict contains:
         - ``id``: SHA-1 digest of ``template_id + url + matcher_name``.
         - ``module``: Always ``"nuclei"``.
-        - ``category``: The ``template_id``.
+        - ``category``: Mapped vulnerability class (e.g. ``"sql_injection"``).
+        - ``indicator``: The Nuclei ``template_id`` for backward compatibility.
         - ``severity``: Normalised severity string.
         - ``score``: Numeric severity score.
         - ``confidence``: ``0.85`` (Nuclei findings are high-confidence).
@@ -390,12 +417,14 @@ class NucleiFindingParser:
             finding_id = self._finding_id(nf)
             mitre_attack = self._extract_mitre_attack(nf.tags)
             signals = self._build_signals(nf)
+            vuln_category = self._infer_vuln_category(nf)
 
             pipeline_findings.append(
                 {
                     "id": finding_id,
                     "module": "nuclei",
-                    "category": nf.template_id,
+                    "category": vuln_category,
+                    "indicator": nf.template_id,
                     "severity": nf.severity,
                     "score": NucleiSeverityMapper.score(nf.severity),
                     "confidence": 0.85,
@@ -551,6 +580,29 @@ class NucleiFindingParser:
         for tag in nf.tags:
             signals.add(tag)
         return sorted(signals)
+
+    @staticmethod
+    def _infer_vuln_category(nf: NucleiFinding) -> str:
+        """Map a Nuclei finding to a pipeline vulnerability category.
+
+        Uses the tag-to-category mapping table, falling back to the
+        ``finding_type`` field and finally to ``"unknown"``.
+
+        Args:
+            nf: The ``NucleiFinding`` to classify.
+
+        Returns:
+            A normalized vulnerability category string (e.g. ``"sql_injection"``).
+        """
+        for tag in nf.tags:
+            tag_lower = tag.lower()
+            if tag_lower in _TAG_TO_VULN_CATEGORY:
+                return _TAG_TO_VULN_CATEGORY[tag_lower]
+        # Fallback: try finding_type
+        ft = (nf.finding_type or "").lower().replace("-", "_").replace(" ", "_")
+        if ft in _TAG_TO_VULN_CATEGORY:
+            return _TAG_TO_VULN_CATEGORY[ft]
+        return "unknown"
 
 
 # ---------------------------------------------------------------------------

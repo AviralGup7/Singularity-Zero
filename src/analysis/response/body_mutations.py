@@ -1,3 +1,4 @@
+import logging
 """POST body mutation helpers for response analysis.
 
 Contains functions for JSON type detection, field extraction, body field
@@ -89,8 +90,8 @@ def infer_body_fields(body_text: str) -> list[tuple[str, str]]:
     seen: set[str] = set()
     try:
         extract_fields_recursive(json.loads(body_text), fields, seen, depth=0, max_depth=3)
-    except (json.JSONDecodeError, TypeError, KeyError):
-        pass
+    except (json.JSONDecodeError, TypeError, KeyError) as exc:
+        logging.warning("Operation failed in body_mutations.py: %s", exc, exc_info=True)  # noqa: BLE001
     return fields
 
 

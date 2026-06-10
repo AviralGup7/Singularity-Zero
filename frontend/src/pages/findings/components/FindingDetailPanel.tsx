@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Shield, X, Zap, FileDown, GitMerge, GitBranch, XCircle, Send } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import type { Finding, RemediationSuggestion, EvidenceItem, AttackChain } from '../../../types/api';
-import { getFindingRemediation } from '../../../api/client';
+import { getFindingRemediation, getFindingById } from '../../../api/client';
 import { useToast } from '../../../hooks/useToast';
 import { EvidenceDisplay } from '../../../components/findings/EvidenceDisplay';
 import { AttackChainVisualizer } from '../../../components/AttackChainVisualizer';
@@ -64,41 +64,101 @@ interface ExtendedEvidence {
 }
 
 export function FindingDetailPanel({
-  finding: detailFinding,
+  finding: initialFinding,
   onClose,
 }: {
   finding: Finding;
   onClose: () => void;
 }) {
-   
+  const [finding, setFinding] = useState<Finding>(initialFinding);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // Re-fetch finding data on mount to avoid stale data
+  useEffect(() => {
+    let cancelled = false;
+    getFindingById(initialFinding.id)
+      .then((fresh) => {
+        if (!cancelled && fresh) setFinding(fresh);
+      })
+      .catch(() => {
+        // Keep initial data if fetch fails
+      });
+    return () => { cancelled = true; };
+  }, [initialFinding.id]);
+
+  // Focus trap: capture previous focus, focus dialog on mount, return on unmount
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    const dialog = dialogRef.current;
+    if (dialog) {
+      // Focus the first focusable element inside the dialog
+      const firstFocusable = dialog.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      firstFocusable?.focus();
+    }
+    return () => {
+      previousFocusRef.current?.focus();
+    };
+  }, []);
+
+  // Trap Tab key inside the dialog
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusableElements = dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusableElements.length === 0) return;
+    const first = focusableElements[0];
+    const last = focusableElements[focusableElements.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [onClose]);
+
   const [detailTab, setDetailTab] = useState<DetailTab>('csi');
   
   const parsedScope = useScopeStore((s) => s.parsed);
   const scopeClassification = useMemo(() => {
-    const asset = detailFinding.url || detailFinding.host || detailFinding.target || '';
+    const asset = finding.url || finding.host || finding.target || '';
     return classifyAgainstScope(asset, parsedScope);
-  }, [detailFinding, parsedScope]);
+  }, [finding, parsedScope]);
 
-  const [bountyValue, setBountyValue] = useState(detailFinding.bounty_value || 0);
-  const [bountySource, setBountySource] = useState<string>(detailFinding.bounty_source || 'estimate');
-  const [bountyCurrency, setBountyCurrency] = useState(detailFinding.bounty_currency || 'USD');
-  const [alreadyReported, setAlreadyReported] = useState(detailFinding.already_reported || false);
+  const [bountyValue, setBountyValue] = useState(finding.bounty_value || 0);
+  const [bountySource, setBountySource] = useState<string>(finding.bounty_source || 'estimate');
+  const [bountyCurrency, setBountyCurrency] = useState(finding.bounty_currency || 'USD');
+  const [alreadyReported, setAlreadyReported] = useState(finding.already_reported || false);
   const [savingBounty, setSavingBounty] = useState(false);
   const [sanitizePII, setSanitizePII] = useState(true);
 
   // Sync state if finding changes
   useEffect(() => {
-    setBountyValue(detailFinding.bounty_value || 0);
-    setBountySource(detailFinding.bounty_source || 'estimate');
-    setBountyCurrency(detailFinding.bounty_currency || 'USD');
-    setAlreadyReported(detailFinding.already_reported || false);
-  }, [detailFinding]);
+    setBountyValue(finding.bounty_value || 0);
+    setBountySource(finding.bounty_source || 'estimate');
+    setBountyCurrency(finding.bounty_currency || 'USD');
+    setAlreadyReported(finding.already_reported || false);
+  }, [finding]);
 
   const handleSaveBounty = async () => {
     setSavingBounty(true);
     try {
       const { updateFinding } = await import('../../../api/findings');
-      await updateFinding(detailFinding.id, {
+      await updateFinding(finding.id, {
         bounty_value: bountyValue,
         bounty_source: bountySource as any,
         bounty_currency: bountyCurrency,
@@ -113,14 +173,14 @@ export function FindingDetailPanel({
   };
 
   const rawPocText = useMemo(() => {
-    const severityLabel = detailFinding.severity.toUpperCase();
-    const targetUrl = detailFinding.url || detailFinding.host || detailFinding.target || '';
-    const description = detailFinding.description || '';
-    const pocSteps = detailFinding.proof_of_concept || detailFinding.poc || 'No automated reproduction script recorded.';
+    const severityLabel = finding.severity.toUpperCase();
+    const targetUrl = finding.url || finding.host || finding.target || '';
+    const description = finding.description || '';
+    const pocSteps = finding.proof_of_concept || finding.poc || 'No automated reproduction script recorded.';
     
     let reqResDump = '';
-    if (detailFinding.request_response && detailFinding.request_response.length > 0) {
-      reqResDump = detailFinding.request_response.map((pair, idx) => {
+    if (finding.request_response && finding.request_response.length > 0) {
+      reqResDump = finding.request_response.map((pair, idx) => {
         let reqBody = pair.request.body || '';
         let resBody = pair.response.body || '';
         
@@ -162,12 +222,12 @@ ${resBody.slice(0, 1000)}${resBody.length > 1000 ? '\n... [TRUNCATED] ...' : ''}
       }).join('\n\n');
     }
 
-    return `# [VULNERABILITY REPORT] ${detailFinding.title}
+    return `# [VULNERABILITY REPORT] ${finding.title}
 
 ## Executive Summary
-- **Vulnerability Type**: ${detailFinding.type}
+- **Vulnerability Type**: ${finding.type}
 - **Severity**: ${severityLabel}
-- **CVSS Score**: ${detailFinding.cvss_v4_score ?? detailFinding.cvss_score ?? 'N/A'}
+- **CVSS Score**: ${finding.cvss_v4_score ?? finding.cvss_score ?? 'N/A'}
 - **Target URL**: ${targetUrl}
 
 ## Vulnerability Description
@@ -180,7 +240,7 @@ ${reqResDump ? `## HTTP Request/Response Evidence\n${reqResDump}` : ''}
 
 ## Remediation Guidance
 Ensure inputs are strictly validated and output is properly encoded. Apply context-aware mitigation logic.`;
-  }, [detailFinding, sanitizePII]);
+  }, [finding, sanitizePII]);
   const [reviewerId] = useState<string>(() => {
     try {
       return localStorage.getItem('analyst_reviewer_id') || 'analyst';
@@ -205,10 +265,10 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
   }, [onClose]);
 
   useEffect(() => {
-    if (!detailFinding.id) return;
+    if (!finding.id) return;
     
-    if (remediationCache.has(detailFinding.id)) {
-      setRemediation(remediationCache.get(detailFinding.id) || []);
+    if (remediationCache.has(finding.id)) {
+      setRemediation(remediationCache.get(finding.id) || []);
       setLoadingRemediation(false);
       return;
     }
@@ -220,11 +280,11 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
       if (mounted) setLoadingRemediation(true);
     });
 
-    getFindingRemediation(detailFinding.id)
+    getFindingRemediation(finding.id)
       .then((res) => {
         if (mounted) {
           const suggestions = res.suggestions || [];
-          remediationCache.set(detailFinding.id, suggestions);
+          remediationCache.set(finding.id, suggestions);
           setRemediation(suggestions);
           setLoadingRemediation(false);
         }
@@ -237,19 +297,19 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
       });
       
     return () => { mounted = false; };
-  }, [detailFinding.id]);
+  }, [finding.id]);
 
-  const isLogicBreach = detailFinding.type?.startsWith('logic_breach');
+  const isLogicBreach = finding.type?.startsWith('logic_breach');
 
-  const evidence = detailFinding.evidence as ExtendedEvidence | undefined;
+  const evidence = finding.evidence as ExtendedEvidence | undefined;
   const runId = String(
-    detailFinding.metadata?.run_name
-    || detailFinding.metadata?.job_id
-    || detailFinding.target
+    finding.metadata?.run_name
+    || finding.metadata?.job_id
+    || finding.target
     || 'global'
   );
-  const triage = useTriageCollaboration(runId, detailFinding.id);
-  const triageStatus = triage.state?.status || detailFinding.lifecycle_state || 'open';
+  const triage = useTriageCollaboration(runId, finding.id);
+  const triageStatus = triage.state?.status || finding.lifecycle_state || 'open';
 
   const recordWorkflowAction = async (
     action: 'finding_escalated' | 'finding_closed' | 'finding_reopened' | 'finding_false_positive',
@@ -266,7 +326,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
   };
 
   const handleMergeDuplicates = async () => {
-    const dupIds = (detailFinding.duplicates || []).filter(Boolean);
+    const dupIds = (finding.duplicates || []).filter(Boolean);
     if (dupIds.length === 0) {
       toast.warning('No duplicates to merge');
       return;
@@ -279,7 +339,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
     let failed = 0;
     for (const dupId of dupIds) {
       try {
-        await updateFinding(dupId, { falsePositive: true, fpStatus: 'approved', fpJustification: `Merged into primary ${detailFinding.id}` });
+        await updateFinding(dupId, { falsePositive: true, fpStatus: 'approved', fpJustification: `Merged into primary ${finding.id}` });
       } catch {
         failed += 1;
       }
@@ -292,14 +352,14 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
   };
 
   const handleDismissAsDuplicate = async () => {
-    if (!detailFinding.id) return;
+    if (!finding.id) return;
     const ok = typeof window !== 'undefined'
       ? window.confirm('Mark this finding as a duplicate and dismiss? It will be hidden from default triage queues.')
       : true;
     if (!ok) return;
     const { updateFinding } = await import('../../../api/findings');
     try {
-      await updateFinding(detailFinding.id, { falsePositive: true, fpStatus: 'approved', fpJustification: 'Marked as duplicate by analyst' });
+      await updateFinding(finding.id, { falsePositive: true, fpStatus: 'approved', fpJustification: 'Marked as duplicate by analyst' });
       toast.success('Finding dismissed as duplicate');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Unable to dismiss as duplicate');
@@ -307,14 +367,14 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
   };
 
   const handlePromoteToIndependent = async () => {
-    if (!detailFinding.id) return;
+    if (!finding.id) return;
     const ok = typeof window !== 'undefined'
       ? window.confirm('Promote this finding to an independent (non-duplicate) entry? The link to its previous primary will be removed.')
       : true;
     if (!ok) return;
     const { updateFinding } = await import('../../../api/findings');
     try {
-      await updateFinding(detailFinding.id, { duplicates: [], kanbanStatus: 'new' });
+      await updateFinding(finding.id, { duplicates: [], kanbanStatus: 'new' });
       toast.success('Finding promoted to independent');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Unable to promote finding');
@@ -323,37 +383,40 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
   const handleExport = async (format: ReportFormat) => {
     try {
-      exportFinding(detailFinding, format);
+      exportFinding(finding, format);
       toast.success(`Exported as ${format.toUpperCase()}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export failed');
     }
   };
 
-  const chainSimulation: AttackChain | null = (detailFinding.metadata?.chain_simulation as AttackChain) ||
+  const chainSimulation: AttackChain | null = (finding.metadata?.chain_simulation as AttackChain) ||
                                               evidence?.chain_simulation ||
                                               null;
 
-  const evidenceItems: EvidenceItem[] = detailFinding.evidence ? [{
-    id: `ev-${detailFinding.id}`,
-    timestamp: typeof detailFinding.timestamp === 'number' ? new Date(detailFinding.timestamp * 1000).toISOString() : String(detailFinding.timestamp),
+  const evidenceItems: EvidenceItem[] = finding.evidence ? [{
+    id: `ev-${finding.id}`,
+    timestamp: typeof finding.timestamp === 'number' ? new Date(finding.timestamp * 1000).toISOString() : String(finding.timestamp),
     source: 'System Correlation Scanner',
-    description: detailFinding.title,
-    raw_data: JSON.stringify(detailFinding.evidence, null, 2),
+    description: finding.title,
+    raw_data: JSON.stringify(finding.evidence, null, 2),
     data_type: 'json'
   }] : [];
 
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
       onClick={onClose}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      role="presentation"
     >
       <motion.div
+        ref={dialogRef}
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="w-full max-w-4xl max-h-[90vh] bg-bg border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
         aria-labelledby="finding-detail-title"
@@ -362,16 +425,16 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
         <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between bg-white/5">
           <div className="flex items-center gap-4">
              <div className={`p-3 rounded-xl border ${
-               detailFinding.severity === 'critical' ? 'bg-bad/10 border-bad/20 text-bad' : 'bg-accent/10 border-accent/20 text-accent'
+               finding.severity === 'critical' ? 'bg-bad/10 border-bad/20 text-bad' : 'bg-accent/10 border-accent/20 text-accent'
              }`}>
                 <Shield size={24} />
              </div>
              <div>
-                <h3 id="finding-detail-title" className="text-xl font-black text-text uppercase tracking-tighter">{detailFinding.title}</h3>
+                <h3 id="finding-detail-title" className="text-xl font-black text-text uppercase tracking-tighter">{finding.title}</h3>
                 <div className="flex items-center gap-3 text-[10px] text-muted font-mono uppercase tracking-widest mt-1">
-                   <span>ID: {detailFinding.id}</span>
+                   <span>ID: {finding.id}</span>
                    <span>•</span>
-                   <span>Target: {detailFinding.target}</span>
+                   <span>Target: {finding.target}</span>
                 </div>
              </div>
           </div>
@@ -420,11 +483,11 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
            <div className="grid grid-cols-4 gap-4">
               <div className="glass-panel p-4 rounded-xl">
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">CSI Index</div>
-                 <div className="text-2xl font-black text-accent">{detailFinding.csi_score || 'N/A'}</div>
+                 <div className="text-2xl font-black text-accent">{finding.csi_score || 'N/A'}</div>
               </div>
               <div className="glass-panel p-4 rounded-xl">
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Confidence</div>
-                 <div className="text-2xl font-black text-white">{Math.round(detailFinding.confidence * 100)}%</div>
+                 <div className="text-2xl font-black text-white">{Math.round(finding.confidence * 100)}%</div>
               </div>
               <div className="glass-panel p-4 rounded-xl">
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">State</div>
@@ -433,8 +496,8 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
               <div className="glass-panel p-4 rounded-xl">
                  <div className="text-[9px] font-black text-muted uppercase mb-1 tracking-widest">Severity</div>
                  <div className={`text-sm font-black uppercase mt-2 ${
-                   detailFinding.severity === 'critical' ? 'text-bad' : 'text-accent'
-                 }`}>{detailFinding.severity}</div>
+                   finding.severity === 'critical' ? 'text-bad' : 'text-accent'
+                 }`}>{finding.severity}</div>
               </div>
            </div>
 
@@ -510,9 +573,9 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                           Estimated Payout Range:
                         </div>
                         {(() => {
-                          const score = detailFinding.cvss_v4_score ?? detailFinding.cvss_score ?? 0;
-                          const epss = detailFinding.threat_intel?.epss_score ?? detailFinding.epss_score ?? 0;
-                          const criticality = detailFinding.asset_criticality ?? 1.0;
+                          const score = finding.cvss_v4_score ?? finding.cvss_score ?? 0;
+                          const epss = finding.threat_intel?.epss_score ?? finding.epss_score ?? 0;
+                          const criticality = finding.asset_criticality ?? 1.0;
                           const range = estimateBounty(score, epss, criticality);
                           return (
                             <div className="mt-2 flex items-baseline gap-2">
@@ -524,8 +587,8 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                           );
                         })()}
                         <div className="text-[9px] text-muted font-mono mt-2 leading-relaxed">
-                          EPSS Multiplier: {(detailFinding.threat_intel?.epss_score ?? detailFinding.epss_score ?? 0) > 0.1 ? '1.20x (+20% Wild Activity)' : '1.00x'} <br />
-                          Asset Multiplier: {detailFinding.asset_criticality ? `${detailFinding.asset_criticality.toFixed(2)}x` : '1.00x'}
+                          EPSS Multiplier: {(finding.threat_intel?.epss_score ?? finding.epss_score ?? 0) > 0.1 ? '1.20x (+20% Wild Activity)' : '1.00x'} <br />
+                          Asset Multiplier: {finding.asset_criticality ? `${finding.asset_criticality.toFixed(2)}x` : '1.00x'}
                         </div>
                       </div>
 
@@ -617,7 +680,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                           Copy Report (MD)
                         </button>
                         <Link
-                          to={`/reports/builder?finding=${detailFinding.id}`}
+                          to={`/reports/builder?finding=${finding.id}`}
                           className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center gap-1"
                         >
                           Report Bundle
@@ -631,7 +694,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
               {detailTab === 'csi' && (
                 <div className="space-y-6">
                    <p className="text-sm text-text/80 leading-relaxed italic border-l-2 border-accent/20 pl-4">
-                     {detailFinding.description}
+                     {finding.description}
                    </p>
                    {loadingRemediation ? (
    
@@ -661,7 +724,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                        <p className="text-text/70">Differential analysis revealed significant identical behavior across distinct contexts.</p>
                     </div>
                     <pre className="p-6 bg-black/60 rounded-2xl border border-white/5 text-accent overflow-x-auto whitespace-pre-wrap">
-                       {detailFinding.logic_diff || 'No structural diff recorded for this signal.'}
+                       {finding.logic_diff || 'No structural diff recorded for this signal.'}
                     </pre>
                  </div>
                )}
@@ -673,21 +736,21 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                        <div className="glass-panel border border-white/5 rounded-xl p-4">
                           <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">Modern risk</div>
                           <div className="text-2xl font-black text-text">
-                            {(detailFinding.modern_risk_score ?? 0).toFixed(1)}
+                            {(finding.modern_risk_score ?? 0).toFixed(1)}
                           </div>
                           <div className="text-[10px] font-mono text-muted">/ 100</div>
                        </div>
                        <div className="glass-panel border border-white/5 rounded-xl p-4">
                           <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">Remediation priority</div>
                           <div className="text-2xl font-black text-accent">
-                            {(detailFinding.remediation_priority ?? 0).toFixed(1)}
+                            {(finding.remediation_priority ?? 0).toFixed(1)}
                           </div>
                           <div className="text-[10px] font-mono text-muted">/ 100</div>
                        </div>
                        <div className="glass-panel border border-white/5 rounded-xl p-4">
                           <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">CVSS v4</div>
                           <div className="text-2xl font-black text-text">
-                            {(detailFinding.cvss_v4_score ?? detailFinding.cvss_score ?? 0).toFixed(1)}
+                            {(finding.cvss_v4_score ?? finding.cvss_score ?? 0).toFixed(1)}
                           </div>
                           <div className="text-[10px] font-mono text-muted">/ 10</div>
                        </div>
@@ -698,13 +761,13 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                        <div className="glass-panel border border-white/5 rounded-xl p-3">
                           <div className="text-[10px] font-black uppercase tracking-widest text-muted">EPSS</div>
                           <div className="text-sm font-mono text-text">
-                            {((detailFinding.threat_intel?.epss_score ?? detailFinding.epss_score ?? 0) * 100).toFixed(1)}%
+                            {((finding.threat_intel?.epss_score ?? finding.epss_score ?? 0) * 100).toFixed(1)}%
                           </div>
                        </div>
                        <div className="glass-panel border border-white/5 rounded-xl p-3">
                           <div className="text-[10px] font-black uppercase tracking-widest text-muted">CISA KEV</div>
                           <div className="text-sm font-mono text-text">
-                            {(detailFinding.threat_intel?.cisa_kev ?? detailFinding.cisa_kev) ? (
+                            {(finding.threat_intel?.cisa_kev ?? finding.cisa_kev) ? (
                               <span className="text-critical">LISTED</span>
                             ) : (
                               <span className="text-muted">—</span>
@@ -714,27 +777,27 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                        <div className="glass-panel border border-white/5 rounded-xl p-3">
                           <div className="text-[10px] font-black uppercase tracking-widest text-muted">Asset type</div>
                           <div className="text-sm font-mono text-text">
-                            {detailFinding.asset_type ?? '—'}
+                            {finding.asset_type ?? '—'}
                           </div>
                        </div>
                        <div className="glass-panel border border-white/5 rounded-xl p-3">
                           <div className="text-[10px] font-black uppercase tracking-widest text-muted">Control discount</div>
                           <div className="text-sm font-mono text-text">
-                            {detailFinding.control_discount != null
-                              ? `${((1 - detailFinding.control_discount) * 100).toFixed(0)}%`
+                            {finding.control_discount != null
+                              ? `${((1 - finding.control_discount) * 100).toFixed(0)}%`
                               : '—'}
                           </div>
                        </div>
                     </div>
 
                     {/* Reason codes */}
-                    {detailFinding.remediation_priority_reasons && detailFinding.remediation_priority_reasons.length > 0 && (
+                    {finding.remediation_priority_reasons && finding.remediation_priority_reasons.length > 0 && (
                       <div className="glass-panel border border-white/5 rounded-xl p-3">
                         <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-2">
                           Why this is prioritised
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {detailFinding.remediation_priority_reasons.map((code) => (
+                          {finding.remediation_priority_reasons.map((code) => (
                             <span
                               key={code}
                               className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/30"
@@ -747,24 +810,24 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                     )}
 
                     {/* Attack chain membership surface */}
-                    {detailFinding.attack_chain && (
+                    {finding.attack_chain && (
                       <div className="glass-panel border border-white/5 rounded-xl p-3">
                         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted mb-2">
                           <GitBranch size={12} /> Attack Chain Membership
                         </div>
                         <div className="text-[11px] font-mono text-text space-y-1">
                           <div>
-                            <span className="text-muted">chain_id:</span> {detailFinding.attack_chain.chain_id ?? '—'}
+                            <span className="text-muted">chain_id:</span> {finding.attack_chain.chain_id ?? '—'}
                           </div>
                           <div>
-                            <span className="text-muted">chain_kind:</span> {detailFinding.attack_chain.chain_kind ?? '—'}
+                            <span className="text-muted">chain_kind:</span> {finding.attack_chain.chain_kind ?? '—'}
                           </div>
                           <div>
                             <span className="text-muted">amplification:</span>{' '}
-                            {detailFinding.attack_chain.chain_amplification?.toFixed(2) ?? '—'}x
+                            {finding.attack_chain.chain_amplification?.toFixed(2) ?? '—'}x
                           </div>
                           <div>
-                            <span className="text-muted">chain_size:</span> {detailFinding.attack_chain.chain_size ?? '—'}
+                            <span className="text-muted">chain_size:</span> {finding.attack_chain.chain_size ?? '—'}
                           </div>
                         </div>
                       </div>
@@ -776,10 +839,10 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono text-text">
                         {(
                           [
-                            ['Triaged', detailFinding.triaged_at],
-                            ['In Remediation', detailFinding.remediation_started_at],
-                            ['Fixed', detailFinding.fixed_at],
-                            ['Verified', detailFinding.verified_at],
+                            ['Triaged', finding.triaged_at],
+                            ['In Remediation', finding.remediation_started_at],
+                            ['Fixed', finding.fixed_at],
+                            ['Verified', finding.verified_at],
                           ] as Array<[string, string | number | undefined]>
                         ).map(([label, value]) => (
                           <div key={label}>
@@ -792,7 +855,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
                     {/* Analyst review panel */}
                     <FindingReviewPanel
-                      findingId={detailFinding.id}
+                      findingId={finding.id}
                       defaultReviewer={reviewerId}
                     />
                  </div>
@@ -804,12 +867,12 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
               {detailTab === 'custody' && (
                 <div className="glass-panel p-6 rounded-2xl border border-white/5">
-                  <EvidenceCustodyViewer evidenceId={detailFinding.id} />
+                  <EvidenceCustodyViewer evidenceId={finding.id} />
                 </div>
               )}
 
               {detailTab === 'request' && (
-                <RequestResponseViewer pairs={detailFinding.request_response || []} />
+                <RequestResponseViewer pairs={finding.request_response || []} />
               )}
 
               {detailTab === 'activity' && (
@@ -838,7 +901,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
 
               {detailTab === 'comments' && (
                 <div className="glass-panel p-6 rounded-2xl border border-white/5">
-                  <FindingComments findingId={detailFinding.id} targetName={detailFinding.target} runId={runId} />
+                  <FindingComments findingId={finding.id} targetName={finding.target} runId={runId} />
                 </div>
               )}
 
@@ -867,9 +930,9 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
               <button 
                 className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
                 onClick={() => {
-                  const runName = detailFinding.metadata?.run_name || detailFinding.metadata?.job_id || '';
-                  const replayId = detailFinding.metadata?.replay_id || evidence?.replay?.id || '';
-                  window.location.href = `/replay?target=${detailFinding.target}&run=${runName}&replay_id=${replayId}&finding=${detailFinding.id}`;
+                  const runName = finding.metadata?.run_name || finding.metadata?.job_id || '';
+                  const replayId = finding.metadata?.replay_id || evidence?.replay?.id || '';
+                  window.location.href = `/replay?target=${finding.target}&run=${runName}&replay_id=${replayId}&finding=${finding.id}`;
                 }}
               >
                 Replay with Diff
@@ -877,7 +940,7 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
               <button 
                 className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
                 onClick={() => {
-                  window.location.href = `/cockpit?target=${detailFinding.target}&focus=${detailFinding.id}`;
+                  window.location.href = `/cockpit?target=${finding.target}&focus=${finding.id}`;
                 }}
               >
                 View in 3D Cockpit
@@ -885,13 +948,13 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
               <button 
                 className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black"
                 onClick={async () => {
-                  if (!detailFinding.target || !detailFinding.url) {
+                  if (!finding.target || !finding.url) {
                     toast.error('Missing target or URL for forensic probing');
                     return;
                   }
                   try {
                     const { cockpitApi } = await import('@/api/cockpit');
-                    await cockpitApi.triggerProbe(detailFinding.target, detailFinding.url);
+                    await cockpitApi.triggerProbe(finding.target, finding.url);
                     toast.success('Manual forensic probe launched');
                   } catch {
                     toast.error('Probe sequence failed');
@@ -905,8 +968,8 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                 onClick={() => recordWorkflowAction(
                   'finding_escalated',
                   {
-                    severity: detailFinding.severity,
-                    confidence: detailFinding.confidence,
+                    severity: finding.severity,
+                    confidence: finding.confidence,
                     reason: 'Manual analyst escalation',
                   },
                   'Finding escalated for review',
@@ -951,10 +1014,10 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
                 onClick={() => recordWorkflowAction(
                   'finding_false_positive',
                   {
-                    category: String(detailFinding.metadata?.category || detailFinding.type || detailFinding.metadata?.module || 'manual_triage'),
-                    status_code: detailFinding.metadata?.response_status || detailFinding.metadata?.status_code,
-                    description: detailFinding.description,
-                    evidence: JSON.stringify(detailFinding.evidence || {}),
+                    category: String(finding.metadata?.category || finding.type || finding.metadata?.module || 'manual_triage'),
+                    status_code: finding.metadata?.response_status || finding.metadata?.status_code,
+                    description: finding.description,
+                    evidence: JSON.stringify(finding.evidence || {}),
                   },
                   'False-positive pattern shared with the mesh',
                   'Unable to record false-positive triage',
@@ -963,16 +1026,16 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
               >
                 Flag False Positive
               </button>
-              {(detailFinding.duplicates || []).length > 0 && (
+              {(finding.duplicates || []).length > 0 && (
                 <button
                   type="button"
                   className="btn-secondary btn-small uppercase tracking-widest text-[9px] font-black flex items-center gap-1"
                   onClick={handleMergeDuplicates}
-                  aria-label={`Merge ${(detailFinding.duplicates || []).length} duplicate(s) into this finding`}
+                  aria-label={`Merge ${(finding.duplicates || []).length} duplicate(s) into this finding`}
                   title="Mark all listed duplicates as merged into this primary finding"
                 >
                   <GitMerge size={12} aria-hidden="true" />
-                  Merge {(detailFinding.duplicates || []).length} Dup{(detailFinding.duplicates || []).length === 1 ? '' : 's'}
+                  Merge {(finding.duplicates || []).length} Dup{(finding.duplicates || []).length === 1 ? '' : 's'}
                 </button>
               )}
               <button
@@ -1001,8 +1064,8 @@ Ensure inputs are strictly validated and output is properly encoded. Apply conte
       </motion.div>
       <SubmitToPlatformDialog
         runId={runId}
-        findingId={detailFinding.id}
-        findingTitle={detailFinding.title}
+        findingId={finding.id}
+        findingTitle={finding.title}
         open={submitDialogOpen}
         onClose={() => setSubmitDialogOpen(false)}
         onSubmitted={(res) => {

@@ -58,7 +58,7 @@ class TargetsFindingsListTests(unittest.TestCase):
             self.assertEqual(len(result["findings"]), 2)
             first = result["findings"][0]
             self.assertEqual(first["target"], "square.com")
-            self.assertEqual(first["status"], "open")
+            self.assertEqual(first["status"], "active")
             self.assertIn(first["severity"], {"high", "medium"})
             self.assertTrue(str(first.get("id", "")).strip())
             self.assertTrue(str(first.get("type", "")).strip())

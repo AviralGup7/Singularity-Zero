@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Database, Trash2, Plus } from 'lucide-react';
+import { apiClient } from '@/api/core';
 
 interface AssetRecord {
   asset_id: string;
@@ -44,10 +45,8 @@ export function AssetCriticalityPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/risk-domain/assets?limit=200');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const payload = (await res.json()) as AssetRecord[];
-      setRows(Array.isArray(payload) ? payload : []);
+      const { data } = await apiClient.get<AssetRecord[]>('/api/risk-domain/assets', { params: { limit: 200 } });
+      setRows(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(`Failed to load: ${(err as Error).message}`);
     } finally {
@@ -64,15 +63,7 @@ export function AssetCriticalityPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch('/api/risk-domain/assets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) {
-        const detail = await res.text();
-        throw new Error(`${res.status}: ${detail}`);
-      }
+      await apiClient.post('/api/risk-domain/assets', form);
       setForm({
         name: '',
         host_pattern: '',
@@ -94,10 +85,7 @@ export function AssetCriticalityPage() {
   const remove = useCallback(
     async (assetId: string) => {
       try {
-        const res = await fetch(`/api/risk-domain/assets/${encodeURIComponent(assetId)}`, {
-          method: 'DELETE',
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await apiClient.delete(`/api/risk-domain/assets/${encodeURIComponent(assetId)}`);
         await load();
       } catch (err) {
         setError(`Delete failed: ${(err as Error).message}`);

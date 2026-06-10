@@ -4,12 +4,7 @@ from typing import Any
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 
 from ._crlf_constants import CRLF_APPEND_SUFFIXES, CRLF_ESCAPE_SEQUENCES, CRLF_PROBE_PAYLOADS
-
-
-def _build_payload(crlf_seq: str, payload_template: str, token: str) -> str:
-    """Build a concrete CRLF payload from template, escape sequence, and token."""
-    space = "%20"
-    return payload_template.format(crlf=crlf_seq, space=space, token=token)
+from ._path_variants import _build_payload
 
 
 def generate_crlf_variants(

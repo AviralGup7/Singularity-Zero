@@ -181,6 +181,7 @@ async def run_wasm_fuzzing_campaign(
     url: str,
     *,
     timeout_seconds: float = 5.0,
+    verify_tls: bool = True,
 ) -> list[dict[str, Any]]:
     """Run WASM fuzzing against a target URL.
 
@@ -190,6 +191,7 @@ async def run_wasm_fuzzing_campaign(
     Args:
         url: Target URL (expects a WASM module endpoint).
         timeout_seconds: HTTP timeout per request.
+        verify_tls: Whether to verify TLS certificates. Defaults to True.
 
     Returns:
         List of finding dicts.
@@ -205,7 +207,7 @@ async def run_wasm_fuzzing_campaign(
     base_endpoint = endpoint_base_key(url)
     endpoint_type = classify_endpoint(url)
 
-    async with httpx.AsyncClient(timeout=timeout_seconds, verify=False) as client:
+    async with httpx.AsyncClient(timeout=timeout_seconds, verify=verify_tls) as client:
         for case in WASM_FUZZ_PAYLOADS:
             label = case["label"]
             payload_type = case["payload_type"]

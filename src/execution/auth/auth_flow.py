@@ -141,8 +141,8 @@ class AuthFlowRunner:
                     expires_in = int(_extract_from_json(payload, spec.expires_in_field) or 0)
                     if expires_in > 0:
                         ctx.expires_at = ctx.obtained_at + expires_in
-                except (ValueError, TypeError, json.JSONDecodeError):
-                    pass
+                except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                    logger.warning("Operation failed in auth_flow.py: %s", exc, exc_info=True)  # noqa: BLE001
         if spec.validation_url:
             await self._validate(spec, ctx)
         return ctx
@@ -183,8 +183,8 @@ class AuthFlowRunner:
                 ctx.refresh_token = str(payload["refresh_token"])
             if "expires_in" in payload:
                 ctx.expires_at = time.time() + int(payload["expires_in"])
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("Operation failed in auth_flow.py: %s", exc, exc_info=True)  # noqa: BLE001
         ctx.obtained_at = time.time()
         return ctx
 

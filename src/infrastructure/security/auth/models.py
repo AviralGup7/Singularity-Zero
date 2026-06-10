@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Role(StrEnum):
@@ -125,6 +125,23 @@ class TokenPayload(BaseModel):
     jti: str = Field(default_factory=lambda: uuid.uuid4().hex)
     sid: str | None = Field(default=None, description="Session ID")
     type: str = Field(default="access", description="Token type: access or refresh")
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        """Validate that role is a known Role enum value.
+
+        Prevents privilege-escalation-by-confusion where a crafted
+        role string bypasses RBAC checks.
+        """
+        try:
+            Role(v)
+        except ValueError:
+            raise ValueError(
+                f"Invalid role '{v}'. Must be one of: "
+                f"{', '.join(r.value for r in Role)}"
+            ) from None
+        return v
 
     @property
     def is_expired(self) -> bool:

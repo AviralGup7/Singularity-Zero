@@ -69,9 +69,9 @@ EXPLOIT_MATURITY_V4 = {
 SECURITY_REQUIREMENTS_V4 = {"L": -0.05, "M": 0.0, "H": 0.05, "X": 0.0}
 
 CVSS4_SEVERITY_RANGES: tuple[tuple[float, str], ...] = (
-    (9.3, "critical"),
-    (8.0, "high"),
-    (5.0, "medium"),
+    (9.0, "critical"),
+    (7.0, "high"),
+    (4.0, "medium"),
     (0.1, "low"),
     (0.0, "none"),
 )
@@ -322,10 +322,13 @@ def score_finding_cvss_v4(
     # Threat intel driven exploit maturity. EPSS / KEV are *hints* and
     # never override an explicit caller-supplied exploit_maturity.
     threat_multiplier = 1.0
+    kev_applied_to_inference = False
     if exploit_maturity == "X":
         exploit_maturity = _infer_exploit_maturity(epss_score, in_cisa_kev)
+        kev_applied_to_inference = True
     threat_multiplier = _threat_intel_multiplier(
-        exploit_maturity, epss_score, in_cisa_kev, kev_due_date_offset
+        exploit_maturity, epss_score, in_cisa_kev and not kev_applied_to_inference,
+        kev_due_date_offset
     )
 
     env_score = _apply_environmental_modifiers(
@@ -333,8 +336,8 @@ def score_finding_cvss_v4(
         confidentiality_requirement,
         integrity_requirement,
         availability_requirement,
-        threat_multiplier,
     )
+    env_score = env_score * threat_multiplier
 
     severity_label = _severity_from_score(env_score)
 
@@ -446,8 +449,10 @@ def _calculate_cvss_v4_base_score(
         impact = 7.52 * (iss + iss_sub)
         impact = min(impact, 10.0)
 
-    pr_key = f"{pr}_scope_{'C' if (sc != 'N' or si != 'N' or sa != 'N') else 'U'}"
-    pr_value = PRIVILEGES_REQUIRED_V4.get(pr_key, 0.4)
+    scope_changed = sc != 'N' or si != 'N' or sa != 'N'
+    pr_key = f"{pr}_scope_{'C' if scope_changed else 'U'}"
+    pr_default = 0.55 if (scope_changed and pr == "H") else 0.4
+    pr_value = PRIVILEGES_REQUIRED_V4.get(pr_key, pr_default)
     exploitability = (
         8.22
         * ATTACK_VECTOR_V4.get(av, 0.2)
@@ -490,7 +495,7 @@ def _infer_exploit_maturity(epss_score: float | None, in_cisa_kev: bool) -> str:
     if epss_score >= 0.1:
         return "P"
     if epss_score > 0.0:
-        return "U"
+        return "P"
     return "X"
 
 
@@ -518,14 +523,13 @@ def _apply_environmental_modifiers(
     confidentiality_requirement: str,
     integrity_requirement: str,
     availability_requirement: str,
-    threat_multiplier: float,
 ) -> float:
     modifier = (
         SECURITY_REQUIREMENTS_V4.get(confidentiality_requirement, 0.0)
         + SECURITY_REQUIREMENTS_V4.get(integrity_requirement, 0.0)
         + SECURITY_REQUIREMENTS_V4.get(availability_requirement, 0.0)
     )
-    adjusted = base_score * (1.0 + modifier) * threat_multiplier
+    adjusted = base_score * (1.0 + modifier)
     return _round_up(min(max(adjusted, 0.0), 10.0))
 
 

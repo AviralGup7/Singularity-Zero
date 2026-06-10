@@ -74,8 +74,9 @@ class Session:
                 f"{key}={value}" for key, value in sorted(merged_cookies.items())
             )
             if cookie_value:
-                cookie_key = existing_cookie_name or "Cookie"
+                cookie_key = "Cookie"
                 headers[cookie_key] = cookie_value
+                header_names["cookie"] = cookie_key
         return Request(
             method=request.method,
             url=request.url,

@@ -32,7 +32,11 @@ Trigger a security scan workflow directly from the command line:
 ### 3. Dashboard Operations
 Start the FastAPI security orchestration dashboard separately:
 ```bash
-cyber start dashboard --host 127.0.0.1 --port 8000 --workers 4 --reload --log-level INFO
+cyber start dashboard --host 127.0.0.1 --port 8000 --workers 4 --log-level INFO
+```
+For development with auto-reload (single worker):
+```bash
+cyber start dashboard --host 127.0.0.1 --port 8000 --reload --log-level INFO
 ```
 
 ### 4. Distributed Workers
@@ -40,10 +44,6 @@ Start a background distributed queue worker separately:
 - **Start Worker**:
   ```bash
   cyber start worker --queue security-pipeline --concurrency 2
-  ```
-- **Worker with Checkpoint Replication**:
-  ```bash
-  cyber start worker --queue security-pipeline --concurrency 2 --replication
   ```
 - **Custom Worker ID**:
   ```bash
@@ -59,6 +59,7 @@ Start a background distributed queue worker separately:
   ```bash
   cyber system doctor
   ```
+  Exit codes: `0` = all checks passed, `2` = missing system binaries, `3` = `.env` file issues, `5` = config integrity failure.
 - **Automated Tool Setup** (Auto-detect platform and download Go binaries like `nuclei`, `httpx`, `subfinder` locally):
   ```bash
   cyber system setup

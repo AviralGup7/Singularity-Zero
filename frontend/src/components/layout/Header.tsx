@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
+import { NotificationCenter } from './NotificationCenter';
+import type { AppNotification } from '@/types/notifications';
 
 interface HeaderProps {
   sidebarOpen: boolean;
@@ -14,6 +16,11 @@ interface HeaderProps {
   isOnline: boolean;
   policy: { allowFramer: boolean };
   motionDuration: number;
+  notifications?: AppNotification[];
+  onMarkNotificationRead?: (id: string) => void;
+  onMarkAllNotificationsRead?: () => void;
+  onClearAllNotifications?: () => void;
+  onDismissNotification?: (id: string) => void;
 }
 
 export function Header({
@@ -28,6 +35,11 @@ export function Header({
   isOnline,
   policy,
   motionDuration,
+  notifications = [],
+  onMarkNotificationRead = () => {},
+  onMarkAllNotificationsRead = () => {},
+  onClearAllNotifications = () => {},
+  onDismissNotification = () => {},
 }: HeaderProps) {
   return (
     <>
@@ -93,6 +105,13 @@ export function Header({
         </div>
 
         <div className="header-right-actions flex items-center gap-4">
+          <NotificationCenter
+            notifications={notifications}
+            onMarkRead={onMarkNotificationRead}
+            onMarkAllRead={onMarkAllNotificationsRead}
+            onClearAll={onClearAllNotifications}
+            onDismiss={onDismissNotification}
+          />
           {workflowMode === 'pentest' && (
             <div
               className={`header-live-indicator flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-white/5 bg-white/5 ${

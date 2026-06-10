@@ -202,6 +202,6 @@ async def run_parallel_analyzers(
             from src.pipeline.unified_cache import get_unified_cache
             uc = get_unified_cache()
             duration_cache.save(uc)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Operation failed in executor.py: %s", exc, exc_info=True)  # noqa: BLE001
     return outcome

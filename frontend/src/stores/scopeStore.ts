@@ -2,22 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ParsedScope } from '@/utils/scopeParser';
 import { parseScopeText } from '@/utils/scopeParser';
+import { tenantStorageAdapter } from '@/utils/tenantStorage';
 import { useAuthStore } from './authStore';
-
-const customTenantStorage = {
-  getItem: (name: string): string | null => {
-    const tenantId = useAuthStore.getState().user?.tenantId || 'tenant-default';
-    return localStorage.getItem(`${name}:${tenantId}`) || localStorage.getItem(name);
-  },
-  setItem: (name: string, value: string): void => {
-    const tenantId = useAuthStore.getState().user?.tenantId || 'tenant-default';
-    localStorage.setItem(`${name}:${tenantId}`, value);
-  },
-  removeItem: (name: string): void => {
-    const tenantId = useAuthStore.getState().user?.tenantId || 'tenant-default';
-    localStorage.removeItem(`${name}:${tenantId}`);
-  }
-};
 
 interface ScopeState {
   /** Program identifier (e.g. `hackerone-shopify`). */
@@ -59,7 +45,7 @@ export const useScopeStore = create<ScopeState>()(
     }),
     {
       name: 'cyber-pipeline-scope',
-      storage: createJSONStorage(() => customTenantStorage),
+      storage: createJSONStorage(() => tenantStorageAdapter),
       partialize: (state) => ({
         programHandle: state.programHandle,
         parsed: state.parsed,

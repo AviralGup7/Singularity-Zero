@@ -18,7 +18,7 @@ from src.core.logging.trace_logging import get_pipeline_logger
 from src.core.models.stage_result import StageStatus
 from src.pipeline.runner_support import emit_progress
 
-from ._constants import PIPELINE_STAGES, STAGE_GRAPH, STAGE_ORDER
+from ._constants import PIPELINE_STAGES, STAGE_GRAPH, STAGE_ORDER, STAGE_ORDER_INDEX
 
 logger = get_pipeline_logger(__name__)
 
@@ -166,7 +166,7 @@ async def run_parallel_group(
                     orchestrator._stage_baseline(name),
                     status="running",
                     stage_status="running",
-                    stage_index=(STAGE_ORDER.index(name) + 1) if name in STAGE_ORDER else 0,
+                    stage_index=(STAGE_ORDER_INDEX.get(name, -1) + 1) if name in STAGE_ORDER_INDEX else 0,
                     stage_total=len(STAGE_ORDER),
                     active_task_count=max(2, len(stages)),
                     event_trigger="stage_transition",

@@ -8,6 +8,7 @@ strategies, warming, metrics, and distributed locking.
 
 from __future__ import annotations
 
+import asyncio
 import builtins
 import hashlib
 import logging
@@ -72,7 +73,7 @@ class TierManager:
 
         if self._config.enable_l2:
             if self._config.l2_backend == "redis":
-                self._l2 = RedisBackend(url=self._config.redis_url or "redis://localhost:6379/0")
+                import os; self._l2 = RedisBackend(url=self._config.redis_url or os.environ.get("REDIS_URL") or "redis://localhost:6379/0")
                 logger.debug("L2 (redis) backend initialized")
             else:
                 self._l2 = SQLiteBackend(
@@ -383,9 +384,14 @@ class TierManager:
         l2_healthy = False
         if self._l2 is not None:
             try:
-                l2_healthy = True
-            except Exception:
-                pass
+                if hasattr(self._l2, "get_stats"):
+                    stats = self._l2.get_stats()
+                    l2_healthy = stats.get("healthy", True) if isinstance(stats, dict) else True
+                else:
+                    l2_healthy = True
+            except Exception as exc:
+                logger.debug("L2 health check failed: %s", exc)
+                l2_healthy = False
         l3_healthy = self._l3 is not None
 
         try:
@@ -397,8 +403,8 @@ class TierManager:
                 + (2.0 if l2_healthy else 0.0)
                 + (4.0 if l3_healthy else 0.0)
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to report cache backend health metrics: %s", exc)
 
         logger.info(
             "Cache manager closing: L1=%s L2=%s L3=%s",
@@ -421,7 +427,7 @@ class TierManager:
             self._lock_redis_client = None
         logger.info("Cache manager closed")
 
-    def acquire_distributed_lock(
+    async def acquire_distributed_lock(
         self,
         lock_name: str,
         *,
@@ -451,7 +457,10 @@ class TierManager:
 
             if time.monotonic() >= deadline:
                 return None
-            time.sleep(retry_seconds)
+            remaining = deadline - time.monotonic()
+            jitter = retry_seconds * 0.5 * (hash(key) % 1000 / 1000.0)
+            sleep_time = min(retry_seconds + jitter, max(0.0, remaining))
+            await asyncio.sleep(sleep_time)
 
     def release_distributed_lock(
         self,
@@ -480,7 +489,7 @@ class TierManager:
             logger.warning("Redis distributed lock release failed for %s: %s", key, exc)
             return False
 
-    def distributed_lock(
+    async def distributed_lock(
         self,
         lock_name: str,
         *,
@@ -490,7 +499,7 @@ class TierManager:
         namespace: str = "recon",
     ) -> Any:
         """Context manager for a Redis-backed distributed lock."""
-        token = self.acquire_distributed_lock(
+        token = await self.acquire_distributed_lock(
             lock_name,
             ttl=ttl,
             wait_timeout=wait_timeout,
@@ -501,9 +510,9 @@ class TierManager:
             yield token
         finally:
             if token:
-                self.release_distributed_lock(lock_name, token, namespace=namespace)
+                await self.release_distributed_lock_async(lock_name, token, namespace=namespace)
 
-    def acquire_recon_lock(
+    async def acquire_recon_lock(
         self,
         target: str,
         *,
@@ -511,20 +520,47 @@ class TierManager:
         wait_timeout: float = 0.0,
     ) -> str | None:
         """Acquire the standard target-scoped recon lock."""
-        return self.acquire_distributed_lock(
+        return await self.acquire_distributed_lock(
             f"target:{target}",
             ttl=ttl,
             wait_timeout=wait_timeout,
             namespace="recon",
         )
 
-    def release_recon_lock(self, target: str, token: str) -> bool:
+    async def release_recon_lock(self, target: str, token: str) -> bool:
         """Release the standard target-scoped recon lock."""
-        return self.release_distributed_lock(
+        return await self.release_distributed_lock_async(
             f"target:{target}",
             token,
             namespace="recon",
         )
+
+    async def release_distributed_lock_async(
+        self,
+        lock_name: str,
+        token: str,
+        *,
+        namespace: str = "recon",
+    ) -> bool:
+        """Release a Redis distributed lock only if the token still owns it (async version)."""
+        if not token:
+            return False
+        client = self._get_redis_lock_client()
+        if client is None:
+            return False
+
+        key = self._distributed_lock_key(lock_name, namespace)
+        script = """
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        end
+        return 0
+        """
+        try:
+            return bool(client.eval(script, 1, key, token))
+        except Exception as exc:
+            logger.warning("Redis distributed lock release failed for %s: %s", key, exc)
+            return False
 
     def _make_key(self, raw_key: str, namespace: str) -> str:
         """Create a fully qualified cache key."""

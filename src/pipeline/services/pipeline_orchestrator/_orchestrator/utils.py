@@ -87,7 +87,7 @@ from src.core.models.stage_result import PipelineContext, StageStatus
 from src.infrastructure.observability.alerts import get_alert_rule_checker
 from src.pipeline.constants.progress import _STAGE_BASELINE_PROGRESS
 
-from .._constants import STAGE_ORDER, STAGE_TIMEOUTS
+from .._constants import STAGE_ORDER, STAGE_ORDER_INDEX, STAGE_TIMEOUTS
 from .security import CHECKPOINT_CURRENT_VERSION
 
 logger = get_pipeline_logger(__name__)
@@ -128,9 +128,9 @@ def stage_baseline(stage_name: str, stage_order: Sequence[str]) -> int:
     """
     if stage_name in _STAGE_BASELINE_PROGRESS:
         return _STAGE_BASELINE_PROGRESS[stage_name]
-    if stage_name in stage_order:
-        index = list(stage_order).index(stage_name)
-        return int(((index + 1) / max(1, len(stage_order))) * 100)
+    idx = STAGE_ORDER_INDEX.get(stage_name)
+    if idx is not None:
+        return int(((idx + 1) / max(1, len(STAGE_ORDER))) * 100)
     return 0
 
 
@@ -243,8 +243,8 @@ def _stage_output_schema_validator() -> Draft7Validator:
                 )
                 if candidate.exists():
                     schema_path = candidate
-            except IndexError:
-                pass
+            except IndexError as exc:
+                logger.warning("Operation failed in utils.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         if schema_path is None or not schema_path.exists():
             logger.warning(
@@ -284,8 +284,8 @@ def _finding_schema_validator() -> Draft7Validator:
                 )
                 if candidate.exists():
                     schema_path = candidate
-            except IndexError:
-                pass
+            except IndexError as exc:
+                logger.warning("Operation failed in utils.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         if schema_path is None or not schema_path.exists():
             logger.warning(
@@ -656,8 +656,8 @@ async def record_stage_post_run(
         if getrusage is not None and rusage_self is not None:
             mem_usage = getrusage(rusage_self).ru_maxrss / 1024
             ctx.result.module_metrics.setdefault(stage_name, {})["memory_mb"] = round(mem_usage, 1)
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError) as exc:
+        logger.warning("Operation failed in utils.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     try:
         alert_checker = get_alert_rule_checker()
@@ -695,8 +695,8 @@ async def record_stage_post_run(
                 fh.flush()
                 try:
                     os.fsync(fh.fileno())
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in utils.py: %s", exc, exc_info=True)  # noqa: BLE001
             os.replace(tmp, target)
     except (OSError, TypeError, ValueError, AttributeError, RuntimeError) as exc:
         logger.warning("Failed to persist checkpoint for stage %s: %s", stage_name, exc)
@@ -713,7 +713,7 @@ def build_stage_input_contract(
     ctx: PipelineContext,
     config: Any | None = None,
 ) -> dict[str, Any]:
-    stage_index = (STAGE_ORDER.index(stage_name) + 1) if stage_name in STAGE_ORDER else 0
+    stage_index = (STAGE_ORDER_INDEX.get(stage_name, -1) + 1) if stage_name in STAGE_ORDER_INDEX else 0
     if orchestrator._pipeline_input is None:
         orchestrator._pipeline_input = PipelineInput(
             target_name="unknown",

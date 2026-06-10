@@ -15,9 +15,10 @@ export type { DurationForecastData } from './useJobMonitorReducer';
  * Default: 5000ms for running jobs monitoring.
  * Returns reactive { data, loading, error, refetch } state.
  */
-export function useJobs(options?: { refetchInterval?: number }) {
+export function useJobs(options?: { refetchInterval?: number; params?: Record<string, string | number | undefined> }) {
   const result = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
     refetchInterval: options?.refetchInterval ?? 5000,
+    params: options?.params,
   });
   // Transform nested response to flat array for consumers
   return {

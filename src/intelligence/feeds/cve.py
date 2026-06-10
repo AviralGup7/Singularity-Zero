@@ -17,6 +17,7 @@ Usage:
 """
 
 import logging
+import os
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -27,7 +28,7 @@ from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig
 
 logger = logging.getLogger(__name__)
 
-NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+NVD_BASE_URL = os.environ.get("NVD_BASE_URL", "https://services.nvd.nist.gov/rest/json/cves/2.0")
 
 
 class CVESeverity(StrEnum):
@@ -373,7 +374,7 @@ class CVESyncClient(BaseFeedConnector):
                 published_date = datetime.fromisoformat(pub_str.replace("Z", "+00:00"))
             except (ValueError, TypeError) as exc:
                 logger.debug("Failed to parse NVD date: %s", exc)
-                pass
+                logger.warning("Operation failed in cve.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         last_modified = None
         mod_str = cve.get("lastModified")
@@ -382,7 +383,7 @@ class CVESyncClient(BaseFeedConnector):
                 last_modified = datetime.fromisoformat(mod_str.replace("Z", "+00:00"))
             except (ValueError, TypeError) as exc:
                 logger.debug("Failed to parse NVD date: %s", exc)
-                pass
+                logger.warning("Operation failed in cve.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         references: list[str] = []
         for ref in cve.get("references", []):

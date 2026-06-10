@@ -69,7 +69,14 @@ async def query_virustotal_passive(
                     logger.warning("VirusTotal returned HTTP %d", resp.status_code)
                     break
 
-                data = resp.json()
+                try:
+                    data = resp.json()
+                except (ValueError, TypeError) as exc:
+                    logger.warning("VirusTotal JSON parse error for %s: %s", domain, exc)
+                    break
+                if not isinstance(data, dict):
+                    logger.warning("VirusTotal returned non-dict JSON for %s", domain)
+                    break
                 for item in data.get("data", []):
                     subdomain = item.get("id", "")
                     if subdomain:

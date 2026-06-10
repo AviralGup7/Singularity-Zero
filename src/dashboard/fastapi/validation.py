@@ -71,8 +71,17 @@ def validate_url(url: str) -> bool:
         return False
     if not parsed.hostname:
         return False
-    if ".." in parsed.hostname or _is_path_traversal(parsed.hostname):
+    # Check for path traversal in both raw and percent-decoded forms.
+    hostname = parsed.hostname
+    if ".." in hostname or _is_path_traversal(hostname):
         return False
+    try:
+        from urllib.parse import unquote
+        decoded_hostname = unquote(hostname)
+        if decoded_hostname != hostname and (".." in decoded_hostname or _is_path_traversal(decoded_hostname)):
+            return False
+    except Exception:  # noqa: BLE001
+        pass
     return True
 
 
@@ -207,21 +216,16 @@ def is_safe_replay_url(url: str) -> bool:
 
 def security_headers() -> dict[str, str]:
     return {
-        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
-        # SECURITY: the CSP no longer permits ``unsafe-inline`` for styles.
-        # Frontend code is expected to ship a static stylesheet; if a
-        # dynamic style is required, use a nonce or a hash and append it
-        # to ``style-src``. ``frame-ancestors 'none'`` is the modern
-        # equivalent of ``X-Frame-Options: DENY``.
         "Content-Security-Policy": (
             "default-src 'self'; "
             "script-src 'self'; "
-            "style-src 'self' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data:; "
-            "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; "
+            "style-src 'self'; "
+            "font-src 'self'; "
+            "img-src 'self' https://www.transparenttextures.com; "
+            "connect-src 'self' wss: ws:; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
             "form-action 'self'; "
@@ -230,4 +234,8 @@ def security_headers() -> dict[str, str]:
         ),
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "geolocation=(), camera=(), microphone=()",
+        "X-XSS-Protection": "1; mode=block",
+        "Cross-Origin-Embedder-Policy": "require-corp",
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Resource-Policy": "same-origin",
     }

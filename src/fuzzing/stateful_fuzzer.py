@@ -1,5 +1,6 @@
 import logging
 import re
+import secrets
 from typing import Any
 from enum import Enum
 
@@ -188,6 +189,10 @@ async def run_stateful_campaign_with_machine(
                 next_node = model.states[next_state_id]
                 full_url = base_url.rstrip("/") + current_node.url
 
+                if not is_safe_url_with_dns_check(full_url):
+                    logger.warning("Stateful fuzzer: URL failed SSRF safety check, skipping: %s", full_url)
+                    continue
+
                 # Send the request
                 try:
                     resp = await client.request(
@@ -248,10 +253,10 @@ async def run_stateful_campaign_with_machine(
                                 "severity": "high",
                                 "hint": "Balance changed during state transitions",
                             })
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                    except Exception as exc:
+                        logger.warning("Operation failed in stateful_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
+            except Exception as exc:
+                logger.warning("Operation failed in stateful_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     finally:
         if close_client:
@@ -314,7 +319,7 @@ class StatefulFuzzingSession:
             byte_arr = bytearray(self.csrf_token.encode("utf-8", errors="ignore"))
             if len(byte_arr) > 0:
                 idx = 0
-                bit = 0
+                bit = secrets.randbelow(8)
                 byte_arr[idx] ^= 1 << bit
                 mutations.append(("bit_flip", byte_arr.decode("utf-8", errors="ignore")))
             mutations.append(("empty", ""))
@@ -368,7 +373,8 @@ class StatefulFuzzingSession:
                     step_entry["finding"] = "stateful_session_fixation"
 
             base_status = response0.status_code
-            if base_status < 500 and response.status_code >= 500 and "stateful_state_error" not in [e.get("finding") for e in self.step_history]:
+            existing_state_errors = sum(1 for e in self.step_history if e.get("finding") == "stateful_state_error")
+            if base_status < 500 and response.status_code >= 500 and existing_state_errors == 0:
                 error_step: dict[str, Any] = {
                     "step": len(self.step_history),
                     "url": url,

@@ -169,9 +169,16 @@ class GhostMeshRegistry:
         except Exception as exc:
             logger.warning("Ghost-Registry degraded: clear migration applied locally: %s", exc)
 
+    # Allowed Redis methods for the registry
+    _ALLOWED_REDIS_METHODS = frozenset({
+        "hset", "hget", "hdel", "expire", "get", "set", "delete",
+    })
+
     async def _call(self, method: str, *args: Any) -> Any:
         if self._redis is None:
             raise ConnectionError("No Redis client configured for Ghost registry")
+        if method not in self._ALLOWED_REDIS_METHODS:
+            raise ValueError(f"Disallowed Redis method: {method!r}")
         now = time.monotonic()
         if now < self._degraded_until:
             raise TimeoutError("Ghost registry Redis circuit is open")

@@ -26,6 +26,7 @@ Usage:
 """
 
 import ipaddress
+import logging
 import re
 import string
 from typing import Any, cast
@@ -34,6 +35,8 @@ from urllib.parse import urlparse, urlunparse
 from pydantic import BaseModel, Field
 
 from src.infrastructure.security.config import SecurityConfig
+
+logger = logging.getLogger(__name__)
 
 
 class ValidationResult(BaseModel):
@@ -279,8 +282,8 @@ class URLValidator:
         try:
             addr = ipaddress.ip_address(hostname)
             return any(addr in network for network in self.INTERNAL_IP_RANGES)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            logger.warning("Operation failed in input_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         # Check for known SSRF hostnames without DNS resolution
         for pattern in self.SSRF_PATTERNS:
@@ -305,14 +308,17 @@ class URLValidator:
                 addr = ipaddress.ip_address(resolved_ip_str)
                 if any(addr in network for network in self.INTERNAL_IP_RANGES):
                     return True
-        except (socket.gaierror, OSError):
+        except (socket.gaierror, OSError) as exc:
             # DNS resolution failed - treat as external (safe)
-            pass
+            logger.debug("DNS resolution failed for %s: %s", hostname, exc)
 
         return False
 
     def _sanitize_url(self, parsed: Any) -> str:
-        """Sanitize a parsed URL by removing credentials.
+        """Sanitize a parsed URL by removing credentials and sensitive query params.
+
+        Strips username/password from the URL and removes query parameters
+        that look like credentials (e.g., password=, token=, key=, secret=).
 
         Args:
             parsed: Parsed URL from urlparse.
@@ -324,6 +330,22 @@ class URLValidator:
         if parsed.port:
             netloc = f"{netloc}:{parsed.port}"
 
+        # Sanitize query string to remove credential-like parameters
+        sanitized_query = parsed.query
+        if parsed.query:
+            from urllib.parse import parse_qs, urlencode
+
+            SENSITIVE_QUERY_PARAMS = {
+                "password", "passwd", "pwd", "token", "access_token",
+                "api_key", "apikey", "secret", "key", "auth", "session",
+            }
+            query_params = parse_qs(parsed.query, keep_blank_values=True)
+            filtered_params = {
+                k: v for k, v in query_params.items()
+                if k.lower() not in SENSITIVE_QUERY_PARAMS
+            }
+            sanitized_query = urlencode(filtered_params, doseq=True)
+
         return cast(
             str,
             urlunparse(
@@ -332,7 +354,7 @@ class URLValidator:
                     netloc,
                     parsed.path,
                     parsed.params,
-                    parsed.query,
+                    sanitized_query,
                     "",
                 )
             ),

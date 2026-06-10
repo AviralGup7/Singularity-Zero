@@ -333,7 +333,8 @@ class RiskScoringEngine:
         total_findings = len(findings)
         quantity_factor = 1 + math.log10(total_findings + 1)
 
-        base_score = min(10, (score_total / max(1, total_findings)) * quantity_factor)
+        weighted_score = (score_total / max(1, total_findings)) * quantity_factor
+        base_score = 10.0 * (1 - math.exp(-weighted_score / 8.0))
 
         if severity_counts["critical"] > 0:
             factors.append(f"{severity_counts['critical']} critical vulnerabilities found")
@@ -402,11 +403,17 @@ class RiskScoringEngine:
         """Calculate score based on sensitive data exposure."""
         critical_data = sum(1 for d in sensitive_data if getattr(d, "severity", "") == "critical")
         high_data = sum(1 for d in sensitive_data if getattr(d, "severity", "") == "high")
+        medium_data = sum(1 for d in sensitive_data if getattr(d, "severity", "") == "medium")
+        low_data = sum(1 for d in sensitive_data if getattr(d, "severity", "") == "low")
 
-        score = (critical_data * 3) + (high_data * 1.5)
+        score = (critical_data * 3) + (high_data * 1.5) + (medium_data * 0.25) + (low_data * 0.10)
 
         if critical_data > 0:
             factors.append(f"Critical data exposure: {critical_data} instances")
+        if medium_data > 0:
+            factors.append(f"Medium data exposure: {medium_data} instances")
+        if low_data > 0:
+            factors.append(f"Low data exposure: {low_data} instances")
 
         return min(10, score)
 

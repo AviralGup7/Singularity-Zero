@@ -56,8 +56,8 @@ Attack-surface additions:
   anonymous token to surface which sensitive fields are actually
   accessible unauthenticated.
 """
-
 from __future__ import annotations
+
 
 import asyncio
 import hashlib
@@ -550,8 +550,8 @@ def _detect_graphql_ws(url: str, *, timeout_seconds: int = 5) -> list[str]:
                     protocols.append(proto)
             except Exception:
                 continue
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logger.warning("Operation failed in graphql_introspection.py: %s", exc, exc_info=True)  # noqa: BLE001
     return protocols
 
 
@@ -694,10 +694,10 @@ def _introspect_endpoint_sync(
                         "detected": True,
                         "notes": "JSON array batching accepted with 2 results returned",
                     }
-            except json.JSONDecodeError:
-                pass
-    except requests.RequestException:
-        pass
+            except json.JSONDecodeError as exc:
+                logger.warning("Operation failed in graphql_introspection.py: %s", exc, exc_info=True)  # noqa: BLE001
+    except requests.RequestException as exc:
+        logger.warning("Operation failed in graphql_introspection.py: %s", exc, exc_info=True)  # noqa: BLE001
     if not batch_hit:
         endpoint.attack_surface["batching_amplification"] = {
             "detected": False,

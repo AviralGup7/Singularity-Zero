@@ -4,14 +4,23 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+
+from src.dashboard.fastapi.dependencies import require_auth
 
 router = APIRouter(prefix="/api/health/self-healing", tags=["Self-Healing"])
 
 
-@router.get("")
-async def self_healing_snapshot(request: Request) -> dict[str, Any]:
+@router.get(
+    "",
+    response_model=dict[str, Any],
+    responses={401: {"description": "Unauthorized"}},
+)
+async def self_healing_snapshot(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
     """Return the latest autonomous recovery snapshot."""
     controller = getattr(request.app.state, "self_healing_controller", None)
     if controller is None:
@@ -25,8 +34,15 @@ async def self_healing_snapshot(request: Request) -> dict[str, Any]:
     return cast(dict[str, Any], controller.last_snapshot.as_dict())
 
 
-@router.post("/evaluate")
-async def evaluate_self_healing(request: Request) -> dict[str, Any]:
+@router.post(
+    "/evaluate",
+    response_model=dict[str, Any],
+    responses={401: {"description": "Unauthorized"}},
+)
+async def evaluate_self_healing(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
     """Run one immediate controller pass."""
     controller = getattr(request.app.state, "self_healing_controller", None)
     if controller is None:
@@ -35,8 +51,15 @@ async def evaluate_self_healing(request: Request) -> dict[str, Any]:
     return cast(dict[str, Any], snapshot.as_dict())
 
 
-@router.get("/tile")
-async def self_healing_tile(request: Request) -> dict[str, Any]:
+@router.get(
+    "/tile",
+    response_model=dict[str, Any],
+    responses={401: {"description": "Unauthorized"}},
+)
+async def self_healing_tile(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
     """Compact health tile payload for dashboard clients."""
     controller = getattr(request.app.state, "self_healing_controller", None)
     if controller is None:
@@ -79,8 +102,15 @@ class ForceOpenRequest(BaseModel):
     )
 
 
-@router.get("/circuit-breakers")
-async def list_circuit_breakers(request: Request) -> dict[str, Any]:
+@router.get(
+    "/circuit-breakers",
+    response_model=dict[str, Any],
+    responses={401: {"description": "Unauthorized"}},
+)
+async def list_circuit_breakers(
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
     """Return a serializable snapshot of every per-tool circuit breaker.
 
     The response is sourced from the bound
@@ -102,9 +132,16 @@ async def list_circuit_breakers(request: Request) -> dict[str, Any]:
     }
 
 
-@router.post("/circuit-breakers/{tool_name}/force-open")
+@router.post(
+    "/circuit-breakers/{tool_name}/force-open",
+    response_model=dict[str, Any],
+    responses={401: {"description": "Unauthorized"}},
+)
 async def force_open_tool_breaker(
-    tool_name: str, payload: ForceOpenRequest, request: Request
+    tool_name: str,
+    payload: ForceOpenRequest,
+    request: Request,
+    _auth: Any = Depends(require_auth),
 ) -> dict[str, Any]:
     """Trip a tool's circuit breaker.
 
@@ -132,8 +169,16 @@ async def force_open_tool_breaker(
     }
 
 
-@router.post("/circuit-breakers/{tool_name}/reset")
-async def reset_tool_breaker(tool_name: str, request: Request) -> dict[str, Any]:
+@router.post(
+    "/circuit-breakers/{tool_name}/reset",
+    response_model=dict[str, Any],
+    responses={401: {"description": "Unauthorized"}},
+)
+async def reset_tool_breaker(
+    tool_name: str,
+    request: Request,
+    _auth: Any = Depends(require_auth),
+) -> dict[str, Any]:
     """Manually reset a tool's breaker back to CLOSED."""
     service = getattr(request.app.state, "tool_execution_service", None)
     if service is None:

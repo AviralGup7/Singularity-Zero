@@ -38,6 +38,7 @@ class JobQueueCore:
         lease_seconds: float = 300.0,
         dead_letter_queue_name: str = "dead_letter",
         enable_scheduler: bool = True,
+        namespace: str = "queue",
     ) -> None:
         self.redis = redis_client
         self.queue_name = queue_name
@@ -46,14 +47,15 @@ class JobQueueCore:
         self.dead_letter_queue_name = dead_letter_queue_name
         self._handlers: dict[str, Callable[[Job], Any]] = {}
         self._scripts_registered = False
+        self._namespace = namespace
         self.scheduler = ResourceAwareScheduler() if enable_scheduler else None
         self._register_scripts()
 
     def _key(self, suffix: str) -> str:
-        return f"queue:{self.queue_name}:{suffix}"
+        return f"{self._namespace}:{self.queue_name}:{suffix}"
 
     def _job_key(self, job_id: str) -> str:
-        return f"queue:{self.queue_name}:job:{job_id}"
+        return f"{self._namespace}:{self.queue_name}:job:{job_id}"
 
     def _register_scripts(self) -> None:
         if self._scripts_registered:

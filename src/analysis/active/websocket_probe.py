@@ -102,8 +102,8 @@ async def probe_cswsh(
             ) as ws:
                 try:
                     await ws.send(json.dumps({"type": "ping"}))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Operation failed in websocket_probe.py: %s", exc, exc_info=True)  # noqa: BLE001
                 findings.append(
                     WebSocketProbeFinding(
                         url=url,
@@ -166,8 +166,8 @@ async def probe_message_fuzz(
                                 },
                             )
                         )
-                except TimeoutError:
-                    pass
+                except TimeoutError as exc:
+                    logger.warning("Operation failed in websocket_probe.py: %s", exc, exc_info=True)  # noqa: BLE001
                 else:
                     if isinstance(response, (bytes, bytearray)):
                         preview = response[:200]

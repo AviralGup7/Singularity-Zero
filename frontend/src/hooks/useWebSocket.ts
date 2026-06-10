@@ -8,11 +8,133 @@ import {
 
 export type WSConnectionState = 'connected' | 'reconnecting' | 'disconnected';
 
+/** All WebSocket message types matching the backend protocol. */
+export type WSMessageType =
+  | 'progress'
+  | 'status'
+  | 'log'
+  | 'error'
+  | 'heartbeat'
+  | 'ack'
+  | 'subscribe'
+  | 'unsubscribe'
+  | 'telemetry'
+  | 'backpressure';
+
+export interface WSProgressMessage {
+  type: 'progress';
+  id: string;
+  sequence: number;
+  timestamp: number;
+  job_id: string;
+  stage: string;
+  stage_label: string;
+  percent: number;
+  processed: number | null;
+  total: number | null;
+  message: string;
+  target: string;
+}
+
+export interface WSStatusMessage {
+  type: 'status';
+  id: string;
+  sequence: number;
+  timestamp: number;
+  job_id: string;
+  status: string;
+  previous_status: string;
+  stage: string;
+  stage_label: string;
+  progress_percent: number;
+  error: string | null;
+  target: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface WSLogMessage {
+  type: 'log';
+  id: string;
+  sequence: number;
+  timestamp: number;
+  job_id: string;
+  line: string;
+  source: string;
+  level: string;
+}
+
+export interface WSErrorMessage {
+  type: 'error';
+  id: string;
+  sequence: number;
+  timestamp: number;
+  code: string;
+  message: string;
+  details: Record<string, unknown>;
+  recoverable: boolean;
+}
+
+export interface WSHeartbeatMessage {
+  type: 'heartbeat';
+  id: string;
+  sequence: number;
+  timestamp: number;
+  server_time: number;
+  interval: number;
+}
+
+export interface WSAckMessage {
+  type: 'ack';
+  id: string;
+  sequence: number;
+  timestamp: number;
+  ack_id: string;
+  accepted: boolean;
+  reason: string;
+}
+
+export interface WSTelemetryMessage {
+  type: 'telemetry';
+  id: string;
+  sequence: number;
+  timestamp: number;
+  model_id: string;
+  weight_drift: number;
+  l2_norm: number;
+  action_distribution: number[];
+  metadata: Record<string, unknown>;
+}
+
+export interface WSBackpressureMessage {
+  type: 'backpressure';
+  id: string;
+  sequence: number;
+  timestamp: number;
+  scope: string;
+  target: string;
+  dropped: number;
+  queue_depth: number;
+  watermark: number;
+  connection_id: string;
+}
+
+export type WSMessage =
+  | WSProgressMessage
+  | WSStatusMessage
+  | WSLogMessage
+  | WSErrorMessage
+  | WSHeartbeatMessage
+  | WSAckMessage
+  | WSTelemetryMessage
+  | WSBackpressureMessage;
+
 interface UseWebSocketOptions {
   jobId: string | undefined;
   enabled?: boolean;
   onMessage: (data: unknown) => void;
   onFallback?: () => void;
+  /** Channel to subscribe to on connect (e.g. "job:<id>"). */
+  subscribeChannel?: string;
 }
 
 interface UseWebSocketReturn {
@@ -44,12 +166,14 @@ export function useWebSocket({
   enabled = true,
   onMessage,
   onFallback,
+  subscribeChannel,
 }: UseWebSocketOptions): UseWebSocketReturn {
 
   const [connectionState, setConnectionState] = useState<WSConnectionState>('disconnected');
   const wsRef = useRef<WebSocket | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasConnectedRef = useRef(false);
+  const lastSequenceRef = useRef(0);
 
   // R6: shared primitives.
   const { mountedRef } = useMountedRef();
@@ -90,9 +214,6 @@ export function useWebSocket({
     const wsUrl = `${protocol}//${host}/ws/logs/${jobId}`;
 
     try {
-      // Pass token via subprotocol to avoid URL exposure. The auth transport
-      // is centralised in `@/api/streamAuth` so swapping to a short-lived
-      // stream token only requires editing one module.
       const protocols = getStreamSubprotocols();
       const ws = new WebSocket(wsUrl, protocols);
       wsRef.current = ws;
@@ -102,24 +223,51 @@ export function useWebSocket({
         hasConnectedRef.current = true;
         backoff.reset();
         setConnectionState('connected');
+
+        // Send SubscribeMessage to register on the appropriate channel.
+        // On reconnect, include resume_from so the server can replay
+        // buffered messages we missed.
+        try {
+          const channel = subscribeChannel || `logs:${jobId}`;
+          const subscribePayload: Record<string, unknown> = {
+            type: 'subscribe',
+            channel,
+            job_id: jobId,
+          };
+          if (lastSequenceRef.current > 0) {
+            subscribePayload.resume_from = lastSequenceRef.current;
+          }
+          ws.send(JSON.stringify(subscribePayload));
+        } catch {
+          // Subscribe send failure is non-fatal; the server may already
+          // have us on a default subscription.
+        }
       };
 
       ws.onmessage = (event) => {
         if (!mountedRef.current) return;
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse(event.data) as Record<string, unknown>;
 
-          // Support multiple formats including raw strings from older backends
           if (typeof data === 'string') {
             onMessageRef.current({ type: 'log', line: data });
             return;
           }
 
-          const id = data.id || data.update_id || `${data.timestamp}-${data.type}`;
+          const msgType = typeof data.type === 'string' ? data.type : '';
+
+          // Track sequence for reconnect resume_from
+          if (typeof data.sequence === 'number' && data.sequence > lastSequenceRef.current) {
+            lastSequenceRef.current = data.sequence;
+          }
+
+          // Dedup by server-issued id or composite key
+          const id = (data.id as string) || `${data.timestamp}-${msgType}`;
           if (id && !seenIds.add(String(id))) return;
+
+          // Route all message types through onMessage for consumer flexibility
           onMessageRef.current(data);
         } catch {
-          // If not JSON, treat as raw log line
           onMessageRef.current({ type: 'log', line: event.data });
         }
       };
@@ -162,7 +310,7 @@ export function useWebSocket({
       onFallbackRef.current?.();
     }
 
-  }, [jobId, enabled, cleanup, mountedRef, backoff, seenIds]);
+  }, [jobId, enabled, cleanup, mountedRef, backoff, seenIds, subscribeChannel]);
 
   useEffect(() => {
     connectRef.current = connect;

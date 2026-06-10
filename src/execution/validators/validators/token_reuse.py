@@ -72,6 +72,7 @@ def _replay_token_on_endpoint(
             "replay_risk": "high" if token_accepted else "low" if token_rejected else "medium",
         }
     except Exception as exc:
+        logger.debug("Token replay request failed for %s: %s", target_url, exc)
         return {"status": "error", "reason": str(exc)}
 
 
@@ -312,7 +313,8 @@ def _host_of(url: str) -> str:
 
     try:
         return (urlparse(url or "").hostname or "").lower()
-    except Exception:  # noqa: BLE001
+    except (ValueError, TypeError) as exc:  # noqa: BLE001 — broad catch intentional for URL parsing safety
+        logger.debug("Failed to parse hostname from URL '%s': %s", url, exc)
         return ""
 
 

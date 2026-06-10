@@ -2,6 +2,8 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from src.pipeline.storage import load_config
 from src.reporting.vrt_coverage import build_p1_vrt_coverage
 
@@ -13,6 +15,7 @@ def _coverage_by_key(coverage: dict[str, Any]) -> dict[tuple[str, str, str], dic
     }
 
 
+@pytest.mark.integration
 class VrtCoverageMatrixTests(unittest.TestCase):
     def setUp(self) -> None:
         workspace_root = Path(__file__).resolve().parents[2]

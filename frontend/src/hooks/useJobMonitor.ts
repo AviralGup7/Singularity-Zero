@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   getJob,
   getJobLogs,
@@ -18,68 +18,71 @@ import {
   normalizeActiveTimeline,
   synthesizeCurrentStageEntry,
 } from './useJobMonitorUtils';
-import { 
-  jobMonitorReducer, 
-  initialState, 
-  type JobMonitorAction 
-} from './useJobMonitorReducer';
+import type { JobMonitorAction } from './useJobMonitorReducer';
+import { useJobMonitorStore } from '../stores/jobMonitorStore';
 
 const POLL_INTERVAL_MS = 2000;
-const BUFFER_FLUSH_MS = 100; // Overhaul: Batch updates every 100ms
+const BUFFER_FLUSH_MS = 100;
 
 export function useJobMonitor(jobId: string | undefined, options: { onRestarted?: (id: string) => void } = {}) {
   const { onRestarted } = options;
-   
-  const [state, dispatch] = useReducer(jobMonitorReducer, initialState);
+
+  const store = useJobMonitorStore();
+  const state = jobId ? store.getState(jobId) : undefined;
+  const dispatch = useCallback(
+    (action: JobMonitorAction) => {
+      if (jobId) store.dispatch(jobId, action);
+    },
+    [jobId, store]
+  );
+
   const toast = useToast();
 
-  // --- Overhaul: Action Buffer Engine ---
-   
+  // --- Action Buffer Engine ---
   const actionQueueRef = useRef<JobMonitorAction[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   const bufferDispatch = useCallback((action: JobMonitorAction) => {
-    // Immediately predict next state and update ref to avoid stale closures in buffered updates
-    stateRef.current = jobMonitorReducer(stateRef.current, action);
+    // Predict next state for SSE handler stale-closure prevention
+    if (jobId) {
+      stateRef.current = useJobMonitorStore.getState().getState(jobId);
+    }
 
-    // Immediate dispatch for critical actions (loading, errors, explicit user actions)
     if (action.type === 'START_LOADING' || action.type === 'SET_ERROR' || action.type === 'SET_ACTION_LOADING') {
       dispatch(action);
       return;
     }
     actionQueueRef.current.push(action);
-  }, []);
+  }, [jobId, dispatch]);
 
   useEffect(() => {
     flushTimerRef.current = setInterval(() => {
       if (actionQueueRef.current.length === 0) return;
-
-   
       const batch = [...actionQueueRef.current];
       actionQueueRef.current = [];
-
-      // Atomic multi-dispatch optimization
-      // In a more complex setup, we'd have a 'BATCH_UPDATE' action, 
-      // but for now, we just flush them sequentially which React 18 batches anyway.
-      batch.forEach(dispatch);
+      batch.forEach(action => dispatch(action));
     }, BUFFER_FLUSH_MS);
-
-    return () => {
-      if (flushTimerRef.current) clearInterval(flushTimerRef.current);
-    };
-  }, []);
+    return () => { if (flushTimerRef.current) clearInterval(flushTimerRef.current); };
+  }, [dispatch]);
 
   const seenPollIdsRef = useRef<Set<string>>(new Set());
   const lastErrorToastRef = useRef<{ key: string; ts: number }>({ key: '', ts: 0 });
+  const jobStatusRef = useRef(state?.job?.status);
+
+  useEffect(() => { jobStatusRef.current = state?.job?.status; }, [state?.job?.status]);
 
   // --- REST Polling ---
   const loadData = useCallback(async (signal?: AbortSignal) => {
     if (!jobId) return;
     try {
-   
       const [jobData, logsData] = await Promise.all([
         getJob(jobId, signal),
-        getJobLogs(jobId, signal).catch(() => null),
+        getJobLogs(jobId, signal).catch((err) => {
+          console.error('getJobLogs failed:', err);
+          return null;
+        }),
       ]);
 
       if (!jobData) {
@@ -89,10 +92,8 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
           const id = `${logsData.job_id}-${i}`;
           if (seenPollIdsRef.current.has(id)) return false;
           seenPollIdsRef.current.add(id);
-          
           if (seenPollIdsRef.current.size > 5000) {
             const iter = seenPollIdsRef.current.values();
-            // Fast FIFO prune: delete oldest 2000 entries
             for (let j = 0; j < 2000; j++) {
               const val = iter.next().value;
               if (val !== undefined) seenPollIdsRef.current.delete(val);
@@ -121,29 +122,24 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
       if (signal?.aborted) return;
       bufferDispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err.message : 'Failed to load job details' });
     }
-   
-  }, [jobId, bufferDispatch]);
+  }, [jobId, bufferDispatch, dispatch]);
 
   useEffect(() => {
     const controller = new AbortController();
     loadData(controller.signal);
     const interval = setInterval(() => {
-      if (state.job?.status === 'running') loadData(controller.signal);
+      if (jobStatusRef.current === 'running') loadData(controller.signal);
     }, POLL_INTERVAL_MS);
     return () => {
       controller.abort();
       clearInterval(interval);
+      seenPollIdsRef.current.clear();
     };
-   
-  }, [jobId, state.job?.status, loadData]);
+  }, [jobId, loadData]);
 
   // --- Duration Forecast ---
-  // ``state.durationForecast`` is intentionally *not* in the dep array:
-  // re-running this effect every time the forecast itself changes would
-  // cause an infinite update loop (the effect dispatches an update to
-  // the very value that triggered it).
   useEffect(() => {
-    if (!state.job?.stage) return;
+    if (!state?.job?.stage) return;
     getHistoricalDurations()
       .then((data) => {
         if (data && data.length > 0) {
@@ -163,16 +159,17 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
           bufferDispatch({ type: 'SET_DURATION_FORECAST', payload: null, loading: false });
         }
       })
-      .catch(() => bufferDispatch({ type: 'SET_DURATION_FORECAST', payload: null, loading: false }));
-
-  }, [state.job?.id, state.job?.stage, bufferDispatch]);
+      .catch((err) => {
+        console.error('Failed to fetch duration forecast:', err);
+        bufferDispatch({ type: 'SET_DURATION_FORECAST', payload: null, loading: false });
+      });
+  }, [state?.job?.id, state?.job?.stage, bufferDispatch]);
 
   // --- WebSocket (log streaming) ---
   const handleWsMessage = useCallback(
     (data: unknown) => {
       const msg = data as Record<string, unknown>;
       const msgType = typeof msg.type === 'string' ? msg.type : '';
-
       if ((msgType === 'log' || msg.log_line) && typeof (msg.line || msg.log_line) === 'string') {
         bufferDispatch({ type: 'ADD_LOG_LINE', payload: (msg.line || msg.log_line) as string });
       }
@@ -180,71 +177,60 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
         bufferDispatch({ type: 'UPDATE_JOB', payload: msg.job_update as Partial<Job>, source: 'realtime' });
       }
     },
-   
     [bufferDispatch]
   );
 
   const { connectionState } = useWebSocket({
     jobId,
-    enabled: state.job?.status === 'running' && !state.wsFailed,
+    enabled: state?.job?.status === 'running' && !state?.wsFailed,
     onMessage: handleWsMessage,
     onFallback: () => bufferDispatch({ type: 'SET_WS_FAILED', payload: true }),
   });
 
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-   
-  }, [state]);
-
   // --- SSE (progress, stages, findings, errors) ---
   const handleSSEEvent = useCallback(
     (event: SseEvent) => {
+      const currentState = jobId ? useJobMonitorStore.getState().getState(jobId) : undefined;
       processJobMonitorSseEvent(event, {
-        jobStage: stateRef.current.job?.stage,
-        jobStatus: stateRef.current.job?.status,
+        jobStage: currentState?.job?.stage,
+        jobStatus: currentState?.job?.status,
         setStageProgress: (updater) => {
-          const next = typeof updater === 'function' ? updater(stateRef.current.stageProgress) : updater;
+          const next = typeof updater === 'function' ? updater(currentState?.stageProgress ?? []) : updater;
           next.forEach(s => bufferDispatch({ type: 'UPDATE_STAGE_PROGRESS', payload: s, source: 'realtime' }));
         },
         setSseTelemetry: (updater) => {
-          const next = typeof updater === 'function' ? updater(stateRef.current.sseTelemetry) : updater;
+          const next = typeof updater === 'function' ? updater(currentState?.sseTelemetry ?? {}) : updater;
           bufferDispatch({ type: 'UPDATE_TELEMETRY', payload: next, source: 'realtime' });
         },
         setJob: (updater) => {
-          const next = typeof updater === 'function' ? updater(stateRef.current.job) : updater;
+          const next = typeof updater === 'function' ? updater(currentState?.job) : updater;
           if (next) bufferDispatch({ type: 'UPDATE_JOB', payload: next, source: 'realtime' });
         },
         addPluginProgress: (entry) => bufferDispatch({ type: 'ADD_PLUGIN_PROGRESS', payload: entry }),
         resetPluginProgress: () => bufferDispatch({ type: 'RESET_PLUGIN_PROGRESS' }),
         addLogLine: (line) => bufferDispatch({ type: 'ADD_LOG_LINE', payload: line }),
-        handleStageProgress: (_d) => {
-          // This is redundant with setStageProgress above in some cases, but we'll normalize it in the reducer
-        },
+        handleStageProgress: () => {},
         setStreamingFindings: (updater) => {
-          const next = typeof updater === 'function' ? updater(stateRef.current.streamingFindings) : updater;
+          const next = typeof updater === 'function' ? updater(currentState?.streamingFindings ?? []) : updater;
           bufferDispatch({ type: 'ADD_FINDINGS', payload: next });
         },
-        setSseError: (err) => bufferDispatch({ type: 'SET_SSE_ERROR', payload: typeof err === 'function' ? err(stateRef.current.sseError) : err }),
+        setSseError: (err) => bufferDispatch({ type: 'SET_SSE_ERROR', payload: typeof err === 'function' ? err(currentState?.sseError ?? null) : err }),
         loadData: () => { void loadData(); },
         toastError: (message) => toast.error(message),
         lastErrorToastRef,
       });
     },
-   
-    [bufferDispatch, loadData, toast]
+    [bufferDispatch, jobId, loadData, toast]
   );
 
   const { connectionState: sseState, isPollingFallback, reconnect } = useSSEProgress({
     jobId,
-    enabled: state.job?.status === 'running',
+    enabled: state?.job?.status === 'running',
     onEvent: handleSSEEvent,
   });
 
   // --- Actions ---
-   
   const [showConfirmStop, setShowConfirmStop] = useState(false);
-   
   const [showConfirmRestart, setShowConfirmRestart] = useState(false);
 
   const executeStop = useCallback(async () => {
@@ -259,8 +245,7 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
     } finally {
       dispatch({ type: 'SET_ACTION_LOADING', payload: null });
     }
-   
-  }, [jobId, loadData, toast]);
+  }, [jobId, loadData, toast, dispatch]);
 
   const executeRestart = useCallback(async () => {
     if (!jobId) return;
@@ -280,8 +265,40 @@ export function useJobMonitor(jobId: string | undefined, options: { onRestarted?
     } finally {
       dispatch({ type: 'SET_ACTION_LOADING', payload: null });
     }
-   
-  }, [jobId, loadData, onRestarted, toast]);
+  }, [jobId, loadData, onRestarted, toast, dispatch]);
+
+  if (!state) {
+    return {
+      job: null,
+      loading: true,
+      error: null,
+      allLogLines: [],
+      pluginProgress: [],
+      streamingFindings: [],
+      sseError: null,
+      wsFailed: false,
+      durationForecast: null,
+      durationLoading: false,
+      stageProgress: [],
+      sseTelemetry: {},
+      actionLoading: null,
+      lastUpdateTs: 0,
+      connectionState: 'disconnected' as const,
+      sseState: 'disconnected' as const,
+      isPollingFallback: false,
+      showConfirmStop: false,
+      showConfirmRestart: false,
+      setShowConfirmStop: () => {},
+      setShowConfirmRestart: () => {},
+      reconnect: () => {},
+      refetch: async () => {},
+      stopJob: () => {},
+      executeStop: async () => {},
+      restartJob: () => {},
+      executeRestart: async () => {},
+      clearSseError: () => {},
+    };
+  }
 
   const mergedStageProgress = normalizeActiveTimeline(
     mergeStageProgressLists(state.job?.stage_progress, state.stageProgress),

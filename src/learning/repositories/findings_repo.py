@@ -1,3 +1,4 @@
+import logging
 """Findings repository - CRUD operations for findings table."""
 
 import threading
@@ -12,6 +13,16 @@ class FindingsRepo(BaseRepo):
 
     def __init__(self, db_path: Path, local: threading.local):
         super().__init__(db_path, local)
+        self._ensure_indexes()
+
+    def _ensure_indexes(self) -> None:
+        try:
+            with self._cursor() as cur:
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_run_id_confidence ON findings(run_id, confidence DESC)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_endpoint ON findings(endpoint_base)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_category ON findings(category)")
+        except Exception as exc:
+            logging.warning("Operation failed in findings_repo.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def record_finding(self, row: dict[str, Any]) -> None:
         """Record a finding."""

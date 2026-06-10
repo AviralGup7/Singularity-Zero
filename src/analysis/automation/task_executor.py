@@ -372,8 +372,8 @@ class AutomationTaskExecutor:
         status_code = -1
         try:
             status_code = int(str(run.stdout).strip().splitlines()[-1].strip())
-        except (ValueError, IndexError):
-            pass
+        except (ValueError, IndexError) as exc:
+            logger.warning("Operation failed in task_executor.py: %s", exc, exc_info=True)  # noqa: BLE001
         return self._wrap_result(
             kind=kind,
             title=title,

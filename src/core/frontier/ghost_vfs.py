@@ -64,7 +64,7 @@ class _DecryptingChunkIterator:
 
             nonce = chunk_payload[:12]
             ciphertext = chunk_payload[12:]
-            aad = f"chunk:{self._idx}".encode()
+            aad = f"chunk:{self._idx}".encode("utf-8")
 
             try:
                 decrypted_chunk = self._aesgcm.decrypt(nonce, ciphertext, aad)
@@ -145,7 +145,7 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
         )
 
     def write_file(self, path: str, content: str | bytes) -> None:
-        data = content if isinstance(content, bytes) else content.encode()
+        data = content if isinstance(content, bytes) else content.encode("utf-8")
         self.write_file_stream(path, iter([data]))
 
     def write_file_stream(self, path: str, stream: Iterator[bytes]) -> None:
@@ -178,7 +178,7 @@ class GhostVFS(VFSPathMixin, VFSMountsMixin):
                         raise TypeError("Ghost-VFS: stream chunks must be bytes-like")
                     chunk_bytes = bytes(chunk)
                     nonce = os.urandom(12)
-                    aad = f"chunk:{idx}".encode()
+                    aad = f"chunk:{idx}".encode("utf-8")
                     ciphertext = file_aesgcm.encrypt(nonce, chunk_bytes, aad)
                     chunk_payload = nonce + ciphertext
                     length_bytes = len(chunk_payload).to_bytes(4, byteorder="big")

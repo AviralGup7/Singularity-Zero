@@ -29,12 +29,13 @@ NON_JSON_PATHS = (
 def _is_json_response(response: Response) -> bool:
     """Check if the response is a JSON response."""
     content_type = response.headers.get("content-type", "")
+    resp_url = getattr(response, "url", None)
     return (
         "application/json" in content_type or not content_type.startswith("text/event-stream")
     ) and not any(
-        response.url.path.startswith(p)
+        resp_url.path.startswith(p)
         for p in NON_JSON_PATHS
-        if hasattr(response, "url") and response.url
+        if resp_url is not None
     )
 
 
@@ -44,6 +45,10 @@ def _normalize_response_body(body: Any) -> Any:
     - Never returns None or undefined
     - Ensures dicts have at least one key
     - Ensures lists are never None
+
+    Only known API response fields are normalized. Unknown keys are
+    preserved as-is (including legitimate ``None`` values) to avoid
+    silently stripping semantic meaning relied on by API consumers.
     """
     if body is None:
         return {}
@@ -54,34 +59,34 @@ def _normalize_response_body(body: Any) -> Any:
     if isinstance(body, list):
         return {"items": body, "total": len(body)}
     if isinstance(body, dict):
-        # Ensure no None values for critical fields
+        # Fields that must never be None in documented API responses.
+        _KNOWN_COUNT_FIELDS = frozenset({
+            "total", "total_findings", "total_targets", "total_gaps",
+            "total_logs", "count", "runs_analyzed", "active_jobs",
+            "completed_jobs", "failed_jobs", "completed_targets",
+            "avg_progress", "pipeline_health_score",
+        })
+        _KNOWN_LIST_FIELDS = frozenset({
+            "findings", "gaps", "items", "logs", "targets", "notes",
+            "timeline", "jobs", "severity_counts", "stage_counts",
+        })
+        _KNOWN_STRING_FIELDS = frozenset({
+            "target", "error", "detail", "message", "status",
+            "pipeline_health_label", "target_name",
+        })
+
         normalized = {}
         for key, value in body.items():
             if value is None:
-                # Convert None to appropriate empty defaults based on context
-                if key.endswith("_count") or key in (
-                    "total",
-                    "total_gaps",
-                    "total_logs",
-                    "count",
-                    "runs_analyzed",
-                ):
-                    normalized[key] = cast(Any, 0)
-                elif key.endswith("_list") or key in (
-                    "findings",
-                    "gaps",
-                    "items",
-                    "logs",
-                    "targets",
-                    "notes",
-                    "timeline",
-                    "jobs",
-                ):
-                    normalized[key] = cast(Any, [])
-                elif key in ("target", "error", "detail", "message", "status"):
-                    normalized[key] = cast(Any, "")
+                if key in _KNOWN_COUNT_FIELDS:
+                    normalized[key] = 0
+                elif key in _KNOWN_LIST_FIELDS:
+                    normalized[key] = []
+                elif key in _KNOWN_STRING_FIELDS:
+                    normalized[key] = ""
                 else:
-                    normalized[key] = cast(Any, None)  # Allow None for non-critical fields
+                    # Preserve None for unknown/semantic fields
+                    normalized[key] = None
             else:
                 normalized[key] = value
         return normalized

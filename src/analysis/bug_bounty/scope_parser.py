@@ -139,7 +139,7 @@ def expand_wildcards(scope: ProgramScope) -> set[str]:
     expanded = set(scope.target_urls)
     for pattern in scope.wildcard_patterns:
         if "*" in pattern:
-            matched = fnmatch.filter(list(expanded) if not expanded else [], pattern)
+            matched = fnmatch.filter(list(expanded), pattern)
             if matched:
                 expanded.update(matched)
             else:

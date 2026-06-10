@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
+import { prefetchRoute } from '@/App';
 
 interface SidebarProps {
   sidebarRef: React.RefObject<HTMLElement | null>;
@@ -15,7 +16,7 @@ interface SidebarProps {
     items: Array<{ path: string; label: string; icon: string; count?: string; key?: string }>;
   }>;
   theme: { mode: string };
-  themeUpdater: { setThemeMode: (mode: any) => void };
+  themeUpdater: { setThemeMode: (mode: 'dark' | 'light') => void };
 }
 
 export function Sidebar({
@@ -107,6 +108,8 @@ export function Sidebar({
                       <Link
                         key={item.path}
                         to={item.path}
+                        onMouseEnter={() => prefetchRoute(item.path)}
+                        onFocus={() => prefetchRoute(item.path)}
                         className={`sidebar-nav-item flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 hover:bg-white/5 hover:translate-x-0.5 group ${
                           isActive
                             ? 'sidebar-nav-item--active bg-accent-dim/10 text-accent font-semibold border-l-2 border-accent shadow-[0_0_10px_rgba(59,130,246,0.05)]'

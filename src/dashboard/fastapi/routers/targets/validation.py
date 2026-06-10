@@ -10,9 +10,13 @@ logger = logging.getLogger(__name__)
 
 
 def is_target_owned_by_tenant(target_name: str, tenant_id: str | None) -> bool:
-    """Helper to enforce strict tenant boundary limits on targets."""
+    """Helper to enforce strict tenant boundary limits on targets.
+
+    When ``tenant_id`` is ``None`` or empty, access is denied (fail-closed)
+    to prevent cross-tenant leakage when the job-metadata resolver fails.
+    """
     if not tenant_id:
-        tenant_id = "default"
+        return False
 
     if target_name.startswith(f"{tenant_id}_"):
         return True
@@ -73,9 +77,15 @@ def _normalize_finding_payload(
     if severity not in {"critical", "high", "medium", "low", "info"}:
         severity = "info"
 
-    status = str(finding.get("status", "open")).strip().lower()
-    if status not in {"open", "closed", "accepted"}:
-        status = "open"
+    status = str(finding.get("status", "active")).strip().lower()
+    mapping = {
+        "open": "active",
+        "closed": "resolved",
+        "accepted": "ignored",
+    }
+    status = mapping.get(status, status)
+    if status not in {"active", "resolved", "false_positive", "ignored"}:
+        status = "active"
 
     lifecycle_state = str(finding.get("lifecycle_state", "detected")).strip().lower()
     if lifecycle_state not in {"detected", "validated", "exploitable", "reportable"}:
@@ -99,9 +109,14 @@ def _normalize_finding_payload(
         or f"{target_name}-{run_name}-{index}"
     )
 
+    job_id = finding.get("job_id") or run_name
+    target_id = finding.get("target_id") or target_name
+
     normalized = {
         **finding,
         "id": finding_id,
+        "job_id": job_id,
+        "target_id": target_id,
         "severity": severity,
         "type": finding_type,
         "target": str(finding.get("target") or target_name).strip() or target_name,

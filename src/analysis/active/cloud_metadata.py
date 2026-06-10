@@ -521,4 +521,8 @@ def cloud_metadata_active_probe(targets: list[str], limit: int = 25) -> list[dic
 def _get_base_url(url: str) -> str:
     """Extract the base URL (scheme + host) from a full URL."""
     parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}"
+    scheme = parsed.scheme or "https"
+    netloc = parsed.netloc or parsed.path.split("/")[0]
+    if not netloc:
+        raise ValueError(f"Cannot extract host from URL: {url}")
+    return f"{scheme}://{netloc}"

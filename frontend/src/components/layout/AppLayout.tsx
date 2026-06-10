@@ -6,16 +6,16 @@ import { APP_VERSION } from '../../config';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/hooks/useAuth';
 import { CommandPalette } from './CommandPalette';
-import { emitNotification, emitSearchItems, emitRefresh } from '../../lib/events';
+import { emitSearchItems, emitRefresh } from '../../lib/events';
 import { useCommandPaletteItems, getAllItems } from '../../hooks/useCommandPaletteItems';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { useMotionPolicy } from '../../hooks/useMotionPolicy';
-import { useDebouncedPersist } from '../../hooks/useDebouncedPersist';
 import { useDisplayStore } from '@/stores/displayStore';
-import type { Notification } from './NotificationCenter';
 import type { SearchableItem } from './CommandPalette';
 import { useToast } from '@/hooks/useToast';
+import { useNotifications } from '@/hooks/useNotifications';
 import { Icon } from '../ui/Icon';
+import { useHealthStatus } from '@/hooks/useHealthStatus';
 
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
@@ -52,11 +52,25 @@ function useNavSections(): NavSection[] {
             { path: '/risk-score', label: 'Risk Score', icon: 'alertTriangle' },
             { path: '/scan-diff', label: 'Scan Diff', icon: 'activity' },
             { path: '/findings-timeline', label: 'Findings Timeline', icon: 'activity' },
+            { path: '/target-comparison', label: t('navigation.compare'), icon: 'activity' },
+            { path: '/gap-analysis', label: t('navigation.gapAnalysis'), icon: 'shieldCheck' },
+            { path: '/learning', label: 'Autonomous Learning', icon: 'zap' },
+            { path: '/evasion', label: 'Evasion Metrics', icon: 'shield' },
           ],
         },
         {
           label: t('navigation.system'),
           items: [
+            { path: '/mesh', label: 'Mesh Command', icon: 'server' },
+            { path: '/self-healing', label: 'Self-Healing', icon: 'zap' },
+            { path: '/tracing', label: 'Tracing', icon: 'activity' },
+            { path: '/cache-management', label: 'Cache', icon: 'database' },
+            { path: '/audit-logs', label: 'Audit Logs', icon: 'file' },
+            { path: '/compliance', label: 'Compliance', icon: 'shieldCheck' },
+            { path: '/reports', label: 'Reports', icon: 'fileText' },
+            { path: '/access-logs', label: 'Access Logs', icon: 'fileText' },
+            { path: '/evidence-custody', label: 'Evidence Chain', icon: 'link' },
+            { path: '/security', label: 'Security', icon: 'shieldCheck' },
             { path: '/settings', label: t('navigation.settings'), icon: 'settings', count: 'S' },
           ],
         },
@@ -99,30 +113,6 @@ function useNavSections(): NavSection[] {
   }, [t, workflowMode]);
 }
 
-const NOTIF_STORAGE_KEY = 'cyber-pipeline-notifications';
-const NOTIF_TTL_MS = 24 * 60 * 60 * 1000;
-
-function loadNotifications(): Notification[] {
-  try {
-    const raw = localStorage.getItem(NOTIF_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: Notification[] = JSON.parse(raw);
-    const now = Date.now();
-    return parsed.filter(n => (now - n.timestamp) < NOTIF_TTL_MS);
-  } catch (error) {
-    console.error('Failed to load notifications from localStorage:', error);
-    return [];
-  }
-}
-
-function saveNotifications(notifs: Notification[]) {
-  try {
-    localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifs));
-  } catch (error) {
-    console.error('Failed to save notifications to localStorage:', error);
-  }
-}
-
 function buildDefaultNavItems(sections: NavSection[]): SearchableItem[] {
   return sections.flatMap(section =>
     section.items.map(item => ({
@@ -137,7 +127,7 @@ function buildDefaultNavItems(sections: NavSection[]): SearchableItem[] {
 
 function buildDefaultActionItems(
   theme: { mode: string },
-  themeUpdater: { setThemeMode: (mode: any) => void },
+  themeUpdater: { setThemeMode: (mode: 'dark' | 'light') => void },
   toggleSidebar: () => void,
   toggleCommandPalette: () => void,
   navigate: (path: string) => void,
@@ -262,7 +252,6 @@ export function AppLayout({ children }: AppLayoutProps) {
    
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(loadNotifications);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const sidebarCollapsed = useDisplayStore((state) => state.sidebarCollapsed);
@@ -270,7 +259,17 @@ export function AppLayout({ children }: AppLayoutProps) {
   const workflowMode = useDisplayStore((state) => state.workflowMode);
 
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  const healthStatus = useHealthStatus();
   const sidebarRef = useRef<HTMLElement>(null);
+
+  // Server-backed notifications via REST + SSE
+  const {
+    notifications,
+    markRead,
+    markAllRead,
+    dismiss: dismissNotification,
+    clearAll: clearAllNotifications,
+  } = useNotifications();
    
   const defaultNavItems = useMemo(() => buildDefaultNavItems(navSections), [navSections]);
   const defaultActionItems = useMemo(
@@ -288,62 +287,30 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   useCommandPaletteItems([...defaultNavItems, ...defaultActionItems]);
 
-  const addNotification = useCallback((notif: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
-    const id = `notif-${crypto.randomUUID()}`;
-    const newNotif: Notification = { ...notif, id, timestamp: Date.now(), read: false };
-   
-    setNotifications(prev => [newNotif, ...prev].slice(0, 100));
-    emitNotification({ message: notif.message, type: notif.type });
-  }, []);
+  // Toast on incoming SSE notifications
+  const prevNotifCountRef = useRef(notifications.length);
+  useEffect(() => {
+    if (notifications.length > prevNotifCountRef.current) {
+      const newest = notifications[0];
+      if (newest && !newest.read) {
+        if (newest.type === 'new_finding' || newest.type === 'critical_vulnerability') {
+          toast.info(`${newest.title}: ${newest.message}`);
+        } else if (newest.type === 'error') {
+          toast.error(newest.message);
+        } else if (newest.type === 'scan_completed') {
+          toast.success(newest.message);
+        }
+      }
+    }
+    prevNotifCountRef.current = notifications.length;
+  }, [notifications, toast]);
 
   const { connectionState: liveConnectionState } = useWebSocket({
     jobId: undefined,
-    enabled: true,
-    onMessage: (data: unknown) => {
-      try {
-        const msg = data as { type?: string; severity?: string; message?: string; title?: string; target?: string };
-        const notifType: 'error' | 'scan_complete' | 'scan_failed' | 'new_finding' =
-          msg.type === 'error' || msg.severity === 'critical' ? 'error'
-            : msg.type === 'scan_complete' ? 'scan_complete'
-              : msg.type === 'scan_failed' ? 'scan_failed'
-                : msg.type === 'new_finding' ? 'new_finding'
-                  : 'scan_complete';
-        addNotification({
-          title: msg.title || 'Notification',
-          message: msg.message || msg.title || 'New notification',
-          type: notifType,
-          severity: notifType === 'error' || notifType === 'scan_failed' ? 'high' : notifType === 'new_finding' ? 'medium' : 'info',
-        });
-        if (notifType === 'new_finding') {
-          if (workflowMode === 'pentest') {
-            const target = msg.target ? ` on ${msg.target}` : '';
-            toast.info(`New finding${target}: ${msg.title || msg.message || 'detected'}`);
-          }
-        } else if (notifType === 'scan_complete') {
-          if (workflowMode === 'pentest') {
-            toast.success(msg.message || msg.title || 'Scan complete');
-          }
-        } else if (notifType === 'error') {
-          toast.error(msg.message || msg.title || 'System error');
-        }
-      } catch {
-        addNotification({
-          title: 'Notification',
-          message: String(data),
-          type: 'scan_complete',
-          severity: 'info',
-        });
-      }
-    },
-    onFallback: () => {
-      // fallback path handled by polling hooks
-    },
+    enabled: false,
+    onMessage: () => {},
+    onFallback: () => {},
   });
-
-  const persistNotifications = useCallback((data: Notification[]) => {
-    saveNotifications(data);
-  }, []);
-  useDebouncedPersist(notifications, persistNotifications, 500);
 
   useEffect(() => {
     const handleSearchUpdate = (e: Event) => {
@@ -445,7 +412,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const mobilePrimary = useMemo(() => navSections
     .flatMap(section => section.items)
-    .filter(item => ['/', '/targets', '/jobs', '/findings', '/settings'].includes(item.path)), [navSections]);
+    .filter(item => ['/', '/targets', '/jobs', '/findings', '/bug-bounty', '/cockpit', '/reports', '/settings'].includes(item.path)), [navSections]);
 
   const motionDuration = strategy.duration || 0.2;
   const isLogin = location.pathname === '/login';
@@ -491,7 +458,31 @@ export function AppLayout({ children }: AppLayoutProps) {
           isOnline={isOnline}
           policy={policy}
           motionDuration={motionDuration}
+          notifications={notifications}
+          onMarkNotificationRead={markRead}
+          onMarkAllNotificationsRead={markAllRead}
+          onClearAllNotifications={clearAllNotifications}
+          onDismissNotification={dismissNotification}
         />
+
+        {(!healthStatus.loading && !healthStatus.ready) && (
+          <div
+            className="flex items-center gap-2 px-4 py-2 text-xs border-b border-[var(--line)]"
+            style={{ background: 'var(--warning-bg, rgba(234, 179, 8, 0.08))', color: 'var(--warning-text, #eab308)' }}
+            role="alert"
+            aria-live="polite"
+          >
+            <Icon name="alertTriangle" size={14} aria-hidden="true" />
+            <span className="font-medium">System Degraded</span>
+            <span className="text-[var(--text-secondary)]">
+              {healthStatus.error
+                ? 'Unable to reach backend'
+                : healthStatus.degradedReasons.length > 0
+                  ? healthStatus.degradedReasons.join(' · ')
+                  : 'Some subsystems are unavailable'}
+            </span>
+          </div>
+        )}
 
         <motion.main
           id="main"

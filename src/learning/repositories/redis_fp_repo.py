@@ -64,11 +64,13 @@ class RedisFPRepository:
         # is intentional: it returns the running loop without falling back
         # to creating a new one in a worker thread.
         try:
-            loop = asyncio.get_event_loop()
-            if not loop.is_closed() and loop.is_running():
+            loop = asyncio.get_running_loop()
+            if not loop.is_closed():
                 loop.create_task(self._prime_fallback())
             else:
-                logger.debug("RedisFPRepo initial warm-up skipped (no running event loop)")
+                logger.debug("RedisFPRepo initial warm-up skipped (closed event loop)")
+        except RuntimeError:
+            logger.debug("RedisFPRepo initial warm-up skipped (no running event loop)")
         except Exception:
             logger.debug("RedisFPRepo initial warm-up skipped (Redis unavailable)")
 

@@ -52,7 +52,7 @@ except Exception:  # pragma: no cover - argon2-cffi is a project dep but be defe
     VerifyMismatchError = Exception  # type: ignore[assignment,misc]
     _ARGON2_AVAILABLE = False
 
-ROLE_ORDER = {"read_only": 1, "worker": 2, "admin": 3}
+ROLE_ORDER = {"read_only": 1, "worker": 2, "guest": 2, "admin": 3}
 VALID_ROLES = frozenset(ROLE_ORDER)
 
 # Minimum acceptable entropy (Shannon) of a configured secret in production.
@@ -218,7 +218,7 @@ class SecurityStore:
         return "database is locked" in message or "database table is locked" in message
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=_CONNECT_TIMEOUT_SECONDS)
+        conn = sqlite3.connect(self.db_path, timeout=_CONNECT_TIMEOUT_SECONDS, check_same_thread=False)
         try:
             conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
             conn.execute("PRAGMA foreign_keys=ON")
@@ -290,6 +290,9 @@ class SecurityStore:
                     )
                     """
                 )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_api_keys_revoked ON api_keys(revoked_at)"
+                )
             self._initialized = True
             self.seed_from_config()
 
@@ -322,35 +325,53 @@ class SecurityStore:
         key_id = key_id or f"key_{secrets.token_hex(8)}"
 
         def _op(conn: sqlite3.Connection) -> Any:
-            # Bug #N fix: previously we did ``INSERT`` then ``SELECT`` in the
-            # same transaction. When the INSERT raised ``IntegrityError`` and
-            # ``if_missing=True`` swallowed the error, the surrounding
-            # transaction was poisoned and the subsequent ``SELECT`` could
-            # return ``None`` even though the row was committed by an earlier
-            # call. Now we look up the row first and only insert when it is
-            # missing, so we never depend on a poisoned transaction.
-            row = conn.execute(
-                "SELECT id, prefix, role, created_at, last_used_at, revoked_at "
-                "FROM api_keys WHERE key_hash = ?",
-                (key_hash,),
-            ).fetchone()
-            if row is not None:
-                return row
-            if if_missing and False:
-                # ``if_missing`` is a no-op here: we only reach this branch
-                # when no row exists, so the insert below is the only path.
-                pass
-            conn.execute(
-                """
-                INSERT INTO api_keys (id, key_hash, prefix, role, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (key_id, key_hash, prefix, role, now),
-            )
+            if key_id:
+                row = conn.execute(
+                    "SELECT id, prefix, role, created_at, last_used_at, revoked_at "
+                    "FROM api_keys WHERE id = ?",
+                    (key_id,),
+                ).fetchone()
+                if row is not None:
+                    return row
+            if if_missing:
+                rows = conn.execute(
+                    "SELECT id, key_hash, prefix, role, created_at, last_used_at, revoked_at "
+                    "FROM api_keys",
+                ).fetchall()
+                for existing in rows:
+                    if verify_api_key(api_key, existing[1]):
+                        return existing
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO api_keys (id, key_hash, prefix, role, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (key_id, key_hash, prefix, role, now),
+                )
+            except sqlite3.IntegrityError:
+                if not if_missing:
+                    raise
+                if key_id:
+                    row = conn.execute(
+                        "SELECT id, prefix, role, created_at, last_used_at, revoked_at "
+                        "FROM api_keys WHERE id = ?",
+                        (key_id,),
+                    ).fetchone()
+                    if row is not None:
+                        return row
+                rows = conn.execute(
+                    "SELECT id, key_hash, prefix, role, created_at, last_used_at, revoked_at "
+                    "FROM api_keys",
+                ).fetchall()
+                for existing in rows:
+                    if verify_api_key(api_key, existing[1]):
+                        return existing
+                raise
             return conn.execute(
                 "SELECT id, prefix, role, created_at, last_used_at, revoked_at "
-                "FROM api_keys WHERE key_hash = ?",
-                (key_hash,),
+                "FROM api_keys WHERE id = ?",
+                (key_id,),
             ).fetchone()
 
         row = self._with_conn(_op)
@@ -384,7 +405,10 @@ class SecurityStore:
             ).fetchall()
             for row in rows:
                 if verify_api_key(api_key, row[3]):
-                    conn.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?", (now, row[0]))
+                    conn.execute(
+                        "UPDATE api_keys SET last_used_at = ? WHERE id = ? AND revoked_at IS NULL",
+                        (now, row[0]),
+                    )
                     return (row[0], row[1])
             return None
 

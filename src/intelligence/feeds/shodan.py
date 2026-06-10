@@ -17,6 +17,7 @@ Usage:
 """
 
 import logging
+import os
 from datetime import datetime
 from typing import Any
 
@@ -26,7 +27,23 @@ from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig
 
 logger = logging.getLogger(__name__)
 
-SHODAN_BASE_URL = "https://api.shodan.io"
+SHODAN_BASE_URL = os.environ.get("SHODAN_BASE_URL", "https://api.shodan.io")
+
+
+def _safe_json(response: Any) -> dict[str, Any] | list[Any] | None:
+    """Safely parse JSON from an HTTP response, returning None on failure."""
+    content_type = response.headers.get("content-type", "")
+    if "json" not in content_type and "text" not in content_type:
+        logger.warning(
+            "Shodan response Content-Type is not JSON: %s",
+            content_type,
+        )
+        return None
+    try:
+        return response.json()
+    except (ValueError, TypeError) as exc:
+        logger.warning("Shodan response JSON parse error: %s", exc)
+        return None
 
 
 class ShodanConfig(FeedConfig):
@@ -163,7 +180,6 @@ class ShodanClient(BaseFeedConnector):
         """
         response = await self._get(
             f"/shodan/host/{ip_address}",
-            params={"key": self.config.api_key},
         )
         if response.status_code == 404:
             return ShodanHost(
@@ -171,7 +187,11 @@ class ShodanClient(BaseFeedConnector):
                 raw_data={"error": "Host not found in Shodan"},
             )
         response.raise_for_status()
-        return self._parse_host(response.json())
+        data = _safe_json(response)
+        if data is None or not isinstance(data, dict):
+            logger.warning("Shodan get_host_info returned invalid response for %s", ip_address)
+            return ShodanHost(ip=ip_address, raw_data={"error": "Invalid API response"})
+        return self._parse_host(data)
 
     async def search(
         self,
@@ -192,14 +212,17 @@ class ShodanClient(BaseFeedConnector):
         response = await self._get(
             "/shodan/host/search",
             params={
-                "key": self.config.api_key,
                 "query": query,
                 "page": page,
                 "minify": minify,
             },
         )
         response.raise_for_status()
-        return self._parse_search_result(response.json())
+        data = _safe_json(response)
+        if data is None or not isinstance(data, dict):
+            logger.warning("Shodan search returned invalid response")
+            return ShodanSearchResult()
+        return self._parse_search_result(data)
 
     async def get_dns_resolve(self, hostnames: list[str]) -> dict[str, str]:
         """Resolve hostnames to IP addresses via Shodan DNS.
@@ -231,12 +254,12 @@ class ShodanClient(BaseFeedConnector):
         response = await self._get(
             "/dns/reverse",
             params={
-                "key": self.config.api_key,
                 "ips": ",".join(ips),
             },
         )
         response.raise_for_status()
-        return response.json()  # type: ignore
+        data = _safe_json(response)
+        return data if isinstance(data, dict) else {}
 
     async def get_host_count(self, query: str) -> int:
         """Get the total count of results for a search query.
@@ -250,12 +273,12 @@ class ShodanClient(BaseFeedConnector):
         response = await self._get(
             "/shodan/host/count",
             params={
-                "key": self.config.api_key,
                 "query": query,
             },
         )
         response.raise_for_status()
-        return int(response.json().get("total", 0))
+        data = _safe_json(response)
+        return int(data.get("total", 0)) if isinstance(data, dict) else 0
 
     async def get_api_info(self) -> dict[str, Any]:
         """Retrieve API account information.
@@ -265,10 +288,10 @@ class ShodanClient(BaseFeedConnector):
         """
         response = await self._get(
             "/api-info",
-            params={"key": self.config.api_key},
         )
         response.raise_for_status()
-        return response.json()  # type: ignore
+        data = _safe_json(response)
+        return data if isinstance(data, dict) else {}
 
     async def get_host_history(self, ip_address: str) -> list[ShodanHost]:
         """Retrieve historical scan data for an IP address.
@@ -281,10 +304,12 @@ class ShodanClient(BaseFeedConnector):
         """
         response = await self._get(
             f"/shodan/host/{ip_address}/history",
-            params={"key": self.config.api_key},
         )
         response.raise_for_status()
-        data = response.json()
+        data = _safe_json(response)
+        if data is None or not isinstance(data, dict):
+            logger.warning("Shodan get_host_history returned invalid response for %s", ip_address)
+            return []
         hosts: list[ShodanHost] = []
         for item in data.get("data", []):
             hosts.append(self._parse_host(item))
@@ -301,10 +326,12 @@ class ShodanClient(BaseFeedConnector):
         """
         response = await self._get(
             f"/shodan/host/{ip_address}",
-            params={"key": self.config.api_key},
         )
         response.raise_for_status()
-        return list(response.json().get("tags", []))
+        data = _safe_json(response)
+        if data is None or not isinstance(data, dict):
+            return []
+        return list(data.get("tags", []))
 
     def _parse_host(self, data: dict[str, Any]) -> ShodanHost:
         """Parse a Shodan host API response into a ShodanHost model.
@@ -330,7 +357,7 @@ class ShodanClient(BaseFeedConnector):
                     timestamp = datetime.fromisoformat(ts.replace("Z", "+00:00"))
                 except (ValueError, TypeError) as exc:
                     logger.debug("Failed to parse Shodan timestamp %s: %s", ts, exc)
-                    pass
+                    logger.warning("Operation failed in shodan.py: %s", exc, exc_info=True)  # noqa: BLE001
 
             service = ShodanService(
                 port=port,
@@ -355,7 +382,7 @@ class ShodanClient(BaseFeedConnector):
                 last_update = datetime.fromisoformat(str(update_str).replace("Z", "+00:00"))
             except (ValueError, TypeError) as exc:
                 logger.debug("Failed to parse Shodan timestamp %s: %s", update_str, exc)
-                pass
+                logger.warning("Operation failed in shodan.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         return ShodanHost(
             ip=data.get("ip_str", data.get("ip", "")),

@@ -11,11 +11,11 @@ import {
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import { SafeResponsiveContainer } from '@/components/ui/SafeResponsiveContainer';
 import { Activity, Crosshair, RefreshCw, ShieldAlert } from 'lucide-react';
 import { buildRiskDateColumns, useRiskHistory, useTargets } from '@/hooks';
 
@@ -319,7 +319,7 @@ export function RiskScorePage() {
               </div>
             </div>
             <div className="risk-heatmap-scroll" data-testid="risk-heatmap">
-              <div className="risk-heatmap-grid" style={{ gridTemplateColumns: `180px repeat(${Math.max(columns.length, 1)}, 34px)` }}>
+              <div className="risk-heatmap-grid" style={{ gridTemplateColumns: columns.length > 0 ? `180px repeat(${columns.length}, 34px)` : '180px' }}>
                 <div className="risk-heatmap-label">Target</div>
                 {columns.map((day) => <div key={day} className="risk-heatmap-day">{day.slice(8)}</div>)}
                 {visibleTargets.map((target) => (
@@ -372,7 +372,7 @@ export function RiskScorePage() {
               </div>
               <div className="h-[320px] w-full">
                 {viewMode3D ? (
-                  <div className="h-full w-full bg-[var(--surface-1)] rounded-lg overflow-hidden border border-[var(--border)]">
+                  <div className="h-full w-full bg-[var(--surface-2)] rounded-lg overflow-hidden border border-[var(--border)]">
                     <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
                       <Suspense fallback={null}>
                         <RiskGraph data={selectedPoint} factors={factors} />
@@ -380,7 +380,7 @@ export function RiskScorePage() {
                     </Canvas>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <SafeResponsiveContainer width="100%" height="100%">
                     <LineChart data={lineData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
                       <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
                       <XAxis dataKey="day" stroke="#8FA3B8" tick={{ fontSize: 11 }} />
@@ -391,7 +391,7 @@ export function RiskScorePage() {
                         <Line key={target} type="monotone" dataKey={target} stroke={TARGET_COLORS[index % TARGET_COLORS.length]} strokeWidth={2} dot={false} />
                       ))}
                     </LineChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 )}
               </div>
             </div>
@@ -403,15 +403,17 @@ export function RiskScorePage() {
                   <p>{selectedPoint ? `${selectedPoint.target} on ${selectedPoint.timestamp.slice(0, 10)}` : 'Select a heatmap cell'}</p>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
-                  <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
-                  <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }} />
-                  <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[260px] w-full">
+                <SafeResponsiveContainer width="100%" height="100%">
+                  <BarChart data={factorData} layout="vertical" margin={{ top: 8, right: 16, left: 36, bottom: 0 }}>
+                    <CartesianGrid stroke="rgba(143, 163, 184, 0.16)" />
+                    <XAxis type="number" domain={[0, 10]} stroke="#8FA3B8" tick={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="label" stroke="#8FA3B8" tick={{ fontSize: 11 }} width={112} />
+                    <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }} />
+                    <Bar dataKey="value" fill="#2FD8F8" radius={[0, 8, 8, 0]} />
+                  </BarChart>
+                </SafeResponsiveContainer>
+              </div>
               <div className="risk-factor-details space-y-3 px-4 pb-4">
                 {factors?.factors.map((f) => (
                   <div key={f.key} className="text-xs">

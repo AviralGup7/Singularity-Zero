@@ -87,7 +87,8 @@ def _engine_strategy_runner(name: str) -> Validator | None:
         from src.execution.validators.engine._runner import (
             build_validator_registry,
         )
-    except Exception:  # noqa: BLE001
+    except ImportError as exc:
+        logger.debug("Engine runner import failed, skipping strategy adapter: %s", exc)
         return None
     registry = build_validator_registry()
     spec = registry.get(name)
@@ -132,7 +133,7 @@ def _engine_strategy_runner(name: str) -> Validator | None:
         try:
             validator = spec.strategy_factory()
             findings, _errors = validator.run(engine_context)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — broad catch intentional, engine strategy may raise arbitrary errors
             logger.warning("Engine strategy '%s' failed: %s", name, exc)
             findings = []
         for finding in findings:

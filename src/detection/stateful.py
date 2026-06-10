@@ -216,11 +216,13 @@ def detect_session_fixation(
     pre = (pre_auth_token or "").strip()
     post = (post_auth_token or "").strip()
     if not pre or not post:
+        # If pre-auth token exists but post-auth is empty, flag as potential
+        # fixation since the server failed to rotate the session.
         return SessionFixationFinding(
             url=url,
             pre_auth_token=pre,
             post_auth_token=post,
-            is_fixation=False,
+            is_fixation=bool(pre and not post),
             rotated_after_auth=False,
             token_length=len(post or pre),
         )

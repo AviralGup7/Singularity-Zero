@@ -167,6 +167,8 @@ def waf_fingerprint_analyzer(
         headers = response.get("headers") or {}
         body = response.get("body_text") or response.get("body") or ""
         match = fingerprint_response(headers, str(body) if body else None)
+        if match is None:
+            continue
         finding = fingerprint_to_finding(match, url=url)
         finding.setdefault("analyzer_key", "waf_fingerprint_analyzer")
         finding.setdefault("phase", "discover")

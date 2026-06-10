@@ -1,3 +1,4 @@
+import logging
 """XSS analysis utilities for passive and active checks.
 
 Contains XSS signal detection, reflection probe mutation building,
@@ -166,8 +167,8 @@ def build_js_context_breaker(script: str, probe_marker: str) -> str:
             try:
                 if pre_cleaned[num + 1] == "*":
                     breaker_chars.append("*/")
-            except IndexError:
-                pass
+            except IndexError as exc:
+                logging.warning("Operation failed in xss_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
         elif char == "}":
             # A } in the code closes one of our {'s
             # Find and remove the last '}' from our breaker

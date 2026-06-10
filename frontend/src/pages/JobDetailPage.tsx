@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, X, ChevronDown } from 'lucide-react';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
@@ -29,6 +29,14 @@ import { ReportFab } from '@/components/report/ReportFab';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
+const JOB_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+function safeHref(href: string | undefined | null): string | undefined {
+  if (!href) return undefined;
+  if (/^\s*javascript:/i.test(href)) return '#';
+  return href;
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   show: {
@@ -44,6 +52,7 @@ const itemVariants = {
 
 export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
+
   const [warningsExpanded, setWarningsExpanded] = useState(true);
   const [logsExpanded, setLogsExpanded] = useState(true);
   const prevStageRef = useRef<Record<string, number>>({});
@@ -126,6 +135,10 @@ export function JobDetailPage() {
   );
 
   if (loading) return <DetailSkeleton />;
+
+  if (jobId && !JOB_ID_RE.test(jobId)) {
+    return <Navigate to="/jobs" replace />;
+  }
 
   if (error || !job) {
     return (
@@ -276,11 +289,11 @@ export function JobDetailPage() {
           <motion.div variants={itemVariants} className="card">
             <h3>Job Files</h3>
             <div className="job-files-grid">
-              {job.config_href && <a href={job.config_href} target="_blank" rel="noopener noreferrer" className="file-link">config.json</a>}
-              {job.scope_href && <a href={job.scope_href} target="_blank" rel="noopener noreferrer" className="file-link">scope.txt</a>}
-              {job.stdout_href && <a href={job.stdout_href} target="_blank" rel="noopener noreferrer" className="file-link">stdout.txt</a>}
-              {job.stderr_href && <a href={job.stderr_href} target="_blank" rel="noopener noreferrer" className="file-link">stderr.txt</a>}
-              {job.target_href && <a href={job.target_href} target="_blank" rel="noopener noreferrer" className="file-link">Report</a>}
+              {job.config_href && <a href={safeHref(job.config_href)} target="_blank" rel="noopener noreferrer" className="file-link">config.json</a>}
+              {job.scope_href && <a href={safeHref(job.scope_href)} target="_blank" rel="noopener noreferrer" className="file-link">scope.txt</a>}
+              {job.stdout_href && <a href={safeHref(job.stdout_href)} target="_blank" rel="noopener noreferrer" className="file-link">stdout.txt</a>}
+              {job.stderr_href && <a href={safeHref(job.stderr_href)} target="_blank" rel="noopener noreferrer" className="file-link">stderr.txt</a>}
+              {job.target_href && <a href={safeHref(job.target_href)} target="_blank" rel="noopener noreferrer" className="file-link">Report</a>}
             </div>
           </motion.div>
         )}
@@ -638,9 +651,9 @@ export function JobDetailPage() {
                   <X size={18} aria-hidden="true" />
                 </button>
               </div>
-              <iframe title="Jaeger trace" src={tracePanel.trace_url} className="flex-1 w-full border-none" />
+              <iframe title="Jaeger trace" src={safeHref(tracePanel.trace_url)} className="flex-1 w-full border-none" sandbox="allow-scripts allow-same-origin allow-popups" />
               <div className="p-4 border-t border-[var(--border)] bg-[var(--surface-2)] flex justify-end">
-                <a className="btn btn-secondary text-xs flex items-center gap-1.5" href={tracePanel.trace_url} target="_blank" rel="noopener noreferrer">
+                <a className="btn btn-secondary text-xs flex items-center gap-1.5" href={safeHref(tracePanel.trace_url)} target="_blank" rel="noopener noreferrer">
                   <span>Open in Jaeger</span>
                   <ExternalLink size={12} />
                 </a>
@@ -653,7 +666,7 @@ export function JobDetailPage() {
             signed compliance PDF directly from the job detail page. */}
         <ReportFab
           findings={job.streaming_findings ?? []}
-          filenameBase={`job-${jobId}-${exportStamp}`}
+          filenameBase={`job-${jobId || 'unknown'}-${exportStamp}`}
           targetName={job.target_name}
           context={{ target: job.target_name, jobId }}
         />

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from collections.abc import Generator, Iterable
@@ -30,13 +31,22 @@ from src.recon.common import normalize_url
 
 logger = logging.getLogger(__name__)
 
-URLSCAN_SEARCH = "https://urlscan.io/api/v1/search/"
+URLSCAN_SEARCH = os.environ.get("URLSCAN_SEARCH_URL", "https://urlscan.io/api/v1/search/")
 
 _URL_RE = re.compile(r"https?://[^\s\"\'<>\\)]+", re.IGNORECASE)
 
+# Circuit breaker state
+_cb_failures: int = 0
+_cb_open_until: float = 0.0
+_CB_THRESHOLD = 10  # Open after 10 consecutive failures
+_CB_OPEN_SECONDS = 60.0  # Stay open for 60 seconds
 
-def _parse_urlscan_json(text: str) -> list[str]:
+
+def _parse_urlscan_json(text: str, content_type: str = "") -> list[str]:
     urls: list[str] = []
+    if content_type and "json" not in content_type and "text" not in content_type:
+        logger.warning("urlscan: non-JSON Content-Type: %s", content_type)
+        return []
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
@@ -85,6 +95,10 @@ def _collect_for_host(
     per_host_limit: int,
     session: requests.Session | None = None,
 ) -> set[str]:
+    global _cb_failures, _cb_open_until
+    if _cb_failures >= _CB_THRESHOLD and time.monotonic() < _cb_open_until:
+        return set()
+
     params = {"q": f"domain:{host}", "size": str(per_host_limit)}
     _acquire_token()
     result = safe_get(
@@ -97,10 +111,21 @@ def _collect_for_host(
         ssrf_check_once=True,
     )
     if not result.ok or result.response is None:
+        _cb_failures += 1
+        if _cb_failures >= _CB_THRESHOLD:
+            _cb_open_until = time.monotonic() + _CB_OPEN_SECONDS
         return set()
 
-    candidates = _parse_urlscan_json(result.response.text or "")
-    return {normalize_url(u) for u in candidates if normalize_url(u)}
+    content_type = result.response.headers.get("content-type", "")
+    candidates = _parse_urlscan_json(result.response.text or "", content_type)
+    urls = {normalize_url(u) for u in candidates if normalize_url(u)}
+    if urls:
+        _cb_failures = 0
+    else:
+        _cb_failures += 1
+        if _cb_failures >= _CB_THRESHOLD:
+            _cb_open_until = time.monotonic() + _CB_OPEN_SECONDS
+    return urls
 
 
 def iter_for_hosts(

@@ -344,9 +344,9 @@ class CorrelationPriorityQueue:
         with self._lock:
             if not self._targets:
                 return None
-            for t in self._targets:
-                t.refresh_bid()
-            heapq.heapify(self._targets)
+            self._targets[0].refresh_bid()
+            if len(self._targets) > 1:
+                heapq._siftup(self._targets, 0)
             target = heapq.heappop(self._targets)
             target.scanned = True
             self._pop_count += 1
@@ -357,9 +357,9 @@ class CorrelationPriorityQueue:
         with self._lock:
             if not self._targets:
                 return None
-            for t in self._targets:
-                t.refresh_bid()
-            heapq.heapify(self._targets)
+            self._targets[0].refresh_bid()
+            if len(self._targets) > 1:
+                heapq._siftup(self._targets, 0)
             return self._targets[0] if self._targets else None
 
     def push(self, target: ScanTarget) -> None:
@@ -367,8 +367,8 @@ class CorrelationPriorityQueue:
 
         Useful when the scan dynamically discovers new targets to check."""
         with self._lock:
-            target.heap_idx = len(self._targets)
             target.refresh_bid()
+            target.heap_idx = len(self._targets)
             heapq.heappush(self._targets, target)
             self._url_map[target.url] = target
             self._patterns[target.url] = _url_patterns(target.url)
@@ -407,8 +407,12 @@ class CorrelationPriorityQueue:
                 return False
             old_priority = target.current_priority
             target.apply_boost(factor, reason)
-            if target.current_priority != old_priority:
-                heapq.heapify(self._targets)
+            if target.current_priority != old_priority and target.heap_idx >= 0:
+                idx = target.heap_idx
+                if target.current_priority > old_priority:
+                    heapq._siftdown(self._targets, 0, idx)
+                else:
+                    heapq._siftup(self._targets, idx)
             return True
 
     def boost_from_findings(
@@ -565,17 +569,14 @@ class CorrelationPriorityQueue:
             return False
 
         # Bug #19 fix: previously this method returned ``True`` whenever
-        # ``self.remaining < min_items`` regardless of whether we had
-        # *scanned* anything. For a queue with fewer than ``min_items``
-        # targets (e.g. 3) the very first call would see ``remaining=3``
-        # and immediately terminate, producing zero scanned URLs.
-        # We now only honour the low-count branch after at least one
-        # full ``min_items`` of pops have occurred, so small queues
-        # still drain.
-        if self.remaining < min_items and self._pop_count >= min_items:
-            return True
-
+        # ``remaining < min_items`` regardless of whether we had *scanned*
+        # anything. We now only honour the low-count branch after at least
+        # one full ``min_items`` of pops have occurred, so small queues
+        # still drain. The remaining-count check is performed under the lock
+        # to avoid TOCTOU races with concurrent pops.
         with self._lock:
+            if len([t for t in self._targets if not t.scanned]) < min_items and self._pop_count >= min_items:
+                return True
             max_base = max(t.base_priority for t in self._url_map.values())
             if max_base == 0:
                 return False

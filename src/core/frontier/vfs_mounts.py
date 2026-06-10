@@ -32,13 +32,13 @@ class VFSMountsMixin:
         self._ensure_active()
         logger.info("Ghost-VFS: Flushing volatile state to %s", physical_path)
 
-        base_abs = os.path.abspath(physical_path)
+        base_abs = os.path.realpath(os.path.abspath(physical_path))
         count = 0
         for path in self.list_files():
             try:
                 path = self._validate_path(path)
-                full_path = pathlib.Path(base_abs).joinpath(path).resolve()
-                if os.path.commonpath([base_abs, str(full_path)]) != base_abs:
+                full_path = os.path.realpath(pathlib.Path(base_abs).joinpath(path))
+                if not full_path.startswith(base_abs + os.sep) and full_path != base_abs:
                     logger.error("Ghost-VFS: Path traversal blocked for path: %s", path)
                     continue
 
@@ -86,13 +86,13 @@ class VFSMountsMixin:
         self._ensure_active()
         logger.info("Ghost-VFS: Loading volatile state from %s", physical_path)
 
-        base_abs = os.path.abspath(physical_path)
+        base_abs = os.path.realpath(os.path.abspath(physical_path))
         count = 0
         for root, _, files in os.walk(base_abs):
             for file in files:
-                full_path = os.path.abspath(os.path.join(root, file))
+                full_path = os.path.realpath(os.path.join(root, file))
 
-                if os.path.commonpath([base_abs, full_path]) != base_abs:
+                if not full_path.startswith(base_abs + os.sep) and full_path != base_abs:
                     logger.error("Ghost-VFS: Path traversal blocked during load: %s", full_path)
                     continue
 

@@ -3,7 +3,9 @@ import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LogIn, ChevronDown, LockKeyhole, ScanLine, Shield, User, Workflow, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { APP_VERSION } from '@/config';
+import { dispatchToast } from '@/lib/toastDispatcher';
 import type { UserRole } from '@/context/AuthContext';
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
@@ -14,20 +16,23 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 export function LoginPage() {
-  const { user, login, loginWithApiKey } = useAuth();
+  const {
+    user,
+    login,
+    loginWithApiKey,
+    loginWithGuestToken,
+  } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-   
+  const enableGuestLogin = useSettingsStore((state) => state.settings.api.enableGuestLogin);
+
   const [name, setName] = useState('');
-   
   const [role, setRole] = useState<UserRole>('analyst');
-   
   const [apiKey, setApiKey] = useState('');
-   
   const [authError, setAuthError] = useState<string | null>(null);
-   
   const [authLoading, setAuthLoading] = useState(false);
   const [shakeError, setShakeError] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
 
@@ -63,6 +68,21 @@ export function LoginPage() {
     }
   };
 
+  const handleGuestLogin = async () => {
+    setGuestLoading(true);
+    setAuthError(null);
+    try {
+      await loginWithGuestToken();
+      navigate(from, { replace: true });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'Guest login failed';
+      dispatchToast(reason, 'error');
+      triggerShake();
+    } finally {
+      setGuestLoading(false);
+    }
+  };
+
   const inputFocusClass = 'focus-within:shadow-[0_0_0_2px_var(--accent-soft),0_0_12px_rgba(59,130,246,0.15)] transition-shadow duration-200';
 
   return (
@@ -87,7 +107,6 @@ export function LoginPage() {
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder="Enter API key"
-                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
               />
             </div>
@@ -149,12 +168,27 @@ export function LoginPage() {
             </button>
           </form>
 
-          <button type="button" className="auth-sso" onClick={() => login('SSO User', 'viewer')} style={{ backdropFilter: 'blur(12px)' }}>
+          {enableGuestLogin && (
+            <button
+              type="button"
+              className="auth-submit"
+              onClick={handleGuestLogin}
+              disabled={guestLoading}
+              style={{ marginTop: 12 }}
+            >
+              {guestLoading && (
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+              )}
+              <span>{guestLoading ? 'Continuing as Guest...' : 'Continue as Guest'}</span>
+            </button>
+          )}
+
+          <button type="button" className="auth-sso" onClick={() => login('SSO User', 'viewer')} style={{ backdropFilter: 'blur(12px)' }} aria-describedby="sso-demo-note">
             <Shield size={22} strokeWidth={1.8} aria-hidden="true" />
-            <span>Sign in with SSO</span>
+            <span>Sign in with SSO (Demo)</span>
           </button>
 
-          <p className="auth-demo">
+          <p id="sso-demo-note" className="auth-demo">
             <LockKeyhole size={15} strokeWidth={1.8} aria-hidden="true" />
             Demo auth - no real authentication is performed
           </p>

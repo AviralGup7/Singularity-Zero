@@ -148,10 +148,16 @@ def _filter_xml_endpoints(urls: list[str]) -> list[str]:
     return [url for url in urls if _is_xml_endpoint(url)]
 
 
-def _is_xml_endpoint(url: str) -> bool:
+def _is_xml_endpoint(url: str, content_type: str | None = None) -> bool:
     """Check if a URL is likely to accept XML input."""
     parsed = urlparse(url)
     path = parsed.path.lower()
+
+    # Check Content-Type if provided
+    if content_type:
+        ct_lower = content_type.lower().split(";")[0].strip()
+        if ct_lower in XML_CONTENT_TYPES:
+            return True
 
     # Check file extension
     for ext in XML_EXTENSIONS:
@@ -221,21 +227,24 @@ def _detect_xxe_reflection(
     baseline_body: str,
 ) -> bool:
     """Detect XXE exploitation indicators in response."""
-    # Check for etc/passwd content indicators
-    passwd_indicators = ["/bin/bash", "/bin/sh", "root:", "nobody:", "daemon:"]
-    if any(indicator in response_body for indicator in passwd_indicators):
-        return True
+    payload_type = payload.get("type", "")
+    payload_name = payload.get("name", "")
 
-    # Check for win.ini content
-    win_indicators = ["[extensions]", "[fonts]", "[mci extensions]", "[files]"]
-    if any(indicator in response_body for indicator in win_indicators):
-        return True
+    # File-read payloads: check for file content indicators
+    if payload_name in ("basic_entity_read", "basic_entity_windows"):
+        passwd_indicators = ["/bin/bash", "/bin/sh", "root:", "nobody:", "daemon:"]
+        if any(indicator in response_body for indicator in passwd_indicators):
+            return True
+        win_indicators = ["[extensions]", "[fonts]", "[mci extensions]", "[files]"]
+        if any(indicator in response_body for indicator in win_indicators):
+            return True
 
-    # Check for response size anomalies (billion laughs amplification)
-    if len(response_body) > len(baseline_body) * 10 and len(response_body) > 10000:
-        return True
+    # DOS payloads: check for response size anomalies
+    if payload_type == "dos":
+        if len(response_body) > len(baseline_body) * 10 and len(response_body) > 10000:
+            return True
 
-    # Check for error messages revealing XML parsing
+    # All types: check for error messages revealing XML parsing
     xml_error_patterns = [
         "xml parser",
         "entity expansion",

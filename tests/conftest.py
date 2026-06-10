@@ -1,12 +1,15 @@
-import socket
-
-# Mock DNS resolution for external API endpoints to ensure tests pass in offline sandboxes
-_original_getaddrinfo = socket.getaddrinfo
-
 import ipaddress
+import socket
+import sys
+import types
+
+_original_getaddrinfo = socket.getaddrinfo
 
 
 def _mock_getaddrinfo(host, port, *args, **kwargs):
+    """Offline DNS resolver: routes external hostnames to 8.8.8.8.
+    Localhost / literal IPs are preserved.  Cloud metadata and
+    link-local addresses are blocked to surface SSRF bugs."""
     family = kwargs.get("family") or (args[0] if args else 0)
     if not host:
         return _original_getaddrinfo(host, port, *args, **kwargs)
@@ -20,6 +23,10 @@ def _mock_getaddrinfo(host, port, *args, **kwargs):
         ]
     try:
         ip = ipaddress.ip_address(host)
+        if isinstance(ip, ipaddress.IPv4Address) and ip.is_link_local:
+            raise OSError(f"DNS resolution blocked for link-local address: {host}")
+        if host == "169.254.169.254":
+            raise OSError(f"DNS resolution blocked for cloud metadata endpoint: {host}")
         if family == socket.AF_INET6 and isinstance(ip, ipaddress.IPv4Address):
             mapped = f"::ffff:{ip}"
             return [
@@ -52,13 +59,9 @@ def _mock_getaddrinfo(host, port, *args, **kwargs):
     return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("8.8.8.8", port or 80))]
 
 
-import sys
-import types
-
 try:
     import pykka
 
-    # Verify both exceptions exist
     _ = pykka.ActorDeadError
     _ = pykka.Timeout
 except (ImportError, AttributeError):
@@ -77,13 +80,13 @@ except (ImportError, AttributeError):
 
     sys.modules["pykka"] = PykkaCompatibility("pykka")
 
-import tempfile
-from collections.abc import Generator
-from pathlib import Path
-from typing import Any
+import tempfile  # noqa: E402
+from collections.abc import Generator  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Any  # noqa: E402
 
-import pytest
-from tests.factories import (
+import pytest  # noqa: E402
+from tests.factories import (  # noqa: E402
     ConfigBuilder,
     FindingBuilder,
     RequestBuilder,
@@ -91,25 +94,43 @@ from tests.factories import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _offline_dns_mock(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
-    """Auto-applied fixture: route external DNS lookups to 8.8.8.8 so tests
-    run in offline sandboxes. Localhost / literal IPs are preserved."""
+@pytest.fixture
+def offline_dns(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
+    """Opt-in fixture: route external DNS lookups to 8.8.8.8 so tests
+    run in offline sandboxes. Localhost / literal IPs are preserved.
+    Use this in tests that make real network calls."""
     monkeypatch.setattr(socket, "getaddrinfo", _mock_getaddrinfo)
     yield
 
 
-@pytest.fixture(autouse=True)
-def _mock_resource_guard(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
-    """Auto-applied fixture: disable ResourceGuard checks during tests to prevent host-RAM dependency."""
+@pytest.fixture
+def mock_resource_guard(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
+    """Opt-in fixture: disable ResourceGuard checks during tests to
+    prevent host-RAM dependency. Use only when ResourceGuard would
+    interfere with the code under test."""
     try:
         from src.infrastructure.resource_guard import ResourceGuard
-        monkeypatch.setattr(ResourceGuard, "should_skip_stage", lambda *args, **kwargs: (False, None))
-        monkeypatch.setattr(ResourceGuard, "check_critical_oom", lambda *args, **kwargs: None)
-        monkeypatch.setattr(ResourceGuard, "check_and_halt_on_oom", lambda *args, **kwargs: None)
-        monkeypatch.setattr(ResourceGuard, "get_concurrency_cap", lambda self, stage_name, default: default)
+        monkeypatch.setattr(
+            ResourceGuard, "should_skip_stage",
+            lambda *args, **kwargs: (False, None),
+        )
+        monkeypatch.setattr(
+            ResourceGuard, "check_critical_oom",
+            lambda *args, **kwargs: None,
+        )
+        monkeypatch.setattr(
+            ResourceGuard, "check_and_halt_on_oom",
+            lambda *args, **kwargs: None,
+        )
+        monkeypatch.setattr(
+            ResourceGuard, "get_concurrency_cap",
+            lambda self, stage_name, default: default,
+        )
     except ImportError:
         pass
+    yield
+
+
 @pytest.fixture(autouse=True)
 def _mock_run_lock_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
     """Mock the RunLock cache directory to use a temporary path per test to avoid pollution."""

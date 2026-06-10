@@ -10,7 +10,7 @@ This document serves as the single source of truth for all environment variables
 |----------|----------|---------|-------------|
 | `REDIS_URL` | Yes | `redis://localhost:6379/0` | Connection string for the Redis backplane (queue, Pub/Sub, checkpoints). |
 | `REDIS_PASSWORD` | No | (None) | Password for Redis authentication in production. |
-| `DATABASE_URL` | Yes | `sqlite:///./data/pipeline.db` | SQLite connection string for persistent storage of scan runs and findings. |
+| `DATABASE_URL` | Yes | `sqlite:///./data/pipeline.db` | SQLite connection string for persistent storage of scan runs and findings. Primarily consumed by the dashboard service. |
 | `HTTP_PROXY` | No | (None) | Outbound HTTP/SOCKS5 proxy URL for scanner requests. |
 | `MESH_SECRET` | Yes (Mesh Mode) | (None) | Mandatory shared HMAC secret for authenticating the Gossip protocol. |
 | `MESH_BIND_INTERFACE` | No | (None) | Restricts the Gossip UDP server to bind only to a specific network interface. |
@@ -62,7 +62,7 @@ Any field on the `DashboardConfig` schema can also be explicitly overridden usin
 |----------|----------|---------|-------------|
 | `APP_SECRET_KEY` | Yes (Prod) | (None) | Secret key for signing sessions and JWT tokens. |
 | `APP_ENV` | No | `development` | Deployment environment context (`development` or `production`). |
-| `ENABLE_API_SECURITY` | No | `false` | Enables auth token checks globally on dashboard API. |
+| `ENABLE_API_SECURITY` | No | `true` | Enables auth token checks globally on dashboard API. |
 | `ALLOWED_NETWORKS` | No | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | Permitted IP subnets for scan scopes (private network validation). |
 | `NUCLEI_SIGNATURE_PUBLIC_KEY` | No | `8c6f1406e2cf6fb4ef1e97d191d8481dfb152d1136c1e550e6ee693b7df0898c` | Ed25519 public key hex string used to verify template manifest signature. |
 | `NUCLEI_MANIFEST_DIR` | No | `configs/templates` | Directory containing `manifest.json` and `manifest.json.sig` for template integrity check. |

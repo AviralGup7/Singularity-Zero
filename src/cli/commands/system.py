@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
 
 from src.cli.ui import console
+
+logger = logging.getLogger(__name__)
 
 
 def handle_status() -> None:
@@ -56,7 +59,7 @@ def handle_doctor() -> int:
 
     from src.pipeline.tools import resolve_tool_path
 
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     checks: list[tuple[str, str, str]] = []
     exit_code: int = 0
 
@@ -94,7 +97,8 @@ def handle_doctor() -> int:
                 )
                 ver = " ".join((result.stdout or result.stderr).strip().splitlines())
                 version_parts.append(f"{binary} {ver.split()[0] if ver else '?'}")
-            except Exception:
+            except Exception as exc:
+                logger.debug("Binary %s unavailable: %s", binary, exc)
                 version_parts.append(f"{binary} ?")
         checks.append(("System Binaries", "[success]PASS[/success]", "; ".join(version_parts)))
 
@@ -107,8 +111,9 @@ def handle_doctor() -> int:
         r.ping(timeout=3)
         redis_detail = f"Connected to {r.connection_pool.connection_kwargs['host']}"
         checks.append(("Redis Connectivity", "[success]PASS[/success]", redis_detail))
-    except Exception:
+    except Exception as exc:
         redis_detail = "Redis offline; transparent fallback to persistent SQLite (output/local_queue.db) active."
+        logger.debug("Redis connection failed: %s", exc)
         checks.append(
             ("Redis Connectivity", "[success]PASS (SQLITE FALLBACK)[/success]", redis_detail)
         )
@@ -348,7 +353,8 @@ class {name.capitalize()}Reporter:
     if registry_path.exists():
         try:
             registry_data = json.loads(registry_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:
+            logger.warning("Corrupt registry.json; resetting to empty list: %s", exc)
             registry_data = []
 
     if not isinstance(registry_data, list):

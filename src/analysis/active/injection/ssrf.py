@@ -12,7 +12,7 @@ from src.recon.common import normalize_url
 from ._confidence import probe_confidence, probe_severity
 from ._patterns import CLOUD_METADATA_RE, SSRF_INTERNAL_IP_RE
 
-_STRICT_IP_RE = re.compile(r"\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b")
+_STRICT_IP_RE = re.compile(r"\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b")
 
 CLOUD_METADATA_ENDPOINTS: dict[str, list[str]] = {
     "aws": [

@@ -36,8 +36,8 @@ def warm_from_sqlite(manager: Any, db_path: str) -> None:
                 value = json.loads(row[1])
                 manager.set(row[0], value, namespace="warm")
                 count += 1
-            except (json.JSONDecodeError, TypeError):
-                pass
+            except (json.JSONDecodeError, TypeError) as exc:
+                logger.warning("Operation failed in warming.py: %s", exc, exc_info=True)  # noqa: BLE001
         conn.close()
         logger.info("Warmed %d entries from SQLite %s", count, db_path)
     except Exception as exc:
@@ -53,6 +53,6 @@ def warm_from_directory(manager: Any, dir_path: Path) -> None:
                 key = str(json_file.relative_to(dir_path))
                 manager.set(key, data, namespace="warm")
                 count += 1
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Operation failed in warming.py: %s", exc, exc_info=True)  # noqa: BLE001
     logger.info("Warmed %d entries from directory %s", count, dir_path)

@@ -97,8 +97,8 @@ def calculate_team_triage_metrics(events: list[dict[str, Any]], findings: list[d
                 diff = float(triaged_at) - float(disc_at)
                 if diff > 0:
                     total_time_to_triage += diff
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as exc:
+                logging.warning("Operation failed in triage_audit.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     avg_triage_hours = 0.0
     if triaged_count > 0:
@@ -119,19 +119,19 @@ def export_triage_queue_csv(findings: list[dict[str, Any]], output_path: Path) -
     headers = ["ID", "Title", "Severity", "Category", "URL", "Status", "Assignee", "Triage_SLA"]
 
     with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(headers)
+        writer = csv.DictWriter(f, fieldnames=headers, quoting=csv.QUOTE_MINIMAL)
+        writer.writeheader()
         for f_item in findings:
-            writer.writerow([
-                f_item.get("id", ""),
-                f_item.get("title", ""),
-                f_item.get("severity", ""),
-                f_item.get("category", ""),
-                f_item.get("url", ""),
-                f_item.get("status", "OPEN"),
-                f_item.get("assignee", "Unassigned"),
-                f_item.get("sla_status", "N/A")
-            ])
+            writer.writerow({
+                "ID": f_item.get("id", ""),
+                "Title": f_item.get("title", ""),
+                "Severity": f_item.get("severity", ""),
+                "Category": f_item.get("category", ""),
+                "URL": f_item.get("url", ""),
+                "Status": f_item.get("status", "OPEN"),
+                "Assignee": f_item.get("assignee", "Unassigned"),
+                "Triage_SLA": f_item.get("sla_status", "N/A"),
+            })
     return output_path
 
 
@@ -155,8 +155,8 @@ def triage_audit_section(output_root: Path, run_id: str | None = None, limit: in
     if findings_path.exists():
         try:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.warning("Operation failed in triage_audit.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     metrics = calculate_team_triage_metrics(events, findings)
 

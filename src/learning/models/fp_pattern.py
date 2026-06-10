@@ -60,7 +60,7 @@ class FPPattern:
 
         scope_part = scope_signature or "*"
         raw = f"{category}:{sorted(status_codes or set())}:{body_indicators or []}:{scope_part}"
-        pattern_id = f"fp-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
+        pattern_id = f"fp-{hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]}"
 
         now = datetime.now(UTC)
         return cls(

@@ -1,3 +1,4 @@
+import logging
 """API endpoint security analysis.
 
 Analyzes API endpoints for common security issues including:
@@ -116,8 +117,8 @@ def api_security_analyzer(responses: list[dict[str, Any]]) -> list[dict[str, Any
                             f"excessive_data_exposure:{','.join(sorted(exposed_fields)[:5])}"
                         )
                         severity = "high" if severity != "critical" else severity
-            except (json.JSONDecodeError, TypeError):
-                pass
+            except (json.JSONDecodeError, TypeError) as exc:
+                logging.warning("Operation failed in api_security.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         # Check for missing rate limiting headers on API endpoints
         rate_limit_headers = {
