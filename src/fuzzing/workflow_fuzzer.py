@@ -134,6 +134,14 @@ class WorkflowFuzzer:
         base_payload = valid_sequence[-1] if valid_sequence else {}
         mutations = self._mutate_payload(base_payload)
 
+        # Validate endpoint URLs
+        if not is_safe_url_with_dns_check(to_endpoint):
+            logger.warning("Workflow fuzzer: to_endpoint failed SSRF check: %s", to_endpoint)
+            return findings
+        if not is_safe_url_with_dns_check(from_endpoint):
+            logger.warning("Workflow fuzzer: from_endpoint failed SSRF check: %s", from_endpoint)
+            return findings
+
         for mutation in mutations:
             combined = {**base_payload, **mutation.get("fields", {})}
             url = to_endpoint
@@ -183,7 +191,7 @@ class WorkflowFuzzer:
             if isinstance(value, str) and value:
                 mutations.append({"name": f"bitflip_{key}", "fields": {key: _bitflip(value)}})
                 mutations.append({"name": f"empty_{key}", "fields": {key: ""}})
-                mutations.append({"name": f"overflow_{key}", "fields": {key: "A" * 8192}})
+                mutations.append({"name": f"overflow_{key}", "fields": {key: "A" * min(8192, max(1, 8192 // max(1, len(value))))}})
             if isinstance(value, (int, float)):
                 mutations.append({"name": f"negative_{key}", "fields": {key: -value}})
                 mutations.append({"name": f"zero_{key}", "fields": {key: 0}})
@@ -272,13 +280,13 @@ class WorkflowFuzzer:
             for selector, value in (state.get("form_fields") or {}).items():
                 try:
                     await playwright_page.fill(selector, str(value))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Playwright fill failed for %s: %s", selector, exc)
             if state.get("submit_selector"):
                 try:
                     await playwright_page.click(state["submit_selector"])
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Playwright click failed for %s: %s", state["submit_selector"], exc)
             content = await playwright_page.content()
             return [
                 {
@@ -397,8 +405,8 @@ def _int_seq(value: Any) -> list[int] | None:
         for item in value:
             try:
                 out.append(int(item))
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as exc:
+                logger.warning("Operation failed in workflow_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
         return out or None
     try:
         return [int(value)]

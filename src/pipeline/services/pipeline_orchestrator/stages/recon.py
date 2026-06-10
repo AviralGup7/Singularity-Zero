@@ -361,6 +361,11 @@ async def run_url_collection(
 
         urls = set(stage_output.state_delta.get("urls", []))
 
+        # GAP 8: Capture CollectorMeta for telemetry / observability.
+        collector_meta = stage_output.state_delta.get("collector_meta")
+        if collector_meta:
+            ctx.result.url_stage_meta.setdefault("collector_meta", []).append(collector_meta)
+
         emit_stage_summary(
             "urls",
             {
@@ -628,6 +633,44 @@ async def run_priority_ranking(
                 "status": "ok",
             },
         )
+
+        # Wire GAP 1: Generate structured recon candidates from ctx state
+        # so downstream intelligence/enrichment can consume them.
+        try:
+            from src.recon.standardize import standardize_recon_outputs
+
+            ctx.recon_candidates = [
+                {
+                    "kind": c.kind,
+                    "value": c.value,
+                    "source": c.source,
+                    "host": c.host,
+                    "url": c.url,
+                    "score": c.score,
+                    "metadata": c.metadata,
+                }
+                for c in standardize_recon_outputs(
+                    subdomains=ctx.result.subdomains,
+                    live_hosts=ctx.result.live_hosts,
+                    urls=ctx.result.urls,
+                    ranked_urls=ctx.result.ranked_priority_urls,
+                    parameters=ctx.result.parameters,
+                )
+            ]
+        except Exception as exc:
+            logger.debug("Failed to generate recon_candidates: %s", exc)
+
+        # Wire GAP 2: Store enhanced recon extras into PipelineContext
+        # so downstream stages can access port_scan, spa, graphql, etc.
+        try:
+            extras: dict[str, Any] = {}
+            # Collect extras from URL collection stage if available
+            url_stage_extras = ctx.result.url_stage_meta.get("extras", {})
+            if isinstance(url_stage_extras, dict):
+                extras.update(url_stage_extras)
+            ctx.recon_extras = extras
+        except Exception as exc:
+            logger.debug("Failed to populate recon_extras: %s", exc)
 
         return cast(StageOutput, stage_output)
     except (TypeError, ValueError, AttributeError, RuntimeError) as exc:

@@ -73,6 +73,40 @@ export function getCompliancePdfHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export interface AiExecutiveSummary {
+  target: string;
+  run_id: string;
+  summary: string;
+}
+
+export async function getAiExecutiveSummary(target: string, signal?: AbortSignal): Promise<AiExecutiveSummary> {
+  const { data } = await apiClient.get<AiExecutiveSummary>('/api/reports/ai-summary', {
+    signal,
+    params: { target },
+  });
+  return data;
+}
+
+export interface SlaTrendingResponse {
+  active_breaches: number;
+  mttr_days: number;
+  total_findings: number;
+  remediated_findings_count: number;
+  open_findings_count: number;
+  sla_compliance_rate: number;
+  trending: Array<{
+    month: string;
+    remediated_count: number;
+    breach_count: number;
+    total_count: number;
+    mttr_days: number;
+  }>;
+}
+
+export async function getSlaTrending(signal?: AbortSignal): Promise<SlaTrendingResponse> {
+  return cachedGet<SlaTrendingResponse>('/api/reports/sla/trending', { signal, bypassCache: true });
+}
+
 export async function exportFindings(options: { format: 'csv' | 'json'; signal?: AbortSignal; target?: string }): Promise<Blob> {
   const target = options.target || 'all';
   const { data } = await apiClient.get(`/api/export/findings/${target}`, {

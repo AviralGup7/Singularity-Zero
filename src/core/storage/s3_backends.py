@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 
 import json
 from typing import Any
@@ -56,8 +57,8 @@ class _S3Base:
     def _ensure_bucket(self) -> None:
         try:
             self._s3.head_bucket(Bucket=self._bucket)
-        except ClientError:
-            pass
+        except ClientError as exc:
+            logging.warning("Operation failed in s3_backends.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def _s3_key(self, key: str) -> str:
         key = str(key).strip("/")
@@ -88,8 +89,8 @@ class S3ArtifactStore(_S3Base, ArtifactStore):
     def delete(self, key: str) -> None:
         try:
             self._s3.delete_object(Bucket=self._bucket, Key=self._s3_key(key))
-        except ClientError:
-            pass
+        except ClientError as exc:
+            logging.warning("Operation failed in s3_backends.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def list(self, prefix: str = "") -> list[str]:
         s3_prefix = self._s3_key(prefix)
@@ -105,8 +106,8 @@ class S3ArtifactStore(_S3Base, ArtifactStore):
                     if self._prefix:
                         key = key[len(self._prefix) :].lstrip("/")
                     results.append(key)
-        except ClientError:
-            pass
+        except ClientError as exc:
+            logging.warning("Operation failed in s3_backends.py: %s", exc, exc_info=True)  # noqa: BLE001
         return sorted(results)
 
 
@@ -230,8 +231,8 @@ class S3CheckpointStore(_S3Base, CheckpointStore):
             self._s3.delete_object(
                 Bucket=self._bucket, Key=self._checkpoint_key(run_id, version)
             )
-        except ClientError:
-            pass
+        except ClientError as exc:
+            logging.warning("Operation failed in s3_backends.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def write_context_snapshot(
         self, run_id: str, stage_name: str, payload: dict[str, Any]

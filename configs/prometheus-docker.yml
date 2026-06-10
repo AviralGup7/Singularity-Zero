@@ -1,3 +1,7 @@
+# Prometheus scrape configuration for Docker Compose deployment.
+# Target hostnames (dashboard, redis-exporter) are Docker Compose service names
+# and only resolve within the Docker Compose network. Do not use this config
+# directly in Kubernetes or external Prometheus without updating the targets.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s

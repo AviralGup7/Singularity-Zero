@@ -200,8 +200,8 @@ class FeedbackLoopEngine:
             fp_rate = stats["fp"] / total
 
             if validation_rate > 0.5 and stats["total_weight"] > 2.0:
-                # High-value endpoint — boost
-                boost = min(10.0, stats["total_weight"] * validation_rate)
+                # High-value endpoint — boost, capped to prevent scoring resolution loss
+                boost = min(10.0, stats["total_weight"] * validation_rate, 10.0)
                 adaptations.target_boosts[ep] = round(boost, 2)
             elif fp_rate > 0.8 and total >= 3:
                 # Noisy endpoint — suppress

@@ -293,8 +293,8 @@ def run_archive_jobs(
                     if response.ok:
                         for discovered_url in parse_plain_lines(response.text):
                             urls.add(discovered_url)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Operation failed in archive.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     return urls, aggregate_meta
 

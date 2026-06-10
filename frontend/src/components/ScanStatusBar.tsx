@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuthStore } from '@/stores/authStore';
 import { useApi } from '@/hooks/useApi';
 import type { Job } from '@/types/api';
 
@@ -17,8 +18,10 @@ interface ActiveScanState {
 export function ScanStatusBar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
   const { data: jobsResponse } = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
     refetchInterval: 5000,
+    enabled: !!user,
   });
   const [activeScan, setActiveScan] = useState<ActiveScanState | null>(null);
 
@@ -53,7 +56,7 @@ export function ScanStatusBar() {
       >
         <button
           type="button"
-          onClick={() => !isOnCockpit && navigate(`/cockpit?job_id=${activeScan.jobId}&target=${encodeURIComponent(activeScan.targetName)}`)}
+          onClick={() => !isOnCockpit && navigate(`/cockpit?job_id=${activeScan.jobId}&target=${encodeURIComponent(activeScan.targetName)}`, { replace: true })}
           className={`w-full px-6 py-2 flex items-center gap-6 text-xs font-mono ${!isOnCockpit ? 'cursor-pointer hover:bg-accent/5 transition-colors' : 'cursor-default'}`}
         >
           <div className="flex items-center gap-2 shrink-0">

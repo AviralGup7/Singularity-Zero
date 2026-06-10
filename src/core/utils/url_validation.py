@@ -1,3 +1,4 @@
+import logging
 """URL validation for SSRF prevention."""
 
 import ipaddress
@@ -103,6 +104,12 @@ def _resolve_hostname_safely(hostname: str, *, timeout: float = 2.0) -> tuple[st
     if not is_leader:
         # Follower: wait for the leader to finish, then re-read the cache.
         inflight.wait(timeout=timeout + 1.0)
+        if not inflight.is_set():
+            # Leader may have hung; pop the stale event so future callers
+            # can become leader instead of blocking forever.
+            with _DNS_INFLIGHT_LOCK:
+                _DNS_INFLIGHT.pop(hostname, None)
+            inflight.set()
         with _DNS_CACHE_LOCK:
             cached = _DNS_CACHE.get(hostname)
             if cached is not None:
@@ -227,8 +234,8 @@ def is_safe_url_with_dns_check(url: str, *, timeout: float = 2.0) -> bool:
     try:
         ipaddress.ip_address(hostname)
         return not _is_ip_private(hostname)
-    except ValueError:
-        pass
+    except ValueError as exc:
+        logging.warning("Operation failed in url_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
     if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # noqa: S104  # nosec B104  (this is a banned-hostname check, not a bind)
         return False
     if hostname == "169.254.169.254":
@@ -299,8 +306,8 @@ def detect_dns_rebinding(hostname: str, *, rounds: int = 8, timeout: float = 2.0
                 private_ips.append(ip_str)
             else:
                 public_ips.append(ip_str)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            logging.warning("Operation failed in url_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     if is_rebinding and private_ips and public_ips:
         risk_level = "critical"

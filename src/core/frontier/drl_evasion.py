@@ -187,7 +187,7 @@ class PPOEvasionModel:
         try:
             _telemetry_sink.emit(self._model_id, weight_drift, l2_norm, new_probs)
         except Exception as exc:
-            logger.debug("PPO telemetry emission skipped: %s", exc)
+            logger.warning("PPO telemetry emission failed: %s", exc)
 
     def _clamp_weight(self, value: float) -> float:
         if not math.isfinite(value):

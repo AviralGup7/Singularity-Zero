@@ -182,7 +182,7 @@ class ContinuousScanMode:
         logger.info("Starting continuous scan mode (interval=%ds)", interval_seconds)
         try:
             while True:
-                cycle_start = asyncio.get_event_loop().time() if hasattr(asyncio, "get_event_loop") else 0
+                cycle_start = asyncio.get_running_loop().time()
                 try:
                     result = await self.run_cycle(
                         output_dir=output_dir,
@@ -199,7 +199,7 @@ class ContinuousScanMode:
                     )
                 except Exception as exc:
                     logger.exception("Continuous scan cycle failed: %s", exc)
-                elapsed = (asyncio.get_event_loop().time() if hasattr(asyncio, "get_event_loop") else 0) - cycle_start
+                elapsed = asyncio.get_running_loop().time() - cycle_start
                 wait = max(0, interval_seconds - elapsed)
                 await asyncio.sleep(wait)
         except asyncio.CancelledError:

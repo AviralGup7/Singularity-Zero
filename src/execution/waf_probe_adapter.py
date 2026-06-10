@@ -26,8 +26,8 @@ Usage::
     adapter.set_strategy_bundle(strategy_bundle_for(profile))
     response = await adapter.dispatch(url, method="POST", body=original)
 """
-
 from __future__ import annotations
+
 
 import logging
 from collections.abc import Callable, Mapping

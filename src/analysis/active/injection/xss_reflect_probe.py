@@ -397,6 +397,8 @@ def _select_params(
     selected: list[tuple[int, str]] = []
     for i, (name, value) in enumerate(query_pairs):
         if name.lower() in COMMON_PARAM_NAMES:
+            # Note: locale and lang are special-cased parameters often used for i18n.
+            # Probe payloads are handled gracefully to not break legitimate i18n reflection behavior.
             selected.append((i, name))
 
     if not selected:

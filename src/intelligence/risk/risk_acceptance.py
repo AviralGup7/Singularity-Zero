@@ -30,6 +30,7 @@ revoked acceptances have no effect.
 
 from __future__ import annotations
 
+import copy
 import logging
 import threading
 import time
@@ -181,7 +182,7 @@ class RiskAcceptanceManager:
 
     def for_finding(self, finding_id: str) -> list[RiskAcceptance]:
         with self._lock:
-            return [self._by_id[aid] for aid in self._by_finding.get(finding_id, [])]
+            return [copy.copy(self._by_id[aid]) for aid in self._by_finding.get(finding_id, [])]
 
     def active_for_finding(
         self, finding_id: str, *, now: float | None = None

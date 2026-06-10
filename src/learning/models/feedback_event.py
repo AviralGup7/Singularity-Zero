@@ -103,7 +103,7 @@ class FeedbackEvent:
     def _generate_id(finding: dict, run_id: str) -> str:
         """Generate a deterministic event ID from finding data."""
         raw = f"{run_id}:{finding.get('id', '')}:{finding.get('url', '')}:{finding.get('category', '')}"
-        return f"fb-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
+        return f"fb-{hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]}"
 
     @staticmethod
     def _extract_param_from_url(url: str) -> str | None:

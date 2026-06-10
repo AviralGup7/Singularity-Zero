@@ -76,9 +76,9 @@ class ResourceProfile(BaseModel):
                     platform=platform.system(),
                     python_version=platform.python_version(),
                 )
-            except Exception:
+            except Exception as exc:
                 logger.debug("psutil detection failed", exc_info=True)
-                pass
+                logger.warning("Operation failed in models.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         return cls(
             cpu_count=1,
@@ -467,9 +467,7 @@ class WorkerInfo(BaseModel):
             "total_processed": str(self.total_processed),
             "total_failed": str(self.total_failed),
             "metadata": json.dumps(self.metadata),
-            "resources": json.dumps(
-                self.resources.to_dict() if hasattr(self.resources, "to_dict") else {}
-            ),
+            "resources": json.dumps(self.resources.model_dump() if hasattr(self.resources, "model_dump") else {}),
             "capabilities": json.dumps(self.capabilities),
         }
 
@@ -496,20 +494,25 @@ class WorkerInfo(BaseModel):
             s = decode(val)
             return json.loads(s) if s else {}
 
+        normalized: dict[str, bytes | str] = {}
+        for raw_key, raw_value in data.items():
+            key = raw_key.decode("utf-8") if isinstance(raw_key, bytes) else str(raw_key)
+            normalized[key] = raw_value
+
         return cls(
-            id=decode(data.get("id", b"")),
-            hostname=decode(data.get("hostname", b"unknown")),
-            pid=int(decode(data.get("pid", "0"))),
-            status=decode(data.get("status", b"idle")),
-            concurrency=int(decode(data.get("concurrency", "1"))),
-            active_jobs=decode_json(data.get("active_jobs", b"[]")),
-            last_heartbeat=float(decode(data.get("last_heartbeat", "0"))),
-            started_at=float(decode(data.get("started_at", "0"))),
-            total_processed=int(decode(data.get("total_processed", "0"))),
-            total_failed=int(decode(data.get("total_failed", "0"))),
-            metadata=decode_json_obj(data.get("metadata", b"{}")),
-            resources=ResourceProfile(**decode_json_obj(data.get("resources", b"{}"))),
-            capabilities=decode_json(data.get("capabilities", b"[]")),
+            id=decode(normalized.get("id", "")),
+            hostname=decode(normalized.get("hostname", "unknown")),
+            pid=int(decode(normalized.get("pid", "0"))),
+            status=decode(normalized.get("status", "idle")),
+            concurrency=int(decode(normalized.get("concurrency", "1"))),
+            active_jobs=decode_json(normalized.get("active_jobs", "[]")),
+            last_heartbeat=float(decode(normalized.get("last_heartbeat", "0"))),
+            started_at=float(decode(normalized.get("started_at", "0"))),
+            total_processed=int(decode(normalized.get("total_processed", "0"))),
+            total_failed=int(decode(normalized.get("total_failed", "0"))),
+            metadata=decode_json_obj(normalized.get("metadata", "{}")),
+            resources=ResourceProfile(**decode_json_obj(normalized.get("resources", "{}"))),
+            capabilities=decode_json(normalized.get("capabilities", "[]")),
         )
 
 

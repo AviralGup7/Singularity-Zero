@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface TrendDataPoint {
   date: string;
@@ -73,7 +74,7 @@ function StackedBarChart({ data, width, height, maxVal }: { data: Array<{ critic
       const x = i * (barWidth + 2);
       const y = height - cumulativeHeight - barH - 15;
       elements.push(
-        <rect key={`${i}-${key}`} x={x} y={y} width={barWidth} height={barH} fill={colors.get(key) || ''} rx={1} />
+        <rect key={`${i}-${key}`} x={x} y={y} width={barWidth} height={barH} fill={colors.get(key) || 'var(--severity-info)'} rx={1} />
       );
       cumulativeHeight += barH;
     });
@@ -114,8 +115,13 @@ function LineChart({ data, width, height, maxVal }: { data: number[]; width: num
 }
 
 export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
+  const navigate = useNavigate();
   const chartWidth = 400;
   const chartHeight = 120;
+
+  const handleSeverityDrillDown = useCallback((severity: string) => {
+    navigate(`/findings?severity=${severity}`);
+  }, [navigate]);
 
    
   const maxFindings = useMemo(() => Math.max(1, ...data.map(d => d?.findings ?? 0)), [data]);
@@ -163,11 +169,30 @@ export function DashboardTrendCharts({ data }: DashboardTrendChartsProps) {
           <h4 className="trend-chart-label">Severity Distribution</h4>
           <StackedBarChart data={severityData} width={chartWidth} height={chartHeight} maxVal={maxFindings} />
           <div className="trend-chart-legend">
-            <span className="trend-legend-item"><span className="trend-legend-dot trend-legend-critical" /> Critical</span>
-            <span className="trend-legend-item"><span className="trend-legend-dot trend-legend-high" /> High</span>
-            <span className="trend-legend-item"><span className="trend-legend-dot trend-legend-medium" /> Medium</span>
-            <span className="trend-legend-item"><span className="trend-legend-dot trend-legend-low" /> Low</span>
-            <span className="trend-legend-item"><span className="trend-legend-dot trend-legend-info" /> Info</span>
+            {[
+              { label: 'Critical', severity: 'critical', dotClass: 'trend-legend-critical' },
+              { label: 'High', severity: 'high', dotClass: 'trend-legend-high' },
+              { label: 'Medium', severity: 'medium', dotClass: 'trend-legend-medium' },
+              { label: 'Low', severity: 'low', dotClass: 'trend-legend-low' },
+              { label: 'Info', severity: 'info', dotClass: 'trend-legend-info' },
+            ].map(item => (
+              <span
+                key={item.severity}
+                className="trend-legend-item cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => handleSeverityDrillDown(item.severity)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSeverityDrillDown(item.severity);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Filter findings by ${item.label} severity`}
+              >
+                <span className={`trend-legend-dot ${item.dotClass}`} /> {item.label}
+              </span>
+            ))}
           </div>
         </div>
 

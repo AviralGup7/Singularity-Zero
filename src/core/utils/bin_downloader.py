@@ -182,8 +182,8 @@ def download_and_extract_tool(
                 # (tool, os, arch) combination.
                 try:
                     tmp_archive_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in bin_downloader.py: %s", exc, exc_info=True)  # noqa: BLE001
                 raise ValueError(
                     f"No pinned SHA-256 for {tool_name} {version} on "
                     f"{os_name}/{arch_name}. Refusing to install an "
@@ -194,8 +194,8 @@ def download_and_extract_tool(
             if actual_sha != expected_sha:
                 try:
                     tmp_archive_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in bin_downloader.py: %s", exc, exc_info=True)  # noqa: BLE001
                 raise ValueError(
                     f"Checksum mismatch for {tool_name} {version} on "
                     f"{os_name}/{arch_name}: expected {expected_sha}, got {actual_sha}. "
@@ -212,6 +212,17 @@ def download_and_extract_tool(
                     for name in z.namelist():
                         # Binary could be at root or inside subfolders
                         if Path(name).name == bin_name:
+                            info = z.getinfo(name)
+                            if info.compress_size > 100 * 1024 * 1024:
+                                raise ValueError(
+                                    f"Zip entry '{name}' compressed size "
+                                    f"({info.compress_size}) exceeds 100 MiB limit"
+                                )
+                            if info.file_size > 500 * 1024 * 1024:
+                                raise ValueError(
+                                    f"Zip entry '{name}' uncompressed size "
+                                    f"({info.file_size}) exceeds 500 MiB limit"
+                                )
                             with z.open(name) as source, open(dest_path, "wb") as target:
                                 shutil.copyfileobj(source, target)
                             break
@@ -221,6 +232,11 @@ def download_and_extract_tool(
                     with tarfile.open(tmp_archive_path, "r:gz") as t:
                         for member in t.getmembers():
                             if Path(member.name).name == bin_name:
+                                if member.size > 500 * 1024 * 1024:
+                                    raise ValueError(
+                                        f"Tar member '{member.name}' size "
+                                        f"({member.size}) exceeds 500 MiB limit"
+                                    )
                                 extracted_file = t.extractfile(member)
                                 if extracted_file:
                                     with open(dest_path, "wb") as target:

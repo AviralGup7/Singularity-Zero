@@ -8,9 +8,12 @@ if TYPE_CHECKING:
         NotificationPriority,
         NotificationResult,
     )
+    from src.infrastructure.notifications.broadcaster import NotificationBroadcaster
     from src.infrastructure.notifications.email import EmailConfig, EmailNotifier
+    from src.infrastructure.notifications.in_app import InAppNotifier
     from src.infrastructure.notifications.manager import NotificationManager
     from src.infrastructure.notifications.slack import SlackConfig, SlackNotifier
+    from src.infrastructure.notifications.storage import NotificationStorage
     from src.infrastructure.notifications.webhook import WebhookConfig, WebhookNotifier
 
 
@@ -35,6 +38,10 @@ def __getattr__(name: str) -> Any:
         from src.infrastructure.notifications.base import NotificationResult
 
         return NotificationResult
+    if name == "NotificationBroadcaster":
+        from src.infrastructure.notifications.broadcaster import NotificationBroadcaster
+
+        return NotificationBroadcaster
     if name == "EmailConfig":
         from src.infrastructure.notifications.email import EmailConfig
 
@@ -43,6 +50,18 @@ def __getattr__(name: str) -> Any:
         from src.infrastructure.notifications.email import EmailNotifier
 
         return EmailNotifier
+    if name == "InAppNotifier":
+        from src.infrastructure.notifications.in_app import InAppNotifier
+
+        return InAppNotifier
+    if name == "NotificationManager":
+        from src.infrastructure.notifications.manager import NotificationManager
+
+        return NotificationManager
+    if name == "NotificationStorage":
+        from src.infrastructure.notifications.storage import NotificationStorage
+
+        return NotificationStorage
     if name == "SlackConfig":
         from src.infrastructure.notifications.slack import SlackConfig
 
@@ -59,22 +78,21 @@ def __getattr__(name: str) -> Any:
         from src.infrastructure.notifications.webhook import WebhookNotifier
 
         return WebhookNotifier
-    if name == "NotificationManager":
-        from src.infrastructure.notifications.manager import NotificationManager
-
-        return NotificationManager
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
     "BaseNotifier",
+    "NotificationBroadcaster",
     "EmailConfig",
     "EmailNotifier",
+    "InAppNotifier",
     "NotificationConfig",
     "NotificationEvent",
     "NotificationManager",
     "NotificationPriority",
     "NotificationResult",
+    "NotificationStorage",
     "SlackConfig",
     "SlackNotifier",
     "WebhookConfig",

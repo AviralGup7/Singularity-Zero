@@ -53,11 +53,11 @@ def _clean_env(env: dict[str, str] | None) -> dict[str, str]:
         try:
             k_str = str(k)
             v_str = str(v)
-            if sys.platform.startswith("win"):
-                k_str.encode("utf-8")
-                v_str.encode("utf-8")
+            k_str.encode("utf-8")
+            v_str.encode("utf-8")
             clean[k_str] = v_str
-        except (UnicodeEncodeError, UnicodeDecodeError):
+        except (UnicodeEncodeError, UnicodeDecodeError) as exc:
+            logger.warning("Dropped environment variable %r due to encoding error: %s", k, exc)
             continue
     return clean
 
@@ -71,9 +71,10 @@ def _get_creationflags() -> int:
 _CIRCUIT_BREAKERS: dict[str, CircuitBreaker] = {}
 _CIRCUIT_BREAKER_LAST_ACCESS: dict[str, float] = {}
 _CIRCUIT_BREAKERS_LOCK = threading.Lock()
-# TTL eviction: prune stale circuit-breaker entries on each access (_CIRCUIT_BREAKERS_TTL_SECONDS)
 _CIRCUIT_BREAKER_LAST_PRUNED: float = 0.0
 _CIRCUIT_BREAKERS_TTL_SECONDS: int = 3600
+_CIRCUIT_BREAKER_PRUNE_INTERVAL: int = 300
+_CIRCUIT_BREAKER_MAX_ENTRIES: int = 500
 
 # --------------------------------------------------------------------------- #
 # ToolInvocation & CompletedToolRun — canonical subprocess contract           #
@@ -147,17 +148,26 @@ def get_circuit_breaker(tool_name: str) -> CircuitBreaker:
     with _CIRCUIT_BREAKERS_LOCK:
         breaker = _CIRCUIT_BREAKERS.get(key)
         if breaker is None:
+            if len(_CIRCUIT_BREAKERS) >= _CIRCUIT_BREAKER_MAX_ENTRIES:
+                _prune_stale_circuit_breakers(now)
             breaker = CircuitBreaker()
             _CIRCUIT_BREAKERS[key] = breaker
         _CIRCUIT_BREAKER_LAST_ACCESS[key] = now
-        if now - _CIRCUIT_BREAKER_LAST_PRUNED > _CIRCUIT_BREAKERS_TTL_SECONDS:
+        if now - _CIRCUIT_BREAKER_LAST_PRUNED > _CIRCUIT_BREAKER_PRUNE_INTERVAL:
             _CIRCUIT_BREAKER_LAST_PRUNED = now
-            for name in list(_CIRCUIT_BREAKERS):
-                last_access = _CIRCUIT_BREAKER_LAST_ACCESS.get(name, now)
-                if now - last_access > _CIRCUIT_BREAKERS_TTL_SECONDS:
-                    _CIRCUIT_BREAKERS.pop(name, None)
-                    _CIRCUIT_BREAKER_LAST_ACCESS.pop(name, None)
+            _prune_stale_circuit_breakers(now)
         return breaker
+
+
+def _prune_stale_circuit_breakers(now: float) -> None:
+    """Remove expired circuit-breaker entries incrementally."""
+    stale_keys = [
+        name for name, last_access in _CIRCUIT_BREAKER_LAST_ACCESS.items()
+        if now - last_access > _CIRCUIT_BREAKERS_TTL_SECONDS
+    ]
+    for name in stale_keys:
+        _CIRCUIT_BREAKERS.pop(name, None)
+        _CIRCUIT_BREAKER_LAST_ACCESS.pop(name, None)
 
 
 class ToolExecutionError(RuntimeError):

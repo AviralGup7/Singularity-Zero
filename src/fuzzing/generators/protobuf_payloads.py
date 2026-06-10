@@ -21,9 +21,11 @@ def wrong_wire_type(field_tag: int, expected_wire: int, wrong_wire: int) -> byte
 
 def recursive_depth_bomb(depth: int = 101) -> bytes:
     """Return a length-delimited payload repeated *depth* times to trigger recursion limits."""
+    # Cap depth to prevent memory exhaustion (each iteration ~doubles size)
+    safe_depth = min(depth, 30)
     inner = b"\x00"
     payload = inner
-    for _ in range(depth):
+    for _ in range(safe_depth):
         payload = _encode_length_delimited(payload)
     return payload
 

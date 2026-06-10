@@ -23,10 +23,13 @@ logger = get_pipeline_logger(__name__)
 # silently losing observations.
 _TARGET_LOCKS: dict[str, threading.Lock] = {}
 _TARGET_LOCKS_GUARD = threading.Lock()
+_MAX_TARGET_LOCKS = 512
 
 
 def _get_target_lock(target: str) -> threading.Lock:
     with _TARGET_LOCKS_GUARD:
+        if len(_TARGET_LOCKS) >= _MAX_TARGET_LOCKS:
+            _TARGET_LOCKS.pop(next(iter(_TARGET_LOCKS)))
         lock = _TARGET_LOCKS.get(target)
         if lock is None:
             lock = threading.Lock()
@@ -100,8 +103,8 @@ class DriftDetector:
             except Exception:
                 try:
                     os.unlink(tmp_path)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in drift_detection.py: %s", exc, exc_info=True)  # noqa: BLE001
                 raise
         except Exception:
             logger.warning(

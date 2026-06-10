@@ -49,7 +49,18 @@ class ForkServer:
         self.alive = True
         logger.info("ForkServer started: %s in %s", self.target_cmd, self.corpus_dir)
 
+    _MAX_PAYLOAD_SIZE = 10 * 1024 * 1024  # 10MB limit
+
     async def run_iteration(self, payload: bytes) -> dict[str, Any]:
+        if len(payload) > self._MAX_PAYLOAD_SIZE:
+            logger.warning("ForkServer: payload too large (%d bytes), skipping", len(payload))
+            return {
+                "exit_code": -2,
+                "output": "",
+                "timed_out": False,
+                "payload_len": len(payload),
+            }
+
         tmp_path = os.path.join(self.corpus_dir, f"tmp_{secrets.token_hex(8)}.bin")
         with open(tmp_path, "wb") as f:
             f.write(payload)
@@ -58,8 +69,8 @@ class ForkServer:
             proc = subprocess.run(cmd, capture_output=True, timeout=5)
             result = {
                 "exit_code": proc.returncode,
-                "output": proc.stdout.decode("utf-8", errors="ignore"),
-                "stderr": proc.stderr.decode("utf-8", errors="ignore"),
+                "output": proc.stdout.decode("utf-8", errors="replace"),
+                "stderr": proc.stderr.decode("utf-8", errors="replace"),
                 "timed_out": False,
                 "payload_len": len(payload),
             }
@@ -93,8 +104,8 @@ class ForkServer:
 
         exit_code = result["exit_code"]
         output_len = len(result["output"])
-        output_hash = hashlib.md5(result["output"][:8192].encode("utf-8", errors="ignore")).hexdigest()
-        payload_str = payload.decode("utf-8", errors="ignore")
+        output_hash = hashlib.md5(result["output"][:8192].encode("utf-8", errors="replace")).hexdigest()
+        payload_str = payload.decode("utf-8", errors="replace")
 
         # Record coverage edges based on exit code, output length, hash
         edge_sig = self.coverage_tracker.record_edge(
@@ -209,6 +220,10 @@ class ForkServer:
                 self._process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self._process.kill()
+                try:
+                    self._process.wait(timeout=5)
+                except subprocess.TimeoutExpired as exc:
+                    logger.warning("Operation failed in fork_server.py: %s", exc, exc_info=True)  # noqa: BLE001
         self.alive = False
         if os.path.isdir(self.corpus_dir):
             shutil.rmtree(self.corpus_dir, ignore_errors=True)

@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
-from src.dashboard.fastapi.schemas import DetectionGapResponse, GapAnalysisEntry
+from src.dashboard.fastapi.schemas import DetectionGapResponse, ErrorResponse, GapAnalysisEntry
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/gap-analysis", tags=["Gap Analysis"])
 @router.get(
     "",
     response_model=DetectionGapResponse,
-    responses={401: {"model": Any}},
+    responses={401: {"model": ErrorResponse}},
     summary="Get detection gap analysis",
 )
 async def get_gap_analysis(
@@ -35,6 +35,8 @@ async def get_gap_analysis(
 
     # Module to category mapping (consistent with src/reporting/detection_coverage.py)
     module_to_category: dict[str, str] = {
+        "dns_security": "misconfiguration",
+        "correlation": "anomaly",
         "idor_candidate_finder": "idor",
         "ssrf_candidate_finder": "ssrf",
         "token_leak_detector": "token_leak",
@@ -316,6 +318,7 @@ async def get_gap_analysis(
 @router.post(
     "/refresh",
     summary="Trigger fresh gap analysis",
+    responses={401: {"model": ErrorResponse}},
 )
 async def refresh_gap_analysis(
     _auth: Any = Depends(require_auth),

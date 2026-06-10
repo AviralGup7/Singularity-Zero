@@ -1,3 +1,5 @@
+from __future__ import annotations
+import logging
 """Shared SQLite retry and safe-close helpers for the pipeline.
 
 This module is the single source of truth for the SQLite connection
@@ -13,7 +15,6 @@ its own copy of these constants, with values drifting apart.  Use this
 module's :func:`retrying_connect` (or the constants directly) instead.
 """
 
-from __future__ import annotations
 
 import os
 import sqlite3
@@ -108,8 +109,8 @@ def _connection_scope(conn: sqlite3.Connection) -> Generator[sqlite3.Connection,
     except Exception:
         try:
             conn.rollback()
-        except sqlite3.ProgrammingError:
-            pass
+        except sqlite3.ProgrammingError as exc:
+            logging.warning("Operation failed in sqlite_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
         raise
 
 
@@ -119,8 +120,8 @@ def safe_close(conn: sqlite3.Connection | None) -> None:
         return
     try:
         conn.close()
-    except sqlite3.ProgrammingError:
-        pass
+    except sqlite3.ProgrammingError as exc:
+        logging.warning("Operation failed in sqlite_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 
 def configure_connection(

@@ -375,8 +375,8 @@ class LoadBalancer:
             self._monitor_task.cancel()
             try:
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in load_balancer.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._monitor_task = None
 
     def reset(self) -> None:

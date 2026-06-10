@@ -25,8 +25,8 @@ Behaviour:
 Gated by ``[revalidation] enabled = true`` in the pipeline config;
 defaults to enabled to preserve existing operator expectations.
 """
-
 from __future__ import annotations
+
 
 import json
 import time

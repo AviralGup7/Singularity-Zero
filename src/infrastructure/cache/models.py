@@ -88,7 +88,7 @@ class CacheKey(BaseModel):
         Returns:
             16-character hex digest for compact key representation.
         """
-        return hashlib.sha256(self.to_string().encode()).hexdigest()[:16]
+        return hashlib.sha256(self.to_string().encode("utf-8")).hexdigest()[:16]
 
 
 class CacheEntry(BaseModel):

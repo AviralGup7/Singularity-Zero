@@ -437,8 +437,8 @@ def persist_breaker_state(cache: Any, tool_name: str, breaker: CircuitBreaker) -
             ttl=86400 * 30,
             priority=CachePriority.CRITICAL,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Operation failed in circuit_breaker.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 
 def load_breaker_state(cache: Any, tool_name: str) -> dict[str, Any] | None:
@@ -464,8 +464,8 @@ def load_all_breakers(cache: Any) -> dict[str, dict[str, Any]]:
             state = cache.get(key)
             if isinstance(state, dict):
                 result[name] = state
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Operation failed in circuit_breaker.py: %s", exc, exc_info=True)  # noqa: BLE001
     return result
 
 

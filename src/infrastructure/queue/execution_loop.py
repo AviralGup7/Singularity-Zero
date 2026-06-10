@@ -38,14 +38,14 @@ class WorkerExecutionLoopMixin:
 
         try:
             await self._poll_and_process()
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as exc:
+            logger.warning("Operation failed in execution_loop.py: %s", exc, exc_info=True)  # noqa: BLE001
         finally:
             heartbeat_task.cancel()
             try:
                 await heartbeat_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in execution_loop.py: %s", exc, exc_info=True)  # noqa: BLE001
 
             await self._cleanup()
             self._running = False

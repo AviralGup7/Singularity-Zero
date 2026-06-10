@@ -51,28 +51,30 @@ class NotificationSubscriber:
         """Route pipeline events to appropriate notification manager calls."""
         try:
             if event.event_type == EventType.PIPELINE_STARTED:
+                run_id = event.data.get("run_id", "")
                 await self._manager.send_scan_status(
                     status="started",
                     target=event.data.get("target", "Unknown"),
                     details={
-                        "run_id": event.data.get("run_id"),
+                        "run_id": run_id,
                         "mode": event.data.get("mode"),
                     },
                     correlation_id=event.correlation_id,
                 )
 
             elif event.event_type == EventType.PIPELINE_COMPLETE:
+                run_id = event.data.get("run_id", "")
                 await self._manager.send_scan_status(
                     status="completed",
                     target=event.data.get("target", "Unknown"),
                     details={
-                        "run_id": event.data.get("run_id"),
+                        "run_id": run_id,
                         "total_findings": event.data.get("total_findings"),
                     },
                     correlation_id=event.correlation_id,
                 )
 
-                # 🔐 Phase 6: Compliance Alerts
+                # Phase 6: Compliance Alerts
                 compliance = event.data.get("compliance")
                 if compliance:
                     target = event.data.get("target", "Unknown")
@@ -90,11 +92,12 @@ class NotificationSubscriber:
                                 )
 
             elif event.event_type == EventType.PIPELINE_ERROR:
+                run_id = event.data.get("run_id", "")
                 await self._manager.send_scan_status(
                     status="failed",
                     target=event.data.get("target", "Unknown"),
                     details={
-                        "run_id": event.data.get("run_id"),
+                        "run_id": run_id,
                         "reason": event.data.get("reason"),
                     },
                     correlation_id=event.correlation_id,

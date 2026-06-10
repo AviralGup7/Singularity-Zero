@@ -1,9 +1,19 @@
 import { create } from 'zustand';
-import { createToken } from '@/api/security';
+import { createToken, createGuestToken, verifyAuthToken } from '@/api/security';
+import type { TokenResponse } from '@/api/security';
 import { safeSession, safeStorage } from '@/utils/storage';
 import type { AuthContextType } from '@/context/auth-context';
 import type { UserRole } from '@/types/auth';
 import type { Permission } from '@/types/auth';
+
+/** Sanitize user object before serialization — never persist secrets. */
+function sanitizeUser(user: {
+  id: string; name: string; role: UserRole; unlockPassword?: string;
+  tenantId: string; organizationId: string;
+}) {
+  const { unlockPassword: _secret, ...safe } = user;
+  return safe;
+}
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
   admin: {
@@ -54,8 +64,8 @@ function getInitialUser() {
       return {
         tenantId: 'tenant-default',
         organizationId: 'org-default',
-        ...parsed
-      } as { id: string; name: string; role: UserRole; unlockPassword?: string; tenantId: string; organizationId: string };
+        ...parsed,
+      } as { id: string; name: string; role: UserRole; tenantId: string; organizationId: string };
     } catch {
       return null;
     }
@@ -92,7 +102,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
         tenantId: 'tenant-default',
         organizationId: 'org-default',
       };
-      safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
+      safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(sanitizeUser(newUser)));
       set({
         user: newUser,
         // ``role`` is a ``UserRole`` string-literal union and ``ROLE_PERMISSIONS``
@@ -103,19 +113,44 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       });
     },
 
+    loginWithGuestToken: async () => {
+      // Lazy import to break circular dependency with settingsStore
+      const { useSettingsStore } = await import('./settingsStore');
+      const baseUrl = useSettingsStore.getState().settings.api.baseUrl
+        || (typeof window !== 'undefined' ? window.location.origin : '');
+      const result = await createGuestToken(baseUrl || undefined);
+      if (!result.ok || !result.data) {
+        throw new Error(result.error?.message || 'Guest authentication failed');
+      }
+      const token = result.data;
+      const newUser = {
+        id: `guest-${Date.now()}`,
+        name: 'Guest',
+        role: 'viewer' as UserRole,
+        tenantId: 'tenant-default',
+        organizationId: 'org-default',
+      };
+      safeSession.set('auth_token', token.access_token);
+      safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
+      set({
+        user: newUser,
+        permissions: ROLE_PERMISSIONS.viewer,
+      });
+    },
+
     loginWithApiKey: async (apiKey: string) => {
       const token = await createToken(apiKey);
       const role = mapApiRole(token.role);
+      const tokenExt = token as TokenResponse & { tenant_id?: string; organization_id?: string };
       const newUser = {
         id: `api-${Date.now()}`,
         name: `${token.role} API key`,
         role,
-        unlockPassword: apiKey,
-        tenantId: (token as any).tenant_id || 'tenant-default',
-        organizationId: (token as any).organization_id || 'org-default',
+        tenantId: tokenExt.tenant_id || 'tenant-default',
+        organizationId: tokenExt.organization_id || 'org-default',
       };
       safeSession.set('auth_token', token.access_token);
-      safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(newUser));
+      safeSession.set(AUTH_STORAGE_KEY, JSON.stringify(sanitizeUser(newUser)));
       set({
         user: newUser,
         /* eslint-disable-next-line security/detect-object-injection */
@@ -150,6 +185,29 @@ export const useAuthStore = create<AuthStore>((set, get) => {
       const state = get();
       if (!state.user) return false;
       return state.user.unlockPassword === password;
+    },
+
+    hydrateAuth: async () => {
+      const state = get();
+      // Only verify if we have a persisted user but no live token
+      if (!state.user) return;
+      const token = safeSession.get('auth_token');
+      if (!token) {
+        // Token was cleared (e.g.另一 tab) — clear the user too
+        set({ user: null, permissions: ROLE_PERMISSIONS.viewer });
+        return;
+      }
+      try {
+        const result = await verifyAuthToken();
+        if (!result.valid) {
+          // Token expired or revoked — clear session
+          safeSession.remove('auth_token');
+          safeSession.remove(AUTH_STORAGE_KEY);
+          set({ user: null, permissions: ROLE_PERMISSIONS.viewer });
+        }
+      } catch {
+        // Network error — keep existing session, will retry on next request
+      }
     },
   };
 });

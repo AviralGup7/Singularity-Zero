@@ -166,6 +166,7 @@ class Broadcaster:
         self._seen_ids_lock = threading.Lock()
         self._broadcast_count: int = 0
         self._drop_count: int = 0
+        self._counter_lock = threading.Lock()
         # Per-scope drop counters keyed by (scope, target). Lets us compute
         # per-channel drop rates for alerting instead of a single monotonic
         # global count.
@@ -260,16 +261,16 @@ class Broadcaster:
                 task.cancel()
             try:
                 await asyncio.gather(*self._delivery_tasks, return_exceptions=True)
-            except Exception:  # noqa: S110
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in broadcaster.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._delivery_tasks.clear()
 
         if self._subscriber_task:
             self._subscriber_task.cancel()
             try:
                 await self._subscriber_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in broadcaster.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._subscriber_task = None
 
         if self._redis_pubsub is not None:
@@ -292,6 +293,16 @@ class Broadcaster:
                 logger.debug("Redis client close failed: %s", exc)
             self._redis_client = None
 
+        self._scope_drop_counts.clear()
+
+        try:
+            from pathlib import Path
+            import tempfile
+            state_file = Path(tempfile.gettempdir()) / "redis_breaker_state.json"
+            state_file.unlink(missing_ok=True)
+        except Exception:  # noqa: S110
+            pass
+
     async def stop_message_dispatch(self, connection_id: str) -> None:
         """Stop the dispatch task for a single connection."""
         task = self._dispatch_tasks.pop(connection_id, None)
@@ -301,8 +312,8 @@ class Broadcaster:
         task.cancel()
         try:
             await task
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as exc:
+            logger.warning("Operation failed in broadcaster.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     async def _publish(
         self,
@@ -426,6 +437,11 @@ class Broadcaster:
         if not isinstance(message_json, str):
             return 0
 
+        # Validate envelope structure before processing
+        if not isinstance(envelope.get("scope"), str) or not isinstance(envelope.get("target"), str):
+            logger.warning("Malformed Redis envelope: missing scope or target")
+            return 0
+
         try:
             message = BaseMessage.from_json(message_json)
             scope = str(envelope.get("scope") or "")
@@ -444,8 +460,8 @@ class Broadcaster:
         """Done-callback that logs exceptions from fire-and-forget delivery tasks."""
         try:
             task.result()
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as exc:
+            logger.warning("Operation failed in broadcaster.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as exc:
             logger.error("Redis WS envelope delivery task failed: %s", exc)
 
@@ -526,7 +542,7 @@ class Broadcaster:
 
         if sent > 0:
             WS_MESSAGES.labels(scope=scope).inc(sent)
-            async with self._lock:
+            with self._counter_lock:
                 self._broadcast_count += 1
         return sent
 
@@ -536,7 +552,7 @@ class Broadcaster:
             return False
         sent = await self._enqueue(info, message, scope="connection", target=connection_id)
         if sent:
-            async with self._lock:
+            with self._counter_lock:
                 self._broadcast_count += 1
         return sent
 
@@ -662,7 +678,8 @@ class Broadcaster:
             scope: Broadcast scope that triggered the drop.
             target: Channel/user/connection target of the original message.
         """
-        self._drop_count += 1
+        with self._counter_lock:
+            self._drop_count += 1
         with self._scope_drop_lock:
             self._scope_drop_counts[(scope, target)] = (
                 self._scope_drop_counts.get((scope, target), 0) + 1
@@ -821,14 +838,17 @@ class Broadcaster:
         """
         with self._seen_ids_lock:
             dedup_size = len(self._seen_ids)
+        with self._counter_lock:
+            broadcast_count = self._broadcast_count
+            drop_count = self._drop_count
         with self._scope_drop_lock:
             scope_drops = {
                 f"{scope}:{target}": count
                 for (scope, target), count in self._scope_drop_counts.items()
             }
         return {
-            "broadcast_count": self._broadcast_count,
-            "drop_count": self._drop_count,
+            "broadcast_count": broadcast_count,
+            "drop_count": drop_count,
             "scope_drop_counts": scope_drops,
             "dedup_window_size": dedup_size,
             "redis_enabled": self._redis_enabled,

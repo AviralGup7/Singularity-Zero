@@ -7,6 +7,7 @@ compromise (IOCs), and attribute correlations.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, cast
 
 from pydantic import Field
@@ -15,7 +16,8 @@ from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig
 
 logger = logging.getLogger(__name__)
 
-MISP_DEFAULT_URL = "https://misp.example.com/api"
+MISP_DEFAULT_URL = os.environ.get("MISP_URL", "http://localhost")
+
 
 
 class MISPConfig(FeedConfig):

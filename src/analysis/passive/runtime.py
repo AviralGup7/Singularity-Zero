@@ -174,8 +174,8 @@ class RequestScheduler:
             import asyncio
 
             loop = asyncio.get_running_loop()
-        except RuntimeError:
-            pass
+        except RuntimeError as exc:
+            logger.warning("Operation failed in runtime.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         while True:
             with self._lock:
@@ -322,8 +322,8 @@ class ResponseCache:
                 try:
                     evict_key = next(iter(self._records))
                     self._records.pop(evict_key, None)
-                except StopIteration:
-                    pass
+                except StopIteration as exc:
+                    logger.warning("Operation failed in runtime.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._records[normalized] = record
             if record is not None:
                 self._persistent_records[normalized] = {**record, "cached_at_epoch": time.time()}
@@ -424,7 +424,7 @@ class ResponseCache:
             with self._lock:
                 fd = None
                 try:
-                    fd = open(lock_path, "w")
+                    fd = open(lock_path, "w", encoding="utf-8")
                     if sys.platform == "win32":
                         import msvcrt
 
@@ -616,7 +616,12 @@ def _fetch_response_stream(
             try:
                 body_text = raw.decode(charset, errors="replace")
             except LookupError:
-                body_text = raw.decode("utf-8", errors="replace")
+                try:
+                    body_text = raw.decode("utf-8", errors="replace")
+                except Exception:
+                    body_text = raw.decode("latin-1", errors="replace")
+        else:
+            body_text = None
 
         return {
             "requested_url": normalize_url(url),
@@ -627,7 +632,7 @@ def _fetch_response_stream(
             "headers": resp_headers,
             "content_type": content_type,
             "body_text": body_text,
-            "body_length": len(body_text),
+            "body_length": len(body_text) if body_text is not None else 0,
             "truncated": truncated,
             "redirect_chain": redirect_chain,
             "redirect_count": redirect_count,
@@ -760,7 +765,12 @@ def build_response_record(
         try:
             body_text = raw[:max_bytes].decode(charset, errors="replace")
         except LookupError:
-            body_text = raw[:max_bytes].decode("utf-8", errors="replace")
+            try:
+                body_text = raw[:max_bytes].decode("utf-8", errors="replace")
+            except Exception:
+                body_text = raw[:max_bytes].decode("latin-1", errors="replace")
+    else:
+        body_text = None
 
     status_code = getattr(response, "status", None) or getattr(response, "code", None)
     final_url = normalize_url(getattr(response, "geturl", lambda: url)() or url)
@@ -773,7 +783,7 @@ def build_response_record(
         "headers": headers,
         "content_type": content_type,
         "body_text": body_text,
-        "body_length": len(body_text),
+        "body_length": len(body_text) if body_text is not None else 0,
         "truncated": len(raw) > max_bytes if max_bytes > 0 else False,
         "redirect_chain": [normalize_url(url), final_url]
         if final_url != normalize_url(url)

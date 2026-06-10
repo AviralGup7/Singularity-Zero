@@ -1,3 +1,5 @@
+from __future__ import annotations
+import logging
 """IP address validation helpers.
 
 A previous version of the project used a regex like
@@ -7,7 +9,6 @@ which incorrectly accepted values like ``999.999.999.999``.  The stdlib
 notation, IPv6, IPv4-mapped IPv6, …) and is what we use here.
 """
 
-from __future__ import annotations
 
 import ipaddress
 from typing import Final
@@ -67,8 +68,8 @@ def indicator_type_for(host: str | None) -> str:
     try:
         ipaddress.IPv4Address(candidate)
         return "IPv4"
-    except (ipaddress.AddressValueError, ValueError):
-        pass
+    except (ipaddress.AddressValueError, ValueError) as exc:
+        logging.warning("Operation failed in ip_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
     try:
         ipaddress.IPv6Address(candidate)
         return "IPv6"

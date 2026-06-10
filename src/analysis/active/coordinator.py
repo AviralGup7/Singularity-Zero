@@ -5,58 +5,64 @@ misconfigurations like unsafe methods, CORS issues, and TRACE exposure.
 Each probe includes confidence scoring and severity classification.
 """
 
+import logging
 from typing import Any
 
-from src.analysis.active.auth_bypass.analyzer import run_auth_bypass_probes
-from src.analysis.active.brute_force import brute_force_resistance_probe
-from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
-from src.analysis.active.cloud_metadata import cloud_metadata_active_probe
-from src.analysis.active.auth.credential_vault import CredentialVault
-from src.analysis.active.graphql import graphql_active_probe
-from src.analysis.active.graphql_ws_probe import graphql_ws_injection_probe
-from src.analysis.active.http_methods import (
-    cors_preflight_probe,
-    head_method_probe,
-    options_method_probe,
-    origin_reflection_probe,
-    trace_method_probe,
-)
-from src.analysis.active.http_smuggling import (
-    http2_probe,
-    http_smuggling_probe,
-)
-from src.analysis.active.injection.command_injection import command_injection_active_probe
-from src.analysis.active.injection.crlf.crlf_probe import crlf_injection_probe
-from src.analysis.active.injection.csrf import csrf_active_probe
-from src.analysis.active.injection.deserialization import deserialization_probe
-from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
-from src.analysis.active.injection.ldap import ldap_injection_active_probe
-from src.analysis.active.injection.nosql import nosql_injection_probe
-from src.analysis.active.injection.open_redirect import open_redirect_active_probe
-from src.analysis.active.injection.parameter_pollution import hpp_active_probe
-from src.analysis.active.injection.path_traversal import path_traversal_active_probe
-from src.analysis.active.injection.proxy_ssrf import proxy_ssrf_probe
-from src.analysis.active.injection.sqli import sqli_safe_probe
-from src.analysis.active.injection.ssrf import ssrf_active_probe
-from src.analysis.active.injection.ssti import ssti_active_probe
-from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
-from src.analysis.active.injection.xpath import xpath_injection_active_probe
-from src.analysis.active.injection.xss_reflect_probe import xss_reflect_probe
-from src.analysis.active.injection.xxe import xxe_active_probe
-from src.analysis.active.jwt_attacks import run_jwt_attack_suite
-from src.analysis.active.param_mining import param_mining_probe
-from src.analysis.active.race_condition import race_condition_probe
-from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
-from src.analysis.checks.active.idor_probe import idor_active_probe
-from src.analysis.helpers import (
-    classify_endpoint,
-    endpoint_base_key,
-    endpoint_signature,
-    probe_confidence_from_map,
-    probe_severity_from_map,
-)
-from src.analysis.passive.runtime import ResponseCache
-from src.detection.ast import analyze_html_for_prototype_pollution
+logger = logging.getLogger(__name__)
+
+try:
+    from src.analysis.active.auth_bypass.analyzer import run_auth_bypass_probes
+    from src.analysis.active.brute_force import brute_force_resistance_probe
+    from src.analysis.active.brute_force.cookie_manipulation import cookie_manipulation_probe
+    from src.analysis.active.cloud_metadata import cloud_metadata_active_probe
+    from src.analysis.active.auth.credential_vault import CredentialVault
+    from src.analysis.active.graphql import graphql_active_probe
+    from src.analysis.active.graphql_ws_probe import graphql_ws_injection_probe
+    from src.analysis.active.http_methods import (
+        cors_preflight_probe,
+        head_method_probe,
+        options_method_probe,
+        origin_reflection_probe,
+        trace_method_probe,
+    )
+    from src.analysis.active.http_smuggling import (
+        http2_probe,
+        http_smuggling_probe,
+    )
+    from src.analysis.active.injection.command_injection import command_injection_active_probe
+    from src.analysis.active.injection.crlf.crlf_probe import crlf_injection_probe
+    from src.analysis.active.injection.csrf import csrf_active_probe
+    from src.analysis.active.injection.deserialization import deserialization_probe
+    from src.analysis.active.injection.jwt_manipulation import jwt_manipulation_probe
+    from src.analysis.active.injection.ldap import ldap_injection_active_probe
+    from src.analysis.active.injection.nosql import nosql_injection_probe
+    from src.analysis.active.injection.open_redirect import open_redirect_active_probe
+    from src.analysis.active.injection.parameter_pollution import hpp_active_probe
+    from src.analysis.active.injection.path_traversal import path_traversal_active_probe
+    from src.analysis.active.injection.proxy_ssrf import proxy_ssrf_probe
+    from src.analysis.active.injection.sqli import sqli_safe_probe
+    from src.analysis.active.injection.ssrf import ssrf_active_probe
+    from src.analysis.active.injection.ssti import ssti_active_probe
+    from src.analysis.active.injection.websocket_hijacking import websocket_hijacking_probe
+    from src.analysis.active.injection.xpath import xpath_injection_active_probe
+    from src.analysis.active.injection.xss_reflect_probe import xss_reflect_probe
+    from src.analysis.active.injection.xxe import xxe_active_probe
+    from src.analysis.active.jwt_attacks import run_jwt_attack_suite
+    from src.analysis.active.param_mining import param_mining_probe
+    from src.analysis.active.race_condition import race_condition_probe
+    from src.analysis.checks.active.file_upload_probe import file_upload_active_probe
+    from src.analysis.checks.active.idor_probe import idor_active_probe
+    from src.analysis.helpers import (
+        classify_endpoint,
+        endpoint_base_key,
+        endpoint_signature,
+        probe_confidence_from_map,
+        probe_severity_from_map,
+    )
+    from src.analysis.passive.runtime import ResponseCache
+    from src.detection.ast import analyze_html_for_prototype_pollution
+except ImportError as exc:
+    logger.warning("Some active probe modules failed to import: %s", exc)
 
 __all__ = [
     "brute_force_resistance_probe",
@@ -288,8 +294,11 @@ def oauth_flow_analyzer(
             try:
                 body = str(response["request_body"])
                 combined_params.update(dict(parse_qsl(body)))
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:  # noqa: S110
+                import logging
+                logging.getLogger(__name__).debug(
+                    "oauth_flow_analyzer: failed to parse request body for %s: %s", url, exc
+                )
 
         query_keys_lower = {k.lower(): v for k, v in combined_params.items()}
 
@@ -439,9 +448,7 @@ def run_prototype_pollution_walker(
         try:
             pp_findings = analyze_html_for_prototype_pollution(body, url=url)
         except Exception as exc:
-            import logging
-
-            logging.getLogger(__name__).debug(
+            logger.debug(
                 "prototype_pollution_walker failed for %s: %s", url, exc
             )
             continue

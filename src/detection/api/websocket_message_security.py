@@ -426,8 +426,10 @@ def analyze_websocket_message_security(
     )
 
 
-def _rank(value: str) -> int:
+def _rank(value: object) -> int:
     order = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+    if not isinstance(value, str):
+        return 0
     return order.get(value.lower(), 0)
 
 

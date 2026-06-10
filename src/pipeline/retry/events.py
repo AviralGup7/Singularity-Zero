@@ -1,6 +1,7 @@
+from __future__ import annotations
+import logging
 """Structured retry events, event emitter, and event-bus bridge helpers."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -56,8 +57,8 @@ def _retry_event_type_to_event_type(retry_type: RetryEventType) -> Any:
                 RetryEventType.RETRY_EXHAUSTED: EventType.STAGE_FAILED,
                 RetryEventType.RETRY_BUDGET_EXHAUSTED: EventType.STAGE_FAILED,
             }
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logging.warning("Operation failed in events.py: %s", exc, exc_info=True)  # noqa: BLE001
     return _RETRY_TO_PIPELINE_EVENT_TYPE.get(retry_type)
 
 
@@ -101,6 +102,6 @@ class RetryEventEmitter:
         try:
             from src.core.events import get_event_bus
             get_event_bus().publish(_pipeline_event_from_retry_event(event))
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.warning("Operation failed in events.py: %s", exc, exc_info=True)  # noqa: BLE001
         return event

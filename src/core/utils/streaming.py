@@ -92,8 +92,8 @@ def stream_http_response(
         if content_length_header:
             try:
                 result["content_length"] = int(content_length_header)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as exc:
+                logger.warning("Operation failed in streaming.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         body_parts: list[bytes] = []
         bytes_read = 0

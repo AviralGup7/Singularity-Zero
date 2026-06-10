@@ -24,11 +24,11 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
     # WebSocket support and TLS configuration (snippets disabled for CVE-2021-25742 compliance)
     # TLS configuration
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt-staging
     # Rate limiting
     nginx.ingress.kubernetes.io/limit-rps: "10"
 spec:
-  ingressClassName: nginx
+  ingressClassName: ingress-nginx
   tls:
     - hosts:
         - pipeline.example.com

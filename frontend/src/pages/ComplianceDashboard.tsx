@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as ChartTooltip } from 'recharts';
+import { PieChart, Pie, Cell, Legend, Tooltip as ChartTooltip } from 'recharts';
 import {
   ShieldCheck,
   FileText,
@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useTargets } from '@/hooks';
 import { getComplianceReport, getAttestationUrl, type ComplianceReport } from '@/api/compliance';
-import { PageHeader, GlassCard, AnimatedCounter, GlowProgress } from '@/components/ui';
+import { PageHeader, GlassCard, AnimatedCounter, GlowProgress, SafeResponsiveContainer } from '@/components/ui';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -205,7 +205,7 @@ export function ComplianceDashboard() {
             <GlassCard variant="glow" delay={0.2} className="flex flex-col items-center justify-center p-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-2 w-full text-left">Control Status Distribution</h3>
               <div className="h-44 w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                <SafeResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={donutData}
@@ -231,7 +231,7 @@ export function ComplianceDashboard() {
                     />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
                   </PieChart>
-                </ResponsiveContainer>
+                </SafeResponsiveContainer>
               </div>
             </GlassCard>
           </div>

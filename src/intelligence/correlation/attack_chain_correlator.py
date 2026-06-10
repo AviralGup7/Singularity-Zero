@@ -214,7 +214,7 @@ class VulnCorrelationEngine:
             try:
                 import json
 
-                with open(rules_file) as f:
+                with open(rules_file, encoding="utf-8") as f:
                     custom_rules = json.load(f)
                     if isinstance(custom_rules, list):
                         self.rules = custom_rules
@@ -405,10 +405,6 @@ class VulnCorrelationEngine:
                 if neighbor not in used
             ]
             chosen: int | None = None
-            for candidate in candidates:
-                # Resolve the finding's type lazily from by_type
-                # membership, since we don't carry the dict here.
-                pass
             # Resolve by index scan (small N).
             for neighbor in candidates:
                 # Find which type this neighbor belongs to.
@@ -555,12 +551,23 @@ class VulnCorrelationEngine:
 
     @staticmethod
     def _share_parent_domain(host1: str, host2: str) -> bool:
+        """Check if two hosts share a parent domain.
+
+        NOTE: This uses a simple heuristic comparing the last two labels.
+        For multi-part TLDs like '.ac.uk', '.co.uk', '.com.au', this may
+        incorrectly match unrelated domains (e.g., 'example.ac.uk' and
+        'internal.ac.uk' would match). For production use, consider using
+        the `tldextract` library for accurate registrable domain extraction.
+        """
         parts1 = host1.split(".")
         parts2 = host2.split(".")
         if len(parts1) < 2 or len(parts2) < 2:
             return False
         # Compare the last two labels - cheap "same registrable
         # domain" check. Sufficient for our graph purposes.
+        # TODO: For multi-part TLDs (ac.uk, co.uk, com.au, etc.),
+        # this may produce false positives. Consider using tldextract
+        # library if available, or maintain a list of known multi-part TLDs.
         return parts1[-2:] == parts2[-2:]
 
     def _deduplicate_chains(self, chains: list[AttackChain]) -> list[AttackChain]:
@@ -572,7 +579,10 @@ class VulnCorrelationEngine:
             key = (
                 chain.name,
                 chain.chain_kind,
-                tuple(s.get("url", "") for s in chain.steps),
+                tuple(
+                    s.get("id") or s.get("finding_id") or s.get("url", "")
+                    for s in chain.steps
+                ),
             )
             if key in seen:
                 continue

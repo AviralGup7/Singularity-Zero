@@ -131,6 +131,10 @@ class DynamicValidationStrategy(BaseValidator):
 
 def build_validator_registry() -> dict[str, ValidationStrategySpec]:
     """Build the validator registry mapping names to strategy specs."""
+    # NOTE: 'access_control' and 'validation' are registered as VALIDATOR
+    # plugins but are intentionally excluded here because they run as
+    # pipeline stages (via plugin_catalog.py) rather than as post-stage
+    # engine validators. Including them would cause double-execution.
     registrations = [
         reg
         for reg in list_plugins("validator")

@@ -269,8 +269,8 @@ class WebSocketActiveProbe:
                 _, _, length, header_end = decoded
                 body = await asyncio.wait_for(reader.readexactly(length), timeout=self.frame_timeout)
                 received.append((_OP_TEXT, body))
-            except TimeoutError:
-                pass
+            except TimeoutError as exc:
+                logger.warning("Operation failed in active_probe.py: %s", exc, exc_info=True)  # noqa: BLE001
             except (ConnectionError, OSError) as exc:
                 result.error = f"recv failed: {exc}"
                 break

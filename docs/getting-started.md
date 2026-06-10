@@ -7,7 +7,7 @@ This guide covers environment setup, contribution guidelines, and debugging reci
 ## 🚀 Quick Start
 
 ### 1. Prerequisites
-- **Python 3.14+** (Strictly required)
+- **Python 3.12+** (Required)
 - **Node.js 18+** (For the React dashboard)
 - **Go** (For recon tools)
 - **Docker & Compose** (For containerized deployment)
@@ -16,7 +16,7 @@ This guide covers environment setup, contribution guidelines, and debugging reci
 ```bash
 git clone <repo-url> cyber-pipeline
 cd cyber-pipeline
-python3 -m venv .venv
+python3 -m venv .venv  # Python 3.12 or newer required
 source .venv/bin/activate  # or .venv\Scripts\Activate.ps1 on Windows
 pip install -e ".[dev]"
 ```
@@ -119,7 +119,7 @@ curl -sSL -o setup_lite.sh "https://raw.githubusercontent.com/AviralGup7/Singula
 
 Once installed, connect the sub-node to the PC backplane:
 ```bash
-python worker_lite.py --redis-url redis://<YOUR_PC_IP>:16379/0
+python -m src.infrastructure.queue.worker_lite --redis-url redis://<YOUR_PC_IP>:16379/0
 ```
 
 

@@ -21,9 +21,20 @@ logger = logging.getLogger(__name__)
 
 
 def setup_middleware(app: FastAPI, config: DashboardConfig) -> None:
+    origins = config.allowed_origins
+
+    if not config.debug:
+        _localhost_origins = [o for o in origins if "localhost" in o or "127.0.0.1" in o]
+        if _localhost_origins:
+            logger.warning(
+                "CORS contains localhost origins in production mode: %s — "
+                "these should be removed before deploying to a real environment.",
+                _localhost_origins,
+            )
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=config.allowed_origins,
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=[

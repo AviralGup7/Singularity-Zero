@@ -115,8 +115,8 @@ class CyberVault:
                     details=redacted,
                 )
                 return
-            except TypeError:
-                pass
+            except TypeError as exc:
+                logger.warning("Operation failed in vault.py: %s", exc, exc_info=True)  # noqa: BLE001
         try:
             get_audit_logger().log(
                 AuditEventType.SECURITY_EVENT,
@@ -271,8 +271,8 @@ class CyberVault:
                 secure_wipe(bytearray(dek))
 
                 return SecretLease(plaintext)
-        except (json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature):
-            pass
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError, InvalidSignature) as exc:
+            logger.warning("Operation failed in vault.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         # Compatibility fallback for Argon2idAESGCM envelopes
         return self._envelope().decrypt_lease(

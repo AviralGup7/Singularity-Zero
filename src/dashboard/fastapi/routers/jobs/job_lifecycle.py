@@ -86,7 +86,8 @@ async def stream_job_progress(
 
     async def progress_event_stream() -> AsyncGenerator[str]:
         nonlocal last_stage, last_iteration
-        _global_tracker.register_client(job_id)
+        _tracker_key = f"{job_id}:progress"
+        _global_tracker.register_client(_tracker_key)
         last_heartbeat = time.time()
         last_mesh_health = 0.0
         last_telemetry_count = 0
@@ -111,7 +112,18 @@ async def stream_job_progress(
                 while not event_chan.empty():
                     yield await event_chan.get()
 
-                current_job = await get_cached_job(job_id, services)
+                try:
+                    current_job = await get_cached_job(job_id, services)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("get_cached_job failed in progress stream: %s", exc)
+                    yield emitter.error(
+                        "Failed to fetch job state",
+                        stage=last_stage,
+                        progress_percent=0,
+                        recoverable=True,
+                    )
+                    await asyncio.sleep(1.0)
+                    continue
                 if not current_job:
                     yield emitter.error(
                         "Job not found", stage=last_stage, progress_percent=0, recoverable=False
@@ -298,7 +310,7 @@ async def stream_job_progress(
         finally:
             from src.core.events import get_event_bus
 
-            _global_tracker.deregister_client(job_id)
+            _global_tracker.deregister_client(_tracker_key)
 
             try:
                 get_event_bus().unsubscribe(sub_id)

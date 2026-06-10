@@ -103,13 +103,16 @@ class ExecutionContext:
 class ObservabilityBus:
     """Manages registering of subscribers (event metrics, progress, audit, notification, learning) and emitting events."""
 
-    def __init__(self, event_bus: EventBus) -> None:
+    def __init__(self, event_bus: EventBus, notification_manager: NotificationManager | None = None) -> None:
         self._event_bus = event_bus
         register_event_metrics_subscribers(self._event_bus)
         register_progress_subscriber(self._event_bus)
         register_audit_subscriber(self._event_bus)
 
-        self.notification_manager = NotificationManager(ManagerConfig())
+        if notification_manager is not None:
+            self.notification_manager = notification_manager
+        else:
+            self.notification_manager = NotificationManager(ManagerConfig())
         register_notification_subscriber(self._event_bus, self.notification_manager)
 
         self.learning_integration = LearningIntegration.get_or_create()
@@ -146,28 +149,159 @@ class ObservabilityBus:
 
 
 class StageDispatcher:
-    """Manages sequential and parallel runner groups, and legacy monkeypatch lookups."""
+    """Routes stage execution to either the local actor scheduler or
+    the distributed job queue.
 
-    def build_stage_methods(self) -> dict[str, Any]:
-        return build_stage_methods_map(
-            stage_order=STAGE_ORDER,
-            module_globals=globals(),
-            resolve_stage_runner_func=resolve_stage_runner,
+    When a ``JobQueue`` is provided, eligible stages are enqueued as
+    ``TaskEnvelope`` jobs so that remote workers can pick them up.
+    Stages that cannot be distributed (e.g. checkpoint-sensitive) are
+    always executed locally via the actor scheduler.
+    """
+
+    # Stages that should never be dispatched to the queue because they
+    # require direct access to the local pipeline context or filesystem.
+    _LOCAL_ONLY_STAGES: frozenset[str] = frozenset({
+        "reporting",
+        "sarif_export",
+        "report_distribution",
+    })
+
+    def __init__(self, queue: Any | None = None) -> None:
+        self._queue = queue
+        self._pending_job_ids: dict[str, str] = {}  # stage_name → job_id
+
+    @property
+    def has_queue(self) -> bool:
+        return self._queue is not None
+
+    def set_queue(self, queue: Any) -> None:
+        self._queue = queue
+
+    async def enqueue_stage(
+        self,
+        stage_name: str,
+        ctx: Any,
+        config: Any,
+        *,
+        priority: int = 5,
+    ) -> str | None:
+        """Enqueue a stage as a distributed job. Returns the job_id or None
+        if the stage was not enqueued (e.g. local-only stage)."""
+        if self._queue is None:
+            return None
+        if stage_name in self._LOCAL_ONLY_STAGES:
+            return None
+
+        from src.core.contracts.task_envelope import TaskEnvelope
+
+        envelope = TaskEnvelope(
+            type=stage_name,
+            payload={
+                "target_name": str(getattr(config, "target_name", "")),
+                "run_id": str(getattr(ctx, "run_id", "")),
+                "scope_entries": list(getattr(ctx, "scope_entries", []) or []),
+            },
+            metadata={
+                "source": "orchestrator",
+                "pipeline_run_id": str(getattr(ctx, "run_id", "")),
+            },
         )
+        try:
+            job_id = await self._queue.enqueue(envelope, priority=priority)
+            self._pending_job_ids[stage_name] = job_id
+            logger.info("Enqueued stage '%s' as job %s", stage_name, job_id)
+            return job_id
+        except Exception as exc:
+            logger.warning(
+                "Failed to enqueue stage '%s', will execute locally: %s",
+                stage_name,
+                exc,
+            )
+            return None
+
+    async def enqueue_stages(
+        self,
+        stage_names: list[str],
+        ctx: Any,
+        config: Any,
+        *,
+        priority: int = 5,
+    ) -> dict[str, str]:
+        """Enqueue multiple stages. Returns {stage_name: job_id} for
+        successfully enqueued stages."""
+        result: dict[str, str] = {}
+        for name in stage_names:
+            job_id = await self.enqueue_stage(name, ctx, config, priority=priority)
+            if job_id is not None:
+                result[name] = job_id
+        return result
+
+    async def await_job_result(
+        self, stage_name: str, *, timeout: float = 600.0
+    ) -> dict[str, Any] | None:
+        """Poll Redis until the job for *stage_name* completes or times out."""
+        if self._queue is None:
+            return None
+        job_id = self._pending_job_ids.get(stage_name)
+        if job_id is None:
+            return None
+
+        import asyncio
+        import time
+
+        deadline = time.time() + timeout
+        job_key = f"queue:{self._queue.queue_name}:job:{job_id}"
+
+        while time.time() < deadline:
+            job_data = await asyncio.to_thread(
+                self._queue.redis.execute_command, "HGETALL", job_key
+            )
+            if not job_data:
+                await asyncio.sleep(1.0)
+                continue
+
+            def _decode(v: bytes | str) -> str:
+                return v.decode("utf-8") if isinstance(v, bytes) else str(v)
+
+            state = _decode(job_data.get(b"state", b""))
+            if state == "completed":
+                import json
+                result_raw = _decode(job_data.get(b"result", b"{}"))
+                try:
+                    return json.loads(result_raw)
+                except (json.JSONDecodeError, TypeError):
+                    return {"status": "ok"}
+            elif state in ("dead_letter", "cancelled"):
+                error = _decode(job_data.get(b"error", b"unknown"))
+                logger.warning("Stage '%s' job %s ended in %s: %s", stage_name, job_id, state, error)
+                return {"status": "failed", "error": error}
+
+            await asyncio.sleep(1.0)
+
+        logger.warning("Timeout waiting for stage '%s' job %s", stage_name, job_id)
+        return None
+
+    def clear_completed(self, stage_name: str) -> None:
+        self._pending_job_ids.pop(stage_name, None)
 
 
 class PipelineOrchestrator:
     """Orchestrates the security testing pipeline execution."""
 
-    def __init__(self, event_bus: EventBus | None = None) -> None:
+    def __init__(
+        self,
+        event_bus: EventBus | None = None,
+        notification_manager: NotificationManager | None = None,
+        queue: Any | None = None,
+    ) -> None:
         self._stage_retry_policy: StageRetryPolicy | None = None
         self._stage_retry_metrics: RetryMetrics = RetryMetrics()
         self._event_bus: EventBus = event_bus or get_event_bus()
 
         # Extracted dedicated services
-        self.observability_bus = ObservabilityBus(self._event_bus)
+        self.observability_bus = ObservabilityBus(self._event_bus, notification_manager)
         self.ctx = ExecutionContext()
-        self.dispatcher = StageDispatcher()
+        self.dispatcher = StageDispatcher(queue=queue)
 
         self._migration_handler: ProactiveMigrationHandler | None = None
 
@@ -325,6 +459,14 @@ class PipelineOrchestrator:
             loop = None
 
         if loop and loop.is_running():
+            import threading
+            if threading.current_thread() is threading.main_thread() or (
+                hasattr(loop, '_thread') and threading.current_thread() is getattr(loop, '_thread', None)
+            ):
+                raise RuntimeError(
+                    "Cannot call run_sync() from the event loop thread while the loop is running; "
+                    "this would deadlock. Use asyncio.run() or call from a separate thread."
+                )
             coro = self.run(args)
             future = asyncio.run_coroutine_threadsafe(coro, loop)
             try:

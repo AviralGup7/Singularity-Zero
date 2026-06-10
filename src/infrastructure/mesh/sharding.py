@@ -402,4 +402,4 @@ class MeshShardManager:
         return None
 
     def _hash(self, key: str) -> int:
-        return int(hashlib.sha256(key.encode()).hexdigest(), 16)
+        return int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16)

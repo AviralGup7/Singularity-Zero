@@ -10,7 +10,7 @@ from src.analysis.passive.runtime import ResponseCache
 from .._confidence import probe_confidence, probe_severity
 from ._crlf_constants import CRLF_PROBE_PAYLOADS
 from ._heuristic import _heuristic_check
-from ._path_variants import generate_path_variants
+from ._path_variants import _build_payload, generate_path_variants
 from ._url_variants import generate_crlf_variants
 from ._user_agents import _rotate_user_agent
 from ._validator import _check_crlf_vulnerability
@@ -361,7 +361,7 @@ def crlf_injection_probe(
                     "Cache-Control": "no-cache",
                     "X-CRLF-Probe": probe_token,
                 },
-                body=f"data={quote(post_payload, safe='')}",
+                body=f"data={quote(post_payload, safe='%0d%0a')}",
             )
             if response:
                 body = str(response.get("body_text", "") or "")[:16000]
@@ -418,9 +418,3 @@ def crlf_injection_probe(
 
     findings.sort(key=lambda item: (-item["confidence"], item["url"]))
     return findings[:limit]
-
-
-def _build_payload(crlf_seq: str, payload_template: str, token: str) -> str:
-    """Build a concrete CRLF payload from template, escape sequence, and token."""
-    space = "%20"
-    return payload_template.format(crlf=crlf_seq, space=space, token=token)

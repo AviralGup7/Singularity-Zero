@@ -109,8 +109,8 @@ class SQLiteBackend:
                 last_exc = exc
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as exc:
+                    logger.warning("Operation failed in sqlite.py: %s", exc, exc_info=True)  # noqa: BLE001
                 self._close_conn()
                 if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
                     raise
@@ -118,8 +118,9 @@ class SQLiteBackend:
             except Exception:
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as exc:
+                    logger.warning("Operation failed in sqlite.py: %s", exc, exc_info=True)  # noqa: BLE001
+                self._close_conn()
                 raise
         if last_exc is not None:
             raise last_exc
@@ -131,8 +132,8 @@ class SQLiteBackend:
         if self._thread_local.conn is not None:
             try:
                 self._thread_local.conn.close()
-            except Exception:
-                logger.debug("Failed to close SQLite cache connection")
+            except Exception as exc:
+                logger.warning("Failed to close SQLite cache connection: %s", exc)
             finally:
                 self._thread_local.conn = None
 
@@ -147,8 +148,8 @@ class SQLiteBackend:
                 if db_path.exists():
                     try:
                         db_path.unlink()
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        logger.warning("Failed to unlink corrupted cache db: %s", exc)
                 self._thread_local = _ThreadLocalConnections()
                 conn = self._get_conn()
             try:
@@ -244,8 +245,10 @@ class SQLiteBackend:
                 )
                 conn.commit()
                 return json.loads(value_str)
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Store a value in the cache.
@@ -279,8 +282,10 @@ class SQLiteBackend:
             try:
                 self._with_retry(_op)
                 self.evict_lru(max(0, self.size() - self._max_entries))
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def set_with_metadata(
         self,
@@ -329,7 +334,7 @@ class SQLiteBackend:
                     """,
                     (key, value_str, now, expires_at, now, tags_str, namespace, deps_str, meta_str),
                 )
-                
+
                 # Delete old tags and insert new tags
                 conn.execute("DELETE FROM cache_entry_tags WHERE key = ?", (key,))
                 if tags:
@@ -340,8 +345,10 @@ class SQLiteBackend:
                         )
                 conn.commit()
                 self.evict_lru(max(0, self.size() - self._max_entries))
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def delete(self, key: str) -> bool:
         """Remove a specific entry from the cache.
@@ -358,8 +365,10 @@ class SQLiteBackend:
                 cursor = conn.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
                 conn.commit()
                 return cursor.rowcount > 0
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def delete_many(self, keys: list[str] | builtins.set[str]) -> int:
         """Remove multiple entries from the cache in one transaction.
@@ -388,8 +397,10 @@ class SQLiteBackend:
 
                 conn.commit()
                 return deleted
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def exists(self, key: str) -> bool:
         """Check if a key exists and is not expired.
@@ -417,8 +428,10 @@ class SQLiteBackend:
                     conn.commit()
                     return False
                 return True
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def clear(self) -> int:
         """Remove all entries from the cache.
@@ -434,8 +447,10 @@ class SQLiteBackend:
                 conn.execute("DELETE FROM cache_entries")
                 conn.commit()
                 return count
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def size(self) -> int:
         """Return the number of non-expired entries.
@@ -452,8 +467,10 @@ class SQLiteBackend:
                     (now,),
                 )
                 return int(cursor.fetchone()[0])
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def cleanup_expired(self) -> int:
         """Remove all expired entries.
@@ -471,8 +488,10 @@ class SQLiteBackend:
                 )
                 conn.commit()
                 return cast(int, cursor.rowcount)
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def evict_lru(self, count: int) -> int:
         """Evict the least recently used entries.
@@ -483,6 +502,8 @@ class SQLiteBackend:
         Returns:
             Number of entries actually evicted.
         """
+        if count <= 0:
+            return 0
         with self._lock:
             conn = self._get_conn()
             try:
@@ -497,8 +518,10 @@ class SQLiteBackend:
                     conn.execute(query, keys)
                     conn.commit()
                 return len(keys)
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def get_by_namespace(self, namespace: str) -> list[dict[str, Any]]:
         """Retrieve all entries in a namespace.
@@ -530,8 +553,10 @@ class SQLiteBackend:
                         }
                     )
                 return results
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def get_keys_by_namespace(self, namespace: str) -> list[str]:
         """Return all active keys in a namespace."""
@@ -544,8 +569,10 @@ class SQLiteBackend:
                     (namespace, now),
                 )
                 return [row[0] for row in cursor.fetchall()]
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def get_by_tag(self, tag: str) -> list[str]:
         """Find all keys that have a specific tag.
@@ -569,8 +596,10 @@ class SQLiteBackend:
                     (tag, time.time()),
                 )
                 return [row[0] for row in cursor.fetchall()]
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def get_keys_by_tag(self, tag: str) -> list[str]:
         """Compatibility alias for tag lookup."""
@@ -594,8 +623,10 @@ class SQLiteBackend:
                     conn.commit()
                     return 0.0
                 return float(remaining)
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def get_keys_matching_roots(self, roots: builtins.set[str]) -> list[str]:
         """Return active keys matching exact roots or unqualified root suffixes."""
@@ -617,8 +648,10 @@ class SQLiteBackend:
                     if any(":" not in root and candidate.endswith(f":{root}") for root in roots):
                         matches.append(candidate)
                 return matches
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def get_dependents(self, key: str) -> list[str]:
         """Find all entries that depend on a given key.
@@ -644,8 +677,10 @@ class SQLiteBackend:
                     ):
                         dependents.append(row[0])
                 return dependents
-            finally:
-                self._close_conn()
+            except sqlite3.OperationalError as exc:
+                if self._is_locked_error(exc):
+                    self._close_conn()
+                raise
 
     def get_stats(self) -> dict[str, Any]:
         """Return backend statistics.
@@ -685,14 +720,13 @@ class SQLiteBackend:
                     "healthy": True,
                 }
             except Exception as exc:
+                logger.warning("Cache health check failed: %s", exc)
                 return {
                     "backend": "sqlite",
                     "db_path": self._db_path,
                     "healthy": False,
                     "error": str(exc),
                 }
-            finally:
-                self._close_conn()
 
     def close(self) -> None:
         """Close the thread-local database connection."""
@@ -729,8 +763,8 @@ class SQLiteBackend:
             )
             if all_ok:
                 return True
-        except sqlite3.DatabaseError:
-            pass
+        except sqlite3.DatabaseError as exc:
+            logger.warning("Operation failed in sqlite.py: %s", exc, exc_info=True)  # noqa: BLE001
         finally:
             if conn is not None:
                 try:

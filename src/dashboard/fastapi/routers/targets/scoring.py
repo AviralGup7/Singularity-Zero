@@ -13,6 +13,7 @@ from src.dashboard.fastapi.schemas import (
     ErrorResponse,
     HistoricalScoreResponse,
     RiskScoreResponse,
+    TargetComparisonResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -264,7 +265,7 @@ def _get_target_comparison_details(target_name: str, services: Any) -> dict[str,
 
 @router.get(
     "/compare",
-    response_model=Any,
+    response_model=TargetComparisonResponse,
     responses={404: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
     summary="Compare two targets side by side",
 )
@@ -273,7 +274,7 @@ async def compare_targets(
     target_b: str = Query(..., description="Second target name"),
     _auth: Any = Depends(require_auth),
     services: Any = Depends(get_queue_client),
-) -> Any:
+) -> TargetComparisonResponse:
     """Compare targets with traversal protection. (SEC-FIX)"""
     tenant_id = (_auth or {}).get("tenant_id", "default")
     if not is_target_owned_by_tenant(target_a, tenant_id) or not is_target_owned_by_tenant(
@@ -284,7 +285,7 @@ async def compare_targets(
     res_a = _get_target_comparison_details(target_a, services)
     res_b = _get_target_comparison_details(target_b, services)
 
-    return {
-        "target_a": res_a,
-        "target_b": res_b,
-    }
+    return TargetComparisonResponse(
+        target_a=res_a,
+        target_b=res_b,
+    )

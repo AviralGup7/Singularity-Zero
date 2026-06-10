@@ -508,36 +508,6 @@ async def _execute_race(
 
     if response_cache is None:
         limits = httpx.Limits(max_connections=0, max_keepalive_connections=0)
-        object()
-        try:
-            import contextvars
-
-            race_ctx: contextvars.Context[Any] = contextvars.copy_context()
-            [
-                race_ctx.run(
-                    _race_single_request_async,
-                    None,  # placeholder for client
-                    url,
-                    i,
-                    method,
-                    request_headers,
-                    body,
-                )
-                for i in range(count)
-            ]
-        except Exception:  # pragma: no cover - contextvars optional
-            [
-                _race_single_request_async(
-                    None,  # type: ignore[arg-type]
-                    url,
-                    i,
-                    method,
-                    request_headers,
-                    body,
-                )
-                for i in range(count)
-            ]
-
         async with httpx.AsyncClient(limits=limits, timeout=30.0) as client:
             bound_tasks = [
                 _race_single_request_async(client, url, i, method, request_headers, body)
@@ -805,8 +775,8 @@ def _parse_udp_endpoint(worker_url: str) -> tuple[str, int]:
         host, _, port_s = worker_url.rsplit(":", 1)
         try:
             return host, int(port_s)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            logger.warning("Operation failed in race_condition_helpers.py: %s", exc, exc_info=True)  # noqa: BLE001
     return worker_url, 0
 
 
@@ -865,8 +835,8 @@ def sync_workers(workers: list[str], timeout: float = 1.0) -> list[_UdpTimestamp
             if sock is not None:
                 try:
                     sock.close()
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logger.warning("Operation failed in race_condition_helpers.py: %s", exc, exc_info=True)  # noqa: BLE001
     return results
 
 

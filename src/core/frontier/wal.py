@@ -90,9 +90,14 @@ def _safe_run_filename(run_id: str) -> str:
     return safe
 
 
+_MAX_AOF_LOCKS = 512
+
+
 def _aof_lock(path: Path) -> threading.Lock:
     lock_key = str(path.resolve(strict=False))
     with _AOF_LOCKS_GUARD:
+        if len(_AOF_LOCKS) >= _MAX_AOF_LOCKS:
+            _AOF_LOCKS.pop(next(iter(_AOF_LOCKS)))
         lock = _AOF_LOCKS.get(lock_key)
         if lock is None:
             lock = threading.Lock()
@@ -270,10 +275,10 @@ class FrontierWAL:
             crc64_hash = compute_crc64(packed_delta)
 
             payload: dict[bytes, bytes] = {
-                b"ts": str(event_ts).encode(),
-                b"stage": stage_name.encode(),
-                b"tx_id": tx_id.encode(),
-                b"crc64": crc64_hash.encode(),
+                b"ts": str(event_ts).encode("utf-8"),
+                b"stage": stage_name.encode("utf-8"),
+                b"tx_id": tx_id.encode("utf-8"),
+                b"crc64": crc64_hash.encode("utf-8"),
                 b"delta": packed_delta,
             }
 
@@ -341,8 +346,11 @@ class FrontierWAL:
         try:
             start_id_norm = start_id.strip() if isinstance(start_id, str) else None
             cursor = f"({start_id_norm}" if _is_redis_stream_id(start_id_norm) else "-"
+            max_deltas = 10000
+            iteration = 0
 
-            while True:
+            while iteration < max_deltas:
+                iteration += 1
                 raw_items = cast(
                     list[Any],
                     self._redis_call(
@@ -385,6 +393,8 @@ class FrontierWAL:
                     )
                 last_id = raw_items[-1][0]
                 cursor = f"({_decode_text(last_id)}"
+            if iteration >= max_deltas:
+                logger.warning("WAL Redis xrange recovery hit max_deltas=%d; partial recovery only", max_deltas)
         except (redis.exceptions.RedisError, Exception) as exc:
             logger.error("WAL Redis xrange recovery failed, falling back to AOF: %s", exc)
             return [], True

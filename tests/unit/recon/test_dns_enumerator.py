@@ -121,3 +121,12 @@ class TestDnsEnumerator:
 
             assert any(f["issue"] == "missing_spf" for f in findings)
             assert any(f["issue"] == "missing_dmarc" for f in findings)
+
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("lang", ["fr_FR.UTF-8", "ja_JP.UTF-8", "en_US.UTF-8"])
+    async def test_dns_enumeration_locale_independence(self, lang):
+        from src.recon.dns_enumerator import _parse_nslookup_output
+        sample_output = "example.com\tnameserver = ns1.example.com.\n"
+        results = _parse_nslookup_output(sample_output, "NS")
+        assert results == ["ns1.example.com"]

@@ -176,7 +176,6 @@ class TimingComparator:
     def update_baseline(self, new_responses: Sequence[float]) -> None:
         """Adaptively update baseline mean/std with new latency samples."""
         new_floats = [float(v) for v in new_responses]
-        self.baseline + new_floats
         self.baseline.extend(new_floats)
         self._baseline_mean = statistics.mean(self.baseline) if self.baseline else 0.0
         self._baseline_std = statistics.pstdev(self.baseline) if len(self.baseline) > 0 else 0.0

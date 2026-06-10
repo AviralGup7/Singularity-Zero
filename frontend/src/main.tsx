@@ -13,6 +13,10 @@ window.addEventListener('vite:preloadError', (event) => {
 // ============================================
 // COMPREHENSIVE ERROR HANDLING (CSP-safe)
 // ============================================
+// NOTE: Duplicate error listeners in init.ts are now guarded by an
+// idempotency flag (setupGlobalErrorTracking). The listeners here
+// handle boot-time errors BEFORE the React tree mounts; the init.ts
+// listeners take over after mount for runtime errors.
 
 function showErrorOverlay(title: string, message: string, stack?: string) {
   const existing = document.getElementById('error-overlay');

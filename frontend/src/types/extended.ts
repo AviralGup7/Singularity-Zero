@@ -168,7 +168,10 @@ export interface CachePerformanceHistoryResponse {
 
 export interface ReadinessResponse {
   ready: boolean;
+  status: string;
   checks: Record<string, boolean>;
+  degraded_reasons: string[];
+  dependencies: Record<string, { status: string; error?: string }>;
 }
 
 export interface JobTimelineEntry {

@@ -12,6 +12,7 @@ locals {
   redis_host = var.platform == "aws" ? one(aws_elasticache_replication_group.redis[*].primary_endpoint_address) : one(google_redis_instance.redis[*].host)
   redis_port = var.platform == "aws" ? 6379 : one(google_redis_instance.redis[*].port)
   sql_host   = var.platform == "aws" ? one(aws_db_instance.postgres[*].address) : one(google_sql_database_instance.postgres[*].private_ip_address)
+  sql_host_public = var.platform == "aws" ? one(aws_db_instance.postgres[*].address) : ""
 }
 
 resource "random_password" "db_password" {
@@ -40,6 +41,7 @@ resource "aws_db_instance" "postgres" {
   db_subnet_group_name       = aws_db_subnet_group.postgres[0].name
   vpc_security_group_ids     = var.aws_security_group_ids
   storage_encrypted          = true
+  publicly_accessible         = false
   backup_retention_period    = 7
   deletion_protection        = true
   multi_az                   = true
@@ -150,6 +152,10 @@ resource "kubernetes_secret" "app" {
   }
 
   type = "Opaque"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "kubernetes_deployment" "dashboard" {
@@ -209,7 +215,7 @@ resource "kubernetes_deployment" "dashboard" {
 
           readiness_probe {
             http_get {
-              path = "/api/health/live"
+              path = "/health"
               port = "http"
             }
             initial_delay_seconds = 15
@@ -218,7 +224,7 @@ resource "kubernetes_deployment" "dashboard" {
 
           liveness_probe {
             http_get {
-              path = "/api/health/live"
+              path = "/health"
               port = "http"
             }
             initial_delay_seconds = 30

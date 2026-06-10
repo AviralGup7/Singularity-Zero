@@ -21,6 +21,35 @@ declare module 'axios' {
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 
+const MAX_RESPONSE_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_PROTOCOLS = ['http:', 'https:'];
+
+function validateUrl(url: string, baseURL?: string): boolean {
+  try {
+    const resolved = baseURL ? new URL(url, baseURL) : new URL(url);
+    if (!ALLOWED_PROTOCOLS.includes(resolved.protocol)) return false;
+    if (resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1') return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let csrfToken: string | null = null;
+
+async function fetchCsrfToken(): Promise<string | null> {
+  try {
+    const response = await axios.get<{ csrf_token: string }>(`${API_BASE}/api/csrf-token`, {
+      withCredentials: true,
+      timeout: 5000,
+    });
+    csrfToken = response.data.csrf_token;
+    return csrfToken;
+  } catch {
+    return null;
+  }
+}
+
 function generateRequestId(): string {
   return `req-${crypto.randomUUID()}`;
 }
@@ -48,7 +77,7 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  async (config: InternalAxiosRequestConfig) => {
     const token = getStreamToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -56,6 +85,10 @@ apiClient.interceptors.request.use(
 
     config.headers['X-Request-ID'] = generateRequestId();
     config.metadata = { startTime: Date.now() };
+
+    if (config.url && !validateUrl(config.url, config.baseURL)) {
+      return Promise.reject(new Error('Invalid request URL'));
+    }
 
     const user = useAuthStore.getState().user;
     if (user?.tenantId) {
@@ -65,9 +98,19 @@ apiClient.interceptors.request.use(
       config.headers['X-Organization-ID'] = user.organizationId;
     }
 
-    // Fix S0-3: Mark mutation start to prevent stale reads during mutations
     if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase()) && config.url) {
       apiCache.markMutationStart(config.url);
+    }
+
+    if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
+      if (csrfToken) {
+        config.headers['X-CSRF-Token'] = csrfToken;
+      } else {
+        const token = await fetchCsrfToken();
+        if (token) {
+          config.headers['X-CSRF-Token'] = token;
+        }
+      }
     }
 
     return config;
@@ -85,13 +128,22 @@ apiClient.interceptors.response.use(
   (response) => {
     const responseTime = Date.now() - (response.config.metadata?.startTime ?? Date.now());
      
-    // Fix S0-3: Mark mutation end
+    if (response.headers['content-length']) {
+      const size = parseInt(response.headers['content-length'], 10);
+      if (size > MAX_RESPONSE_SIZE_BYTES) {
+        captureException(new Error(`Response too large: ${size} bytes`), {
+          component: 'apiClient',
+          action: 'response_size',
+        });
+        return Promise.reject(new Error('Response too large'));
+      }
+    }
+
     if (response.config.method && response.config.url) {
       apiCache.markMutationEnd(response.config.url);
       apiCache.invalidateOnMutation(response.config.method, response.config.url);
     }
 
-    // --- Overhaul: Contract Guard Validation ---
     const schema = response.config.schema;
     if (schema) {
       const result = schema.safeParse(response.data);
@@ -103,6 +155,7 @@ apiClient.interceptors.response.use(
           });
           dispatchToast('API Contract Violation Detected (check console)', 'warning');
         }
+        return response;
       }
     }
 
@@ -115,7 +168,6 @@ apiClient.interceptors.response.use(
       const key = apiCache.generateKey(response.config.url ?? '', response.config.params);
    
       const ttlHeader = response.headers?.['x-cache-ttl'];
-      // Use TTL from metadata (passed from cachedGet) or from header
       const ttl = response.config.metadata?.ttl ?? (ttlHeader ? Number(ttlHeader) : undefined);
       if (ttl !== undefined) {
         apiCache.set(key, response.data, ttl);

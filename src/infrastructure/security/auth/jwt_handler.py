@@ -1,5 +1,6 @@
 """JWT token creation and validation using PyJWT."""
 
+import hmac
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -83,7 +84,10 @@ def decode_jwt(token: str, config: SecurityConfig) -> TokenPayload | None:
         # *present*, not that it is one of the values we expect. We accept
         # access and refresh types only.
         token_type = payload_data.get("type")
-        if token_type not in ("access", "refresh"):
+        if not isinstance(token_type, str) or not (
+            hmac.compare_digest(token_type, "access")
+            or hmac.compare_digest(token_type, "refresh")
+        ):
             return None
 
         return TokenPayload(**payload_data)
@@ -124,6 +128,7 @@ def create_access_token(
 
 def create_refresh_token(
     subject: str,
+    role: Role,
     config: SecurityConfig,
     expires_delta: timedelta | None = None,
 ) -> str:
@@ -131,6 +136,8 @@ def create_refresh_token(
 
     Args:
         subject: Token subject (typically user ID or username).
+        role: User role for authorization (preserved from the user's
+            actual role to prevent RBAC bypass via raw string).
         config: Security configuration.
         expires_delta: Custom expiration time.
 
@@ -142,7 +149,7 @@ def create_refresh_token(
 
     payload = TokenPayload(
         sub=subject,
-        role="refresh",
+        role=role.value if isinstance(role, Role) else role,
         exp=int(expires.timestamp()),
         iat=int(now.timestamp()),
         jti=uuid.uuid4().hex,

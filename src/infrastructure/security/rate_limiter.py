@@ -139,7 +139,12 @@ class SlidingWindowCounter:
 
             reset_at = counter["current_window_start"] + self.window_seconds
 
-            if estimated_count >= limit:
+            # SECURITY: Use actual current_count for the rate limit
+            # decision (discrete count), not the weighted estimated_count.
+            # The estimated_count can produce false positives at window
+            # boundaries. Use estimated_count only for the "remaining"
+            # header to give clients a smoother rate-limit experience.
+            if counter["current_count"] >= limit:
                 retry_after = reset_at - now
                 return RateLimitResult(
                     allowed=False,

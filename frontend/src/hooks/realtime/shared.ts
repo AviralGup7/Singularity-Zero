@@ -140,18 +140,11 @@ export class DedupSet {
 
 /**
  * React-friendly wrapper around `DedupSet` — the underlying instance is
- * stable across renders because we hold it in a ref.
+ * stable across renders because we hold it in a ref via lazy initializer.
  */
 export function useDedupSet(options?: DedupSetOptions): DedupSet {
-  const ref = useRef<DedupSet | null>(null);
-  // Standard React lazy-init pattern. The lint rule flags `ref.current`
-  // reads during render, but this *is* the documented way to construct
-  // an instance once per component lifetime.
-  // eslint-disable-next-line react-hooks/refs
-  if (ref.current === null) {
-    ref.current = new DedupSet(options);
-  }
-  return ref.current;
+  const [instance] = useState(() => new DedupSet(options));
+  return instance;
 }
 
 /**

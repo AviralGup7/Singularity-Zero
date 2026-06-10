@@ -1,8 +1,10 @@
-FROM python:3.14-slim-bookworm AS frontend-builder
+FROM python:3.12-slim-bookworm AS frontend-builder
+# Pin base image: python:3.12-slim-bookworm
 
 WORKDIR /app/frontend
 
 # Install Node.js 20 for building frontend
+# Note: node_20.x via nodesource is a rolling release; for strict pinning, use Dockerfile.optimized
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates gnupg \
     && mkdir -p /etc/apt/keyrings \
@@ -21,7 +23,8 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────
 # Runtime stage
 # ──────────────────────────────────────────────────────────
-FROM python:3.14-slim-bookworm AS runtime
+FROM python:3.12-slim-bookworm AS runtime
+# Pin base image: python:3.12-slim-bookworm
 
 WORKDIR /app
 

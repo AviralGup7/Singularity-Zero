@@ -24,6 +24,7 @@ export function useSessionTimeout(onTimeout?: () => void) {
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLockedRef = useRef(false);
+  const pendingResetRef = useRef(false);
   
   useEffect(() => {
     isLockedRef.current = state.isLocked;
@@ -31,13 +32,18 @@ export function useSessionTimeout(onTimeout?: () => void) {
   }, [state.isLocked]);
 
   const resetTimer = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      isLocked: false,
-      showWarning: false,
-      remainingMs: TIMEOUT_MS,
-      lastActivity: Date.now(),
-    }));
+    if (pendingResetRef.current) return;
+    pendingResetRef.current = true;
+    requestAnimationFrame(() => {
+      pendingResetRef.current = false;
+      setState(prev => ({
+        ...prev,
+        isLocked: false,
+        showWarning: false,
+        remainingMs: TIMEOUT_MS,
+        lastActivity: Date.now(),
+      }));
+    });
 
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);

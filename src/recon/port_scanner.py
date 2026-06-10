@@ -15,9 +15,9 @@ integration or for direct service-fingerprinting.
 Both modes are best-effort and never raise. A failed probe contributes
 an empty result for that host; the rest of the scan continues.
 
-When ``naabu`` is available, the CLI invocation probes both TCP (``-top-ports``)
-and a small UDP set (``-u top-udp-ports:50``) unless the caller opts out via
-``top_ports=0`` or supplies their own ``-u`` override in ``extra_args``. Service
+When ``naabu`` is available, the CLI invocation probes TCP (``-top-ports``)
+by default. UDP scanning is not enabled automatically; operators can add it
+via ``extra_args`` (e.g., ``["-u", "top-udp-ports:50"]``). Service
 version detection (``-sV``) is enabled by default unless overridden in
 ``extra_args``.
 """
@@ -126,8 +126,7 @@ def run_naabu_cli(
         args.extend(["-top-ports", str(int(top_ports))])
     else:
         args.extend(["-p", "-"])
-    if top_ports and top_ports > 0 and not any(str(a).startswith("-u") for a in (extra_args or [])):
-        args.extend(["-u", "top-udp-ports:50"])
+
     if not any(str(a).startswith("-sV") for a in (extra_args or [])):
         args.extend(["-sV"])
     if extra_args:
@@ -217,7 +216,15 @@ def socket_port_scan(
     Returns:
         Set of ``host:port`` strings for every open port.
     """
-    port_list = sorted({int(p) for p in ports if 0 < int(p) < 65536})
+    port_set: set[int] = set()
+    for p in ports:
+        try:
+            p_int = int(p)
+        except (ValueError, TypeError):
+            continue
+        if 0 < p_int < 65536:
+            port_set.add(p_int)
+    port_list = sorted(port_set)
     if not port_list:
         return set()
     host_list = [h for h in {h.strip().lower() for h in hosts if _is_scannable_host(h)}]

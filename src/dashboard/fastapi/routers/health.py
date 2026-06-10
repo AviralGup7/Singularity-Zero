@@ -84,14 +84,13 @@ async def mesh_health(request: Request) -> dict[str, Any]:
 
 @router.get(
     "/ready",
-    response_model=ReadinessResponse,
     summary="Readiness check",
 )
 async def readiness_check(
     config: Any = Depends(get_config),
     cache_manager: Any = Depends(get_cache_manager),
-) -> ReadinessResponse:
-    """Readiness check. Returns ready=true if all critical dependencies are UP."""
+) -> dict[str, Any]:
+    """Readiness check. Returns ready=true if all critical dependencies are UP, with degraded state details."""
     from src.dashboard.health import run_health_checks
 
     result = await run_health_checks(
@@ -104,10 +103,27 @@ async def readiness_check(
         storage_config=config.storage_config,
     )
 
-    return ReadinessResponse(
-        ready=result.service.status == "ok",
-        checks=result.service.checks,
-    )
+    checks = result.service.checks
+    degraded_reasons: list[str] = []
+
+    for name, dep in result.service.dependencies.items():
+        if dep.status.value == "down":
+            degraded_reasons.append(f"{name} is unavailable")
+        elif dep.status.value == "degraded":
+            degraded_reasons.append(f"{name} is degraded: {dep.error or 'operating in limited mode'}")
+
+    all_healthy = all(checks.values()) if checks else True
+
+    return {
+        "ready": all_healthy,
+        "status": result.service.status.value,
+        "checks": checks,
+        "degraded_reasons": degraded_reasons,
+        "dependencies": {
+            name: {"status": dep.status.value, "error": dep.error}
+            for name, dep in result.service.dependencies.items()
+        },
+    }
 
 
 @router.get(
@@ -134,9 +150,9 @@ async def liveness_check() -> HealthResponse:
 
     status = "ok" if checks["event_loop_running"] and uptime > 0 else "error"
 
-    return HealthResponse(  # type: ignore[call-arg]
+    return HealthResponse(
         status=status,
         timestamp=datetime.now(UTC).isoformat(),
         uptime_seconds=round(uptime, 2),
-        checks=checks,
+        dependencies=checks,
     )

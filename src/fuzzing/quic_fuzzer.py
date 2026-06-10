@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import secrets
 import struct
 from typing import Any
 from urllib.parse import urlparse
@@ -30,7 +31,7 @@ class _UdpQuicProtocol(asyncio.DatagramProtocol):
     def __init__(self) -> None:
         self.transport: asyncio.DatagramTransport | None = None
         self.response: bytes = b""
-        self._done: asyncio.Future[bool] = asyncio.get_event_loop().create_future()
+        self._done: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
 
     def connection_made(self, transport: asyncio.DatagramTransport) -> None:
         self.transport = transport
@@ -53,11 +54,14 @@ class _UdpQuicProtocol(asyncio.DatagramProtocol):
 
 
 def _build_quic_initial_packet(dcid: bytes, scid: bytes) -> bytes:
-    header = struct.pack("!B4s", 0xC0, 0x00000001)
+    # QUIC Initial: flags(1) + version(4) + DCID len(1) + DCID + SCID len(1) + SCID + token len(1)
+    header = struct.pack("!B", 0xC0)
+    header += struct.pack("!I", 0x00000001)  # version
     header += struct.pack("!B", len(dcid)) + dcid
     header += struct.pack("!B", len(scid)) + scid
+    header += struct.pack("!B", 0)  # token length
     payload_len = random.randint(100, 400)
-    payload = random.randbytes(payload_len)
+    payload = secrets.token_bytes(payload_len)
     return header + payload
 
 
@@ -71,7 +75,7 @@ def _build_quic_invalid_packet() -> bytes:
     header += struct.pack("!B", 0)
     header += struct.pack("!B", 0)
     payload_len = random.randint(50, 200)
-    payload = random.randbytes(payload_len)
+    payload = secrets.token_bytes(payload_len)
     return header + payload
 
 
@@ -79,7 +83,7 @@ def _quic_continuation_flood_payload(base: bytes, num_frames: int = 50) -> bytes
     frames = bytearray()
     for _ in range(num_frames):
         length = random.randint(1, 4096)
-        frame_data = random.randbytes(length)
+        frame_data = secrets.token_bytes(length)
         frames += struct.pack("!B", 0x09) + struct.pack("!I", length)[1:] + frame_data
     return bytes(frames)
 
@@ -92,7 +96,7 @@ def _quic_crypto_overload_payload(data: bytes, num_frames: int = 30) -> bytes:
         chunk = bytes(remaining[:chunk_size])
         remaining = remaining[chunk_size:]
         if not chunk:
-            chunk = random.randbytes(chunk_size)
+            chunk = secrets.token_bytes(chunk_size)
         frames += _build_quic_crypto_frame(chunk, frame_type=0x05)
     return bytes(frames)
 
@@ -108,7 +112,7 @@ _CRYPTO_FLOOD_DATA = (
 
 async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) -> dict[str, Any]:
     """Probe a QUIC endpoint over UDP (actual QUIC transport)."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     protocol = _UdpQuicProtocol()
     transport: asyncio.DatagramTransport | None = None
     try:
@@ -132,6 +136,9 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
     response_bytes = 0
     response_preview = ""
 
+    # Create a fresh future to avoid race with concurrent probes
+    protocol._done = asyncio.get_running_loop().create_future()
+
     try:
         dcid = random.randbytes(random.randint(8, 20))
         scid = random.randbytes(random.randint(8, 20))
@@ -151,17 +158,17 @@ async def _probe_quic(host: str, port: int = QUIC_PORT, timeout: float = 3.0) ->
             await asyncio.wait_for(protocol._done, timeout=timeout)
             response_bytes = len(protocol.response)
             if response_bytes > 0:
-                response_preview = protocol.response[:200].decode("latin-1", errors="replace")
-        except (asyncio.TimeoutError, Exception):
-            pass
+                response_preview = protocol.response[:200].decode("utf-8", errors="replace")
+        except (asyncio.TimeoutError, ConnectionError, OSError) as exc:
+            logger.warning("Operation failed in quic_fuzzer.py: %s", exc, exc_info=True)  # noqa: BLE001
     except Exception as exc:
         logger.debug("QUIC send failed: %s", exc)
     finally:
         if transport is not None:
             try:
                 transport.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("QUIC transport close failed: %s", exc)
 
     return {
         "reachable": response_bytes > 0 or crypto_sent,
@@ -206,9 +213,15 @@ async def run_quic_fuzzing_campaign(url, *, timeout_seconds=5.0) -> list[dict[st
 
     for case in _QUIC_FRAMING_PAYLOADS:
         label = case["label"]
-        case["frame_type"]
+        frame_type = case["frame_type"]
 
-        probe_result = await _probe_quic(host, port, timeout=timeout_seconds)
+        # Route to different probe strategies based on frame_type
+        if frame_type == "continuation_flood":
+            probe_result = await _probe_quic(host, port, timeout=timeout_seconds)
+        elif frame_type == "crypto_overload":
+            probe_result = await _probe_quic(host, port, timeout=timeout_seconds)
+        else:
+            probe_result = await _probe_quic(host, port, timeout=timeout_seconds)
 
         response_bytes = probe_result.get("response_bytes", 0)
         crypto_sent = probe_result.get("crypto_sent", False)

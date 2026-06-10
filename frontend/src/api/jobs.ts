@@ -1,14 +1,25 @@
 import type { Job, JobLogs, RemediationResponse, TraceLink } from '@/types/api';
 import { apiClient, cachedGet } from './core';
 import { apiCache } from './cache';
+import { appendStreamToken } from './streamAuth';
 
 import { JobSchema } from './schemas';
 import { z } from 'zod';
 
-export async function getJobs(signal?: AbortSignal, ttl?: number): Promise<Job[]> {
+export interface JobsListParams {
+  page?: number;
+  page_size?: number;
+  sort_by?: string;
+  sort_dir?: 'asc' | 'desc';
+  status?: string;
+  search?: string;
+}
+
+export async function getJobs(params?: JobsListParams, signal?: AbortSignal, ttl?: number): Promise<Job[]> {
   const res = await cachedGet<{ jobs: Job[]; total: number }>('/api/jobs', { 
     signal, 
     ttl,
+    params,
     schema: z.object({ jobs: z.array(JobSchema) })
   });
   return res.jobs ?? [];
@@ -64,7 +75,26 @@ export interface StartJobPayload {
 }
 
 export async function startJob(payload: StartJobPayload, signal?: AbortSignal): Promise<Job> {
-  const { data } = await apiClient.post<Job>('/api/jobs/start', payload, { signal });
+  const { depth, concurrency, rate_limit_rps, excluded_paths, ...rest } = payload;
+
+  const runtime_overrides = { ...(rest.runtime_overrides ?? {}) };
+  if (concurrency !== undefined) {
+    runtime_overrides['httpx_threads'] = String(concurrency);
+  }
+  if (rate_limit_rps !== undefined) {
+    runtime_overrides['request_rate_per_second'] = String(rate_limit_rps);
+  }
+  if (depth !== undefined) {
+    // If the backend template supports depth settings, pass it here
+    runtime_overrides['depth'] = String(depth);
+  }
+
+  const finalPayload = {
+    ...rest,
+    runtime_overrides,
+  };
+
+  const { data } = await apiClient.post<Job>('/api/jobs/start', finalPayload, { signal });
   apiCache.invalidatePrefix('/api/jobs');
   apiCache.invalidatePrefix('/api/targets');
   apiCache.invalidatePrefix('/api/findings');
@@ -79,6 +109,18 @@ export async function stopJob(jobId: string, signal?: AbortSignal): Promise<Job>
 
 export async function restartJob(jobId: string, signal?: AbortSignal): Promise<Job> {
   const { data } = await apiClient.post<Job>(`/api/jobs/${jobId}/restart-safe`, undefined, { signal });
+  apiCache.invalidatePrefix('/api/jobs');
+  return data;
+}
+
+export async function pauseJob(jobId: string, signal?: AbortSignal): Promise<Job> {
+  const { data } = await apiClient.post<Job>(`/api/jobs/${jobId}/pause`, undefined, { signal });
+  apiCache.invalidatePrefix('/api/jobs');
+  return data;
+}
+
+export async function resumeJob(jobId: string, signal?: AbortSignal): Promise<Job> {
+  const { data } = await apiClient.post<Job>(`/api/jobs/${jobId}/resume`, undefined, { signal });
   apiCache.invalidatePrefix('/api/jobs');
   return data;
 }
@@ -100,4 +142,8 @@ export async function getHistoricalDurations(signal?: AbortSignal): Promise<Hist
     }
     throw error;
   }
+}
+
+export function jobProgressStreamUrl(jobId: string): string {
+  return appendStreamToken(`/api/jobs/${encodeURIComponent(jobId)}/progress/stream`);
 }

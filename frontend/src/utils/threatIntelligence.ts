@@ -60,6 +60,11 @@ function setCached<T>(key: string, data: T): void {
 }
 
 export async function lookupCVE(cveId: string): Promise<CVEInfo | null> {
+  const CVE_PATTERN = /^CVE-\d{4}-\d{4,}$/;
+  if (!CVE_PATTERN.test(cveId)) {
+    return null;
+  }
+
   const cached = getCached<CVEInfo>(`cve:${cveId}`);
   if (cached) return cached;
 
@@ -127,6 +132,11 @@ export async function lookupCWE(cweId: string): Promise<CWEInfo | null> {
 }
 
 export async function lookupEPSS(cveId: string): Promise<EPSSInfo | null> {
+  const CVE_PATTERN = /^CVE-\d{4}-\d{4,}$/;
+  if (!CVE_PATTERN.test(cveId)) {
+    return null;
+  }
+
   const cached = getCached<EPSSInfo>(`epss:${cveId}`);
   if (cached) return cached;
 

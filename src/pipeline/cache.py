@@ -5,6 +5,7 @@ TTL-based freshness checking.
 """
 
 import gzip
+import io
 import json
 import os
 import tempfile
@@ -12,6 +13,9 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+# Maximum uncompressed size for cached gzip payloads (64 MiB).
+_MAX_DECOMPRESSED_BYTES: int = 64 * 1024 * 1024
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.pipeline.unified_cache import (
@@ -62,11 +66,25 @@ def _read_cached_payload(path: Path) -> Any | None:
 
     try:
         if resolved_path.name.endswith(".gz"):
-            data = gzip.decompress(resolved_path.read_bytes())
+            raw = resolved_path.read_bytes()
+            decompressor = gzip.GzipFile(fileobj=io.BytesIO(raw))
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = decompressor.read(8192)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _MAX_DECOMPRESSED_BYTES:
+                    raise ValueError(
+                        f"Gzip payload exceeds {_MAX_DECOMPRESSED_BYTES} byte limit"
+                    )
+                chunks.append(chunk)
+            data = b"".join(chunks)
             return json.loads(data.decode("utf-8"))
         else:
             return json.loads(resolved_path.read_text(encoding="utf-8"))
-    except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError) as exc:
+    except (EOFError, UnicodeDecodeError, json.JSONDecodeError, OSError, ValueError) as exc:
         logger.warning("Failed to read cache file (%s): %s", exc.__class__.__name__, resolved_path)
         return None
 
@@ -145,13 +163,13 @@ def _atomic_write(path: Path, data: bytes) -> None:
         if fd is not None:
             try:
                 os.close(fd)
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Operation failed in cache.py: %s", exc, exc_info=True)  # noqa: BLE001
         if tmp_path is not None:
             try:
                 os.unlink(tmp_path)
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Operation failed in cache.py: %s", exc, exc_info=True)  # noqa: BLE001
         raise
 
 

@@ -6,13 +6,14 @@ hosts for inclusion in pipeline reports.
 
 import base64
 import hashlib
+import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import requests
-import urllib3
 from PIL import Image
 from scipy.fft import dct
 
@@ -22,8 +23,11 @@ from src.pipeline.baseline_store import ScreenshotBaselineStore
 from src.pipeline.storage import ensure_dir
 from src.pipeline.tools import RetryPolicy, build_retry_policy, run_command
 
-# Disable insecure request warnings for target probing
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+logger = logging.getLogger(__name__)
+
+_ALLOW_INSECURE_TLS = os.environ.get("ALLOW_INSECURE_TLS", "0").strip().lower() in (
+    "1", "true", "yes",
+)
 
 
 def detect_browser(candidates: list[str]) -> str | None:
@@ -49,9 +53,13 @@ def compute_dom_hash(url: str) -> str:
     """Fetch the DOM / HTML content of a URL and compute its hash."""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows / Security Pipeline Screenshot)"}
-        response = requests.get(url, timeout=5, headers=headers, verify=False)
+        verify_tls = not _ALLOW_INSECURE_TLS
+        if not verify_tls:
+            logger.warning("SECURITY: TLS verification disabled for DOM hash fetch of %s", url)
+        response = requests.get(url, timeout=5, headers=headers, verify=verify_tls)
         return hashlib.sha256(response.text.encode("utf-8")).hexdigest()
-    except Exception:
+    except Exception as exc:
+        emit_warning(f"DOM hash computation failed for {url}: {exc}")
         return ""
 
 
@@ -67,7 +75,8 @@ def is_blank_page(image_path: Path, threshold_pct: float = 0.5) -> bool:
             total_pixels = arr.shape[0] * arr.shape[1]
             non_white_pct = (non_white_count / total_pixels) * 100
             return bool(non_white_pct <= threshold_pct)
-    except Exception:
+    except Exception as exc:
+        emit_warning(f"Blank page detection failed for {image_path}: {exc}")
         return False
 
 
@@ -84,7 +93,8 @@ def compute_phash(image_path: Path) -> str:
             median_val = np.median(dct_low_flat[1:])
             bits = (dct_low_flat > median_val).astype(int)
             return "".join(f"{val:02x}" for val in np.packbits(bits))
-    except Exception:
+    except Exception as exc:
+        emit_warning(f"Perceptual hash computation failed for {image_path}: {exc}")
         return ""
 
 
@@ -93,7 +103,8 @@ def hamming_distance(hash1: str, hash2: str) -> int:
         b1 = bytes.fromhex(hash1)
         b2 = bytes.fromhex(hash2)
         return sum(bin(x1 ^ x2).count('1') for x1, x2 in zip(b1, b2))
-    except Exception:
+    except (ValueError, TypeError) as exc:
+        emit_warning(f"Hamming distance computation failed: {exc}")
         return 999
 
 
@@ -181,8 +192,8 @@ def _capture_single(
                             try:
                                 destination.write_bytes(base64.b64decode(base_blob))
                                 image_hash = base_hash
-                            except Exception:
-                                pass
+                            except (ValueError, TypeError) as exc:
+                                emit_warning(f"Failed to write cached baseline: {exc}")
 
                 # Update the store
                 try:

@@ -147,10 +147,10 @@ def calculate_overall_grc_score(control_maturities: dict[str, ControlMaturity]) 
     overall_score = total_weight / evaluated_count
 
     # Define Bands:
-    # FAIL: overall_score < 50.0 or any critical FAIL controls
+    # FAIL: overall_score < 50.0 or any FAIL/AT_RISK controls
     # PASS: overall_score >= 85.0 and zero FAIL/AT_RISK controls
     # PARTIAL: fallback intermediate state
-    if any(m == ControlMaturity.FAIL for m in control_maturities.values()):
+    if any(m in (ControlMaturity.FAIL, ControlMaturity.AT_RISK) for m in control_maturities.values()):
         band = "FAIL"
     elif overall_score < 50.0:
         band = "FAIL"

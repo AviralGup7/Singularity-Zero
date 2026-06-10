@@ -61,7 +61,7 @@ class RiskScore:
         import hashlib
 
         raw = f"{run_id}:{endpoint}:{host}:{category}"
-        score_id = f"rs-{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
+        score_id = f"rs-{hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]}"
 
         components = {
             "prior_risk": prior_risk,

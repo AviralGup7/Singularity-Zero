@@ -107,6 +107,10 @@ class EPSSClient:
             if persistent and not persistent.is_stale(self.cache_ttl_seconds):
                 self._memory_cache[cve_id] = persistent
                 return persistent
+            # Stale persistent cache: populate memory so callers
+            # get a value even when network is disabled.
+            if persistent is not None:
+                self._memory_cache[cve_id] = persistent
 
         # Avoid hammering the upstream API when offline. If the
         # environment explicitly disables network access, skip.

@@ -20,13 +20,16 @@ from fastapi import FastAPI
 """
 
 import asyncio
+import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import FastAPI, Request
+from pydantic import BaseModel, Field, ConfigDict
 from starlette.websockets import WebSocket
+
 
 from src.core.logging.trace_logging import get_pipeline_logger
 from src.websocket_server.broadcaster import Broadcaster
@@ -41,6 +44,26 @@ from src.websocket_server.protocol import (
 from src.websocket_server.reconnect import ReconnectionManager
 
 logger = get_pipeline_logger(__name__)
+
+
+class BroadcastPayload(BaseModel):
+    """Request body for admin WebSocket broadcast."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    channel: str = Field(..., min_length=1, max_length=256)
+    message: str = Field(..., min_length=1, max_length=4096)
+
+
+class AdminConfigPayload(BaseModel):
+    """Request body for admin WebSocket config updates."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_connections_per_user: int | None = Field(default=None, ge=1, le=1000)
+    max_connections_per_ip: int | None = Field(default=None, ge=1, le=1000)
+    stale_timeout: float | None = Field(default=None, ge=1.0, le=3600.0)
+    max_connection_attempts_per_minute: int | None = Field(default=None, ge=1, le=600)
 
 
 # A simple callable that, given a job id, returns the tenant that owns it.
@@ -60,14 +83,15 @@ def _default_job_tenant_resolver(job_id: str) -> str | None:
     """
     try:
         from src.dashboard import job_state as dashboard_job_state
-    except Exception:  # noqa: BLE001
+    except (ImportError, ModuleNotFoundError):
         return None
     get_job = getattr(dashboard_job_state, "get_job", None)
     if not callable(get_job):
         return None
     try:
         job = get_job(job_id)
-    except Exception:  # noqa: BLE001
+    except (KeyError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Job lookup failed for %s: %s", job_id, exc)
         return None
     if not isinstance(job, dict):
         return None
@@ -123,6 +147,15 @@ class WSServices:
             return resolved
         return self.default_tenant_id
 
+    @staticmethod
+    def _log_task_exception(task: asyncio.Task) -> None:
+        """Log exceptions from fire-and-forget broadcast tasks."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.warning("Broadcast task %s failed: %s", task.get_name(), exc)
+
     def broadcast_progress(
         self,
         job_id: str,
@@ -167,10 +200,12 @@ class WSServices:
             target=target,
         )
         tenant = tenant_id or self._tenant_for_job(job_id)
-        return asyncio.create_task(
+        task = asyncio.create_task(
             self._broadcast_to_job_and_tenant(msg, job_id, tenant),
             name=f"ws-progress-{job_id}",
         )
+        task.add_done_callback(self._log_task_exception)
+        return task
 
     def broadcast_telemetry(
         self,
@@ -203,10 +238,12 @@ class WSServices:
             metadata=metadata or {},
         )
         tenant = tenant_id or self.default_tenant_id
-        return asyncio.create_task(
+        task = asyncio.create_task(
             self.broadcaster.broadcast_to_group(f"global:{tenant}", msg),
             name=f"ws-telemetry-{model_id}",
         )
+        task.add_done_callback(self._log_task_exception)
+        return task
 
     def broadcast_status(
         self,
@@ -253,10 +290,12 @@ class WSServices:
             metadata=metadata or {},
         )
         tenant = tenant_id or self._tenant_for_job(job_id)
-        return asyncio.create_task(
+        task = asyncio.create_task(
             self._broadcast_to_job_and_tenant(msg, job_id, tenant),
             name=f"ws-status-{job_id}",
         )
+        task.add_done_callback(self._log_task_exception)
+        return task
 
     def broadcast_log(
         self,
@@ -288,10 +327,12 @@ class WSServices:
             level=level,
         )
         if tenant_id is None:
-            return asyncio.create_task(
+            task = asyncio.create_task(
                 self.broadcaster.broadcast_to_group(f"logs:{job_id}", msg),
                 name=f"ws-log-{job_id}",
             )
+            task.add_done_callback(self._log_task_exception)
+            return task
         tenant = tenant_id or self._tenant_for_job(job_id)
 
         async def _fanout() -> int:
@@ -303,7 +344,9 @@ class WSServices:
             )
             return logs_sent + global_sent
 
-        return asyncio.create_task(_fanout(), name=f"ws-log-{job_id}")
+        task = asyncio.create_task(_fanout(), name=f"ws-log-{job_id}")
+        task.add_done_callback(self._log_task_exception)
+        return task
 
     async def _broadcast_to_job_and_tenant(
         self,
@@ -376,8 +419,8 @@ class WSServices:
             self._cleanup_task.cancel()
             try:
                 await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in integration.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         await self.heartbeat.stop_all()
         await self.broadcaster.stop()
@@ -397,7 +440,7 @@ def setup_websocket_routes(
     max_connections_per_ip: int = 20,
     heartbeat_interval: float = 30.0,
     heartbeat_timeout: float = 90.0,
-    reconnect_window: float = 300.0,
+    reconnect_window: float = 120.0,
     cleanup_interval: float = 60.0,
     redis_url: str | None = None,
     redis_channel: str = "ws:broadcasts",
@@ -528,7 +571,7 @@ def setup_websocket_routes(
             if broadcaster._redis_client is not None:
                 try:
                     await broadcaster._redis_client.ping()
-                except Exception:
+                except (OSError, ConnectionError, TimeoutError):
                     redis_ok = False
             else:
                 redis_ok = False
@@ -539,13 +582,6 @@ def setup_websocket_routes(
             status_code=200 if redis_ok else 503,
             content={"status": "healthy" if redis_ok else "degraded", "connections": connections},
         )
-
-    @app.get("/metrics")
-    async def get_metrics() -> Any:
-        from fastapi import Response
-        from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-
-        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     # ------------------------------------------------------------------
     # Admin route protection & audit logging
@@ -595,6 +631,14 @@ def setup_websocket_routes(
 
     def _require_admin(request: Any, action: str) -> None:
         from fastapi import HTTPException
+
+        # If ADMIN_API_KEY is configured, validate it
+        admin_api_key = os.environ.get("ADMIN_API_KEY", "")
+        if admin_api_key:
+            provided_key = request.headers.get("X-Admin-Key", "")
+            if not provided_key or provided_key != admin_api_key:
+                _audit_admin(action, request, {"auth": "api_key_invalid"})
+                raise HTTPException(status_code=403, detail="Invalid or missing admin API key")
 
         if not effective_admin_roles:
             # Opt-out: no admin roles required. Still emit an audit entry.
@@ -651,17 +695,27 @@ def setup_websocket_routes(
         return {"status": "disconnected", "connection_id": connection_id}
 
     @app.post("/admin/websocket/broadcast")
-    async def admin_broadcast(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
+    async def admin_broadcast(request: Request, payload: BroadcastPayload) -> dict[str, Any]:
         from fastapi import HTTPException
 
         from src.websocket_server.protocol import StatusMessage
 
         _require_admin(request, "admin_broadcast")
 
-        channel = payload.get("channel")
-        message_text = payload.get("message")
-        if not channel or not message_text:
-            raise HTTPException(status_code=400, detail="Missing channel or message")
+        channel = payload.channel
+        message_text = payload.message
+
+        # Validate channel to prevent injection of Redis-special characters or path traversal
+        import re as _re
+        if not _re.match(r'^[a-zA-Z0-9_\-:.]+$', channel) or '..' in channel or '/' in channel:
+            raise HTTPException(status_code=400, detail="Invalid channel name")
+
+        # Block internal system group prefixes to prevent broadcasting to
+        # privileged channels (e.g. global:<tenant>, logs:<job_id>).
+        _INTERNAL_PREFIXES = ("global:", "logs:", "dashboard:", "job:")
+        if any(channel.startswith(p) for p in _INTERNAL_PREFIXES):
+            raise HTTPException(status_code=400, detail="Cannot broadcast to internal channels")
+
         msg = StatusMessage(
             job_id="admin", status="announcement", metadata={"message": message_text}
         )
@@ -677,18 +731,16 @@ def setup_websocket_routes(
         return stats
 
     @app.post("/admin/websocket/config")
-    async def admin_config(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
+    async def admin_config(request: Request, payload: AdminConfigPayload) -> dict[str, Any]:
         _require_admin(request, "admin_config")
-        if "max_connections_per_user" in payload:
-            manager.max_connections_per_user = int(payload["max_connections_per_user"])
-        if "max_connections_per_ip" in payload:
-            manager.max_connections_per_ip = int(payload["max_connections_per_ip"])
-        if "stale_timeout" in payload:
-            manager.stale_timeout = float(payload["stale_timeout"])
-        if "max_connection_attempts_per_minute" in payload:
-            manager.max_connection_attempts_per_minute = int(
-                payload["max_connection_attempts_per_minute"]
-            )
+        if payload.max_connections_per_user is not None:
+            manager.max_connections_per_user = payload.max_connections_per_user
+        if payload.max_connections_per_ip is not None:
+            manager.max_connections_per_ip = payload.max_connections_per_ip
+        if payload.stale_timeout is not None:
+            manager.stale_timeout = payload.stale_timeout
+        if payload.max_connection_attempts_per_minute is not None:
+            manager.max_connection_attempts_per_minute = payload.max_connection_attempts_per_minute
         return {
             "status": "updated",
             "config": {
@@ -748,6 +800,13 @@ def integrate_with_pipeline_progress(
         lock: Optional threading lock for thread-safe access to job_state_store.
     """
 
+    from src.dashboard import job_state
+
+    # Guard against double-patching (e.g. hot-reload / multiple workers).
+    if getattr(job_state.apply_progress, "_ws_patched", False):
+        logger.debug("Pipeline progress integration already active, skipping")
+        return
+
     original_apply_progress: Any = None
     try:
         from src.dashboard.job_state import apply_progress as _orig_apply_progress
@@ -759,7 +818,11 @@ def integrate_with_pipeline_progress(
 
     def _patched_apply_progress(job: dict[str, Any], payload: dict[str, Any]) -> None:
         """Wrapped apply_progress that also broadcasts WebSocket updates."""
-        original_apply_progress(job, payload)
+        if lock is not None:
+            with lock:
+                original_apply_progress(job, payload)
+        else:
+            original_apply_progress(job, payload)
 
         job_id = job.get("id", "")
         if not job_id:
@@ -773,27 +836,57 @@ def integrate_with_pipeline_progress(
         processed = job.get("stage_processed")
         total = job.get("stage_total")
 
-        services.broadcast_progress(
-            job_id=job_id,
-            stage=stage,
-            stage_label=stage_label,
-            percent=percent,
-            processed=processed if isinstance(processed, int) else None,
-            total=total if isinstance(total, int) else None,
-            message=message,
-            target=target,
-        )
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
 
-        for log_line in job.get("latest_logs", [])[-3:]:
-            services.broadcast_log(
-                job_id=job_id,
-                line=log_line,
-                source="stdout",
-                level="warning" if log_line.lower().startswith("warning") else "info",
+        if loop is not None and loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                services.broadcast_progress(
+                    job_id=job_id,
+                    stage=stage,
+                    stage_label=stage_label,
+                    percent=percent,
+                    processed=processed if isinstance(processed, int) else None,
+                    total=total if isinstance(total, int) else None,
+                    message=message,
+                    target=target,
+                ),
+                loop,
             )
 
-    from src.dashboard import job_state
+            for log_line in job.get("latest_logs", [])[-3:]:
+                asyncio.run_coroutine_threadsafe(
+                    services.broadcast_log(
+                        job_id=job_id,
+                        line=log_line,
+                        source="stdout",
+                        level="warning" if log_line.lower().startswith("warning") else "info",
+                    ),
+                    loop,
+                )
+        else:
+            services.broadcast_progress(
+                job_id=job_id,
+                stage=stage,
+                stage_label=stage_label,
+                percent=percent,
+                processed=processed if isinstance(processed, int) else None,
+                total=total if isinstance(total, int) else None,
+                message=message,
+                target=target,
+            )
 
+            for log_line in job.get("latest_logs", [])[-3:]:
+                services.broadcast_log(
+                    job_id=job_id,
+                    line=log_line,
+                    source="stdout",
+                    level="warning" if log_line.lower().startswith("warning") else "info",
+                )
+
+    _patched_apply_progress._ws_patched = True  # type: ignore[attr-defined]
     job_state.apply_progress = _patched_apply_progress
 
     logger.info("Pipeline progress integration active")

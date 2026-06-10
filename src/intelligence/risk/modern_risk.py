@@ -456,7 +456,7 @@ def _chain_weight(finding: dict[str, Any]) -> float:
         attack_chains = finding.get("attack_chains") or []
         if attack_chains:
             # Map chain severity to a weight
-            mapping = {"critical": 5.0, "high": 4.0, "medium": 2.5, "low": 1.0}
+            mapping = {"critical": 2.5, "high": 2.0, "medium": 1.25, "low": 0.5}
             weights = []
             for chain in attack_chains:
                 severity = str(getattr(chain, "severity", None) or chain.get("severity", "")).lower() if isinstance(chain, dict) or hasattr(chain, "severity") else ""
@@ -466,7 +466,7 @@ def _chain_weight(finding: dict[str, Any]) -> float:
             return max(weights) if weights else 0.0
         return 0.0
     try:
-        return _clamp(float(raw), 0.0, 5.0)
+        return _clamp(float(raw), 0.0, 2.5)
     except (TypeError, ValueError):
         return 0.0
 

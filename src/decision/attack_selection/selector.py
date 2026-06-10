@@ -564,8 +564,12 @@ def _merge_config(config: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def _is_in_scope(url: str, scope_hosts: set[str]) -> bool:
-    matched, _reason = scope_match(url, scope_hosts)
-    return matched
+    try:
+        matched, _reason = scope_match(url, scope_hosts)
+        return matched
+    except Exception:
+        logger.warning("Scope check failed for %s, defaulting to OUT-OF-SCOPE", url)
+        return False
 
 
 def _bump(

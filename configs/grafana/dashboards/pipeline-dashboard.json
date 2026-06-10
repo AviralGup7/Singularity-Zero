@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Cyber Security Test Pipeline - Monitoring dashboard for Redis, Dashboard API, Workers, and infrastructure metrics",
+  "description": "Cyber Security Test Pipeline - Monitoring dashboard for pipeline jobs, workers, cache, and infrastructure metrics",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -218,15 +218,15 @@
               },
               {
                 "color": "yellow",
-                "value": 0.7
+                "value": 1000
               },
               {
                 "color": "red",
-                "value": 0.9
+                "value": 5000
               }
             ]
           },
-          "unit": "percentunit"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -261,12 +261,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_memory_used_bytes / redis_memory_max_bytes",
-          "legendFormat": "Memory Usage",
+          "expr": "cyber_pipeline_total_jobs",
+          "legendFormat": "Total Jobs",
           "refId": "A"
         }
       ],
-      "title": "Redis Memory Usage",
+      "title": "Pipeline Total Jobs",
       "type": "stat"
     },
     {
@@ -289,11 +289,11 @@
               },
               {
                 "color": "yellow",
-                "value": 50
+                "value": 5
               },
               {
                 "color": "red",
-                "value": 100
+                "value": 20
               }
             ]
           }
@@ -331,12 +331,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_connected_clients",
-          "legendFormat": "Clients",
+          "expr": "cyber_pipeline_failed_jobs",
+          "legendFormat": "Failed Jobs",
           "refId": "A"
         }
       ],
-      "title": "Redis Connected Clients",
+      "title": "Pipeline Failed Jobs",
       "type": "stat"
     },
     {
@@ -393,7 +393,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(up{job=~\"dashboard|worker|redis|prometheus\"})",
+          "expr": "sum(up{job=~\"dashboard|worker|prometheus\"})",
           "legendFormat": "Services Up",
           "refId": "A"
         }
@@ -529,7 +529,7 @@
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "ops"
         },
         "overrides": []
       },
@@ -563,12 +563,21 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_requests_total{job=\"dashboard\"}[5m])) by (method, status)",
-          "legendFormat": "{{method}} {{status}}",
+          "expr": "rate(cyber_pipeline_total_jobs[5m])",
+          "legendFormat": "Total Jobs Rate",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(cyber_pipeline_completed_jobs[5m])",
+          "legendFormat": "Completed Jobs Rate",
+          "refId": "B"
         }
       ],
-      "title": "Request Rate by Status",
+      "title": "Pipeline Jobs Rate",
       "type": "timeseries"
     },
     {
@@ -659,7 +668,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"dashboard\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(cyber_pipeline_scan_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
@@ -668,7 +677,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"dashboard\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(cyber_pipeline_scan_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
@@ -677,12 +686,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"dashboard\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(cyber_pipeline_scan_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
       ],
-      "title": "Request Latency",
+      "title": "Scan Duration",
       "type": "timeseries"
     },
     {
@@ -776,12 +785,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(http_requests_total{job=\"dashboard\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"dashboard\"}[5m]))",
-          "legendFormat": "Error Rate",
+          "expr": "cyber_pipeline_failed_jobs / cyber_pipeline_total_jobs",
+          "legendFormat": "Failed vs Total",
           "refId": "A"
         }
       ],
-      "title": "Error Rate (5xx)",
+      "title": "Pipeline Failed vs Total",
       "type": "timeseries"
     },
     {
@@ -897,7 +906,7 @@
         "y": 22
       },
       "id": 102,
-      "title": "Redis Metrics",
+      "title": "Pipeline Metrics",
       "type": "row"
     },
     {
@@ -987,8 +996,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_memory_used_bytes",
-          "legendFormat": "Used Memory",
+          "expr": "cyber_pipeline_cache_hits",
+          "legendFormat": "Cache Hits",
           "refId": "A"
         },
         {
@@ -996,12 +1005,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_memory_max_bytes",
-          "legendFormat": "Max Memory",
+          "expr": "cyber_pipeline_cache_misses",
+          "legendFormat": "Cache Misses",
           "refId": "B"
         }
       ],
-      "title": "Redis Memory",
+      "title": "Cache Hits vs Misses",
       "type": "timeseries"
     },
     {
@@ -1091,8 +1100,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_connected_clients",
-          "legendFormat": "Connected Clients",
+          "expr": "cyber_pipeline_active_workers",
+          "legendFormat": "Active Workers",
           "refId": "A"
         },
         {
@@ -1100,12 +1109,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_blocked_clients",
-          "legendFormat": "Blocked Clients",
+          "expr": "cyber_pipeline_queue_depth",
+          "legendFormat": "Queue Depth",
           "refId": "B"
         }
       ],
-      "title": "Redis Clients",
+      "title": "Active Workers & Queue Depth",
       "type": "timeseries"
     },
     {
@@ -1195,8 +1204,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(redis_commands_processed_total[5m])",
-          "legendFormat": "Commands/sec",
+          "expr": "cyber_pipeline_retries_total",
+          "legendFormat": "Retries",
           "refId": "A"
         },
         {
@@ -1204,21 +1213,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(redis_keys_expired_total[5m])",
-          "legendFormat": "Keys Expired/sec",
+          "expr": "cyber_pipeline_dead_letter_total",
+          "legendFormat": "Dead Letter",
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(redis_keys_evicted_total[5m])",
-          "legendFormat": "Keys Evicted/sec",
-          "refId": "C"
         }
       ],
-      "title": "Redis Throughput",
+      "title": "Retries & Dead Letter",
       "type": "timeseries"
     },
     {
@@ -1316,8 +1316,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_db0_keys",
-          "legendFormat": "Keys in DB0",
+          "expr": "cyber_pipeline_active_connections",
+          "legendFormat": "Active Connections",
           "refId": "A"
         },
         {
@@ -1325,12 +1325,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "redis_db0_expires",
-          "legendFormat": "Expiring Keys",
+          "expr": "cyber_pipeline_memory_usage_mb",
+          "legendFormat": "Memory Usage (MB)",
           "refId": "B"
         }
       ],
-      "title": "Redis Keys",
+      "title": "Active Connections & Memory",
       "type": "timeseries"
     },
     {

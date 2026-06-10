@@ -279,14 +279,14 @@ class PipelineOutputStore:
     def _write_alias(self, source: Path, alias: Path, payload: dict[str, Any] | list[Any]) -> None:
         try:
             alias.unlink()
-        except FileNotFoundError:
-            pass
-        except PermissionError:
-            pass
+        except FileNotFoundError as exc:
+            logger.warning("Operation failed in output_store.py: %s", exc, exc_info=True)  # noqa: BLE001
+        except PermissionError as exc:
+            logger.warning("Operation failed in output_store.py: %s", exc, exc_info=True)  # noqa: BLE001
         if self.dedupe_aliases:
             try:
                 os.link(source, alias)
                 return
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Operation failed in output_store.py: %s", exc, exc_info=True)  # noqa: BLE001
         alias.write_text(json.dumps(payload, indent=2), encoding="utf-8")

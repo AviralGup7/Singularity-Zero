@@ -59,6 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     global _START_TIME
     _START_TIME = time.time()
 
+    from src.core.logging.trace_logging import install_trace_log_filter
     from src.core.plugins.loader import refresh_dynamic_plugins, start_dynamic_plugin_watcher
     from src.dashboard.fastapi.process_lock import ProcessLifespanLock
     from src.dashboard.fastapi.routers.cache import start_cache_analytics
@@ -66,9 +67,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     from src.dashboard.services import DashboardServices
     from src.infrastructure.cache import CacheManager
     from src.infrastructure.cache.config import CacheConfig
+    from src.infrastructure.observability.metrics import get_metrics, register_pipeline_metrics
+    from src.infrastructure.observability.structured_logging import setup_logging
     from src.infrastructure.security.audit import AuditLogger
     from src.infrastructure.security.config import SecurityConfig
     from src.pipeline.services.tool_execution import ToolExecutionService
+
+    setup_logging()
+    install_trace_log_filter()
+    register_pipeline_metrics(get_metrics())
 
     config: DashboardConfig = app.state.config
     logger.info("Dashboard server starting on %s:%d", config.host, config.port)
@@ -106,10 +113,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.services.init_persistence(db_path, is_primary=is_primary)
     app.state.triage_collaboration = TriageCollaborationService(config.output_root)
 
+    # Initialize notification storage and SSE broadcaster
+    from src.infrastructure.notifications.broadcaster import get_notification_broadcaster
+    from src.infrastructure.notifications.storage import NotificationStorage
+
+    notif_db_path = config.output_root / "notifications.db"
+    app.state.notification_storage = NotificationStorage(str(notif_db_path))
+    app.state.notification_broadcaster = get_notification_broadcaster()
+    logger.info("Notification storage initialized at %s", notif_db_path)
+
+    # Initialize the global NotificationManager with in_app channel
+    from src.infrastructure.notifications.in_app import InAppNotifier
+    from src.infrastructure.notifications.manager import ManagerConfig, NotificationManager
+
+    in_app_notifier = InAppNotifier()
+    in_app_notifier.bind_storage(app.state.notification_storage)
+    in_app_notifier.bind_broadcaster(app.state.notification_broadcaster)
+
+    notif_manager = NotificationManager(ManagerConfig())
+    notif_manager.register_notifier("in_app", in_app_notifier)
+    app.state.notification_manager = notif_manager
+    logger.info("NotificationManager initialized with in_app channel")
+
     ws_services: WSServices | None = None
     try:
         ws_api_keys = {key: f"admin:{index}" for index, key in enumerate(config.admin_keys) if key}
-        ws_required_roles = {"read_only", "worker", "admin"} if api_security_enabled() else None
+        ws_required_roles = {"read_only", "worker", "admin", "guest"} if api_security_enabled() else None
         ws_services = setup_websocket(
             app,
             jwt_secret=app_secret_key() if api_security_enabled() else (config.api_key if config.api_key else None),
@@ -435,7 +464,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 running = [j for j in app_ref.state.services.jobs.values() if j.get("status") == "running"]
                 node.active_jobs = len(running)
                 node.last_seen = time.time()
+
+                try:
+                    from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+                    _reg = _get_metrics()
+                    _reg.gauge("active_workers").set(len(running))
+                    _reg.gauge("queue_depth").set(
+                        sum(1 for j in app_ref.state.services.jobs.values() if j.get("status") == "queued")
+                    )
+                    if psutil is not None:
+                        _reg.gauge("cpu_usage_percent").set(psutil.cpu_percent(interval=0))
+                        _reg.gauge("memory_usage_mb").set(psutil.virtual_memory().used / 1024 / 1024)
+                except Exception:  # noqa: BLE001
+                    pass
+
                 await asyncio.sleep(5.0)
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 logger.debug("Mesh telemetry pulse failed: %s", e)
                 await asyncio.sleep(10.0)
@@ -459,8 +504,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.mesh_telemetry_task.cancel()
         try:
             await app.state.mesh_telemetry_task
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as exc:
+            logger.warning("Operation failed in lifespan.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     if hasattr(app.state, "services") and hasattr(app.state.services, "jobs"):
         for job_id, job in app.state.services.jobs.items():
@@ -482,8 +527,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.mesh_consensus_task.cancel()
         try:
             await app.state.mesh_consensus_task
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as exc:
+            logger.warning("Operation failed in lifespan.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     discovery = getattr(app.state, "worker_discovery", None)
     if discovery is not None:
@@ -496,8 +541,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.cache_analytics_task.cancel()
         try:
             await app.state.cache_analytics_task
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as exc:
+            logger.warning("Operation failed in lifespan.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     if hasattr(app.state, "cache_manager"):
         app.state.cache_manager.close()

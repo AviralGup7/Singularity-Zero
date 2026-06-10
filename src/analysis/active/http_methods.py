@@ -142,6 +142,9 @@ def origin_reflection_probe(
         seen.add(endpoint_key)
 
         domain = urlparse(url).netloc.split(":")[0]
+        # Sanitize domain to prevent injection into Origin header
+        import re as _re
+        domain = _re.sub(r"[^a-zA-Z0-9.\-]", "", domain)
         # Multiple probe origins (Fix Audit #19)
         probe_origins = [
             "https://probe.invalid",
@@ -289,15 +292,14 @@ def cors_preflight_probe(
         elif acao == probe_origin and acac == "true":
             issues.append("reflected_origin_with_credentials")
 
-        # Test 2: Null origin (Fix Audit #35: skip if Test 1 already hit critical)
-        if not issues:
-            null_resp = response_cache.request(url, method="OPTIONS", headers={"Origin": "null"})
-            if null_resp:
-                nh = {str(k).lower(): str(v) for k, v in (null_resp.get("headers") or {}).items()}
-                if nh.get("access-control-allow-origin") == "null":
-                    issues.append("null_origin_accepted")
-                    if nh.get("access-control-allow-credentials") == "true":
-                        issues.append("null_origin_with_credentials")
+        # Test 2: Null origin - always run independently (Fix Audit #35)
+        null_resp = response_cache.request(url, method="OPTIONS", headers={"Origin": "null"})
+        if null_resp:
+            nh = {str(k).lower(): str(v) for k, v in (null_resp.get("headers") or {}).items()}
+            if nh.get("access-control-allow-origin") == "null":
+                issues.append("null_origin_accepted")
+                if nh.get("access-control-allow-credentials") == "true":
+                    issues.append("null_origin_with_credentials")
 
         if "PUT" in acam:
             issues.append("preflight_allows_put")

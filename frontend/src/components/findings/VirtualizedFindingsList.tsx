@@ -1,7 +1,7 @@
 import { memo, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
-import { Shield, ExternalLink, Clock } from 'lucide-react';
+import { Shield, ExternalLink, Clock, CheckSquare, Square } from 'lucide-react';
 import type { Finding } from '../../types/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9,9 +9,15 @@ import type { Finding } from '../../types/api';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const FindingRow = memo(function FindingRow({ 
-  finding 
+  finding,
+  isSelected,
+  onToggleSelect,
+  selectionMode,
 }: { 
-  finding: Finding; 
+  finding: Finding;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
+  selectionMode?: boolean;
 }) {
   const severityClass = useMemo(() => {
     switch (finding.severity) {
@@ -40,6 +46,20 @@ const FindingRow = memo(function FindingRow({
   return (
     <div className="px-4 py-2">
       <div className={`flex items-center gap-4 p-4 rounded-xl border border-white/5 border-l-4 ${severityClass} hover:border-white/10 transition-all group cursor-pointer glass-panel`}>
+        {selectionMode && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleSelect?.(finding.id);
+            }}
+            className="shrink-0 text-muted hover:text-accent transition-colors"
+            aria-label={isSelected ? `Deselect finding ${finding.title}` : `Select finding ${finding.title}`}
+          >
+            {isSelected ? <CheckSquare size={16} className="text-accent" /> : <Square size={16} />}
+          </button>
+        )}
         <div className="shrink-0 w-10 h-10 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center font-black text-xs text-muted group-hover:text-accent transition-colors">
           {initials}
         </div>
@@ -104,12 +124,18 @@ interface VirtualizedFindingsListProps {
   findings: Finding[];
   height?: number | string;
   onSelect?: (finding: Finding) => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  selectionMode?: boolean;
 }
 
 export const VirtualizedFindingsList = memo(function VirtualizedFindingsList({
   findings,
   height = '600px',
-  onSelect
+  onSelect,
+  selectedIds,
+  onToggleSelect,
+  selectionMode = false,
 }: VirtualizedFindingsListProps) {
    
   const Header = useCallback(() => <FindingHeader count={findings.length} />, [findings.length]);
@@ -139,7 +165,12 @@ export const VirtualizedFindingsList = memo(function VirtualizedFindingsList({
             }}
             key={finding.id}
           >
-            <FindingRow finding={finding} />
+            <FindingRow 
+              finding={finding} 
+              isSelected={selectedIds?.has(finding.id)}
+              onToggleSelect={onToggleSelect}
+              selectionMode={selectionMode}
+            />
           </Link>
         )}
         components={{

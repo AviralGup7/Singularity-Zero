@@ -1,35 +1,40 @@
 """Token manipulation attacks: weak secret brute-force and JKU injection."""
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from .attacks import JWT_AUTH_HEADERS, create_jwt, decode_jwt_part
 
 logger = logging.getLogger(__name__)
 
-WEAK_SECRETS = [
-    b"secret",
-    b"password",
-    b"123456",
-    b"key",
-    b"jwt_secret",
-    b"jwt-secret",
-    b"supersecret",
-    b"changeme",
-    b"test",
-    b"admin",
-    b"token",
-    b"jwt",
-    b"mysecret",
-    b"my_secret",
-    b"private",
-    b"access",
-    b"auth",
-    b"signing",
-    b"signing_key",
-    b"signing-key",
-    b"-----BEGIN PUBLIC KEY-----\n",
-]
+_WEAK_SECRETS_FILE = Path(__file__).parent / "weak_secrets.json"
+
+
+def _load_weak_secrets() -> list[bytes]:
+    """Load weak secret wordlist from external JSON file.
+
+    The wordlist is loaded from a JSON file rather than hardcoded in
+    source to prevent the brute-force dictionary from being shipped
+    in version control and easily readable from deployed code.
+    """
+    try:
+        raw = _WEAK_SECRETS_FILE.read_text(encoding="utf-8")
+        data = json.loads(raw)
+        return [s.encode("utf-8") if isinstance(s, str) else s for s in data]
+    except FileNotFoundError:
+        logger.warning(
+            "Weak secrets file not found at %s; using minimal built-in fallback",
+            _WEAK_SECRETS_FILE,
+        )
+        return [b"secret", b"password"]
+    except (json.JSONDecodeError, TypeError) as exc:
+        logger.warning("Failed to parse weak secrets file: %s", exc)
+        return [b"secret", b"password"]
+
+
+WEAK_SECRETS = _load_weak_secrets()
 
 
 class WeakSecretAttack:

@@ -31,7 +31,7 @@ def _to_base64(xml_text: str) -> str:
 
 
 def _submit_unsigned(url: str, saml_response_b64: str) -> dict[str, Any] | None:
-    body = "SAMLResponse=" + saml_response_b64 + "&RelayState="
+    body = "SAMLResponse=" + saml_response_b64 + "&RelayState=&SigAlg=http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
     return _safe_request(url, method="POST", body=body.encode("utf-8"), timeout=12)
 
 
@@ -55,7 +55,12 @@ def _build_targets(source_url: str, scan_hosts: set[str]) -> list[str]:
     netlocs.update(_clean(host) for host in scan_hosts if _is_web_target(host))
     if not netlocs:
         return [source_url]
-    return [f"https://{netloc}/saml/acs" for netloc in netlocs]
+    try:
+        scheme = urlparse(source_url).scheme or "https"
+    except (ValueError, TypeError) as exc:
+        logger.debug("URL parse failed for %s: %s", source_url, exc)
+        scheme = "https"
+    return [f"{scheme}://{netloc}/saml/acs" for netloc in netlocs]
 
 
 def _clean(host: str) -> str:
@@ -66,7 +71,14 @@ def _is_web_target(host: str) -> bool:
     host = _clean(host)
     if not host:
         return False
-    return host.endswith((".com", ".io", ".co", ".org", ".net", ".app")) or (not host.endswith((".local", ".lan", ".internal")))
+    if host.endswith((".local", ".lan", ".internal")):
+        return False
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return False
+    import re
+    if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
+        return False
+    return True
 
 
 def run_signature_strip(

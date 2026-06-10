@@ -74,13 +74,20 @@ class SLATracker:
                 compliant_findings.append(finding_copy)
                 continue
 
-            disc_ts = finding.get("discovered_at") or finding.get("timestamp") or ref_time
+            disc_ts = (
+                finding.get("timestamp")
+                or finding.get("discovered_at")
+                or finding.get("created_at")
+                or finding.get("detected_at")
+                or ref_time
+            )
             if isinstance(disc_ts, str):
                 try:
                     import datetime
 
-                    disc_ts = datetime.datetime.fromisoformat(disc_ts).timestamp()
-                except Exception:
+                    disc_ts = datetime.datetime.fromisoformat(disc_ts.replace("Z", "+00:00")).timestamp()
+                except (ValueError, TypeError) as exc:
+                    logger.warning("Malformed SLA timestamp %r: %s", disc_ts, exc)
                     disc_ts = ref_time
 
             age = ref_time - float(disc_ts)
@@ -311,43 +318,48 @@ def _compute_lifecycle_metrics(finding: dict[str, Any], ref_time: float) -> dict
         "remediation_days": None,
         "verification_days": None,
     }
-    discovered_at = _coerce_ts(finding.get("discovered_at") or finding.get("timestamp"))
+    discovered_at = _coerce_ts(
+        finding.get("timestamp")
+        or finding.get("discovered_at")
+        or finding.get("created_at")
+        or finding.get("detected_at")
+    )
     triaged_at = _coerce_ts(finding.get("triaged_at"))
     remediation_started_at = _coerce_ts(finding.get("remediation_started_at"))
     fixed_at = _coerce_ts(finding.get("fixed_at"))
     verified_at = _coerce_ts(finding.get("verified_at"))
 
-    if discovered_at and triaged_at:
+    if discovered_at is not None and triaged_at is not None:
         metrics["triage_lag_days"] = round(
             max(0.0, (triaged_at - discovered_at) / 86400.0), 3
         )
-    elif discovered_at and not triaged_at:
+    elif discovered_at is not None and triaged_at is None:
         # Triage is in-flight - report the time spent waiting.
         metrics["triage_lag_days"] = round(
             max(0.0, (ref_time - discovered_at) / 86400.0), 3
         )
-    if remediation_started_at and fixed_at:
+    if remediation_started_at is not None and fixed_at is not None:
         metrics["remediation_days"] = round(
             max(0.0, (fixed_at - remediation_started_at) / 86400.0), 3
         )
-    elif remediation_started_at and not fixed_at:
+    elif remediation_started_at is not None and fixed_at is None:
         metrics["remediation_days"] = round(
             max(0.0, (ref_time - remediation_started_at) / 86400.0), 3
         )
-    if fixed_at and verified_at:
+    if fixed_at is not None and verified_at is not None:
         metrics["verification_days"] = round(
             max(0.0, (verified_at - fixed_at) / 86400.0), 3
         )
-    elif fixed_at and not verified_at:
+    elif fixed_at is not None and verified_at is None:
         metrics["verification_days"] = round(
             max(0.0, (ref_time - fixed_at) / 86400.0), 3
         )
     return metrics
 
 
-def _coerce_ts(value: Any) -> float:
-    if value is None or value == "":
-        return 0.0
+def _coerce_ts(value: Any) -> float | None:
+    if value is None or value is False or value == "":
+        return None
     if isinstance(value, (int, float)):
         return float(value)
     try:
@@ -355,4 +367,4 @@ def _coerce_ts(value: Any) -> float:
 
         return datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
     except (TypeError, ValueError):
-        return 0.0
+        return None

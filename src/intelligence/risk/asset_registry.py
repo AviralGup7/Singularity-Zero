@@ -385,7 +385,7 @@ class AssetCriticalityService:
             entity_type=asset.entity_type,
             compliance_requirements=list(asset.compliance_requirements)
             or list(target_info.get("compliance_requirements", []) or []),
-            is_public=bool(target_info.get("is_public", True)),
+            is_public=bool(target_info.get("is_public", False)),
             has_pii=bool(
                 target_info.get("has_pii", False) or asset.entity_type == "pii_store"
             ),

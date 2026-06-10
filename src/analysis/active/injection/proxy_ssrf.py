@@ -103,11 +103,16 @@ def _is_proxy_endpoint(url: str) -> bool:
             return True
 
     query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    proxy_param_count = 0
     for key, value in query_pairs:
         if key.lower() in PROXY_QUERY_PARAMS:
+            proxy_param_count += 1
             lower_val = value.lower()
             if lower_val.startswith(("http://", "https://", "//")):
                 return True
+
+    if proxy_param_count >= 2:
+        return True
 
     return False
 
@@ -161,8 +166,10 @@ def _analyze_proxy_response(
         indicators.append("localhost_response")
     elif any(ip in body for ip in ("10.0.", "10.", "172.16.", "192.168.")):
         indicators.append("internal_ip_response")
-    elif status != 404 and status != 400 and status != 403 and len(body) > 50:
-        indicators.append("non_error_response")
+    elif status not in (404, 400, 403, 500, 502, 503) and len(body) > 50:
+        has_internal = any(ip in body for ip in ("127.0.0.1", "localhost", "169.254.169.254", "10.0.", "172.16.", "192.168."))
+        if has_internal:
+            indicators.append("non_error_response")
 
     if not indicators:
         return None

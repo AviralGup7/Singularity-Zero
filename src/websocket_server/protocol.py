@@ -87,6 +87,7 @@ class BaseMessage(BaseModel):
         Raises:
             ValueError: If the JSON is invalid or missing required fields.
         """
+        # Enforce size limit BEFORE parsing to prevent memory exhaustion
         if len(data) > cls.MAX_MESSAGE_SIZE:
             raise ValueError(
                 f"Message size {len(data)} exceeds maximum allowed size of {cls.MAX_MESSAGE_SIZE} bytes"

@@ -221,7 +221,7 @@ def correlate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         # Compound risk score: base score + correlation bonus
         max_base_score = max(f.get("score", 0) for f in group)
-        compound_score = max_base_score + int(total_bonus * 20)
+        compound_score = max_base_score + round(total_bonus * 20)
 
         # Apply to all findings in the group
         for finding in group:

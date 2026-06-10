@@ -74,7 +74,8 @@ def _b64_decode(b64: str) -> str:
         b64 += "=" * padding
     try:
         return base64.b64decode(b64).decode("utf-8", errors="replace")
-    except Exception:
+    except Exception as exc:
+        logger.debug("SAML base64 decode failed: %s", exc)
         return ""
 
 
@@ -139,8 +140,8 @@ def evaluate_saml(
                 signals.append("saml_empty_response_accepted")
                 bonuses.append(0.20)
                 notes.append("Empty SAML response accepted - assertion signature not enforced?")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("SAML empty response test failed for %s: %s", acs_endpoint, exc)
 
         # Test with XML signature wrapping payload
         try:
@@ -158,8 +159,8 @@ def evaluate_saml(
                 signals.append("saml_signature_wrapping")
                 bonuses.append(0.22)
                 notes.append("SAML XML signature wrapping attack may be possible.")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("SAML signature wrapping test failed for %s: %s", acs_endpoint, exc)
 
         # Test missing Destination attribute
         try:
@@ -179,8 +180,8 @@ def evaluate_saml(
                 signals.append("saml_destination_bypass")
                 bonuses.append(0.15)
                 notes.append("SAML response without Destination attribute was accepted.")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("SAML missing Destination test failed for %s: %s", acs_endpoint, exc)
 
     if signals:
         high_risk = any(s in ("saml_empty_response_accepted", "saml_signature_wrapping") for s in signals)

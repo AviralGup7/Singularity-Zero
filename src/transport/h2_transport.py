@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ async def create_h2_connection(
     port: int = 443,
     *,
     use_ssl: bool = True,
+    verify_tls: bool = True,
     max_inbound_frame_size: int = 65536,
     header_table_size: int = 4096,
     enable_push: bool = False,
@@ -47,6 +49,8 @@ async def create_h2_connection(
         host: Target hostname.
         port: Target port.
         use_ssl: Whether to use TLS (required for h2 in practice).
+        verify_tls: Whether to verify TLS certificates. When False,
+            requires ``ALLOW_INSECURE_TLS=1`` environment variable.
         max_inbound_frame_size: Maximum frame size we accept.
         header_table_size: Initial HPACK header table size.
         enable_push: Whether to enable server push.
@@ -60,7 +64,7 @@ async def create_h2_connection(
     if not HAS_H2:
         raise H2TransportError("h2 library not available (pip install h2)")
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     h2_config = h2.config.H2Configuration(
         client_side=True,
@@ -74,8 +78,19 @@ async def create_h2_connection(
 
         ssl_context = ssl.create_default_context()
         ssl_context.set_alpn_protocols(["h2", "http/1.1"])
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
+        if not verify_tls:
+            _allow_insecure = os.environ.get("ALLOW_INSECURE_TLS", "").strip().lower() in (
+                "1",
+                "true",
+                "yes",
+            )
+            if not _allow_insecure:
+                raise H2TransportError(
+                    "TLS verification disabled but ALLOW_INSECURE_TLS env var is not set. "
+                    "Set ALLOW_INSECURE_TLS=1 to allow insecure TLS connections."
+                )
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
 
         transport, protocol = await loop.create_connection(
             lambda: _H2ClientProtocol(conn),
@@ -227,8 +242,8 @@ async def h2_concurrent_requests(
 
     try:
         transport.close()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Operation failed in h2_transport.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     return results
 

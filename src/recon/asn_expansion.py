@@ -288,8 +288,8 @@ def _resolve_asn_for_ip(ip: str) -> str | None:
                 continue
             if r and r.get("asn"):
                 return r["asn"]
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Operation failed in asn_expansion.py: %s", exc, exc_info=True)  # noqa: BLE001
     return None
 
 

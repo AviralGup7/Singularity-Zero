@@ -416,8 +416,8 @@ class NeuralState:
             parts = wal_id.split("-", 1)
             if parts and parts[0].isdigit():
                 return (float(parts[0]), wal_id)
-        except (ValueError, IndexError):
-            pass
+        except (ValueError, IndexError) as exc:
+            logger.warning("Operation failed in state.py: %s", exc, exc_info=True)  # noqa: BLE001
         return (0.0, wal_id)
 
     def compact(self, max_tombstone_age_seconds: float = 3600.0) -> dict[str, int]:

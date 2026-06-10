@@ -180,12 +180,6 @@ def dns_security_analyzer(
             if severity == "low":
                 severity = "medium"
 
-        # Check for wildcard DNS (potential security risk)
-        if records.get("wildcard", False):
-            issues.append("wildcard_dns_enabled")
-            if severity == "low":
-                severity = "medium"
-
         if issues:
             findings.append(
                 {

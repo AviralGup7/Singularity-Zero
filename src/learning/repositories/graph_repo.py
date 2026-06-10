@@ -1,3 +1,4 @@
+import logging
 """Graph repository - CRUD operations for graph_nodes and graph_edges tables."""
 
 import threading
@@ -12,6 +13,17 @@ class GraphRepo(BaseRepo):
 
     def __init__(self, db_path: Path, local: threading.local):
         super().__init__(db_path, local)
+        self._ensure_indexes()
+
+    def _ensure_indexes(self) -> None:
+        try:
+            with self._cursor() as cur:
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_nodes_node_type ON graph_nodes(node_type)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_nodes_run_id ON graph_nodes(run_id)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_node_id)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_type ON graph_edges(edge_type)")
+        except Exception as exc:
+            logging.warning("Operation failed in graph_repo.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def upsert_graph_node(self, row: dict[str, Any]) -> None:
         """Insert or update a graph node."""
@@ -46,7 +58,7 @@ class GraphRepo(BaseRepo):
             )
 
     def get_graph_nodes(
-        self, node_type: str | None = None, run_id: str | None = None
+        self, node_type: str | None = None, run_id: str | None = None, limit: int = 10000
     ) -> list[dict]:
         """Get graph nodes with optional filters."""
         with self._cursor() as cur:
@@ -58,6 +70,8 @@ class GraphRepo(BaseRepo):
             if run_id:
                 query += " AND run_id = ?"
                 params.append(run_id)
+            query += " LIMIT ?"
+            params.append(limit)
             cur.execute(query, params)
             return [dict(r) for r in cur.fetchall()]
 
@@ -65,6 +79,7 @@ class GraphRepo(BaseRepo):
         self,
         source_node_id: str | None = None,
         edge_type: str | None = None,
+        limit: int = 10000,
     ) -> list[dict]:
         """Get graph edges with optional filters."""
         with self._cursor() as cur:
@@ -76,5 +91,7 @@ class GraphRepo(BaseRepo):
             if edge_type:
                 query += " AND edge_type = ?"
                 params.append(edge_type)
+            query += " LIMIT ?"
+            params.append(limit)
             cur.execute(query, params)
             return [dict(r) for r in cur.fetchall()]

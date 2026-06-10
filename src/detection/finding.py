@@ -27,6 +27,83 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Indicator → vulnerability class mapping
+# ---------------------------------------------------------------------------
+
+# Maps detection indicator strings to the pipeline vulnerability categories
+# used by ``ThreatIntelCorrelator`` for CVE correlation and by the severity
+# model for calibration.  The mapping is intentionally conservative — a
+# wrong category wastes a CVE lookup but a missing one silently drops intel
+# enrichment.
+_INDICATOR_TO_CATEGORY: dict[str, str] = {
+    "sqli_candidate": "sql_injection",
+    "sql_error_exposure": "sql_injection",
+    "ssrf_candidate": "ssrf",
+    "ssrf_candidate_finder": "ssrf",
+    "stored_xss_candidate": "xss",
+    "reflected_input_candidate": "xss",
+    "dom_xss_candidate": "xss",
+    "js_sink_source": "xss",
+    "prototype_pollution_candidate": "deserialization",
+    "prototype_pollution_data_shape": "deserialization",
+    "command_injection": "command_injection",
+    "remote_code_execution": "command_injection",
+    "ssti_surface": "xss",
+    "path_traversal": "path_traversal",
+    "idor_candidate_finder": "idor",
+    "open_redirect_candidate": "open_redirect",
+    "csrf_protection_missing": "broken_access_control",
+    "csrf_entropy_weakness": "broken_access_control",
+    "cors_misconfig": "broken_access_control",
+    "race_condition_candidate": "race_condition",
+    "race_condition_concurrent_probe": "race_condition",
+    "xxe_surface": "xxe",
+    "deserialization_probe": "deserialization",
+    "file_upload_surface": "file_upload",
+    "jwt_claim_manipulation_surface": "broken_access_control",
+    "jwt_security_issue": "broken_access_control",
+    "session_fixation_candidate": "broken_access_control",
+    "auth_bypass": "broken_access_control",
+    "waf_challenge_page": "waf_bypass",
+    "waf_fingerprint": "waf_bypass",
+    "graphql_introspection_query_presence": "information_disclosure",
+    "rest_parameter_pollution": "broken_access_control",
+    "rate_limit_adaptive_probe": "rate_limit",
+    "websocket_message_security": "broken_access_control",
+    "header_checker_finding": "broken_access_control",
+    "cookie_security_issue": "broken_access_control",
+    "cache_control_issue": "cache_poisoning",
+    "dom_runtime_xss": "xss",
+    "dom_runtime_open_redirect": "open_redirect",
+    "dom_runtime Prototype Pollution": "deserialization",
+    "wasm_url_candidate": "information_disclosure",
+    "wasm_high_risk_import": "command_injection",
+    "wasm_high_risk_export": "command_injection",
+    "wasm_risk_score": "command_injection",
+    "vulnerable_component": "known_vulnerability",
+    "debug_artifact": "information_disclosure",
+    "directory_listing": "information_disclosure",
+    "frontend_config_exposure": "information_disclosure",
+    "jsonp_endpoint": "xss",
+}
+
+
+def infer_category_from_indicator(indicator: str) -> str:
+    """Derive a vulnerability category from a detection indicator string.
+
+    Returns the matched category or ``"unknown"`` if no mapping exists.
+    """
+    ind = (indicator or "").strip().lower()
+    if ind in _INDICATOR_TO_CATEGORY:
+        return _INDICATOR_TO_CATEGORY[ind]
+    # Fallback: try substring matching for partial matches
+    for needle, cat in _INDICATOR_TO_CATEGORY.items():
+        if needle in ind or ind in needle:
+            return cat
+    return "unknown"
+
+
 class Exploitability(enum.StrEnum):
     """Confidence that the finding can be turned into a real exploit."""
 
@@ -120,6 +197,7 @@ class DetectionFinding:
         body: dict[str, Any] = {
             "url": self.url,
             "indicator": self.indicator,
+            "category": self.metadata.get("category", infer_category_from_indicator(self.indicator)),
             "summary": self.summary,
             "severity": self.severity.value,
             "confidence": round(self.confidence, 3),
@@ -157,6 +235,8 @@ class DetectionFinding:
             return self.url
         if key == "indicator":
             return self.indicator
+        if key == "category":
+            return self.metadata.get("category", infer_category_from_indicator(self.indicator))
         if key == "severity":
             return self.severity.value
         if key == "confidence":
@@ -223,6 +303,12 @@ def from_dict(
 
     raw_url = str(url if url is not None else raw.get("url", "")).strip()
     indicator = str(raw.get("indicator", raw.get("category", "unknown"))).strip()
+    # GAP 4: Ensure category is always present for intelligence correlation.
+    # Detection handlers emit "indicator" but not "category"; intelligence
+    # modules read "category".  Derive it here so both keys are always set.
+    category = str(raw.get("category", "")).strip()
+    if not category:
+        category = infer_category_from_indicator(indicator)
     summary = str(raw.get("summary", raw.get("description", indicator))).strip()
     severity_str = str(raw.get("severity", "info")).lower()
     try:
@@ -335,9 +421,13 @@ def _metadata_from_dict(raw: Mapping[str, Any]) -> dict[str, Any]:
         "url", "indicator", "summary", "description", "severity", "confidence",
         "exploitability", "analyzer_key", "phase", "recommended_engines",
         "remediation_hint", "cwe_id", "cve_id", "tags", "evidence",
-        "finding_id", "category",
+        "finding_id",
     }
-    return {k: v for k, v in raw.items() if k not in skip and not isinstance(v, (list, dict))}
+    meta = {k: v for k, v in raw.items() if k not in skip and not isinstance(v, (list, dict))}
+    # Always preserve category in metadata for downstream intel correlation
+    if "category" in raw:
+        meta["category"] = raw["category"]
+    return meta
 
 
 def _infer_confidence(raw: Mapping[str, Any]) -> float:
@@ -405,8 +495,6 @@ def _infer_exploitability(raw: Mapping[str, Any], confidence: float) -> Exploita
         return Exploitability.PROBABLE
     if confidence >= 0.75:
         return Exploitability.PROBABLE
-    if confidence >= 0.45:
-        return Exploitability.THEORETICAL
     if confidence >= 0.20:
         return Exploitability.THEORETICAL
     return Exploitability.UNKNOWN

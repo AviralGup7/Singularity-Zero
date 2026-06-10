@@ -120,10 +120,17 @@ def ssti_active_probe(
 
                 issues_for_hit: list[str] = []
 
-                if "49" in body and "7*7" not in body:
-                    issues_for_hit.append("ssti_arithmetic_reflection")
-                elif "14" in body and payload_value == "{{7+7}}" and "7+7" not in body:
-                    issues_for_hit.append("ssti_arithmetic_reflection")
+                import re as _re
+                math_result = None
+                if payload_value in ("{{7*7}}", "<%= 7*7 %>", "#{7*7}", "${7*7}"):
+                    math_result = 49
+                elif payload_value == "{{7+7}}":
+                    math_result = 14
+
+                if math_result is not None:
+                    pattern = _re.compile(r'(?<!\d)' + str(math_result) + r'(?!\d)')
+                    if pattern.search(body):
+                        issues_for_hit.append("ssti_arithmetic_reflection")
                 elif SSTI_ERROR_RE.search(body):
                     issues_for_hit.append("ssti_error_pattern")
                 elif status == 500 and len(body) > 50:

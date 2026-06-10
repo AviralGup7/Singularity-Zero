@@ -521,7 +521,15 @@ class CloudBucketScanner:
     async def check_gcp_bucket(
         self, session: aiohttp.ClientSession, bucket: str
     ) -> dict[str, Any] | None:
-        """Check Google Cloud Storage bucket status and permissions."""
+        """Check Google Cloud Storage bucket status and permissions.
+        
+        NOTE: This probe is intentionally unauthenticated and direct to storage.googleapis.com
+        because its explicit purpose is to verify if a third-party bucket is publicly readable
+        without authentication (checking for security misconfigurations).
+        If the scanner is ever modified to perform authenticated storage actions or manage
+        internal assets, use Google Workload Identity Federation or pre-signed URLs with minimal
+        IAM scoping (e.g., roles/storage.objectViewer scoped to specific buckets).
+        """
         url = f"https://storage.googleapis.com/{bucket}"
         try:
             finding: dict[str, Any] | None = None

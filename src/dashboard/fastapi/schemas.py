@@ -209,8 +209,8 @@ class JobResponse(BaseModel):
     id: str
     base_url: str
     hostname: str
-    scope_entries: list[str]
-    enabled_modules: list[str]
+    scope_entries: list[str] = Field(default_factory=list)
+    enabled_modules: list[str] = Field(default_factory=list)
     mode: str
     target_name: str
     status: str
@@ -228,10 +228,10 @@ class JobResponse(BaseModel):
     finished_at_label: str | None = None
     returncode: int | None = None
     error: str = ""
-    warnings: list[str]
-    execution_options: dict[str, bool]
+    warnings: list[str] = Field(default_factory=list)
+    execution_options: dict[str, bool] = Field(default_factory=dict)
     can_stop: bool
-    latest_logs: list[str]
+    latest_logs: list[str] = Field(default_factory=list)
     config_href: str
     scope_href: str
     stdout_href: str
@@ -600,9 +600,6 @@ class DashboardStatsResponse(BaseModel):
     severity_counts: dict[str, int] = Field(default_factory=dict)
     pipeline_health_score: int
     pipeline_health_label: str
-    trend_data: list[int] = Field(default_factory=list)
-    findings_summary: dict[str, Any] = Field(default_factory=dict)
-    mesh_health: dict[str, Any] = Field(default_factory=dict)
 
 
 class DefaultsResponse(BaseModel):
@@ -666,7 +663,8 @@ class NoteDeleteResponse(BaseModel):
 class TokenRequest(StrictRequestModel):
     """Request body for dashboard token exchange."""
 
-    api_key: str = Field(..., min_length=1)
+    api_key: str | None = Field(default=None)
+    mode: str | None = Field(default=None)
 
 
 class TokenResponse(BaseModel):

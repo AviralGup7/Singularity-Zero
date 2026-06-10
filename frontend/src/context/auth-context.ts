@@ -6,10 +6,13 @@ export interface AuthContextType {
   permissions: Permission;
   login: (name: string, role: UserRole, unlockPassword?: string) => void;
   loginWithApiKey: (apiKey: string) => Promise<void>;
+  loginWithGuestToken: () => Promise<void>;
   logout: () => void;
   hasPermission: (permission: keyof Permission) => boolean;
   hasRole: (role: UserRole) => boolean;
   verifyUnlockPassword: (password: string) => boolean;
+  /** Verify the persisted token against the backend on app boot. */
+  hydrateAuth: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -37,7 +37,7 @@ CHECK_SPEC = {
     "input_kind": "priority_urls_and_cache",
 }
 
-JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
+JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", re.IGNORECASE)
 
 JWT_PARAM_NAMES = {
     "token",
@@ -153,7 +153,7 @@ def _extract_jwts_from_response(response: dict[str, Any]) -> list[str]:
             tokens.append(token)
     headers = response.get("headers", {})
     for key, val in headers.items():
-        if isinstance(val, str) and "eyJ" in val:
+        if isinstance(val, str) and "eyJ" in val.lower():
             for match in JWT_RE.finditer(val):
                 token = match.group(0)
                 if token not in tokens:
@@ -166,7 +166,7 @@ def _extract_jwt_from_headers(headers: dict[str, Any]) -> str | None:
     for header_name in JWT_AUTH_HEADERS:
         val = headers.get(header_name) or headers.get(header_name.lower())
         if val and isinstance(val, str):
-            if val.startswith("Bearer "):
+            if val.lower().startswith("bearer "):
                 val = val[7:]
             if JWT_RE.match(val):
                 return cast(str, val)

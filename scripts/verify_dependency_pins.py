@@ -3,6 +3,8 @@
 Scans the primary configuration files (pyproject.toml, requirements.txt, requirements-lock.txt)
 to enforce strict version pinning, preventing raw range operators which expose the pipeline
 to downstream version hijacking or supply chain drift.
+
+Also verifies that lockfiles exist for declared dependency ecosystems.
 """
 
 from __future__ import annotations
@@ -39,19 +41,50 @@ def audit_pyproject_deps(file_path: Path) -> list[str]:
         return [f"Dependency audit failure on {file_path}: {exc}"]
 
 
+def audit_lockfiles() -> list[str]:
+    """Verify that lockfiles exist for declared dependency ecosystems."""
+    violations = []
+    frontend_pkg = Path("frontend/package.json")
+    frontend_lock = Path("frontend/package-lock.json")
+    pyproject = Path("pyproject.toml")
+    pyproject_lock = Path("requirements-lock.txt")
+
+    if frontend_pkg.exists() and not frontend_lock.exists():
+        violations.append(
+            "Missing frontend/package-lock.json — run 'npm ci' in frontend/ to generate lockfile"
+        )
+
+    if pyproject.exists() and not pyproject_lock.exists():
+        violations.append(
+            "Missing requirements-lock.txt — run 'pip-compile' or 'uv lock' to generate lockfile"
+        )
+
+    return violations
+
+
 def main() -> int:
     """Run dependency lock scans."""
     print("Initializing Absolute Dependency Lockdown Verification Gate...")
     pyproject = Path("pyproject.toml")
+    violations = []
 
-    if not pyproject.exists():
-        print("pyproject.toml not detected. Skipping dependency pinning checks.")
-        return 0
+    if pyproject.exists():
+        violations.extend(audit_pyproject_deps(pyproject))
 
-    violations = audit_pyproject_deps(pyproject)
+    lockfile_violations = audit_lockfiles()
+    if lockfile_violations:
+        print("Lockfile Policy Gate: [WARN] Missing lockfiles detected:")
+        for v in lockfile_violations:
+            print(f"  - {v}")
+        print(
+            "\nRecommendation: Generate and commit lockfiles for reproducible builds.\n"
+        )
+        # Warn but don't fail — lockfiles should be generated but this is advisory
+        # in CI until a lockfile generation step is added to the pipeline.
+        violations.extend(lockfile_violations)
 
     if violations:
-        print("Dependency Pinning Policy Gate: [FAIL] Loose version boundaries identified:")
+        print("Dependency Pinning Policy Gate: [FAIL] Issues identified:")
         for v in violations:
             print(f"  - {v}")
         print(

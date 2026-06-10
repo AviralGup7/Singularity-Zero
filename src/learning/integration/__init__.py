@@ -210,8 +210,9 @@ class LearningIntegration:
                     new_loop.close()
                 except Exception:
                     try:
-                        old_loop = asyncio.get_event_loop()
-                        old_loop.run_until_complete(coro)
+                        old_loop = asyncio.get_event_loop_policy().get_event_loop()
+                        if not old_loop.is_closed():
+                            old_loop.run_until_complete(coro)
                     except Exception:  # noqa: S110
                         pass
 

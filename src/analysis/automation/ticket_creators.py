@@ -21,8 +21,8 @@ credentials via the configuration system.
 A registry helper :func:`create_ticket_creators_from_config` builds
 the full set of creators from a pipeline config dict.
 """
-
 from __future__ import annotations
+
 
 import hashlib
 import logging

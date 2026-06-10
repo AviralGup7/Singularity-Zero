@@ -8,7 +8,10 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 
-from src.dashboard.fastapi.dependencies import require_admin, require_auth
+from src.dashboard.fastapi.dependencies import get_config, require_admin, require_auth
+
+# Maximum body size for CSP violation reports (256 KiB).
+_MAX_CSP_REPORT_BYTES: int = 256 * 1024
 from src.dashboard.fastapi.schemas import (
     APIKeyCreateRequest,
     APIKeyCreateResponse,
@@ -20,7 +23,7 @@ from src.dashboard.fastapi.schemas import (
     TokenRequest,
     TokenResponse,
 )
-from src.dashboard.fastapi.security import api_security_enabled, create_jwt
+from src.dashboard.fastapi.security import api_security_enabled, create_jwt, Principal
 from src.dashboard.rate_limiter import get_rate_limit_status
 
 router = APIRouter(tags=["Security"])
@@ -66,9 +69,23 @@ async def get_csrf_token(
     responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
     summary="Exchange an API key for a short-lived dashboard token",
 )
-async def create_dashboard_token(request: Request, body: TokenRequest) -> TokenResponse:
+async def create_dashboard_token(
+    request: Request,
+    body: TokenRequest,
+) -> TokenResponse:
     store = request.app.state.security_store
-    principal = store.authenticate_key(body.api_key)
+    config: DashboardConfig = getattr(request.app.state, "config", get_config())
+    principal: Principal | None = None
+    if body.mode and body.mode.lower() == "guest":
+        guest_enabled = bool(getattr(config, "guest_access_enabled", False)) and api_security_enabled()
+        if not guest_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Guest authentication is disabled for this deployment",
+            )
+        principal = Principal(user="guest", role="guest", tenant_id="default", auth_method="guest")
+    elif body.api_key:
+        principal = store.authenticate_key(body.api_key)
     if principal is None:
         store.record_event(
             "invalid_auth",
@@ -79,6 +96,14 @@ async def create_dashboard_token(request: Request, body: TokenRequest) -> TokenR
             detail="Invalid API key token exchange",
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+    store.record_event(
+        "guest_auth",
+        status_code=200,
+        method=request.method,
+        path=request.url.path,
+        client_ip=request.client.host if request.client else "unknown",
+        detail={"auth_method": "guest", "token_role": "guest"},
+    )
     return TokenResponse(**create_jwt(principal))
 
 
@@ -201,7 +226,20 @@ async def list_csp_reports(
     summary="Accept a CSP violation report",
 )
 async def csp_report(request: Request) -> Response:
-    payload = await request.json()
+    body = await request.body()
+    if len(body) > _MAX_CSP_REPORT_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="CSP report body exceeds size limit",
+        )
+    import json
+
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid CSP report"
+        )
     if not isinstance(payload, dict):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid CSP report"

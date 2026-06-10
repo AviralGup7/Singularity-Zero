@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import threading
 import time
 import weakref
 from typing import Any
@@ -24,14 +25,38 @@ from src.core.utils.url_validation import is_safe_url
 logger = get_pipeline_logger(__name__)
 
 _PID_LIMITERS: dict[str, PIDRateLimiter] = {}
+_PID_LIMITERS_MAX = 1024
 
 DEFAULT_TIMEOUT = 10.0
 MAX_BODY_LENGTH = 120_000
-_SYNC_SESSION = requests.Session()
-atexit.register(_SYNC_SESSION.close)
+_sync_session_local = threading.local()
+
+
+def _get_sync_session() -> requests.Session:
+    """Return a thread-local requests.Session instance."""
+    session = getattr(_sync_session_local, "session", None)
+    if session is None:
+        session = requests.Session()
+        _sync_session_local.session = session
+        atexit.register(session.close)
+    return session
 _ASYNC_CLIENTS: dict[tuple[bool, bool], httpx.AsyncClient] = {}
 
 _ASYNC_CLIENTS_WEAKSET: weakref.WeakSet[httpx.AsyncClient] = weakref.WeakSet()
+
+
+def _cleanup_async_clients() -> None:
+    """Synchronously close all cached async clients at process exit."""
+    for client in list(_ASYNC_CLIENTS.values()):
+        try:
+            if not client.is_closed:
+                client.close()
+        except Exception as exc:
+            logger.debug("Failed to close httpx client during atexit: %s", exc)
+    _ASYNC_CLIENTS.clear()
+
+
+atexit.register(_cleanup_async_clients)
 
 # Hook httpx.AsyncClient creation to track all instances process-wide
 _original_async_client_init = httpx.AsyncClient.__init__
@@ -119,13 +144,17 @@ def safe_request(
         or "default"
     )
 
-    limiter = _PID_LIMITERS.setdefault(target, PIDRateLimiter())
+    if target not in _PID_LIMITERS:
+        if len(_PID_LIMITERS) >= _PID_LIMITERS_MAX:
+            _PID_LIMITERS.pop(next(iter(_PID_LIMITERS)))
+        _PID_LIMITERS[target] = PIDRateLimiter()
+    limiter = _PID_LIMITERS[target]
     if limiter.current_delay > 0.0:
         time.sleep(limiter.current_delay)
 
     try:
         start_time = time.monotonic()
-        resp = _SYNC_SESSION.request(
+        resp = _get_sync_session().request(
             method=method,
             url=url,
             headers=req_headers,
@@ -184,7 +213,7 @@ def safe_request(
                 err_status = getattr(e.response, "status_code", 0)
             except Exception as exc:
                 logger.debug("Failed to extract error status: %s", exc)
-                pass
+                logger.warning("Operation failed in http_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
         is_blocked = err_status in {429, 503}
         limiter.update(0.0, is_blocked=is_blocked)
 
@@ -205,10 +234,10 @@ def safe_request(
             )
         except Exception as exc:
             logger.debug("Telemetry/Evasion observation failed: %s", exc)
-            pass
-        return _error_response(str(e), url=url, exc=e)
+            logger.warning("Operation failed in http_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
+        return _error_response(str(e), url=url)
     except Exception as e:
-        return _error_response(str(e), url=url, exc=e)
+        return _error_response(str(e), url=url)
 
 
 async def async_safe_request(
@@ -268,7 +297,11 @@ async def async_safe_request(
         or "default"
     )
 
-    limiter = _PID_LIMITERS.setdefault(target, PIDRateLimiter())
+    if target not in _PID_LIMITERS:
+        if len(_PID_LIMITERS) >= _PID_LIMITERS_MAX:
+            _PID_LIMITERS.pop(next(iter(_PID_LIMITERS)))
+        _PID_LIMITERS[target] = PIDRateLimiter()
+    limiter = _PID_LIMITERS[target]
     if limiter.current_delay > 0.0:
         await asyncio.sleep(limiter.current_delay)
 
@@ -334,7 +367,7 @@ async def async_safe_request(
                 err_status = getattr(e.response, "status_code", 0)
             except Exception as exc:
                 logger.debug("Failed to extract error status: %s", exc)
-                pass
+                logger.warning("Operation failed in http_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
         is_blocked = err_status in {429, 503}
         limiter.update(0.0, is_blocked=is_blocked)
 
@@ -354,10 +387,10 @@ async def async_safe_request(
             )
         except Exception as exc:
             logger.debug("Telemetry/Evasion observation failed: %s", exc)
-            pass
-        return _error_response(str(e), url=url, exc=e)
+            logger.warning("Operation failed in http_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
+        return _error_response(str(e), url=url)
     except Exception as e:
-        return _error_response(str(e), url=url, exc=e)
+        return _error_response(str(e), url=url)
 
 
 def _error_response(error: str, url: str = "", exc: Exception | None = None) -> dict[str, Any]:
@@ -370,7 +403,7 @@ def _error_response(error: str, url: str = "", exc: Exception | None = None) -> 
             headers = dict(getattr(exc.response, "headers", {}))
         except Exception as exc:
             logger.debug("Telemetry/Evasion observation failed: %s", exc)
-            pass
+            logger.warning("Operation failed in http_utils.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     return {
         "status": status,

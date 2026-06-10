@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from src.dashboard.fastapi.dependencies import get_queue_client, require_auth
+from src.dashboard.fastapi.schemas import ErrorResponse
 from src.reporting.compliance_pdf import generate_compliance_pdf
 from src.reporting.platform_clients import (
     AppleClient,
@@ -61,6 +62,12 @@ def _get_latest_run_dir_safe(output_root: Path, target_name: str) -> Path | None
 
 @router.get(
     "/ai-summary",
+    response_model=dict[str, Any],
+    responses={
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
     summary="Get AI executive security posture summary for a target",
 )
 async def get_ai_executive_summary(
@@ -90,8 +97,8 @@ async def get_ai_executive_summary(
     if findings_path.exists():
         try:
             findings = json.loads(findings_path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Failed to parse findings.json for AI summary at %s", findings_path, exc_info=True)
 
     # 4. Load compliance report if available
     compliance_report = None
@@ -99,8 +106,8 @@ async def get_ai_executive_summary(
     if compliance_path.exists():
         try:
             compliance_report = json.loads(compliance_path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning("Failed to parse compliance_coverage.json at %s", compliance_path, exc_info=True)
 
     # 5. Generate AI summary
     try:
@@ -110,8 +117,9 @@ async def get_ai_executive_summary(
         summary_markdown = await llm.generate_executive_summary(findings, compliance_report)
         return {"target": target, "run_id": run_dir.name, "summary": summary_markdown}
     except Exception as exc:
+        logger.exception("AI executive summary generation failed")
         raise HTTPException(
-            status_code=500, detail=f"Failed to generate AI executive summary: {exc}"
+            status_code=500, detail="Failed to generate AI executive summary"
         )
 
 
@@ -160,9 +168,10 @@ async def get_compliance_pdf(
     try:
         summary: dict[str, Any] = json.loads(summary_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
+        logger.error("Failed to parse run_summary.json for target '%s': %s", target, exc)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to parse run_summary.json for target '{target}': {exc}",
+            detail=f"run_summary.json is corrupt for target '{target}'",
         ) from exc
 
     pdf_path = generate_compliance_pdf(summary=summary, run_dir=run_dir)
@@ -188,6 +197,8 @@ async def get_compliance_pdf(
 
 @router.get(
     "/sla/trending",
+    response_model=dict[str, Any],
+    responses={401: {"model": ErrorResponse}},
     summary="Get GRC SLA trending telemetry and active breaches",
 )
 async def get_sla_trending(
@@ -225,7 +236,8 @@ async def get_sla_trending(
 
             try:
                 findings = json.loads(findings_path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: S112
+            except Exception:
+                logger.warning("Failed to parse findings.json for SLA trending at %s", findings_path, exc_info=True)
                 continue
 
             if not isinstance(findings, list):
@@ -379,6 +391,8 @@ def _get_clients() -> dict[str, Any]:
 
 @router.get(
     "/platforms",
+    response_model=dict[str, Any],
+    responses={401: {"model": ErrorResponse}},
     summary="List configured bug-bounty platform clients",
 )
 async def list_platforms(_auth: Any = Depends(require_auth)) -> dict[str, Any]:
@@ -441,9 +455,19 @@ async def submit_finding_to_platform(
     """Push a finding to one of the supported platforms."""
     target = (auth or {}).get("target")
     if not target:
-        raise HTTPException(
-            status_code=400, detail="No target associated with auth context"
-        )
+        from src.dashboard.fastapi.routers.findings.crud import _locate_finding_on_disk
+        tenant_id = (auth or {}).get("tenant_id", "default")
+        located = _locate_finding_on_disk(services.query.output_root, finding_id, tenant_id)
+        if not located:
+            raise HTTPException(
+                status_code=404, detail="Finding not found to resolve target name"
+            )
+        target = located[0]
+        from src.dashboard.fastapi.routers.targets.validation import is_target_owned_by_tenant
+        if not is_target_owned_by_tenant(target, tenant_id):
+            raise HTTPException(
+                status_code=403, detail="Access denied to requested target infrastructure"
+            )
     run_dir = _resolve_run_dir(services, target, run_id)
     if run_dir is None:
         raise HTTPException(status_code=404, detail="Run not found for current tenant")
@@ -493,11 +517,10 @@ async def submit_finding_to_platform(
         result: SubmissionResult = await client.submit(finding)
     except Exception as exc:
         logger.exception("Platform submission failed")
-        return {
-            "platform": payload.platform,
-            "submitted": False,
-            "error": str(exc),
-        }
+        raise HTTPException(
+            status_code=502,
+            detail=f"Platform submission to {payload.platform!r} failed",
+        )
 
     return {
         "platform": result.platform,

@@ -1,3 +1,4 @@
+import logging
 import json
 from typing import Any
 
@@ -82,8 +83,8 @@ def stored_xss_signal_detector(responses: list[dict[str, Any]]) -> list[dict[str
             try:
                 data = json.loads(body)
                 _scan_json_for_xss(data, url, response.get("status_code"), findings, seen)
-            except (json.JSONDecodeError, ValueError):
-                pass
+            except (json.JSONDecodeError, ValueError) as exc:
+                logging.warning("Operation failed in _detectors.py: %s", exc, exc_info=True)  # noqa: BLE001
     return findings[:80]
 
 

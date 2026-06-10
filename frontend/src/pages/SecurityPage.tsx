@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { KeyRound, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2, Copy, Check, ChevronDown } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip as ChartTooltip } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip as ChartTooltip } from 'recharts';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { PageSkeleton, EmptyState, PageHeader, GlassCard, AnimatedCounter } from '@/components/ui';
+import { PageSkeleton, EmptyState, PageHeader, GlassCard, AnimatedCounter, SafeResponsiveContainer } from '@/components/ui';
 import {
   generateApiKey,
   getApiKeys,
@@ -255,7 +255,7 @@ export function SecurityPage() {
         {/* Recharts Mini Sparkline visualization */}
         {rateLimit?.buckets && rateLimit.buckets.length > 0 && (
           <div className="h-32 w-full mt-2 mb-6 p-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)]">
-            <ResponsiveContainer width="100%" height="100%">
+            <SafeResponsiveContainer width="100%" height="100%">
               <AreaChart data={rateLimit.buckets} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
@@ -276,7 +276,7 @@ export function SecurityPage() {
                 />
                 <Area type="monotone" dataKey="requests_per_second" stroke="var(--accent)" fillOpacity={1} fill="url(#colorRequests)" name="Requests/sec" />
               </AreaChart>
-            </ResponsiveContainer>
+            </SafeResponsiveContainer>
           </div>
         )}
 
@@ -422,7 +422,7 @@ export function SecurityPage() {
                     <span className="text-[var(--text-secondary)]">{formatDate(report.timestamp)}</span>
                     <span className="text-[var(--accent)] font-semibold">{report.client_ip ?? 'unknown'}</span>
                     <span className="text-[var(--text-tertiary)] max-w-xs truncate">
-                      {((report.report as Record<string, Record<string, unknown>>)['csp-report']?.['blocked-uri'] as string) || 'Violation'}
+                      {(((report.report as Record<string, Record<string, unknown>>)['csp-report']?.['blocked-uri'] as string) || 'Violation').replace(/^javascript:/i, '[blocked]')}
                     </span>
                   </div>
                   <ChevronDown

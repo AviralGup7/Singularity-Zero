@@ -102,6 +102,7 @@ class AdaptiveScanCoordinator:
         start = time.monotonic()
         batch_num = 0
         boosted_total = 0
+        early_terminated = False
 
         while True:
             # Bug #20 fix: previously the early-termination check ran at
@@ -202,6 +203,7 @@ class AdaptiveScanCoordinator:
                     self._queue.total,
                     len(self._total_findings),
                 )
+                early_terminated = True
                 break
 
         elapsed_ms = (time.monotonic() - start) * 1000
@@ -211,7 +213,7 @@ class AdaptiveScanCoordinator:
             scanned=len(self._results),
             findings_count=len(self._total_findings),
             boosted_count=boosted_total,
-            early_terminated=self._queue.should_terminate_early(),
+            early_terminated=early_terminated,
             duration_ms=round(elapsed_ms, 1),
             results=self._results,
             budget_snapshot=self._queue.budget_snapshot(),

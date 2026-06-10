@@ -78,3 +78,11 @@ export async function getModeRegistry(signal?: AbortSignal, ttl?: number): Promi
 export async function getDynamicPluginCatalog(signal?: AbortSignal, ttl?: number): Promise<DynamicPluginCatalogResponse> {
   return cachedGet<DynamicPluginCatalogResponse>('/api/registry/plugins', { signal, ttl, bypassCache: true });
 }
+
+export interface CapabilitiesResponse {
+  capabilities: Record<string, unknown>;
+}
+
+export async function getCapabilities(signal?: AbortSignal, ttl?: number): Promise<CapabilitiesResponse> {
+  return cachedGet<CapabilitiesResponse>('/api/registry/capabilities', { signal, ttl });
+}

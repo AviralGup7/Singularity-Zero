@@ -70,14 +70,13 @@ logger = logging.getLogger(__name__)
 
 _STRING_RE = re.compile(
     r"""
-    (?P<quote>(?P<ch>['"`]))
     (?:
-        \\.               # escaped char
+        '(?:\\.|[^'\\])*'      # single-quoted string
         |
-        (?!(?P=ch))       # any char except the closing quote
-        .
-    )*?
-    (?P=ch)
+        "(?:\\.|[^"\\])*"      # double-quoted string
+        |
+        `(?:\\.|[^`\\])*`      # backtick-quoted template literal
+    )
     """,
     re.VERBOSE | re.DOTALL,
 )

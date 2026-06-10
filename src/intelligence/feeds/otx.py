@@ -17,6 +17,7 @@ Usage:
 """
 
 import logging
+import os
 from datetime import datetime
 from typing import Any
 
@@ -26,7 +27,9 @@ from src.intelligence.feeds.base import BaseFeedConnector, FeedConfig
 
 logger = logging.getLogger(__name__)
 
-OTX_BASE_URL = "https://otx.alienvault.com/api/v1"
+OTX_BASE_URL = os.environ.get(
+    "OTX_BASE_URL", "https://otx.alienvault.com/api/v1"
+)
 
 
 class OTXConfig(FeedConfig):
@@ -369,8 +372,8 @@ class OTXClient(BaseFeedConnector):
             if created_str:
                 try:
                     created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as exc:
+                    logger.warning("Operation failed in otx.py: %s", exc, exc_info=True)  # noqa: BLE001
 
             indicators.append(
                 OTXIndicator(
@@ -395,8 +398,8 @@ class OTXClient(BaseFeedConnector):
                         created = dt
                     else:
                         modified = dt
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as exc:
+                    logger.warning("Operation failed in otx.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         return OTXPulse(
             id=data.get("id", ""),

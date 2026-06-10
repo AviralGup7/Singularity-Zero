@@ -35,6 +35,9 @@ export function getStreamToken(): string | null {
 
 /**
  * Appends the auth token to a `URLSearchParams`-style query string.
+ * SECURITY: Query-string tokens are logged in server access logs, CDN logs,
+ * browser history, and Referer headers. Use only when no alternative exists
+ * (EventSource has no header support). For WebSocket, prefer subprotocols.
  * Returns the original URL untouched when no token is available so we never
  * ship `?token=` to the wire.
  */
@@ -51,6 +54,9 @@ export function appendStreamToken(url: string): string {
  * the `access_token` subprotocol. We return an empty array when no token
  * is present so the connection is allowed (the backend will reject the
  * upgrade with 401).
+ *
+ * SECURITY: Tokens passed as subprotocols may still appear in proxy logs.
+ * Prefer a short-lived stream token exchange endpoint when available.
  */
 export function getStreamSubprotocols(): string[] {
   const token = getStreamToken();

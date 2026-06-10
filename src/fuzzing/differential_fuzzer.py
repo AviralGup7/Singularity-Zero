@@ -1,5 +1,6 @@
 import json
 import logging
+import secrets
 import time
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -85,7 +86,8 @@ def _structural_diff(base_body: str, candidate_body: str) -> dict[str, Any]:
 def _timing_differential(base_elapsed_ms: float, candidate_elapsed_ms: float) -> dict[str, Any]:
     """Detect timing differentials that may indicate timing side-channels."""
     delta = abs(candidate_elapsed_ms - base_elapsed_ms)
-    is_significant = delta > (_TIMING_DIFF_THRESHOLD * 1000)
+    # Use a more realistic threshold: 500ms for network jitter, 2000ms for real anomaly
+    is_significant = delta > 500.0 and delta > (_TIMING_DIFF_THRESHOLD * 1000 * 0.5)
     return {
         "delta_ms": round(delta, 2),
         "is_significant": is_significant,
@@ -132,8 +134,8 @@ async def _run_differential_probe(
     for idx, (param_name, param_value) in enumerate(query_pairs):
         bit_flipped = bytearray(param_value.encode('utf-8', errors='ignore'))
         if len(bit_flipped) > 0:
-            bit_index = (hash(url + param_name) + idx) % len(bit_flipped)
-            bit_flipped[bit_index] ^= 1 << ((bit_index + idx) % 8)
+            bit_index = secrets.randbelow(len(bit_flipped))
+            bit_flipped[bit_index] ^= 1 << secrets.randbelow(8)
             mutated_value = bit_flipped.decode('utf-8', errors='ignore')
         else:
             mutated_value = 'A'

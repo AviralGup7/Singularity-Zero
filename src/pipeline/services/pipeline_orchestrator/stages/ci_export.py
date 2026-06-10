@@ -41,7 +41,7 @@ def _severity_exceeds_threshold(finding: Any, threshold: str) -> bool:
 
 
 def _junit_xml(findings: list[Any], threshold: str) -> str:
-    timestamp = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<testsuites>',

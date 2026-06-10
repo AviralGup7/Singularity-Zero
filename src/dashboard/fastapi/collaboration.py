@@ -163,19 +163,24 @@ class TriageCollaborationService:
         exclude = exclude or set()
         async with self._lock:
             connections = list(self._rooms.get(run_id, {}).values())
-        sent = 0
         data = json.dumps(payload, ensure_ascii=False)
-        for connection in connections:
+
+        async def _send_one(connection: TriageConnection) -> bool:
             if connection.connection_id in exclude:
-                continue
+                return False
             if connection.websocket.client_state != WebSocketState.CONNECTED:
-                continue
+                return False
             try:
                 await connection.websocket.send_text(data)
-                sent += 1
+                return True
             except Exception:  # noqa: S112
-                continue
-        return sent
+                return False
+
+        results = await asyncio.gather(
+            *[_send_one(conn) for conn in connections],
+            return_exceptions=True,
+        )
+        return sum(1 for r in results if r is True)
 
     def record_action(
         self,

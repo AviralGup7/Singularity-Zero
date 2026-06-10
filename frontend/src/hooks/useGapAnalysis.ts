@@ -1,12 +1,11 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import type { DetectionGapResponse, GapAnalysisResult } from '@/types/api';
 import { getGapAnalysis, refreshGapAnalysis, getTargets } from '@/api/client';
-import type { TargetsResponse } from './useTargets';
 
 export type StatusFilter = 'all' | 'complete' | 'partial' | 'missing';
 
 export function useGapAnalysis() {
-  const [selectedTarget, setSelectedTarget] = useState<string>('');
+  const [selectedTarget, setSelectedTarget] = useState<string>('all');
   const [data, setData] = useState<DetectionGapResponse | null>(null);
   const [targets, setTargets] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -106,15 +105,27 @@ interface UseGapAnalysisFilteringProps {
 export function useGapAnalysisFiltering({ filtered }: UseGapAnalysisFilteringProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [searchQuery]);
 
   const filteredAndSearched = useMemo(() => {
     let result = [...filtered];
     if (statusFilter !== 'all') {
       result = result.filter((r) => r.status === statusFilter);
     }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+    if (debouncedSearchQuery) {
+      const q = debouncedSearchQuery.toLowerCase();
       result = result.filter(
         (r) =>
           (r.module || '').toLowerCase().includes(q) ||
@@ -122,7 +133,7 @@ export function useGapAnalysisFiltering({ filtered }: UseGapAnalysisFilteringPro
       );
     }
     return result;
-  }, [filtered, statusFilter, searchQuery]);
+  }, [filtered, statusFilter, debouncedSearchQuery]);
 
   const toggleExpand = useCallback((module: string) => {
     setExpandedRows((prev) => {

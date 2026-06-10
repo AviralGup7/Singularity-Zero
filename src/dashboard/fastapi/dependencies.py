@@ -3,6 +3,7 @@
 import hmac
 import logging
 import os
+import threading
 from collections.abc import AsyncGenerator
 from typing import Any, cast
 
@@ -22,6 +23,7 @@ from src.dashboard.fastapi.security import (
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 _config_instance: DashboardConfig | None = None
+_config_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +31,9 @@ def get_config() -> DashboardConfig:
     """Return the dashboard configuration singleton."""
     global _config_instance
     if _config_instance is None:
-        _config_instance = DashboardConfig()
+        with _config_lock:
+            if _config_instance is None:
+                _config_instance = DashboardConfig()
     return _config_instance
 
 

@@ -71,20 +71,23 @@ function redactText(text: string): string {
   return result;
 }
 
+function escapeShellArg(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`;
+}
+
 function buildCurlCommand(pair: RequestResponsePair): string {
   const { request } = pair;
   let cmd = `curl -X ${request.method} '${request.url}'`;
 
   if (request.headers) {
-   
     for (const [key, value] of Object.entries(request.headers)) {
-      cmd += ` \\\n  -H '${key}: ${value}'`;
+      cmd += ` \\\n  -H ${escapeShellArg(`${key}: ${value}`)}`;
     }
   }
 
   if (request.body) {
     const decoded = decodePayload(request.body, request.body_encoding);
-    cmd += ` \\\n  -d '${decoded.replace(/'/g, "'\\''")}'`;
+    cmd += ` \\\n  -d ${escapeShellArg(decoded)}`;
   }
 
   return cmd;

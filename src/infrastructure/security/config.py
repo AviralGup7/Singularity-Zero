@@ -56,7 +56,20 @@ def _env_float(name: str, default: float) -> float:
 
 
 def _env_bool(name: str, default: bool) -> bool:
-    """Read a boolean from environment with a fallback."""
+    """Read a boolean from environment with a fallback.
+
+    Recognizes the following values as True (case-insensitive):
+    ``"1"``, ``"true"``, ``"yes"``, ``"on"``.
+
+    All other values (including ``"0"``, ``"false"``, ``"no"``, ``"off"``)
+    are treated as False.
+
+    WARNING: Ambiguous values like ``SEC_RATE_LIMIT_DEFAULT=no`` will
+    be parsed as ``False``. If the consuming field uses this as a
+    "enabled" flag, setting ``"no"`` disables the feature — which may
+    not be the operator's intent. Document this behavior in field
+    descriptions where _env_bool is used.
+    """
     val = os.environ.get(name)
     if val is None:
         return default
@@ -145,14 +158,28 @@ class CORSConfig(BaseModel):
     allowed_origins: list[str] = Field(
         default_factory=lambda: _env_list(
             "SEC_CORS_ORIGINS",
-            ["http://localhost:3000", "http://localhost:5173"],
+            [],
         ),
     )
     allow_credentials: bool = Field(default=True)
     allowed_methods: list[str] = Field(
         default=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     )
-    allowed_headers: list[str] = Field(default=["*"])
+    # SECURITY: Do NOT default to ["*"] for allowed_headers when
+    # allow_credentials=True. Browsers reject wildcard headers with
+    # credentialed requests. List specific headers instead.
+    allowed_headers: list[str] = Field(
+        default_factory=lambda: _env_list(
+            "SEC_CORS_ALLOWED_HEADERS",
+            [
+                "Authorization",
+                "Content-Type",
+                "X-API-Key",
+                "X-Request-ID",
+                "X-Correlation-ID",
+            ],
+        ),
+    )
     max_age: int = Field(default=600, gt=0)
     expose_headers: list[str] = Field(
         default=[
@@ -168,19 +195,21 @@ class HeadersConfig(BaseModel):
     """Configuration for security HTTP headers."""
 
     strict_transport_security: str = Field(
-        default="max-age=31536000; includeSubDomains",
+        default="max-age=31536000; includeSubDomains; preload",
     )
     content_security_policy: str = Field(
         default=(
             "default-src 'self'; "
             "script-src 'self'; "
-            "style-src 'self' https://fonts.googleapis.com 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; "
+            "style-src 'self' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data:; "
-            "connect-src 'self'; "
+            "img-src 'self' https://www.transparenttextures.com; "
+            "connect-src 'self' wss: ws:; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
-            "form-action 'self'"
+            "form-action 'self'; "
+            "object-src 'none'; "
+            "upgrade-insecure-requests"
         ),
     )
     x_content_type_options: str = Field(default="nosniff")
@@ -204,7 +233,7 @@ class EncryptionConfig(BaseModel):
     )
     cache_encryption_enabled: bool = Field(default=True)
     api_key_encryption_enabled: bool = Field(default=True)
-    tls_min_version: str = Field(default="1.2")
+    tls_min_version: str = Field(default="1.3")
     tls_ciphers: str = Field(
         default="ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384",
     )
@@ -295,14 +324,22 @@ class SecurityConfig(BaseModel):
     @field_validator("jwt")
     @classmethod
     def validate_jwt_secret(cls, v: JWTConfig) -> JWTConfig:
-        """Warn if JWT secret is empty (development mode only)."""
-        if not v.secret:
-            import warnings
+        """Require a non-empty JWT secret in ALL environments.
 
-            warnings.warn(
-                "JWT secret is empty. "
+        An empty secret allows trivial JWT forgery with a single guess.
+        Production, staging, and development all require a secret.
+        """
+        if not v.secret:
+            raise ValueError(
+                "JWT secret must not be empty. "
                 "Set SEC_JWT_SECRET environment variable with a strong random value "
-                "(min 32 chars recommended) before deploying to production.",
+                "(min 32 chars recommended). An empty secret allows trivial JWT forgery."
+            )
+        if len(v.secret) < 32:
+            import warnings
+            warnings.warn(
+                "JWT secret is shorter than 32 characters. "
+                "Use a cryptographically random value of at least 32 characters.",
                 UserWarning,
                 stacklevel=2,
             )

@@ -145,6 +145,8 @@ def detection_coverage_section(
     # Determine which categories were tested (modules that ran)
     tested_categories: set[str] = set()
     module_to_category: dict[str, str] = {
+        "dns_security": "misconfiguration",
+        "correlation": "anomaly",
         "idor_candidate_finder": "idor",
         "ssrf_candidate_finder": "ssrf",
         "token_leak_detector": "token_leak",

@@ -77,8 +77,8 @@ class ProactiveMigrationHandler:
             self._monitor_task.cancel()
             try:
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in migration_handler.py: %s", exc, exc_info=True)  # noqa: BLE001
         logger.info("ProactiveMigration: Handler stopped")
 
     async def _run_monitor(self) -> None:

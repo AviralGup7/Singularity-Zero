@@ -161,11 +161,23 @@ async def authenticate_websocket(
 
     api_key_header = websocket.headers.get("x-api-key")
     if api_key_header and api_keys:
-        return _authenticate_api_key(api_key_header, api_keys, required_roles)
+        # Validate API key: strip whitespace and reject CRLF injection
+        clean_key = api_key_header.strip()
+        if "\r" in clean_key or "\n" in clean_key:
+            raise AuthenticationError(
+                code="auth_invalid_api_key",
+                detail="Invalid API key format",
+                status_code=4001,
+            )
+        return _authenticate_api_key(clean_key, api_keys, required_roles)
 
-    api_key_query = websocket.query_params.get("api_key")
-    if api_key_query and api_keys:
-        return _authenticate_api_key(api_key_query, api_keys, required_roles)
+    if "api_key" in websocket.query_params:
+        logger.warning("WebSocket auth via query parameter rejected (policy: header-only)")
+        raise AuthenticationError(
+            code="auth_query_param_rejected",
+            detail="API key authentication via query parameters is not allowed. Use the x-api-key header instead.",
+            status_code=4001,
+        )
 
     # Keep WebSocket behavior consistent with HTTP endpoints in development:
     # when no auth backend is configured, allow anonymous access.
@@ -260,7 +272,7 @@ def _authenticate_jwt(
     if isinstance(payload.get("roles"), str):
         roles = {payload["roles"]}
 
-    if required_roles and not roles.intersection(required_roles):
+    if required_roles is not None and not roles.intersection(required_roles):
         raise AuthenticationError(
             code="auth_insufficient_roles",
             detail=f"Required roles: {required_roles}, got: {roles}",
@@ -307,7 +319,7 @@ def _authenticate_api_key(
         if maybe_role:
             roles = {maybe_role}
 
-    if required_roles and not roles.intersection(required_roles):
+    if required_roles is not None and not roles.intersection(required_roles):
         raise AuthenticationError(
             code="auth_insufficient_roles",
             detail=f"Required roles: {required_roles}, got: {roles}",

@@ -1,10 +1,11 @@
+from __future__ import annotations
+import logging
 """Bug bounty finding deduplication.
 
 Loads previously submitted findings from a JSON store and fingerprints
 new findings to detect duplicates before submission.
 """
 
-from __future__ import annotations
 
 import hashlib
 import json
@@ -41,8 +42,8 @@ class FindingDedup:
                 json.dumps(self._submitted, indent=2, ensure_ascii=False, default=str),
                 encoding="utf-8",
             )
-        except OSError:
-            pass
+        except OSError as exc:
+            logging.warning("Operation failed in dedup.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     def fingerprint_finding(self, finding: dict[str, Any]) -> str:
         tool = str(finding.get("tool") or finding.get("source") or "unknown").strip().lower()

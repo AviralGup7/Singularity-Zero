@@ -5,7 +5,11 @@ Provides channel send logic for webhook, email, and Slack.
 
 from __future__ import annotations
 
+import logging
+
 from src.infrastructure.observability.alerts.models import Alert, AlertChannel, ChannelType
+
+logger = logging.getLogger(__name__)
 
 
 async def send_alert(channel: AlertChannel, alert: Alert) -> bool:
@@ -48,7 +52,8 @@ async def _send_webhook(channel: AlertChannel, alert: Alert) -> bool:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, json=payload, headers=headers)
             return response.status_code < 400
-    except Exception:
+    except Exception as exc:
+        logger.error("Webhook alert send failed for %s: %s", alert.name, exc)
         return False
 
 
@@ -81,7 +86,8 @@ async def _send_channel(channel: AlertChannel, alert: Alert) -> bool:
                 server.login(sender, password)
             server.sendmail(sender, recipients.split(","), msg.as_string())
         return True
-    except Exception:
+    except Exception as exc:
+        logger.error("Email alert send failed for %s: %s", alert.name, exc)
         return False
 
 
@@ -114,5 +120,6 @@ async def _send_slack(channel: AlertChannel, alert: Alert) -> bool:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, json=payload)
             return response.status_code < 400
-    except Exception:
+    except Exception as exc:
+        logger.error("Slack alert send failed for %s: %s", alert.name, exc)
         return False

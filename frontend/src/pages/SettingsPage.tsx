@@ -96,18 +96,48 @@ export function SettingsPage() {
   const setAnimations = displayUpdater.setAnimations;
   const setGridBackground = displayUpdater.setGridBackground;
   
-  const setAutoRefresh = useCallback((v: boolean) => updateSection('dashboard', { autoRefresh: v }), [updateSection]);
-  const setRefreshInterval = useCallback((v: number) => updateSection('dashboard', { refreshInterval: v }), [updateSection]);
+  const setAutoRefresh = useCallback((v: boolean) => {
+    updateSection('dashboard', { autoRefresh: v });
+    showSaveConfirmation();
+  }, [updateSection, showSaveConfirmation]);
+
+  const showSaveConfirmation = useCallback(() => {
+    setSaveConfirmation('Settings saved');
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => setSaveConfirmation(null), 2000);
+  }, []);
+
+  const setRefreshInterval = useCallback((v: number) => {
+    if (v < 1 || v > 300) return;
+    updateSection('dashboard', { refreshInterval: v });
+    showSaveConfirmation();
+  }, [updateSection, showSaveConfirmation]);
   const setJobCompleteNotification = useCallback((v: boolean) => updateSection('notifications', { jobComplete: v }), [updateSection]);
   const setJobFailedNotification = useCallback((v: boolean) => updateSection('notifications', { jobFailed: v }), [updateSection]);
   const setCriticalFindingsNotification = useCallback((v: boolean) => updateSection('notifications', { criticalFindings: v }), [updateSection]);
   const setSoundEnabled = useCallback((v: boolean) => updateSection('notifications', { soundEnabled: v }), [updateSection]);
   const setConfirmDestructiveActions = useCallback((v: boolean) => updateSection('security', { confirmDestructiveActions: v }), [updateSection]);
   const setShowSensitiveData = useCallback((v: boolean) => updateSection('security', { showSensitiveData: v }), [updateSection]);
-  const setAutoLogoutMinutes = useCallback((v: number) => updateSection('security', { autoLogoutMinutes: v }), [updateSection]);
-  const setPipelineConcurrency = useCallback((v: number) => updateSection('pipeline', { concurrency: v }), [updateSection]);
-  const setPipelineTimeout = useCallback((v: number) => updateSection('pipeline', { timeout: v }), [updateSection]);
-  const setPipelineMaxRetries = useCallback((v: number) => updateSection('pipeline', { maxRetries: v }), [updateSection]);
+  const setAutoLogoutMinutes = useCallback((v: number) => {
+    if (v < 0 || v > 480) return;
+    updateSection('security', { autoLogoutMinutes: v });
+    showSaveConfirmation();
+  }, [updateSection, showSaveConfirmation]);
+  const setPipelineConcurrency = useCallback((v: number) => {
+    if (v < 1 || v > 64) return;
+    updateSection('pipeline', { concurrency: v });
+    showSaveConfirmation();
+  }, [updateSection, showSaveConfirmation]);
+  const setPipelineTimeout = useCallback((v: number) => {
+    if (v < 10 || v > 3600) return;
+    updateSection('pipeline', { timeout: v });
+    showSaveConfirmation();
+  }, [updateSection, showSaveConfirmation]);
+  const setPipelineMaxRetries = useCallback((v: number) => {
+    if (v < 0 || v > 10) return;
+    updateSection('pipeline', { maxRetries: v });
+    showSaveConfirmation();
+  }, [updateSection, showSaveConfirmation]);
   const setPipelineVerboseLogging = useCallback((v: boolean) => updateSection('pipeline', { verboseLogging: v }), [updateSection]);
   const setPipelineParallelModules = useCallback((v: boolean) => updateSection('pipeline', { parallelModules: v }), [updateSection]);
   const setApiBaseUrl = useCallback((v: string) => updateSection('api', { baseUrl: v }), [updateSection]);
@@ -172,7 +202,7 @@ export function SettingsPage() {
       requestAnimationFrame(() => {
         const scrollPosition = window.scrollY + 100;
         for (const item of settingsNavItems) {
-          const element = Reflect.get(sectionRefs.current, item.id) as HTMLElement | null;
+          const element = sectionRefs.current[item.id];
           if (element) {
             const { offsetTop, offsetHeight } = element;
             if (scrollPosition >= offsetTop && scrollPosition < offsetTop + offsetHeight) {
@@ -190,7 +220,7 @@ export function SettingsPage() {
   }, []);
 
   const scrollToSection = useCallback((sectionId: SettingsSection) => {
-    const element = Reflect.get(sectionRefs.current, sectionId) as HTMLElement | null;
+    const element = sectionRefs.current[sectionId];
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setActiveSection(sectionId);
@@ -428,13 +458,13 @@ export function SettingsPage() {
               .map((sectionId, idx) => (
                 <motion.div
                   key={sectionId}
-                  ref={(el: HTMLDivElement | null) => { Reflect.set(sectionRefs.current, sectionId, el); }}
+                  ref={(el: HTMLDivElement | null) => { sectionRefs.current[sectionId] = el; }}
                   className="settings-section"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: idx * 0.04, ease: EASE_OUT }}
                 >
-                  {Reflect.get(sectionRenderers, sectionId) as React.ReactNode}
+                  {sectionRenderers[sectionId]}
                 </motion.div>
               ))}
           </div>

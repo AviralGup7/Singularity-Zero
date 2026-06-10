@@ -1,3 +1,4 @@
+import logging
 """IDOR (Insecure Direct Object Reference) active probe."""
 
 import json
@@ -129,8 +130,8 @@ def _extract_json_data(body: str) -> dict[str, Any] | list[Any] | None:
     if stripped.startswith(("{", "[")):
         try:
             return cast(dict[str, Any] | list[Any] | None, json.loads(stripped[:50000]))
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as exc:
+            logging.warning("Operation failed in idor_probe.py: %s", exc, exc_info=True)  # noqa: BLE001
     return None
 
 

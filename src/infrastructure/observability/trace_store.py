@@ -126,14 +126,16 @@ def build_tool_invocation(stage_input: Any, method: Any) -> dict[str, Any]:
         cfg = getattr(stage_input, "config", None) or getattr(stage_input, "runtime", None) or {}
         invocation["runtime_mode"] = str(getattr(cfg, "mode", "") or "")
         invocation["runtime_filters"] = dict(getattr(cfg, "filters", {}) or {})
-    except Exception:
+    except (AttributeError, TypeError) as exc:
+        logger.debug("Failed to extract runtime config: %s", exc)
         invocation["runtime_mode"] = ""
         invocation["runtime_filters"] = {}
 
     try:
         src = inspect.getsource(method)
         invocation["method_source_hash"] = hashlib.sha256(src.encode()).hexdigest()[:16]
-    except Exception:
+    except (TypeError, OSError) as exc:
+        logger.debug("Failed to get method source: %s", exc)
         invocation["method_source_hash"] = ""
 
     return invocation
@@ -169,8 +171,8 @@ def extract_findings_from_output(stage_output: Any) -> list[str]:
             if isinstance(item, dict):
                 fid = item.get("finding_id") or item.get("id") or item.get("title", "unknown")
                 findings.append(str(fid))
-    except Exception:
-        pass
+    except (AttributeError, TypeError, KeyError) as exc:
+        logger.debug("Failed to extract findings from output: %s", exc)
     return findings
 
 

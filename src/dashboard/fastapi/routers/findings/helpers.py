@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -157,7 +158,7 @@ def _collect_timeline_events(
 
 def _seeded_timeline_events(limit: int = 10, offset: int = 0) -> list[dict]:
     """Return synthetic seed events when no real events are found."""
-    base_ts = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+    base_ts = datetime.now(timezone.utc).isoformat()
     seeds = [
         {
             "id": "seed-1",

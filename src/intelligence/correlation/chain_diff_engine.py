@@ -7,8 +7,11 @@ between findings across execution runs.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ChainDiffEngine:
@@ -31,7 +34,8 @@ class ChainDiffEngine:
                     category = f.get("category", f.get("type", "unknown"))
                     keys.add(f"{category}:{endpoint}")
             return keys
-        except Exception:
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            logger.debug("Failed to extract findings keys from %s: %s", findings_file, exc)
             return set()
 
     @classmethod
@@ -45,10 +49,11 @@ class ChainDiffEngine:
 
         if not keys_a and not keys_b:
             return {
-                "similarity": 1.0,
+                "similarity": 0.0,
                 "drift_detected": False,
                 "new_exposures": [],
                 "remediated_paths": [],
+                "both_runs_empty": True,
             }
 
         intersection = keys_a.intersection(keys_b)

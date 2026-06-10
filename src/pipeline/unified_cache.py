@@ -10,6 +10,7 @@ bytes for a given key.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import hashlib
 import json
 import os
@@ -134,8 +135,8 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
         if tmp_path:
             try:
                 os.unlink(tmp_path)
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning("Operation failed in unified_cache.py: %s", exc, exc_info=True)  # noqa: BLE001
         raise
 
 
@@ -175,9 +176,11 @@ class UnifiedCache:
         self._file_root.mkdir(parents=True, exist_ok=True)
         self._strict = strict_namespaces
         self._lock = threading.RLock()
-        self._coalesce = CoalescingCacheWrapper(self, max_workers=max_coalesce_workers)
+        # Hard cap at 16 threads to prevent resource exhaustion
+        capped_workers = min(max_coalesce_workers, 16)
+        self._coalesce = CoalescingCacheWrapper(self, max_workers=capped_workers)
         self._refresh_executor = ThreadPoolExecutor(
-            max_workers=max(1, max_coalesce_workers // 2), thread_name_prefix="cache-refresh"
+            max_workers=max(1, capped_workers // 2), thread_name_prefix="cache-refresh"
         )
 
     @property
@@ -502,7 +505,9 @@ class CoalescingCacheWrapper:
         self._unified = unified
         self._lock_registry: dict[str, asyncio.Lock] = {}
         self._registry_lock = threading.Lock()
-        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="cache-coalesce")
+        # Hard cap at 16 threads to prevent resource exhaustion
+        capped_workers = min(max_workers, 16)
+        self._executor = ThreadPoolExecutor(max_workers=capped_workers, thread_name_prefix="cache-coalesce")
         self._pending_refreshes: dict[str, _PendingRefresh] = {}
         self._pending_lock = threading.Lock()
         self._bg_refresh_callbacks: list[Callable[[str, Any], Awaitable[None]]] = []
@@ -702,6 +707,11 @@ class CoalescingCacheWrapper:
         return self._snapshot_metrics()
 
     def close(self) -> None:
+        with self._pending_lock:
+            for pending in self._pending_refreshes.values():
+                if not pending.task.done():
+                    pending.task.cancel()
+            self._pending_refreshes.clear()
         with self._registry_lock:
             self._lock_registry.clear()
         self._executor.shutdown(wait=False)
@@ -726,6 +736,8 @@ def response_cache_fresh(
 
 
 _unified_cache = UnifiedCache()
+
+atexit.register(_unified_cache.close)
 
 
 def cache_enabled(settings: dict[str, Any]) -> bool:

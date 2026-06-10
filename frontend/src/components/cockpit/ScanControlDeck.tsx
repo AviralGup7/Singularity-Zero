@@ -1,11 +1,4 @@
-import type { CockpitNode } from '@/api/cockpit';
-
-function metadataText(metadata: CockpitNode['metadata'], key: string): string {
-  const value = metadata ? Reflect.get(metadata, key) : undefined;
-  if (typeof value === 'string') return value;
-  if (value == null) return '';
-  return String(value);
-}
+import { useState } from 'react';
 
 interface SliderRowProps {
   label: string;
@@ -57,8 +50,12 @@ interface ScanControlDeckProps {
   handleStartScan: () => void;
   stoppingScan: boolean;
   restartingScan: boolean;
+  pausingScan: boolean;
+  resumingScan: boolean;
   handleStopScan: () => void;
   handleRestartScan: () => void;
+  handlePauseScan: () => void;
+  handleResumeScan: () => void;
   inputTarget: string;
   setInputTarget: (target: string) => void;
   onClearScan: () => void;
@@ -87,8 +84,12 @@ export function ScanControlDeck({
   handleStartScan,
   stoppingScan,
   restartingScan,
+  pausingScan,
+  resumingScan,
   handleStopScan,
   handleRestartScan,
+  handlePauseScan,
+  handleResumeScan,
   inputTarget,
   setInputTarget,
   onClearScan,
@@ -101,6 +102,7 @@ export function ScanControlDeck({
   excludedPaths,
   setExcludedPaths,
 }: ScanControlDeckProps) {
+  const [showTuning, setShowTuning] = useState(false);
   const modules = [
     { id: 'subdomain_enum', label: 'Subdomain Recon' },
     { id: 'url_discovery', label: 'URL Discovery' },
@@ -110,7 +112,7 @@ export function ScanControlDeck({
   ];
 
   return (
-    <div className="absolute left-8 top-28 z-30 w-80 max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-none rounded-xl border border-white/10 bg-black/80 p-5 shadow-[0_4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all">
+    <div className="absolute left-8 top-28 z-30 w-80 max-h-[calc(100vh-160px)] overflow-y-auto scrollbar-cyber rounded-xl border border-white/10 bg-black/80 p-5 shadow-[0_4px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all">
       <div className="mb-4 flex items-center justify-between border-b border-white/5 pb-3">
         <div className="flex items-center gap-2">
           <div className="relative flex h-2 w-2">
@@ -176,22 +178,22 @@ export function ScanControlDeck({
 
               <div className="space-y-2">
                 <div className="font-mono text-[9px] uppercase tracking-wider text-muted">Scan Mode Preset</div>
-                <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setScanMode('safe');
                       setSelectedModules(['subdomain_enum', 'url_discovery', 'port_scan', 'httpx']);
                     }}
-                    className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
+                    className={`flex-1 flex flex-col items-start rounded-lg border p-2.5 text-left transition-all ${
                       scanMode === 'safe'
                         ? 'border-accent bg-accent/10 text-text shadow-[0_0_15px_rgba(0,255,244,0.15)]'
                         : 'border-white/5 bg-white/5 text-muted hover:bg-white/10 hover:border-white/10'
                     }`}
                   >
-                    <span className="text-xs font-black uppercase tracking-wider text-white">Quick Health Check</span>
-                    <span className="mt-0.5 text-[9px] font-medium leading-relaxed opacity-60">
-                      safe, non-intrusive metadata audit
+                    <span className="text-[10px] font-black uppercase tracking-wider text-white">Safe Preset</span>
+                    <span className="mt-0.5 text-[8px] leading-relaxed opacity-60">
+                      Recon & Metadata
                     </span>
                   </button>
 
@@ -207,76 +209,81 @@ export function ScanControlDeck({
                         'nuclei',
                       ]);
                     }}
-                    className={`flex flex-col items-start rounded-lg border p-3 text-left transition-all ${
+                    className={`flex-1 flex flex-col items-start rounded-lg border p-2.5 text-left transition-all ${
                       scanMode === 'aggressive'
                         ? 'border-accent bg-accent/10 text-text shadow-[0_0_15px_rgba(0,255,244,0.15)]'
                         : 'border-white/5 bg-white/5 text-muted hover:bg-white/10 hover:border-white/10'
                     }`}
                   >
-                    <span className="text-xs font-black uppercase tracking-wider text-white">
-                      Deep Security Clean-Up
-                    </span>
-                    <span className="mt-0.5 text-[9px] font-medium leading-relaxed opacity-60">
-                      full active fuzzer checks
+                    <span className="text-[10px] font-black uppercase tracking-wider text-white">Deep Preset</span>
+                    <span className="mt-0.5 text-[8px] leading-relaxed opacity-60">
+                      Active Vulnerability
                     </span>
                   </button>
                 </div>
               </div>
 
               <div className="space-y-2 border-t border-white/5 pt-3">
-                <div className="font-mono text-[9px] uppercase tracking-widest text-muted">
-                  Scan Tuning
-                </div>
-                <div className="space-y-3 rounded border border-white/5 bg-black/40 p-2.5 animate-fadeIn">
-                  <SliderRow
-                    label="Crawl Depth"
-                    min={1}
-                    max={8}
-                    step={1}
-                    value={scanDepth}
-                    onChange={setScanDepth}
-                    suffix={`level${scanDepth === 1 ? '' : 's'}`}
-                    hint="How deep the crawler follows links before stopping"
-                  />
-                  <SliderRow
-                    label="Concurrency"
-                    min={1}
-                    max={64}
-                    step={1}
-                    value={scanConcurrency}
-                    onChange={setScanConcurrency}
-                    suffix="workers"
-                    hint="Parallel in-flight requests (raise carefully, may trigger WAFs)"
-                  />
-                  <SliderRow
-                    label="Rate Limit"
-                    min={1}
-                    max={500}
-                    step={1}
-                    value={scanRateLimit}
-                    onChange={setScanRateLimit}
-                    suffix="req/s"
-                    hint="Requests per second cap — tune to match program policy"
-                  />
-                  <div className="space-y-1">
-                    <label className="block">
-                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted">
-                        Excluded paths
-                      </span>
-                      <textarea
-                        value={excludedPaths}
-                        onChange={(e) => setExcludedPaths(e.target.value)}
-                        rows={2}
-                        placeholder="/logout, /signout, .*\\.gif$"
-                        className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1 font-mono text-[10px] text-text placeholder-white/20 outline-none focus:border-accent/40"
-                      />
-                    </label>
-                    <p className="font-mono text-[8px] leading-snug text-muted/70">
-                      One regex per line. Prevents scanners from logging you out, hitting
-                      heavy endpoints, or visiting CDNs.
-                    </p>
+                <button
+                  type="button"
+                  onClick={() => setShowTuning(!showTuning)}
+                  className="flex w-full items-center justify-between font-mono text-[9px] uppercase tracking-wider text-muted hover:text-accent transition-colors"
+                >
+                  <span>{showTuning ? '— Hide Tuning & Paths' : '+ Show Tuning & Paths'}</span>
+                </button>
+
+                {showTuning && (
+                  <div className="space-y-3 rounded border border-white/5 bg-black/40 p-2.5 animate-fadeIn">
+                    <SliderRow
+                      label="Crawl Depth"
+                      min={1}
+                      max={8}
+                      step={1}
+                      value={scanDepth}
+                      onChange={setScanDepth}
+                      suffix={`level${scanDepth === 1 ? '' : 's'}`}
+                      hint="How deep the crawler follows links before stopping"
+                    />
+                    <SliderRow
+                      label="Concurrency"
+                      min={1}
+                      max={64}
+                      step={1}
+                      value={scanConcurrency}
+                      onChange={setScanConcurrency}
+                      suffix="workers"
+                      hint="Parallel in-flight requests (raise carefully, may trigger WAFs)"
+                    />
+                    <SliderRow
+                      label="Rate Limit"
+                      min={1}
+                      max={500}
+                      step={1}
+                      value={scanRateLimit}
+                      onChange={setScanRateLimit}
+                      suffix="req/s"
+                      hint="Requests per second cap — tune to match program policy"
+                    />
+                    <div className="space-y-1">
+                      <label className="block">
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-muted">
+                          Excluded paths
+                        </span>
+                        <textarea
+                          value={excludedPaths}
+                          onChange={(e) => setExcludedPaths(e.target.value)}
+                          rows={2}
+                          placeholder="/logout, /signout, .*\\.gif$"
+                          className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1 font-mono text-[10px] text-text placeholder-white/20 outline-none focus:border-accent/40"
+                        />
+                      </label>
+                      <p className="font-mono text-[8px] leading-snug text-muted/70">
+                        One regex per line. Prevents scanners from logging you out, hitting
+                        heavy endpoints, or visiting CDNs.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="space-y-2 border-t border-white/5 pt-3">
@@ -317,14 +324,16 @@ export function ScanControlDeck({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleStartScan}
-                disabled={launchingScan || !inputTarget.trim()}
-                className="w-full rounded bg-accent py-2.5 text-center text-[10px] font-black uppercase tracking-[0.2em] text-black shadow-[0_0_15px_rgba(0,255,244,0.25)] transition-all hover:bg-white disabled:opacity-40 disabled:shadow-none"
-              >
-                {launchingScan ? 'ENGAGING ENGINE...' : 'ENGAGE SCAN ENGINE'}
-              </button>
+              <div className="sticky bottom-0 bg-[#12161E]/95 pt-3 border-t border-white/5 -mx-5 -mb-5 px-5 pb-5 z-10 backdrop-blur-md">
+                <button
+                  type="button"
+                  onClick={handleStartScan}
+                  disabled={launchingScan || !inputTarget.trim()}
+                  className="w-full rounded bg-accent py-2.5 text-center text-[10px] font-black uppercase tracking-[0.2em] text-black shadow-[0_0_15px_rgba(0,255,244,0.25)] transition-all hover:bg-white disabled:opacity-40 disabled:shadow-none"
+                >
+                  {launchingScan ? 'ENGAGING ENGINE...' : 'ENGAGE SCAN ENGINE'}
+                </button>
+              </div>
             </>
           ) : (
             <div className="space-y-4">
@@ -370,7 +379,34 @@ export function ScanControlDeck({
               )}
 
               <div className="space-y-2 border-t border-white/5 pt-3">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  {activeJob.status === 'running' ? (
+                    <button
+                      type="button"
+                      onClick={handlePauseScan}
+                      disabled={pausingScan}
+                      className="flex items-center justify-center gap-1.5 rounded border border-amber-500/20 bg-amber-950/20 py-2 text-[9px] font-bold uppercase tracking-wider text-amber-400 transition-all hover:bg-amber-900/30 disabled:opacity-40"
+                    >
+                      {pausingScan ? 'PAUSING...' : 'PAUSE SCAN'}
+                    </button>
+                  ) : activeJob.status === 'paused' ? (
+                    <button
+                      type="button"
+                      onClick={handleResumeScan}
+                      disabled={resumingScan}
+                      className="flex items-center justify-center gap-1.5 rounded border border-accent/20 bg-accent/5 py-2 text-[9px] font-bold uppercase tracking-wider text-accent transition-all hover:bg-accent/15 disabled:opacity-40"
+                    >
+                      {resumingScan ? 'RESUMING...' : 'RESUME SCAN'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="flex items-center justify-center gap-1.5 rounded border border-white/5 bg-white/5 py-2 text-[9px] font-bold uppercase tracking-wider text-muted opacity-40"
+                    >
+                      PAUSE
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleRestartScan}
@@ -383,7 +419,7 @@ export function ScanControlDeck({
                   <button
                     type="button"
                     onClick={handleStopScan}
-                    disabled={stoppingScan || !activeJob.status || !['running', 'pending'].includes(activeJob.status)}
+                    disabled={stoppingScan || !activeJob.status || !['running', 'pending', 'paused'].includes(activeJob.status)}
                     className="flex items-center justify-center gap-1.5 rounded border border-rose-500/20 bg-rose-950/20 py-2 text-[9px] font-bold uppercase tracking-wider text-rose-400 transition-all hover:bg-rose-900/30 disabled:opacity-40"
                   >
                     <span className="icon-x" aria-hidden="true" />

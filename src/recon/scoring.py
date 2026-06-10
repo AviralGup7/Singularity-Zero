@@ -9,6 +9,8 @@ from collections.abc import Iterable, Mapping
 from typing import Any, cast
 from urllib.parse import urlparse
 
+import logging
+
 from src.analysis.helpers import (
     classify_endpoint,
     endpoint_signature,
@@ -19,7 +21,6 @@ from src.analysis.helpers import (
     meaningful_query_pairs,
     parameter_weight,
 )
-from src.intelligence.severity_model import enrich_findings_with_model_severity
 from src.recon.cvps import compute_cvps_score
 from src.recon.ranking_support import (
     HistoryFeedback,
@@ -30,6 +31,8 @@ from src.recon.ranking_support import (
     history_feedback_score,
     normalize_ranked_scores,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def infer_target_profile(urls: Iterable[str]) -> dict[str, int | bool]:
@@ -590,9 +593,17 @@ def compute_aggregate_risk_score(
         Dict with aggregate_score, severity_breakdown, max_severity,
         finding_count, score_label, and per-category scores.
     """
-    modeled_findings = enrich_findings_with_model_severity(
-        [finding for finding in findings if isinstance(finding, dict)]
-    )
+    # GAP 5: Lazy import to decouple recon from intelligence layer.
+    # Severity model enriches findings with calibrated scores, but
+    # recon should not hard-depend on intelligence.
+    dict_findings = [finding for finding in findings if isinstance(finding, dict)]
+    try:
+        from src.intelligence.severity_model import enrich_findings_with_model_severity
+
+        modeled_findings = enrich_findings_with_model_severity(dict_findings)
+    except Exception:
+        logger.debug("Severity model enrichment skipped in scoring", exc_info=True)
+        modeled_findings = dict_findings
     severity_counts: dict[str, int] = {}
     category_scores: dict[str, float] = {}
     total_weighted = 0.0

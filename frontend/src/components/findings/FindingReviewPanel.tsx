@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Loader2, Check, X, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react';
+import { apiClient } from '../../api/core';
 
 const ACTION_TYPES = [
   { id: 'confirm_tp', label: 'Confirm TP', icon: Check, color: 'accent' },
@@ -46,18 +47,11 @@ export function FindingReviewPanel({
         if (onAction) {
           await onAction(action, note);
         } else {
-          const res = await fetch(`/api/risk-domain/findings/${encodeURIComponent(findingId)}/review`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action_type: action,
-              reviewer_id: reviewerId,
-              structured_note: note,
-            }),
+          await apiClient.post(`/api/risk-domain/findings/${encodeURIComponent(findingId)}/review`, {
+            action_type: action,
+            reviewer_id: reviewerId,
+            structured_note: note,
           });
-          if (!res.ok) {
-            throw new Error(`Review submit failed: ${res.status}`);
-          }
         }
         setLastResult(`Recorded ${action}`);
         setNote('');

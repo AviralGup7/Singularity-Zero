@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, ShieldCheck, RefreshCcw, Plus, X } from 'lucide-react';
+import { apiClient } from '@/api/core';
 
 interface RiskAcceptance {
   acceptance_id: string;
@@ -30,10 +31,8 @@ export function AcceptancePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/risk-domain/acceptances?limit=200');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const payload = (await res.json()) as RiskAcceptance[];
-      setRows(Array.isArray(payload) ? payload : []);
+      const { data } = await apiClient.get<RiskAcceptance[]>('/api/risk-domain/acceptances', { params: { limit: 200 } });
+      setRows(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(`Failed to load: ${(err as Error).message}`);
     } finally {
@@ -50,21 +49,13 @@ export function AcceptancePage() {
     setCreating(true);
     setError(null);
     try {
-      const res = await fetch('/api/risk-domain/acceptances', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          finding_id: form.finding_id,
-          accepted_by: form.accepted_by,
-          justification: form.justification,
-          accepted_until: form.accepted_until || null,
-          scope: form.scope,
-        }),
+      await apiClient.post('/api/risk-domain/acceptances', {
+        finding_id: form.finding_id,
+        accepted_by: form.accepted_by,
+        justification: form.justification,
+        accepted_until: form.accepted_until || null,
+        scope: form.scope,
       });
-      if (!res.ok) {
-        const detail = await res.text();
-        throw new Error(`${res.status}: ${detail}`);
-      }
       setForm({ finding_id: '', accepted_by: 'analyst', justification: '', accepted_until: '', scope: 'global' });
       await load();
     } catch (err) {
@@ -77,10 +68,7 @@ export function AcceptancePage() {
   const revoke = useCallback(
     async (acceptanceId: string) => {
       try {
-        const res = await fetch(`/api/risk-domain/acceptances/${encodeURIComponent(acceptanceId)}/revoke`, {
-          method: 'POST',
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await apiClient.post(`/api/risk-domain/acceptances/${encodeURIComponent(acceptanceId)}/revoke`);
         await load();
       } catch (err) {
         setError(`Revoke failed: ${(err as Error).message}`);

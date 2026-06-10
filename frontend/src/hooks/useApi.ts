@@ -4,7 +4,7 @@ import { apiCache } from '../api/cache';
 import { onRefresh } from '../lib/events';
 import api from '../api/client';
 
-interface UseApiOptions<T> {
+export interface UseApiOptions<T> {
   enabled?: boolean;
   ttl?: number;
   bypassCache?: boolean;
@@ -15,13 +15,13 @@ interface UseApiOptions<T> {
   schema?: import('zod').ZodSchema;
 }
 
-interface UseApiError {
+export interface UseApiError {
   message: string;
   status?: number;
   original: unknown;
 }
 
-interface UseApiResult<T> {
+export interface UseApiResult<T> {
   data: T | null;
   loading: boolean;
   error: UseApiError | null;
@@ -122,6 +122,10 @@ export function useApi<T>(
   }, [onSuccess, onError]);
 
   const schema = options?.schema;
+  const schemaRef = useRef(schema);
+  useEffect(() => {
+    schemaRef.current = schema;
+  }, [schema]);
 
   const fetchData = useCallback(async (forceRefetch = false): Promise<void> => {
     if (!enabled || !url) {
@@ -158,7 +162,7 @@ export function useApi<T>(
       if (controller.signal.aborted) return;
 
       const requestFn = (): Promise<T> =>
-        api.get<T>(url, { signal: controller.signal, params: stableParams, schema } as AxiosRequestConfig).then((res) => res.data);
+        api.get<T>(url, { signal: controller.signal, params: stableParams, schema: schemaRef.current } as AxiosRequestConfig).then((res) => res.data);
 
       const result = await deduplicateRequest<T>(`${cacheKey}:${refetchKey}`, requestFn, controller.signal);
 
@@ -189,7 +193,7 @@ export function useApi<T>(
         onErrorRef.current?.(lastError);
       }
     }
-  }, [url, enabled, bypassCache, stableParams, refetchKey, schema, ttl]);
+  }, [url, enabled, bypassCache, stableParams, refetchKey, ttl]);
 
   useEffect(() => {
     mountedRef.current = true;

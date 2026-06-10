@@ -1,18 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-// import { visualizer } from 'rollup-plugin-visualizer'
+import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    /* visualizer({
+    visualizer({
       filename: 'dist/stats.html',
       open: false,
       gzipSize: true,
       brotliSize: true,
-    }), */
+    }),
   ],
   resolve: {
     alias: {
@@ -65,16 +65,20 @@ export default defineConfig({
             ) {
               return 'three-vendor';
             }
-            // 2. Data Visualization & State Management Group
+            // 2. Charting — recharts + d3 (isolated from non-chart routes)
             if (
-              id.includes('d3') ||
-              id.includes('d3-') ||
               id.includes('recharts') ||
+              (id.includes('d3') && !id.includes('d3-dispatch'))
+            ) {
+              return 'chart-vendor';
+            }
+            // 3. State & data fetching
+            if (
               id.includes('@tanstack/react-query')
             ) {
-              return 'data-vendor';
+              return 'query-vendor';
             }
-            // 3. UI Primitives, Micro-Animations, and Design Tokens
+            // 4. UI Primitives, Micro-Animations, and Design Tokens
             if (
               id.includes('framer-motion') ||
               id.includes('@radix-ui') ||
@@ -86,7 +90,7 @@ export default defineConfig({
             ) {
               return 'ui-vendor';
             }
-            // 4. Core React Platform dependencies
+            // 5. Core React Platform dependencies
             if (
               id.includes('react') ||
               id.includes('react-dom') ||
@@ -95,6 +99,18 @@ export default defineConfig({
               id.includes('react-is')
             ) {
               return 'react-vendor';
+            }
+            // 6. Animation & form libs used across routes
+            if (
+              id.includes('gsap') ||
+              id.includes('lottie') ||
+              id.includes('axios') ||
+              id.includes('zustand') ||
+              id.includes('react-hook-form') ||
+              id.includes('dompurify') ||
+              id.includes('zod')
+            ) {
+              return 'shared-vendor';
             }
           }
         },

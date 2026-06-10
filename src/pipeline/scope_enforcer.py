@@ -60,10 +60,12 @@ class ScopeEnforcer:
                         net = ipaddress.ip_network(entry.strip(), strict=False)
                         if ip in net:
                             return True
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except ValueError:
+                        logger.debug("Invalid CIDR notation in scope entry: %s", entry)
+        except socket.gaierror:
+            logger.warning("DNS resolution failed for host: %s", host_clean)
+        except Exception as exc:
+            logger.debug("Unexpected error during scope enforcement for %s: %s", host_clean, exc)
         return False
 
     async def is_in_scope_async(self, host_or_url: str) -> bool:

@@ -18,8 +18,8 @@ A :class:`CollectorStatus` string-enum constrains the legal values of
 the ``status`` field; the enum subclasses ``str`` so equality against
 the literal status strings used throughout the codebase still works.
 """
-
 from __future__ import annotations
+
 
 from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass, field, replace

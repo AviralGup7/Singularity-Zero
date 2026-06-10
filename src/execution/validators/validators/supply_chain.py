@@ -69,8 +69,8 @@ def _parse_package_json(content: str) -> list[dict[str, Any]]:
                     "version": str(version),
                     "section": section,
                 })
-    except (json.JSONDecodeError, Exception):
-        pass
+    except (json.JSONDecodeError, Exception) as exc:
+        logger.warning("Operation failed in supply_chain.py: %s", exc, exc_info=True)  # noqa: BLE001
     return packages
 
 

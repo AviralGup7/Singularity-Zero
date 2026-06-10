@@ -1,19 +1,70 @@
 import type { CSSProperties } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Briefcase, Search } from 'lucide-react';
 import JobList from '../components/jobs/JobList';
 import { SkeletonCard, SkeletonText } from '../components/ui/Skeleton';
-import { PageHeader } from '../components/ui';
+import { PageHeader, EmptyState, Pagination } from '../components/ui';
 import { useJobs, usePersistedState } from '../hooks';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+const PAGE_SIZE = 20;
 
 export function JobsPage() {
   const { data: jobs, loading, error, refetch } = useJobs({ refetchInterval: 5000 });
+  const [searchParams, setSearchParams] = useSearchParams();
    
-  const [statusFilter, setStatusFilter] = usePersistedState<string>('jobs-status-filter', 'all');
+  const [statusFilter, setStatusFilter] = usePersistedState<string>('jobs-status-filter', searchParams.get('status') || 'all');
    
-  const [searchQuery, setSearchQuery] = usePersistedState<string>('jobs-search-query', '');
+  const [searchQuery, setSearchQuery] = usePersistedState<string>('jobs-search-query', searchParams.get('q') || '');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const updateUrlParams = useCallback((status: string, q: string) => {
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev);
+      if (status && status !== 'all') {
+        params.set('status', status);
+      } else {
+        params.delete('status');
+      }
+      if (q) {
+        params.set('q', q);
+      } else {
+        params.delete('q');
+      }
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const handleStatusChange = useCallback((status: string) => {
+    setStatusFilter(status);
+    updateUrlParams(status, searchQuery);
+  }, [setStatusFilter, searchQuery, updateUrlParams]);
+
+  const handleSearchChange = useCallback((q: string) => {
+    setSearchQuery(q);
+    updateUrlParams(statusFilter, q);
+  }, [setSearchQuery, statusFilter, updateUrlParams]);
+
+  const filtered = (jobs ?? [])
+    .filter(j => statusFilter === 'all' || j?.status === statusFilter)
+    .filter(j => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        (j?.base_url ?? '').toLowerCase().includes(q) ||
+        (j?.status ?? '').toLowerCase().includes(q) ||
+        (j?.mode ?? '').toLowerCase().includes(q) ||
+        (j?.failed_stage ?? '').toLowerCase().includes(q) ||
+        (j?.failure_reason_code ?? '').toLowerCase().includes(q)
+      );
+    });
+
+  const paginatedJobs = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, currentPage]);
 
   if (loading) {
     return (
@@ -43,22 +94,10 @@ export function JobsPage() {
     );
   }
 
-  const filtered = (jobs ?? [])
-    .filter(j => statusFilter === 'all' || j?.status === statusFilter)
-    .filter(j => {
-      if (!searchQuery) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        (j?.base_url ?? '').toLowerCase().includes(q) ||
-        (j?.status ?? '').toLowerCase().includes(q) ||
-        (j?.mode ?? '').toLowerCase().includes(q) ||
-        (j?.failed_stage ?? '').toLowerCase().includes(q) ||
-        (j?.failure_reason_code ?? '').toLowerCase().includes(q)
-      );
-    });
-
   const runningCount = filtered.filter(j => j?.status === 'running').length;
   const failedCount = filtered.filter(j => j?.status === 'failed').length;
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
 
   const statusFilters = ['all', 'running', 'completed', 'failed', 'stopped'] as const;
 
@@ -95,7 +134,7 @@ export function JobsPage() {
             id="jobs-search"
             placeholder="Search URL, status, mode, stage, reason code"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e => handleSearchChange(e.target.value)}
             className="search-input pl-9"
             aria-label="Search jobs by URL, status, mode, stage, or reason"
           />
@@ -109,7 +148,7 @@ export function JobsPage() {
                   ? 'bg-[var(--accent-soft)] text-accent border-[var(--accent)]/30'
                   : 'hover:bg-white/5'
               }`}
-              onClick={() => setStatusFilter(status)}
+              onClick={() => handleStatusChange(status)}
               aria-pressed={statusFilter === status}
             >
               {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
@@ -123,7 +162,27 @@ export function JobsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1, ease: EASE_OUT }}
       >
-        <JobList jobs={filtered} onRefresh={() => { void refetch(); }} />
+        {filtered.length === 0 ? (
+          <EmptyState
+            title="No jobs found"
+            description={statusFilter !== 'all' || searchQuery 
+              ? "No jobs match your current filters. Try adjusting the status filter or search query."
+              : "No pipeline jobs have been run yet. Start a scan from the Targets page."}
+            icon="zap"
+          />
+        ) : (
+          <>
+            <JobList jobs={paginatedJobs} onRefresh={() => { void refetch(); }} />
+            {totalPages > 1 && (
+              <Pagination
+                page={currentPage}
+                pageSize={PAGE_SIZE}
+                total={filtered.length}
+                onPageChange={setCurrentPage}
+              />
+            )}
+          </>
+        )}
       </motion.div>
 
       <div aria-live="polite" aria-atomic="true" className="sr-only" id="job-progress-announcer-page">

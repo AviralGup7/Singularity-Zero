@@ -5,13 +5,19 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.dashboard.fastapi.dependencies import require_admin
+from src.dashboard.fastapi.schemas import ErrorResponse
 
 router = APIRouter(prefix="/api/mesh", tags=["Mesh"])
 
 
 @router.post(
     "/elect-leader",
-    responses={401: {"description": "Unauthorized"}, 403: {"description": "Forbidden"}},
+    response_model=dict[str, Any],
+    responses={
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
     summary="Manually trigger deterministic local leader election (admin only)",
 )
 async def elect_leader(

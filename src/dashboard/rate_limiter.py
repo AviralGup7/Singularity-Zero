@@ -84,7 +84,6 @@ class RateLimitConfig(BaseModel):
         default_factory=lambda: {
             "/assets/",
             "/react/",
-            "/reports/",
             "/_launcher/",
             "/ws/",
             "/.well-known/",

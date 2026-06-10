@@ -338,8 +338,8 @@ class MeshSync:
             self._task.cancel()
             try:
                 await self._task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logger.warning("Operation failed in sync.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._task = None
 
         try:

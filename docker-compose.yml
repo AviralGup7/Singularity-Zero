@@ -63,10 +63,11 @@ services:
       CACHE_BACKEND: redis
       CACHE_TTL: 60
       LOG_LEVEL: DEBUG
-      DATABASE_URL: sqlite:///./data/pipeline.db
-      CORS_ORIGINS: "http://localhost:3000,http://localhost:8080,http://localhost:5173"
+      DATABASE_URL: "sqlite:////app/data/pipeline.db"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080,http://localhost:5173}"
       ALLOWED_HOSTS: "localhost,127.0.0.1"
       APP_SECRET_KEY: "${APP_SECRET_KEY:?APP_SECRET_KEY must be set}"
+      ENABLE_API_SECURITY: "${ENABLE_API_SECURITY:-true}"
     depends_on:
       redis:
         condition: service_healthy
@@ -125,7 +126,7 @@ services:
           cpus: '0.5'
           memory: 512M
     healthcheck:
-      test: ["CMD", "python", "-c", "import redis; r = redis.Redis(host='redis', port=6379, password='${REDIS_PASSWORD}'); r.ping()"]
+      test: ["CMD", "sh", "-c", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli -h redis -p 6379 ping"]
       interval: 15s
       timeout: 5s
       retries: 3

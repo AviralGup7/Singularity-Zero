@@ -124,14 +124,20 @@ class GhostMeshCoordinator:
                             "migration state was not durably visible to the target node"
                         )
                     committed = True
-                except Exception:
+                except Exception as exc:
+                    logger.error(
+                        "Ghost-Coordinator: Migration failed for [%s] at step (committed=%s): %s",
+                        actor_id,
+                        committed,
+                        exc,
+                    )
                     if not committed:
                         try:
                             await self.registry.register_actor(actor_id, current_node_id)
                             await self.registry.clear_actor_state(actor_id)
                             await self.registry.clear_migration(actor_id)
                         except Exception as rollback_exc:  # pylint: disable=broad-exception-caught
-                            logger.debug(
+                            logger.warning(
                                 "Ghost-Coordinator: Failed to roll back registry for [%s]: %s",
                                 actor_id,
                                 rollback_exc,
@@ -270,6 +276,83 @@ class GhostMeshCoordinator:
             if await self.migrate_if_needed(actor_ref, task_metadata or {}):
                 migrated += 1
         return {"checked": len(actor_refs), "migrated": migrated}
+
+    async def handoff_pending_work_to_queue(
+        self,
+        actor_ref: pykka.ActorRef,
+        queue: Any,
+        *,
+        task_metadata: dict[str, Any] | None = None,
+    ) -> list[str]:
+        """Enqueue pending work from a migrating actor into the distributed queue.
+
+        This ensures that in-flight work is not lost during actor migration.
+        Returns a list of enqueued job IDs.
+        """
+        if queue is None:
+            return []
+
+        enqueued_jobs: list[str] = []
+        meta = task_metadata or {}
+
+        try:
+            # Ask the actor for its pending work queue
+            import asyncio
+
+            pending_work = await asyncio.to_thread(
+                actor_ref.ask,
+                {"command": "get_pending_work"},
+                timeout=2.0,
+            )
+
+            if not isinstance(pending_work, list):
+                logger.debug(
+                    "Actor did not return pending work as a list; "
+                    "cannot hand off to queue"
+                )
+                return []
+
+            from src.core.contracts.task_envelope import TaskEnvelope
+
+            for work_item in pending_work:
+                if not isinstance(work_item, dict):
+                    continue
+                envelope = TaskEnvelope(
+                    type=work_item.get("type", "unknown"),
+                    payload=work_item.get("payload", {}),
+                    metadata={
+                        "source": "ghost_actor_migration",
+                        "actor_id": meta.get("actor_id", ""),
+                        "migration_id": meta.get("migration_id", ""),
+                        **work_item.get("metadata", {}),
+                    },
+                )
+                try:
+                    job_id = await queue.enqueue(envelope, priority=7)
+                    enqueued_jobs.append(job_id)
+                    logger.info(
+                        "Handed off work item '%s' to queue as job %s",
+                        envelope.type,
+                        job_id,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to enqueue work item '%s': %s",
+                        envelope.type,
+                        exc,
+                    )
+
+            if enqueued_jobs:
+                logger.info(
+                    "Handed off %d work items from actor to queue",
+                    len(enqueued_jobs),
+                )
+        except Exception as exc:
+            logger.debug(
+                "Failed to query/hand off pending work from actor: %s", exc
+            )
+
+        return enqueued_jobs
 
     async def spawn_or_rehydrate_actor(
         self,

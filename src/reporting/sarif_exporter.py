@@ -64,19 +64,33 @@ def _is_false_positive(finding: Mapping[str, Any]) -> bool:
     return isinstance(decision, str) and decision.upper() == "FP"
 
 
+def _uri_base_id(url: str) -> str | None:
+    """Return a stable base-ID key that includes netloc and first path segment.
+
+    Using only ``netloc`` causes distinct path prefixes on the same host
+    (e.g. ``/api/v1`` vs ``/admin``) to collapse onto one base ID.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in _WEB_PATH_SCHEMES:
+        return None
+    host = parsed.netloc
+    if not host:
+        return None
+    first_segment = (parsed.path or "/").split("/")[1]
+    if first_segment:
+        return f"{host}/{first_segment}"
+    return host
+
+
 def _derive_artifact_location(url: str) -> tuple[str, str | None]:
     """Return ``(uri, base_id)`` suitable for SARIF ``artifactLocation``.
 
     For HTTP/HTTPS URLs we return the URL itself as ``uri`` (SARIF allows
-    any URI in ``artifactLocation.uri``) and the URL's host as
-    ``uriBaseId`` so consumers can resolve it to a local path if a
-    ``uriBaseId`` mapping is configured at the tool level.
+    any URI in ``artifactLocation.uri``) and a base ID derived from the
+    host and first path segment so consumers can resolve it to a local
+    path if a ``uriBaseId`` mapping is configured at the tool level.
     """
-    parsed = urlparse(url)
-    if parsed.scheme in _WEB_PATH_SCHEMES:
-        host = parsed.netloc
-        return url, host or None
-    return url, None
+    return url, _uri_base_id(url)
 
 
 def _fingerprint(finding: Mapping[str, Any], *, url: str, rule_id: str) -> str:
@@ -265,19 +279,18 @@ def export_findings_to_sarif(
                 },
                 "originalUriBaseIds": {
                     **{
-                        host: {"uri": f"https://{host}/"}
-                        for host in {
-                            urlparse(_coerce_str(r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"])).netloc
-                            for r in results
-                            if urlparse(
+                        bid: {"uri": f"https://{bid}/"}
+                        for bid in {
+                            _uri_base_id(
                                 _coerce_str(
                                     r["locations"][0]["physicalLocation"][
                                         "artifactLocation"
                                     ]["uri"]
                                 )
-                            ).scheme
-                            in _WEB_PATH_SCHEMES
+                            )
+                            for r in results
                         }
+                        if bid is not None
                     }
                 },
                 "results": results,

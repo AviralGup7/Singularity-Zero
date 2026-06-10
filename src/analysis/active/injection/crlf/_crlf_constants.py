@@ -105,15 +105,15 @@ CRLF_PROBE_PAYLOADS: list[dict[str, str]] = [
         "template": "{crlf}{crlf}<html><body><h1>CRLF-{token}</h1><p>Injected via response splitting</p></body></html>",
     },
     {
-        "name": "location_redirect",
-        "template": "%0d%0aLocation:https://evil.com%0d%0a",
+        "name": "location_redirect_raw",
+        "template": "{crlf}Location:https://evil.com{crlf}",
     },
     {
         "name": "location_with_tab",
-        "template": "%0d%0a\tLocation:https://evil.com%0d%0a",
+        "template": "{crlf}%09Location:https://evil.com{crlf}",
     },
     {
         "name": "double_location",
-        "template": "%0d%0a%0d%0aLocation:https://evil.com",
+        "template": "{crlf}{crlf}Location:https://evil.com",
     },
 ]

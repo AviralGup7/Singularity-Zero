@@ -1,8 +1,13 @@
 """API key generation, validation, rotation, and revocation."""
 
 import hashlib
+import hmac
 import json
+import logging
+import os
 import secrets
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol, cast
 
@@ -10,6 +15,8 @@ from src.infrastructure.security.config import SecurityConfig
 from src.infrastructure.security.encryption import sealed_bundle_decrypt, sealed_bundle_encrypt
 
 from .models import APIKey, Role
+
+logger = logging.getLogger(__name__)
 
 
 class _AuditSink(Protocol):
@@ -28,16 +35,41 @@ def generate_api_key(config: SecurityConfig) -> str:
     return config.api_key.key_prefix + secrets.token_hex(32)
 
 
-def hash_api_key(raw_key: str) -> str:
-    """Compute SHA-256 hash of an API key.
+def hash_api_key(raw_key: str, pepper: str | None = None) -> str:
+    """Compute HMAC-SHA256 hash of an API key with a server-side pepper.
+
+    Uses HMAC-SHA256 with an optional pepper (server-side secret) to
+    prevent offline brute-force/rainbow-table attacks even if the stored
+    hashes are compromised. The pepper MUST be stored separately from
+    the hash database (e.g., in a vault or environment variable).
 
     Args:
         raw_key: Raw API key string.
+        pepper: Server-side secret pepper. If None, the
+            SEC_API_KEY_PEPPER environment variable is used. If that
+            is also unset, a per-process random pepper is generated
+            (non-persistent; suitable only for single-process testing).
 
     Returns:
-        Hex-encoded SHA-256 hash.
+        Hex-encoded HMAC-SHA256 hash.
     """
-    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+    effective_pepper = pepper or os.environ.get("SEC_API_KEY_PEPPER", "")
+    if not effective_pepper:
+        # Per-process random pepper — NOT suitable for production with
+        # multiple processes. Log a warning so operators know.
+        logger.warning(
+            "No SEC_API_KEY_PEPPER set; using per-process random pepper. "
+            "API key hashes will not survive restarts. "
+            "Set SEC_API_KEY_PEPPER for durable production hashing."
+        )
+        effective_pepper = hashlib.sha256(
+            os.urandom(32)
+        ).hexdigest()
+    return hmac.new(
+        effective_pepper.encode("utf-8"),
+        raw_key.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 class APIKeyStore:
@@ -49,16 +81,30 @@ class APIKeyStore:
         _user_api_keys: Dict mapping user_id -> list of key hashes.
     """
 
-    def __init__(self, config: SecurityConfig, audit_logger: _AuditSink | None = None) -> None:
+    def __init__(
+        self,
+        config: SecurityConfig,
+        audit_logger: _AuditSink | None = None,
+        pepper: str | None = None,
+    ) -> None:
         """Initialize the API key store.
 
         Args:
             config: Security configuration.
+            pepper: Server-side pepper for HMAC-SHA256 key hashing.
+                If None, falls back to SEC_API_KEY_PEPPER env var.
         """
         self.config = config
         self._api_keys: dict[str, APIKey] = {}
         self._user_api_keys: dict[str, list[str]] = {}
         self._audit_logger = audit_logger
+        self._pepper = pepper
+        # Rate limiting for validate() to prevent brute-force attacks.
+        # Maps raw_key_hash -> (attempt_count, window_start).
+        self._validate_attempts: dict[str, tuple[int, float]] = {}
+        self._validate_lock = threading.Lock()
+        self._max_validate_attempts = 10
+        self._validate_window_seconds = 60.0
 
     def _audit(
         self, event: str, user_id: str | None = None, key_id: str | None = None, **details: Any
@@ -72,8 +118,8 @@ class APIKeyStore:
                 resource_id=key_id,
                 details=details,
             )
-        except Exception:
-            return
+        except Exception as exc:
+            logger.warning("Audit log failed for %s: %s", event, exc)
 
     def create(
         self,
@@ -109,7 +155,7 @@ class APIKeyStore:
             )
 
         raw_key = generate_api_key(self.config)
-        key_hash = hash_api_key(raw_key)
+        key_hash = hash_api_key(raw_key, pepper=self._pepper)
         key_prefix = raw_key[:16]
 
         now = datetime.now(UTC)
@@ -139,18 +185,54 @@ class APIKeyStore:
     def validate(self, raw_key: str) -> APIKey | None:
         """Validate an API key and return its model if valid.
 
+        Includes rate-limiting: after N failed attempts within a
+        time window, the key is temporarily rejected to slow down
+        brute-force attacks.
+
         Args:
             raw_key: Raw API key string.
 
         Returns:
             APIKey if valid, None otherwise.
         """
-        key_hash = hash_api_key(raw_key)
+        key_hash = hash_api_key(raw_key, pepper=self._pepper)
+
+        # Rate-limiting check
+        now = time.time()
+        with self._validate_lock:
+            attempt_info = self._validate_attempts.get(key_hash)
+            if attempt_info is not None:
+                count, window_start = attempt_info
+                if now - window_start < self._validate_window_seconds:
+                    if count >= self._max_validate_attempts:
+                        self._audit("apikey.access", result="rate_limited")
+                        return None
+                else:
+                    # Reset window
+                    self._validate_attempts[key_hash] = (0, now)
+            else:
+                self._validate_attempts[key_hash] = (0, now)
+
         api_key = self._api_keys.get(key_hash)
 
         if api_key is None or not api_key.is_valid:
+            # Increment failed attempt counter
+            with self._validate_lock:
+                attempt_info = self._validate_attempts.get(key_hash)
+                if attempt_info is not None:
+                    count, window_start = attempt_info
+                    if now - window_start < self._validate_window_seconds:
+                        self._validate_attempts[key_hash] = (count + 1, window_start)
+                    else:
+                        self._validate_attempts[key_hash] = (1, now)
+                else:
+                    self._validate_attempts[key_hash] = (1, now)
             self._audit("apikey.access", result="denied")
             return None
+
+        # Reset rate limiter on successful validation
+        with self._validate_lock:
+            self._validate_attempts.pop(key_hash, None)
 
         api_key.last_used_at = datetime.now(UTC).timestamp()
         self._audit(
@@ -236,8 +318,16 @@ class APIKeyStore:
         )
 
     def import_sealed_bundle(self, bundle: str | bytes, passphrase: str) -> None:
-        """Restore API key metadata from a sealed bundle."""
-        payload = sealed_bundle_decrypt(bundle, passphrase, aad=b"csp:auth:api-key-store")
+        """Restore API key metadata from a sealed bundle.
+
+        Raises:
+            ValueError: If the bundle is tampered or passphrase is wrong.
+        """
+        try:
+            payload = sealed_bundle_decrypt(bundle, passphrase, aad=b"csp:auth:api-key-store")
+        except Exception as exc:
+            logger.error("Failed to decrypt/import sealed bundle: %s", exc)
+            raise
         records = payload["records"]
         raw_keys = json.loads(json.dumps(records.get("api_keys", {})))
         self._api_keys = {

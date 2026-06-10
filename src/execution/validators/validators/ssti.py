@@ -290,9 +290,7 @@ def _active_ssti_test(target_url: str, http_client: Any) -> dict[str, Any]:
                                 "indicator": expected_indicator,
                             }
                         )
-                    elif payload_reflected and not any(
-                        re.escape(payload) in body or payload in body for _ in [1]
-                    ):
+                    elif payload_reflected and payload not in body:
                         test_results.append(
                             {
                                 "param": param_name,

@@ -88,7 +88,8 @@ async def stream_job_logs(
             nonlocal last_count, last_stage
             from src.dashboard.job_state import _coerce_epoch
 
-            _global_tracker.register_client(job_id)
+            _tracker_key = f"{job_id}:logs"
+            _global_tracker.register_client(_tracker_key)
 
             last_heartbeat = time.time()
             last_telemetry_count = 0
@@ -99,7 +100,18 @@ async def stream_job_logs(
                     if await request.is_disconnected():
                         break
 
-                    current_job = await get_cached_job(job_id, services)
+                    try:
+                        current_job = await get_cached_job(job_id, services)
+                    except Exception as exc:  # noqa: BLE001
+                        logger.debug("get_cached_job failed in logs stream: %s", exc)
+                        yield emitter.error(
+                            "Failed to fetch job state",
+                            stage=last_stage,
+                            progress_percent=0,
+                            recoverable=True,
+                        )
+                        await asyncio.sleep(1.0)
+                        continue
                     if not current_job:
                         yield emitter.error(
                             "Job not found", stage=last_stage, progress_percent=0, recoverable=False
@@ -273,7 +285,7 @@ async def stream_job_logs(
 
                     await asyncio.sleep(1.0)
             finally:
-                _global_tracker.deregister_client(job_id)
+                _global_tracker.deregister_client(_tracker_key)
 
         return StreamingResponse(
             typed_event_stream(),
@@ -288,13 +300,20 @@ async def stream_job_logs(
 
         async def event_stream() -> Any:
             nonlocal last_count
-            _global_tracker.register_client(job_id)
+            _tracker_key = f"{job_id}:logs_legacy"
+            _global_tracker.register_client(_tracker_key)
             try:
                 while True:
                     if await request.is_disconnected():
                         break
 
-                    current_job = await get_cached_job(job_id, services)
+                    try:
+                        current_job = await get_cached_job(job_id, services)
+                    except Exception as exc:  # noqa: BLE001
+                        logger.debug("get_cached_job failed in legacy logs stream: %s", exc)
+                        yield f"event: error\ndata: {json.dumps({'error': 'Failed to fetch job state'})}\n\n"
+                        await asyncio.sleep(1.0)
+                        continue
                     if not current_job:
                         yield f"event: error\ndata: {json.dumps({'error': 'Job not found'})}\n\n"
                         break
@@ -312,7 +331,7 @@ async def stream_job_logs(
 
                     await asyncio.sleep(1.0)
             finally:
-                _global_tracker.deregister_client(job_id)
+                _global_tracker.deregister_client(_tracker_key)
 
         return StreamingResponse(
             event_stream(),

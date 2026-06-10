@@ -27,19 +27,36 @@ const sectionVariants = {
 export function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const { data: stats, loading: statsLoading } = useApi<StatsType>('/api/dashboard', { 
+  const { data: stats, loading: statsLoading, error: statsError } = useApi<StatsType>('/api/dashboard', { 
     refetchInterval: 10000,
     schema: DashboardStatsSchema,
     onSuccess: () => setLastUpdated(new Date())
   });
   
-  const { data: jobsResponse, loading: jobsLoading } = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
+  const { data: jobsResponse, loading: jobsLoading, error: jobsError } = useApi<{ jobs: Job[]; total: number }>('/api/jobs', {
     refetchInterval: 5000,
     onSuccess: () => setLastUpdated(new Date())
   });
 
-  if (statsLoading && jobsLoading) {
+  // Show skeleton only on initial load (no data yet). If one source
+  // loads first, render the partial UI rather than blocking on both.
+  if ((statsLoading && !stats) || (jobsLoading && !jobsResponse)) {
     return <DashboardSkeleton />;
+  }
+
+  if ((statsError || jobsError) && !stats && !jobsResponse) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          icon={<ShieldAlert size={20} />}
+          title="Dashboard"
+          subtitle="Security Operations Overview"
+        />
+        <div className="card error" role="alert">
+          <p>Failed to load dashboard data. {(statsError || jobsError)?.message}</p>
+        </div>
+      </div>
+    );
   }
 
   const recentJobs = (jobsResponse?.jobs ?? []).slice(0, 5);
@@ -66,7 +83,7 @@ export function DashboardPage() {
         subtitle="Security Operations Overview"
         actions={
           <Link to="/targets" className="btn btn-primary cyber-gradient-btn rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2">
-            <Zap size={16} /> New Scan
+            <Zap size={16} aria-hidden="true" /> New Scan
           </Link>
         }
       />

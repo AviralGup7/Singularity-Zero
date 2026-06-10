@@ -1,14 +1,15 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import enTranslation from './en/translation.json';
+import esTranslation from './es/translation.json';
 
-   
-export const supportedLanguages = ['en'] as const;
-   
+export const supportedLanguages = ['en', 'es'] as const;
+
 export type SupportedLanguage = (typeof supportedLanguages)[number];
 
 export const languageNames: Record<SupportedLanguage, string> = {
   en: 'English',
+  es: 'Español',
 };
 
 export const defaultLanguage: SupportedLanguage = 'en';
@@ -16,6 +17,7 @@ export const defaultLanguage: SupportedLanguage = 'en';
 const i18nPromise = i18n.use(initReactI18next).init({
   resources: {
     en: { translation: enTranslation },
+    es: { translation: esTranslation },
   },
   lng: defaultLanguage,
   fallbackLng: defaultLanguage,
@@ -23,7 +25,6 @@ const i18nPromise = i18n.use(initReactI18next).init({
     escapeValue: false,
   },
 }).catch(err => {
-   
   console.error('[i18n] Failed to initialize:', err);
 });
 

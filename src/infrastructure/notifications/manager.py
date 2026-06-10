@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -18,14 +19,17 @@ from src.pipeline.self_healing import CorrectionEvent, HealthFinding, HealthStat
 logger = logging.getLogger(__name__)
 
 _CHANNEL_REGISTRY: dict[str, type[BaseNotifier]] = {}
+_CHANNEL_REGISTRY_LOCK = threading.Lock()
 
 
 def register_channel(name: str, notifier_cls: type[BaseNotifier]) -> None:
-    _CHANNEL_REGISTRY[name] = notifier_cls
+    with _CHANNEL_REGISTRY_LOCK:
+        _CHANNEL_REGISTRY[name] = notifier_cls
 
 
 def get_channel(name: str) -> type[BaseNotifier] | None:
-    return _CHANNEL_REGISTRY.get(name)
+    with _CHANNEL_REGISTRY_LOCK:
+        return _CHANNEL_REGISTRY.get(name)
 
 
 class ChannelEntry(BaseModel):
@@ -72,6 +76,8 @@ class NotificationManager:
         self._channel_map: dict[str, BaseNotifier] = {}
         self._channel_filters: dict[str, ChannelEntry] = {}
         self._sent_hashes: dict[str, float] = {}
+        self._sent_hashes_lock = threading.Lock()
+        self._last_cleanup_time: float = 0.0
         self._semaphore = asyncio.Semaphore(config.max_concurrent_sends)
         self._logger = logging.getLogger(__name__)
 
@@ -251,20 +257,29 @@ class NotificationManager:
         key = f"{event.value}:{priority.value}:{title}:{correlation_id or ''}"
         now = datetime.now(UTC).timestamp()
 
-        if key in self._sent_hashes:
-            elapsed = now - self._sent_hashes[key]
-            if elapsed < self._config.deduplication_window_seconds:
-                return True
+        with self._sent_hashes_lock:
+            if key in self._sent_hashes:
+                elapsed = now - self._sent_hashes[key]
+                if elapsed < self._config.deduplication_window_seconds:
+                    return True
 
-        self._sent_hashes[key] = now
-        self._cleanup_old_hashes(now)
-        return False
+            self._sent_hashes[key] = now
+            # Periodically clean even if event rate is low to prevent stale buildup.
+            cleanup_interval = self._config.deduplication_window_seconds
+            if now - self._last_cleanup_time >= cleanup_interval:
+                self._last_cleanup_time = now
+                self._cleanup_old_hashes_unlocked(now)
+            return False
 
-    def _cleanup_old_hashes(self, now: float) -> None:
+    def _cleanup_old_hashes_unlocked(self, now: float) -> None:
         cutoff = now - self._config.deduplication_window_seconds * 2
         expired = [k for k, v in self._sent_hashes.items() if v < cutoff]
         for k in expired:
             del self._sent_hashes[k]
+
+    def _cleanup_old_hashes(self, now: float) -> None:
+        with self._sent_hashes_lock:
+            self._cleanup_old_hashes_unlocked(now)
 
     @staticmethod
     def _priority_below_threshold(
@@ -450,11 +465,14 @@ class NotificationManager:
         return list(self._channel_map.keys())
 
     async def close(self) -> None:
+        """Gracefully close all notifiers, draining in-flight sends."""
+        drain_tasks: list[asyncio.Task[None]] = []
         for notifier in self._notifiers:
-            try:
-                await notifier.close()
-            except Exception as exc:
-                self._logger.error("Error closing notifier %s: %s", notifier.channel_name, exc)
+            drain_tasks.append(asyncio.create_task(notifier.close()))
+
+        if drain_tasks:
+            await asyncio.gather(*drain_tasks, return_exceptions=True)
+
         self._notifiers.clear()
         self._channel_map.clear()
         self._channel_filters.clear()
@@ -478,20 +496,26 @@ def _auto_register_channels() -> None:
         from src.infrastructure.notifications.email import EmailNotifier
 
         register_channel("email", EmailNotifier)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logger.warning("Operation failed in manager.py: %s", exc, exc_info=True)  # noqa: BLE001
     try:
         from src.infrastructure.notifications.slack import SlackNotifier
 
         register_channel("slack", SlackNotifier)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logger.warning("Operation failed in manager.py: %s", exc, exc_info=True)  # noqa: BLE001
     try:
         from src.infrastructure.notifications.webhook import WebhookNotifier
 
         register_channel("webhook", WebhookNotifier)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logger.warning("Operation failed in manager.py: %s", exc, exc_info=True)  # noqa: BLE001
+    try:
+        from src.infrastructure.notifications.in_app import InAppNotifier
+
+        register_channel("in_app", InAppNotifier)
+    except ImportError as exc:
+        logger.warning("Operation failed in manager.py: %s", exc, exc_info=True)  # noqa: BLE001
 
 
 _auto_register_channels()

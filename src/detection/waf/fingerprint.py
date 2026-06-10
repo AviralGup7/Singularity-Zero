@@ -115,8 +115,8 @@ def fingerprint_response(
         if best is None or match.confidence > best.confidence:
             best = match
 
-    if best is None:
-        return WAFMatch(fingerprint=GENERIC, confidence=0.0, matched_signals=())
+    if best is None or best.confidence == 0.0:
+        return None
 
     return best
 

@@ -67,7 +67,12 @@ def _build_replay_targets(source_url: str, scan_hosts: set[str]) -> list[str]:
     target_netlocs.update(_clean_netloc(host) for host in scan_hosts if _is_web_target(host))
     if not target_netlocs:
         return [source_url]
-    return [f"https://{netloc}/saml/acs" for netloc in target_netlocs]
+    try:
+        scheme = urlparse(source_url).scheme or "https"
+    except (ValueError, TypeError) as exc:
+        logger.debug("URL parse failed for %s: %s", source_url, exc)
+        scheme = "https"
+    return [f"{scheme}://{netloc}/saml/acs" for netloc in target_netlocs]
 
 
 def _safe_netloc(url: str) -> str:
@@ -84,7 +89,15 @@ def _clean_netloc(host: str) -> str:
 def _is_web_target(host: str) -> bool:
     if not host:
         return False
-    return "." in host and not host.endswith((".local", ".lan", ".internal"))
+    host = host.lower().strip()
+    if host.endswith((".local", ".lan", ".internal")):
+        return False
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return False
+    import re
+    if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", host):
+        return False
+    return "." in host
 
 
 def run_xsw_attack(

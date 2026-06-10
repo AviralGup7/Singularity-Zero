@@ -64,13 +64,26 @@ class LLMService:
         return cls._instance
 
     @staticmethod
+    def _sanitize_output(text: str) -> str:
+        """Sanitize LLM outputs before they are processed/rendered downstream."""
+        if not text:
+            return ""
+        # Remove any NUL bytes
+        cleaned = text.replace("\x00", "")
+        # Remove raw script tags to prevent XSS if rendered as HTML
+        import re
+        cleaned = re.sub(r"<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>", "", cleaned, flags=re.IGNORECASE)
+        return cleaned
+
+    @staticmethod
     def _load_from_env() -> LLMConfig:
         """Parse configuration directly from active environment variables."""
         enabled_str = os.getenv("LLM_ENABLED", "false").lower()
+        api_key = os.getenv("LLM_API_KEY") or os.getenv("GOOGLE_API_KEY")
         return LLMConfig(
             enabled=(enabled_str in {"true", "1", "yes"}),
             provider=os.getenv("LLM_PROVIDER", "mock").lower(),
-            api_key=os.getenv("LLM_API_KEY"),
+            api_key=api_key,
             api_base=os.getenv("LLM_API_BASE"),
             model=os.getenv("LLM_MODEL", "gpt-4o"),
             timeout_seconds=float(os.getenv("LLM_TIMEOUT", "10.0")),
@@ -89,6 +102,14 @@ class LLMService:
         # Keep start and end for better context
         half = max_chars // 2
         return text[:half] + "\n[... TRUNCATED ...]\n" + text[-half:]
+
+    def _validate_provider_response(self, data: Any, required_keys: list[str], provider: str) -> None:
+        """Validate that provider response matches expected schema."""
+        if not isinstance(data, dict):
+            raise ValueError(f"{provider} returned non-object response: {type(data).__name__}")
+        for key in required_keys:
+            if key not in data:
+                raise ValueError(f"{provider} response missing required key: {key}")
 
     async def _query_provider(self, system_prompt: str, user_prompt: str) -> str:
         """Perform non-blocking HTTP request to configured LLM api providers."""
@@ -112,7 +133,12 @@ class LLMService:
             }
             resp = await self.client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
-            return str(resp.json()["choices"][0]["message"]["content"])
+            data = resp.json()
+            self._validate_provider_response(data, ["choices"], "openai")
+            if not isinstance(data["choices"], list) or len(data["choices"]) == 0:
+                raise ValueError("openai returned empty choices")
+            msg = data["choices"][0].get("message", {})
+            return self._sanitize_output(str(msg.get("content", "")))
 
         # 2. Ollama Integration (Local)
         elif self.config.provider == "ollama":
@@ -125,7 +151,9 @@ class LLMService:
             }
             resp = await self.client.post(url, json=payload)
             resp.raise_for_status()
-            return str(resp.json()["response"])
+            data = resp.json()
+            self._validate_provider_response(data, ["response"], "ollama")
+            return self._sanitize_output(str(data["response"]))
 
         # 3. Gemini Integration
         elif self.config.provider == "gemini":
@@ -149,7 +177,9 @@ class LLMService:
             }
             resp = await self.client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
-            return str(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
+            data = resp.json()
+            self._validate_provider_response(data, ["candidates"], "gemini")
+            return self._sanitize_output(str(data["candidates"][0]["content"]["parts"][0]["text"]))
 
         raise NotImplementedError(f"Provider '{self.config.provider}' is unsupported")
 

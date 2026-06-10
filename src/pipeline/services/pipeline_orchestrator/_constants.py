@@ -36,6 +36,7 @@ def _build_default_graph(profile=None):
 STAGE_GRAPH: Graph = _build_default_graph()
 
 STAGE_ORDER = STAGE_GRAPH.topological_sort()
+STAGE_ORDER_INDEX: dict[str, int] = {name: idx for idx, name in enumerate(STAGE_ORDER)}
 _graph_names = set(STAGE_GRAPH.names())
 _order_names = set(STAGE_ORDER)
 if _graph_names != _order_names:
@@ -51,7 +52,8 @@ try:
     from src.pipeline.services.stage_registry import PIPELINE_STAGES as _SR_STAGES
 
     _legacy_labels = {s.key: s.label for s in _SR_STAGES}
-except Exception:
+except Exception as exc:
+    logger.debug("stage_registry import failed, falling back to graph node names: %s", exc)
     _legacy_labels = {}
 PIPELINE_STAGES = {
     node.name: _legacy_labels.get(node.name, node.name.replace("_", " ").title())

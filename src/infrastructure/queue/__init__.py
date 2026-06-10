@@ -13,6 +13,7 @@ Usage:
     job_id = await queue.enqueue(TaskEnvelope(type="pipeline_scan", payload={"target": "example.com"}), priority=5)
 """
 
+from src.infrastructure.queue.base_worker import BaseWorker
 from src.infrastructure.queue.job_queue import JobQueue
 from src.infrastructure.queue.models import (
     Job,
@@ -23,10 +24,15 @@ from src.infrastructure.queue.models import (
 from src.infrastructure.queue.models import (
     QueueConfig as QueueConfigModel,
 )
+from src.infrastructure.queue.plugin_handler_bridge import (
+    register_all_plugin_handlers,
+    resolve_handler_for_job_type,
+)
 from src.infrastructure.queue.redis_client import RedisClient
 from src.infrastructure.queue.worker import Worker
 
 __all__ = [
+    "BaseWorker",
     "Job",
     "JobQueue",
     "JobState",
@@ -35,4 +41,6 @@ __all__ = [
     "RedisClient",
     "Worker",
     "WorkerInfo",
+    "register_all_plugin_handlers",
+    "resolve_handler_for_job_type",
 ]

@@ -1,40 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Icon } from '../ui/Icon';
+import type { AppNotification, NotificationType } from '@/types/notifications';
+import { SEVERITY_COLORS, TYPE_ICONS, TYPE_LABELS } from '@/types/notifications';
 
-export interface Notification {
-  id: string;
-  type: 'scan_complete' | 'scan_failed' | 'new_finding' | 'error';
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
-  title: string;
-  message: string;
-  timestamp: number;
-  read: boolean;
-  source?: string;
-  href?: string;
-}
+export type { AppNotification as Notification } from '@/types/notifications';
 
 interface NotificationCenterProps {
-  notifications: Notification[];
+  notifications: AppNotification[];
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onClearAll: () => void;
   onDismiss: (id: string) => void;
 }
 
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'var(--color-danger, #ff3b30)',
-  high: 'var(--color-warning, #ff9500)',
-  medium: 'var(--color-accent, #00e5ff)',
-  low: 'var(--color-success, #34c759)',
-  info: 'var(--color-muted, #8e8e93)',
-};
-
-const TYPE_ICONS: Record<string, string> = {
-  scan_complete: 'checkCircle',
-  scan_failed: 'xCircle',
-  new_finding: 'shield',
-  error: 'alertCircle',
-};
+const FILTER_TYPES: Array<'all' | NotificationType> = [
+  'all',
+  'scan_completed',
+  'scan_failed',
+  'new_finding',
+  'error',
+  'self_healing_action',
+  'compliance_violation',
+];
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -48,27 +36,45 @@ function timeAgo(ts: number): string {
   return `${days}d ago`;
 }
 
+function getHref(notification: AppNotification): string | null {
+  if (notification.href) return notification.href;
+  if (notification.entity_type && notification.entity_id) {
+    switch (notification.entity_type) {
+      case 'job': return `/jobs/${notification.entity_id}`;
+      case 'finding': return '/findings';
+      case 'target': return '/targets';
+      default: return null;
+    }
+  }
+  return null;
+}
+
 function NotificationItem({ notification, onMarkRead, onDismiss }: {
-  notification: Notification;
+  notification: AppNotification;
   onMarkRead: (id: string) => void;
   onDismiss: (id: string) => void;
 }) {
-  const severityColor = Reflect.get(SEVERITY_COLORS, notification.severity) || SEVERITY_COLORS.info;
-  const icon = Reflect.get(TYPE_ICONS, notification.type) || 'info';
+  const navigate = useNavigate();
+  const severityColor = SEVERITY_COLORS[notification.severity] || SEVERITY_COLORS.info;
+  const icon = TYPE_ICONS[notification.type] || 'info';
+  const deepLink = getHref(notification);
+
+  const handleClick = () => {
+    if (!notification.read) onMarkRead(notification.id);
+    if (deepLink) navigate(deepLink);
+  };
 
   return (
     <div
       className={`notification-item ${notification.read ? 'notification-read' : 'notification-unread'} ${notification.severity === 'critical' ? 'notification-critical' : ''}`}
       style={{ borderLeft: `3px solid ${severityColor}` }}
-      onClick={() => {
-        if (!notification.read) onMarkRead(notification.id);
-      }}
+      onClick={handleClick}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          if (!notification.read) onMarkRead(notification.id);
+          handleClick();
         }
       }}
     >
@@ -81,9 +87,16 @@ function NotificationItem({ notification, onMarkRead, onDismiss }: {
           <span className="notification-time">{timeAgo(notification.timestamp)}</span>
         </div>
         <p className="notification-message">{notification.message}</p>
-        {notification.source && (
-          <span className="notification-source">{notification.source}</span>
-        )}
+        <div className="notification-meta">
+          {notification.source && (
+            <span className="notification-source">{notification.source}</span>
+          )}
+          {deepLink && (
+            <span className="notification-link-hint">
+              <Icon name="externalLink" size={10} /> View
+            </span>
+          )}
+        </div>
       </div>
       <div className="notification-item-actions">
         <button
@@ -108,10 +121,9 @@ export function NotificationCenter({
   onClearAll,
   onDismiss,
 }: NotificationCenterProps) {
-   
+
   const [open, setOpen] = useState(false);
-   
-  const [filter, setFilter] = useState<'all' | Notification['type']>('all');
+  const [filter, setFilter] = useState<'all' | NotificationType>('all');
   const panelRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -124,24 +136,17 @@ export function NotificationCenter({
     };
     if (open) document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-   
+
   }, [open]);
 
   const filtered = filter === 'all' ? notifications : notifications.filter(n => n.type === filter);
 
-  const grouped = filtered.reduce<Map<string, Notification[]>>((acc, n) => {
+  const grouped = filtered.reduce<Map<string, AppNotification[]>>((acc, n) => {
     const key = n.type;
     if (!acc.has(key)) acc.set(key, []);
     acc.get(key)!.push(n);
     return acc;
-  }, new Map<string, Notification[]>());
-
-  const groupLabels: Record<string, string> = {
-    scan_complete: 'Scan Complete',
-    scan_failed: 'Scan Failed',
-    new_finding: 'New Findings',
-    error: 'Errors',
-  };
+  }, new Map<string, AppNotification[]>());
 
   return (
     <div className="notification-center" ref={panelRef}>
@@ -188,13 +193,13 @@ export function NotificationCenter({
           </div>
 
           <div className="notification-filters">
-            {(['all', 'scan_complete', 'scan_failed', 'new_finding', 'error'] as const).map(type => (
+            {FILTER_TYPES.map(type => (
               <button
                 key={type}
                 className={`notification-filter-btn ${filter === type ? 'active' : ''}`}
                 onClick={() => setFilter(type)}
               >
-                {type === 'all' ? 'All' : Reflect.get(groupLabels, type)}
+                {type === 'all' ? 'All' : TYPE_LABELS[type] || type}
               </button>
             ))}
           </div>
@@ -206,11 +211,11 @@ export function NotificationCenter({
                 <p>No notifications</p>
               </div>
             ) : (
-   
+
               Array.from(grouped.entries()).map(([type, items]) => (
                 <div key={type} className="notification-group">
                   <div className="notification-group-header">
-                    <span>{Reflect.get(groupLabels, type) || type}</span>
+                    <span>{TYPE_LABELS[type as NotificationType] || type}</span>
                     <span className="notification-group-count">{items.length}</span>
                   </div>
                   {items.map(n => (

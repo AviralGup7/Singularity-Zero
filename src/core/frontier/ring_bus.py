@@ -189,8 +189,8 @@ class FrontierRingBus:
         """Handle exceptions in fire-and-forget tasks."""
         try:
             task.result()
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as exc:
+            logger.warning("Operation failed in ring_bus.py: %s", exc, exc_info=True)  # noqa: BLE001
         except Exception as e:
             logger.error("Bus async handler task failed: %s", e)
 

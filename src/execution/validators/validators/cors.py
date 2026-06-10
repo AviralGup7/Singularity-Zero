@@ -50,7 +50,6 @@ SENSITIVE_EXPOSED_HEADERS = [
     "Token",
     "Refresh-Token",
 ]
-ACA_EXPOSE_HEADERS = "Access-Control-Expose-Headers"
 
 # Additional origins to test for CORS reflection-based bypasses
 #   - evil.example: standard reflected origin
@@ -160,10 +159,10 @@ def evaluate_cors(
     )
 
     # Detect sensitive headers exposed via Access-Control-Expose-Headers
-    exposed_headers_list = [h.strip() for h in allow_headers.split(",") if h.strip()]
+    expose_headers_val = headers_lower.get(ACA_EXPOSE_HEADERS.lower(), "")
     sensitive_exposed = [
-        h for h in exposed_headers_list
-        if any(sh.lower() == h.lower() for sh in SENSITIVE_EXPOSED_HEADERS)
+        h.strip() for h in expose_headers_val.split(",")
+        if any(sh.lower() == h.strip().lower() for sh in SENSITIVE_EXPOSED_HEADERS)
     ]
 
     # Detect XSS via CORS reflected origin with credentials
@@ -190,12 +189,6 @@ def evaluate_cors(
         bonuses.append(0.05)
 
     # Access-Control-Expose-Headers leaking sensitive headers
-    expose_headers = headers_lower.get("access-control-expose-headers", "")
-    sensitive_exposed = []
-    for hdr in expose_headers.split(","):
-        hdr = hdr.strip().lower()
-        if hdr in ("authorization", "x-api-key", "x-csrf-token", "set-cookie", "www-authenticate"):
-            sensitive_exposed.append(hdr)
     if sensitive_exposed:
         signals.append("sensitive_headers_exposed")
         bonuses.append(0.10)
@@ -240,7 +233,7 @@ def evaluate_cors(
         "allow_credentials": allow_credentials,
         "allow_methods": allow_methods,
         "allow_headers": allow_headers,
-        "exposed_headers": exposed_headers_list,
+        "exposed_headers": expose_headers_val,
         "sensitive_exposed_headers": sensitive_exposed,
         "signals": signals,
         "notes": notes,

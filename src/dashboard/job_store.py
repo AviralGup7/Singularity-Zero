@@ -98,8 +98,8 @@ class JobStore:
             except Exception:
                 try:
                     conn.close()
-                except sqlite3.ProgrammingError:
-                    pass
+                except sqlite3.ProgrammingError as exc:
+                    logger.warning("Operation failed in job_store.py: %s", exc, exc_info=True)  # noqa: BLE001
                 raise
             self._local._conn = conn
             with self._lock:
@@ -135,8 +135,8 @@ class JobStore:
                 last_exc = exc
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as exc:
+                    logger.warning("Operation failed in job_store.py: %s", exc, exc_info=True)  # noqa: BLE001
                 self._drop_thread_conn()
                 if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
                     raise
@@ -144,8 +144,8 @@ class JobStore:
             except Exception:
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as exc:
+                    logger.warning("Operation failed in job_store.py: %s", exc, exc_info=True)  # noqa: BLE001
                 raise
         if last_exc is not None:
             raise last_exc

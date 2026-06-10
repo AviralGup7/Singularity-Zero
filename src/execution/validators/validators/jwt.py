@@ -96,10 +96,15 @@ def _create_jwt_jwk_injection(payload: dict) -> str:
 
 def _create_jwt_key_confusion(payload: dict, public_key_bytes: bytes | None = None) -> str:
     """Create a JWT using key confusion (RS256 -> HS256 with public key)."""
-    if public_key_bytes:
-        secret = public_key_bytes.decode()
-    else:
-        secret = "-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC8kGa1pCJBjqow\n-----END PUBLIC KEY-----"
+    if not public_key_bytes:
+        raise ValueError(
+            "public_key_bytes is required for key-confusion JWT generation. "
+            "Do not use a hardcoded fallback key in production."
+        )
+    try:
+        secret = public_key_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        secret = public_key_bytes.decode("latin-1")
     return _create_jwt({"alg": "HS256", "typ": "JWT"}, payload, secret)
 
 
@@ -261,9 +266,6 @@ def crack_jwt_secret(
     new_payload = base64.urlsafe_b64encode(payload_bytes).rstrip(b"=").decode("ascii")
     signing_input = f"{new_header}.{new_payload}".encode("ascii")
     for secret in candidate_secrets or ():
-        import hashlib
-        import hmac
-
         signature = hmac.new(
             secret.encode("utf-8"), signing_input, hashlib.sha256
         ).digest()
@@ -501,9 +503,14 @@ def evaluate_jwt(
         for case in JWT_PAYLOADS:
             label = case["label"]
             try:
-                token_val = case["create"](BASE_JWT_PAYLOAD)
                 if label == "jwt_key_confusion":
-                    token_val = _create_jwt_key_confusion(BASE_JWT_PAYLOAD, known_public_key.encode() if known_public_key else None)
+                    if known_public_key:
+                        token_val = _create_jwt_key_confusion(BASE_JWT_PAYLOAD, known_public_key.encode())
+                    else:
+                        logger.debug("Skipping jwt_key_confusion: no known_public_key provided")
+                        continue
+                else:
+                    token_val = case["create"](BASE_JWT_PAYLOAD)
                 headers = {jwt_header_name: f"{jwt_token_prefix}{token_val}"}
                 resp = http_request("GET", f"{endpoint}/protected", headers)
                 responses[label] = {
@@ -522,7 +529,8 @@ def evaluate_jwt(
                     if any(ind in body for ind in jwt_error_indicators):
                         signals.append(f"{label}_error_disclosure")
                         bonuses.append(0.05)
-            except Exception:
+            except Exception as exc:
+                logger.debug("JWT probe '%s' failed for endpoint %s: %s", label, endpoint, exc)
                 continue
 
         # Check JWKS endpoint exposure
@@ -538,8 +546,8 @@ def evaluate_jwt(
                     signals.append("jwks_endpoint_exposed")
                     bonuses.append(0.08)
                     notes.append(f"JWKS endpoint exposed: {jwks_endpoint}")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("JWKS endpoint probe failed for %s: %s", jwks_endpoint, exc)
 
     if signals:
         high_risk = any(

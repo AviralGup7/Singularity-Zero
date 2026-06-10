@@ -2,15 +2,15 @@
 
 
 _SECRET_PATTERNS: list[tuple[str, str]] = [
-    ("GH_TOKEN|GITHUB_TOKEN|GITHUB_PAT", "GitHub token"),
-    ("DOCKER_PASSWORD|DOCKERHUB_TOKEN", "Docker Hub token"),
-    ("NPM_TOKEN|NODE_AUTH_TOKEN", "NPM token"),
-    ("PYPI_TOKEN|TWINE_PASSWORD", "PyPI / Twine credential"),
-    ("AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY", "AWS credential"),
-    ("AZURE_CLIENT_SECRET|AZURE_STORAGE_KEY", "Azure credential"),
-    ("GOOGLE_APPLICATION_CREDENTIALS|GCLOUD_SERVICE_KEY", "GCP credential"),
-    ("PASSWD|PASSWORD|SECRET|API_KEY", "Generic secret keyword"),
-    ("-----BEGIN (?:RSA )?PRIVATE KEY-----", "Private key"),
+    (r"GH_TOKEN|GITHUB_TOKEN|GITHUB_PAT", "GitHub token"),
+    (r"DOCKER_PASSWORD|DOCKERHUB_TOKEN", "Docker Hub token"),
+    (r"NPM_TOKEN|NODE_AUTH_TOKEN", "NPM token"),
+    (r"PYPI_TOKEN|TWINE_PASSWORD", "PyPI / Twine credential"),
+    (r"AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY", "AWS credential"),
+    (r"AZURE_CLIENT_SECRET|AZURE_STORAGE_KEY", "Azure credential"),
+    (r"GOOGLE_APPLICATION_CREDENTIALS|GCLOUD_SERVICE_KEY", "GCP credential"),
+    (r"PASSWD|PASSWORD|SECRET|API_KEY", "Generic secret keyword"),
+    (r"-----BEGIN (?:RSA )?PRIVATE KEY-----", "Private key"),
 ]
 
 

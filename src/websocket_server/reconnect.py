@@ -181,7 +181,7 @@ class ReconnectionManager:
 
     def __init__(
         self,
-        reconnect_window_seconds: float = 300.0,
+        reconnect_window_seconds: float = 120.0,
         max_missed_messages: int = 500,
         max_tokens: int = 10000,
     ) -> None:

@@ -26,7 +26,7 @@ class FeedbackRepo(BaseRepo):
             "feedback_weight", "override_source", "reviewer_id", "override_reason", "asset_type"
         ]
         params = {k: row.get(k) for k in expected_fields}
-        
+
         # Default override_source to 'automated' if not provided
         if not params["override_source"]:
             params["override_source"] = "automated"
@@ -108,54 +108,62 @@ class FeedbackRepo(BaseRepo):
         Returns the number of events updated.
         """
         now = datetime.now(UTC)
+        page_size = 5000
+        updates: list[tuple[float, str]] = []
 
         with self._cursor() as cur:
-            cur.execute(
-                """SELECT event_id, timestamp, was_validated, was_false_positive,
-                          finding_severity
-                   FROM feedback_events WHERE run_id = ?""",
-                (run_id,),
-            )
-            rows = cur.fetchall()
+            offset = 0
+            while True:
+                cur.execute(
+                    """SELECT event_id, timestamp, was_validated, was_false_positive,
+                              finding_severity
+                       FROM feedback_events WHERE run_id = ?
+                       LIMIT ? OFFSET ?""",
+                    (run_id, page_size, offset),
+                )
+                rows = cur.fetchall()
+                if not rows:
+                    break
+                offset += page_size
 
-            updates = []
-            for row in rows:
-                ts = row["timestamp"]
-                try:
-                    event_time = datetime.fromisoformat(ts)
-                    delta_days = max(0, (now - event_time).total_seconds() / 86400)
-                except (ValueError, TypeError):
-                    delta_days = 0
+                for row in rows:
+                    ts = row["timestamp"]
+                    try:
+                        event_time = datetime.fromisoformat(ts)
+                        delta_days = max(0, (now - event_time).total_seconds() / 86400)
+                    except (ValueError, TypeError):
+                        delta_days = 0
 
-                recency = math.exp(-decay_rate * delta_days)
+                    recency = math.exp(-decay_rate * delta_days)
 
-                was_validated = bool(row["was_validated"])
-                was_fp = bool(row["was_false_positive"])
+                    was_validated = bool(row["was_validated"])
+                    was_fp = bool(row["was_false_positive"])
 
-                if was_validated and not was_fp:
-                    val_mult = 2.0
-                elif was_validated and was_fp:
-                    val_mult = 0.3
-                elif not was_validated and not was_fp:
-                    val_mult = 1.0
-                else:
-                    val_mult = 0.5
+                    if was_validated and not was_fp:
+                        val_mult = 2.0
+                    elif was_validated and was_fp:
+                        val_mult = 0.3
+                    elif not was_validated and not was_fp:
+                        val_mult = 1.0
+                    else:
+                        val_mult = 0.5
 
-                severity_map = {
-                    "critical": 2.0,
-                    "high": 1.5,
-                    "medium": 1.0,
-                    "low": 0.5,
-                    "info": 0.2,
-                }
-                sev_mult = severity_map.get((row["finding_severity"] or "").lower(), 1.0)
+                    severity_map = {
+                        "critical": 2.0,
+                        "high": 1.5,
+                        "medium": 1.0,
+                        "low": 0.5,
+                        "info": 0.2,
+                    }
+                    sev_mult = severity_map.get((row["finding_severity"] or "").lower(), 1.0)
 
-                weight = round(recency * val_mult * sev_mult, 4)
-                updates.append((weight, row["event_id"]))
+                    weight = round(recency * val_mult * sev_mult, 4)
+                    updates.append((weight, row["event_id"]))
 
-            if updates:
-                # Group updates into chunks of 200 to execute single SQLite CASE update queries
-                chunk_size = 200
+        if updates:
+            # Group updates into chunks of 200 to execute single SQLite CASE update queries
+            chunk_size = 200
+            with self._cursor() as cur:
                 for i in range(0, len(updates), chunk_size):
                     chunk = updates[i : i + chunk_size]
                     case_clauses = []
@@ -177,7 +185,7 @@ class FeedbackRepo(BaseRepo):
                     """  # noqa: S608  # nosec B608  (placeholders/case_clauses are static "?" chars)
                     cur.execute(query, params)
 
-            return len(updates)
+        return len(updates)
 
     def get_fp_rate_for_pattern(self, category: str, plugin: str) -> float:
         """Get the historical FP rate for a category/plugin pattern."""

@@ -125,8 +125,6 @@ class DashboardServices:
                     "Failed to persist job %s: %s", job.get("id"), exc
                 )
 
-            _cache_manager = getattr(self, "cache_manager", None)
-
     def load_template(self) -> dict[str, Any]:
         return self.query.load_template()
 

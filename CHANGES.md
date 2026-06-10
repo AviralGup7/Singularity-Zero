@@ -32,7 +32,7 @@ All changes, improvements, dependency updates, bug fixes, and refactors across t
 24. Release workflow generates structured changelog via `release-changelog-builder-action` with categorized labels
 25. CI runs `ruff check` + `ruff format --check` as lint gates
 26. CI runs `pytest tests/unit -v --tb=short` as test gate
-27. `pyproject.toml` requires Python `>=3.14`
+27. `pyproject.toml` requires Python `>=3.12`
 28. All workflows set `git config user.name/email` to "Aviral Gupta" before any commit step
 29. `docker-compose.yml` and `docker-compose.optimized.yml` provided for local multi-service dev
 30. Prometheus datasource and dashboard configs provisioned under `configs/grafana/`

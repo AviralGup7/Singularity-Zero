@@ -93,8 +93,8 @@ class PersistentCache:
         except Exception:
             try:
                 conn.close()
-            except sqlite3.ProgrammingError:
-                pass
+            except sqlite3.ProgrammingError as exc:
+                logger.warning("Operation failed in cache_backend.py: %s", exc, exc_info=True)  # noqa: BLE001
             raise
         self._thread_local.conn = conn
         with self._lock:
@@ -134,8 +134,8 @@ class PersistentCache:
                 last_exc = exc
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as exc:
+                    logger.warning("Operation failed in cache_backend.py: %s", exc, exc_info=True)  # noqa: BLE001
                 self._close_conn()
                 if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
                     self._metrics.record_error()
@@ -144,8 +144,8 @@ class PersistentCache:
             except Exception:
                 try:
                     conn.rollback()
-                except sqlite3.Error:
-                    pass
+                except sqlite3.Error as exc:
+                    logger.warning("Operation failed in cache_backend.py: %s", exc, exc_info=True)  # noqa: BLE001
                 self._close_conn()
                 self._metrics.record_error()
                 raise

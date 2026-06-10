@@ -1,3 +1,4 @@
+import logging
 """Collaborative triage REST and WebSocket endpoints."""
 
 from __future__ import annotations
@@ -254,7 +255,7 @@ async def handle_triage_websocket(
                         "state": service.build_finding_state(run_id, finding_id),
                     },
                 )
-    except (WebSocketDisconnect, json.JSONDecodeError):
-        pass
+    except (WebSocketDisconnect, json.JSONDecodeError) as exc:
+        logging.warning("Operation failed in triage.py: %s", exc, exc_info=True)  # noqa: BLE001
     finally:
         await service.disconnect(run_id, connection.connection_id)

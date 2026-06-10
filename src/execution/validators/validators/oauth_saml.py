@@ -117,8 +117,8 @@ def _looks_like_xml_signature_bypass(body: str) -> bool:
             sig_value = sig.find(".//{http://www.w3.org/2000/09/xmldsig#}SignatureValue")
             if sig_value is None or not sig_value.text:
                 return True
-    except ET.ParseError:
-        pass
+    except ET.ParseError as exc:
+        logger.warning("Operation failed in oauth_saml.py: %s", exc, exc_info=True)  # noqa: BLE001
     return False
 
 
@@ -136,10 +136,10 @@ def _looks_like_saml_replay(body: str) -> bool:
                 age = (now - parsed_time).total_seconds()
                 if age > 300:
                     return True
-            except (ValueError, TypeError):
-                pass
-    except ET.ParseError:
-        pass
+            except (ValueError, TypeError) as exc:
+                logger.warning("Operation failed in oauth_saml.py: %s", exc, exc_info=True)  # noqa: BLE001
+    except ET.ParseError as exc:
+        logger.warning("Operation failed in oauth_saml.py: %s", exc, exc_info=True)  # noqa: BLE001
     return False
 
 
@@ -187,8 +187,8 @@ def evaluate_oauth_token_exchange(
                 signals.append(f"oauth_token_exchange_accepted_{grant_type}")
                 bonuses.append(0.18)
                 notes.append(f"OAuth token exchange accepted for grant_type '{grant_type}'.")
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as exc:
+            logger.warning("Operation failed in oauth_saml.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     return {
         "signals": signals,
@@ -243,14 +243,10 @@ def evaluate_oauth_saml(
     notes: list[str] = []
 
     if redirect_uri:
-        uri_eval = evaluate_oauth_state(
-            state_value=redirect_uri,
-            response_body=response_body,
-            response_status=response_status,
-        )
-        signals.extend(uri_eval["signals"])
-        bonuses.extend(uri_eval["bonuses"])
-        notes.extend(uri_eval["notes"])
+        if response_status in (200, 302) and redirect_uri in response_body:
+            signals.append("redirect_uri_reflected")
+            bonuses.append(0.15)
+            notes.append(f"OAuth redirect_uri value reflected in response: {redirect_uri}")
 
     if state_value is not None:
         state_eval = evaluate_oauth_state(

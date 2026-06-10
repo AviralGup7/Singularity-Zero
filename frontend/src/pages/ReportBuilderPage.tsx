@@ -8,6 +8,7 @@ import { ApiError } from '@/api/core';
 import type { Finding } from '@/types/api';
 import { GlassCard, PageHeader } from '@/components/ui';
 import { exportReportBundle, type ReportFormat } from '@/utils/findingExport';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -34,6 +35,13 @@ export function ReportBuilderPage() {
     author: '',
     scope: '',
   });
+
+  const { markDirty, markClean } = useUnsavedChanges({ enabled: selected.size > 0 });
+
+  useEffect(() => {
+    if (selected.size > 0) markDirty();
+    else markClean();
+  }, [selected.size, markDirty, markClean]);
 
   useEffect(() => {
     if (initialFindingId && findings.length > 0) {

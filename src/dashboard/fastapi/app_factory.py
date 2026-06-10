@@ -2,6 +2,7 @@
 
 import os
 import sys
+import threading
 import time
 from typing import Any, cast
 
@@ -9,6 +10,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from src.core.exceptions import (
+    CircuitBreakerOpenError,
+    DatabaseUnavailableError,
+    PipelineError,
+    RedisDegradedError,
+    ToolNotInstalledError,
+)
 from src.dashboard.fastapi.config import DashboardConfig
 from src.dashboard.fastapi.lifespan import lifespan
 from src.dashboard.fastapi.middleware_setup import setup_middleware
@@ -16,6 +24,8 @@ from src.dashboard.fastapi.router_setup import setup_routers
 from src.dashboard.fastapi.schemas import DashboardStatsResponse
 from src.dashboard.fastapi.security_setup import setup_security_store
 from src.dashboard.fastapi.spa import setup_spa_routes
+
+_dashboard_stats_lock = threading.Lock()
 
 
 def create_app(config: DashboardConfig | None = None) -> FastAPI:
@@ -87,15 +97,73 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         _record_security_error(request, 422, detail)
         return JSONResponse(status_code=422, content=_error_payload("Validation Error", detail, "validation_error"))
 
+    @app.exception_handler(ToolNotInstalledError)
+    async def tool_not_installed_handler(request: Request, exc: ToolNotInstalledError) -> JSONResponse:
+        _record_security_error(request, 503, str(exc))
+        return JSONResponse(
+            status_code=503,
+            content=_error_payload(
+                "Tool Not Installed",
+                {"message": str(exc), "tool": exc.tool, "code": exc.error_code},
+                exc.error_code,
+            ),
+        )
+
+    @app.exception_handler(CircuitBreakerOpenError)
+    async def circuit_breaker_open_handler(request: Request, exc: CircuitBreakerOpenError) -> JSONResponse:
+        _record_security_error(request, 503, str(exc))
+        return JSONResponse(
+            status_code=503,
+            content=_error_payload(
+                "Circuit Breaker Open",
+                {"message": str(exc), "tool": exc.tool, "breaker_state": exc.breaker_state, "code": exc.error_code},
+                exc.error_code,
+            ),
+        )
+
+    @app.exception_handler(DatabaseUnavailableError)
+    async def database_unavailable_handler(request: Request, exc: DatabaseUnavailableError) -> JSONResponse:
+        _record_security_error(request, 503, str(exc))
+        return JSONResponse(
+            status_code=503,
+            content=_error_payload(
+                "Database Unavailable",
+                {"message": str(exc), "code": exc.error_code},
+                exc.error_code,
+            ),
+        )
+
+    @app.exception_handler(RedisDegradedError)
+    async def redis_degraded_handler(request: Request, exc: RedisDegradedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=200,
+            content=_error_payload(
+                "Service Degraded",
+                {"message": str(exc), "code": exc.error_code},
+                exc.error_code,
+            ),
+        )
+
+    @app.exception_handler(PipelineError)
+    async def pipeline_error_handler(request: Request, exc: PipelineError) -> JSONResponse:
+        _record_security_error(request, 500, str(exc))
+        return JSONResponse(
+            status_code=500,
+            content=_error_payload(
+                "Pipeline Error",
+                {"message": exc.message, "details": exc.details},
+                "pipeline_error",
+            ),
+        )
+
     @app.exception_handler(Exception)
     async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
         import logging
         logging.getLogger(__name__).exception("Internal Server Error: %s", exc)
         _record_security_error(request, 500, "Internal Server Error")
-        detail = str(exc) if config.debug else "Internal Server Error"
         return JSONResponse(
             status_code=500,
-            content=_error_payload("Internal Server Error", detail, "internal_server_error"),
+            content=_error_payload("Internal Server Error", "Internal Server Error", "internal_server_error"),
         )
 
     @app.get("/api/health/live", tags=["System"])
@@ -106,15 +174,46 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
     @app.get("/api/health/ready", tags=["System"])
     async def health_check_ready() -> dict[str, Any]:
         subsystems: dict[str, str] = {}
+        degraded_reasons: list[str] = []
+
         subsystems["websocket"] = "up" if getattr(app.state, "ws_services", None) else "down"
         subsystems["gossip"] = "up" if getattr(app.state, "gossip", None) else "down"
-        subsystems["cache"] = "up" if getattr(app.state, "cache_manager", None) else "down"
         subsystems["bloom"] = "up" if getattr(app.state, "bloom_filter", None) else "down"
+
+        cache_manager = getattr(app.state, "cache_manager", None)
+        if cache_manager is not None:
+            try:
+                cache_stats = cache_manager.get_stats()
+                backend_type = getattr(cache_stats, "backend_type", "") if cache_stats else ""
+                if "memory" in str(backend_type).lower():
+                    subsystems["cache"] = "degraded"
+                    degraded_reasons.append("Using in-memory fallback (Redis unavailable)")
+                else:
+                    subsystems["cache"] = "up"
+            except Exception:
+                subsystems["cache"] = "up"
+        else:
+            subsystems["cache"] = "down"
+            degraded_reasons.append("Cache not initialized")
+
+        subsystems["database"] = "up"
+        subsystems["tools"] = "up"
+
         all_up = all(v == "up" for v in subsystems.values())
+        any_down = any(v == "down" for v in subsystems.values())
+
+        if all_up:
+            status = "ready"
+        elif any_down:
+            status = "degraded"
+        else:
+            status = "degraded"
+
         from src.dashboard.fastapi.lifespan import _START_TIME
         return {
-            "status": "ready" if all_up else "degraded",
+            "status": status,
             "subsystems": subsystems,
+            "degraded_reasons": degraded_reasons,
             "uptime": time.time() - (_START_TIME or time.time()),
         }
 
@@ -146,10 +245,19 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         try:
             from fastapi import Response
             from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-            return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+            registry_metrics = generate_latest()
+            try:
+                from src.infrastructure.observability.metrics import get_metrics as get_cyber_metrics
+                central_text = get_cyber_metrics().expose_prometheus()
+                combined = registry_metrics + b"\n" + central_text.encode("utf-8") if registry_metrics else central_text.encode("utf-8")
+            except Exception:  # noqa: BLE001
+                combined = registry_metrics
+            return Response(content=combined, media_type=CONTENT_TYPE_LATEST)
         except ImportError:
             from fastapi import Response
-            return Response(content="# prometheus_client not installed", media_type="text/plain")
+            from src.infrastructure.observability.metrics import get_metrics as get_cyber_metrics
+            central_text = get_cyber_metrics().expose_prometheus()
+            return Response(content=central_text.encode("utf-8") if central_text else b"# prometheus_client not installed", media_type="text/plain")
 
     @app.websocket("/ws/triage/{run_id}")
     async def ws_triage(websocket: Any, run_id: str) -> None:
@@ -170,10 +278,11 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
             if cached is not None:
                 return cast(dict[str, Any], cached)
         else:
-            cached = getattr(app.state, "cached_dashboard_stats", None)
-            cache_time = getattr(app.state, "dashboard_stats_cache_time", 0.0)
-            if cached is not None and now - cache_time < 5.0:
-                return cast(dict[str, Any], cached)
+            with _dashboard_stats_lock:
+                cached = getattr(app.state, "cached_dashboard_stats", None)
+                cache_time = getattr(app.state, "dashboard_stats_cache_time", 0.0)
+                if cached is not None and now - cache_time < 5.0:
+                    return cast(dict[str, Any], cached)
 
         services = app.state.services
         targets = services.list_targets()
@@ -252,9 +361,30 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         if cache_manager is not None:
             cache_manager.set("dashboard_stats", stats, ttl=5, namespace="analytics")
         else:
-            app.state.cached_dashboard_stats = stats
-            app.state.dashboard_stats_cache_time = now
+            with _dashboard_stats_lock:
+                app.state.cached_dashboard_stats = stats
+                app.state.dashboard_stats_cache_time = now
         return stats
+
+    from pydantic import BaseModel
+
+    class FrontendTelemetryEvent(BaseModel):
+        event_type: str
+        payload: dict[str, Any] | None = None
+
+    @app.post("/api/telemetry", tags=["Analytics"])
+    async def report_frontend_telemetry(event: FrontendTelemetryEvent) -> dict[str, Any]:
+        try:
+            from src.infrastructure.observability.metrics import get_metrics as _get_metrics
+            _reg = _get_metrics()
+            _reg.counter("frontend_events_total", labels={"event_type": event.event_type}).inc()
+            if event.payload:
+                for key, value in event.payload.items():
+                    if isinstance(value, (int, float)):
+                        _reg.counter("frontend_payload_" + key).inc(value)
+        except Exception:  # noqa: BLE001
+            pass
+        return {"status": "accepted", "event_type": event.event_type}
 
     setup_spa_routes(app)
     return app

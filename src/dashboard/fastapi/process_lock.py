@@ -35,7 +35,7 @@ class ProcessLifespanLock:
             existing_pid = None
         try:
             self._pid = os.getpid()
-            self.fd = open(self.lock_path, "w")
+            self.fd = open(self.lock_path, "w", encoding="utf-8")
             assert self.fd is not None
             self.fd.write(str(self._pid))
             self.fd.flush()
@@ -59,10 +59,10 @@ class ProcessLifespanLock:
                 if existing_pid is not None and not self._pid_alive(existing_pid):
                     try:
                         os.unlink(self.lock_path)
-                    except OSError:
-                        pass
-            except OSError:
-                pass
+                    except OSError as exc:
+                        logger.warning("Operation failed in process_lock.py: %s", exc, exc_info=True)  # noqa: BLE001
+            except OSError as exc:
+                logger.warning("Operation failed in process_lock.py: %s", exc, exc_info=True)  # noqa: BLE001
             return False
 
     def release(self) -> None:
@@ -87,14 +87,14 @@ class ProcessLifespanLock:
         try:
             if os.path.exists(self.lock_path):
                 os.unlink(self.lock_path)
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning("Operation failed in process_lock.py: %s", exc, exc_info=True)  # noqa: BLE001
         self._pid = None
 
 
 def _read_pid_from_lock(lock_path: str) -> int | None:
     try:
-        with open(lock_path) as f:
+        with open(lock_path, encoding="utf-8") as f:
             raw = f.read().strip()
         return int(raw) if raw else None
     except (OSError, ValueError):

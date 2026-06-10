@@ -1,3 +1,4 @@
+import logging
 """Pre-flight configuration validation and mid-flight continuous validation for the security pipeline.
 
 Validates pipeline configuration before execution starts, and performs continuous checks
@@ -233,8 +234,8 @@ def validate_scope_rfc1918(entry: str) -> tuple[bool, str]:
                 ip = ipaddress.ip_address(resolved_ip)
                 if ip.is_private:
                     return False, f"Scope entry '{entry}' resolves to a private RFC1918 IP: {resolved_ip}"
-            except Exception:
-                pass
+            except Exception as exc:
+                logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
     return True, ""
 
 
@@ -271,8 +272,8 @@ def validate_scope_threat_intel(entry: str) -> tuple[bool, str]:
         res = correlator.match_ioc(query_target)
         if res.get("malicious"):
             return False, f"Scope entry '{entry}' intersects with threat-intel IOC/sinkhole: {res.get('matched_feeds')}"
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
     return True, ""
 
 
@@ -302,8 +303,8 @@ def validate_scope_max_prefix(entry: str, max_prefix_v4: int = 24, max_prefix_v6
                             f"Wildcard scope entry '{entry}' resolves to "
                             f"private IP {resolved_ip}"
                         )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
         return True, ""
     try:
         net = ipaddress.ip_network(clean_entry, strict=False)
@@ -371,8 +372,8 @@ def _version_satisfies(version: str, spec: str) -> bool:
             return v_parts != r_parts
         if op == "~=":
             return v_parts[:2] == r_parts[:2] and v_parts >= r_parts
-    except (ValueError, TypeError):
-        pass
+    except (ValueError, TypeError) as exc:
+        logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
     return True
 
 
@@ -403,8 +404,8 @@ def validate_config(
                 schema_json = json.dumps(ConfigModel.model_json_schema(), indent=2)
                 if not schema_path.exists() or schema_path.read_text(encoding="utf-8") != schema_json:
                     schema_path.write_text(schema_json, encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         ConfigModel.model_validate(config_dict)
         report["checks"].append({
@@ -577,8 +578,8 @@ def validate_config(
                         version_errors.append(
                             f"{tool_req} installed as '{actual_version}' but {version_spec} required"
                         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("Operation failed in validation.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     if version_errors:
         version_ok = False

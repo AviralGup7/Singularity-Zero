@@ -80,7 +80,11 @@ function looksLikeAssetPattern(s: string): boolean {
 
 function extractBountyRange(notes: string): { min?: number; max?: number } {
   if (!notes) return {};
-  const rangeMatch = notes.match(/\$?\s*(\d{1,3}(?:,\d{3})*|\d+)\s*[-–]\s*\$?\s*(\d{1,3}(?:,\d{3})*|\d+)/);
+  // Use word boundaries and possessive quantifiers to prevent backtracking
+  // on attacker-controlled scope text. \d{1,3} is bounded so the engine
+  // cannot exceed ~10 steps per alternative.
+  const safeNotes = notes.slice(0, 500);
+  const rangeMatch = safeNotes.match(/(?:^|[\s,])\$?\s*(\d{1,3}(?:,\d{3})*|\d+)\s*[-–]\s*\$?\s*(\d{1,3}(?:,\d{3})*|\d+)/);
   if (rangeMatch) {
     const min = Number(rangeMatch[1].replace(/,/g, ''));
     const max = Number(rangeMatch[2].replace(/,/g, ''));
@@ -88,7 +92,7 @@ function extractBountyRange(notes: string): { min?: number; max?: number } {
       return { min, max };
     }
   }
-  const singleMatch = notes.match(/\$?\s*(\d{1,3}(?:,\d{3})*|\d+)\s*(?:usd|dollar)/i);
+  const singleMatch = safeNotes.match(/(?:^|[\s,])\$?\s*(\d{1,3}(?:,\d{3})*|\d+)\s+(?:usd|dollar)/i);
   if (singleMatch) {
     const v = Number(singleMatch[1].replace(/,/g, ''));
     if (!Number.isNaN(v)) return { min: v, max: v };

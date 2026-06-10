@@ -171,7 +171,8 @@ class FallbackEmulator:
             current = current.decode("utf-8")
         try:
             current_int = int(current)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("HINCRBY non-numeric value for field '%s', resetting to 0: %s", field, exc)
             current_int = 0
         new_value = current_int + amount
         data[field] = str(new_value)
@@ -385,7 +386,30 @@ class FallbackEmulator:
         return len(data) if t == "list" and isinstance(data, list) else 0
 
     def _handle_eval(self, *args: Any, **kwargs: Any) -> Any:
-        return []
+        """Handle EVAL/EVALSHA commands by delegating to fallback_script_exec.
+
+        For EVAL: args = [script, numkeys, key1, ..., arg1, ...]
+        For EVALSHA: args = [sha1, numkeys, key1, ..., arg1, ...]
+        """
+        if len(args) < 3:
+            return []
+
+        script_or_sha = args[0]
+        if isinstance(script_or_sha, bytes):
+            script_or_sha = script_or_sha.decode("utf-8")
+
+        numkeys = int(args[1]) if len(args) > 1 else 0
+        keys = [args[2 + i] for i in range(numkeys)]
+        script_args = list(args[2 + numkeys:])
+
+        # Resolve script name from the hash or direct name
+        script_name = script_or_sha
+        for name, info in self.scripts.items():
+            if isinstance(info, dict) and info.get("hash") == script_or_sha:
+                script_name = name
+                break
+
+        return self.fallback_script_exec(script_name, keys, script_args)
 
     def _handle_script(self, *args: Any, **kwargs: Any) -> Any:
         return "fallback-script-hash"
@@ -517,7 +541,8 @@ class FallbackEmulator:
                 bid_raw = self.client.execute_command("HGET", job_key, "bid_score")
                 try:
                     queue_score = float(_as_str(bid_raw)) if bid_raw is not None else retry_at
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as exc:
+                    logger.debug("fail_job: non-numeric bid_score, using retry_at: %s", exc)
                     queue_score = retry_at
                 self.client.execute_command(
                     "HSET",
@@ -576,7 +601,8 @@ class FallbackEmulator:
             bid_raw = self.client.execute_command("HGET", job_key, "bid_score")
             try:
                 queue_score = float(_as_str(bid_raw)) if bid_raw is not None else 0.0
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("release_lease: non-numeric bid_score, using 0.0: %s", exc)
                 queue_score = 0.0
             self.client.execute_command("ZADD", queue_key, queue_score, job_key)
             return [1]

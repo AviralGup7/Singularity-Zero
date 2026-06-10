@@ -1,5 +1,6 @@
 """Custom middleware for the FastAPI dashboard."""
 
+import contextvars
 import logging
 import os
 import secrets
@@ -11,6 +12,11 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 logger = logging.getLogger(__name__)
+
+# Context variable for propagating request_id to downstream pipeline stages.
+request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "request_id", default=None
+)
 
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _CSRF_HEADER_NAME = "X-CSRF-Token"
@@ -112,7 +118,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         for name, value in security_headers().items():
             response.headers[name] = value
-        response.headers["X-XSS-Protection"] = "1; mode=block"
         return response
 
 

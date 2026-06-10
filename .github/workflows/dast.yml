@@ -18,8 +18,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
       - name: Start application
         run: docker compose -f docker-compose.yml up -d
+        env:
+          ENABLE_API_SECURITY: "false"
       - name: Wait for application
         run: |
           timeout 60s bash -c 'until curl -sf http://localhost:8000/health; do echo "Waiting for dashboard..."; sleep 2; done'

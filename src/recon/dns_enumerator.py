@@ -40,8 +40,6 @@ try:
 except ImportError:
     HAS_DNSPYTHON = False
 
-from src.intelligence.severity_model import enrich_findings_with_model_severity
-
 logger = logging.getLogger(__name__)
 
 # Security-relevant TXT record prefixes
@@ -224,18 +222,34 @@ def build_dns_report(records: list[dict[str, Any]]) -> dict[str, Any]:
     security_checks = _check_dns_security(by_domain)
 
     confidence_map = {"AXFR": 0.95, "MX": 0.7, "NS": 0.7, "SRV": 0.65}
-    security_findings = enrich_findings_with_model_severity(
-        [
-            {
-                **finding,
-                "category": "dns",
-                "title": str(finding.get("finding", "DNS security signal")),
-                "url": str(finding.get("domain", "")),
-                "confidence": confidence_map.get(finding["type"], 0.55),
-            }
-            for finding in security_findings
-        ]
-    )
+    # GAP 5: Lazy import to decouple recon from intelligence layer.
+    # The severity model enriches findings with calibrated scores, but
+    # recon should not hard-depend on intelligence.  If the import fails,
+    # findings are returned without model enrichment (enrichment stage
+    # will handle them later).
+    try:
+        from src.intelligence.severity_model import enrich_findings_with_model_severity
+
+        security_findings = enrich_findings_with_model_severity(
+            [
+                {
+                    **finding,
+                    "category": "dns",
+                    "title": str(finding.get("finding", "DNS security signal")),
+                    "url": str(finding.get("domain", "")),
+                    "confidence": confidence_map.get(finding["type"], 0.55),
+                }
+                for finding in security_findings
+            ]
+        )
+    except Exception as exc:
+        logger.debug("Severity model enrichment skipped in DNS enumerator: %s", exc)
+        # Still set category so downstream intel correlation works
+        for finding in security_findings:
+            finding.setdefault("category", "dns")
+            finding.setdefault("title", str(finding.get("finding", "DNS security signal")))
+            finding.setdefault("url", str(finding.get("domain", "")))
+            finding.setdefault("confidence", confidence_map.get(finding["type"], 0.55))
 
     return {
         "domains_queried": len(by_domain),
@@ -344,6 +358,7 @@ async def _query_doh(domain: str, rtype: str) -> list[str]:
                 answers = data.get("Answer", [])
                 return [str(r.get("data", "")).rstrip(".") for r in answers if r.get("data")]
         except Exception:
+            logger.debug("DoH fetch failed for %s/%s", domain, rtype, exc_info=True)
             return []
 
     google_params = {"name": domain, "type": rtype}
@@ -582,6 +597,7 @@ def _query_txt_cached_sync(domain: str) -> list[str]:
                 answer = resolver.resolve(domain, "TXT")
                 _TXT_CACHE[domain] = [str(rdata).rstrip(".") for rdata in answer]
             except Exception:
+                logger.debug("TXT query failed for %s", domain, exc_info=True)
                 _TXT_CACHE[domain] = []
     return _TXT_CACHE[domain]
 

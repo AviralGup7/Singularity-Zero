@@ -135,15 +135,23 @@ class SecretManager:
             raise ValueError(f"Required secret {name} is not set")
         return value
 
-    def get_encrypted_secret(self, name: str, default: str | None = None) -> str | None:
+    def get_encrypted_secret(
+        self, name: str, default: str | None = None, *, strict: bool = False
+    ) -> str | None:
         """Get and decrypt an encrypted secret.
 
         Args:
             name: Secret name.
             default: Default value if not found.
+            strict: If True, raise on decryption failure instead of
+                returning the default. Use True for security-critical
+                secrets where a wrong value is worse than no value.
 
         Returns:
             Decrypted secret value or default.
+
+        Raises:
+            ValueError: If strict=True and decryption fails.
         """
         encrypted = self.get_secret(name)
         if encrypted is None:
@@ -157,6 +165,10 @@ class SecretManager:
             return self._encryptor.decrypt(encrypted)
         except Exception as exc:
             logger.error("Failed to decrypt secret %s: %s", name, exc)
+            if strict:
+                raise ValueError(
+                    f"Failed to decrypt secret '{name}': {exc}"
+                ) from exc
             return default
 
     def set_secret(self, name: str, value: str) -> None:

@@ -262,4 +262,21 @@ export function processJobMonitorSseEvent(event: SseEvent, ctx: JobMonitorSseCon
   if (event.event_type === 'log' && typeof event.data?.line === 'string') {
     ctx.addLogLine(event.data.line as string);
   }
+
+  if (event.event_type === 'mesh_health_update') {
+    const data = event.data as Record<string, unknown>;
+    ctx.setJob((prev) => {
+      if (!prev) return prev;
+      return { ...prev, mesh_health: data as Job['mesh_health'] };
+    });
+  }
+
+  if (event.event_type === 'migration_event') {
+    const data = event.data as Record<string, unknown>;
+    ctx.setJob((prev) => {
+      if (!prev) return prev;
+      const migrations = Array.isArray(prev.migration_events) ? prev.migration_events : [];
+      return { ...prev, migration_events: [...migrations, data as Job['migration_events'][0]] };
+    });
+  }
 }

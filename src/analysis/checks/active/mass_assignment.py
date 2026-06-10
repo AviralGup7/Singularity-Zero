@@ -123,8 +123,8 @@ def _is_json_endpoint(url: str, response: dict[str, Any] | None = None) -> bool:
                 try:
                     json.loads(stripped[:50000])
                     return True
-                except (json.JSONDecodeError, ValueError):
-                    pass
+                except (json.JSONDecodeError, ValueError) as exc:
+                    logger.warning("Operation failed in mass_assignment.py: %s", exc, exc_info=True)  # noqa: BLE001
     path = urlparse(url).path.lower()
     if any(token in path for token in ("/api/", "/v1/", "/v2/", "/v3/", "/graphql", "/rest/")):
         return True
@@ -323,8 +323,8 @@ def mass_assignment_detector(
         if stripped.startswith(("{", "[")):
             try:
                 original_json = json.loads(stripped[:50000])
-            except (json.JSONDecodeError, ValueError):
-                pass
+            except (json.JSONDecodeError, ValueError) as exc:
+                logger.warning("Operation failed in mass_assignment.py: %s", exc, exc_info=True)  # noqa: BLE001
 
         request_body = {}
         if isinstance(original_json, dict):
@@ -415,8 +415,8 @@ def mass_assignment_detector(
                                 if injected_key in resp_json:
                                     field_accepted = True
                                     acceptance_signals.append(f"field_reflected:{injected_key}")
-                    except (json.JSONDecodeError, ValueError):
-                        pass
+                    except (json.JSONDecodeError, ValueError) as exc:
+                        logger.warning("Operation failed in mass_assignment.py: %s", exc, exc_info=True)  # noqa: BLE001
 
             if field_accepted:
                 accepted_fields.append(

@@ -1,3 +1,5 @@
+from __future__ import annotations
+import logging
 """Domain validation and normalization helpers.
 
 A previous version of the project compiled the same domain-validation
@@ -11,7 +13,6 @@ The regex follows RFC 1035 / 1123 with a length cap of 253 characters
 slashes, query markers, or null bytes.
 """
 
-from __future__ import annotations
 
 import ipaddress
 import re
@@ -101,8 +102,8 @@ def _looks_like_ip(value: str) -> bool:
     try:
         ipaddress.ip_address(value)
         return True
-    except (ipaddress.AddressValueError, ValueError):
-        pass
+    except (ipaddress.AddressValueError, ValueError) as exc:
+        logging.warning("Operation failed in domain_validation.py: %s", exc, exc_info=True)  # noqa: BLE001
     parts = value.split(".")
     if len(parts) == 4 and all(p.isdigit() for p in parts):
         return True

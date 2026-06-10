@@ -159,8 +159,8 @@ def _asn_cidrs_for_hosts(hosts: Iterable[str]) -> set[str]:
             import ipaddress
             ipaddress.ip_address(host)
             cidrs.add(host + "/32")
-        except ValueError:
-            pass
+        except ValueError as exc:
+            logger.warning("Operation failed in discovery.py: %s", exc, exc_info=True)  # noqa: BLE001
     return cidrs
 
 
@@ -331,6 +331,7 @@ def run_enhanced_recon_layer(
 
     _, live_hosts = probe_live_hosts(subdomains, config, progress_callback=progress_callback)
 
+    extras: dict[str, Any] = {}
     extras.setdefault("origin_reprobe", {})
     reprobed_hosts = _safe_call(
         "origin-reprobe",
@@ -356,8 +357,6 @@ def run_enhanced_recon_layer(
         profile=profile,
         history_feedback=None,
     )
-
-    extras: dict[str, Any] = {}
 
     if run_port_scan:
         from src.recon.port_scanner import run_port_scan_async

@@ -4,6 +4,7 @@ Generates professional, auditor-grade HTML attestations from scan findings
 and compliance mappings.
 """
 
+import html as html_module
 from datetime import UTC, datetime
 from typing import Any
 
@@ -23,7 +24,7 @@ def generate_compliance_attestation_html(
     Returns:
         HTML string for the attestation.
     """
-    generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated_at = compliance_report.get("generated_at") or datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # CSS for "Cyber" Professional Look
     css = """
@@ -167,17 +168,20 @@ def generate_compliance_attestation_html(
         for cid, data in controls.items():
             findings_html = ""
             for f in data.get("findings", []):
-                findings_html += f'<div class="finding-item">- {f["title"]} ({f["severity"]})</div>'
+                findings_html += f'<div class="finding-item">- {html_module.escape(str(f.get("title", "")))} ({html_module.escape(str(f.get("severity", "")))})</div>'
 
             if not findings_html:
                 findings_html = '<div class="finding-item italic">No findings detected.</div>'
 
+            maturity = html_module.escape(str(data.get("maturity", "")))
+            recommendation = html_module.escape(str(data.get("recommendation", "")))
+
             frameworks_html += f"""
                     <tr>
-                        <td><strong>{cid}</strong></td>
-                        <td><span class="status-pill status-{data["maturity"]}">{data["maturity"]}</span></td>
+                        <td><strong>{html_module.escape(str(cid))}</strong></td>
+                        <td><span class="status-pill status-{maturity}">{maturity}</span></td>
                         <td>{findings_html}</td>
-                        <td style="font-size: 11px;">{data["recommendation"]}</td>
+                        <td style="font-size: 11px;">{recommendation}</td>
                     </tr>
             """
         frameworks_html += """

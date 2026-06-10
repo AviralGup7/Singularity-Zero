@@ -1,21 +1,24 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { exportFindings, getFindingById } from '../../api/client';
+import { exportFindings, getFindingById, bulkUpdateFindings } from '../../api/client';
 import { useApi } from '../../hooks/useApi';
 import { useProcessedFindings } from '../../hooks/useProcessedFindings';
+import { useDebouncedFilter } from '../../hooks/useDebouncedFilter';
 import { VirtualizedFindingsList } from '../../components/findings/VirtualizedFindingsList';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { SavedFilterPresets } from '../../components/ui/SavedFilterPresets';
 import { useToast } from '../../hooks/useToast';
 import type { Finding } from '../../types/api';
 import { FindingDetailPanel } from './components/FindingDetailPanel';
-import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2, Radio, X, AlertOctagon, TrendingUp, DollarSign } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Shield, Filter, Search, Loader2, X, AlertOctagon, TrendingUp, DollarSign, CheckSquare, UserPlus, Trash2, Tag } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ReportFab } from '../../components/report/ReportFab';
 
 export function FindingsPage() {
   const toast = useToast();
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [detailFinding, setDetailFinding] = useState<Finding | null>(null);
 
@@ -23,7 +26,7 @@ export function FindingsPage() {
     refetchInterval: detailFinding ? undefined : 5000,
   });
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const { filter: searchQuery, setFilter: setSearchQuery, debouncedFilter: debouncedSearch } = useDebouncedFilter(300);
 
   // Capture the export timestamp once at mount via an effect so render output
   // stays stable. Empty string is fine for the filename before mount completes.
@@ -41,7 +44,9 @@ export function FindingsPage() {
 
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
-
+  const [selectedFindingIds, setSelectedFindingIds] = useState<Set<string>>(new Set());
+  const [bulkActionMode, setBulkActionMode] = useState<string | null>(null);
+  const [bulkAssignee, setBulkAssignee] = useState('');
 
   // Live findings: discover new arrivals between polls and offer a "Load" button
   // so the user can pull them in without waiting for the next 5s refresh.
@@ -74,6 +79,72 @@ export function FindingsPage() {
   const dismissNewFindings = useCallback(() => {
     setNewFindingIds([]);
   }, []);
+
+  const toggleFindingSelection = useCallback((findingId: string) => {
+    setSelectedFindingIds(prev => {
+      const next = new Set(prev);
+      if (next.has(findingId)) {
+        next.delete(findingId);
+      } else {
+        next.add(findingId);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedFindingIds(new Set());
+    setBulkActionMode(null);
+  }, []);
+
+  const handleBulkStatus = useCallback(async (status: 'open' | 'closed' | 'accepted') => {
+    const ids = Array.from(selectedFindingIds);
+    if (ids.length === 0) return;
+    try {
+      await bulkUpdateFindings(ids, { lifecycle_state: status });
+      toast.success(`${ids.length} finding(s) updated to ${status}`);
+      clearSelection();
+    } catch {
+      toast.error('Bulk status update failed');
+    }
+  }, [selectedFindingIds, toast, clearSelection]);
+
+  const handleBulkFalsePositive = useCallback(async () => {
+    const ids = Array.from(selectedFindingIds);
+    if (ids.length === 0) return;
+    try {
+      await bulkUpdateFindings(ids, { falsePositive: true, fpStatus: 'approved', fpJustification: 'Bulk marked as false positive' });
+      toast.success(`${ids.length} finding(s) marked as false positive`);
+      clearSelection();
+    } catch {
+      toast.error('Bulk false positive marking failed');
+    }
+  }, [selectedFindingIds, toast, clearSelection]);
+
+  const handleBulkAssign = useCallback(async () => {
+    const ids = Array.from(selectedFindingIds);
+    if (ids.length === 0 || !bulkAssignee.trim()) return;
+    try {
+      await bulkUpdateFindings(ids, { assignee: bulkAssignee.trim() });
+      toast.success(`${ids.length} finding(s) assigned to ${bulkAssignee.trim()}`);
+      clearSelection();
+    } catch {
+      toast.error('Bulk assign failed');
+    }
+  }, [selectedFindingIds, bulkAssignee, toast, clearSelection]);
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedFindingIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} finding(s)? This cannot be undone.`)) return;
+    try {
+      await bulkUpdateFindings(ids, { deleted: true });
+      toast.success(`${ids.length} finding(s) deleted`);
+      clearSelection();
+    } catch {
+      toast.error('Bulk delete failed');
+    }
+  }, [selectedFindingIds, toast, clearSelection]);
 
   // Initialize filters from URL params
   useEffect(() => {
@@ -114,7 +185,7 @@ export function FindingsPage() {
    
   const emptyFindings = useMemo(() => [], []);
    
-  const filters = useMemo(() => ({ search: searchQuery, severity: severityFilter }), [searchQuery, severityFilter]);
+  const filters = useMemo(() => ({ search: debouncedSearch, severity: severityFilter }), [debouncedSearch, severityFilter]);
    
   const sort = useMemo(() => ({ key: sortKey, direction: sortDir }), [sortKey, sortDir]);
 
@@ -123,6 +194,10 @@ export function FindingsPage() {
     filters,
     sort
   );
+
+  const selectAllFindings = useCallback(() => {
+    setSelectedFindingIds(new Set(findings.map(f => f.id).filter(Boolean) as string[]));
+  }, [findings]);
 
   const handleExport = useCallback(async (format: 'csv' | 'json') => {
     try {
@@ -149,6 +224,16 @@ export function FindingsPage() {
       return key;
     });
   }, []);
+
+  const currentFilters = useMemo(() => ({
+    search: searchQuery,
+    severity: severityFilter.join(','),
+  }), [searchQuery, severityFilter]);
+
+  const handleLoadPreset = useCallback((filters: Record<string, string>) => {
+    if (filters.search) setSearchQuery(filters.search);
+    if (filters.severity) setSeverityFilter(filters.severity.split(',').filter(Boolean));
+  }, [setSearchQuery, setSeverityFilter]);
 
   if (loading && !findingsData) return (
     <div className="p-10 space-y-4">
@@ -293,9 +378,23 @@ export function FindingsPage() {
                  sev === 'medium' ? 'bg-medium' :
                  sev === 'low' ? 'bg-low' : 'bg-info';
                return (
-                 <button 
-                  key={sev}
-                  onClick={() => setSeverityFilter(prev => prev.includes(sev) ? prev.filter(s => s !== sev) : [...prev, sev])}
+           <button 
+                   key={sev}
+                   onClick={() => {
+                     setSeverityFilter(prev => {
+                       const next = prev.includes(sev) ? prev.filter(s => s !== sev) : [...prev, sev];
+                       setSearchParams(prev => {
+                         const params = new URLSearchParams(prev);
+                         if (next.length > 0) {
+                           params.set('severity', next.join(','));
+                         } else {
+                           params.delete('severity');
+                         }
+                         return params;
+                       }, { replace: true });
+                       return next;
+                     });
+                   }}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all flex items-center gap-2 cursor-pointer ${
                     severityFilter.includes(sev) 
                       ? 'bg-white/10 border-white/25 text-white' 
@@ -309,6 +408,11 @@ export function FindingsPage() {
              })}
            </div>
         </div>
+
+        <SavedFilterPresets
+          currentFilters={currentFilters}
+          onLoadPreset={handleLoadPreset}
+        />
       </div>
 
       {/* ── Virtualized Data Grid ─────────────────────────────────── */}
@@ -319,12 +423,94 @@ export function FindingsPage() {
           </div>
         )}
         
-        <VirtualizedFindingsList 
-          findings={findings}
-          height="100%"
-          onSelect={setDetailFinding}
-        />
+        {!isProcessing && findings.length === 0 && (searchQuery || severityFilter.length > 0) ? (
+          <div className="flex items-center justify-center h-full p-8">
+            <EmptyState
+              title="No findings match your filters"
+              description="Try adjusting your search query or severity filters to find what you're looking for."
+              icon="shield"
+            />
+          </div>
+        ) : (
+          <VirtualizedFindingsList 
+            findings={findings}
+            height="100%"
+            onSelect={setDetailFinding}
+            selectedIds={selectedFindingIds}
+            onToggleSelect={toggleFindingSelection}
+            selectionMode={selectedFindingIds.size > 0}
+          />
+        )}
       </div>
+
+      {/* ── Bulk Action Bar (Grid View) ───────────────────────────── */}
+      <AnimatePresence>
+        {selectedFindingIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-[0_0_30px_rgba(0,0,0,0.5)]"
+            role="toolbar"
+            aria-label="Bulk actions for selected findings"
+          >
+            <div className="flex items-center gap-2 pr-4 border-r border-white/10">
+              <span className="text-xs font-black text-accent">{selectedFindingIds.size}</span>
+              <span className="text-[10px] text-muted uppercase tracking-widest">selected</span>
+            </div>
+            <button
+              type="button"
+              onClick={selectAllFindings}
+              className="text-[10px] font-black uppercase tracking-widest text-muted hover:text-white transition-colors px-2 py-1"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="text-[10px] font-black uppercase tracking-widest text-muted hover:text-white transition-colors px-2 py-1"
+            >
+              Clear
+            </button>
+            <div className="w-px h-6 bg-white/10" />
+            {bulkActionMode === 'status' ? (
+              <div className="flex items-center gap-2">
+                <button onClick={() => handleBulkStatus('open')} className="btn-secondary btn-small text-[9px]">New</button>
+                <button onClick={() => handleBulkStatus('accepted')} className="btn-secondary btn-small text-[9px]">In Progress</button>
+                <button onClick={() => handleBulkStatus('closed')} className="btn-secondary btn-small text-[9px]">Resolved</button>
+                <button onClick={() => setBulkActionMode(null)} className="btn-ghost btn-small text-[9px]">Cancel</button>
+              </div>
+            ) : bulkActionMode === 'assign' ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Assignee..."
+                  value={bulkAssignee}
+                  onChange={e => setBulkAssignee(e.target.value)}
+                  className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] font-mono text-text w-28 focus:border-accent/50 outline-none"
+                />
+                <button onClick={handleBulkAssign} disabled={!bulkAssignee.trim()} className="btn-primary btn-small text-[9px] disabled:opacity-40">Assign</button>
+                <button onClick={() => { setBulkActionMode(null); setBulkAssignee(''); }} className="btn-ghost btn-small text-[9px]">Cancel</button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setBulkActionMode('status')} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
+                  <CheckSquare size={12} /> Status
+                </button>
+                <button onClick={handleBulkFalsePositive} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
+                  <Tag size={12} /> Mark FP
+                </button>
+                <button onClick={() => setBulkActionMode('assign')} className="btn-secondary btn-small text-[9px] flex items-center gap-1">
+                  <UserPlus size={12} /> Assign
+                </button>
+                <button onClick={handleBulkDelete} className="btn-secondary btn-small text-[9px] flex items-center gap-1 text-rose-400 hover:text-rose-300">
+                  <Trash2 size={12} /> Delete
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Side Detail Panel ─────────────────────────────────────── */}
       <AnimatePresence>

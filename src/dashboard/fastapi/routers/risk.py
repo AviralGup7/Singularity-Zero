@@ -1,3 +1,4 @@
+import logging
 """Risk score endpoints for historical CSI views."""
 
 from __future__ import annotations
@@ -41,8 +42,8 @@ def _parse_timestamp(raw: Any, fallback: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(text)
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-    except ValueError:
-        pass
+    except ValueError as exc:
+        logging.warning("Operation failed in risk.py: %s", exc, exc_info=True)  # noqa: BLE001
     for pattern in ("%Y%m%d-%H%M%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
         try:
             return datetime.strptime(str(raw or fallback), pattern).replace(tzinfo=UTC)

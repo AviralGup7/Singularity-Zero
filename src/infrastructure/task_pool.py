@@ -1,13 +1,14 @@
+from __future__ import annotations
+import logging
 """Single-node asyncio task pool, filesystem run lock, and mesh compatibility shim."""
 
-from __future__ import annotations
 
 import asyncio
 import enum
 import os
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -61,16 +62,16 @@ class SimpleTaskPool:
             self._dispatcher.cancel()
             try:
                 await self._dispatcher
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as exc:
+                logging.warning("Operation failed in task_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
         async with self._lock:
             while not self._queue.empty():
                 _priority, task = self._queue.get_nowait()
                 task.cancel()
                 try:
                     await task
-                except asyncio.CancelledError:
-                    pass
+                except asyncio.CancelledError as exc:
+                    logging.warning("Operation failed in task_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
         if self._active_tasks:
             await asyncio.gather(*self._active_tasks, return_exceptions=True)
 
@@ -84,20 +85,84 @@ class SimpleTaskPool:
 
 
 class RunLock:
-    """Filesystem-based run lock that prevents concurrent scans of the same target."""
+    """Distributed run lock that prevents concurrent scans of the same target.
 
-    def __init__(self, cache_dir: Path | None = None) -> None:
+    Uses Redis SET NX PX for cross-node locking when Redis is available,
+    falling back to filesystem-based locking for single-node deployments.
+    """
+
+    REDIS_LOCK_PREFIX = "cyber:run_lock:"
+
+    def __init__(self, cache_dir: Path | None = None, redis_url: str | None = None) -> None:
         self._cache_dir = cache_dir or _CACHE_DIR
         self._lock_file: Path | None = None
         self._file_handle: int | None = None
         self._acquired = False
         self._thread_lock = threading.Lock()
+        self._redis_url = redis_url or os.getenv("REDIS_URL")
+        self._redis_client: Any = None
+        self._lock_key: str | None = None
+        self._lock_value: str | None = None
 
-    def acquire(self, scan_id: str) -> bool:
-        """Attempt to acquire an exclusive lock for *scan_id*. Returns ``True`` on success."""
+    def _get_redis(self) -> Any:
+        """Lazily initialize a Redis client for distributed locking."""
+        if self._redis_client is not None:
+            return self._redis_client
+        if not self._redis_url:
+            return None
+        try:
+            import redis
+            self._redis_client = redis.Redis.from_url(
+                self._redis_url,
+                socket_timeout=5,
+                socket_connect_timeout=5,
+                decode_responses=True,
+            )
+            self._redis_client.ping()
+            return self._redis_client
+        except Exception as exc:
+            logging.debug("Redis unavailable for distributed lock, using filesystem: %s", exc)
+            self._redis_client = None
+            return None
+
+    def acquire(self, scan_id: str, ttl_seconds: int = 3600) -> bool:
+        """Attempt to acquire an exclusive lock for *scan_id*.
+
+        Tries Redis SET NX PX first (cross-node safe); falls back to
+        filesystem if Redis is unavailable.
+
+        Args:
+            scan_id: Unique identifier for the scan/run.
+            ttl_seconds: Lock expiry in seconds (default 1 hour).
+
+        Returns:
+            True on success, False if the lock is already held.
+        """
         with self._thread_lock:
             if self._acquired:
                 raise RuntimeError("RunLock is already acquired. Call release() first.")
+
+            # Try Redis distributed lock first
+            redis = self._get_redis()
+            if redis is not None:
+                import uuid
+                self._lock_key = f"{self.REDIS_LOCK_PREFIX}{scan_id}"
+                self._lock_value = str(uuid.uuid4())
+                try:
+                    acquired = redis.set(
+                        self._lock_key,
+                        self._lock_value,
+                        nx=True,
+                        px=ttl_seconds * 1000,
+                    )
+                    if acquired:
+                        self._acquired = True
+                        return True
+                    return False
+                except Exception as exc:
+                    logging.debug("Redis lock acquire failed, falling back to filesystem: %s", exc)
+
+            # Fallback: filesystem lock
             self._cache_dir.mkdir(parents=True, exist_ok=True)
             self._lock_file = self._cache_dir / f"{scan_id}.lock"
             try:
@@ -115,17 +180,38 @@ class RunLock:
         with self._thread_lock:
             if not self._acquired:
                 return
+
+            # Release Redis lock if held
+            if self._lock_key and self._lock_value:
+                redis = self._get_redis()
+                if redis is not None:
+                    try:
+                        # Only delete if we own it (compare-and-delete)
+                        lua_script = """
+                        if redis.call("GET", KEYS[1]) == ARGV[1] then
+                            return redis.call("DEL", KEYS[1])
+                        else
+                            return 0
+                        end
+                        """
+                        redis.eval(lua_script, 1, self._lock_key, self._lock_value)
+                    except Exception as exc:
+                        logging.debug("Redis lock release failed: %s", exc)
+                self._lock_key = None
+                self._lock_value = None
+
+            # Release filesystem lock if held
             if self._file_handle is not None:
                 try:
                     os.close(self._file_handle)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logging.warning("Operation failed in task_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
                 self._file_handle = None
             if self._lock_file and self._lock_file.exists():
                 try:
                     self._lock_file.unlink()
-                except OSError:
-                    pass
+                except OSError as exc:
+                    logging.warning("Operation failed in task_pool.py: %s", exc, exc_info=True)  # noqa: BLE001
             self._lock_file = None
             self._acquired = False
 

@@ -35,6 +35,7 @@ class WorkerTaskHandlersMixin:
                     return
                 await asyncio.sleep(2.0)
 
+        cancel_checker: asyncio.Task[None] | None = None
         cancel_checker = asyncio.create_task(check_cancelled())
 
         job.mark_running()
@@ -55,6 +56,11 @@ class WorkerTaskHandlersMixin:
 
         try:
             handler = self.handler or self.queue.get_handler(job.type)
+            if handler is None:
+                from src.infrastructure.queue.plugin_handler_bridge import (
+                    resolve_handler_for_job_type,
+                )
+                handler = resolve_handler_for_job_type(self.queue, job.type)
             if handler is None:
                 raise ValueError(
                     f"No handler registered for job type: {job.type}"
@@ -143,7 +149,12 @@ class WorkerTaskHandlersMixin:
             self._info.total_failed += 1
 
         finally:
-            cancel_checker.cancel()
+            if cancel_checker is not None:
+                cancel_checker.cancel()
+                try:
+                    await cancel_checker
+                except asyncio.CancelledError as exc:
+                    logger.warning("Operation failed in task_handlers.py: %s", exc, exc_info=True)  # noqa: BLE001
             if job.id in self._info.active_jobs:
                 self._info.active_jobs.remove(job.id)
 

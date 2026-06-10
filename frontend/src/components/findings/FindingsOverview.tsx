@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFindingsSummary } from '../../api/client';
 import type { FindingsSummary } from '@/types/api';
@@ -52,9 +52,11 @@ export default function FindingsOverview() {
    
   }, [summary]);
 
-  const handleSeverityClick = (sev: string) => {
+  const handleSeverityClick = useCallback((sev: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('severity', sev);
     navigate(`/findings?severity=${sev}`);
-  };
+  }, [navigate]);
 
   const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -159,6 +161,7 @@ export default function FindingsOverview() {
                 onKeyDown={(e) => handleKeyDown(e, () => handleSeverityClick(sev))}
                 role="button"
                 tabIndex={0}
+                aria-label={`Filter findings by ${sev} severity`}
               >
                 <div className="relative w-full flex flex-col justify-end h-full">
                   <div className={`w-full rounded-t-lg transition-all duration-700 group-hover:scale-x-110 ${Reflect.get(colors, sev)}`} 

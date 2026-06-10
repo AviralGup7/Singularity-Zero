@@ -12,26 +12,48 @@ interface SortOptions {
   direction: 'asc' | 'desc';
 }
 
+/**
+ * Shared Web Worker instance — created once at module level and reused
+ * across all mounts of useProcessedFindings. This prevents the
+ * memory/CPU churn of creating and terminating a worker on every mount.
+ */
+let sharedWorker: Worker | null = null;
+let sharedWorkerRefCount = 0;
+
+function getSharedWorker(): Worker {
+  if (!sharedWorker) {
+    sharedWorker = new Worker(
+      new URL('../workers/findingsProcessor.ts', import.meta.url),
+      { type: 'module' }
+    );
+  }
+  sharedWorkerRefCount++;
+  return sharedWorker;
+}
+
+function releaseSharedWorker(): void {
+  sharedWorkerRefCount--;
+  if (sharedWorkerRefCount <= 0 && sharedWorker) {
+    sharedWorker.terminate();
+    sharedWorker = null;
+    sharedWorkerRefCount = 0;
+  }
+}
+
 export function useProcessedFindings(
   rawFindings: Finding[],
   filters: FilterOptions,
   sort: SortOptions
 ) {
-   
   const [processed, setProcessed] = useState<Finding[]>(rawFindings);
-   
   const [isProcessing, setIsProcessing] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
-    // Vite-specific worker initialization
-    workerRef.current = new Worker(
-      new URL('../workers/findingsProcessor.ts', import.meta.url),
-      { type: 'module' }
-    );
-
+    workerRef.current = getSharedWorker();
     return () => {
-      workerRef.current?.terminate();
+      releaseSharedWorker();
+      workerRef.current = null;
     };
   }, []);
 
@@ -41,7 +63,6 @@ export function useProcessedFindings(
     if (!workerRef.current) return;
 
     let isCurrent = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsProcessing(true);
 
     workerRef.current.onmessage = (event) => {

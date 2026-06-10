@@ -130,6 +130,12 @@ class StageResult:
     #: WAF/CDN detection findings
     waf_findings: list[dict[str, Any]] = field(default_factory=list)
 
+    #: Enhanced recon extras (port_scan, spa, graphql, api_specs, etc.)
+    recon_extras: dict[str, Any] = field(default_factory=dict)
+
+    #: Structured recon candidates (subdomains, URLs, parameters with scores)
+    recon_candidates: list[dict[str, Any]] = field(default_factory=list)
+
     def apply_state_delta(self, delta: dict[str, Any]) -> None:
         """Atomically merge an incremental delta using Neural-Mesh logic."""
         with self._lock:
@@ -753,6 +759,22 @@ class PipelineContext:
     @waf_findings.setter
     def waf_findings(self, value: list[dict[str, Any]]) -> None:
         self.result.waf_findings = value
+
+    @property
+    def recon_extras(self) -> dict[str, Any]:
+        return self.result.recon_extras
+
+    @recon_extras.setter
+    def recon_extras(self, value: dict[str, Any]) -> None:
+        self.result.recon_extras = value
+
+    @property
+    def recon_candidates(self) -> list[dict[str, Any]]:
+        return self.result.recon_candidates
+
+    @recon_candidates.setter
+    def recon_candidates(self, value: list[dict[str, Any]]) -> None:
+        self.result.recon_candidates = value
 
     @property
     def stage_status(self) -> dict[str, str]:

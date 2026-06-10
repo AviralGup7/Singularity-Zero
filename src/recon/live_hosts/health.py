@@ -173,8 +173,8 @@ def probe_host_without_httpx(host: str, timeout_seconds: int) -> dict[str, Any] 
                     ip6 = info[4][0]
                     candidates.append(f"https://[{ip6}]")
                     candidates.append(f"http://[{ip6}]")
-        except (socket.gaierror, socket.herror, OSError):
-            pass
+        except (socket.gaierror, socket.herror, OSError) as exc:
+            logger.warning("Operation failed in health.py: %s", exc, exc_info=True)  # noqa: BLE001
 
     pool = get_pooled_connection()
     seen = set()

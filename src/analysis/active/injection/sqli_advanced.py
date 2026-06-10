@@ -226,9 +226,15 @@ def sqli_advanced_probe(
             continue
 
         baseline = response_cache.request(url)
-        baseline_status = int(baseline.get("status_code") or 200) if baseline else 200
-        baseline_len = len(str(baseline.get("body_text") or "")) if baseline else 0
-        db_type = _detect_database_type(url, str(baseline.get("body_text") or ""), {})
+        if baseline:
+            baseline_status = int(baseline.get("status_code") or 0)
+            baseline_len = len(str(baseline.get("body_text") or ""))
+            baseline_headers = dict(baseline.get("headers") or {})
+        else:
+            baseline_status = None
+            baseline_len = 0
+            baseline_headers = {}
+        db_type = _detect_database_type(url, str(baseline.get("body_text") or "") if baseline else "", baseline_headers)
 
         url_findings: list[dict[str, Any]] = []
         url_issues: list[str] = []
@@ -277,7 +283,7 @@ def sqli_advanced_probe(
                 issues_for_hit: list[str] = []
 
                 is_timing = elapsed_ms > 4000
-                is_error = bool(error_match) or (status == 500 and baseline_status < 400)
+                is_error = bool(error_match) or (status == 500 and baseline_status is not None and baseline_status < 400)
                 is_oob = "oob" in payload_type and elapsed_ms > 3000
                 is_boolean = "boolean" in payload_type
                 is_union = "union" in payload_type
