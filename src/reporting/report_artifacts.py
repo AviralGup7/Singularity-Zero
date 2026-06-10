@@ -195,7 +195,7 @@ def build_cyclonedx_sbom(
     return {
         "bomFormat": "CycloneDX",
         "specVersion": CYCLONEDX_VERSION,
-        "serialNumber": f"urn:uuid:{sha256_bytes(f'{target_name}:{run_id}'.encode(\"utf-8\"))[:32]}",
+        "serialNumber": f"urn:uuid:{sha256_bytes(f'{target_name}:{run_id}'.encode('utf-8'))[:32]}",
         "version": 1,
         "metadata": {
             "timestamp": _now_iso(),
