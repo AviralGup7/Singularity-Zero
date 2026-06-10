@@ -29,6 +29,13 @@ function validateUrl(url: string, baseURL?: string): boolean {
     const base = baseURL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
     const resolved = new URL(url, base);
     if (!ALLOWED_PROTOCOLS.includes(resolved.protocol)) return false;
+    if (typeof window !== 'undefined' && (
+      resolved.host === window.location.host ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+    )) {
+      return true;
+    }
     if (import.meta.env.DEV) return true;
     if (resolved.hostname === 'localhost' || resolved.hostname === '127.0.0.1') return false;
     return true;
