@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from src.pipeline.services.pipeline_orchestrator._graph_dsl import (
     AlwaysTrue,
@@ -102,7 +102,7 @@ def get_by_capability(capability: str) -> list[StageNodeDefinition]:
 
 
 def _make_stage_node(defn: StageNodeDefinition) -> StageNode:
-    from src.pipeline.services.pipeline_orchestrator._graph_dsl import AlwaysTrue, StageNode
+    from src.pipeline.services.pipeline_orchestrator._graph_dsl import StageNode
 
     return StageNode(
         name=defn.name,
@@ -116,7 +116,6 @@ def _make_stage_node(defn: StageNodeDefinition) -> StageNode:
 
 def _register_builtin_stages() -> None:
     from src.pipeline.services.pipeline_orchestrator._graph_dsl import (
-        AlwaysTrue,
         AnyOf,
         OutputNonEmpty,
         StageCompleted,

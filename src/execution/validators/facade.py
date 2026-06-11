@@ -4,7 +4,7 @@ Offers validate_target() and validate_many() functions for running individual
 or batch validations against targets using named validators.
 """
 
-from typing import Any, cast
+from typing import Any
 
 from src.core.models import ValidationResult
 from src.execution.validators.validators.registry_builder import VALIDATOR_REGISTRY

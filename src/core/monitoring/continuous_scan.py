@@ -96,7 +96,11 @@ class ContinuousScanMode:
         return alerts_sent
 
     async def _run_pipeline_for_scope(
-        self, scope_entries: list[str], output_dir: Path, target_name: str, config_path: Path | None = None
+        self,
+        scope_entries: list[str],
+        output_dir: Path,
+        target_name: str,
+        config_path: Path | None = None,
     ) -> ScanCycleResult:
         result = ScanCycleResult()
         current_assets = await self._inventory_mgr.discover_all()
@@ -168,7 +172,10 @@ class ContinuousScanMode:
                 cycle_start = asyncio.get_running_loop().time()
                 try:
                     result = await self._run_pipeline_for_scope(
-                        scope_entries=[], output_dir=output_dir, target_name=target_name, config_path=config_path
+                        scope_entries=[],
+                        output_dir=output_dir,
+                        target_name=target_name,
+                        config_path=config_path,
                     )
                     logger.info(
                         "Cycle complete: new=%d removed=%d scans=%d alerts=%d",

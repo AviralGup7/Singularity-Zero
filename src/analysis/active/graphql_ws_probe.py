@@ -238,7 +238,9 @@ def graphql_ws_injection_probe(
         List of finding dicts. Each finding contains the URL, the
         per-subprotocol results, and the corresponding issue labels.
     """
-    origin_values: list[str | None] = origins if origins is not None else [None, "https://evil.example.com", "null"]
+    origin_values: list[str | None] = (
+        origins if origins is not None else [None, "https://evil.example.com", "null"]
+    )
 
     candidates: list[str] = []
     for entry in priority_urls:
