@@ -56,10 +56,10 @@ class Role(StrEnum):
     ADMIN = "admin"
 
 
-CUSTOM_ROLES: dict[str, Role] = {}
+CUSTOM_ROLES: dict[str, Any] = {}
 
 
-def register_role(name: str) -> Role:
+def register_role(name: str) -> Any:
     """Register a custom role and return it.
 
     Because :class:`Role` is a closed :class:`enum.Enum` we cannot
