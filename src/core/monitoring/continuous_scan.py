@@ -97,7 +97,7 @@ class ContinuousScanMode:
 
     async def _run_pipeline_for_scope(
         self, scope_entries: list[str], output_dir: Path, target_name: str, config_path: Path
-    ) -> int:
+    ) -> ScanCycleResult:
         result = ScanCycleResult()
         current_assets = await self._inventory_mgr.discover_all()
         asset_diff = self._inventory_mgr.diff_against_checkpoint(
@@ -167,7 +167,7 @@ class ContinuousScanMode:
             while True:
                 cycle_start = asyncio.get_running_loop().time()
                 try:
-                    result = await self.run_cycle(
+                    result = await self._run_pipeline_for_scope(
                         output_dir=output_dir,
                         target_name=target_name,
                         asset_diff_only=asset_diff_only,

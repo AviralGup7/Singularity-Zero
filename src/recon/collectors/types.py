@@ -24,7 +24,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
-from typing import Any
+from typing import Any, ItemsView, KeysView, ValuesView
 
 
 class CollectorStatus(StrEnum):
@@ -142,13 +142,13 @@ class CollectorMeta:
     def __iter__(self) -> Iterator[str]:
         return iter(self._as_dict())
 
-    def items(self):
+    def items(self) -> ItemsView[str, Any]:
         return self._as_dict().items()
 
-    def keys(self):
+    def keys(self) -> KeysView[str]:
         return self._as_dict().keys()
 
-    def values(self):
+    def values(self) -> ValuesView[Any]:
         return self._as_dict().values()
 
     # ------------------------------------------------------------------

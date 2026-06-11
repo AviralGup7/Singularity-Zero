@@ -211,7 +211,7 @@ class CredentialVault:
             scope_netloc = _safe_netloc(cred.scope_url or "")
             if not scope_netloc or scope_netloc != target_netloc:
                 continue
-            score = len(scope_netloc)
+            score = float(len(scope_netloc))
             if cred.scope_url and target_path.startswith(
                 cred.scope_url.split(scope_netloc, 1)[1] or "/"
             ):
@@ -361,7 +361,7 @@ class CredentialVault:
         return list(self._saml_assertion_history)
 
 
-def _safe_netloc(url: str) -> str:
+def _safe_netloc(url: str | None) -> str:
     try:
         return urlparse(url).hostname or ""
     except Exception:  # noqa: S110

@@ -109,8 +109,8 @@ class SQLiteBackend:
                 last_exc = exc
                 try:
                     conn.rollback()
-                except sqlite3.Error as exc:
-                    logger.warning("Operation failed in sqlite.py: %s", exc, exc_info=True)  # noqa: BLE001
+                except sqlite3.Error as rollback_exc:
+                    logger.warning("Operation failed in sqlite.py: %s", rollback_exc, exc_info=True)  # noqa: BLE001
                 self._close_conn()
                 if not self._is_locked_error(exc) or attempt == _LOCK_RETRY_ATTEMPTS - 1:
                     raise

@@ -55,7 +55,7 @@ class SimpleTaskPool:
         if not self._running:
             raise RuntimeError("SimpleTaskPool is not running. Call start() first.")
         await self._queue.put((priority, asyncio.ensure_future(coroutine)))
-        return self._queue.queue[-1][1]
+        return self._queue.get_nowait()[1]
 
     async def shutdown(self) -> None:
         """Cancel pending tasks and wait for the queue to drain."""

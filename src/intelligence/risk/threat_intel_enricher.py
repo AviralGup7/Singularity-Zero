@@ -102,21 +102,21 @@ class ThreatIntelEnricher:
 
     # -- clients (lazy loaded) ----------------------------------------
 
-    def _get_epss(self):
+    def _get_epss(self) -> Any:
         if self._epss is None:
             from src.intelligence.risk.epss import get_default_epss_client
 
             self._epss = get_default_epss_client()
         return self._epss
 
-    def _get_kev(self):
+    def _get_kev(self) -> Any:
         if self._kev is None:
             from src.intelligence.risk.cisa_kev import get_default_cisa_kev_client
 
             self._kev = get_default_cisa_kev_client()
         return self._kev
 
-    def _get_correlator(self):
+    def _get_correlator(self) -> Any | None:
         if self._correlator is None:
             try:
                 from src.intelligence.threat_intel import ThreatIntelCorrelator
