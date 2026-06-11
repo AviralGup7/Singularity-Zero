@@ -164,8 +164,12 @@ class CachePoisoningValidator(BaseValidator):
                 evaluation = evaluate_cache_poison(
                     target_url=url,
                     unkeyed_header=header,
-                    probe_response=(cast(dict[str, Any], probe).get("probe_response") if probe else None),
-                    followup_response=(cast(dict[str, Any], probe).get("followup_response") if probe else None),
+                    probe_response=(
+                        cast(dict[str, Any], probe).get("probe_response") if probe else None
+                    ),
+                    followup_response=(
+                        cast(dict[str, Any], probe).get("followup_response") if probe else None
+                    ),
                     scoring=scoring,
                     in_scope=bool(context.in_scope_for(url)),
                 )

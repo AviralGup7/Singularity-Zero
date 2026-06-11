@@ -572,7 +572,6 @@ class GossipEngine:
             bandwidth_mbps=int(entry.get("bandwidth_mbps", 0) or 0),
             capacity_weight=float(entry.get("capacity_weight", 1.0) or 1.0),
             version_vector=MappingProxyType(dict(version_vector) if version_vector else {}),
-
             last_seen=time.time(),
         )
         with self._mesh_lock:

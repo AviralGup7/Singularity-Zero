@@ -79,7 +79,11 @@ class JobQueueRateLimiterMixin:
                     ],
                     args=[worker_id, str(self.lease_seconds), str(time.time())],
                 )
-                if isinstance(script_result, list) and len(script_result) > 0 and script_result[0] == 1:
+                if (
+                    isinstance(script_result, list)
+                    and len(script_result) > 0
+                    and script_result[0] == 1
+                ):
                     logger.info("Worker %s claimed job %s (scheduled)", worker_id, job_id)
                     return job
             else:
