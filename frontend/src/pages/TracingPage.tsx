@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, ExternalLink, RefreshCw, Zap, ChevronRight } from 'lucide-react';
 import { getTrace, getTraces, getTracingConfig, type TraceDetail, type TraceSpan, type TraceSummary, type TracingConfig } from '@/api/tracing';
-import { PageHeader, GlassCard, Button } from '@/components/ui';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { Button } from '@/components/ui/Button';
 
 const TIME_RANGES = [
   { label: '15m', value: 15 * 60 * 1000 },

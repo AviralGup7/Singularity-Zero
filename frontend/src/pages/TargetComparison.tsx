@@ -4,7 +4,9 @@ import { ArrowLeftRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { Target } from '../types/api';
 import { useTargets } from '../hooks';
 import { compareTargets } from '@/api/client';
-import { GlassCard, AnimatedCounter, PageHeader } from '@/components/ui';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 interface TargetComparisonProps {
   targets?: Target[];

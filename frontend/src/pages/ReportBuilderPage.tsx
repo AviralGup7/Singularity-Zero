@@ -6,7 +6,8 @@ import { FileText, Download, Filter, Search, Shield, X, CheckSquare, Square, Fil
 import { getFindings, bulkUpdateFindings } from '@/api/findings';
 import { ApiError } from '@/api/core';
 import type { Finding } from '@/types/api';
-import { GlassCard, PageHeader } from '@/components/ui';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { exportReportBundle, type ReportFormat } from '@/utils/findingExport';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 

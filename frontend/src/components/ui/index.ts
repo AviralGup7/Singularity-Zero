@@ -23,7 +23,6 @@ export { PageHeader, type PageHeaderProps } from './PageHeader';
 
 // ── Radix-based UI Primitives (ui-shadcn) ──────────────────
 // Import directly: import { Dialog, Sheet, Command } from '@/components/ui-shadcn'
-export * from '../ui-shadcn';
 
 // ── Overhaul Auto-exports ──────────────────────────────────
 export * from './Toast';

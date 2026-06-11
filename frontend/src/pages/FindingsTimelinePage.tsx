@@ -4,7 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CalendarClock, Filter, RefreshCw } from 'lucide-react';
 import { useFindingsTimeline, useMotionPolicy, useTargets } from '@/hooks';
 import type { FindingTimelineEvent } from '@/types/extended';
-import { EmptyState, SkeletonTable, PageHeader, GlassCard, AnimatedCounter } from '@/components/ui';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonTable } from '@/components/ui/Skeleton';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
 
 const SEVERITIES = ['', 'critical', 'high', 'medium', 'low', 'info'];
 const PAGE_SIZE = 30;

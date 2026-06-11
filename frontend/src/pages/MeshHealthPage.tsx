@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/useToast';
 import { useMotionPolicy } from '@/hooks/useMotionPolicy';
 import { useSSEProgress, type SseEvent } from '@/hooks/useSSEProgress';
 import type { Job, MeshEdge, MeshHealth, MeshNode } from '@/types/api';
-import { PageSkeleton } from '@/components/ui';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 
 interface JobListPayload {
   jobs: Job[];

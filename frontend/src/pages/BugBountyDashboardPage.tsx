@@ -8,7 +8,9 @@ import {
 
 import { getFindings, updateFinding } from '@/api/findings';
 import type { Finding } from '@/types/api';
-import { GlassCard, PageHeader, EmptyState } from '@/components/ui';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { SubmitToPlatformDialog } from '@/pages/findings/components/SubmitToPlatformDialog';
 import { useToast } from '@/hooks/useToast';
 import { useDebouncedFilter } from '@/hooks/useDebouncedFilter';

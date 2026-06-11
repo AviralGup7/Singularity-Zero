@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let sseEventHandler: ((event: Record<string, unknown>) => void) | undefined;
 
@@ -77,7 +77,6 @@ const baseJob = {
 
 describe('useJobMonitor recon failure terminal handling', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     sseEventHandler = undefined;
     getJobMock.mockReset();
     getJobLogsMock.mockReset();
@@ -88,12 +87,8 @@ describe('useJobMonitor recon failure terminal handling', () => {
     getHistoricalDurationsMock.mockResolvedValue([]);
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('keeps sseError after completed event with failed status', async () => {
-    const { result, unmount } = renderHook(() => useJobMonitor('job-1'));
+    const { result } = renderHook(() => useJobMonitor('job-1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(sseEventHandler).toBeTypeOf('function');
@@ -121,12 +116,10 @@ describe('useJobMonitor recon failure terminal handling', () => {
     });
 
     await waitFor(() => expect(result.current.sseError).toBe('Recon failed at URLs'));
-
-    unmount();
   });
 
   it('does not clear sseError after completed event with stopped status', async () => {
-    const { result, unmount } = renderHook(() => useJobMonitor('job-1'));
+    const { result } = renderHook(() => useJobMonitor('job-1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(sseEventHandler).toBeTypeOf('function');
@@ -154,7 +147,5 @@ describe('useJobMonitor recon failure terminal handling', () => {
     });
 
     await waitFor(() => expect(result.current.sseError).toBe('Recon failure remains visible'));
-
-    unmount();
   });
 });
